@@ -17,7 +17,7 @@
 // for the inline pages, a Tailwind table for the class pairs — and every pair is checked in LIGHT and
 // DARK. A failure prints the measured ratio, not an opinion.
 //   bun scripts/check-contrast-measured.ts
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 let failed = 0
 const fail = (m: string) => { failed++; console.error('FAIL: ' + m) }
@@ -249,21 +249,32 @@ for (const t of BRAND_TEXT) {
  * table is the thing that goes stale.
  */
 {
-  const cfgPath = ROOT + 'templates/crm/frontend/tailwind.config.js'
-  let palette: ((hex: string) => Record<string, string>) | null = null
-  try {
-    const src = readFileSync(cfgPath, 'utf8').replace(/\r/g, '')
-    const body = src.slice(0, src.search(/^(export default|module\.exports)/m))
-    palette = new Function(body + '; return generatePalette;')() as (hex: string) => Record<string, string>
-  } catch (e: any) {
-    fail('could not load generatePalette from ' + cfgPath + ': ' + (e?.message || e))
+  const hslHex = (h: number) => {
+    const s = 1, l = 0.5, a = s * Math.min(l, 1 - l)
+    const f = (n: number) => { const k = (n + h / 30) % 12; return l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1) }
+    return '#' + [f(0), f(8), f(4)].map((x) => Math.round(x * 255).toString(16).padStart(2, '0')).join('')
   }
-  if (palette) {
-    const hslHex = (h: number) => {
-      const s = 1, l = 0.5, a = s * Math.min(l, 1 - l)
-      const f = (n: number) => { const k = (n + h / 30) % 12; return l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1) }
-      return '#' + [f(0), f(8), f(4)].map((x) => Math.round(x * 255).toString(16).padStart(2, '0')).join('')
+  // Every template that ships the palette, not just the base one: each has its OWN copy of
+  // generatePalette, so checking one file would leave the other ten free to drift. Parked templates
+  // are reported, never failed — see CLAUDE.md.
+  const PARKED = new Set(['crm-homecare', 'crm-automotive'])
+  let checked = 0
+  for (const t of readdirSync(ROOT + 'templates').sort()) {
+    const cfgPath = ROOT + 'templates/' + t + '/frontend/tailwind.config.js'
+    let src: string
+    try { src = readFileSync(cfgPath, 'utf8').replace(/\r/g, '') } catch { continue }
+    if (!/function generatePalette/.test(src)) continue
+    if (PARKED.has(t)) { console.log(`  (parked, not enforced: ${t})`); continue }
+
+    let palette: ((hex: string) => Record<string, string>) | null = null
+    try {
+      const body = src.slice(0, src.search(/^(export default|module\.exports)/m))
+      palette = new Function(body + '; return generatePalette;')() as (hex: string) => Record<string, string>
+    } catch (e: any) {
+      fail('could not load generatePalette from ' + cfgPath + ': ' + (e?.message || e))
+      continue
     }
+    checked++
     let worst = { shade: '', hue: -1, r: Infinity }
     for (let h = 0; h < 360; h++) {
       const p = palette(hslHex(h))
@@ -273,9 +284,10 @@ for (const t of BRAND_TEXT) {
       }
     }
     if (worst.r < AA) {
-      fail(`white text on the brand button: ${worst.r.toFixed(2)}:1 at hue ${worst.hue} on shade ${worst.shade} — generatePalette must keep 500 and 600 dark enough for white to clear ${AA}:1 at EVERY hue, or a tenant who picks yellow/lime/green/teal/cyan gets an unreadable primary button`)
+      fail(`${t}: white text on the brand button is ${worst.r.toFixed(2)}:1 at hue ${worst.hue} on shade ${worst.shade} — generatePalette must keep 500 and 600 dark enough for white to clear ${AA}:1 at EVERY hue, or a tenant who picks yellow/lime/green/teal/cyan gets an unreadable primary button`)
     }
   }
+  if (checked === 0) fail('no template tailwind.config.js exposed generatePalette — this check silently measured nothing')
 }
 
 if (failed) { console.error(`\ncontrast measured: ${failed} pair(s) below ${AA}:1`); process.exit(1) }
