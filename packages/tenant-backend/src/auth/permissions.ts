@@ -41,6 +41,13 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'roof-reports:*', 'financing:*',
     // Connection + receptionist configuration — admin, the same line settings:* already draws.
     'integrations:*', 'ai-receptionist:*',
+    // Support-desk configuration, NOT the desk work. Raising a ticket, replying, rating one and
+    // asking the AI assistant stay open to everyone who can sign in — those are how a user gets
+    // help. What is gated is publishing the knowledge base (HelpPage.tsx already shows that view
+    // only to the admin role; the server never enforced it) and the SLA policy that sets the
+    // response and resolve deadline on every ticket. Deliberately not manager: the matrix draws
+    // the same admin line for ai-receptionist and integrations.
+    'support-kb:*', 'support-sla:*',
     // Accounts payable (crm only). Purchase orders are a document lifecycle a construction manager
     // runs; vendor bills carry two money operations, so paying and voiding get their own verb —
     // `bills:pay` — and stay with payments:* rather than with the document work.

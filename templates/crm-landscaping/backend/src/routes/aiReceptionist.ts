@@ -70,14 +70,14 @@ app.get('/rules', async (c) => {
   return c.json({ data: rules })
 })
 
-app.post('/rules', async (c) => {
+app.post('/rules', requirePermission('ai-receptionist:create'), async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json()
   const rule = await aiReceptionist.createRule(user.companyId, body)
   return c.json(rule, 201)
 })
 
-app.put('/rules/:id', async (c) => {
+app.put('/rules/:id', requirePermission('ai-receptionist:update'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   const body = await c.req.json()
@@ -86,7 +86,7 @@ app.put('/rules/:id', async (c) => {
   return c.json(rule)
 })
 
-app.delete('/rules/:id', async (c) => {
+app.delete('/rules/:id', requirePermission('ai-receptionist:delete'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   await aiReceptionist.deleteRule(id, user.companyId)
@@ -101,7 +101,7 @@ app.get('/settings', async (c) => {
   return c.json(settings)
 })
 
-app.put('/settings', async (c) => {
+app.put('/settings', requirePermission('ai-receptionist:update'), async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json()
   const settings = await aiReceptionist.upsertSettings(user.companyId, body)
@@ -110,7 +110,7 @@ app.put('/settings', async (c) => {
 
 // ─── Manual transcribe (admin can trigger on existing call) ─────────────────────
 
-app.post('/transcribe/:callId', async (c) => {
+app.post('/transcribe/:callId', requirePermission('ai-receptionist:create'), async (c) => {
   const user = c.get('user') as any
   const callId = c.req.param('callId')
 

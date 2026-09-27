@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { reportAiUsage } from '../services/aiUsage'
 import { authenticate } from '../middleware/auth.ts';
+import { requirePermission } from '../middleware/permissions.ts';
 import { db } from '../../db/index.ts';
 import { supportTicket, supportTicketMessage, supportKnowledgeBase, supportSlaPolicy, contact, user } from '../../db/schema.ts';
 import { eq, and, desc, asc, like, or, sql, count, inArray } from 'drizzle-orm';
@@ -295,7 +296,7 @@ app.get('/kb', async (c) => {
   }
 });
 
-app.post('/kb', async (c) => {
+app.post('/kb', requirePermission('support-kb:create'), async (c) => {
   const u = c.get('user') as any;
   const body = await c.req.json();
 
@@ -311,7 +312,7 @@ app.post('/kb', async (c) => {
   return c.json(article, 201);
 });
 
-app.put('/kb/:id', async (c) => {
+app.put('/kb/:id', requirePermission('support-kb:update'), async (c) => {
   const u = c.get('user') as any;
   const id = c.req.param('id');
   const body = await c.req.json();
@@ -330,7 +331,7 @@ app.put('/kb/:id', async (c) => {
   return c.json(article);
 });
 
-app.delete('/kb/:id', async (c) => {
+app.delete('/kb/:id', requirePermission('support-kb:delete'), async (c) => {
   const u = c.get('user') as any;
   const id = c.req.param('id');
 
@@ -415,7 +416,7 @@ app.get('/sla-policies', async (c) => {
   }
 });
 
-app.post('/sla-policies', async (c) => {
+app.post('/sla-policies', requirePermission('support-sla:create'), async (c) => {
   const u = c.get('user') as any;
   const body = await c.req.json();
 
