@@ -475,6 +475,20 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     ? (uniqueAreas[0] || c.city || 'your area') + ' and the surrounding area'
     : uniqueAreas.slice(0, -1).join(', ') + ', and ' + uniqueAreas[uniqueAreas.length - 1]
 
+  const primaryColor = b.primaryColor || (isStore ? '#4f46e5' : industry === 'home_care' ? '#009688' : industry === 'automotive' ? '#1e40af' : industry === 'dispensary' ? '#16a34a' : '#f97316')
+  // The brand colour measured AGAINST WHITE, for the places that put the two together.
+  //
+  // White text on a brand background and brand ink on a white background are the SAME condition —
+  // both are "brand versus white" — so one token serves the email header, the email button and the
+  // amount line. WCAG AA at 4.5:1 means the brand's relative luminance must be at most
+  // 1.05/4.5 - 0.05, which is what this threshold is; ensureDark's own 0.16 default is a different,
+  // unrelated number.
+  //
+  // The customer's raw colour is NOT replaced — {{PRIMARY_COLOR}} still carries it for the accent
+  // rule, the washes and the browser theme-color, where bright is correct. A colour that already
+  // clears the bar comes back untouched, so a tenant on a dark brand sees no change.
+  const primaryOnWhite = ensureDark(primaryColor, 1.05 / 4.5 - 0.05)
+
   return {
     '{{COMPANY_NAME}}': c.name || 'My Company',
     '{{COMPANY_LEGAL_NAME}}': c.legalName || (c.name || 'My Company') + ' LLC',
@@ -562,7 +576,8 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{ADMIN_EMAIL}}': c.adminEmail || c.email || 'admin@' + slug + '.com',
     '{{DEFAULT_PASSWORD}}': defaultPassword,
     '{{HASHED_DEFAULT_PASSWORD}}': bcrypt.hashSync(defaultPassword, 10),
-    '{{PRIMARY_COLOR}}': b.primaryColor || (isStore ? '#4f46e5' : industry === 'home_care' ? '#009688' : industry === 'automotive' ? '#1e40af' : industry === 'dispensary' ? '#16a34a' : '#f97316'),
+    '{{PRIMARY_COLOR}}': primaryColor,
+    '{{PRIMARY_COLOR_ON_WHITE}}': primaryOnWhite,
     '{{SECONDARY_COLOR}}': ensureDark(b.secondaryColor || (industry === 'home_care' ? '#004d40' : industry === 'automotive' ? '#111827' : industry === 'dispensary' ? '#14532d' : '#1e3a5f')),
     '{{ACCENT_COLOR}}': b.accentColor || '#f59e0b',
     // The path writeBrandingAssets is about to write into the CRM's frontend/public, so the seeded company row
