@@ -1,7 +1,7 @@
 // This vertical's sidebar + URL gates for the shared app shell (see ./shared). Items without `features`
 // are core; items with `features` show when ANY listed feature is enabled. routeGates cover routes
 // that exist without a sidebar entry, so a module the tenant doesn't have is not reachable by URL.
-import { BarChart3, BookOpen, Bot, Briefcase, Calendar, CalendarCheck, Clock, CreditCard, DollarSign, ExternalLink, FileText, FolderOpen, Home, Inbox, LifeBuoy, Mail, MapPin, Megaphone, MessageSquare, Phone, Receipt, Repeat, ShieldCheck, Star, Truck, Users, Warehouse, Wrench } from 'lucide-react'
+import { BarChart3, BookOpen, Bot, Briefcase, Calendar, CalendarCheck, Clock, CreditCard, DollarSign, ExternalLink, FileText, FolderOpen, Home, Inbox, LifeBuoy, Mail, MapPin, Megaphone, MessageSquare, Phone, Receipt, Repeat, ShieldCheck, Star, Truck, Users, Warehouse, Wrench, Calculator } from 'lucide-react'
 import type { NavItem, ShellConfig } from './shared';
 
 const NAV: NavItem[] = [
@@ -33,6 +33,7 @@ const NAV: NavItem[] = [
   { to: '/crm/recurring', icon: Repeat, label: 'Recurring', features: ['recurring_jobs'], permission: 'invoices:read' },
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], permission: 'sms:send' },
   { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'reports:read' },
+  { to: '/crm/job-costing', icon: Calculator, label: 'Job Costing', features: ['job_costing'], permission: 'reports:read' },
   { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'] },
   { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'] },
   { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'] },

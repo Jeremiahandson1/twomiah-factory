@@ -49,6 +49,7 @@ import SnowBillingPage from './pages/landscaping/SnowBillingPage';
 import RecurringRoutesPage from './pages/landscaping/RecurringRoutesPage';
 import MessagesPage from './pages/messages/MessagesPage';
 import ReportsDashboard from './pages/reports/ReportsDashboard';
+import JobCosting from './pages/reports/JobCosting';
 import SupportPage from './pages/support/SupportPage';
 import LeadInboxPage from './pages/leads/LeadInboxPage';
 import LeadSourcesPage from './pages/leads/LeadSourcesPage';
@@ -191,6 +192,7 @@ function App() {
                     <Route path="recurring-routes" element={<RecurringRoutesPage />} />
                     <Route path="messages" element={<MessagesPage />} />
                     <Route path="reports" element={<ReportsDashboard />} />
+                    <Route path="job-costing" element={<JobCosting />} />
                     <Route path="support" element={<SupportPage />} />
                     <Route path="leads" element={<LeadInboxPage />} />
                     <Route path="lead-sources" element={<LeadSourcesPage />} />

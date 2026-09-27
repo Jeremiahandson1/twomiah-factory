@@ -47,7 +47,10 @@ export type { BookingConfig, BookingPageProps, BookingApi, BookingToast } from '
 // Reports + the jobs-family home dashboard — one page each for every CRM that uses them.
 export { ReportsPage } from './reporting/ReportsPage'
 export { JobsDashboardPage } from './reporting/JobsDashboardPage'
-export type { ReportingConfig, ReportsPageProps, JobsDashboardConfig, JobsDashboardPageProps } from './reporting/types'
+// Job Costing — estimate vs actual cost per job. Ships only to the verticals the registry entitles
+// (crm, crm-basic, crm-fieldservice, crm-landscaping); the API is /api/job-costing.
+export { JobCostingPage } from './reporting/JobCostingPage'
+export type { ReportingConfig, ReportsPageProps, JobCostingConfig, JobCostingPageProps, JobsDashboardConfig, JobsDashboardPageProps } from './reporting/types'
 // Documents — one page for every CRM (upload, preview, authenticated download, versions, markup).
 export { DocumentsPage } from './files/DocumentsPage'
 export type { DocumentsConfig, DocumentsPageProps, FilesApi, FilesToast } from './files/types'

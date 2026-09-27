@@ -61,6 +61,7 @@ import TakeoffsPage from './pages/takeoffs/TakeoffsPage';
 import TasksPage from './pages/tasks/TasksPage';
 import MessagesPage from './pages/messages/MessagesPage';
 import ReportsDashboard from './pages/reports/ReportsDashboard';
+import JobCosting from './pages/reports/JobCosting';
 import SelectionsPage from './pages/selections/SelectionsPage';
 import SupportPage from './pages/support/SupportPage';
 import ReviewsPage from './pages/reviews/ReviewsPage';
@@ -209,6 +210,7 @@ function App() {
                     <Route path="tasks" element={<TasksPage />} />
                     <Route path="messages" element={<MessagesPage />} />
                     <Route path="reports" element={<ReportsDashboard />} />
+                    <Route path="job-costing" element={<JobCosting />} />
                     <Route path="selections" element={<SelectionsPage />} />
                     <Route path="reviews" element={<ReviewsPage />} />
                     <Route path="leads" element={<LeadInboxPage />} />

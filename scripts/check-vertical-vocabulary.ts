@@ -30,6 +30,10 @@ const CONFIGURED = [
   'ReportsPage', 'JobsDashboardPage', 'DocumentsPage', 'LeadsPage', 'InvoicesPage', 'QuotesPage',
   'ContactsPage', 'SchedulePage', 'BookingsPage', 'TeamPage', 'ExpensesPage', 'MarketingPage',
   'PricebookPage', 'FleetPage', 'EquipmentPage', 'AgreementsPage', 'AppShell',
+  // Job Costing names the vertical's work in its title, its column headers and its empty state, and
+  // takes the same ReportingConfig — so it inherits the contractor default just as loudly if a
+  // wrapper forgets the prop: "Jobs" in a field-service tenant that runs Service Calls.
+  'JobCostingPage',
 ]
 
 /**
