@@ -114,7 +114,7 @@ app.get('/calls/:id', async (c) => {
   return c.json(call)
 })
 
-app.put('/calls/:id', async (c) => {
+app.put('/calls/:id', requirePermission('calltracking:update'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   const body = await c.req.json()
@@ -122,7 +122,7 @@ app.put('/calls/:id', async (c) => {
   return c.json({ success: true })
 })
 
-app.post('/calls/:id/lead', async (c) => {
+app.post('/calls/:id/lead', requirePermission('calltracking:create'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   const body = await c.req.json()
@@ -130,7 +130,7 @@ app.post('/calls/:id/lead', async (c) => {
   return c.json({ success: true })
 })
 
-app.post('/calls', async (c) => {
+app.post('/calls', requirePermission('calltracking:create'), async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json()
   const call = await calltracking.logCall(user.companyId, body)
