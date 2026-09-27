@@ -65,7 +65,9 @@ app.post('/:id/on-my-way', async (c) => {
   const body = statusSchema.parse(await c.req.json().catch(() => ({})))
 
   const [existing] = await db.select().from(job)
-    .where(and(eq(job.id, id), eq(job.companyId, currentUser.companyId)))
+    // Scoped to the tech's OWN job, matching GET /my-jobs above: the actions must not reach further
+    // than the list does. A manager completing someone else's job uses /api/jobs, which is gated.
+    .where(and(eq(job.id, id), eq(job.companyId, currentUser.companyId), eq(job.assignedToId, currentUser.userId)))
     .limit(1)
   if (!existing) return c.json({ error: 'Job not found' }, 404)
 
@@ -92,7 +94,9 @@ app.post('/:id/on-site', async (c) => {
   const id = c.req.param('id')
 
   const [existing] = await db.select().from(job)
-    .where(and(eq(job.id, id), eq(job.companyId, currentUser.companyId)))
+    // Scoped to the tech's OWN job, matching GET /my-jobs above: the actions must not reach further
+    // than the list does. A manager completing someone else's job uses /api/jobs, which is gated.
+    .where(and(eq(job.id, id), eq(job.companyId, currentUser.companyId), eq(job.assignedToId, currentUser.userId)))
     .limit(1)
   if (!existing) return c.json({ error: 'Job not found' }, 404)
 
@@ -114,7 +118,9 @@ app.post('/:id/complete-job', async (c) => {
   const body = statusSchema.parse(await c.req.json().catch(() => ({})))
 
   const [existing] = await db.select().from(job)
-    .where(and(eq(job.id, id), eq(job.companyId, currentUser.companyId)))
+    // Scoped to the tech's OWN job, matching GET /my-jobs above: the actions must not reach further
+    // than the list does. A manager completing someone else's job uses /api/jobs, which is gated.
+    .where(and(eq(job.id, id), eq(job.companyId, currentUser.companyId), eq(job.assignedToId, currentUser.userId)))
     .limit(1)
   if (!existing) return c.json({ error: 'Job not found' }, 404)
 
@@ -156,7 +162,9 @@ app.post('/:id/checklist', async (c) => {
   const body = checklistSchema.parse(await c.req.json())
 
   const [existing] = await db.select().from(job)
-    .where(and(eq(job.id, id), eq(job.companyId, currentUser.companyId)))
+    // Scoped to the tech's OWN job, matching GET /my-jobs above: the actions must not reach further
+    // than the list does. A manager completing someone else's job uses /api/jobs, which is gated.
+    .where(and(eq(job.id, id), eq(job.companyId, currentUser.companyId), eq(job.assignedToId, currentUser.userId)))
     .limit(1)
   if (!existing) return c.json({ error: 'Job not found' }, 404)
 
