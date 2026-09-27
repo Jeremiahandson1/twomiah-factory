@@ -106,6 +106,7 @@ import inboundParseRoutes from './routes/inboundParse.ts'
 import inboundMessagesRoutes from './routes/inboundMessages.ts'
 import gbpRoutes, { gbpInternal } from './routes/gbp.ts'
 import onboardingRoutes from './routes/onboarding.ts'
+import jobCostingRoutes from './routes/jobCosting.ts'
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
 
@@ -249,6 +250,8 @@ if (webhooksRoutes) app.route('/api/webhooks', webhooksRoutes)
 // the families the sidebar gates (shellConfig `features`; the shared shell already bounces the URL). A
 // list means any of those features unlocks the family, exactly as the sidebar reads it. Email marketing
 // is gated inside its own routes so the public unsubscribe/tracking links stay open. (SALON-M1 → #167)
+app.use('/api/job-costing', authenticate, requireEnabledFeature('job_costing'))
+app.use('/api/job-costing/*', authenticate, requireEnabledFeature('job_costing'))
 app.use('/api/projects', authenticate, requireEnabledFeature('projects'))
 app.use('/api/projects/*', authenticate, requireEnabledFeature('projects'))
 app.use('/api/tasks', authenticate, requireEnabledFeature('projects'))
@@ -404,6 +407,7 @@ app.post('/api/internal/sync-features', async (c) => {
 // Settings → Billing plus the trial gate read the mirror this writes into company.settings.
 const subscriptionDeps = { db, companyTable: company, userTable: user, factoryApiClient: createFactoryApiClient(), seatLimitEnv: process.env.SEAT_LIMIT }
 app.route('/api/internal/sync-subscription', createSubscriptionSyncRoute(subscriptionDeps))
+app.route('/api/job-costing', jobCostingRoutes)
 
 // Path A++ — SSO handoff. See crm-fieldservice for canonical
 // implementation + commentary.
