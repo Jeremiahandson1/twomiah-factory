@@ -60,6 +60,7 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
   const [error, setError] = useState('')
   const [rows, setRows] = useState<JobRow[]>([])
   const [totals, setTotals] = useState<Totals | null>(null)
+  const [count, setCount] = useState(0)
   const [trend, setTrend] = useState<CategoryRow[]>([])
   const [status, setStatus] = useState('')
   const [startDate, setStartDate] = useState('')
@@ -83,6 +84,7 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
         if (cancelled) return
         setRows(s?.jobs || [])
         setTotals(s?.totals || null)
+        setCount(typeof s?.count === "number" ? s.count : (s?.jobs || []).length)
         setTrend(Array.isArray(t) ? t : [])
       })
       .catch((e: any) => { if (!cancelled) setError(e?.message || 'Could not load costing') })
@@ -199,18 +201,24 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
   // ── the roll-up ────────────────────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-slate-100">{cfg.costingLabel}</h1>
-          <p className={`text-sm ${muted}`}>What each {noun.toLowerCase().replace(/s$/, '')} was estimated to cost, against what it actually cost.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className={selectCls} aria-label="Status">
-            {STATUSES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} aria-label="From" />
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputCls} aria-label="To" />
-        </div>
+      <div>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-slate-100">{cfg.costingLabel}</h1>
+        <p className={`text-sm ${muted}`}>What each {noun.toLowerCase().replace(/s$/, '')} was estimated to cost, against what it actually cost.</p>
+      </div>
+
+      {/* The shared inputCls is w-full, so each date needs its own width or the three controls stretch,
+          wrap onto separate rows and push the heading down the page. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <select value={status} onChange={(e) => setStatus(e.target.value)} className={selectCls} aria-label="Status">
+          {STATUSES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        <div className="w-40"><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} aria-label="From date" /></div>
+        <div className="w-40"><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputCls} aria-label="To date" /></div>
+        {(status || startDate || endDate) && (
+          <button onClick={() => { setStatus(''); setStartDate(''); setEndDate('') }} className={`text-sm underline ${muted} hover:text-gray-700 dark:hover:text-slate-200`}>
+            Clear
+          </button>
+        )}
       </div>
 
       {error && (
@@ -227,7 +235,7 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
             <Stat label="Cost" value={money(totals.totalCost)} />
             <Stat label="Profit" value={money(totals.profit)} tone={marginTone(totals.profit)} />
             <Stat label="Margin" value={pct(totals.margin)} tone={marginTone(totals.margin)} />
-            <Stat label="Profitable" value={`${totals.profitableCount} of ${rows.length}`} />
+            <Stat label="Profitable" value={`${totals.profitableCount} of ${count}`} />
           </div>
         </div>
       )}
