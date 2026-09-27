@@ -1847,3 +1847,14 @@ jobs:
           bun-version: latest
       - name: "check dashboard reports what exists"
         run: bun run scripts/check-dashboard-reports-what-exists.ts
+
+  brand-hex-under-white-text:
+    name: "The raw brand colour never sits under white text"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "check brand hex under white text"
+        run: bun run scripts/check-brand-hex-under-white-text.ts
