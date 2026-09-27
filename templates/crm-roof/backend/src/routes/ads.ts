@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { db } from '../../db/index.ts'
 import { adsExperiment, adsExperimentAssignment, adsExperimentConversion, company } from '../../db/schema.ts'
 import { eq, desc, sql, and } from 'drizzle-orm'
@@ -60,7 +61,7 @@ app.get('/experiments', async (c) => {
   return c.json({ experiments: hydrated })
 })
 
-app.post('/experiments', async (c) => {
+app.post('/experiments', requirePermission('ads:update'), async (c) => {
   const cid = await companyId()
   if (!cid) return c.json({ error: 'No company' }, 400)
   const body = await c.req.json().catch(() => ({})) as any
@@ -83,7 +84,7 @@ app.post('/experiments', async (c) => {
   return c.json({ experiment: await hydrateExperiment(created) }, 201)
 })
 
-app.patch('/experiments/:id', async (c) => {
+app.patch('/experiments/:id', requirePermission('ads:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')!
   const body = await c.req.json().catch(() => ({})) as any
@@ -193,7 +194,7 @@ app.get('/pending-approvals', async (c) => {
   return c.json({ approvals: pending, count: pending.length })
 })
 
-app.post('/:id/approve', async (c) => {
+app.post('/:id/approve', requirePermission('ads:update'), async (c) => {
   const id = c.req.param('id')
   approvalStore.set(id, { status: 'approved' })
 
@@ -215,7 +216,7 @@ app.post('/:id/approve', async (c) => {
   return c.json({ success: true, status: 'approved' })
 })
 
-app.post('/:id/request-changes', async (c) => {
+app.post('/:id/request-changes', requirePermission('ads:update'), async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
   const feedback = body?.feedback || ''

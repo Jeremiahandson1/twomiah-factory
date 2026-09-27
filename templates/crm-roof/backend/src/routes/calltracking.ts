@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import calltracking from '../services/calltracking.ts'
 
 const app = new Hono()
@@ -66,14 +67,14 @@ app.get('/numbers', async (c) => {
   return c.json(numbers)
 })
 
-app.post('/numbers', async (c) => {
+app.post('/numbers', requirePermission('calltracking:create'), async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json()
   const number = await calltracking.createTrackingNumber(user.companyId, body)
   return c.json(number, 201)
 })
 
-app.put('/numbers/:id', async (c) => {
+app.put('/numbers/:id', requirePermission('calltracking:update'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   const body = await c.req.json()
@@ -109,7 +110,7 @@ app.get('/calls/:id', async (c) => {
   return c.json(call)
 })
 
-app.put('/calls/:id', async (c) => {
+app.put('/calls/:id', requirePermission('calltracking:update'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   const body = await c.req.json()
@@ -117,7 +118,7 @@ app.put('/calls/:id', async (c) => {
   return c.json({ success: true })
 })
 
-app.post('/calls/:id/lead', async (c) => {
+app.post('/calls/:id/lead', requirePermission('calltracking:create'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   const body = await c.req.json()
@@ -125,7 +126,7 @@ app.post('/calls/:id/lead', async (c) => {
   return c.json({ success: true })
 })
 
-app.post('/calls', async (c) => {
+app.post('/calls', requirePermission('calltracking:create'), async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json()
   const call = await calltracking.logCall(user.companyId, body)

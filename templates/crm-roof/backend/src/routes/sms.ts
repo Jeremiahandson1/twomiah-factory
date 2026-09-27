@@ -4,12 +4,13 @@ import { db } from '../../db/index.ts'
 import { smsMessage, contact, company } from '../../db/schema.ts'
 import { eq, and, desc, or, like } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { sendSms } from '../services/sms.ts'
 
 const app = new Hono()
 
 // Send SMS (authenticated)
-app.post('/send', authenticate, async (c) => {
+app.post('/send', requirePermission('sms:create'), authenticate, async (c) => {
   const currentUser = c.get('user') as any
 
   const sendSchema = z.object({
@@ -101,7 +102,7 @@ app.get('/conversation/:contactId', authenticate, async (c) => {
 })
 
 // Opt-out contact from SMS
-app.post('/opt-out/:contactId', authenticate, async (c) => {
+app.post('/opt-out/:contactId', requirePermission('sms:create'), authenticate, async (c) => {
   const currentUser = c.get('user') as any
   const contactId = c.req.param('contactId')
 

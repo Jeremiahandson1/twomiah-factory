@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { invoice, contact, job, company } from '../../db/schema.ts'
 import { eq, and, ne, desc, count, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { businessToday, companyTimeZone, dueDateFromTerms } from '../shared/index.ts'
 
 const app = new Hono()
@@ -135,7 +136,7 @@ app.get('/', async (c) => {
 })
 
 // Create invoice with auto invoiceNumber
-app.post('/', async (c) => {
+app.post('/', requirePermission('invoices:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = invoiceSchema.parse(await c.req.json())
   const { settings, today } = await companyDates(currentUser.companyId)
@@ -200,7 +201,7 @@ app.get('/:id', async (c) => {
 })
 
 // Update invoice
-app.put('/:id', async (c) => {
+app.put('/:id', requirePermission('invoices:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const data = invoiceSchema.partial().parse(await c.req.json())
@@ -232,7 +233,7 @@ app.put('/:id', async (c) => {
 })
 
 // Send invoice
-app.post('/:id/send', async (c) => {
+app.post('/:id/send', requirePermission('invoices:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -246,7 +247,7 @@ app.post('/:id/send', async (c) => {
 })
 
 // Mark invoice as paid
-app.post('/:id/mark-paid', async (c) => {
+app.post('/:id/mark-paid', requirePermission('invoices:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -267,7 +268,7 @@ app.post('/:id/mark-paid', async (c) => {
 })
 
 // Record partial payment
-app.post('/:id/payment', async (c) => {
+app.post('/:id/payment', requirePermission('invoices:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

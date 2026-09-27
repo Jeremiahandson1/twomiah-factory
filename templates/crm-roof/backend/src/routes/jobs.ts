@@ -6,6 +6,7 @@ import { db } from '../../db/index.ts'
 import { job, contact, crew, measurementReport, jobPhoto, jobNote, quote, invoice, smsMessage, company } from '../../db/schema.ts'
 import { eq, and, desc, asc, like, ilike, or, count, sql, inArray } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { uploadFile, deleteFile, keyFromMediaUrl } from '../services/storage.ts'
 import { createId } from '@paralleldrive/cuid2'
 import { normalizeDateInput } from '../shared/index.ts'
@@ -151,7 +152,7 @@ app.get('/', async (c) => {
 })
 
 // Create job with auto-generated jobNumber
-app.post('/', async (c) => {
+app.post('/', requirePermission('jobs:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = jobSchema.parse(await c.req.json())
   const dates = jobDates(data)
@@ -240,7 +241,7 @@ app.get('/:id', async (c) => {
 })
 
 // Update job
-app.put('/:id', async (c) => {
+app.put('/:id', requirePermission('jobs:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   // The edit form posts back the exact values the API returned, including null
@@ -281,7 +282,7 @@ app.put('/:id', async (c) => {
  * quotes, photos, supplements and the claim trail stay attached, which also matters for lien rights
  * and warranty claims.
  */
-app.post('/:id/close', async (c) => {
+app.post('/:id/close', requirePermission('jobs:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -320,7 +321,7 @@ app.post('/:id/close', async (c) => {
  * Put a closed job back on the board — a carrier reverses a denial, a homeowner comes back.
  * It returns to the stage it was at, which is what `closedAt` and the note preserve.
  */
-app.post('/:id/reopen', async (c) => {
+app.post('/:id/reopen', requirePermission('jobs:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { status } = z.object({ status: jobStatus }).parse(await c.req.json())
@@ -350,7 +351,7 @@ app.post('/:id/reopen', async (c) => {
 })
 
 // Advance to next pipeline stage
-app.post('/:id/advance', async (c) => {
+app.post('/:id/advance', requirePermission('jobs:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -416,7 +417,7 @@ async function sendAutoSms(companyId: string, jobRow: any, status: string) {
 }
 
 // Upload photos
-app.post('/:id/photos', async (c) => {
+app.post('/:id/photos', requirePermission('jobs:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -477,7 +478,7 @@ app.get('/:id/photos', async (c) => {
 })
 
 // Delete photo
-app.delete('/:id/photos/:photoId', async (c) => {
+app.delete('/:id/photos/:photoId', requirePermission('jobs:delete'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const photoId = c.req.param('photoId')
@@ -496,7 +497,7 @@ app.delete('/:id/photos/:photoId', async (c) => {
 })
 
 // Add note to job
-app.post('/:id/notes', async (c) => {
+app.post('/:id/notes', requirePermission('jobs:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

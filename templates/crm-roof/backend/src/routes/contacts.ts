@@ -5,6 +5,7 @@ import { db } from '../../db/index.ts'
 import { contact, job, smsMessage, company } from '../../db/schema.ts'
 import { eq, and, desc, like, ilike, or, count, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -65,7 +66,7 @@ app.get('/', async (c) => {
 })
 
 // Create contact
-app.post('/', async (c) => {
+app.post('/', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
   const cBody = await c.req.json()
   if (typeof cBody.email === 'string') { cBody.email = cBody.email.toLowerCase().trim(); if (!cBody.email) delete cBody.email }
@@ -120,7 +121,7 @@ app.get('/:id', async (c) => {
 })
 
 // Update contact
-app.put('/:id', async (c) => {
+app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const uBody = await c.req.json()
@@ -140,7 +141,7 @@ app.put('/:id', async (c) => {
 
 // Enable/disable customer-portal access for a contact.
 // The Contacts page "portal access" toggle posts { enabled } here.
-app.post('/:id/portal', async (c) => {
+app.post('/:id/portal', requirePermission('contacts:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const body = await c.req.json().catch(() => ({}))
@@ -160,7 +161,7 @@ app.post('/:id/portal', async (c) => {
 // Portal login is email + company slug (no token), so the "invite" is an email
 // pointing the customer at the portal; we also ensure access is enabled so the
 // link works. Reuses the existing 'portalInvite' email template.
-app.post('/:id/portal/invite', async (c) => {
+app.post('/:id/portal/invite', requirePermission('contacts:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -194,7 +195,7 @@ app.post('/:id/portal/invite', async (c) => {
 })
 
 // Delete contact
-app.delete('/:id', async (c) => {
+app.delete('/:id', requirePermission('contacts:delete'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

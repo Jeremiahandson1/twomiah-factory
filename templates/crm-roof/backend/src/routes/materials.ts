@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { material, job } from '../../db/schema.ts'
 import { eq, and, desc, count } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { lineItemInput, normaliseLineItems, materialOrderStatus, optional } from '../lib/validation.ts'
 
 const app = new Hono()
@@ -64,7 +65,7 @@ app.get('/', async (c) => {
 })
 
 // Create material order
-app.post('/', async (c) => {
+app.post('/', requirePermission('inventory:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = materialSchema.parse(await c.req.json())
   // the client's `totalCost` is accepted for compatibility and then ignored — the order is worth what
@@ -102,7 +103,7 @@ app.get('/:id', async (c) => {
 })
 
 // Update material
-app.put('/:id', async (c) => {
+app.put('/:id', requirePermission('inventory:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const data = materialSchema.partial().parse(await c.req.json())
@@ -129,7 +130,7 @@ app.put('/:id', async (c) => {
 })
 
 // Delete material
-app.delete('/:id', async (c) => {
+app.delete('/:id', requirePermission('inventory:delete'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
