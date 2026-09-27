@@ -10,6 +10,7 @@ import { db } from '../../db/index.ts'
 import { stormRadarEvent, stormRadarEventMatch, contact } from '../../db/schema.ts'
 import { eq, and, desc, inArray } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import stormRadar, { StormRadarNotConfiguredError } from '../services/stormRadar.ts'
 import logger from '../services/logger.ts'
 
@@ -43,7 +44,7 @@ app.get('/events', async (c) => {
 })
 
 // Trigger a sync from the configured provider
-app.post('/sync', async (c) => {
+app.post('/sync', requirePermission('storms:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.json().catch(() => ({}))
   try {
@@ -62,7 +63,7 @@ app.post('/sync', async (c) => {
 })
 
 // After a sync, run match-to-contacts for a specific event
-app.post('/events/:id/match', async (c) => {
+app.post('/events/:id/match', requirePermission('storms:create'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const result = await stormRadar.matchEventsToContacts(currentUser.companyId, id)
@@ -80,7 +81,7 @@ app.get('/matches', async (c) => {
 })
 
 // Update match status (new → contacted → quoted → booked / not_interested)
-app.post('/matches/:id/status', async (c) => {
+app.post('/matches/:id/status', requirePermission('storms:create'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { status, notes } = await c.req.json()

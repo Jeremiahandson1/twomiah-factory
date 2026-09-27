@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { measurementReport, job, company } from '../../db/schema.ts'
 import { eq, and, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { getFullRoofReport } from '../services/googleSolar.ts'
 import logger from '../services/logger.ts'
 
@@ -34,7 +35,7 @@ app.get('/', async (c) => {
 })
 
 // Order a measurement report via Google Solar API
-app.post('/order', async (c) => {
+app.post('/order', requirePermission('measurements:create'), async (c) => {
   const currentUser = c.get('user') as any
 
   const orderSchema = z.object({
@@ -138,7 +139,7 @@ app.get('/credits/info', async (c) => {
 })
 
 // Purchase credits (creates Stripe checkout or adds directly in demo mode)
-app.post('/credits/purchase', async (c) => {
+app.post('/credits/purchase', requirePermission('measurements:purchase'), async (c) => {
   const currentUser = c.get('user') as any
   const schema = z.object({ quantity: z.number().int().min(1).max(1000) })
   const { quantity } = schema.parse(await c.req.json())
@@ -186,7 +187,7 @@ app.get('/:id', async (c) => {
 })
 
 // Regenerate a failed report
-app.post('/:id/regenerate', async (c) => {
+app.post('/:id/regenerate', requirePermission('measurements:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -213,7 +214,7 @@ app.post('/:id/regenerate', async (c) => {
 })
 
 // Manual entry for LOW quality imagery fallback
-app.post('/:id/manual', async (c) => {
+app.post('/:id/manual', requirePermission('measurements:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

@@ -306,7 +306,7 @@ app.post('/:id/approve', requirePermission('quotes:update'), async (c) => {
 })
 
 // Decline quote
-app.post('/:id/decline', async (c) => {
+app.post('/:id/decline', requirePermission('quotes:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -326,7 +326,7 @@ app.post('/:id/decline', async (c) => {
 })
 
 // Convert quote to job
-app.post('/:id/convert', async (c) => {
+app.post('/:id/convert', requirePermission('quotes:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

@@ -3,6 +3,7 @@ import { db } from '../../db/index.ts'
 import { qbIntegration } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import * as qb from '../services/quickbooks.ts'
 
 const app = new Hono()
@@ -47,7 +48,7 @@ app.get('/callback', async (c) => {
 })
 
 // POST /disconnect
-app.post('/disconnect', authenticate, async (c) => {
+app.post('/disconnect', requirePermission('integrations:create'), authenticate, async (c) => {
   const { companyId } = c.get('user')
   await qb.disconnect(companyId)
   return c.json({ success: true })
@@ -74,7 +75,7 @@ app.get('/status', authenticate, async (c) => {
 })
 
 // POST /sync — full sync
-app.post('/sync', authenticate, async (c) => {
+app.post('/sync', requirePermission('integrations:create'), authenticate, async (c) => {
   const { companyId } = c.get('user')
   try {
     await qb.fullSync(companyId)
@@ -85,7 +86,7 @@ app.post('/sync', authenticate, async (c) => {
 })
 
 // POST /sync/invoice/:id
-app.post('/sync/invoice/:id', authenticate, async (c) => {
+app.post('/sync/invoice/:id', requirePermission('integrations:create'), authenticate, async (c) => {
   const { companyId } = c.get('user')
   const id = c.req.param('id')
   try {
@@ -97,7 +98,7 @@ app.post('/sync/invoice/:id', authenticate, async (c) => {
 })
 
 // POST /sync/contact/:id
-app.post('/sync/contact/:id', authenticate, async (c) => {
+app.post('/sync/contact/:id', requirePermission('integrations:create'), authenticate, async (c) => {
   const { companyId } = c.get('user')
   const id = c.req.param('id')
   try {

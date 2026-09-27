@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { crew, job } from '../../db/schema.ts'
 import { eq, and, desc, count } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { phone } from '../lib/validation.ts'
 
 const app = new Hono()
@@ -33,7 +34,7 @@ app.get('/', async (c) => {
 })
 
 // Create crew
-app.post('/', async (c) => {
+app.post('/', requirePermission('crews:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = crewSchema.parse(await c.req.json())
 
@@ -73,7 +74,7 @@ app.get('/:id', async (c) => {
 })
 
 // Update crew
-app.put('/:id', async (c) => {
+app.put('/:id', requirePermission('crews:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const data = crewSchema.partial().parse(await c.req.json())
@@ -92,7 +93,7 @@ app.put('/:id', async (c) => {
 })
 
 // Delete crew
-app.delete('/:id', async (c) => {
+app.delete('/:id', requirePermission('crews:delete'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

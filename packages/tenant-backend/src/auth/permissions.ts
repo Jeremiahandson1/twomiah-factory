@@ -28,6 +28,19 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // with the operational modules above. Locations are multi-location company configuration, which
     // is settings. Both shipped with no resource at all, which is why their routes carried no gate.
     'commissions:*', 'locations:*',
+    // The roofing set. crm-roof carried a FORKED permission matrix that predated most of this file, so
+    // none of its own modules had a resource here — and a gate on a resource the matrix does not carry
+    // refuses everyone but the owner, which is exactly why roof's writes were left ungated instead.
+    // Listed here rather than in a template's extraRolePermissions because check-permission-vocabulary
+    // reads BASE_ROLE_PERMISSIONS and nothing else. Additive for every other vertical: no other
+    // template gates on these, so nobody's access changes.
+    'storms:*', 'insurance:*', 'canvassing:*', 'measurements:*', 'estimator:*', 'leads:*', 'crews:*',
+    // Two carry a money decision, given its own verb so the day-to-day work can sit with a manager
+    // while the spend does not: roof-reports:purchase buys a third-party report, financing:approve
+    // settles a consumer finance application (approve / decline / mark-funded).
+    'roof-reports:*', 'financing:*',
+    // Connection + receptionist configuration — admin, the same line settings:* already draws.
+    'integrations:*', 'ai-receptionist:*',
     // sms:send (text a customer) / sms:* (the canned messages and auto-responders live on
     // marketing:update). Its own resource rather than borrowing contacts:update, which would hand a
     // technician the right to EDIT customer records along with the right to text them. (T30 L-RB)
@@ -50,6 +63,17 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // A manager sees the commission ledger and the location list but does not approve payouts or
     // reconfigure branches — the same line payments/settings already draw for this role.
     'commissions:read', 'locations:read',
+    // The roofing set. A roofing manager runs the day-to-day: storm events, insurance claims, the
+    // canvassing board, measurements, estimates, leads and crews — the same standing the construction
+    // document set above already gives this role, approvals included.
+    'storms:*', 'insurance:*', 'canvassing:*', 'estimator:*', 'leads:*', 'crews:*',
+    // …but not the money decisions. Everything except the spend verb, so a manager can run a report,
+    // take a measurement or file a finance application and still not buy or settle one.
+    'roof-reports:read', 'roof-reports:create', 'roof-reports:update', 'roof-reports:delete',
+    'financing:read', 'financing:create', 'financing:update', 'financing:delete',
+    'measurements:read', 'measurements:create', 'measurements:update', 'measurements:delete',
+    // Connections and the receptionist are configuration: visible, not editable.
+    'integrations:read', 'ai-receptionist:read',
     'sms:*',
   ],
   field: [

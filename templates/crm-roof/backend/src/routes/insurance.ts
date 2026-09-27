@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { insuranceClaim, supplement, adjusterContact, claimActivity, job, measurementReport, company } from '../../db/schema.ts'
 import { eq, and, ne, desc, sql } from 'drizzle-orm'
 import { authenticate, requireManager } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { phone as phoneField, email as emailField, optional } from '../lib/validation.ts'
 import { generateXactimateScopeDocument } from '../services/xactimate.ts'
 import logger from '../services/logger.ts'
@@ -16,7 +17,7 @@ app.use('*', authenticate)
 // ══════════════════════════════════════════════════════
 
 // Create claim for a job
-app.post('/claims', async (c) => {
+app.post('/claims', requirePermission('insurance:create'), async (c) => {
   const currentUser = c.get('user') as any
   const schema = z.object({
     jobId: z.string().min(1),
@@ -93,7 +94,7 @@ app.get('/claims/:jobId', async (c) => {
 })
 
 // Update claim
-app.put('/claims/:id', async (c) => {
+app.put('/claims/:id', requirePermission('insurance:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -147,7 +148,7 @@ app.put('/claims/:id', async (c) => {
 })
 
 // Update claim status
-app.post('/claims/:id/status', async (c) => {
+app.post('/claims/:id/status', requirePermission('insurance:create'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -209,7 +210,7 @@ app.get('/claims/:claimId/supplements', async (c) => {
 })
 
 // Create supplement
-app.post('/claims/:claimId/supplements', async (c) => {
+app.post('/claims/:claimId/supplements', requirePermission('insurance:create'), async (c) => {
   const currentUser = c.get('user') as any
   const claimId = c.req.param('claimId')
 
@@ -263,7 +264,7 @@ app.post('/claims/:claimId/supplements', async (c) => {
 })
 
 // Update supplement
-app.put('/supplements/:id', async (c) => {
+app.put('/supplements/:id', requirePermission('insurance:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -306,7 +307,7 @@ app.put('/supplements/:id', async (c) => {
 })
 
 // Submit supplement
-app.post('/supplements/:id/submit', async (c) => {
+app.post('/supplements/:id/submit', requirePermission('insurance:create'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -448,7 +449,7 @@ app.get('/adjusters', async (c) => {
   return c.json(adjusters)
 })
 
-app.post('/adjusters', async (c) => {
+app.post('/adjusters', requirePermission('insurance:create'), async (c) => {
   const currentUser = c.get('user') as any
   // M2: this accepted phone "abcdefghij" and any string as an email, with a 201. An adjuster's
   // contact details are the whole point of the record — a claim is worked by calling them.
@@ -477,7 +478,7 @@ app.post('/adjusters', async (c) => {
   return c.json(adj, 201)
 })
 
-app.put('/adjusters/:id', async (c) => {
+app.put('/adjusters/:id', requirePermission('insurance:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -508,7 +509,7 @@ app.get('/claims/:claimId/activity', async (c) => {
   return c.json(activities)
 })
 
-app.post('/claims/:claimId/activity', async (c) => {
+app.post('/claims/:claimId/activity', requirePermission('insurance:create'), async (c) => {
   const currentUser = c.get('user') as any
   const claimId = c.req.param('claimId')
 
@@ -541,7 +542,7 @@ app.post('/claims/:claimId/activity', async (c) => {
 // XACTIMATE EXPORT
 // ══════════════════════════════════════════════════════
 
-app.post('/claims/:claimId/xactimate-export', async (c) => {
+app.post('/claims/:claimId/xactimate-export', requirePermission('insurance:create'), async (c) => {
   const currentUser = c.get('user') as any
   const claimId = c.req.param('claimId')
 

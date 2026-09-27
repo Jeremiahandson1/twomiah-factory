@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { escapeHtml, escapeRow } from '../utils/sanitize.ts'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { db } from '../../db/index.ts'
 import { roofReport, contact, company } from '../../db/schema.ts'
 import { eq, and, desc } from 'drizzle-orm'
@@ -499,7 +500,7 @@ export async function generateAndSaveReport(
 // PURCHASE REPORT — Stripe Checkout ($9.99)
 // ============================================
 
-app.post('/purchase', authenticate, requireRoofReports, async (c) => {
+app.post('/purchase', requirePermission('roof-reports:purchase'), authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const { address, city, state, zip, contactId, eaveOverhangInches, mode } = await c.req.json()
   const overhang = typeof eaveOverhangInches === 'number' ? Math.max(0, Math.min(36, eaveOverhangInches)) : 12
@@ -581,7 +582,7 @@ app.post('/purchase', authenticate, requireRoofReports, async (c) => {
 // CONFIRM PURCHASE — called after Stripe success redirect
 // ============================================
 
-app.post('/confirm-purchase', authenticate, requireRoofReports, async (c) => {
+app.post('/confirm-purchase', requirePermission('roof-reports:purchase'), authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const { sessionId } = await c.req.json()
 
@@ -634,7 +635,7 @@ app.post('/confirm-purchase', authenticate, requireRoofReports, async (c) => {
 // GENERATE FOR CONTACT (with payment)
 // ============================================
 
-app.post('/purchase-for-contact/:contactId', authenticate, requireRoofReports, async (c) => {
+app.post('/purchase-for-contact/:contactId', requirePermission('roof-reports:purchase'), authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const contactId = c.req.param('contactId')
 
@@ -854,7 +855,7 @@ app.get('/:id/pdf', authenticate, requireRoofReports, async (c) => {
 // DELETE REPORT
 // ============================================
 
-app.delete('/:id', authenticate, requireRoofReports, async (c) => {
+app.delete('/:id', requirePermission('roof-reports:delete'), authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
 
@@ -874,7 +875,7 @@ app.delete('/:id', authenticate, requireRoofReports, async (c) => {
 // FINALIZE REPORT — save preview + user edits to DB
 // ============================================
 
-app.post('/finalize', authenticate, requireRoofReports, async (c) => {
+app.post('/finalize', requirePermission('roof-reports:create'), authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const { preview, edges, measurements } = await c.req.json()
 
@@ -898,7 +899,7 @@ app.post('/finalize', authenticate, requireRoofReports, async (c) => {
 // EDIT EDGES (manual corrections on existing report)
 // ============================================
 
-app.patch('/:id/edges', authenticate, requireRoofReports, async (c) => {
+app.patch('/:id/edges', requirePermission('roof-reports:update'), authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
 
@@ -937,7 +938,7 @@ app.patch('/:id/edges', authenticate, requireRoofReports, async (c) => {
 // REVERT TO ORIGINAL (undo all manual edits)
 // ============================================
 
-app.post('/:id/revert', authenticate, requireRoofReports, async (c) => {
+app.post('/:id/revert', requirePermission('roof-reports:update'), authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
 
@@ -966,7 +967,7 @@ app.post('/:id/revert', authenticate, requireRoofReports, async (c) => {
 // AI ROOF DETECTION — Nearmap AI (primary) + SAM 2 (fallback)
 // ============================================
 
-app.post('/sam-segment', authenticate, requireRoofReports, async (c) => {
+app.post('/sam-segment', requirePermission('roof-reports:create'), authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json()
   const { imageBase64, clickPoints, labels, imageWidth, imageHeight, centerLat, centerLng, zoom } = body

@@ -5,6 +5,7 @@ import { db } from '../../db/index.ts'
 import { canvassingSession, canvassingStop, canvassingScript, contact, job } from '../../db/schema.ts'
 import { eq, and, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -21,7 +22,7 @@ app.get('/sessions', async (c) => {
 })
 
 // POST /sessions — create new session
-app.post('/sessions', async (c) => {
+app.post('/sessions', requirePermission('canvassing:create'), async (c) => {
   const { companyId, userId } = c.get('user')
   const body = await c.req.json()
   const [session] = await db.insert(canvassingSession).values({
@@ -55,7 +56,7 @@ app.get('/sessions/:id', async (c) => {
 })
 
 // PUT /sessions/:id — update session
-app.put('/sessions/:id', async (c) => {
+app.put('/sessions/:id', requirePermission('canvassing:update'), async (c) => {
   const { companyId } = c.get('user')
   const id = c.req.param('id')
   const body = await c.req.json()
@@ -72,7 +73,7 @@ app.put('/sessions/:id', async (c) => {
 })
 
 // POST /sessions/:id/end — mark completed
-app.post('/sessions/:id/end', async (c) => {
+app.post('/sessions/:id/end', requirePermission('canvassing:create'), async (c) => {
   const { companyId } = c.get('user')
   const id = c.req.param('id')
 
@@ -115,7 +116,7 @@ const stopSchema = z.object({
   lng: z.number().optional(),
 }).passthrough()
 
-app.post('/sessions/:sessionId/stops', async (c) => {
+app.post('/sessions/:sessionId/stops', requirePermission('canvassing:create'), async (c) => {
   const { companyId, userId } = c.get('user')
   const sessionId = c.req.param('sessionId')
   const body = stopSchema.parse(await c.req.json())
@@ -231,7 +232,7 @@ app.get('/sessions/:sessionId/stops', async (c) => {
 })
 
 // PUT /stops/:id — update a stop
-app.put('/stops/:id', async (c) => {
+app.put('/stops/:id', requirePermission('canvassing:update'), async (c) => {
   const { companyId } = c.get('user')
   const id = c.req.param('id')
   const body = await c.req.json()
@@ -283,7 +284,7 @@ app.get('/scripts', async (c) => {
 })
 
 // POST /scripts — create script
-app.post('/scripts', async (c) => {
+app.post('/scripts', requirePermission('canvassing:create'), async (c) => {
   const { companyId } = c.get('user')
   const body = await c.req.json()
   const [script] = await db.insert(canvassingScript).values({
@@ -296,7 +297,7 @@ app.post('/scripts', async (c) => {
 })
 
 // PUT /scripts/:id — update script
-app.put('/scripts/:id', async (c) => {
+app.put('/scripts/:id', requirePermission('canvassing:update'), async (c) => {
   const { companyId } = c.get('user')
   const id = c.req.param('id')
   const body = await c.req.json()
@@ -313,7 +314,7 @@ app.put('/scripts/:id', async (c) => {
 })
 
 // DELETE /scripts/:id — delete (not if default)
-app.delete('/scripts/:id', async (c) => {
+app.delete('/scripts/:id', requirePermission('canvassing:delete'), async (c) => {
   const { companyId } = c.get('user')
   const id = c.req.param('id')
 

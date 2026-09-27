@@ -3,6 +3,7 @@ import { db } from '../../db/index.ts'
 import { stormEvent, stormLead, contact, job, company } from '../../db/schema.ts'
 import { eq, and, desc, sql, count } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { generateStormLeads, checkExistingCustomers } from '../services/stormData.ts'
 
 const app = new Hono()
@@ -23,7 +24,7 @@ app.get('/events', async (c) => {
 })
 
 // POST /events — manually create storm event
-app.post('/events', async (c) => {
+app.post('/events', requirePermission('storms:create'), async (c) => {
   const { companyId } = c.get('user')
   const body = await c.req.json()
   const [event] = await db.insert(stormEvent).values({
@@ -67,7 +68,7 @@ app.get('/events/:id', async (c) => {
 })
 
 // POST /events/:id/generate-leads — trigger lead generation
-app.post('/events/:id/generate-leads', async (c) => {
+app.post('/events/:id/generate-leads', requirePermission('storms:create'), async (c) => {
   const { companyId } = c.get('user')
   const id = c.req.param('id')
   const [event] = await db.select().from(stormEvent)
@@ -87,7 +88,7 @@ app.post('/events/:id/generate-leads', async (c) => {
 })
 
 // POST /events/:id/dismiss — dismiss event
-app.post('/events/:id/dismiss', async (c) => {
+app.post('/events/:id/dismiss', requirePermission('storms:create'), async (c) => {
   const { companyId } = c.get('user')
   const id = c.req.param('id')
   const [updated] = await db.update(stormEvent).set({ status: 'dismissed' })
@@ -132,7 +133,7 @@ app.get('/events/:id/leads', async (c) => {
 })
 
 // PUT /leads/:id — update lead status
-app.put('/leads/:id', async (c) => {
+app.put('/leads/:id', requirePermission('storms:update'), async (c) => {
   const { companyId } = c.get('user')
   const id = c.req.param('id')
   const body = await c.req.json()
@@ -149,7 +150,7 @@ app.put('/leads/:id', async (c) => {
 })
 
 // POST /leads/:id/convert — convert storm lead to CRM job
-app.post('/leads/:id/convert', async (c) => {
+app.post('/leads/:id/convert', requirePermission('storms:create'), async (c) => {
   const { companyId } = c.get('user')
   const id = c.req.param('id')
   const body = await c.req.json()
@@ -219,7 +220,7 @@ app.post('/leads/:id/convert', async (c) => {
 })
 
 // POST /leads/bulk-convert — convert multiple leads
-app.post('/leads/bulk-convert', async (c) => {
+app.post('/leads/bulk-convert', requirePermission('storms:create'), async (c) => {
   const { companyId } = c.get('user')
   const { leadIds } = await c.req.json()
   if (!Array.isArray(leadIds) || leadIds.length === 0) return c.json({ error: 'No leads specified' }, 400)
@@ -281,7 +282,7 @@ app.post('/leads/bulk-convert', async (c) => {
 })
 
 // POST /leads/bulk-dismiss — dismiss multiple leads
-app.post('/leads/bulk-dismiss', async (c) => {
+app.post('/leads/bulk-dismiss', requirePermission('storms:create'), async (c) => {
   const { companyId } = c.get('user')
   const { leadIds } = await c.req.json()
   if (!Array.isArray(leadIds)) return c.json({ error: 'No leads specified' }, 400)
@@ -311,7 +312,7 @@ app.get('/service-area', async (c) => {
 })
 
 // PUT /service-area — update service area
-app.put('/service-area', async (c) => {
+app.put('/service-area', requirePermission('storms:update'), async (c) => {
   const { companyId } = c.get('user')
   const body = await c.req.json()
   const [comp] = await db.select().from(company).where(eq(company.id, companyId)).limit(1)

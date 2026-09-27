@@ -15,6 +15,7 @@ import { db } from '../../db/index.ts'
 import { financingApplication } from '../../db/schema.ts'
 import { eq, and, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import logger from '../services/logger.ts'
 import lenders, { LenderNotConfiguredError } from '../services/lenders.ts'
 
@@ -64,7 +65,7 @@ app.get('/:id', async (c) => {
   return c.json(found)
 })
 
-app.post('/', async (c) => {
+app.post('/', requirePermission('financing:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = appSchema.parse(await c.req.json())
   const [created] = await db
@@ -81,7 +82,7 @@ app.post('/', async (c) => {
 // Mark sent to lender (after the API call to Wisetack/GreenSky/etc)
 // — accepts manual override via body, OR calls the lender service if no
 // body is provided and the lender is configured.
-app.post('/:id/mark-sent', async (c) => {
+app.post('/:id/mark-sent', requirePermission('financing:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const body = await c.req.json().catch(() => ({}))
@@ -195,7 +196,7 @@ async function wisetackWebhook(c: any) {
 // is the route registered ABOVE `app.use('*', authenticate)`, and these three sit below it, so every
 // caller is an authenticated user of some company. They matched the application on id alone, which
 // is why they are scoped here to the caller's company and 404 when nothing matched.
-app.post('/:id/approve', async (c) => {
+app.post('/:id/approve', requirePermission('financing:approve'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { amountApproved, termMonths, apr, monthlyPayment } = await c.req.json()
@@ -216,7 +217,7 @@ app.post('/:id/approve', async (c) => {
   return c.json(updated)
 })
 
-app.post('/:id/decline', async (c) => {
+app.post('/:id/decline', requirePermission('financing:approve'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { notes } = await c.req.json().catch(() => ({}))
@@ -229,7 +230,7 @@ app.post('/:id/decline', async (c) => {
   return c.json(updated)
 })
 
-app.post('/:id/mark-funded', async (c) => {
+app.post('/:id/mark-funded', requirePermission('financing:approve'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const [updated] = await db
@@ -241,7 +242,7 @@ app.post('/:id/mark-funded', async (c) => {
   return c.json(updated)
 })
 
-app.delete('/:id', async (c) => {
+app.delete('/:id', requirePermission('financing:delete'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const [gone] = await db.delete(financingApplication)

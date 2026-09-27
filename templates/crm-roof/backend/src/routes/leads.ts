@@ -3,6 +3,7 @@ import { db } from '../../db/index.ts'
 import { lead, leadSource, contact } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc, gte } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { createId } from '@paralleldrive/cuid2'
 
 const app = new Hono()
@@ -105,7 +106,7 @@ app.get('/sources', async (c) => {
   return c.json({ data: sources })
 })
 
-app.post('/sources', async (c) => {
+app.post('/sources', requirePermission('leads:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.json()
   const inboundEmail = `leads+${currentUser.companyId.slice(0, 8)}-${body.platform}@inbound.twomiah.com`
@@ -127,7 +128,7 @@ app.post('/sources', async (c) => {
   return c.json(source, 201)
 })
 
-app.put('/sources/:id', async (c) => {
+app.put('/sources/:id', requirePermission('leads:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const body = await c.req.json()
@@ -145,7 +146,7 @@ app.put('/sources/:id', async (c) => {
   return c.json(updated)
 })
 
-app.delete('/sources/:id', async (c) => {
+app.delete('/sources/:id', requirePermission('leads:delete'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -235,7 +236,7 @@ app.get('/stats', async (c) => {
   return c.json({ stats, totals })
 })
 
-app.put('/:id/status', async (c) => {
+app.put('/:id/status', requirePermission('leads:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { status } = await c.req.json()
@@ -252,7 +253,7 @@ app.put('/:id/status', async (c) => {
   return c.json(updated)
 })
 
-app.post('/:id/convert', async (c) => {
+app.post('/:id/convert', requirePermission('leads:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -286,7 +287,7 @@ app.post('/:id/convert', async (c) => {
   return c.json({ lead: { ...existing, status: 'converted' }, contact: newContact })
 })
 
-app.delete('/:id', async (c) => {
+app.delete('/:id', requirePermission('leads:delete'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
