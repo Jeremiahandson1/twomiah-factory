@@ -227,6 +227,33 @@ if (webhooksRoutes) app.route('/api/webhooks', webhooksRoutes)
 // was built from the SIDEBAR, and these three have no nav entry keyed to their feature, so mirroring
 // the menu left them out. The registry is the real list of what can be switched off — 55 switchable
 // features for this template — and the menu is only one view of it. (Dispensary T31)
+// Six of these families contain a route with NO session by design, and the gate below was killing it.
+// Hono runs a mount-level .use() BEFORE the router's own handlers, so a route file that registers its
+// webhook ABOVE its own `app.use('*', authenticate)` — which each of them does, precisely to keep the
+// provider's call public — is still authenticated here; and requireEnabledFeature answers 401 by
+// itself, because it resolves the tenant from user.companyId. The result was six endpoints that
+// returned 401 to the only callers they have: Plaid's ACH webhook (so settled and failed transfers
+// never reached ach_transactions and every ACH payment stayed pending), the marketplace partner
+// webhook, the website-analytics beacon, a signage screen's heartbeat, and curbside + QR customer
+// check-in. The kiosk escaped this by carrying no mount-level gate at all and calling
+// isFeatureEnabled() itself; these families need the gate for their staff routes, so the exemption
+// belongs here, beside the gate that caused it.
+//
+// Only the '/*' mounts take exemptions. The bare-prefix mounts below are left in their literal
+// `authenticate, requireEnabledFeature(...)` form on purpose: check-dispensary-api-gates.ts reads
+// THEM to map each family to its feature ids, and would stop seeing a family written any other way.
+// An exempt pattern is a literal path; a '*' segment stands for exactly one segment (an id).
+const familyGate = (feature: string | string[], ...publicPaths: string[]) => {
+  const gate = requireEnabledFeature(feature)
+  const patterns = publicPaths.map((p) => p.split('/'))
+  const isPublic = (path: string) => {
+    const seg = path.split('/')
+    return patterns.some((pat) => pat.length === seg.length && pat.every((s, i) => s === '*' || s === seg[i]))
+  }
+  return async (c: Context, next: Next) =>
+    isPublic(c.req.path) ? next() : authenticate(c, () => gate(c, next))
+}
+
 app.use('/api/cash', authenticate, requireEnabledFeature('cash_management'))
 app.use('/api/cash/*', authenticate, requireEnabledFeature('cash_management'))
 app.use('/api/loyalty', authenticate, requireEnabledFeature('loyalty_rewards'))
@@ -271,17 +298,17 @@ app.use('/api/wholesale/*', authenticate, requireEnabledFeature('wholesale'))
 app.use('/api/reports', authenticate, requireEnabledFeature(['custom_reports', 'bi_dashboard']))
 app.use('/api/reports/*', authenticate, requireEnabledFeature(['custom_reports', 'bi_dashboard']))
 app.use('/api/website-analytics', authenticate, requireEnabledFeature('website_analytics'))
-app.use('/api/website-analytics/*', authenticate, requireEnabledFeature('website_analytics'))
+app.use('/api/website-analytics/*', familyGate('website_analytics', '/api/website-analytics/track'))
 app.use('/api/enterprise', authenticate, requireEnabledFeature(['franchise', 'multi_store']))
 app.use('/api/enterprise/*', authenticate, requireEnabledFeature(['franchise', 'multi_store']))
 app.use('/api/checkin', authenticate, requireEnabledFeature(['checkin', 'queue_management']))
-app.use('/api/checkin/*', authenticate, requireEnabledFeature(['checkin', 'queue_management']))
+app.use('/api/checkin/*', familyGate(['checkin', 'queue_management'], '/api/checkin/qr-checkin'))
 app.use('/api/id-scanner', authenticate, requireEnabledFeature('id_verification'))
 app.use('/api/id-scanner/*', authenticate, requireEnabledFeature('id_verification'))
 app.use('/api/biotrack', authenticate, requireEnabledFeature('biotrack'))
 app.use('/api/biotrack/*', authenticate, requireEnabledFeature('biotrack'))
 app.use('/api/pay-by-bank', authenticate, requireEnabledFeature('pay_by_bank'))
-app.use('/api/pay-by-bank/*', authenticate, requireEnabledFeature('pay_by_bank'))
+app.use('/api/pay-by-bank/*', familyGate('pay_by_bank', '/api/pay-by-bank/webhook'))
 app.use('/api/ai-budtender', authenticate, requireEnabledFeature('ai_budtender'))
 app.use('/api/ai-budtender/*', authenticate, requireEnabledFeature('ai_budtender'))
 app.use('/api/gamified-loyalty', authenticate, requireEnabledFeature('gamified_loyalty'))
@@ -291,15 +318,15 @@ app.use('/api/seo-pages/*', authenticate, requireEnabledFeature('seo_pages'))
 app.use('/api/predictive-inventory', authenticate, requireEnabledFeature('predictive_inventory'))
 app.use('/api/predictive-inventory/*', authenticate, requireEnabledFeature('predictive_inventory'))
 app.use('/api/signage', authenticate, requireEnabledFeature('digital_signage'))
-app.use('/api/signage/*', authenticate, requireEnabledFeature('digital_signage'))
+app.use('/api/signage/*', familyGate('digital_signage', '/api/signage/screens/*/heartbeat'))
 app.use('/api/curbside', authenticate, requireEnabledFeature('curbside'))
-app.use('/api/curbside/*', authenticate, requireEnabledFeature('curbside'))
+app.use('/api/curbside/*', familyGate('curbside', '/api/curbside/checkin'))
 app.use('/api/equivalency', authenticate, requireEnabledFeature('equivalency'))
 app.use('/api/equivalency/*', authenticate, requireEnabledFeature('equivalency'))
 app.use('/api/tax-filing', authenticate, requireEnabledFeature('tax_filing'))
 app.use('/api/tax-filing/*', authenticate, requireEnabledFeature('tax_filing'))
 app.use('/api/marketplace', authenticate, requireEnabledFeature('marketplace'))
-app.use('/api/marketplace/*', authenticate, requireEnabledFeature('marketplace'))
+app.use('/api/marketplace/*', familyGate('marketplace', '/api/marketplace/webhook/*'))
 app.use('/api/platform', authenticate, requireEnabledFeature('platform'))
 app.use('/api/platform/*', authenticate, requireEnabledFeature('platform'))
 app.use('/api/grow-inputs', authenticate, requireEnabledFeature('cultivation'))

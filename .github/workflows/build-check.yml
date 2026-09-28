@@ -66,6 +66,17 @@ jobs:
       - name: Every resource gated in a route must be granted to a role in BASE_ROLE_PERMISSIONS (or owner-only by design)
         run: bun run scripts/check-permission-vocabulary.ts
 
+  public-routes-reachable:
+    name: routing — a deliberately public route is still reachable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: A webhook registered above a router's authenticate must not be re-authenticated by a mount-level .use in index.ts
+        run: bun run scripts/check-public-routes-reachable.ts
+
   forked-permission-matrix:
     name: permissions — a template with its own matrix grants what it gates
     runs-on: ubuntu-latest
