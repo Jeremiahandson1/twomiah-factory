@@ -1760,6 +1760,17 @@ jobs:
       - name: "CI workflow valid"
         run: bun run scripts/check-ci-workflow-valid.ts
 
+  homecare-suite:
+    name: "Homecare behaviour suite (26 assertions, real PGlite)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Homecare suite"
+        run: bun run tests/homecare/harness/run.ts
+
   dispensary-suite:
     name: "Dispensary behaviour suite (103 assertions, real PGlite)"
     runs-on: ubuntu-latest
