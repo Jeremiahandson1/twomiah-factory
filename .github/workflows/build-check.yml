@@ -44,6 +44,34 @@ jobs:
           bun install --frozen-lockfile
           bun run build
 
+  # The two behaviour suites. They already existed and nothing ran them — 696 assertions against a
+  # real SQL engine (in-process PGlite) and the REAL route files, with the permission layer left
+  # intact, which is the half that matters. tests/fieldservice alone covers jobs-permissions,
+  # documents-authorise, sms-authorise and quickbooks-authorise. Every guard below is a text check;
+  # these are the only things in CI that actually execute a request and look at the answer.
+  # ~85s each, and they assemble their sandbox from this tree so they cannot drift from the templates.
+  suite-salon:
+    name: behaviour — crm-salon (410 assertions, real routes + real SQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun tests/salon/harness/run.ts
+
+  suite-fieldservice:
+    name: behaviour — crm-fieldservice (286 assertions, real routes + real SQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun tests/fieldservice/harness/run.ts
+
   feature-vocabulary:
     name: feature registry — one vocabulary
     runs-on: ubuntu-latest
