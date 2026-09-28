@@ -899,15 +899,77 @@ app.get('/waste', async (c) => {
 })
 
 // Log waste
+// Destroying product is an inventory movement, not a note about one.
+//
+// T45 H15: logging 3.5 g of destroyed OG Kush left the product's stock at 23, the same 23 it was
+// before - so the shop's books said it still had product it had just put in the bin, and the next
+// count would come up short with nothing to explain it. The entry also accepted 99,999 g from a
+// product holding 23, no witness at all, and a batch belonging to a different product. Each of
+// those is a line a state inspector reads.
 app.post('/waste', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
-  const data = wasteSchema.parse(await c.req.json())
+
+  let data: any
+  try {
+    data = wasteSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  // A destruction with nobody's name against it is not a record anyone can stand behind, and every
+  // state that regulates cannabis waste asks who witnessed it. The form has the box.
+  if (!data.witnessedBy || !String(data.witnessedBy).trim()) {
+    return c.json({ error: 'Name the person who witnessed the destruction', code: 'witness_required' }, 400)
+  }
+
+  if (!(data.quantity > 0)) {
+    return c.json({ error: 'Quantity must be more than zero' }, 400)
+  }
+
+  const prodRes = await db.execute(sql`
+    SELECT id, name, stock_quantity FROM products
+    WHERE id = ${data.productId} AND company_id = ${currentUser.companyId}
+    LIMIT 1
+  `)
+  const prod = ((prodRes as any).rows || prodRes)[0]
+  if (!prod) return c.json({ error: 'Product not found' }, 404)
 
   // Resolve a typed batch number to the batch row (the form collects a number, not an id).
   let batchId: string | null = data.batchId || null
   if (!batchId && data.batchNumber) {
     const b = await db.execute(sql`SELECT id FROM batches WHERE company_id = ${currentUser.companyId} AND batch_number = ${data.batchNumber.trim()} LIMIT 1`)
     batchId = (((b as any).rows || b)[0]?.id as string) || null
+    if (!batchId) return c.json({ error: `No batch "${data.batchNumber}" in this company` }, 400)
+  }
+
+  // A batch belongs to one product. Waste booked against another product's batch makes both lots
+  // wrong and is exactly what a recall trace cannot survive.
+  let batch: any = null
+  if (batchId) {
+    const bRes = await db.execute(sql`
+      SELECT id, batch_number, product_id, current_quantity FROM batches
+      WHERE id = ${batchId} AND company_id = ${currentUser.companyId}
+      LIMIT 1
+    `)
+    batch = ((bRes as any).rows || bRes)[0]
+    if (!batch) return c.json({ error: 'Batch not found' }, 404)
+    if (batch.product_id && batch.product_id !== data.productId) {
+      return c.json({
+        error: `Batch ${batch.batch_number} is not a batch of ${prod.name}`,
+        code: 'batch_product_mismatch',
+      }, 400)
+    }
+  }
+
+  // You cannot destroy more than you hold. Against the batch when one is named, otherwise against
+  // the product's own stock.
+  const onHand = batch ? Number(batch.current_quantity || 0) : Number(prod.stock_quantity || 0)
+  if (data.quantity > onHand) {
+    return c.json({
+      error: `Only ${onHand} ${data.unitOfMeasure} on hand${batch ? ` in batch ${batch.batch_number}` : ''} — cannot destroy ${data.quantity}`,
+      code: 'waste_over_stock',
+    }, 400)
   }
   // waste_log has no notes column; keep the operator's note with the reason so it is not lost.
   const reason = data.notes ? `${data.reason} — ${data.notes}` : data.reason
@@ -931,6 +993,26 @@ app.post('/waste', requireRole('manager'), async (c) => {
 
   const created = ((result as any).rows || result)[0]
 
+  // The whole point: what was destroyed leaves the books. Both ledgers move together - the batch
+  // it came out of when one was named, and the product's own count either way. Guarded so a
+  // concurrent sale cannot take stock negative between the check above and the write. (T45 H15)
+  const qty = Math.round(data.quantity)
+  let stockAfter: number | null = null
+  if (qty > 0) {
+    if (batch) {
+      await db.execute(sql`
+        UPDATE batches SET current_quantity = GREATEST(current_quantity - ${qty}, 0), updated_at = NOW()
+        WHERE id = ${batch.id} AND company_id = ${currentUser.companyId}
+      `)
+    }
+    const dec = await db.execute(sql`
+      UPDATE products SET stock_quantity = GREATEST(COALESCE(stock_quantity, 0) - ${qty}, 0), updated_at = NOW()
+      WHERE id = ${data.productId} AND company_id = ${currentUser.companyId}
+      RETURNING stock_quantity
+    `)
+    stockAfter = Number(((dec as any).rows || dec)[0]?.stock_quantity ?? 0)
+  }
+
   audit.log({
     action: audit.ACTIONS.CREATE,
     entity: 'waste_log',
@@ -941,11 +1023,14 @@ app.post('/waste', requireRole('manager'), async (c) => {
       quantity: data.quantity,
       unitOfMeasure: data.unitOfMeasure,
       reason: data.reason,
+      witnessedBy: data.witnessedBy,
+      batchId: batchId || undefined,
+      stockAfter,
     },
     req: c,
   })
 
-  return c.json(camel(created), 201)
+  return c.json({ ...camel(created), stockAfter }, 201)
 })
 
 // Mark waste as reported to Metrc

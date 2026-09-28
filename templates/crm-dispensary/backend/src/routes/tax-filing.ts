@@ -115,7 +115,14 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
   const periodEndBound = /^\d{4}-\d{2}-\d{2}$/.test(String(endStr))
     ? new Date(periodEnd.getTime() + 86_400_000 - 1)
     : periodEnd
-  const state = data.state ? data.state.toUpperCase().slice(0, 2) : null
+  // The filing screen has no state box, so `state` arrived undefined and every filing was stamped
+  // "NA" — on a return whose whole purpose is to name the state it is filed with, for a shop whose
+  // record says OH. Fall back to the company's own state. (T45 H16)
+  const companyRow: any = await db.execute(sql`SELECT state FROM company WHERE id = ${currentUser.companyId} LIMIT 1`)
+  const companyState = ((companyRow.rows || companyRow)[0] || {}).state as string | null
+  const state = (data.state || companyState)
+    ? String(data.state || companyState).toUpperCase().slice(0, 2)
+    : null
 
   // The sales tax was actually collected on, in the period. orders.subtotal/excise_tax/sales_tax/total_tax
   // are TEXT; NULLIF guards empty strings before the numeric cast.
@@ -174,6 +181,40 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
   `)
   const categoryBreakdown = (categoryResult as any).rows || categoryResult
 
+  // What the tax is charged ON, split the way the filings are.
+  //
+  // T45 H16: an excise filing reported a taxable amount of $10,049 — every sale's gross subtotal,
+  // T-shirts included, before a single refund — beside $951.90 of tax due, which IS net and IS
+  // cannabis-only. Two numbers on one return computed over different sets, and the one a state
+  // reads first was the wrong one. Excise is charged on cannabis; sales tax on the lot; and a
+  // refunded unit was never sold. order_items.tax_category is stamped 'cannabis'/'non_cannabis'
+  // at sale time, and refunded_quantity is the count handed back, so the split is recorded, not
+  // inferred.
+  const netLine = sql`
+    COALESCE(NULLIF(oi.line_total, ''), NULLIF(oi.total_price, ''), '0')::numeric
+    * (GREATEST(COALESCE(oi.quantity, 0) - COALESCE(oi.refunded_quantity, 0), 0)::numeric
+       / NULLIF(COALESCE(oi.quantity, 0), 0))
+  `
+  const taxableResult = await db.execute(sql`
+    SELECT
+      COALESCE(SUM(${netLine}) FILTER (WHERE oi.tax_category = 'cannabis'), 0) as cannabis_net,
+      COALESCE(SUM(${netLine}), 0) as all_net,
+      COUNT(*)::int as line_count
+    FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    WHERE o.company_id = ${currentUser.companyId}
+      AND o.status IN ${taxCollected}
+      AND o.completed_at >= ${periodStart}
+      AND o.completed_at <= ${periodEndBound}
+  `)
+  const taxableRow = ((taxableResult as any).rows || taxableResult)?.[0] || {}
+  const round2 = (n: number) => Math.round(n * 100) / 100
+  const cannabisNet = round2(Number(taxableRow.cannabis_net) || 0)
+  const allLinesNet = round2(Number(taxableRow.all_net) || 0)
+  // A shop whose sales predate line-level tax_category has no split to read; falling back to the
+  // order subtotal is the old behaviour and better than reporting zero.
+  const hasLineDetail = Number(taxableRow.line_count) > 0
+
   const filingNumber = `TAX-${filingType.toUpperCase().replace(/_/g, '')}-${state || 'NA'}-${startStr.slice(0, 7)}-${Date.now().toString(36).toUpperCase()}`
 
   // Local tax uses the rate configured in Settings (company.local_tax_rate, a
@@ -187,18 +228,25 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
   let salesTaxDue = Number(orderStats.total_sales_tax) || 0
   let localTaxDue = 0
 
+  // The base each filing type is charged on — the same set its tax due was computed over. (T45 H16)
+  const grossSubtotal = Number(orderStats.total_subtotal) || 0
+  const netAllSales = hasLineDetail ? allLinesNet : grossSubtotal
+  const netCannabisSales = hasLineDetail ? cannabisNet : grossSubtotal
+  let taxableAmount = netAllSales
+
   if (filingType === 'excise_tax') {
     salesTaxDue = 0
+    // Excise is charged on cannabis, not on the T-shirt beside it.
+    taxableAmount = netCannabisSales
   } else if (filingType === 'sales_tax') {
     exciseTaxDue = 0
   } else if (filingType === 'local_tax') {
     exciseTaxDue = 0
     salesTaxDue = 0
-    localTaxDue = (Number(orderStats.total_subtotal) || 0) * (localRatePct / 100)
+    localTaxDue = round2(netAllSales * (localRatePct / 100))
   }
 
-  const totalTaxDue = exciseTaxDue + salesTaxDue + localTaxDue
-  const taxableAmount = Number(orderStats.total_subtotal) || 0
+  const totalTaxDue = round2(exciseTaxDue + salesTaxDue + localTaxDue)
   const totalCollected = Number(orderStats.total_tax_collected) || 0
 
   // Line items the detail modal renders (only non-zero components).
@@ -212,6 +260,14 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
     filingNumber,
     totalOrders: orderStats.total_orders || 0,
     taxableSales: taxableAmount,
+    // Show the working, so the person signing the return can see what was excluded and why.
+    // (T45 H16)
+    taxableBasis: filingType === 'excise_tax' ? 'cannabis sales, net of refunds' : 'all sales, net of refunds',
+    grossSales: round2(grossSubtotal),
+    netSales: netAllSales,
+    netCannabisSales,
+    netNonCannabisSales: round2(netAllSales - netCannabisSales),
+    state,
     exciseTaxDue,
     salesTaxDue,
     localTaxDue,

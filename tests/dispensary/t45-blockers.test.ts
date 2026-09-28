@@ -100,8 +100,11 @@ const minor = await asOwner('POST', '/api/id-scanner/scan', { scanMethod: 'barco
 check('BL1: an underage ID is still caught', minor.json?.status === 'underage', minor.json?.status)
 
 // ── BL2: nothing claims the state was told ─────────────────────────────────────────────────────
+// A witness is required now, and the quantity has to fit what is on hand — destroying product is
+// an inventory movement, not a note about one. (T45 H15)
 const waste = await asManager('POST', '/api/compliance/waste', {
   productId: flower.id, wasteType: 'expired', quantity: 3.5, unit: 'g', reason: 'past date',
+  witness: 'Sam Manager',
 })
 check('BL2: setup — waste can still be logged', waste.status === 201 || waste.status === 200, { status: waste.status, body: waste.json })
 const wasteId = waste.json?.id

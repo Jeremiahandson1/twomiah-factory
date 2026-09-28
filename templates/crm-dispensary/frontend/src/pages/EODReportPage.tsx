@@ -115,9 +115,16 @@ export default function EODReportPage() {
     }
   };
 
-  const cashVariance = report ? (report.cashActual || 0) - (report.cashExpected || 0) : 0;
-  // An open drawer hasn't been counted yet, so Actual $0 isn't a real shortfall — reframe it. (retest#13)
-  const drawerOpen = report?.cashDrawerStatus === 'open';
+  // The server now reports the day's variance across every drawer; deriving it from two totals
+  // here would lose the detail it computes per drawer. (T45 H18)
+  const cashVariance = report
+    ? (report.cashVariance != null ? Number(report.cashVariance) : (report.cashActual || 0) - (report.cashExpected || 0))
+    : 0;
+  const drawers: any[] = Array.isArray(report?.drawers) ? report.drawers : [];
+  // A day can run several drawers. "Drawer open" only means nothing has been counted YET when
+  // none of them has been — otherwise the counted ones still have a real figure to show.
+  const countedDrawerCount = report?.countedDrawerCount ?? (report?.cashDrawerStatus === 'open' ? 0 : 1);
+  const drawerOpen = countedDrawerCount === 0 && (report?.openDrawerCount ?? (report?.cashDrawerStatus === 'open' ? 1 : 0)) > 0;
 
   const tabs = [
     { id: 'generate', label: 'Generate Report', icon: FileText },
@@ -209,6 +216,11 @@ export default function EODReportPage() {
                   {drawerOpen && (
                     <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Drawer open — not yet counted</span>
                   )}
+                  {drawers.length > 1 && (
+                    <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                      {drawers.length} drawers today
+                    </span>
+                  )}
                 </h4>
                 <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
                   <div className="grid grid-cols-3 gap-4">
@@ -232,6 +244,39 @@ export default function EODReportPage() {
                       )}
                     </div>
                   </div>
+                  {drawers.length > 1 && (
+                    <div className="mt-5 border-t pt-4 dark:border-slate-700">
+                      {/* Which drawer is short. The day total alone says there is $10 missing; this
+                          says where to look. (T45 H18) */}
+                      <div className="text-sm font-medium text-gray-600 mb-2 dark:text-slate-400">By drawer</div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-left text-gray-500 dark:text-slate-400">
+                              <th className="py-1 pr-4 font-medium">Opened</th>
+                              <th className="py-1 pr-4 font-medium">Status</th>
+                              <th className="py-1 pr-4 font-medium text-right">Expected</th>
+                              <th className="py-1 pr-4 font-medium text-right">Counted</th>
+                              <th className="py-1 font-medium text-right">Variance</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {drawers.map((d: any, i: number) => (
+                              <tr key={i} className="border-t dark:border-slate-800">
+                                <td className="py-1.5 pr-4 text-gray-700 dark:text-slate-200">{d.openedAt ? new Date(d.openedAt).toLocaleTimeString() : '—'}</td>
+                                <td className="py-1.5 pr-4 text-gray-700 dark:text-slate-200">{d.status === 'open' ? 'Open' : 'Closed'}</td>
+                                <td className="py-1.5 pr-4 text-right tabular-nums text-gray-700 dark:text-slate-200">${Number(d.expected || 0).toFixed(2)}</td>
+                                <td className="py-1.5 pr-4 text-right tabular-nums text-gray-700 dark:text-slate-200">{d.counted == null ? '—' : `$${Number(d.counted).toFixed(2)}`}</td>
+                                <td className={`py-1.5 text-right tabular-nums font-medium ${d.variance == null ? 'text-gray-500 dark:text-slate-400' : Math.abs(Number(d.variance)) > 5 ? 'text-red-600' : 'text-green-600'}`}>
+                                  {d.variance == null ? 'Pending' : `${Number(d.variance) >= 0 ? '+' : ''}$${Number(d.variance).toFixed(2)}`}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

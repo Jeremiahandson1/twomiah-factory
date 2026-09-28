@@ -114,15 +114,45 @@ app.post('/generate', requireRole('manager'), async (c) => {
     FROM cash_sessions cs
     WHERE cs.company_id = ${currentUser.companyId}
       AND DATE(cs.opened_at) = ${reportDate}::date
-    -- Reconcile the OPEN drawer if there is one; only fall back to the latest closed session
-    -- (already reconciled at close) when none is open, so EOD doesn't resurrect a shortfall. (retest#11)
-    ORDER BY (cs.status = 'open') DESC, cs.opened_at DESC
-    LIMIT 1
+    -- EVERY drawer opened today, newest first. This used to be LIMIT 1, so on a day with five
+    -- drawers End of Day reported one of them: $103.75 expected against $103.75 counted and a
+    -- variance of zero, while the day was actually $1,191.25 expected, $1,181.25 counted and $10
+    -- short. A shortage the report cannot show is a shortage nobody chases. (T45 H18)
+    ORDER BY cs.opened_at DESC
   `)
-  const cashSession = ((cashResult as any).rows || cashResult)?.[0] || null
-  const liveExpectedCash = cashSession
-    ? Number(cashSession.opening_amount || 0) + Number(cashSession.cash_sales || 0) - Number(cashSession.cash_refunds || 0)
-    : null
+  const cashSessions = ((cashResult as any).rows || cashResult) as any[]
+
+  // Each drawer's own figures. A closed session keeps the expected it was reconciled against at
+  // close; an open one is estimated live from its opening float and its cash movements.
+  const liveExpected = (s: any) =>
+    Number(s.opening_amount || 0) + Number(s.cash_sales || 0) - Number(s.cash_refunds || 0)
+  const drawers = cashSessions.map((s: any) => {
+    const expected = s.expected_amount != null ? Number(s.expected_amount) : liveExpected(s)
+    const counted = Number(s.actual_count ?? s.closing_amount ?? 0)
+    return {
+      openedAt: s.opened_at,
+      closedAt: s.closed_at,
+      status: s.session_status,
+      openingBalance: Number(s.opening_amount || 0),
+      expected,
+      // An open drawer has not been counted yet, so it has no count and no variance to report.
+      counted: s.session_status === 'open' ? null : counted,
+      variance: s.session_status === 'open'
+        ? null
+        : (s.variance != null ? Number(s.variance) : counted - expected),
+    }
+  })
+
+  // The day's line is the sum over the drawers that have actually been counted. An open drawer is
+  // reported separately rather than folded in, so a mid-day EOD does not read as a shortage.
+  const countedDrawers = drawers.filter((d) => d.counted != null)
+  const sum = (ns: number[]) => Math.round(ns.reduce((a, b) => a + b, 0) * 100) / 100
+  const cashSession = cashSessions[0] || null
+  const openDrawers = drawers.filter((d) => d.status === 'open')
+  const dayExpected = countedDrawers.length ? sum(countedDrawers.map((d) => d.expected)) : null
+  const dayCounted = countedDrawers.length ? sum(countedDrawers.map((d) => d.counted as number)) : null
+  const dayVariance = countedDrawers.length ? sum(countedDrawers.map((d) => d.variance as number)) : null
+  const liveExpectedCash = cashSession ? liveExpected(cashSession) : null
 
   // ── Inventory adjustments ──
   const inventoryResult = await db.execute(sql`
@@ -226,15 +256,19 @@ app.post('/generate', requireRole('manager'), async (c) => {
       voidCount: Number(orderStats.void_count) || 0,
     },
     cash: {
-      openingBalance: cashSession ? Number(cashSession.opening_amount) : null,
+      // The day across every drawer, not the last one. Where no drawer has been counted yet these
+      // fall back to the newest session's live estimate so a mid-day EOD still reads sensibly.
+      openingBalance: drawers.length ? sum(drawers.map((d) => d.openingBalance)) : null,
       // Actual counted cash = actual_count (or closing_amount); never the opening float. (retest#11)
-      closingAmount: cashSession ? Number(cashSession.actual_count ?? cashSession.closing_amount ?? 0) : null,
-      // Use the persisted expected when the drawer is closed; otherwise the live estimate.
-      expectedCash: cashSession
-        ? (cashSession.expected_amount != null ? Number(cashSession.expected_amount) : liveExpectedCash)
-        : null,
-      variance: cashSession ? Number(cashSession.variance) : null,
+      closingAmount: dayCounted,
+      expectedCash: dayExpected ?? liveExpectedCash,
+      variance: dayVariance,
       sessionStatus: cashSession?.session_status || null,
+      // So a manager can see WHICH drawer is short, and that there were five of them. (T45 H18)
+      drawerCount: drawers.length,
+      countedDrawerCount: countedDrawers.length,
+      openDrawerCount: openDrawers.length,
+      drawers,
     },
     inventory: {
       adjustmentCount: Number(inventoryStats.adjustment_count) || 0,
@@ -331,9 +365,16 @@ app.post('/generate', requireRole('manager'), async (c) => {
     debitTotal: debitRevenue + achRevenue,
     cashExpected: report.cash.expectedCash || 0,
     cashActual: report.cash.closingAmount || 0,
+    cashVariance: report.cash.variance,
     // Surface whether the reconciled drawer is still open or already closed, so the UI can
     // frame a closed drawer's figures as final-at-close, not a pending count. (retest#12)
     cashDrawerStatus: report.cash.sessionStatus || null,
+    // A day can run several drawers; the screen needs to know it is looking at a total, and which
+    // of them is the one that came up short. (T45 H18)
+    drawerCount: report.cash.drawerCount,
+    countedDrawerCount: report.cash.countedDrawerCount,
+    openDrawerCount: report.cash.openDrawerCount,
+    drawers: report.cash.drawers,
     inventoryAdjustments: report.inventory.adjustmentCount,
     shrinkageValue: report.inventory.shrinkageValue,
     employeesOnDuty: report.staff.totalEmployees,

@@ -308,6 +308,12 @@ export default function CompliancePage() {
       toast.error('Quantity is required');
       return;
     }
+    // Destroying product is a movement an inspector reads, and every state that regulates cannabis
+    // waste asks who watched it happen. Say so here rather than let the server refuse it. (T45 H15)
+    if (!wasteForm.witness.trim()) {
+      toast.error('Name the person who witnessed the destruction');
+      return;
+    }
     setSavingWaste(true);
     try {
       // API contract: unitOfMeasure / witnessedBy (it also accepts unit / witness now).
@@ -863,7 +869,7 @@ export default function CompliancePage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Witness Name</label>
+            <label className="block text-sm font-medium text-slate-300 mb-1">Witness Name *</label>
             <input
               type="text"
               value={wasteForm.witness}
