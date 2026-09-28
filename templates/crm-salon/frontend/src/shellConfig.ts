@@ -1,7 +1,7 @@
 // This vertical's sidebar + URL gates for the shared app shell (see ./shared). Items without `features`
 // are core; items with `features` show when ANY listed feature is enabled. routeGates cover routes
 // that exist without a sidebar entry, so a module the tenant doesn't have is not reachable by URL.
-import { BarChart3, BellRing, BookOpen, Bot, Calendar, CalendarCheck, CheckSquare, ClipboardCheck, ClipboardList, CreditCard, DollarSign, ExternalLink, FileQuestion, FileText, FolderKanban, FolderOpen, Home, Inbox, LifeBuoy, ListTodo, Mail, Megaphone, MessageSquare, Phone, Receipt, Repeat, Scissors, ShieldCheck, Star, Target, Truck, Users, Warehouse, Wrench } from 'lucide-react';
+import { BarChart3, BellRing, BookOpen, Bot, Calendar, CalendarCheck, CheckSquare, ClipboardCheck, ClipboardList, CreditCard, DollarSign, ExternalLink, FileQuestion, FileText, FolderKanban, FolderOpen, Gift, Home, Inbox, LifeBuoy, ListTodo, Mail, Megaphone, MessageSquare, Phone, Receipt, Repeat, Scissors, ShieldCheck, Star, Target, Truck, Users, Warehouse, Wrench } from 'lucide-react';
 import type { NavItem, ShellConfig } from './shared';
 
 const NAV: NavItem[] = [
@@ -11,6 +11,7 @@ const NAV: NavItem[] = [
   { to: '/crm/reminders', icon: BellRing, label: 'Rebooking', features: ['rebooking_reminders'] },
   { to: '/crm/service-menu', icon: Scissors, label: 'Service Menu', features: ['service_menu'] },
   { to: '/crm/memberships', icon: CreditCard, label: 'Memberships', features: ['salon_memberships'] },
+  { to: '/crm/loyalty', icon: Gift, label: 'Loyalty', features: ['loyalty_rewards'] },
   { to: '/crm/contacts', icon: Users, label: 'Contacts' },
   { to: '/crm/invoices', icon: Receipt, label: 'Invoices', features: ['invoices'], permission: 'invoices:read' },
   { to: '/crm/documents', icon: FolderOpen, label: 'Documents', features: ['documents'] },

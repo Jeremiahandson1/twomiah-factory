@@ -269,6 +269,8 @@ app.use('/api/pricebook', authenticate, requireEnabledFeature('pricebook'))
 app.use('/api/pricebook/*', authenticate, requireEnabledFeature('pricebook'))
 app.use('/api/memberships', authenticate, requireEnabledFeature('salon_memberships'))
 app.use('/api/memberships/*', authenticate, requireEnabledFeature('salon_memberships'))
+app.use('/api/loyalty', authenticate, requireEnabledFeature('loyalty_rewards'))
+app.use('/api/loyalty/*', authenticate, requireEnabledFeature('loyalty_rewards'))
 app.use('/api/recurring', authenticate, requireEnabledFeature('recurring_jobs'))
 app.use('/api/recurring/*', authenticate, requireEnabledFeature('recurring_jobs'))
 
@@ -336,6 +338,7 @@ try { app.route('/api/service-menu', (await import('./routes/serviceMenu.ts')).d
 try { app.route('/api/appointments', (await import('./routes/appointments.ts')).default) } catch (e) { console.error('[salon] appointments route failed to mount', e) }
 try { app.route('/api/service-records', (await import('./routes/serviceRecords.ts')).default) } catch (e) { console.error('[salon] service-records route failed to mount', e) }
 try { app.route('/api/memberships', (await import('./routes/memberships.ts')).default) } catch (e) { console.error('[salon] memberships route failed to mount', e) }
+try { app.route('/api/loyalty', (await import('./routes/loyalty.ts')).default) } catch (e) { console.error('[salon] loyalty route failed to mount', e) }
 try { app.route('/api/reminders', (await import('./routes/reminders.ts')).default) } catch (e) { console.error('[salon] reminders route failed to mount', e) }
 
 // Factory sync endpoint — allows Twomiah Factory to push feature updates via HTTP

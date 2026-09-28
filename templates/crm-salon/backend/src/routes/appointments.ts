@@ -11,6 +11,7 @@ import { ensureInvoiceForVisit } from '../services/salonCheckout.ts'
 import { scheduleReviewRequestForVisit } from '../services/reviews.ts'
 import { resolveStylist, unknownStylist, stylistIdOf, type StylistRef } from '../utils/stylist.ts'
 import { isRealCalendarDay } from '../shared/index.ts'
+import { awardForCompletedVisit, priceForVisit } from '../services/loyaltyAward.ts'
 import { salonTimezone, calendarDateIn } from '../utils/salonDate.ts'
 
 /**
@@ -146,6 +147,18 @@ async function onVisitCompleted(row: typeof appointment.$inferSelect): Promise<s
       } as any)
     }
   } catch (e: any) { console.warn('[appointments] visit record not created:', e?.message || e) }
+  // Loyalty rides on the same event: the client sat in the chair and paid, which is the moment
+  // points are earned and a punch card gets its punch. Idempotent on the appointment id, so a
+  // status flipped back and forth cannot pay out twice. Never fatal — a misconfigured programme
+  // must not stop a visit being completed or its invoice raised.
+  try {
+    const price = await priceForVisit(row.companyId, row.serviceId, row.quotedPrice)
+    await awardForCompletedVisit({
+      companyId: row.companyId, contactId: row.contactId, appointmentId: row.id,
+      serviceId: row.serviceId, price,
+    })
+  } catch (e: any) { console.warn('[appointments] loyalty not awarded:', e?.message || e) }
+
   scheduleReviewRequestForVisit({ companyId: row.companyId, contactId: row.contactId }).catch((e) => console.warn('[appointments] review schedule failed:', e?.message || e))
   return invoiceId
 }

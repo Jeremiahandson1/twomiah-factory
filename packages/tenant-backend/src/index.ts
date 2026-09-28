@@ -188,3 +188,14 @@ export { checkFilter, invalidFilter, filterGiven } from './listFilter'
 // PLANNED cannot be centuries out. Used by expenses and time entries here, and re-exported so a
 // template can hold its own records to the same rule. (Contractor T29; salon T20 M4)
 export { hasHappened, withinHorizon, horizonMessage, MAX_PLAN_YEARS, FUTURE_SLACK_MS } from './dateInput'
+
+// Loyalty — the RULES of a points/punch-card programme, with no storage attached. Shared because
+// crm-salon and crm-store both run one and their tables agree about almost nothing: salon is
+// multi-tenant with contacts and decimal dollars, store is single-tenant with uuid keys, no contacts
+// and integer cents. Copying the folder is what let crm-dispensary's forked permission matrix drift
+// until a guard caught a shipped regression, so the second and third verticals share the arithmetic
+// and keep their own tables. Money is in CENTS throughout.
+export { loyaltyConfig, loyaltyConfigResponse, LOYALTY_SETTING_KEYS, DEFAULT_POINTS_PER_DOLLAR, DEFAULT_WELCOME_POINTS, DEFAULT_BIRTHDAY_BONUS, DEFAULT_PUNCH_VISITS } from './loyalty/config'
+export type { LoyaltyConfig, PunchCardConfig } from './loyalty/config'
+export { pointsForSale, punchCardProgress, visitQualifies, rewardDiscountCents, canRedeem } from './loyalty/engine'
+export type { Reward, RewardType, BasketLine, PunchCardState, PunchCardProgress, RedeemCheck } from './loyalty/engine'

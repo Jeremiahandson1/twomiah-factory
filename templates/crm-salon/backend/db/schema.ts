@@ -3874,6 +3874,84 @@ export const membershipEnrollment = pgTable('membership_enrollment', {
 ])
 
 
+// ==================== LOYALTY ====================
+//
+// The rules live in packages/tenant-backend/src/loyalty (config.ts + engine.ts) and are shared with
+// every vertical that runs a programme. Only the STORAGE is here, because the shapes genuinely
+// differ: this is the multi-tenant contractor lineage (company + contact, money in decimal dollars)
+// while crm-store is single-tenant with uuid keys and integer cents.
+//
+// Two ways to earn, and a salon usually wants both: points on what they spend, and a punch card on
+// how often they come ("6 cuts, 7th free"). They are counted separately because they answer
+// different questions — spend and frequency — and a card filled by six £15 fringe trims is not the
+// same customer as one filled by six £90 colours.
+
+export const loyaltyMember = pgTable('loyalty_members', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  // The spendable wallet. Redeeming moves this and nothing else.
+  pointsBalance: integer('points_balance').default(0).notNull(),
+  // Everything ever earned — the outward "points earned to date" figure. Never spent down, so it
+  // stays honest as a lifetime stat rather than doubling as a balance.
+  lifetimePoints: integer('lifetime_points').default(0).notNull(),
+  // Punch card. Counted, not derived, because which services qualify can be reconfigured and a
+  // customer must not lose punches they already earned under the old rule.
+  qualifyingVisits: integer('qualifying_visits').default(0).notNull(),
+  punchRewardsEarned: integer('punch_rewards_earned').default(0).notNull(),
+  joinedAt: timestamp('joined_at').defaultNow(),
+  lastActivityAt: timestamp('last_activity_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('loyalty_member_company_id_idx').on(t.companyId),
+  // One membership per client. Without it a second completed visit racing the first mints a
+  // duplicate member and the client's points split across two rows.
+  uniqueIndex('loyalty_member_company_contact_uniq').on(t.companyId, t.contactId),
+])
+
+export const loyaltyTransaction = pgTable('loyalty_transactions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  memberId: text('member_id').notNull().references(() => loyaltyMember.id, { onDelete: 'cascade' }),
+  // earn | redeem | bonus | punch_reward | adjustment_add | adjustment_subtract | reversal
+  type: text('type').notNull(),
+  points: integer('points').notNull(),
+  balanceAfter: integer('balance_after'),
+  description: text('description'),
+  appointmentId: text('appointment_id'),
+  invoiceId: text('invoice_id'),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('loyalty_tx_member_idx').on(t.memberId, t.createdAt),
+  // Earning is keyed to the appointment that caused it, so completing the same visit twice (a
+  // status flip, a retry) cannot award the same points again.
+  uniqueIndex('loyalty_tx_earn_per_appointment').on(t.memberId, t.type, t.appointmentId),
+])
+
+export const loyaltyReward = pgTable('loyalty_rewards', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  // 0 for a punch-card reward: the visits were the price.
+  pointsCost: integer('points_cost').default(0).notNull(),
+  type: text('type').default('fixed').notNull(), // fixed | percent | free_item
+  // CENTS for 'fixed', whole percent for 'percent', unused for 'free_item'. Named for its unit
+  // because the engine works in cents and a column called `value` holding dollars is how the two
+  // get confused at 2am.
+  valueCents: integer('value_cents').default(0).notNull(),
+  // The service this reward pays for, when type is free_item.
+  serviceId: text('service_id').references(() => serviceMenu.id, { onDelete: 'set null' }),
+  active: boolean('active').default(true).notNull(),
+  usageCount: integer('usage_count').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('loyalty_reward_company_id_idx').on(t.companyId),
+])
+
 // -- Google Business Profile connection (single row; factory-brokered OAuth) --
 export const gbpConnection = pgTable('gbp_connection', {
   id: text('id').primaryKey().$defaultFn(() => createId()),

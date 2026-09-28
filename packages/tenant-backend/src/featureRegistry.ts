@@ -193,7 +193,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'id_verification', name: 'ID Verification', description: 'Customer ID verification tracking at pickup/delivery', category: 'Inventory & Compliance', core: true, templates: ['crm-dispensary'] },
 
   // Dispensary — Loyalty & Marketing
-  { id: 'loyalty_rewards', name: 'Loyalty Program', description: 'Points, tiers, rewards, and referral tracking', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary'] },
+  { id: 'loyalty_rewards', name: 'Loyalty Program', description: 'Points, tiers, rewards, and referral tracking', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary', 'crm-salon'] },
   { id: 'sms_marketing', name: 'SMS Marketing', description: 'Text message campaigns and opt-in management', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary'] },
   { id: 'email_campaigns', name: 'Email Campaigns', description: 'Email marketing and deal notifications', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary'] },
 

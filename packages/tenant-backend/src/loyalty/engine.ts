@@ -9,7 +9,7 @@
 // single-tenant with uuids, no contacts and integer cents — so the storage layer is theirs and the
 // rules are shared. A bug fixed here is fixed for both, which is the entire point of not copying
 // the folder.
-import type { LoyaltyConfig } from './config.ts'
+import type { LoyaltyConfig } from './config'
 
 /** Cents. Keeps a stray float from reaching a money column. */
 const cents = (n: any): number => {

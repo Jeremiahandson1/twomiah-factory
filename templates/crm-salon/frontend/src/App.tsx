@@ -24,6 +24,7 @@ import AppointmentsPage from './pages/salon/AppointmentsPage';
 import RemindersPage from './pages/salon/RemindersPage';
 import ServiceMenuPage from './pages/salon/ServiceMenuPage';
 import MembershipsPage from './pages/salon/MembershipsPage';
+import LoyaltyPage from './pages/salon/LoyaltyPage';
 import ContactsPage from './pages/ContactsPage';
 import JobsPage from './pages/JobsPage';
 import QuotesPage from './pages/QuotesPage';
@@ -161,6 +162,7 @@ function App() {
                     <Route path="reminders" element={<RemindersPage />} />
                     <Route path="service-menu" element={<ServiceMenuPage />} />
                     <Route path="memberships" element={<MembershipsPage />} />
+                    <Route path="loyalty" element={<LoyaltyPage />} />
                     <Route path="help" element={<HelpPage />} />
                   </Route>
 
