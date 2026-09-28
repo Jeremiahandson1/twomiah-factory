@@ -697,21 +697,27 @@ export default function SettingsPage() {
               <div>
                 <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Role</label>
                 <select value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
-                  {/* This list used to be two levels, on the grounds that only two
-                      were enforced: every business route was a bare
-                      app.use('*', authenticate) and offering a 'manager' implied a
-                      restriction that did not exist. That is no longer true —
-                      roof's routes now gate on the shared permission matrix, where
-                      viewer holds read-only grants and nothing else, so Viewer is a
-                      real tier and is offered here.
+                  {/* This list was two levels on the grounds that only two were
+                      enforced: every business route was a bare
+                      app.use('*', authenticate), so offering a 'manager' implied a
+                      restriction that did not exist. That reasoning was right then
+                      and does not hold now. roof's routes gate on the shared
+                      permission matrix — 48 distinct permissions across its route
+                      files, and manager differs from a Team member on 39 of them,
+                      covering 84 route declarations (jobs, quotes, invoices,
+                      contacts, storms, canvassing, crews, insurance, financing,
+                      materials, call tracking, ads). Verified live on rooftest:
+                      POST /api/invoices answers 400 "jobId: Required" for a manager
+                      and 403 "Permission denied, required: invoices:create" for a
+                      Team member.
 
-                      'manager' is STILL absent, and now only because nobody has
-                      chosen its line for roofing: the matrix does give it a distinct
-                      grant list. Add it when someone decides what a roofing manager
-                      may do that a team member may not. */}
+                      The old Team-member wording — "full access to jobs, quotes,
+                      invoices and contacts" — was simply untrue: `field` holds
+                      jobs:read and jobs:update and no create on any of the four. */}
                   <option value="viewer">Viewer — read-only: can open any page but change nothing</option>
-                  <option value="user">Team member — full access to jobs, quotes, invoices and contacts</option>
-                  <option value="admin">Admin — everything above plus settings, features and adding users</option>
+                  <option value="user">Team member — the work itself: update their jobs, log time, expenses, photos and daily logs. Cannot create jobs, quotes, invoices or contacts</option>
+                  <option value="manager">Manager — runs the board: create and edit jobs, quotes, invoices, contacts, storms, canvassing, crews and reports. Not company settings, approving financing or buying reports</option>
+                  <option value="admin">Admin — everything above plus company settings, features, adding users, approving financing and buying roof reports</option>
                 </select>
               </div>
             </div>
