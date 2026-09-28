@@ -6,6 +6,25 @@ import audit from '../services/audit.ts';
 
 const app = new Hono();
 
+// ─── Not connected until someone signs up ────────────────────────────────────────
+// There is no Wisetack partner account: WISETACK_API_KEY / WISETACK_PARTNER_ID are unset everywhere,
+// and services/wisetack.ts would otherwise send `Bearer undefined` to api.wisetack.com and throw
+// whatever the lender answered. Every route here answers 503 with a reason instead, including the
+// webhook — Wisetack is not sending us any. Set the two env vars and this router goes live with no
+// code change; that is the whole switch. Consumer financing also sits in the `business` tier bundle
+// in featureRegistry.ts, so a tenant on that tier can already see the feature listed.
+const requireWisetackConfigured = async (c: any, next: any) => {
+  if (!process.env.WISETACK_API_KEY || !process.env.WISETACK_PARTNER_ID) {
+    return c.json({
+      error: 'Consumer financing is not connected yet.',
+      code: 'PROVIDER_NOT_CONFIGURED',
+      provider: 'wisetack',
+    }, 503);
+  }
+  await next();
+};
+app.use('*', requireWisetackConfigured);
+
 // Webhook endpoint (no auth - uses signature verification)
 app.post('/webhook', async (c) => {
   const signature = c.req.header('x-wisetack-signature');
