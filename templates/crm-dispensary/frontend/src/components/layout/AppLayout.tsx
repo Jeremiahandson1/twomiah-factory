@@ -74,7 +74,7 @@ const ALL_NAV_ITEMS = [
   // Analytics & Reporting
   { to: '/crm/analytics', icon: BarChart3, label: 'Analytics' , minRole: 'manager'},
   { to: '/crm/reports', icon: PieChart, label: 'Reports', features: ['custom_reports', 'bi_dashboard'] , minRole: 'manager'},
-  { to: '/crm/website-analytics', icon: Globe, label: 'Web Analytics', features: ['website_analytics'] },
+  { to: '/crm/website-analytics', icon: Globe, label: 'Web Analytics', features: ['website_analytics'], minRole: 'manager' },
 
   // Operations
   { to: '/crm/cash', icon: DollarSign, label: 'Cash', features: ['cash_management'] },
@@ -106,7 +106,10 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/fraud-detection', icon: AlertTriangle, label: 'Fraud Detection', features: ['fraud_detection'], minRole: 'manager' },
   { to: '/crm/approvals', icon: CheckSquare, label: 'Approvals', features: ['approvals'], minRole: 'manager' },
   { to: '/crm/offline', icon: WifiOff, label: 'Offline Mode', features: ['offline_mode'] },
-  { to: '/crm/eod', icon: ClipboardList, label: 'EOD Report' },
+  // Every read behind these two is requireRole('manager'), so without minRole a budtender was
+  // shown the entry, opened a working-looking page — date picker, Generate Report, empty History —
+  // and every request it made was refused. The menu has to ask what the API asks. (T44 L1)
+  { to: '/crm/eod', icon: ClipboardList, label: 'EOD Report', minRole: 'manager' },
   { to: '/crm/purchase-orders', icon: PurchaseIcon, label: 'Purchase Orders', features: ['purchase_orders'] },
   { to: '/crm/menu-sync', icon: RefreshCw, label: 'Menu Sync', features: ['menu_sync'] , minRole: 'manager'},
   // Both back onto requireAdmin route families (inboundMessages.ts, gbp.ts): a manager could open

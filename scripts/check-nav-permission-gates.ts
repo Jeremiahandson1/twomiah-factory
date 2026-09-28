@@ -141,6 +141,73 @@ for (const t of TEMPLATES) {
   }
 }
 
+// ---------------------------------------------------------------- crm-dispensary, which gates on RANK
+//
+// Dispensary is absent from TEMPLATES above because it FORKS the permission matrix and its routes gate
+// with requireRole(), not requirePermission(). Everything above is therefore blind to it — which is how
+// run T44 found "EOD Report" sitting in a budtender's menu, opening a page with a date picker and a
+// Generate button behind an API that answers 403 to every call it makes. Web Analytics was the same
+// defect one entry away, unreported, found only because the fix prompted a sweep.
+//
+// Rank is the right question to ask HERE, precisely because rank is what this template's server asks.
+// (See feedback-rank-is-not-permission: mirror the lattice the server uses, never a different one.)
+{
+  const DISP = 'templates/crm-dispensary'
+  const RANK = ['viewer', 'budtender', 'driver', 'manager', 'admin', 'owner']
+  const rankOf = (r: string) => Math.max(0, RANK.indexOf(r))
+
+  const nav = read(`${DISP}/frontend/src/components/layout/AppLayout.tsx`)
+  if (!nav) fail('cannot read the dispensary sidebar')
+  else {
+    const entries = stripComments(nav).split('\n').filter((l) => /^\s*\{ to: '\/crm/.test(l))
+    if (!entries.length) fail('the dispensary sidebar declares no nav entries — the format changed and this arm is now blind')
+
+    let dispChecked = 0, dispGated = 0
+    for (const line of entries) {
+      const page = /to: '([^']+)'/.exec(line)![1]
+      const slug = page.replace('/crm/', '')
+      if (!slug) continue
+      const camel = slug.replace(/-([a-z])/g, (_m, c) => c.toUpperCase())
+      const src = [slug, camel, slug.replace(/-/g, '')]
+        .map((n) => read(`${DISP}/backend/src/routes/${n}.ts`)).find(Boolean)
+      if (!src) continue                       // no single route file behind it; nothing to compare
+      const clean = stripComments(src)
+
+      // What decides whether the PAGE opens is the call it makes on load. Two shapes count, and only
+      // these two, so an open sub-route cannot be mistaken for an open page:
+      //   · a blanket guard over the whole router
+      //   · the router's ROOT read, or — when there is no root read — every read being guarded
+      // eod.ts has an open /checklist beside a manager-only '/', and website-analytics.ts has no root
+      // read at all with every read manager-only. An earlier draft of this check that looked at "any
+      // open read" cleared the first, and one that looked only at the root cleared the second.
+      const blanket = /app\.use\('\*',[^)]*requireRole\('([a-z]+)'\)/.exec(clean)?.[1]
+      const rootRead = /app\.get\('\/',\s*requireRole\('([a-z]+)'\)/.exec(clean)?.[1]
+      const reads = [...clean.matchAll(/app\.get\('[^']*',\s*(requireRole\('([a-z]+)'\))?/g)]
+      const allReadsGuarded = reads.length > 0 && reads.every((m) => m[1])
+      const weakestGuardedRead = reads.filter((m) => m[2]).map((m) => m[2]).sort((a, b) => rankOf(a) - rankOf(b))[0]
+
+      const needs = blanket || rootRead || (allReadsGuarded ? weakestGuardedRead : null)
+      if (!needs || needs === 'viewer') continue
+      dispChecked++
+      if (rankOf(needs) <= rankOf('budtender')) continue   // the floor can open it; nothing to declare
+      dispGated++
+
+      const declared = /minRole: '([a-z]+)'/.exec(line)?.[1]
+      if (!declared) {
+        fail(`crm-dispensary: ${page} opens a page whose API requires ${needs}, and the entry declares no minRole — everyone below ${needs} is shown a menu item that leads to a page refusing every call it makes`)
+      } else if (rankOf(declared) < rankOf(needs)) {
+        fail(`crm-dispensary: ${page} declares minRole: '${declared}' but its API requires '${needs}'`)
+      }
+    }
+
+    // The sidebar and the URL gate are the same array here, so one declaration covers both — but only
+    // while AppLayout actually reads minRole. Pinned, because a refactor that dropped it would make
+    // every declaration above decoration.
+    if (!/minRole/.test(nav)) fail('the dispensary AppLayout no longer reads minRole — the declarations above would be decoration')
+    console.log(`  crm-dispensary (rank-gated): ${dispChecked} entries lead to a rank-guarded page, ${dispGated} to one the floor is refused, and every one of those declares its minRole`)
+  }
+}
+
 // ---------------------------------------------------------------- and the shell honours it
 const shell = read('packages/tenant-ui/src/shell/AppShell.tsx')
 if (!shell) fail('cannot read AppShell')
