@@ -8,7 +8,7 @@ import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { getApprovalConfig, requireApproval, linkApprovalToOrder, ApprovalRequiredError } from '../services/approvals.ts'
 import { escapeHtml } from '../utils/sanitize.ts'
-import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, ageFromDob, minimumAgeFor, unitGramsOf, overPurchaseLimit, lineFlowerEquivalentGrams, uncountableCannabisLines, unweighedCannabisRefusal, gramsText } from '../utils/cannabis.ts'
+import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, ageFromDob, minimumAgeFor, ADULT_USE_MIN_AGE, unitGramsOf, overPurchaseLimit, lineFlowerEquivalentGrams, uncountableCannabisLines, unweighedCannabisRefusal, gramsText } from '../utils/cannabis.ts'
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { loyaltyConfig, inBirthdayMonth } from '../utils/loyaltyConfig.ts'
 import { recomputeTier } from '../utils/loyaltyTier.ts'
@@ -73,10 +73,18 @@ const round2 = (n: number) => Math.round(n * 100) / 100
 // every path that settles a sale with cannabis on it runs this: the order must carry
 // idVerified=true and, when a date of birth is known (linked contact or customerDob), the
 // customer must be 21+ (18+ for a medical sale with a card on file).
-// Returns null when OK, else { status, body } for the caller to return.
-async function checkAgeGate(ord: any, items: any[], idVerified: boolean): Promise<{ status: 403; body: any } | null> {
+// Returns { refusal } when the sale must be refused, and always returns what it RESOLVED about the
+// buyer. That second half matters: the gate already reads the contact's medical card to decide an
+// 18-to-20-year-old may buy at all, but the order was still saved with whatever isMedical the till
+// sent — which is nothing, because the register's payload has no such field. So every sale to a
+// young patient was stored as adult-use, charged adult-use excise, and counted under
+// recreational_orders in the compliance report. The gate knows; it just never said. (T42 B1)
+type AgeGate = { refusal: { status: 403; body: any } | null; isMedical: boolean; medicalCardNumber: string | null }
+
+async function checkAgeGate(ord: any, items: any[], idVerified: boolean): Promise<AgeGate> {
   const hasCannabis = items.some(i => isCannabisLine(i))
-  if (!hasCannabis) return null
+  const asSent: AgeGate = { refusal: null, isMedical: !!ord.isMedical, medicalCardNumber: ord.medicalCardNumber ?? null }
+  if (!hasCannabis) return asSent
   let dob: string | null = ord.customerDob || null
   // The medical card lives on the CONTACT, with its expiry — the order only carries one if the till happened
   // to repeat it. So an 18-to-20-year-old patient with a card on file was enrolled happily and then refused
@@ -93,14 +101,27 @@ async function checkAgeGate(ord: any, items: any[], idVerified: boolean): Promis
     cardOnFile = ct?.card && !expired ? (ct.card as any) : null
   }
   const age = ageFromDob(dob)
+  // Spelled out rather than via `card` below: check-refund-units-and-gates.ts pins this exact call,
+  // because reading the card off the CONTACT is what let an 18-to-20-year-old patient buy at all (T20 M8).
   const minAge = minimumAgeFor({ isMedical: ord.isMedical || !!cardOnFile, medicalCardNumber: ord.medicalCardNumber || cardOnFile })
+  const card = ord.medicalCardNumber || cardOnFile
+
+  // Under 21 with a valid card, this sale can only lawfully be a medical one — there is no adult-use
+  // reading of it — so it is recorded as medical whatever the till said, and the card goes on the
+  // order (it was always null before, even on orders flagged medical). At 21+ the customer may
+  // legitimately buy either way, so their choice stands.
+  const under21 = age != null && age < ADULT_USE_MIN_AGE
+  const resolved: AgeGate = under21 && card
+    ? { refusal: null, isMedical: true, medicalCardNumber: card }
+    : { refusal: null, isMedical: !!ord.isMedical, medicalCardNumber: ord.medicalCardNumber ?? null }
+
   if (age != null && age < minAge) {
-    return { status: 403, body: { error: `Customer is ${age} — cannabis sales require ${minAge}+`, code: 'underage', age, minAge } }
+    return { ...resolved, refusal: { status: 403, body: { error: `Customer is ${age} — cannabis sales require ${minAge}+`, code: 'underage', age, minAge } } }
   }
   if (!idVerified) {
-    return { status: 403, body: { error: 'ID verification (21+) is required before a cannabis sale can be completed', code: 'id_verification_required' } }
+    return { ...resolved, refusal: { status: 403, body: { error: 'ID verification (21+) is required before a cannabis sale can be completed', code: 'id_verification_required' } } }
   }
-  return null
+  return resolved
 }
 
 // Hono has no typed 403 helper for our error class — convert to a response.
@@ -310,14 +331,14 @@ app.post('/', requireRole('budtender'), async (c) => {
 
   // Age gate at create time too: a known-underage customer is refused before an order even
   // exists (completion re-checks, since the contact/DOB can change). (F-02)
-  {
-    const gate = await checkAgeGate(
-      { contactId: data.contactId, customerDob: data.customerDob, isMedical: data.isMedical, medicalCardNumber: data.medicalCardNumber },
-      resolvedItems,
-      true, // idVerified is only required at completion; a pending order may be built before the ID check
-    )
-    if (gate) return c.json(gate.body, gate.status)
-  }
+  // Not block-scoped: what the gate resolved about the buyer decides how this order is STORED and
+  // taxed, not just whether it is allowed. (T42 B1/H1)
+  const saleGate = await checkAgeGate(
+    { contactId: data.contactId, customerDob: data.customerDob, isMedical: data.isMedical, medicalCardNumber: data.medicalCardNumber },
+    resolvedItems,
+    true, // idVerified is only required at completion; a pending order may be built before the ID check
+  )
+  if (saleGate.refusal) return c.json(saleGate.refusal.body, saleGate.refusal.status)
 
   // Purchase limit validation — the configured/state limit, not a hardcoded 2.5 oz (V-1).
   const [companyRow] = await db.select({
@@ -348,7 +369,7 @@ app.post('/', requireRole('budtender'), async (c) => {
 
   // The rates the operator set in Settings, falling back to the state defaults. Shared with the
   // kiosk (utils/tax.ts) so the two tills cannot charge differently. (T29 B2)
-  const { salesRate, exciseRate } = taxRatesFor(companyRow)
+  const { salesRate, exciseRate } = taxRatesFor(companyRow, { isMedical: saleGate.isMedical })
 
   // Spending points is the same module as earning them, so it answers to the same switch. A shop
   // that has switched Loyalty off should not be able to take a reward off a cart either — the whole
@@ -489,8 +510,10 @@ app.post('/', requireRole('budtender'), async (c) => {
       customerName: data.customerName,
       customerId: data.customerId,
       customerDob: data.customerDob,
-      isMedical: data.isMedical,
-      medicalCardNumber: data.medicalCardNumber,
+      // Resolved, not as sent: an under-21 patient's sale is medical by law, and the card is stored
+      // on the order so the compliance report and an audit can see which sale it authorised. (T42 B1)
+      isMedical: saleGate.isMedical,
+      medicalCardNumber: saleGate.medicalCardNumber,
       paymentMethod: data.paymentMethod,
       idVerified: data.idVerified,
       subtotal: String(subtotal),
@@ -576,7 +599,7 @@ app.put('/:id/status', requireRole('driver'), async (c) => {
   if (nowCompleting) {
     const lines = await db.select().from(orderItem).where(eq(orderItem.orderId, id))
     const gate = await checkAgeGate(existing, lines, !!existing.idVerified)
-    if (gate) return c.json(gate.body, gate.status)
+    if (gate.refusal) return c.json(gate.refusal.body, gate.refusal.status)
   }
 
   // A sale that has been SETTLED cannot be cancelled — it has to be refunded. Cancelling one made the
@@ -696,7 +719,7 @@ app.post('/:id/complete', requireRole('budtender'), async (c) => {
   const idVerifiedNow = data.idVerified === true || !!existing.idVerified
   {
     const gate = await checkAgeGate(existing, items, idVerifiedNow)
-    if (gate) return c.json(gate.body, gate.status)
+    if (gate.refusal) return c.json(gate.refusal.body, gate.refusal.status)
   }
 
   // Re-verify stock at completion. The create-time oversell check can go stale if the same units
@@ -1062,7 +1085,9 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
   // An AMOUNT refund returns money, not units: no lines are marked returned and no stock is
   // restocked (nothing physical came back); loyalty/spend reverse in proportion to the amount.
   // The rates this company charges, for taxing the units that are coming back (M2).
-  const [refundCompanyRow] = await db.select({ taxRate: company.taxRate, exciseTaxRate: company.exciseTaxRate })
+  // settings comes along because the medical excise exemption lives there: a refund has to reverse
+  // exactly what was charged, and a tenant that taxes patients must not be handed back an exemption.
+  const [refundCompanyRow] = await db.select({ taxRate: company.taxRate, exciseTaxRate: company.exciseTaxRate, settings: company.settings })
     .from(company).where(eq(company.id, currentUser.companyId)).limit(1)
 
   const refundPlan: { line: any; qty: number }[] = []
@@ -1136,7 +1161,7 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
         subtotal: refundMerch,
         cannabisSubtotal: refundCannabisSubtotal,
         discount: refundDiscountShare,
-        rates: taxRatesFor(refundCompanyRow),
+        rates: taxRatesFor(refundCompanyRow, { isMedical: (existing as any).isMedical }),
       })
       refundAmount = round2(Math.min(refundTaxed.grandTotal, remainingRefundable))
       refundedTaxThisTime = round2(Math.min(refundTaxed.totalTax, refundAmount))

@@ -26,17 +26,39 @@ export const round2 = (n: number) => Math.round(n * 100) / 100
 export type TaxRates = { salesRate: number; exciseRate: number }
 
 /**
+ * Does a medical sale skip the cannabis excise here? Default yes: Ohio — this product's first
+ * market — exempts registered patients, as do most medical programmes, and a patient charged a tax
+ * they do not owe is a refund and a compliance problem rather than a rounding difference.
+ * A state that does tax patients sets settings.tax.medicalExciseExempt to false.
+ */
+export const DEFAULT_MEDICAL_EXCISE_EXEMPT = true
+
+export function medicalExciseExempt(co: { settings?: any } | null | undefined): boolean {
+  let settings: any = co?.settings
+  if (typeof settings === 'string') { try { settings = JSON.parse(settings) } catch { settings = null } }
+  const configured = settings?.tax?.medicalExciseExempt
+  return configured == null ? DEFAULT_MEDICAL_EXCISE_EXEMPT : configured !== false
+}
+
+/**
  * The rates this company charges. Settings holds percents ("8.5"), not fractions — the register
  * charged a hardcoded constant once and disagreed with the number the operator had typed.
  * A blank, absent or unparseable value falls back to the default rather than to zero: an untaxed
  * sale is a compliance problem, not a free upgrade.
  */
-export function taxRatesFor(co: { taxRate?: any; exciseTaxRate?: any } | null | undefined): TaxRates {
+export function taxRatesFor(
+  co: { taxRate?: any; exciseTaxRate?: any; settings?: any } | null | undefined,
+  sale?: { isMedical?: boolean | null },
+): TaxRates {
   const sales = co?.taxRate != null && co.taxRate !== '' ? Number(co.taxRate) / 100 : DEFAULT_SALES_RATE
   const excise = co?.exciseTaxRate != null && co.exciseTaxRate !== '' ? Number(co.exciseTaxRate) / 100 : DEFAULT_EXCISE_RATE
+  const exciseRate = Number.isFinite(excise) ? excise : DEFAULT_EXCISE_RATE
   return {
     salesRate: Number.isFinite(sales) ? sales : DEFAULT_SALES_RATE,
-    exciseRate: Number.isFinite(excise) ? excise : DEFAULT_EXCISE_RATE,
+    // A registered patient does not pay the adult-use excise in Ohio, and in most medical
+    // programmes. It stays here rather than in the till because a route that applies a rate itself
+    // is exactly how the kiosk ended up untaxed — check-one-tax-definition.ts enforces that.
+    exciseRate: sale?.isMedical && medicalExciseExempt(co) ? 0 : exciseRate,
   }
 }
 
