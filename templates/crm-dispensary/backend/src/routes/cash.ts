@@ -58,6 +58,13 @@ app.get('/sessions', async (c) => {
   let statusFilter = sql``
   if (status) statusFilter = sql`AND cs.status = ${status}`
 
+  // A budtender sees THEIR OWN drawers and nobody else's. Opening, counting and closing a till is
+  // their shift work and has to keep working — but the unfiltered list handed them the owner's and
+  // the manager's sessions, with each one's expected balance, count and variance. Reconciling the
+  // shop is a manager's job; reconciling your own drawer is not the same thing. (T43 N8)
+  const canSeeEveryDrawer = ['manager', 'admin', 'owner'].includes(String(currentUser.role || ''))
+  const ownerFilter = canSeeEveryDrawer ? sql`` : sql`AND cs.opened_by_id = ${currentUser.userId}`
+
   // The cash panel computes "Expected in Drawer" as openingAmount + cashSales - cashRefunds,
   // but the list never returned cashSales/cashRefunds, so every drawer showed just the float
   // and reconciliation read Expected = opening only (retest#6 N2). Attribute completed cash
@@ -97,14 +104,14 @@ app.get('/sessions', async (c) => {
         AND (cs.closed_at IS NULL OR o.refunded_at <= cs.closed_at)
     ) refunds ON true
     WHERE cs.company_id = ${currentUser.companyId}
-      ${statusFilter}
+      ${statusFilter} ${ownerFilter}
     ORDER BY cs.opened_at DESC
     LIMIT ${limit} OFFSET ${offset}
   `)
 
   const countResult = await db.execute(sql`
     SELECT COUNT(*)::int as total FROM cash_sessions cs
-    WHERE cs.company_id = ${currentUser.companyId} ${statusFilter}
+    WHERE cs.company_id = ${currentUser.companyId} ${statusFilter} ${ownerFilter}
   `)
 
   const data = ((dataResult as any).rows || dataResult).map(camel)

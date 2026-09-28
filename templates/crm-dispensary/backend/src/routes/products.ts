@@ -13,6 +13,21 @@ import { isCannabisLine } from '../utils/cannabis.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+/**
+ * The product as this person is allowed to see it.
+ *
+ * Cost is the shop's margin. A budtender needs the catalogue to ring a sale up, so the list stays
+ * open to them — but it was handing over what every item cost to buy, which is a different thing
+ * from what it sells for. Stripped per row rather than the endpoint being closed, because closing
+ * it would stop the floor working. (T43 N8)
+ */
+const COST_READERS = ['manager', 'admin', 'owner']
+const withoutCost = <T extends Record<string, any>>(row: T, user: any): T => {
+  if (!row || COST_READERS.includes(String(user?.role || ''))) return row
+  const { cost, ...rest } = row as any
+  return rest as T
+}
+
 // Free-text fields are stored with markup stripped (QA F-09): a product named
 // `<img src=x onerror=alert(1)>` was persisted verbatim. React escapes it in the SPA, but
 // receipts, labels, signage, emails and CSV exports are not React. Strip on input so no
@@ -170,7 +185,10 @@ app.get('/', async (c) => {
     db.select({ value: count() }).from(product).where(where),
   ])
 
-  return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
+  // What a product COST the shop is margin, not something the floor needs to sell it. The catalogue
+  // has to stay open — a budtender cannot ring up what they cannot see — so the row is returned
+  // without that one field rather than the list being closed off. (T43 N8)
+  return c.json({ data: data.map(p => withoutCost(p, currentUser)), pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
 })
 
 // GET /low-stock — products at or below their low-stock threshold (dashboard used
@@ -184,7 +202,7 @@ app.get('/low-stock', async (c) => {
       sql`${product.stockQuantity} <= ${product.lowStockThreshold}`,
     ))
     .orderBy(asc(product.stockQuantity))
-  return c.json({ data })
+  return c.json({ data: data.map(p => withoutCost(p, currentUser)) })
 })
 
 // Get single product
@@ -197,7 +215,7 @@ app.get('/:id', async (c) => {
     .limit(1)
   if (!found) return c.json({ error: 'Product not found' }, 404)
 
-  return c.json(found)
+  return c.json(withoutCost(found, currentUser))
 })
 
 // Create product (manager+)

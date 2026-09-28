@@ -347,7 +347,11 @@ app.post('/generate', requireRole('manager'), async (c) => {
 
 // ─── GET / ── List EOD reports ───────────────────────────────────────────────
 
-app.get('/', async (c) => {
+// An End-of-Day report is the day's takings, the drawer count and the variance — the shop's money,
+// not a budtender's own shift. Generating one was already manager-only; READING past ones was not,
+// so any signed-in staff could pull ,923.75 of revenue with cashExpected and cashVariance beside
+// it. Same rank to read as to produce. (T43 N8)
+app.get('/', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const startDate = c.req.query('startDate')
   const endDate = c.req.query('endDate')
@@ -430,7 +434,7 @@ app.get('/checklist', async (c) => {
 
 // ─── GET /:id ── Report detail ───────────────────────────────────────────────
 
-app.get('/:id', async (c) => {
+app.get('/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

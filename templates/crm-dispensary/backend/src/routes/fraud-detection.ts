@@ -21,7 +21,10 @@ const camel = (row: any): any => {
 // ─── Alerts ─────────────────────────────────────────────────────────────────
 
 // List fraud alerts
-app.get('/alerts', async (c) => {
+// Fraud alerts name the staff member they are about. The dashboard beside this was correctly
+// manager-only while the alert list itself was open, so a budtender could read the alerts raised
+// against them — and know which of their own behaviour had been flagged. (T43 N10)
+app.get('/alerts', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const type = c.req.query('type')
   const severity = c.req.query('severity')
