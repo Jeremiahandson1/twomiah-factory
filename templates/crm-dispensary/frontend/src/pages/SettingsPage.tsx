@@ -92,7 +92,7 @@ function Input({ value, onChange, type = 'text', placeholder = '', className = '
 
 export default function SettingsPage() {
   const navigate = useNavigate();
-  const { user, company, updateCompany, hasFeature } = useAuth();
+  const { user, company, updateCompany, hasFeature, isAdmin } = useAuth();
   const toast = useToast();
   const [tab, setTab] = useState('general');
 
@@ -443,7 +443,11 @@ export default function SettingsPage() {
     { id: 'merch', label: 'Merch', icon: ShoppingBag },
     { id: 'receipts', label: 'Receipts', icon: Receipt },
     // Only where the tenant actually has kiosks — matching the Kiosk nav item, which is gated the same way.
-    ...(hasFeature('kiosk') ? [{ id: 'kiosks', label: 'Kiosks', icon: Monitor }] : []),
+    // …and only for an ADMIN. Every button on that tab — add, revoke, delete — is admin-only on the
+    // server (T43 N6), and the Kiosk screen has told staff "ask an admin or the owner" since T42.
+    // Showing a manager the tab would hand them three buttons that answer 403, which is the same
+    // defect T44 filed against the End-of-Day menu entry.
+    ...(hasFeature('kiosk') && isAdmin ? [{ id: 'kiosks', label: 'Kiosks', icon: Monitor }] : []),
     { id: 'team', label: 'Team', icon: Users },
   ];
 
@@ -941,7 +945,13 @@ export default function SettingsPage() {
                               : <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Awaiting pairing</span>}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
-                          {k.lastSeenAt ? new Date(k.lastSeenAt).toLocaleString() : '—'}
+                          {/* On the STORE's clock, not the browser's. An owner checking a tablet from
+                              home in another state read a last-seen hours out from what the shop saw.
+                              effectiveTimeZone is what the server resolved (a set zone, else the
+                              licensed state), so this column and the compliance day agree. (T43 N11) */}
+                          {k.lastSeenAt
+                            ? new Date(k.lastSeenAt).toLocaleString(undefined, effectiveTz ? { timeZone: effectiveTz } : undefined)
+                            : '—'}
                         </td>
                         {/* Delete is offered only where it will actually work. It used to sit on every row,
                             including the ones the server refuses 409 for, and the operator found out by

@@ -51,14 +51,30 @@ const routes = read(`${T}/backend/src/routes/kiosk.ts`)
     fail('…and must offer revoke, which is how a lost or stolen tablet is cut off')
   if (!/api\.delete\(`\/api\/kiosk\/devices\/\$\{k\.id\}`\)/.test(settings))
     fail('…and delete, for one added by mistake')
-  if (!/hasFeature\('kiosk'\) \? \[\{ id: 'kiosks'/.test(settings))
-    fail('…and the tab is gated on the kiosk feature, matching the Kiosk nav item — a tenant without kiosks should not be offered kiosk settings')
+  // Both halves: the FEATURE (does this tenant have kiosks) and the ROLE (may this person work them).
+  // The role half was added with T43 N6 — every button on the tab is admin-only on the server, so a
+  // manager-visible tab would be three buttons that answer 403.
+  if (!/hasFeature\('kiosk'\) && isAdmin \? \[\{ id: 'kiosks'/.test(settings))
+    fail('…and the tab is gated on the kiosk feature AND isAdmin — a tenant without kiosks should not be offered kiosk settings, and a manager should not be offered buttons the server refuses')
 }
 
 // ── delete may not orphan the sales record ────────────────────────────────────────────────────────
 {
-  if (!/app\.delete\('\/devices\/:id', authenticate, requireRole\('manager'\)/.test(routes))
-    fail("DELETE /devices/:id must exist and be a manager's button")
+  // admin, not manager. This asserted manager until T43 N6, where the tester put the two halves side
+  // by side: the Kiosk screen has told staff "ask an admin or the owner" since T42, and these routes
+  // answered a manager 201 and 200. A kiosk is an unattended tablet that takes money from the public
+  // and holds a token, so the screen's line is the one to keep — and Settings → Kiosks is now gated
+  // on isAdmin to match, because an admin-only API under a manager-visible tab is the SAME defect one
+  // layer up (T44 L1). What this block has always really been about — that the route exists, refuses
+  // to orphan a sale, and is tenant-scoped — is unchanged.
+  if (!/app\.delete\('\/devices\/:id', authenticate, requireRole\('admin'\)/.test(routes))
+    fail("DELETE /devices/:id must exist and be an admin's button")
+  if (!/app\.post\('\/devices', authenticate, requireRole\('admin'\)/.test(routes))
+    fail('POST /devices must be admin — the Kiosk screen tells staff to ask an admin or the owner')
+  if (!/app\.post\('\/devices\/:id\/revoke', authenticate, requireRole\('admin'\)/.test(routes))
+    fail('POST /devices/:id/revoke must be admin, for the same reason')
+  if (!/app\.get\('\/devices', authenticate, requireRole\('manager'\)/.test(routes))
+    fail('…but a MANAGER must still be able to list them: they run the floor these tablets stand on, and hiding the fleet from them is the over-correction')
   if (!/SELECT COUNT\(\*\)::int as count FROM kiosk_sessions\s*\n\s*WHERE kiosk_device_id = \$\{id\} AND company_id = \$\{user\.companyId\}/.test(routes))
     fail('…and must count the kiosk\'s sessions before removing it — that column is how a sale is traced to the terminal that took it')
   if (!/if \(Number\(count\) > 0\) \{/.test(routes))

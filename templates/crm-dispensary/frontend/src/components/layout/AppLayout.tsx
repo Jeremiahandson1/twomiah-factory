@@ -144,7 +144,13 @@ export default function AppLayout() {
       // Feature-gated items show if ANY listed feature is enabled
       return item.features.some(f => hasFeature(f));
     });
-  }, [hasFeature, user?.role]);
+    // enabledFeatures is listed because that is what this memo actually reads — hasFeature only closes
+    // over it. Today the two change together, so the sidebar does refresh when a feature is switched
+    // off; the day someone wraps hasFeature in useCallback it would silently stop, and the URL gate
+    // below already lists `company` while this did not. T43 N11 reported the menu going stale until a
+    // reload and I could not reproduce it from the source — this is the dependency being honest about
+    // what it depends on, not a diagnosis of that report.
+  }, [hasFeature, company?.enabledFeatures, user?.role]);
 
   // A module that is not part of this tenant's vertical/plan must not be reachable by URL either:
   // the sidebar hid it, but /crm/rfis, /crm/lien-waivers… still rendered contractor pages inside a

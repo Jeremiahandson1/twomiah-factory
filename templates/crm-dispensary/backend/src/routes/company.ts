@@ -101,6 +101,28 @@ app.put('/', requireAdmin, async (c) => {
   // validated by nobody: {settings:{taxRate:"abc"}} was stored verbatim with a 200. It is only
   // harmless while nothing reads it, which is not a property worth relying on. Refuse the shadow copy
   // and name the field that does the work. (T21 L1, and the root of L2)
+  // …and the mirror image: a settings key sent at the TOP level. zod strips what the schema does not
+  // name, so `PUT /api/company {"timezone":"America/Chicago"}` answered 200 and changed nothing —
+  // the store stayed on the zone its state implies, which is simply wrong in Indiana, Kentucky,
+  // Tennessee and Texas, and the owner had been told it saved. Silence is the bug: the request has
+  // to say where the key belongs. (T43 N9)
+  //
+  // Kept to keys nothing legitimately sends up here: Settings → General and Settings → Loyalty both
+  // put these inside `settings`, and the five loyalty* fields ARE top-level on purpose (T21 M7), so
+  // they are not in this list. A refusal on a shape a screen already sends would break that screen.
+  const MISPLACED = ['timezone', 'paymentTermsDays', 'defaultPaymentTerms'] as const
+  {
+    const raw = (body ?? {}) as Record<string, unknown>
+    const misplaced = MISPLACED.filter((k) => raw[k] !== undefined)
+    if (misplaced.length) {
+      return c.json({
+        error: `${misplaced.join(', ')} ${misplaced.length === 1 ? 'belongs' : 'belong'} under "settings", not at the top level — sent here ${misplaced.length === 1 ? 'it is' : 'they are'} ignored. Send { "settings": { "${misplaced[0]}": … } }.`,
+        code: 'SETTING_BELONGS_IN_SETTINGS',
+        fields: misplaced,
+      }, 400)
+    }
+  }
+
   const SHADOWED = ['taxRate', 'localTaxRate', 'exciseTaxRate', 'purchaseLimitOz', 'storeHours'] as const
   if (data.settings && typeof data.settings === 'object') {
     const shadowed = SHADOWED.filter(k => (data.settings as any)[k] !== undefined)
@@ -206,7 +228,14 @@ app.put('/', requireAdmin, async (c) => {
     // and every stale key stays in the blob for good. The one exception is settings.timezone, where
     // null is a real stored value meaning "follow the licensed state" (T28 L-e); deleting the key
     // reads the same way to storeTimeZone(), so removal is still the right move. (T29 L6)
-    for (const [k, v] of Object.entries(base)) if (v === null) delete (base as any)[k]
+    //
+    // Only what THIS CALLER asked to remove. Sweeping the merged blob deleted every key already
+    // stored as null, whether or not the save had anything to do with it — run T43 N9 watched a save
+    // take billingType, nextBillingDate and trialEndsAt out of a 30-key blob it never mentioned, and
+    // "null means remove" is a sentence about the request, not about the database. The shared company
+    // route iterates the request for exactly this reason; this fork iterated the merge.
+    const asked = (data.settings && typeof data.settings === 'object') ? (data.settings as Record<string, unknown>) : {}
+    for (const [k, v] of Object.entries(asked)) if (v === null) delete (base as any)[k]
     updates.settings = Object.keys(loyaltyPatch).length
       ? { ...base, loyalty: { ...((base as any).loyalty || {}), ...loyaltyPatch } }
       : base

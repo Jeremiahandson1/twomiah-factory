@@ -208,7 +208,12 @@ app.get('/devices', authenticate, requireRole('manager'), async (c) => {
   return c.json({ data: rows(r).map(camel), enforcement: await kioskEnforcement(user.companyId) })
 })
 
-app.post('/devices', authenticate, requireRole('manager'), async (c) => {
+// Adding, revoking and deleting a kiosk is ADMIN, not manager. The Kiosk screen has told
+// staff "ask an admin or the owner" since T42, while these three routes answered a manager 201
+// and 200 — the screen and the server disagreeing about who is in charge of a tablet that takes
+// money from the public unattended. The screen is the newer decision and the safer one. Reading
+// the fleet stays with a manager: they run the floor these tablets sit on. (T43 N6)
+app.post('/devices', authenticate, requireRole('admin'), async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json().catch(() => ({} as any))
   const name = String(body?.name || '').trim()
@@ -226,7 +231,7 @@ app.post('/devices', authenticate, requireRole('manager'), async (c) => {
   return c.json({ ...publicDevice(camel(row)), pairingCode: code }, 201)
 })
 
-app.post('/devices/:id/revoke', authenticate, requireRole('manager'), async (c) => {
+app.post('/devices/:id/revoke', authenticate, requireRole('admin'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   const r = await db.execute(sql`
@@ -235,7 +240,11 @@ app.post('/devices/:id/revoke', authenticate, requireRole('manager'), async (c) 
   `)
   const row = rows(r)?.[0]
   if (!row) return c.json({ error: 'Kiosk not found' }, 404)
-  audit.log({ action: 'delete', entity: 'kiosk_device', entityId: id, entityName: row.name, req: c })
+  // status_change, not delete: the row is still there and its sessions still point at it. The audit
+  // log read "Deleted kiosk device" for a tablet that had merely been taken out of service, which is
+  // the one place a wrong word actually costs something — it is the record you reach for when asking
+  // what happened to a device. (T43 N6)
+  audit.log({ action: audit.ACTIONS.STATUS_CHANGE, entity: 'kiosk_device', entityId: id, entityName: row.name, changes: { status: { old: 'active', new: 'revoked' } }, req: c })
   return c.json({ success: true, device: publicDevice(camel(row)) })
 })
 
@@ -251,7 +260,7 @@ app.post('/devices/:id/revoke', authenticate, requireRole('manager'), async (c) 
  * rubbish they can only "revoke". So: delete when there is no history, refuse with an explanation when
  * there is. (T27 H1)
  */
-app.delete('/devices/:id', authenticate, requireRole('manager'), async (c) => {
+app.delete('/devices/:id', authenticate, requireRole('admin'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   const [device] = rows(await db.execute(sql`

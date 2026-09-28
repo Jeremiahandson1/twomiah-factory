@@ -5,6 +5,17 @@ import { useToast } from '../contexts/ToastContext';
 import { DataTable, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
 
+/**
+ * What this shop calls each rung. Mirrors the server's ROLE_MAPPING and ROLE_HIERARCHY
+ * (backend/src/middleware/permissions.ts), where `user` and `field` both normalise to budtender —
+ * the two names the roster showed raw. Presentation only: the stored value never changes.
+ */
+const DISPENSARY_ROLE_LABELS: Record<string, string> = {
+  owner: 'Owner', admin: 'Admin', manager: 'Manager',
+  budtender: 'Budtender', user: 'Budtender', field: 'Budtender',
+  driver: 'Driver', viewer: 'Viewer',
+};
+
 export default function TeamPage() {
   const toast = useToast();
   const [data, setData] = useState([]);
@@ -46,7 +57,10 @@ export default function TeamPage() {
 
   const columns = [
     { key: 'name', label: 'Name', render: (v) => <span className="font-medium">{v}</span> },
-    { key: 'role', label: 'Role' },
+    // The hierarchy's stored ids are named for the trades it was built for, so this column read
+    // "field" and "user" at a dispensary — words nobody there uses and the Role dropdown two lines up
+    // does not offer. Shown in this shop's own vocabulary; the stored value is untouched. (T43 N11)
+    { key: 'role', label: 'Role', render: (v) => DISPENSARY_ROLE_LABELS[String(v || '').toLowerCase()] || (v || '-') },
     { key: 'department', label: 'Department' },
     { key: 'email', label: 'Email' },
     { key: 'phone', label: 'Phone' },

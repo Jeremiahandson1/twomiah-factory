@@ -253,6 +253,13 @@ export default function AnalyticsPage() {
             <Package className="w-5 h-5 text-purple-600" />
             Product Mix
           </h2>
+          {/* Said plainly, because it can never equal the revenue tile above it and a reader with no
+              explanation reasonably concludes one of the two is broken. These are goods at the shelf
+              price, net of what came back; the headline adds excise and sales tax on top. (T43 H2b) */}
+          <p className="text-xs text-gray-500 mb-4 dark:text-slate-400">
+            Goods only, before tax and net of refunds — so this will not add up to the revenue above,
+            which includes tax.
+          </p>
           <div className="space-y-3">
             {productMix.length > 0 ? productMix.slice(0, 8).map((item: any, idx: number) => {
               const colors = ['bg-green-500', 'bg-blue-500', 'bg-purple-500', 'bg-amber-500', 'bg-rose-500', 'bg-cyan-500', 'bg-indigo-500', 'bg-orange-500'];
