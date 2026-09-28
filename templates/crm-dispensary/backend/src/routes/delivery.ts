@@ -189,7 +189,7 @@ app.put('/orders/:id/assign', requireRole('manager'), async (c) => {
 })
 
 // Update delivery status
-app.put('/orders/:id/status', async (c) => {
+app.put('/orders/:id/status', requireRole('driver'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

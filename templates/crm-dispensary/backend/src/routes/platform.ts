@@ -376,7 +376,7 @@ app.post('/onboarding/initialize', requireRole('manager'), async (c) => {
 })
 
 // PUT /onboarding/steps/:stepId — Mark step complete
-app.put('/onboarding/steps/:stepId', async (c) => {
+app.put('/onboarding/steps/:stepId', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const stepId = c.req.param('stepId')
 
@@ -499,7 +499,7 @@ app.use('/hardware/orders', authenticate)
 app.use('/hardware/orders/*', authenticate)
 
 // POST /hardware/orders — Place hardware order
-app.post('/hardware/orders', async (c) => {
+app.post('/hardware/orders', requireRole('admin'), async (c) => {
   const currentUser = c.get('user') as any
 
   const orderSchema = z.object({

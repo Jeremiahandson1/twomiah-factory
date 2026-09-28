@@ -230,7 +230,7 @@ app.get('/similar/:productId', async (c) => {
 })
 
 // POST /track — Track recommendation interaction
-app.post('/track', async (c) => {
+app.post('/track', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const trackSchema = z.object({

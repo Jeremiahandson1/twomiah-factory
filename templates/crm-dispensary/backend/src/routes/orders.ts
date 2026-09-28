@@ -189,7 +189,7 @@ app.get('/:id', async (c) => {
 })
 
 // Create order (budtender/field+)
-app.post('/', async (c) => {
+app.post('/', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const orderSchema = z.object({
@@ -542,7 +542,7 @@ app.post('/', async (c) => {
 })
 
 // Update order status
-app.put('/:id/status', async (c) => {
+app.put('/:id/status', requireRole('driver'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const statusBody = await c.req.json()
@@ -650,7 +650,7 @@ app.put('/:id/status', async (c) => {
 })
 
 // Complete order: mark paid, decrement inventory, earn loyalty
-app.post('/:id/complete', async (c) => {
+app.post('/:id/complete', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

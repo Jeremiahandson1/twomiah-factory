@@ -38,7 +38,7 @@ app.get('/saved', async (c) => {
 })
 
 // Create saved report
-app.post('/saved', async (c) => {
+app.post('/saved', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const reportSchema = z.object({
@@ -84,7 +84,7 @@ app.post('/saved', async (c) => {
 })
 
 // Update saved report
-app.put('/saved/:id', async (c) => {
+app.put('/saved/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -134,7 +134,7 @@ app.put('/saved/:id', async (c) => {
 })
 
 // Delete saved report
-app.delete('/saved/:id', async (c) => {
+app.delete('/saved/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -159,7 +159,7 @@ app.delete('/saved/:id', async (c) => {
 })
 
 // Execute a saved report
-app.post('/saved/:id/run', async (c) => {
+app.post('/saved/:id/run', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -280,7 +280,7 @@ app.get('/widgets', async (c) => {
 })
 
 // Create widget
-app.post('/widgets', async (c) => {
+app.post('/widgets', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const widgetSchema = z.object({
@@ -313,7 +313,7 @@ app.post('/widgets', async (c) => {
 })
 
 // Update widget
-app.put('/widgets/:id', async (c) => {
+app.put('/widgets/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -350,7 +350,7 @@ app.put('/widgets/:id', async (c) => {
 })
 
 // Delete widget
-app.delete('/widgets/:id', async (c) => {
+app.delete('/widgets/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -375,7 +375,7 @@ app.delete('/widgets/:id', async (c) => {
 })
 
 // Fetch data for a widget
-app.post('/widgets/:id/data', async (c) => {
+app.post('/widgets/:id/data', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

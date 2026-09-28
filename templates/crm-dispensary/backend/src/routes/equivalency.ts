@@ -247,7 +247,7 @@ app.post('/rules/seed-defaults', requireRole('admin'), async (c) => {
 })
 
 // POST /calculate — Calculate total flower-equivalent weight for a cart
-app.post('/calculate', async (c) => {
+app.post('/calculate', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const calcSchema = z.object({

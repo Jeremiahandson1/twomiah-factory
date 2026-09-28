@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, requireRole } from '../middleware/permissions.ts'
 import sms from '../services/sms.ts'
 
 const app = new Hono()
@@ -80,7 +80,7 @@ app.get('/conversations/:id', async (c) => {
 })
 
 // Archive conversation
-app.post('/conversations/:id/archive', async (c) => {
+app.post('/conversations/:id/archive', requireRole('budtender'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   await sms.archiveConversation(id, user.companyId)
@@ -88,7 +88,7 @@ app.post('/conversations/:id/archive', async (c) => {
 })
 
 // Link conversation to contact
-app.post('/conversations/:id/link', async (c) => {
+app.post('/conversations/:id/link', requireRole('budtender'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   const body = await c.req.json().catch(() => ({}))
@@ -110,7 +110,7 @@ app.post('/conversations/:id/link', async (c) => {
 // ============================================
 
 // Send SMS
-app.post('/send', async (c) => {
+app.post('/send', requireRole('budtender'), async (c) => {
   const user = c.get('user') as any
   const { contactId, toPhone, message, jobId, templateId } = await c.req.json()
 
@@ -135,7 +135,7 @@ app.post('/send', async (c) => {
 })
 
 // Reply to conversation
-app.post('/conversations/:id/reply', async (c) => {
+app.post('/conversations/:id/reply', requireRole('budtender'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   const { message } = await c.req.json()
@@ -184,7 +184,7 @@ app.post('/bulk', requirePermission('contacts:update'), async (c) => {
 })
 
 // Send job update
-app.post('/job-update/:jobId', async (c) => {
+app.post('/job-update/:jobId', requireRole('budtender'), async (c) => {
   const user = c.get('user') as any
   const jobId = c.req.param('jobId')
   const { updateType } = await c.req.json()
@@ -210,7 +210,7 @@ app.get('/templates', async (c) => {
 })
 
 // Create template
-app.post('/templates', async (c) => {
+app.post('/templates', requireRole('manager'), async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json().catch(() => ({}))
   if (!body?.name || typeof body.name !== 'string') {
@@ -224,7 +224,7 @@ app.post('/templates', async (c) => {
 })
 
 // Update template
-app.put('/templates/:id', async (c) => {
+app.put('/templates/:id', requireRole('manager'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   const body = await c.req.json()
@@ -233,7 +233,7 @@ app.put('/templates/:id', async (c) => {
 })
 
 // Delete template
-app.delete('/templates/:id', async (c) => {
+app.delete('/templates/:id', requireRole('manager'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   await sms.deleteTemplate(id, user.companyId)
@@ -252,7 +252,7 @@ app.get('/auto-responders', async (c) => {
 })
 
 // Create auto-responder
-app.post('/auto-responders', async (c) => {
+app.post('/auto-responders', requireRole('manager'), async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json().catch(() => ({}))
   if (!body?.name || typeof body.name !== 'string') {

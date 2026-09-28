@@ -144,7 +144,7 @@ app.get('/pickups', async (c) => {
 })
 
 // PUT /pickups/:id/status — Single status-transition endpoint the Curbside page uses.
-app.put('/pickups/:id/status', async (c) => {
+app.put('/pickups/:id/status', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -179,7 +179,7 @@ app.put('/pickups/:id/status', async (c) => {
 })
 
 // PUT /:id/assign — Assign staff to bring order out
-app.put('/:id/assign', async (c) => {
+app.put('/:id/assign', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -207,7 +207,7 @@ app.put('/:id/assign', async (c) => {
 })
 
 // PUT /:id/bringing-out — Staff is bringing order out
-app.put('/:id/bringing-out', async (c) => {
+app.put('/:id/bringing-out', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -235,7 +235,7 @@ app.put('/:id/bringing-out', async (c) => {
 })
 
 // PUT /:id/complete — Order handed off
-app.put('/:id/complete', async (c) => {
+app.put('/:id/complete', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

@@ -661,7 +661,7 @@ app.get('/applications', async (c) => {
 })
 
 // Log an input application
-app.post('/applications', async (c) => {
+app.post('/applications', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const applicationSchema = z.object({
@@ -967,7 +967,7 @@ app.put('/policies/:id', requireRole('manager'), async (c) => {
 })
 
 // Check an input against all policies
-app.post('/policies/check', async (c) => {
+app.post('/policies/check', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const checkSchema = z.object({

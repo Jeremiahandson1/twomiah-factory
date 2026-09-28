@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requireRole } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -18,7 +19,7 @@ const camel = (row: any): any => {
 // POST /cart/add — Resolve a product for the POS cart. The register keeps its cart in
 // client state, so this validates the product is real, in stock, and belongs to the
 // company, then returns the product to add. The QR Scanner "Add to cart" action uses it.
-app.post('/cart/add', async (c) => {
+app.post('/cart/add', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const body = await c.req.json().catch(() => ({}))

@@ -88,7 +88,7 @@ function normalizeDate(raw: unknown): string | null {
 const METHOD_ALIASES: Record<string, string> = { magnetic: 'magnetic_stripe', mag: 'magnetic_stripe', swipe: 'magnetic_stripe', pdf417: 'barcode', scan: 'barcode' }
 
 // POST /scan — Process an ID scan
-app.post('/scan', async (c) => {
+app.post('/scan', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   // Accepts the barcode payload ({scanMethod|method, rawData}) AND manual entry
@@ -241,7 +241,7 @@ app.post('/scan', async (c) => {
 })
 
 // POST /scan/verify — Verify against a checkin queue entry
-app.post('/scan/verify', async (c) => {
+app.post('/scan/verify', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const verifySchema = z.object({

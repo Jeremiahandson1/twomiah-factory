@@ -336,7 +336,7 @@ app.get('/generate/:entityType/:entityId', async (c) => {
 
 // Generate QR code data from a JSON body — used by the QR Scanner "Generate" tab, which
 // wraps the payload for preview/copy/print. { entityType, entityId } → { payload, ... }.
-app.post('/generate', async (c) => {
+app.post('/generate', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.json().catch(() => ({}))
   const entityType = (body?.entityType || '').toString()
@@ -351,7 +351,7 @@ app.post('/generate', async (c) => {
 // ── QR Code Scanning ─────────────────────────────────────────────────────
 
 // Process a QR scan
-app.post('/scan', async (c) => {
+app.post('/scan', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const scanSchema = z.object({

@@ -25,7 +25,7 @@ const camelAll = (rows: any[]): any[] => (Array.isArray(rows) ? rows.map(camel) 
 // ============================================
 
 // Generate a wallet pass for a customer
-app.post('/generate', async (c) => {
+app.post('/generate', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const generateSchema = z.object({
@@ -227,7 +227,7 @@ app.post('/generate', async (c) => {
 // ============================================
 
 // Register device for push updates
-app.post('/:serialNumber/register', async (c) => {
+app.post('/:serialNumber/register', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const serialNumber = c.req.param('serialNumber')
 
@@ -375,7 +375,7 @@ app.get('/passes', requireRole('manager'), async (c) => {
 })
 
 // Deactivate a pass
-app.delete('/:id', async (c) => {
+app.delete('/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

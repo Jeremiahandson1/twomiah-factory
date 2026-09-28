@@ -556,7 +556,7 @@ const checklistSchema = z.object({
   })),
 })
 
-app.put('/:id/checklist', async (c) => {
+app.put('/:id/checklist', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

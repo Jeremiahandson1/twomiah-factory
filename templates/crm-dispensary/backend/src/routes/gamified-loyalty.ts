@@ -196,7 +196,7 @@ app.get('/member/:memberId/challenges', async (c) => {
 })
 
 // POST /challenges/:id/join — Join a challenge
-app.post('/challenges/:id/join', async (c) => {
+app.post('/challenges/:id/join', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const challengeId = c.req.param('id')
 
@@ -241,7 +241,7 @@ app.post('/challenges/:id/join', async (c) => {
 })
 
 // POST /progress/update — Called after each order to update challenge progress
-app.post('/progress/update', async (c) => {
+app.post('/progress/update', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const updateSchema = z.object({
@@ -365,7 +365,7 @@ app.post('/progress/update', async (c) => {
 })
 
 // POST /challenges/:challengeId/claim — Claim reward for completed challenge
-app.post('/challenges/:challengeId/claim', async (c) => {
+app.post('/challenges/:challengeId/claim', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const challengeId = c.req.param('challengeId')
 

@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { document, contact, user } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requireRole } from '../middleware/permissions.ts'
 import fileService from '../services/fileUpload.ts'
 import logger from '../services/logger.ts'
 
@@ -119,7 +120,7 @@ app.get('/:id', async (c) => {
 })
 
 // Upload document
-app.post('/', async (c) => {
+app.post('/', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.parseBody()
 
@@ -168,7 +169,7 @@ app.post('/', async (c) => {
 })
 
 // Upload multiple documents
-app.post('/bulk', async (c) => {
+app.post('/bulk', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.parseBody({ all: true })
 
@@ -219,7 +220,7 @@ app.post('/bulk', async (c) => {
 })
 
 // Update document metadata
-app.put('/:id', async (c) => {
+app.put('/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { name, type, contactId, orderId, tags } = await c.req.json()
@@ -244,7 +245,7 @@ app.put('/:id', async (c) => {
 })
 
 // Delete document
-app.delete('/:id', async (c) => {
+app.delete('/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

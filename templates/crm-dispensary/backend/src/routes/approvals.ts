@@ -140,7 +140,7 @@ app.get('/all', requireRole('manager'), async (c) => {
 })
 
 // Create approval request
-app.post('/request', async (c) => {
+app.post('/request', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const requestSchema = z.object({

@@ -52,7 +52,7 @@ app.use('/location/*', authenticate)
 app.use('/location', authenticate)
 
 // POST /location — Update driver location
-app.post('/location', async (c) => {
+app.post('/location', requireRole('driver'), async (c) => {
   const currentUser = c.get('user') as any
 
   const locationSchema = z.object({
@@ -289,7 +289,7 @@ app.get('/routes/:id', async (c) => {
 })
 
 // PUT /routes/:id/start — Mark route as active
-app.put('/routes/:id/start', async (c) => {
+app.put('/routes/:id/start', requireRole('driver'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -315,7 +315,7 @@ app.put('/routes/:id/start', async (c) => {
 })
 
 // PUT /routes/:id/stops/:stopIndex/arrive — Mark arrival at stop
-app.put('/routes/:id/stops/:stopIndex/arrive', async (c) => {
+app.put('/routes/:id/stops/:stopIndex/arrive', requireRole('driver'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const stopIndex = parseInt(c.req.param('stopIndex'))
@@ -344,7 +344,7 @@ app.put('/routes/:id/stops/:stopIndex/arrive', async (c) => {
 })
 
 // PUT /routes/:id/stops/:stopIndex/depart — Mark departure from stop
-app.put('/routes/:id/stops/:stopIndex/depart', async (c) => {
+app.put('/routes/:id/stops/:stopIndex/depart', requireRole('driver'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const stopIndex = parseInt(c.req.param('stopIndex'))
@@ -373,7 +373,7 @@ app.put('/routes/:id/stops/:stopIndex/depart', async (c) => {
 })
 
 // PUT /routes/:id/complete — Complete route
-app.put('/routes/:id/complete', async (c) => {
+app.put('/routes/:id/complete', requireRole('driver'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

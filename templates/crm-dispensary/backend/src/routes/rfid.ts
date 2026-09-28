@@ -207,7 +207,7 @@ app.delete('/tags/:id', requireRole('manager'), async (c) => {
 })
 
 // Process single RFID scan event
-app.post('/scan', async (c) => {
+app.post('/scan', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const scanSchema = z.object({
@@ -262,7 +262,7 @@ app.post('/scan', async (c) => {
 })
 
 // Process bulk RFID scan (inventory count)
-app.post('/scan/bulk', async (c) => {
+app.post('/scan/bulk', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const bulkScanSchema = z.object({

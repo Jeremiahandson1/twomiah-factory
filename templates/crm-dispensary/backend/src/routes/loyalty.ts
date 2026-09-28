@@ -81,7 +81,7 @@ app.get('/members/:id', async (c) => {
 })
 
 // Enroll customer as loyalty member
-app.post('/members', async (c) => {
+app.post('/members', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const enrollSchema = z.object({

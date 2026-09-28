@@ -216,7 +216,7 @@ app.delete('/templates/:id', requireRole('manager'), async (c) => {
 // Template Preview
 // ==========================================
 
-app.post('/templates/:id/preview', async (c) => {
+app.post('/templates/:id/preview', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -255,7 +255,7 @@ app.post('/templates/:id/preview', async (c) => {
 // ==========================================
 
 // Create print job
-app.post('/print', async (c) => {
+app.post('/print', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const data = printJobSchema.parse(await c.req.json())
 
@@ -376,7 +376,7 @@ app.get('/print-jobs', async (c) => {
 })
 
 // Update print job status
-app.put('/print-jobs/:id/status', async (c) => {
+app.put('/print-jobs/:id/status', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { status } = z.object({
@@ -415,7 +415,7 @@ app.put('/print-jobs/:id/status', async (c) => {
 // Generate Label
 // ==========================================
 
-app.post('/generate', async (c) => {
+app.post('/generate', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const data = generateSchema.parse(await c.req.json())
 

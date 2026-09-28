@@ -396,7 +396,7 @@ app.put('/config', requireRole('manager'), async (c) => {
 // ============================================
 
 // Start new AI budtender session
-app.post('/session', async (c) => {
+app.post('/session', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const sessionSchema = z.object({
@@ -469,7 +469,7 @@ app.post('/session', async (c) => {
 // ============================================
 
 // Send message and get AI response
-app.post('/chat', async (c) => {
+app.post('/chat', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const chatSchema = z.object({
@@ -822,7 +822,7 @@ async function handleKeywordFallback(
 // ============================================
 
 // Add AI-recommended product to cart
-app.post('/chat/:sessionToken/add-to-cart', async (c) => {
+app.post('/chat/:sessionToken/add-to-cart', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const sessionToken = c.req.param('sessionToken')
 
@@ -901,7 +901,7 @@ app.post('/chat/:sessionToken/add-to-cart', async (c) => {
 })
 
 // End session, optionally create order
-app.post('/chat/:sessionToken/complete', async (c) => {
+app.post('/chat/:sessionToken/complete', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const sessionToken = c.req.param('sessionToken')
 
@@ -1048,7 +1048,7 @@ app.get('/sessions', requireRole('manager'), async (c) => {
 // POST /demo — Stateless "Live Demo" chat for the admin config page. Reuses the same Claude/keyword
 // engine as /chat but persists nothing (no session row). Graceful when no ANTHROPIC_API_KEY: falls
 // back to keyword matching. Payload: { message, history:[{role,content}] }.
-app.post('/demo', async (c) => {
+app.post('/demo', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const body = await c.req.json().catch(() => ({} as any))

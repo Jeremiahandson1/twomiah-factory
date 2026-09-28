@@ -103,7 +103,7 @@ const shapeEntry = (r: any) => {
 }
 
 // POST / — Check in a customer
-app.post('/', async (c) => {
+app.post('/', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const checkinSchema = z.object({
@@ -197,7 +197,7 @@ app.get('/queue', async (c) => {
 // POST /queue — Check in a customer (the Check-In page posts here with { name, phone, isMedical,
 // notes, source }). Location is optional; position is the next slot for the day (per location when
 // one is given, otherwise company-wide).
-app.post('/queue', async (c) => {
+app.post('/queue', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const queueSchema = z.object({
@@ -258,7 +258,7 @@ app.post('/queue', async (c) => {
 })
 
 // PUT /queue/:id/status — Update a queue entry's status (the page's generic status control).
-app.put('/queue/:id/status', async (c) => {
+app.put('/queue/:id/status', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -300,7 +300,7 @@ app.put('/queue/:id/status', async (c) => {
 })
 
 // PUT /:id/call — Call a customer (budtender marks them next)
-app.put('/:id/call', async (c) => {
+app.put('/:id/call', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -341,7 +341,7 @@ app.put('/:id/call', async (c) => {
 })
 
 // PUT /:id/serve — Start serving customer
-app.put('/:id/serve', async (c) => {
+app.put('/:id/serve', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -368,7 +368,7 @@ app.put('/:id/serve', async (c) => {
 })
 
 // PUT /:id/complete — Done serving
-app.put('/:id/complete', async (c) => {
+app.put('/:id/complete', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -395,7 +395,7 @@ app.put('/:id/complete', async (c) => {
 })
 
 // PUT /:id/no-show — Mark no-show
-app.put('/:id/no-show', async (c) => {
+app.put('/:id/no-show', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

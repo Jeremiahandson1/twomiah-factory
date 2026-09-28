@@ -377,7 +377,7 @@ app.get('/enrollments/:id', async (c) => {
 })
 
 // Update progress
-app.put('/enrollments/:id/progress', async (c) => {
+app.put('/enrollments/:id/progress', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -882,7 +882,7 @@ app.post('/enrollments/:id/advance', async (c) => {
 })
 
 // POST /enrollments/:id/quiz — record a quiz answer and advance past the quiz step.
-app.post('/enrollments/:id/quiz', async (c) => {
+app.post('/enrollments/:id/quiz', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

@@ -185,7 +185,7 @@ app.get('/:id', async (c) => {
 })
 
 // Create referral
-app.post('/', async (c) => {
+app.post('/', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const referralSchema = z.object({
@@ -235,7 +235,7 @@ app.post('/', async (c) => {
 })
 
 // Redeem a referral code
-app.post('/redeem', async (c) => {
+app.post('/redeem', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const redeemSchema = z.object({

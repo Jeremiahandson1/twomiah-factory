@@ -31,7 +31,7 @@ const syncBatchSchema = z.object({
   transactions: z.array(offlineTransactionSchema).min(1).max(500),
 })
 
-app.post('/sync', async (c) => {
+app.post('/sync', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   let data: z.infer<typeof syncBatchSchema>
