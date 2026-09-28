@@ -14,6 +14,7 @@ import { loyaltyConfigResponse, LOYALTY_SETTING_KEYS } from '../utils/loyaltyCon
 import { storeTimeZone, isValidTimeZone } from '../utils/isoTime.ts'
 import { redactCompanySettings, isPrivilegedRole, SECRET_SETTING_PATHS } from '../shared/index.ts'
 import { forgetFeatures } from '../middleware/enabledFeature.ts'
+import audit from '../services/audit.ts'
 
 // The 50 states plus DC and the territories a licence can be issued in. A state code is not cosmetic
 // here: it decides the compliance day when no timezone is set, the purchase-limit fallback, and which
@@ -267,6 +268,27 @@ app.put('/', requireAdmin, async (c) => {
   }
   const [result] = await db.update(company).set(updates).where(eq(company.id, currentUser.companyId)).returning()
   if (!result) return c.json({ error: 'Company not found' }, 404)
+
+  // Not one settings change was in the audit log — not a tax rate, not the purchase limit, not the
+  // store's name or hours, not the loyalty config, not the receipt text. These are the numbers the
+  // register charges with and a regulator reads; "who changed the excise rate, and when" is exactly
+  // the question an audit log exists to answer, and it had no answer. (T45 H19)
+  //
+  // Secrets are redacted out of both sides before the diff is stored, or the audit log becomes the
+  // new place the Stripe key lives.
+  const redact = (s: any) => redactCompanySettings(s, { privileged: false })
+  audit.log({
+    action: audit.ACTIONS.UPDATE,
+    entity: 'company',
+    entityId: currentUser.companyId,
+    entityName: result.name,
+    // The settings blob before and after, so a rate change is readable as a rate change. The column
+    // fields (name, tax rates, purchase limit, hours) are named in `fields` — `updates` is exactly
+    // what this request set, which is the honest record of what the person did.
+    changes: updates.settings ? { settings: { old: redact(cur?.settings), new: redact(result.settings) } } : undefined,
+    metadata: { fields: Object.keys(updates).filter((k) => k !== 'updatedAt' && k !== 'settings') },
+    req: c,
+  })
   return c.json(sanitizeCompany(result, currentUser?.role))
 })
 
@@ -303,6 +325,20 @@ app.put('/features', requireAdmin, async (c) => {
   const [result] = await db.update(company).set({ enabledFeatures: next, updatedAt: new Date() }).where(eq(company.id, currentUser.companyId)).returning()
   forgetFeatures(currentUser.companyId) // so the very next request sees the switch the owner just flipped (M5)
   if (!result) return c.json({ error: 'Company not found' }, 404)
+  // Switching a module on or off changes what the whole shop can do, and left no trace either. (T45 H19)
+  const before = new Set<string>(((current?.enabledFeatures || []) as string[]))
+  audit.log({
+    action: audit.ACTIONS.UPDATE,
+    entity: 'company',
+    entityId: currentUser.companyId,
+    entityName: result.name,
+    changes: { enabledFeatures: { old: [...before], new: next } },
+    metadata: {
+      turnedOn: next.filter((f) => !before.has(f)),
+      turnedOff: [...before].filter((f) => !next.includes(f)),
+    },
+    req: c,
+  })
   return c.json(sanitizeCompany(result, currentUser?.role))
 })
 

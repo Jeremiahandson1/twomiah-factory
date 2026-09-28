@@ -127,9 +127,16 @@ export default function SettingsPage() {
   const [storeHours, setStoreHours] = useState<StoreHours>(defaultHours());
 
   // Loyalty
+  // welcomePoints and birthdayBonus were not on this form and were not sent on save — and the save
+  // REPLACED settings.loyalty wholesale, so pressing Save with no edits at all wiped both, and the
+  // next new member got 0 welcome points instead of 50. The thresholds shown were the placeholders
+  // below rather than the shop's real ladder, because those live under loyalty.tierThresholds and
+  // nothing read them. (T45 H1)
   const [loyaltyForm, setLoyaltyForm] = useState({
     enabled: false,
     pointsPerDollar: '1',
+    welcomePoints: '0',
+    birthdayBonus: '0',
     bronzeThreshold: '100',
     silverThreshold: '500',
     goldThreshold: '1000',
@@ -197,7 +204,23 @@ export default function SettingsPage() {
         if (co.storeHours) setStoreHours(normalizeHours(co.storeHours));
       }).catch(() => {});
       if (settings.storeHours) setStoreHours(normalizeHours(settings.storeHours));
-      if (settings.loyalty) setLoyaltyForm({ ...loyaltyForm, ...settings.loyalty, enabled: !!settings.loyalty?.enabled });
+      // Read the SERVER's resolved loyalty config (the flat loyalty* keys sanitizeCompany returns),
+      // not the raw blob — the blob keeps the thresholds one level down in tierThresholds, which is
+      // why this tab showed 100/500/1000/2500 while the shop was really running 500/1500/5000. (T45 H1)
+      {
+        const t = (company as any)?.loyaltyTierThresholds || settings.loyalty?.tierThresholds || {};
+        setLoyaltyForm(prev => ({
+          ...prev,
+          enabled: (company as any)?.loyaltyEnabled ?? !!settings.loyalty?.enabled,
+          pointsPerDollar: String((company as any)?.loyaltyPointsPerDollar ?? settings.loyalty?.pointsPerDollar ?? prev.pointsPerDollar),
+          welcomePoints: String((company as any)?.loyaltyWelcomePoints ?? settings.loyalty?.welcomePoints ?? prev.welcomePoints),
+          birthdayBonus: String((company as any)?.loyaltyBirthdayBonus ?? settings.loyalty?.birthdayBonus ?? prev.birthdayBonus),
+          bronzeThreshold: String(t.bronze ?? prev.bronzeThreshold),
+          silverThreshold: String(t.silver ?? prev.silverThreshold),
+          goldThreshold: String(t.gold ?? prev.goldThreshold),
+          platinumThreshold: String(t.platinum ?? prev.platinumThreshold),
+        }));
+      }
       if (settings.delivery) setDeliveryForm({ ...deliveryForm, ...settings.delivery, enabled: !!settings.delivery?.enabled });
       if (settings.merch) setMerchForm({ ...merchForm, ...settings.merch, enabled: !!settings.merch?.enabled });
       if (settings.receipts) setReceiptForm({ ...receiptForm, ...settings.receipts, showLogo: settings.receipts?.showLogo !== false });
@@ -284,15 +307,23 @@ export default function SettingsPage() {
       } else if (section === 'loyalty') {
         payload.settings = {
           ...settingsWithoutColumns(company?.settings),
-          loyalty: {
-            enabled: loyaltyForm.enabled,
-            pointsPerDollar: loyaltyForm.pointsPerDollar,
-            bronzeThreshold: loyaltyForm.bronzeThreshold,
-            silverThreshold: loyaltyForm.silverThreshold,
-            goldThreshold: loyaltyForm.goldThreshold,
-            platinumThreshold: loyaltyForm.platinumThreshold,
-          },
         };
+        // The loyalty config goes through the server's OWN keys, which it merges into
+        // settings.loyalty (T21 M7). Writing the block by hand replaced it wholesale, so every field
+        // this form does not carry — welcome points, birthday bonus — was deleted by a save that
+        // changed nothing else. Send what this screen actually edits and let the server merge. (T45 H1)
+        Object.assign(payload, {
+          loyaltyEnabled: loyaltyForm.enabled,
+          loyaltyPointsPerDollar: Number(loyaltyForm.pointsPerDollar) || 0,
+          loyaltyWelcomePoints: Math.max(0, Math.floor(Number(loyaltyForm.welcomePoints) || 0)),
+          loyaltyBirthdayBonus: Math.max(0, Math.floor(Number(loyaltyForm.birthdayBonus) || 0)),
+          loyaltyTierThresholds: {
+            bronze: Number(loyaltyForm.bronzeThreshold) || 0,
+            silver: Number(loyaltyForm.silverThreshold) || 0,
+            gold: Number(loyaltyForm.goldThreshold) || 0,
+            platinum: Number(loyaltyForm.platinumThreshold) || 0,
+          },
+        });
       } else if (section === 'delivery') {
         payload.settings = {
           ...settingsWithoutColumns(company?.settings),
@@ -677,6 +708,32 @@ export default function SettingsPage() {
                       type="number"
                       placeholder="1"
                     />
+                  </div>
+
+                  {/* Both were stored, both were paid out by the award engine, and neither was on
+                      this screen — so a saved welcome bonus could be wiped by a save and never put
+                      back, because there was nowhere to type it. (T45 H1) */}
+                  <div className="grid grid-cols-2 gap-4 max-w-md">
+                    <div>
+                      <FieldLabel>Welcome Bonus</FieldLabel>
+                      <Input
+                        value={loyaltyForm.welcomePoints}
+                        onChange={v => setLoyaltyForm({ ...loyaltyForm, welcomePoints: v })}
+                        type="number"
+                        placeholder="0"
+                      />
+                      <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Points a customer gets when they join. 0 for none.</p>
+                    </div>
+                    <div>
+                      <FieldLabel>Birthday Bonus</FieldLabel>
+                      <Input
+                        value={loyaltyForm.birthdayBonus}
+                        onChange={v => setLoyaltyForm({ ...loyaltyForm, birthdayBonus: v })}
+                        type="number"
+                        placeholder="0"
+                      />
+                      <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Once per year, on their first sale that day.</p>
+                    </div>
                   </div>
 
                   <div>

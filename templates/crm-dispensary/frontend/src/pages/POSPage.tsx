@@ -54,6 +54,18 @@ export default function POSPage() {
   const [loyaltyApplied, setLoyaltyApplied] = useState(false);
   const [loyaltyDiscount, setLoyaltyDiscount] = useState(0);
   const [processing, setProcessing] = useState(false);
+  /**
+   * A ticket that was raised but not settled.
+   *
+   * Checkout is two calls: create the order, then complete it. When the second fails — no drawer
+   * open is the common one — the first had already succeeded, so the shop was left with a pending
+   * order nobody wanted, and pressing Checkout again raised a SECOND one. Run T45 M6 produced
+   * ORD-1414 and ORD-1415 that way, and the abandoned ticket then sat in the list looking like real
+   * outstanding trade. Hold the id and settle THAT order on the retry. (T45 M6)
+   */
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  /** The server's own flower-equivalent figure for this cart — see the weight meter below. (T45 M5) */
+  const [serverWeight, setServerWeight] = useState<{ totalFlowerEquivalentOz: number; limitError: string | null; uncountableError: string | null } | null>(null);
 
   // Sales-tax rate from company Settings, so the register quotes what the operator
   // configured — not a hardcoded 15% that disagreed with both Settings and the
@@ -98,6 +110,23 @@ export default function POSPage() {
     }, 300);
     return () => clearTimeout(timer);
   }, [productSearch]);
+
+  // Re-price the basket against the purchase limit whenever it changes, using the server's own
+  // rules. Debounced, because it fires on every tap of a quantity button. A failure leaves the local
+  // estimate showing rather than blanking the meter — an approximate number beats no number at a
+  // till, and the server refuses the sale anyway if the estimate was wrong. (T45 M5)
+  useEffect(() => {
+    if (!cart.length) { setServerWeight(null); return; }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      api.post('/api/equivalency/calculate', {
+        items: cart.map(i => ({ productId: i.productId, quantity: i.quantity })),
+      })
+        .then((r: any) => { if (!cancelled) setServerWeight(r); })
+        .catch(() => { if (!cancelled) setServerWeight(null); });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [cart]);
 
   const loadProducts = async () => {
     setLoadingProducts(true);
@@ -227,12 +256,21 @@ export default function POSPage() {
 
   // i.weight is per-unit GRAMS; the limit meter is in oz. Convert (g / 28.3495).
   // Categories must match the backend cannabis list or the meter under-counts.
-  const totalWeightOz = cart.reduce((sum, i) => {
+  // The limit is written in FLOWER EQUIVALENT, and this summed raw grams — so a gram of concentrate
+  // counted as one gram instead of the 2.5 the shop's own rules give it. The meter read 0.2 / 1 oz
+  // while the server, which does apply the rules, refused the finished basket with "1.31oz exceeds
+  // the 1oz maximum" — a refusal that arrives after the customer has been served. (T45 M5)
+  //
+  // Asked of the server rather than kept as a second copy of the rule engine: the rules are
+  // per-tenant and per-category, and a copy in the browser is a copy that drifts. This local sum is
+  // only what the meter shows until the first answer lands.
+  const localWeightOz = cart.reduce((sum, i) => {
     if (['flower', 'pre_roll', 'edible', 'concentrate', 'vape', 'tincture'].includes(i.category)) {
       return sum + ((Number(i.weight) || 0) * i.quantity) / 28.3495;
     }
     return sum;
   }, 0);
+  const totalWeightOz = serverWeight?.totalFlowerEquivalentOz ?? localWeightOz;
   const weightPercent = Math.min((totalWeightOz / WEIGHT_LIMIT_OZ) * 100, 100);
   const overWeight = totalWeightOz > WEIGHT_LIMIT_OZ;
 
@@ -254,7 +292,13 @@ export default function POSPage() {
   });
   const blockReason = (() => {
     if (cart.length === 0) return '';
-    if (overWeight) return `Over the legal limit: ${Number(totalWeightOz).toFixed(2)} oz exceeds the ${WEIGHT_LIMIT_OZ} oz maximum. Remove items to continue.`;
+    // A line the rules cannot weigh is refused at completion by name; say so here instead of at the
+    // end. (T45 M5)
+    if (serverWeight?.uncountableError) return serverWeight.uncountableError;
+    // The server's own wording when we have it, so the warning at the till and the refusal at
+    // completion are the same sentence rather than two different numbers.
+    if (overWeight) return serverWeight?.limitError
+      || `Over the legal limit: ${Number(totalWeightOz).toFixed(2)} oz exceeds the ${WEIGHT_LIMIT_OZ} oz maximum. Remove items to continue.`;
     if (overStockLine) {
       const stock = products.find(p => p.id === overStockLine.productId)?.stockQuantity;
       return `Only ${stock} of ${overStockLine.name} in stock — the basket asks for ${overStockLine.quantity}.`;
@@ -368,7 +412,8 @@ export default function POSPage() {
 
     setProcessing(true);
     try {
-      const created: any = await api.post('/api/orders', {
+      // Reuse the held ticket rather than raising another one. (T45 M6)
+      const created: any = pendingOrderId ? { id: pendingOrderId } : await api.post('/api/orders', {
         contactId: customer?.id || null,
         items: cart.map(i => ({
           productId: i.productId,
@@ -395,12 +440,16 @@ export default function POSPage() {
       // four in one transaction.
       const orderId = created?.id || created?.data?.id;
       if (orderId) {
+        // Held from here on: if /complete throws, the retry settles THIS order rather than raising
+        // a second one beside it. (T45 M6)
+        setPendingOrderId(orderId);
         await api.post(`/api/orders/${orderId}/complete`, {
           paymentMethod,
           cashTendered: paymentMethod === 'cash' ? parseFloat(cashTendered || '0') : undefined,
           idVerified,
         });
       }
+      setPendingOrderId(null);
       toast.success('Order completed!');
       // The sale just moved the shelf. The tiles kept the counts loaded when the page opened, so
       // after selling 8 of 40 the grid still read "40 left" and the next customer was rung up
@@ -417,7 +466,9 @@ export default function POSPage() {
       setMemberPoints(null);
       searchRef.current?.focus();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to complete order');
+      // Say which ticket is being held, or the operator cannot tell why the next press behaves
+      // differently — and cannot find the order to void it.
+      toast.error((err.message || 'Failed to complete order') + (pendingOrderId ? ' — the ticket is held; Checkout will finish this same order.' : ''));
     } finally {
       setProcessing(false);
     }

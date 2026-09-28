@@ -385,6 +385,16 @@ app.post('/', requireRole('budtender'), async (c) => {
 
     const catalogPrice = Number(prod.price)
     const unitPrice = item.priceOverride ?? catalogPrice
+    // A line cannot be worth less than nothing. The register took the catalogue price on trust, so a
+    // −$5 product (which CSV import had happily created) cancelled out a $25 T-shirt beside it and
+    // the whole sale rang up at $0.00 — no subtotal, no tax, no revenue, and stock gone. Wherever a
+    // bad price comes from, the till is the last place it can be caught. (T45 H3)
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      return c.json({
+        error: `${prod.name} has an invalid price (${prod.price}). Fix it in Products before selling it.`,
+        code: 'invalid_price', productId: prod.id, price: prod.price,
+      }, 400)
+    }
     if (item.priceOverride != null && unitPrice < catalogPrice - 0.005) {
       maxOverrideDelta = Math.max(maxOverrideDelta, round2((catalogPrice - unitPrice) * item.quantity))
     }

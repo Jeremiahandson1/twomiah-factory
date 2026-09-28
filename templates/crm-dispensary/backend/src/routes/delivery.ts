@@ -206,6 +206,25 @@ app.put('/orders/:id/status', requireRole('driver'), async (c) => {
     .limit(1)
   if (!existing) return c.json({ error: 'Order not found' }, 404)
 
+  // This moved a DELIVERY along, and nothing checked the order was one. Run T45 H20 marked a
+  // pending, unpaid walk-in "delivered" as a budtender and got a 200 — a record saying cannabis
+  // left the building for a customer who never paid and never had their ID checked, on a ticket
+  // that was never a delivery in the first place.
+  if ((existing as any).type !== 'delivery') {
+    return c.json({
+      error: `${existing.number} is a ${(existing as any).type || 'walk-in'} order, not a delivery — its delivery status cannot be set.`,
+      code: 'not_a_delivery',
+    }, 400)
+  }
+  // "Delivered" says goods were handed over. A sale that has not been settled has not been handed
+  // over, and saying so creates a false record of exactly the thing a regulator counts.
+  if (data.deliveryStatus === 'delivered' && !existing.completedAt) {
+    return c.json({
+      error: `${existing.number} has not been completed, so it cannot be marked delivered. Settle the sale first.`,
+      code: 'order_not_settled',
+    }, 400)
+  }
+
   const sets: any[] = [
     sql`delivery_status = ${data.deliveryStatus}`,
     sql`updated_at = NOW()`,

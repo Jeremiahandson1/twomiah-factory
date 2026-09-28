@@ -15,13 +15,25 @@ import { eq, and } from 'drizzle-orm'
  * Parse CSV content
  */
 function parseCSV(content: string, options: Record<string, any> = {}): Record<string, string>[] {
-  return parse(content, {
-    columns: true,
-    skip_empty_lines: true,
-    trim: true,
-    relax_column_count: true,
-    ...options,
-  })
+  try {
+    return parse(content, {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true,
+      relax_column_count: true,
+      // A stray quote mid-field — which is exactly what a pasted spreadsheet formula looks like —
+      // threw out of the parser and surfaced as a 500 with no clue what to fix. Relaxing the quote
+      // rule reads the field as text, which is what it is. (found while testing T45 H2)
+      relax_quotes: true,
+      ...options,
+    })
+  } catch (err: any) {
+    // Anything the parser still cannot read is the FILE's problem, and the person who uploaded it
+    // needs to be told which line — not handed a 500.
+    const e = new Error(`That file could not be read as CSV: ${err?.message || err}`)
+    ;(e as any).status = 400
+    throw e
+  }
 }
 
 /**
@@ -71,7 +83,62 @@ const CONTACT_COLUMN_MAP = {
   zip: ['zip', 'zipcode', 'zip_code', 'postal_code', 'postcode'],
   notes: ['notes', 'comments', 'description'],
   source: ['source', 'lead_source', 'referral_source'],
+  // The column was never read, so every imported customer arrived with no date of birth — which at
+  // a dispensary means the age gate has nothing to check and a 2012-born row imports cleanly. (T45 H2)
+  dateOfBirth: ['date_of_birth', 'dob', 'birth_date', 'birthdate', 'birthday'],
+  medicalCardNumber: ['medical_card_number', 'medical_card', 'mmj_card', 'card_number'],
 }
+
+// ─── the rules the FORMS enforce, applied to imported rows too ──────────────────────────────────
+//
+// Run T45 H2: import skipped every check. "not-an-email" was accepted, a name of raw HTML was
+// accepted, a spreadsheet formula name (=HYPERLINK(…)) was accepted, and every date of birth was
+// dropped. On the products side a price of −$5 was accepted — and then H3 sold it, cancelling out
+// the rest of the basket and ringing the whole sale at $0.00.
+//
+// A bulk path is not a back door. These are deliberately the same rules the single-record routes
+// use, so 500 rows cannot do what one row is refused for.
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+
+/** A cell that a spreadsheet would execute when the file is reopened. */
+const isFormula = (v: string) => /^[=+\-@\t\r]/.test(v.trim())
+
+/** Strip tags and refuse a formula: a name is a name. */
+function cleanName(raw: string): { value?: string; error?: string } {
+  const v = String(raw || '').trim()
+  if (!v) return { error: 'Name is required' }
+  if (v.length > 200) return { error: 'Name is longer than 200 characters' }
+  if (isFormula(v)) return { error: `Name "${v.slice(0, 40)}" starts with a spreadsheet formula character (= + - @)` }
+  if (/<[^>]+>/.test(v)) return { error: `Name "${v.slice(0, 40)}" contains HTML` }
+  return { value: v }
+}
+
+/** YYYY-MM-DD, MM/DD/YYYY or MMDDYYYY → YYYY-MM-DD; null when it is not a real date. */
+function parseDob(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  const s = String(raw).trim()
+  let m: RegExpMatchArray | null
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`
+  if ((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/))) return `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`
+  if ((m = s.match(/^(\d{2})(\d{2})(\d{4})$/))) return `${m[3]}-${m[1]}-${m[2]}`
+  const d = new Date(s)
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
+}
+
+function ageOn(dob: string): number {
+  const b = new Date(dob), today = new Date()
+  let age = today.getFullYear() - b.getFullYear()
+  const md = today.getMonth() - b.getMonth()
+  if (md < 0 || (md === 0 && today.getDate() < b.getDate())) age--
+  return age
+}
+
+/** The categories the catalogue actually has. Anything else is a typo, not a new category. */
+const PRODUCT_CATEGORIES = new Set([
+  'flower', 'pre_roll', 'preroll', 'vape', 'cartridge', 'concentrate', 'edible', 'beverage',
+  'tincture', 'topical', 'capsule', 'accessory', 'apparel', 'seed', 'clone', 'other',
+])
 
 interface ImportOptions {
   dryRun?: boolean
@@ -97,13 +164,47 @@ export async function importContacts(csvContent: string, companyId: string, opti
     const lineNum = i + 2
 
     try {
-      const name = getValue(row, ...CONTACT_COLUMN_MAP.name)
+      const rawName = getValue(row, ...CONTACT_COLUMN_MAP.name)
       const email = getValue(row, ...CONTACT_COLUMN_MAP.email)
 
-      if (!name) {
-        results.errors.push({ line: lineNum, error: 'Name is required' })
+      const named = cleanName(rawName || '')
+      if (named.error) {
+        results.errors.push({ line: lineNum, error: named.error })
         results.skipped++
         continue
+      }
+      const name = named.value!
+
+      // "not-an-email" imported cleanly and then nothing could ever be sent to it. (T45 H2)
+      if (email && !EMAIL_RE.test(email)) {
+        results.errors.push({ line: lineNum, error: `"${email}" is not a valid email address` })
+        results.skipped++
+        continue
+      }
+
+      // The age rule the contacts route applies, applied here too: under 18 is refused outright,
+      // and 18–20 is recorded with the same warning the form gives, because only a card makes them
+      // sellable-to. A dispensary importing a customer list must not be a way past this. (T45 H2)
+      const dobRaw = getValue(row, ...CONTACT_COLUMN_MAP.dateOfBirth)
+      let dateOfBirth: string | null = null
+      if (dobRaw) {
+        dateOfBirth = parseDob(dobRaw)
+        if (!dateOfBirth) {
+          results.errors.push({ line: lineNum, error: `"${dobRaw}" is not a date this system recognises (use YYYY-MM-DD)` })
+          results.skipped++
+          continue
+        }
+        if (new Date(dateOfBirth) > new Date()) {
+          results.errors.push({ line: lineNum, error: `Date of birth ${dateOfBirth} is in the future` })
+          results.skipped++
+          continue
+        }
+        const age = ageOn(dateOfBirth)
+        if (age < 18) {
+          results.errors.push({ line: lineNum, error: `${name} would be ${age} years old — cannabis customers must be 21+, or 18+ with a valid medical card` })
+          results.skipped++
+          continue
+        }
       }
 
       // Check for duplicates
@@ -132,6 +233,9 @@ export async function importContacts(csvContent: string, companyId: string, opti
         city: getValue(row, ...CONTACT_COLUMN_MAP.city),
         state: getValue(row, ...CONTACT_COLUMN_MAP.state),
         zip: getValue(row, ...CONTACT_COLUMN_MAP.zip),
+        // Read at last, so an imported customer can actually be sold to. (T45 H2)
+        dateOfBirth,
+        medicalCardNumber: getValue(row, ...CONTACT_COLUMN_MAP.medicalCardNumber),
         notes: getValue(row, ...CONTACT_COLUMN_MAP.notes),
         source: getValue(row, ...CONTACT_COLUMN_MAP.source),
       }
@@ -195,25 +299,56 @@ export async function importProducts(csvContent: string, companyId: string, opti
     const lineNum = i + 2
 
     try {
-      const name = getValue(row, ...PRODUCT_COLUMN_MAP.name)
-
-      if (!name) {
-        results.errors.push({ line: lineNum, error: 'Product name is required' })
+      const namedProduct = cleanName(getValue(row, ...PRODUCT_COLUMN_MAP.name) || '')
+      if (namedProduct.error) {
+        results.errors.push({ line: lineNum, error: namedProduct.error.replace(/^Name/, 'Product name') })
         results.skipped++
         continue
+      }
+      const name = namedProduct.value!
+
+      // A price is money the register will take on trust. −$5 imported cleanly and then cancelled out
+      // the rest of a basket, ringing a whole sale at $0.00. (T45 H2, and H3 is what it then did.)
+      const rawPrice = getValue(row, ...PRODUCT_COLUMN_MAP.price)
+      const price = rawPrice == null || rawPrice === '' ? 0 : Number(rawPrice)
+      if (!Number.isFinite(price) || price < 0) {
+        results.errors.push({ line: lineNum, error: `"${rawPrice}" is not a valid price for ${name} — a price cannot be negative` })
+        results.skipped++
+        continue
+      }
+
+      // "spaceship" is a typo, not a new category — and a category the reports do not know about
+      // quietly drops the product out of every breakdown.
+      const rawCategory = (getValue(row, ...PRODUCT_COLUMN_MAP.category) || 'flower').trim().toLowerCase().replace(/[\s-]+/g, '_')
+      if (!PRODUCT_CATEGORIES.has(rawCategory)) {
+        results.errors.push({ line: lineNum, error: `"${rawCategory}" is not a product category. Use one of: ${[...PRODUCT_CATEGORIES].join(', ')}` })
+        results.skipped++
+        continue
+      }
+
+      // A duplicate SKU makes two products indistinguishable at the till and on every report.
+      const sku = getValue(row, ...PRODUCT_COLUMN_MAP.sku)
+      if (sku) {
+        const [clash] = await db.select({ id: product.id }).from(product)
+          .where(and(eq(product.companyId, companyId), eq(product.sku, sku))).limit(1)
+        if (clash) {
+          results.errors.push({ line: lineNum, error: `SKU "${sku}" is already used by another product` })
+          results.skipped++
+          continue
+        }
       }
 
       const productData = {
         companyId,
         name,
-        sku: getValue(row, ...PRODUCT_COLUMN_MAP.sku),
-        category: getValue(row, ...PRODUCT_COLUMN_MAP.category) || 'flower',
+        sku,
+        category: rawCategory,
         brand: getValue(row, ...PRODUCT_COLUMN_MAP.brand),
         strainName: getValue(row, ...PRODUCT_COLUMN_MAP.strainName),
         strainType: getValue(row, ...PRODUCT_COLUMN_MAP.strainType),
         thcPercent: getValue(row, ...PRODUCT_COLUMN_MAP.thcPercent),
         cbdPercent: getValue(row, ...PRODUCT_COLUMN_MAP.cbdPercent),
-        price: getValue(row, ...PRODUCT_COLUMN_MAP.price) || '0',
+        price: String(price),
         cost: getValue(row, ...PRODUCT_COLUMN_MAP.cost),
         weightGrams: getValue(row, ...PRODUCT_COLUMN_MAP.weightGrams),
         unitType: getValue(row, ...PRODUCT_COLUMN_MAP.unitType) || 'each',

@@ -5,6 +5,10 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { company, product } from '../../db/schema.ts'
+import { eq, and, inArray } from 'drizzle-orm'
+import { loadEquivalencyFactors } from '../services/equivalency.ts'
+import { lineFlowerEquivalentGrams, cartCannabisGrams, overPurchaseLimit, unweighedCannabisRefusal, uncountableCannabisLines } from '../utils/cannabis.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -247,99 +251,91 @@ app.post('/rules/seed-defaults', requireRole('admin'), async (c) => {
 })
 
 // POST /calculate — Calculate total flower-equivalent weight for a cart
+/**
+ * What this basket weighs against the purchase limit — the SAME answer the register will get when it
+ * tries to ring it up.
+ *
+ * There were three implementations of this arithmetic: utils/cannabis.ts (which the sale path uses
+ * and which understands thc_mg), the private copy that used to live in this handler (which did not,
+ * and defaulted to Michigan's rules on an Ohio shop), and the POS screen's own sum of raw grams with
+ * no rules at all. Run T45 M5 is what three copies look like from the shop floor: the meter read
+ * 0.2 oz, the operator kept scanning, and the server refused the completed basket at "1.31oz exceeds
+ * the 1oz maximum" — after the customer had been served.
+ *
+ * So this now calls the sale path's own helpers, and the register calls this. One implementation,
+ * one answer, and the meter agrees with the refusal. (T45 M5)
+ */
 app.post('/calculate', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const calcSchema = z.object({
     items: z.array(z.object({
       productId: z.string().min(1),
-      quantity: z.number().min(1),
+      quantity: z.number().min(0),
     })).min(1),
-    state: z.string().length(2).transform(v => v.toUpperCase()).optional(),
   })
   const data = calcSchema.parse(await c.req.json())
 
-  // Get company's state from settings or use provided state
-  const state = data.state || 'MI'
+  const [co] = await db.select({ purchaseLimitOz: company.purchaseLimitOz }).from(company)
+    .where(eq(company.id, currentUser.companyId)).limit(1)
+  const limitOz = Number(co?.purchaseLimitOz) > 0 ? Number(co!.purchaseLimitOz) : PURCHASE_LIMIT_OZ
 
-  // Fetch equivalency rules for this state
-  const rulesResult = await db.execute(sql`
-    SELECT category, equivalency_factor, unit_of_measure FROM equivalency_rules
-    WHERE company_id = ${currentUser.companyId} AND state = ${state} AND is_active = true
-  `)
-  const rules = (rulesResult as any).rows || rulesResult
-  const ruleMap = new Map(rules.map((r: any) => [r.category, r]))
+  const factors = await loadEquivalencyFactors(currentUser.companyId)
 
-  // Fetch products
-  const productIds = data.items.map(i => i.productId)
-  const productsResult = await db.execute(sql`
-    SELECT id, name, category, weight, weight_unit, thc_percent FROM products
-    WHERE company_id = ${currentUser.companyId}
-  `)
-  const products = ((productsResult as any).rows || productsResult).filter((p: any) => productIds.includes(p.id))
-  const productMap = new Map(products.map((p: any) => [p.id, p]))
+  // Read through drizzle, not raw SQL: the shared helpers below read camelCase (weightGrams,
+  // weightUnit, thcMg) and a db.execute row comes back snake_case, so every product weighed ZERO and
+  // the whole basket came out at 0 g — the same under-count this endpoint exists to prevent.
+  const productIds = [...new Set(data.items.map((i) => i.productId))]
+  const productRows = await db.select().from(product)
+    .where(and(eq(product.companyId, currentUser.companyId), inArray(product.id, productIds)))
+  const productMap = new Map(productRows.map((p: any) => [p.id, p]))
 
-  let totalFlowerEquivalentGrams = 0
   const perItemEquivalent: any[] = []
-
+  const lines: Array<{ product: any; quantity: any }> = []
   for (const item of data.items) {
     const prod = productMap.get(item.productId)
     if (!prod) return c.json({ error: `Product not found: ${item.productId}` }, 400)
-
-    const rule = ruleMap.get(prod.category)
-    if (!rule) {
-      // No rule = assume 1:1 flower equivalent
-      const weightGrams = prod.weight_unit === 'oz'
-        ? Number(prod.weight || 0) * GRAMS_PER_OZ
-        : Number(prod.weight || 0)
-      const equivalent = weightGrams * item.quantity
-      totalFlowerEquivalentGrams += equivalent
-      perItemEquivalent.push({
-        productId: item.productId,
-        productName: prod.name,
-        category: prod.category,
-        quantity: item.quantity,
-        equivalentGrams: equivalent,
-        note: 'No rule found, using 1:1 ratio',
-      })
-      continue
-    }
-
-    let equivalentGrams: number
-    if (rule.unit_of_measure === 'mg_thc') {
-      // THC-based equivalency (edibles, tinctures)
-      const thcMg = Number(prod.thc_percent || 0) * item.quantity
-      equivalentGrams = thcMg * rule.equivalency_factor
-    } else {
-      // Weight-based equivalency (flower, concentrates)
-      const weightGrams = prod.weight_unit === 'oz'
-        ? Number(prod.weight || 0) * GRAMS_PER_OZ
-        : Number(prod.weight || 0)
-      equivalentGrams = weightGrams * rule.equivalency_factor * item.quantity
-    }
-
-    totalFlowerEquivalentGrams += equivalentGrams
+    lines.push({ product: prod, quantity: item.quantity })
+    const unit = lineFlowerEquivalentGrams(prod, factors)
     perItemEquivalent.push({
       productId: item.productId,
       productName: prod.name,
       category: prod.category,
       quantity: item.quantity,
-      equivalentGrams: Math.round(equivalentGrams * 100) / 100,
+      equivalentGrams: Math.round(unit * item.quantity * 100) / 100,
     })
   }
 
+  // The same sum the sale path makes, from the same helper.
+  const totalFlowerEquivalentGrams = cartCannabisGrams(lines, factors)
   const totalFlowerEquivalentOz = Math.round((totalFlowerEquivalentGrams / GRAMS_PER_OZ) * 100) / 100
-  const isOverLimit = totalFlowerEquivalentOz > PURCHASE_LIMIT_OZ
-  const remainingOz = Math.max(0, Math.round((PURCHASE_LIMIT_OZ - totalFlowerEquivalentOz) * 100) / 100)
+  const over = overPurchaseLimit(totalFlowerEquivalentGrams, limitOz)
+
+  // A line the rules cannot count is the other way a basket surprises the till: it reads as nothing
+  // here and is refused by name at completion. Say so while the customer is still at the counter.
+  //
+  // Asked of uncountableCannabisLines, NOT of a filter written here. A first draft of this used
+  // `lineFlowerEquivalentGrams(...) <= 0` inline, which looks identical and is not: it treats a
+  // topical — whose factor is deliberately zero — as unweighable and would refuse a sale the rules
+  // are written to allow. check-one-countable-definition.ts caught it, which is exactly what that
+  // guard exists for. (T32 B1/M2)
+  const uncountable = unweighedCannabisRefusal(
+    uncountableCannabisLines(lines, factors),
+    factors,
+    lines[0]?.product,
+  )
 
   return c.json({
     perItemEquivalent,
     totalFlowerEquivalentGrams: Math.round(totalFlowerEquivalentGrams * 100) / 100,
     totalFlowerEquivalentOz,
-    purchaseLimitOz: PURCHASE_LIMIT_OZ,
-    isOverLimit,
-    remainingOz,
-    state,
+    purchaseLimitOz: limitOz,
+    isOverLimit: !!over,
+    remainingOz: Math.max(0, Math.round((limitOz - totalFlowerEquivalentOz) * 100) / 100),
+    // Ready to show: the exact wording the completion would refuse with.
+    limitError: over?.error ?? null,
+    uncountable: uncountable?.products ?? null,
+    uncountableError: uncountable?.error ?? null,
   })
 })
 

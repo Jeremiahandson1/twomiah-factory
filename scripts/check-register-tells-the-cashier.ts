@@ -20,7 +20,20 @@ if (!pos) fail('the dispensary POS page is missing')
 
 // M5 — a reason exists, is rendered, and is on the button
 if (!/const blockReason = \(\(\) => \{/.test(pos)) fail('the register must work out WHY it will not sell')
-if (!/if \(overWeight\) return `Over the legal limit: \$\{Number\(totalWeightOz\)\.toFixed\(2\)\} oz exceeds the \$\{WEIGHT_LIMIT_OZ\} oz maximum/.test(pos)) fail('…naming the weight over the limit, in the same terms as the meter')
+// The over-limit reason now PREFERS the server's own wording and keeps this sentence as the
+// fallback. That is the same requirement one step further on: T45 M5 found the meter summing raw
+// grams while the server applied the equivalency rules, so the two named different numbers for the
+// same basket — "0.2 / 1 oz" on screen, "1.31oz exceeds the 1oz maximum" at completion. The register
+// asks the server what the basket weighs now, so the warning and the refusal are one sentence from
+// one place. The literal stays pinned because it is what shows before the first answer arrives.
+if (!/if \(overWeight\) return serverWeight\?\.limitError/.test(pos)) {
+  fail('…the over-limit reason must prefer the SERVER\'s wording, or the meter and the refusal can name different numbers again (T45 M5)')
+}
+if (!/`Over the legal limit: \$\{Number\(totalWeightOz\)\.toFixed\(2\)\} oz exceeds the \$\{WEIGHT_LIMIT_OZ\} oz maximum/.test(pos)) fail('…naming the weight over the limit, in the same terms as the meter')
+// …and the meter itself has to be showing the server's figure, not its own sum of raw grams.
+if (!/const totalWeightOz = serverWeight\?\.totalFlowerEquivalentOz \?\? localWeightOz/.test(pos)) {
+  fail('the weight meter must show the server\'s flower-equivalent figure — a local sum of raw grams under-counts concentrate and edibles (T45 M5)')
+}
 if (!/if \(overStockLine\)/.test(pos)) fail('…naming the line that outruns the shelf')
 if (!/if \(!idVerified\) return 'Check the customer/.test(pos)) fail('…and asking for the ID check by name')
 // rendered where the cashier is looking, not only as a tooltip
