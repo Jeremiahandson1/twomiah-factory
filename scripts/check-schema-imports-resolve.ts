@@ -37,20 +37,12 @@ const SKIP_TEMPLATES: Record<string, string> = {
 
 // Individual imports that are known-broken and whose fix is a decision, not a typo. Each must name
 // what the decision is. Anything NOT listed here fails the build, which is the point.
-const KNOWN: Array<{ template: string; file: string; name: string; why: string }> = [
-  {
-    template: 'crm-homecare',
-    file: 'templates/crm-homecare/backend/src/services/audit.ts',
-    name: 'auditLog',
-    why: 'This is the bug that motivated the guard. Aliasing to auditLogs is NOT the fix: the two '
-      + 'tables are different shapes — audit.ts writes entity/entityId/entityName/changes/metadata/'
-      + 'userName/userEmail/companyId/userAgent, while homecare auditLogs has tableName/recordId/'
-      + 'oldData/newData/reasonCode and a NOT NULL userId that audit.ts passes as null. Renaming the '
-      + 'import would mount /api/leads for the first time ever and then fail every audit write into '
-      + 'audit.ts own catch. Fixing it means deciding what homecare audit trail should record, and '
-      + 'accepting that a never-run module goes live. See project_homecare_leads_never_mounted.',
-  },
-]
+//
+// Empty, and that is the intended steady state. The entry this started with —
+// crm-homecare services/audit.ts importing 'auditLog' — was fixed by DEFINING the table rather than
+// renaming the import, because homecare's existing `auditLogs` is a separate clinical/HIPAA record
+// that four other modules write to. Adding an entry here should feel like a last resort.
+const KNOWN: Array<{ template: string; file: string; name: string; why: string }> = []
 
 /** Every name db/schema.ts exports. */
 function schemaExports(file: string): Set<string> {

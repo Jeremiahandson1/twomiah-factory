@@ -1087,6 +1087,46 @@ export const auditLogs = pgTable('audit_logs', {
   index('audit_logs_table_name_idx').on(t.tableName),
 ])
 
+// The CRM activity trail, separate from `auditLogs` above on purpose. They are two different records
+// and both are wanted:
+//   auditLogs  clinical/HIPAA — who read or changed a client record, with reasonCode and old/new
+//              values. userId is NOT NULL. Written by routes/audit.ts, routes/auditLogs.ts,
+//              routes/clientDocuments.ts and routes/portal.ts.
+//   auditLog   "who did what in the app" — action/entity/entityName/changes, what every other CRM
+//              records. Written by services/audit.ts, which exists in this template and imported a
+//              table that was never defined here, so the import threw, routes/leads.ts (its only
+//              consumer) failed to load, and index.ts swallowed that in try/catch — /api/leads has
+//              never mounted on a homecare tenant while the sidebar showed Lead Inbox and Lead
+//              Sources. Defining it is the fix; services/audit.ts already writes exactly these
+//              columns.
+// Shape copied from templates/crm (the same table Claflin and CVHC run), with the tenant key
+// pointing at `agencies` because that is what homecare calls a company.
+// No migration file: db/reconcile.ts runs CREATE TABLE IF NOT EXISTS for every table in this schema
+// at boot, which is the same path the test harness applies.
+export const auditLog = pgTable('audit_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  action: text('action').notNull(),
+  entity: text('entity').notNull(),
+  entityId: text('entity_id'),
+  entityName: text('entity_name'),
+  changes: json('changes'),
+  metadata: json('metadata'),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+
+  userId: text('user_id'),
+  userName: text('user_name'),
+  userEmail: text('user_email'),
+
+  companyId: text('company_id').notNull().references(() => agencies.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('audit_log_company_id_idx').on(t.companyId),
+  index('audit_log_entity_entity_id_idx').on(t.entity, t.entityId),
+  index('audit_log_user_id_idx').on(t.userId),
+  index('audit_log_created_at_idx').on(t.createdAt),
+])
+
 // ==================== SERVICE LOCATIONS ====================
 export const serviceLocations = pgTable('service_locations', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
