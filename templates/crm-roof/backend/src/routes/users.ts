@@ -60,7 +60,7 @@ app.post('/', requireAdmin, async (c) => {
     firstName: z.string().min(1),
     lastName: z.string().min(1),
     phone: z.string().optional(),
-    role: z.enum(['admin', 'manager', 'user']).default('user'),
+    role: z.enum(['admin', 'manager', 'user', 'viewer']).default('user'),
   })
 
   // .catch: a missing or malformed body must not throw past validation into a
@@ -154,7 +154,7 @@ app.put('/:id', requireAdmin, async (c) => {
     firstName: z.string().min(1).optional(),
     lastName: z.string().min(1).optional(),
     phone: z.string().optional(),
-    role: z.enum(['admin', 'manager', 'user']).optional(),
+    role: z.enum(['admin', 'manager', 'user', 'viewer']).optional(),
     isActive: z.boolean().optional(),
   })
   const parsed = schema.safeParse(await c.req.json().catch(() => ({})))

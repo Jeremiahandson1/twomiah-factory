@@ -74,7 +74,12 @@ const safeUrl = z.string().trim()
   .refine(looksLikeWebAddress, 'Enter a web address like https://example.com')
   .transform((v: string) => (!v ? '' : HAS_SCHEME.test(v) ? v : `https://${v}`))
 
-const DEFAULT_ROLES = ['admin', 'manager', 'user', 'field']
+// 'viewer' is granted a full read-only list in BASE_ROLE_PERMISSIONS and was absent here, so no
+// tenant could assign it: the lowest role anyone could actually be given was 'user', which maps to
+// 'field' and carries jobs:update, time:create/update, expenses:create, documents:create and
+// tasks:create/update. An accountant or a silent partner had to be made able to write.
+// Additive — no existing role changes, and 'user'/'field' stay for rows already written.
+const DEFAULT_ROLES = ['admin', 'manager', 'user', 'field', 'viewer']
 const USER_COLUMNS = (user: any) => ({ id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role, isActive: user.isActive })
 
 export function createCompanyRoutes(deps: CompanyDeps) {

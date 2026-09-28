@@ -135,6 +135,12 @@ export interface FeaturesAuth {
 export interface FeaturesSettingsPageProps { api: ShellApi; auth: FeaturesAuth; toast: ShellToast }
 
 export const DEFAULT_ROLES: RoleOption[] = [
+  // Lowest first. `viewer` has had a full read-only grant list in BASE_ROLE_PERMISSIONS all along
+  // and no way to hand it to anyone, so the only way to give someone read access was `field` —
+  // which can update jobs, log time and expenses, and create documents, daily logs and tasks.
+  // Anyone who should only look was made able to write. (The dialog still defaults to Staff:
+  // emptyUser() names the role explicitly rather than taking the first option.)
+  { value: 'viewer', label: 'Viewer', description: 'read-only: can open any page but change nothing' },
   { value: 'field', label: 'Staff', description: 'day-to-day work: view jobs, log time, expenses and notes' },
   { value: 'manager', label: 'Manager', description: 'full access to work and invoicing, but not company settings' },
   { value: 'admin', label: 'Admin', description: 'full access, including company settings and team' },
