@@ -853,12 +853,11 @@ app.post('/:id/complete', requireRole('budtender'), async (c) => {
     // welcome and birthday bonuses ever honoured the second one, so a dispensary that switched its
     // own programme off watched points keep accruing on every sale and customers keep being
     // auto-enrolled into a programme it had turned off. Same lesson as T31, one switch further in.
-    const [loyaltyCoRow] = loyaltyOn
+    const [coRow] = loyaltyOn
       ? await tx.select({ settings: company.settings, loyaltyPointsPerDollar: company.loyaltyPointsPerDollar }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
       : [undefined as any]
-    const loyaltyCfg = loyaltyConfig(loyaltyCoRow)
-    if (existing.contactId && loyaltyOn && loyaltyCfg.enabled) {
-      const loyalty = loyaltyCfg
+    const loyalty = loyaltyConfig(coRow)
+    if (existing.contactId && loyaltyOn && loyalty.enabled) {
       const pointsEarned = Math.floor(pointsBasis(existing) * loyalty.pointsPerDollar)
       // A redeemed catalog reward counts a use once the sale actually settles.
       if ((existing as any).loyaltyRewardId) {
