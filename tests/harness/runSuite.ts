@@ -64,7 +64,17 @@ export async function runSuite(o: SuiteOptions): Promise<number> {
     console.error(`FAIL: ${o.template} src/middleware/auth.ts is not the shape the test stub replaces — look before running`)
     return 1
   }
-  cpSync(`${FIXTURES}/middleware-auth.ts`, `${SB}/src/middleware/auth.ts`)
+  // A template whose auth is a different SHAPE, not just a different file, may ship its own stub as
+  // middleware-auth.<template>.ts. crm-homecare is the case that forced this: it never queries a user
+  // table (the JWT payload IS the context), its schema exports `users` where the default stub imports
+  // `user`, there is no companyId on that table, and its auth.ts also exports logAuthEvent — which
+  // routes/auth.ts imports and the default stub does not provide. Adapting the shared stub to cover
+  // both would have made it a second implementation pretending to be one. The default path below is
+  // byte-identical to what salon, field service and dispensary already use.
+  const perTemplateAuth = `${FIXTURES}/middleware-auth.${o.template}.ts`
+  const authFixture = existsSync(perTemplateAuth) ? perTemplateAuth : `${FIXTURES}/middleware-auth.ts`
+  if (authFixture !== `${FIXTURES}/middleware-auth.ts`) console.log(`using the ${o.template} auth stub`)
+  cpSync(authFixture, `${SB}/src/middleware/auth.ts`)
 
   // PGlite is a test-only dependency: the tenant ships with node-postgres.
   const pkg = JSON.parse(readFileSync(`${SB}/package.json`, 'utf8'))
