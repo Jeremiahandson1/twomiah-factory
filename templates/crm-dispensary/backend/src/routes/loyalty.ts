@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { contact, company } from '../../db/schema.ts'
 import { loyaltyConfig } from '../utils/loyaltyConfig.ts'
+import { recomputeTier } from '../utils/loyaltyTier.ts'
 import { eq, and, ilike, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
@@ -185,15 +186,7 @@ app.post('/members/:id/adjust', requireRole('manager'), async (c) => {
 
   // Re-evaluate tier so a manual adjustment can move the customer up or down, same as
   // award/refund — every point-changing path recomputes tier consistently. (retest#13)
-  await db.execute(sql`
-    UPDATE loyalty_members SET tier = CASE
-        WHEN COALESCE(total_points_earned::numeric, 0) >= 5000 THEN 'platinum'
-        WHEN COALESCE(total_points_earned::numeric, 0) >= 1500 THEN 'gold'
-        WHEN COALESCE(total_points_earned::numeric, 0) >= 500 THEN 'silver'
-        ELSE 'bronze' END,
-      updated_at = NOW()
-    WHERE id = ${id}
-  `)
+  await recomputeTier(db, currentUser.companyId, { memberId: id })
 
   // Log transaction
   await db.execute(sql`

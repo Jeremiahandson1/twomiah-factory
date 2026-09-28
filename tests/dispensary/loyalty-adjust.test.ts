@@ -144,5 +144,35 @@ check('redeem: spending 1500 leaves the tier driver untouched', c5.earned === 20
 check('redeem: spending points does not demote (gold kept)', c5.tier === 'gold', c5)
 check('redeem: only the wallet moved', c5.balance === 500, c5)
 
+// ------------------------------------------- the tenant's own thresholds are the ones that apply
+// Settings → Loyalty stores tierThresholds and hands them back to the screen, but all three copies
+// of the ladder hardcoded 500/1500/5000, so a tenant's configured thresholds were saved, echoed and
+// never applied. recomputeTier reads them through the same executor it writes with.
+await db.execute(sql`
+  UPDATE company SET settings = ${JSON.stringify({ loyalty: { tierThresholds: { silver: 100, gold: 200, platinum: 300 } } })}::json
+  WHERE id = ${co.id}
+`)
+await db.execute(sql`UPDATE loyalty_members SET points_balance = 0, total_points_earned = 0, lifetime_points = 0, tier = 'bronze' WHERE id = ${memberId}`)
+
+const cfg1 = await asManager('POST', `/api/loyalty/members/${memberId}/adjust`, { points: 250, reason: 'configured ladder' })
+check('config: +250 accepted', cfg1.status === 200, cfg1.json)
+const c6 = await counters(memberId)
+check('config: 250 is gold on a 100/200/300 ladder, not silver on the hardcoded one', c6.tier === 'gold', c6)
+
+const cfg2 = await asManager('POST', `/api/loyalty/members/${memberId}/adjust`, { points: 60, reason: 'cross platinum' })
+check('config: +60 accepted', cfg2.status === 200, cfg2.json)
+const c7 = await counters(memberId)
+check('config: 310 reaches the configured platinum at 300', c7.tier === 'platinum', c7)
+
+// An inverted ladder is accepted by PUT /api/company (T29). Sorted, it still means something.
+await db.execute(sql`
+  UPDATE company SET settings = ${JSON.stringify({ loyalty: { tierThresholds: { silver: 5000, gold: 100, platinum: 1 } } })}::json
+  WHERE id = ${co.id}
+`)
+const cfg3 = await asManager('POST', `/api/loyalty/members/${memberId}/adjust`, { points: 1, reason: 'inverted ladder' })
+check('config: inverted ladder accepted without error', cfg3.status === 200, cfg3.json)
+const c8 = await counters(memberId)
+check('config: inverted 5000/100/1 sorts to 1/100/5000 — 311 is gold, not platinum', c8.tier === 'gold', c8)
+
 console.log(`\n  ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

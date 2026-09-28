@@ -8,6 +8,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import Stripe from 'stripe'
 import audit from '../services/audit.ts'
+import { recomputeTier } from '../utils/loyaltyTier.ts'
 
 const app = new Hono()
 
@@ -202,6 +203,10 @@ app.post('/sale', requireIntegrationKey, async (c) => {
         FROM loyalty_members lm
         WHERE lm.contact_id = ${contactId} AND lm.company_id = ${comp.id}
       `)
+
+      // Same recompute the in-house register does — a sale rung up through the POS integration
+      // has to be able to promote a customer too. Uses `tx`, never the outer connection.
+      await recomputeTier(tx, comp.id, { contactId })
     }
 
     return newOrder

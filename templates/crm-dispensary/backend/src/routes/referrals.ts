@@ -5,9 +5,47 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { recomputeTier } from '../utils/loyaltyTier.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+/**
+ * Grant referral points the same way every other path grants points.
+ *
+ * Referral rewards used to move the three counters and stop there: no loyalty_transactions row, so
+ * the points appeared in the balance with nothing in the member's history to explain them, and no
+ * tier re-evaluation, so a bonus that crossed a threshold left the customer on their old tier until
+ * some unrelated sale happened to recompute it.
+ */
+async function awardReferralPoints(companyId: string, contactId: string, points: number, description: string) {
+  if (!contactId || !(points > 0)) return
+
+  const found: any = await db.execute(sql`
+    SELECT id FROM loyalty_members WHERE contact_id = ${contactId} AND company_id = ${companyId} LIMIT 1
+  `)
+  const memberId = ((found?.rows || found)?.[0] as any)?.id
+  // Not enrolled in loyalty — there is nowhere to put points, exactly as before.
+  if (!memberId) return
+
+  const updated: any = await db.execute(sql`
+    UPDATE loyalty_members
+    SET points_balance = COALESCE(points_balance::numeric, 0) + ${points},
+        total_points_earned = COALESCE(total_points_earned::numeric, 0) + ${points},
+        lifetime_points = COALESCE(lifetime_points, 0) + ${points},
+        updated_at = NOW()
+    WHERE id = ${memberId}
+    RETURNING points_balance
+  `)
+  const balanceAfter = Number(((updated?.rows || updated)?.[0] as any)?.points_balance ?? 0)
+
+  await db.execute(sql`
+    INSERT INTO loyalty_transactions(id, member_id, type, points, balance_after, description, company_id, created_at)
+    VALUES (gen_random_uuid(), ${memberId}, 'bonus', ${points}, ${balanceAfter}, ${description}, ${companyId}, NOW())
+  `)
+
+  await recomputeTier(db, companyId, { memberId })
+}
 
 // Get referral config for company
 app.get('/config', async (c) => {
@@ -325,14 +363,7 @@ app.post('/:id/reward', requireRole('manager'), async (c) => {
   // (schema.ts) — the old code wrote to a singular `loyalty_member` table and a non-existent
   // `points_earned` column, so every points reward 500'd.
   if (config.referrer_reward_type === 'points' && config.referrer_reward_value > 0) {
-    await db.execute(sql`
-      UPDATE loyalty_members
-      SET points_balance = points_balance + ${config.referrer_reward_value},
-          total_points_earned = total_points_earned + ${config.referrer_reward_value},
-          lifetime_points = COALESCE(lifetime_points, 0) + ${config.referrer_reward_value},
-          updated_at = NOW()
-      WHERE contact_id = ${referral.referrer_id} AND company_id = ${currentUser.companyId}
-    `)
+    await awardReferralPoints(currentUser.companyId, referral.referrer_id, Number(config.referrer_reward_value), 'Referral reward')
   }
   // credit / discount_flat rewards add to the referrer's store-credit balance (contact.store_credit,
   // TEXT, added wave-2). Stored as numeric-in-text so it survives arithmetic.
@@ -347,14 +378,7 @@ app.post('/:id/reward', requireRole('manager'), async (c) => {
 
   // Award referred customer loyalty points/credit (same schema correction as the referrer above).
   if (config.referred_reward_type === 'points' && config.referred_reward_value > 0) {
-    await db.execute(sql`
-      UPDATE loyalty_members
-      SET points_balance = points_balance + ${config.referred_reward_value},
-          total_points_earned = total_points_earned + ${config.referred_reward_value},
-          lifetime_points = COALESCE(lifetime_points, 0) + ${config.referred_reward_value},
-          updated_at = NOW()
-      WHERE contact_id = ${referral.referred_id} AND company_id = ${currentUser.companyId}
-    `)
+    await awardReferralPoints(currentUser.companyId, referral.referred_id, Number(config.referred_reward_value), 'Referral welcome reward')
   }
   // credit / discount_flat: add to the referred customer's store-credit balance (see referrer branch).
   if ((config.referred_reward_type === 'credit' || config.referred_reward_type === 'discount_flat') && config.referred_reward_value > 0) {

@@ -11,6 +11,7 @@ import { escapeHtml } from '../utils/sanitize.ts'
 import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, ageFromDob, minimumAgeFor, unitGramsOf, overPurchaseLimit, lineFlowerEquivalentGrams, uncountableCannabisLines, unweighedCannabisRefusal, gramsText } from '../utils/cannabis.ts'
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { loyaltyConfig, inBirthdayMonth } from '../utils/loyaltyConfig.ts'
+import { recomputeTier } from '../utils/loyaltyTier.ts'
 import { taxRatesFor, assessTax, cannabisSubtotalOf } from '../utils/tax.ts'
 import { isFeatureEnabled } from '../middleware/enabledFeature.ts'
 import { checkFilter } from '../shared/index.ts'
@@ -954,18 +955,7 @@ app.post('/:id/complete', requireRole('budtender'), async (c) => {
       }
 
       // Auto-upgrade loyalty tier based on lifetime points
-      await tx.execute(sql`
-        UPDATE loyalty_members SET
-          tier = CASE
-            WHEN COALESCE(total_points_earned::numeric, 0) >= 5000 THEN 'platinum'
-            WHEN COALESCE(total_points_earned::numeric, 0) >= 1500 THEN 'gold'
-            WHEN COALESCE(total_points_earned::numeric, 0) >= 500 THEN 'silver'
-            ELSE 'bronze'
-          END,
-          updated_at = NOW()
-        WHERE contact_id = ${existing.contactId}
-          AND company_id = ${currentUser.companyId}
-      `)
+      await recomputeTier(tx, currentUser.companyId, { contactId: existing.contactId })
     }
   })
   } catch (e) {
@@ -1260,15 +1250,7 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
 
       // Re-evaluate tier against the reduced lifetime points so a refund can demote — otherwise
       // a customer keeps a tier earned entirely from returned goods. (retest#10)
-      await tx.execute(sql`
-        UPDATE loyalty_members SET tier = CASE
-            WHEN COALESCE(total_points_earned::numeric, 0) >= 5000 THEN 'platinum'
-            WHEN COALESCE(total_points_earned::numeric, 0) >= 1500 THEN 'gold'
-            WHEN COALESCE(total_points_earned::numeric, 0) >= 500 THEN 'silver'
-            ELSE 'bronze' END,
-          updated_at = NOW()
-        WHERE contact_id = ${existing.contactId} AND company_id = ${currentUser.companyId}
-      `)
+      await recomputeTier(tx, currentUser.companyId, { contactId: existing.contactId })
 
       await tx.execute(sql`
         INSERT INTO loyalty_transactions(id, member_id, type, points, balance_after, order_id, description, company_id, created_at)

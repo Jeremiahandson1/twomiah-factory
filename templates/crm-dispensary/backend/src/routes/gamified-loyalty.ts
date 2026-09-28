@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { recomputeTier } from '../utils/loyaltyTier.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -412,6 +413,10 @@ app.post('/challenges/:challengeId/claim', requireRole('budtender'), async (c) =
       INSERT INTO loyalty_transactions(id, member_id, type, points, description, company_id, created_at)
       VALUES (gen_random_uuid(), ${data.memberId}, 'challenge_reward', ${progress.reward_value}, ${'Challenge completed: ' + progress.challenge_name}, ${currentUser.companyId}, NOW())
     `)
+
+    // A challenge reward earns points like any other award, so it can carry a member over a
+    // threshold — recompute, or the promotion waits for an unrelated sale to notice it.
+    await recomputeTier(db, currentUser.companyId, { memberId: data.memberId })
 
     rewardDetails.description = `${progress.reward_value} points awarded`
   } else if (progress.reward_type === 'discount_percent' || progress.reward_type === 'discount_fixed') {
