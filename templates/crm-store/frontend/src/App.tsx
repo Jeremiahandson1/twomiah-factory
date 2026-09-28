@@ -16,6 +16,7 @@ import SuppliersPage from './pages/SuppliersPage'
 import ReviewsPage from './pages/ReviewsPage'
 import ShippingPage from './pages/ShippingPage'
 import DiscountsPage from './pages/DiscountsPage'
+import LoyaltyPage from './pages/LoyaltyPage'
 import SettingsPage from './pages/SettingsPage'
 import OnboardingWizard from './pages/OnboardingWizard'
 import ContactSupportPage from './pages/support/ContactSupportPage'
@@ -82,6 +83,7 @@ export default function App() {
               <Route path="google-reviews" element={<GbpReviewsPage />} />
               <Route path="shipping" element={<ShippingPage />} />
               <Route path="discounts" element={<DiscountsPage />} />
+              <Route path="loyalty" element={<LoyaltyPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="contact-support" element={<ContactSupportPage />} />
               <Route path="settings/email" element={<EmailAliasesPage />} />

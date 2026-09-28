@@ -471,6 +471,27 @@ app.get('/cart', (c) => renderPage(c, 'cart', {
   canonicalUrl: BASE_URL + '/cart',
 }))
 
+// What this shopper can claim against the cart they are holding. Same thin-proxy shape as checkout
+// below: the crm-store URL stays server-side and the browser stays same-origin.
+//
+// Fails SOFT on purpose. A loyalty panel that cannot load must leave the cart working — nobody
+// should be unable to buy something because a rewards lookup timed out.
+app.get('/api/loyalty', async (c) => {
+  const empty = { pointsBalance: 0, punchCard: { enabled: false, visitsRequired: 0, progress: 0, remaining: 0, unclaimed: 0 }, rewards: [] }
+  if (!CRM_STORE_API_URL) return c.json(empty)
+  const email = (c.req.query('email') || '').trim()
+  const subtotalCents = String(Math.max(0, Number(c.req.query('subtotalCents')) || 0))
+  if (!email) return c.json(empty)
+  try {
+    const qs = `email=${encodeURIComponent(email)}&subtotalCents=${encodeURIComponent(subtotalCents)}`
+    const res = await fetch(`${CRM_STORE_API_URL}/api/public/loyalty?${qs}`, { signal: AbortSignal.timeout(6000) })
+    if (!res.ok) return c.json(empty)
+    return c.json(await res.json().catch(() => empty))
+  } catch {
+    return c.json(empty)
+  }
+})
+
 // Thin proxy to the crm-store hosted-checkout endpoint. Keeps the crm-store API
 // URL server-side and the browser same-origin.
 app.post('/api/checkout', async (c) => {

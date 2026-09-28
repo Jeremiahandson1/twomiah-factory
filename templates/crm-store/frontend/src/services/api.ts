@@ -96,6 +96,28 @@ export type DiscountCode = {
   id: string; code: string; type: 'percent' | 'fixed'; value: number; active: boolean
   minSubtotalCents: number; maxUses: number | null; usedCount: number; expiresAt: string | null; createdAt: string
 }
+// Loyalty. valueCents is cents for a 'fixed' reward and a whole percent for a 'percent' one —
+// named for its unit because the backend column is, and a field called `value` holding dollars is
+// how the two get mixed up.
+export type LoyaltyConfig = {
+  loyaltyEnabled: boolean
+  loyaltyPointsPerDollar: number
+  loyaltyWelcomePoints: number
+  loyaltyBirthdayBonus: number
+  loyaltyPunchCard: { visitsRequired: number; rewardName: string; qualifyingServiceIds: string[] }
+}
+export type LoyaltyPunchCard = { enabled: boolean; visitsRequired: number; progress: number; remaining: number; unclaimed: number }
+export type LoyaltyMember = {
+  id: string; email: string; pointsBalance: number; lifetimePoints: number
+  qualifyingOrders: number; punchRewardsEarned: number; lastActivityAt: string | null
+  punchCard: LoyaltyPunchCard
+}
+export type LoyaltyReward = {
+  id: string; name: string; description: string | null; pointsCost: number
+  type: 'fixed' | 'percent'; valueCents: number; minSubtotalCents: number
+  active: boolean; usedCount: number
+}
+
 export type PaymentStatus = {
   config: { provider: string; mode: string; publishableKey: string | null; connected: boolean; hasWebhookSecret: boolean; updatedAt: string } | null
   webhookUrl: string
@@ -272,6 +294,20 @@ class ApiClient {
   async createDiscount(body: Partial<DiscountCode>) { return (await this.request<{ code: DiscountCode }>('/api/admin/discounts', { method: 'POST', body: JSON.stringify(body) })).code }
   async updateDiscount(id: string, body: Partial<DiscountCode>) { return (await this.request<{ code: DiscountCode }>(`/api/admin/discounts/${id}`, { method: 'PATCH', body: JSON.stringify(body) })).code }
   async deleteDiscount(id: string) { return this.request(`/api/admin/discounts/${id}`, { method: 'DELETE' }) }
+
+  // ── Loyalty ──
+  // Points are earned and spent when an order is PAID (backend services/loyalty.ts); nothing here
+  // moves a balance. Shoppers are identified by email — this storefront has no customer login.
+  async getLoyaltyConfig() { return this.request<LoyaltyConfig>('/api/admin/loyalty/config') }
+  async updateLoyaltyConfig(body: Partial<LoyaltyConfig>) { return this.request<LoyaltyConfig>('/api/admin/loyalty/config', { method: 'PUT', body: JSON.stringify(body) }) }
+  async listLoyaltyMembers(search?: string) {
+    const q = search ? `?search=${encodeURIComponent(search)}` : ''
+    return (await this.request<{ members: LoyaltyMember[] }>(`/api/admin/loyalty/members${q}`)).members
+  }
+  async listLoyaltyRewards() { return (await this.request<{ rewards: LoyaltyReward[] }>('/api/admin/loyalty/rewards')).rewards }
+  async createLoyaltyReward(body: Partial<LoyaltyReward>) { return this.request<LoyaltyReward>('/api/admin/loyalty/rewards', { method: 'POST', body: JSON.stringify(body) }) }
+  async updateLoyaltyReward(id: string, body: Partial<LoyaltyReward>) { return this.request<LoyaltyReward>(`/api/admin/loyalty/rewards/${id}`, { method: 'PUT', body: JSON.stringify(body) }) }
+  async deleteLoyaltyReward(id: string) { return this.request(`/api/admin/loyalty/rewards/${id}`, { method: 'DELETE' }) }
 
   // ── Reviews ──
   async listReviews(status = 'pending') { return (await this.request<{ data: Review[] }>(`/api/admin/reviews?status=${status}`)).data }

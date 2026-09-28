@@ -322,6 +322,16 @@
           '<div class="cart-summary__field">' +
             '<input type="text" data-discount-code placeholder="Discount code (optional)" class="cart-summary__input" autocomplete="off" />' +
           '</div>' +
+          // The email is what identifies a shopper for loyalty — this store has no customer login,
+          // so without it there is no balance to look up. Optional: leaving it blank checks out
+          // exactly as before, and the payment provider still collects an address for the receipt.
+          '<div class="cart-summary__field">' +
+            // value is restored from loyaltyEmail: this whole summary is re-rendered on every
+            // quantity change, so a plain empty input would wipe what the shopper had typed the
+            // moment they adjusted a line.
+            '<input type="email" data-customer-email placeholder="Email (for points &amp; rewards)" class="cart-summary__input" autocomplete="email" value="' + esc(loyaltyEmail) + '" />' +
+          '</div>' +
+          '<div data-loyalty-panel style="display:none"></div>' +
           '<div class="cart-summary__field cart-summary__ship">' +
             '<input type="text" data-ship-country placeholder="Country (US)" maxlength="2" class="cart-summary__input" autocomplete="country" />' +
             '<input type="text" data-ship-state placeholder="State (CA)" maxlength="16" class="cart-summary__input" autocomplete="address-level1" />' +
@@ -332,12 +342,21 @@
           '<a href="/shop" class="cart-summary__continue">Continue shopping</a>' +
         '</aside>' +
       '</div>';
+
+    // The panel was just wiped with the rest of the summary, and the subtotal it was priced against
+    // may have changed — a reward with a minimum spend can become claimable (or stop being) purely
+    // because a quantity moved. Re-ask.
+    if (loyaltyEmail) refreshLoyalty();
   }
 
   // Delegated events for the (dynamically rendered) cart page.
   function wireCartPageEvents() {
     var root = document.getElementById('cart-root');
     if (!root) return;
+
+    // Delegated, like everything else here, because the cart markup is re-rendered on every change
+    // and a listener bound to a field would be thrown away with it.
+    wireLoyalty(root);
 
     root.addEventListener('click', function (e) {
       var line = e.target.closest('.cart-line');
@@ -365,6 +384,98 @@
     });
   }
 
+  // ── loyalty ──────────────────────────────────────────────────────────────
+  // Everything here fails soft. A rewards panel that cannot load must never stop someone buying,
+  // so every failure path simply hides the panel and leaves the cart exactly as it was.
+  // Held outside the DOM because the cart summary is re-rendered wholesale on every change; both of
+  // these have to survive that, or adjusting a quantity silently drops the shopper's reward.
+  var loyaltyEmail = '';
+  var loyaltySelectedRewardId = null;
+  var loyaltyQuoteTimer = null;
+
+  function loyaltyPanel() { return document.querySelector('[data-loyalty-panel]'); }
+
+  function renderLoyalty(quote) {
+    var panel = loyaltyPanel();
+    if (!panel) return;
+    var rewards = (quote && quote.rewards) || [];
+    var card = (quote && quote.punchCard) || { enabled: false };
+    var balance = (quote && quote.pointsBalance) || 0;
+
+    if (!balance && !rewards.length && !card.enabled) {
+      panel.style.display = 'none';
+      panel.innerHTML = '';
+      loyaltySelectedRewardId = null;
+      return;
+    }
+
+    var bits = ['<div class="cart-summary__row"><span>Your points</span><span>' + balance + '</span></div>'];
+
+    if (card.enabled) {
+      bits.push(
+        '<p class="cart-summary__note">' +
+          (card.unclaimed > 0
+            ? 'You have a full card — a free reward is ready below.'
+            : card.progress + ' of ' + card.visitsRequired + ' orders towards your next free one.') +
+        '</p>'
+      );
+    }
+
+    if (rewards.length) {
+      bits.push('<div class="cart-summary__field">');
+      bits.push('<label class="cart-summary__note" for="loyalty-reward">Use a reward</label>');
+      bits.push('<select id="loyalty-reward" data-loyalty-reward class="cart-summary__input">');
+      bits.push('<option value="">No reward</option>');
+      for (var i = 0; i < rewards.length; i++) {
+        var r = rewards[i];
+        var label = r.name + (r.discountCents ? ' — ' + formatMoney(r.discountCents) + ' off' : '') +
+          (r.pointsCost ? ' (' + r.pointsCost + ' pts)' : ' (full card)');
+        if (!r.available) label += ' — ' + (r.reason || 'not available yet');
+        bits.push(
+          '<option value="' + esc(r.id) + '"' + (r.available ? '' : ' disabled') +
+          (loyaltySelectedRewardId === r.id ? ' selected' : '') + '>' + esc(label) + '</option>'
+        );
+      }
+      bits.push('</select></div>');
+    }
+
+    panel.innerHTML = bits.join('');
+    panel.style.display = 'block';
+  }
+
+  function refreshLoyalty() {
+    var panel = loyaltyPanel();
+    if (!panel) return;
+    var email = loyaltyEmail;
+    // Not a validator — just enough to avoid asking on every keystroke of a half-typed address.
+    if (!email || email.indexOf('@') < 1) {
+      panel.style.display = 'none';
+      panel.innerHTML = '';
+      loyaltySelectedRewardId = null;
+      return;
+    }
+    var subtotal = cartSubtotalCents(readCart());
+    fetch('/api/loyalty?email=' + encodeURIComponent(email) + '&subtotalCents=' + subtotal)
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (quote) { if (quote) renderLoyalty(quote); })
+      .catch(function () { /* the cart keeps working without it */ });
+  }
+
+  function wireLoyalty(root) {
+    root.addEventListener('input', function (e) {
+      var el = e.target.closest('[data-customer-email]');
+      if (!el) return;
+      loyaltyEmail = (el.value || '').trim();
+      clearTimeout(loyaltyQuoteTimer);
+      loyaltyQuoteTimer = setTimeout(refreshLoyalty, 500);
+    });
+    root.addEventListener('change', function (e) {
+      var sel = e.target.closest('[data-loyalty-reward]');
+      if (!sel) return;
+      loyaltySelectedRewardId = sel.value || null;
+    });
+  }
+
   // ── checkout ─────────────────────────────────────────────────────────────
   function doCheckout(btn) {
     var cart = readCart();
@@ -385,6 +496,13 @@
     var country = countryEl && countryEl.value ? countryEl.value.trim() : '';
     var state = stateEl && stateEl.value ? stateEl.value.trim() : '';
     if (country || state) body.shipTo = { country: country, state: state };
+
+    // Loyalty: the email identifies the shopper, the reward id says which one they picked. Only the
+    // id travels — what it is worth is decided by the server against this cart, because the browser
+    // is not a trustworthy source of how much money to take off. The points are not spent here
+    // either; that happens when the order is actually paid.
+    if (loyaltyEmail) body.customerEmail = loyaltyEmail;
+    if (loyaltyEmail && loyaltySelectedRewardId) body.loyaltyRewardId = loyaltySelectedRewardId;
 
     fetch('/api/checkout', {
       method: 'POST',
