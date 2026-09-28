@@ -192,25 +192,41 @@ app.get('/summary', async (c) => {
     // Sales by category
     db.execute(sql`
       -- units and revenue NET of returns, like the product mix above (T29 L11)
-      SELECT oi.category, GREATEST(0, SUM(oi.quantity) - SUM(COALESCE(oi.refunded_quantity, 0)))::int as units_sold, GREATEST(0, COALESCE(SUM(oi.line_total::numeric), 0) - COALESCE(SUM(COALESCE(oi.refunded_quantity, 0) * oi.unit_price::numeric), 0)) as revenue
+      --
+      -- Over the SETTLED row set, not 'completed' alone. The headline revenue beside this counts
+      -- completed + partially refunded net of refunds, so filtering here to completed dropped every
+      -- partly-refunded sale out of the breakdown while leaving it in the total: 30 days read
+      -- $9,039.75 with categories adding to $5,633. A panel that does not add up to the figure above
+      -- it is worse than no panel. (T42 H2)
+      --
+      -- A line whose product was deleted has no category; it showed as a "null" row worth $700.
+      SELECT COALESCE(NULLIF(oi.category, ''), 'uncategorised') as category,
+             GREATEST(0, SUM(oi.quantity) - SUM(COALESCE(oi.refunded_quantity, 0)))::int as units_sold,
+             GREATEST(0, COALESCE(SUM(oi.line_total::numeric), 0) - COALESCE(SUM(COALESCE(oi.refunded_quantity, 0) * oi.unit_price::numeric), 0)) as revenue
       FROM order_items oi
       JOIN orders o ON o.id = oi.order_id
       WHERE o.company_id = ${currentUser.companyId}
-        AND o.status = 'completed'
+        AND o.status IN ${settledSale}
         AND o.created_at >= ${dayStart}
         AND o.created_at < ${dayEnd}
-      GROUP BY oi.category
+      GROUP BY COALESCE(NULLIF(oi.category, ''), 'uncategorised')
       ORDER BY revenue DESC
     `),
     // Payment method breakdown
     db.execute(sql`
-      SELECT payment_method, COUNT(*)::int as count, COALESCE(SUM(total::numeric), 0) as total
+      -- Settled row set and the NET measure, the same two the headline uses. This counted completed
+      -- orders at GROSS, so it disagreed with the revenue above it twice over: a $87.50 debit sale
+      -- with $43.75 handed back vanished entirely rather than showing $43.75, and 30 days of methods
+      -- summed to $6,816.25 against a stated $9,039.75. (T42 H2)
+      SELECT COALESCE(NULLIF(payment_method, ''), 'unrecorded') as payment_method,
+             COUNT(*)::int as count,
+             COALESCE(SUM(${netExprBare}), 0) as total
       FROM orders
       WHERE company_id = ${currentUser.companyId}
-        AND status = 'completed'
+        AND status IN ${settledSale}
         AND created_at >= ${dayStart}
         AND created_at < ${dayEnd}
-      GROUP BY payment_method
+      GROUP BY COALESCE(NULLIF(payment_method, ''), 'unrecorded')
     `),
     // Loyalty activity
     db.execute(sql`
@@ -319,9 +335,17 @@ app.get('/customers', async (c) => {
       -- bought in the range AND had bought before the range started; everyone else in the
       -- range is NEW. The old "order_count > 1" definition counted a first-time customer who
       -- came back twice inside the window as both new and returning.
+      --
+      -- REPEAT is a different question from RETURNING and the two must not be merged. Returning is a
+      -- cohort split — did this person shop here before the window opened — and it has to reconcile
+      -- with new (M-8). Repeat is "came back inside the window", which is what retention means to a
+      -- shop owner and what the rate is built from below. T42 M4 asked for repeat and called it
+      -- returning; answering that literally would have put a first-time customer with two visits in
+      -- both buckets and broken the reconciliation M-8 was raised to fix.
       SELECT
         COUNT(*)::int AS unique_customers,
         COUNT(CASE WHEN fe.first_at < ${start} THEN 1 END)::int AS returning_customers,
+        COUNT(CASE WHEN pc.order_count > 1 THEN 1 END)::int AS repeat_customers,
         COALESCE(AVG(pc.order_count), 0) AS avg_visits
       FROM per_customer pc
       LEFT JOIN first_ever fe ON fe.contact_id = pc.contact_id
@@ -363,7 +387,13 @@ app.get('/customers', async (c) => {
 
   const uniqueCustomers = Number(range.unique_customers || 0)
   const returningCustomers = Number(range.returning_customers || 0)
-  const retentionRate = uniqueCustomers > 0 ? (returningCustomers / uniqueCustomers) * 100 : 0
+  const repeatCustomers = Number(range.repeat_customers || 0)
+  // Retention is the repeat-purchase rate — how many of this window's customers came back inside it
+  // — which is the industry definition and the one a shop owner reads off the tile. Deriving it from
+  // the returning COHORT instead reported 0.0% on a window where six customers averaged 4.67 visits
+  // each, because none of them had shopped before the window opened. Both numbers were true; only
+  // one of them answers "are people coming back". (T42 M4)
+  const retentionRate = uniqueCustomers > 0 ? (repeatCustomers / uniqueCustomers) * 100 : 0
 
   return c.json({
     uniqueCustomers,
@@ -371,6 +401,7 @@ app.get('/customers', async (c) => {
     newCustomers: Math.max(0, uniqueCustomers - returningCustomers),
     newCustomersLifetimeFirstOrder: Number(newRow.new_customers || 0),
     returningCustomers,
+    repeatCustomers,
     retentionRate,
     avgVisits: Number(range.avg_visits || 0),
     lifetimeValue: Number(ltvRow.lifetime_value || 0),

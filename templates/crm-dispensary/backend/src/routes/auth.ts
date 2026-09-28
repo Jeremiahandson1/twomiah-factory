@@ -8,6 +8,7 @@ import { db } from '../../db/index.ts'
 import { company, user } from '../../db/schema.ts'
 import { eq, and, gt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { storeTimeZone, storeDateString } from '../utils/isoTime.ts'
 import emailService from '../services/email.ts'
 import logger from '../services/logger.ts'
 import { passwordSchema } from '../shared/index.ts'
@@ -107,7 +108,13 @@ app.post('/login', async (c) => {
 
   return c.json({
     user: { id: foundUser.id, email: foundUser.email, firstName: foundUser.firstName, lastName: foundUser.lastName, role: foundUser.role, avatar: foundUser.avatar },
-    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, taxRate: (foundCompany as any).taxRate, localTaxRate: (foundCompany as any).localTaxRate, exciseTaxRate: (foundCompany as any).exciseTaxRate, purchaseLimitOz: (foundCompany as any).purchaseLimitOz, visionUrl: process.env.VISION_URL || null, vertical: 'dispensary' },
+    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, taxRate: (foundCompany as any).taxRate, localTaxRate: (foundCompany as any).localTaxRate, exciseTaxRate: (foundCompany as any).exciseTaxRate, purchaseLimitOz: (foundCompany as any).purchaseLimitOz, visionUrl: process.env.VISION_URL || null, vertical: 'dispensary',
+      // The store's own clock, so no screen has to guess the shop's date from the viewer's laptop.
+      // A manager in Central looking at an Ohio store at 23:10 asked Analytics for "2026-09-27"
+      // while the till, the compliance report and the server had already rolled to the 28th —
+      // Today showed $0.00 against a dashboard reading $718.75. (T42 M1)
+      timeZone: storeTimeZone(foundCompany),
+      today: storeDateString(new Date(), storeTimeZone(foundCompany)) },
     ...tokens,
   })
 })
@@ -234,7 +241,13 @@ app.get('/me', authenticate, async (c) => {
 
   return c.json({
     user: { id: foundUser.id, email: foundUser.email, firstName: foundUser.firstName, lastName: foundUser.lastName, phone: foundUser.phone, role: normalizeRole(foundUser.role), avatar: foundUser.avatar },
-    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, taxRate: (foundCompany as any).taxRate, localTaxRate: (foundCompany as any).localTaxRate, exciseTaxRate: (foundCompany as any).exciseTaxRate, purchaseLimitOz: (foundCompany as any).purchaseLimitOz, visionUrl: process.env.VISION_URL || null, vertical: 'dispensary' },
+    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, taxRate: (foundCompany as any).taxRate, localTaxRate: (foundCompany as any).localTaxRate, exciseTaxRate: (foundCompany as any).exciseTaxRate, purchaseLimitOz: (foundCompany as any).purchaseLimitOz, visionUrl: process.env.VISION_URL || null, vertical: 'dispensary',
+      // The store's own clock, so no screen has to guess the shop's date from the viewer's laptop.
+      // A manager in Central looking at an Ohio store at 23:10 asked Analytics for "2026-09-27"
+      // while the till, the compliance report and the server had already rolled to the 28th —
+      // Today showed $0.00 against a dashboard reading $718.75. (T42 M1)
+      timeZone: storeTimeZone(foundCompany),
+      today: storeDateString(new Date(), storeTimeZone(foundCompany)) },
     permissions,
   })
 })

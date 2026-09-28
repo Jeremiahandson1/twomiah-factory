@@ -33,3 +33,25 @@ export function localDay(d: Date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
+
+/**
+ * The calendar date at the STORE, not at whoever is looking.
+ *
+ * Every figure the server reports is bucketed on the shop's clock, so a screen that builds its date
+ * range from the viewer's laptop asks for a different day than the one it is about to display. A
+ * manager in Central looking at an Ohio store at 23:10 asked Analytics for 2026-09-27 while the
+ * till and the compliance report had already rolled to the 28th: Today read $0.00 from 0 orders
+ * beside a dashboard showing $718.75 from 9 sales. (Dispensary T42 M1)
+ *
+ * Falls back to the viewer's own calendar when the store has no usable zone — which is still better
+ * than UTC, the bug this replaced (T29 L2).
+ */
+export function storeDay(timeZone?: string | null, d: Date = new Date()): string {
+  if (!timeZone) return localDay(d);
+  try {
+    // en-CA renders as YYYY-MM-DD, which is the shape the API expects.
+    return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  } catch {
+    return localDay(d);
+  }
+}

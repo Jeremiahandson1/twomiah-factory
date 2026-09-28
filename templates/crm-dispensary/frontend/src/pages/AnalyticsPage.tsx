@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, Users, Clock, DollarSign, Package, Calendar } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import { localDay } from '../utils/date';
+import { storeDay } from '../utils/date';
 
 export default function AnalyticsPage() {
   const { company } = useAuth();
@@ -17,7 +17,7 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     loadAnalytics();
-  }, [period]);
+  }, [period, (company as any)?.timeZone]);
 
   const loadAnalytics = async () => {
     setLoading(true);
@@ -34,8 +34,13 @@ export default function AnalyticsPage() {
       // Unique Customers tile read 2 while the same endpoint answered 4 for that period. The server
       // already interprets these on the STORE's clock (storeRange); it needs the day a person would
       // write down. (Dispensary T29 L2)
-      const startDate = localDay(new Date(now.getTime() - (periodDays - 1) * 86400000));
-      const endDate = localDay(now);
+      // ...and the STORE's calendar, not the viewer's. Reading the day off the person's own laptop
+      // was still wrong whenever they are not standing in the shop: a manager in Central looking at
+      // an Ohio store at 23:10 asked for 2026-09-27 while the till had rolled to the 28th, so Today
+      // showed $0.00 from 0 orders beside a dashboard reading $718.75 from 9 sales. (T42 M1)
+      const tz = (company as any)?.timeZone;
+      const startDate = storeDay(tz, new Date(now.getTime() - (periodDays - 1) * 86400000));
+      const endDate = storeDay(tz, now);
       const dateParams = { startDate, endDate };
 
       const [summaryRes, revenueRes, mixRes, peakRes, customersRes] = await Promise.all([
@@ -280,12 +285,18 @@ export default function AnalyticsPage() {
           </h2>
           <div className="flex items-end gap-1 h-40">
             {peakHours.length > 0 ? peakHours.map((hour: any, idx: number) => (
-              <div key={idx} className="flex-1 flex flex-col items-center gap-1">
-                <div
-                  className="w-full bg-blue-400 rounded-t transition-all hover:bg-blue-500"
-                  style={{ height: `${(hour.orders / maxPeak) * 100}%`, minHeight: hour.orders > 0 ? '4px' : '0' }}
-                  title={`${hour.orders} orders`}
-                />
+              // h-full + a flex-1 track: the bar's percentage height needs a parent with a DEFINITE
+              // height to resolve against. This column used to size itself to its content, so every
+              // bar — 43%, 34%, 100% — fell through to its 4px minimum and the chart drew flat
+              // whatever the data said. The row's h-40 was never reaching the bars. (T42 M2)
+              <div key={idx} className="flex-1 flex flex-col items-center gap-1 h-full">
+                <div className="w-full flex-1 min-h-0 flex items-end">
+                  <div
+                    className="w-full bg-blue-400 rounded-t transition-all hover:bg-blue-500"
+                    style={{ height: `${Math.max(0, Math.min(100, (hour.orders / maxPeak) * 100))}%`, minHeight: hour.orders > 0 ? '4px' : '0' }}
+                    title={`${hour.orders} orders`}
+                  />
+                </div>
                 <span className="text-xs text-gray-500 dark:text-slate-400">{hour.hour || idx}</span>
               </div>
             )) : (
