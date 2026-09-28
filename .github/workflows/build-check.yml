@@ -66,6 +66,17 @@ jobs:
       - name: Every resource gated in a route must be granted to a role in BASE_ROLE_PERMISSIONS (or owner-only by design)
         run: bun run scripts/check-permission-vocabulary.ts
 
+  schema-imports-resolve:
+    name: routing — a route mounted in try/catch must actually import
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: Every name imported from db/schema.ts must exist, or a try/catch mount hides a dead API
+        run: bun run scripts/check-schema-imports-resolve.ts
+
   no-op-auth-middleware:
     name: permissions — a guard that always calls next() is not a guard
     runs-on: ubuntu-latest
