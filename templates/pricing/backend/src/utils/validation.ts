@@ -14,7 +14,9 @@ export const phoneSchema = z
 
 export const priceSchema = z
   .number()
-  .nonneg('Price must be non-negative')
+  // zod's method is nonnegative(); nonneg() does not exist, so this threw at module load and took
+  // 10 of pricing's 16 route files with it — the app could not boot at all.
+  .nonnegative('Price must be non-negative')
   .multipleOf(0.01, 'Price must have at most 2 decimal places');
 
 export const positiveIntSchema = z
