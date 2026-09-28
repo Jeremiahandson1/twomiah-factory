@@ -40,7 +40,7 @@ const actionColors: Record<string, string> = {
 };
 
 export default function AuditLogPage() {
-  const { isManager } = useAuth();
+  const { isManager, can } = useAuth();
   const toast = useToast();
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,9 +57,15 @@ export default function AuditLogPage() {
 
   useEffect(() => {
     loadUsers();
-  }, []);
+    // re-run once the permission list lands, or the filter stays empty for someone who may see it
+  }, [can('users:read')]);
 
   const loadUsers = async () => {
+    // The roster is behind users:read, which a manager does not hold — they get team:read. Asking
+    // anyway produced a 403 and a red "Failed to load users:" in the console on a page that had
+    // otherwise loaded fine, and left the filter silently empty with nothing to explain it. Ask only
+    // when the answer can be yes, and let the filter hide itself below. (T42 L2)
+    if (!can('users:read')) return;
     try {
       const data = await api.get('/api/company/users');
       setUsers(Array.isArray(data) ? data : data?.data || []);
@@ -107,7 +113,9 @@ export default function AuditLogPage() {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
-        <div className="grid md:grid-cols-5 gap-3">
+        {/* One column fewer when the roster is not readable, so the row does not leave a gap where
+            a control used to be. (T42 L2) */}
+        <div className={`grid gap-3 ${can('users:read') ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
@@ -127,16 +135,18 @@ export default function AuditLogPage() {
               <option key={a.value} value={a.value}>{a.label}</option>
             ))}
           </select>
-          <select
-            value={userFilter}
-            onChange={(e) => setUserFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-sm dark:border-slate-700 dark:text-slate-100"
-          >
-            <option value="">All Users</option>
-            {users.map(u => (
-              <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
-            ))}
-          </select>
+          {can('users:read') && (
+            <select
+              value={userFilter}
+              onChange={(e) => setUserFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-sm dark:border-slate-700 dark:text-slate-100"
+            >
+              <option value="">All Users</option>
+              {users.map(u => (
+                <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+              ))}
+            </select>
+          )}
           <input
             type="date"
             value={dateFrom}

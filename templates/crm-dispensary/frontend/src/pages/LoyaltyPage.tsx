@@ -17,7 +17,7 @@ const initialRewardForm = {
 };
 
 export default function LoyaltyPage() {
-  const { isManager } = useAuth();
+  const { isManager, isAdmin } = useAuth();
   const toast = useToast();
   const [tab, setTab] = useState('config');
 
@@ -256,6 +256,16 @@ export default function LoyaltyPage() {
       {/* Config Tab */}
       {tab === 'config' && (
         <div className="bg-white rounded-lg shadow-sm p-6 max-w-2xl space-y-6 dark:bg-slate-900">
+          {/* Saving these is PUT /api/company, which is admin-only. A manager was shown live inputs
+              and a Save button that answered "Insufficient permissions" — the settings are worth
+              seeing, so they stay visible and stop being editable. A disabled fieldset turns off
+              every control inside it at once, so a control added later cannot be missed. (T42 L1) */}
+          {!isAdmin && (
+            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-900">
+              These are the shop's loyalty settings, shown read-only. An admin or the owner can change them.
+            </p>
+          )}
+          <fieldset disabled={!isAdmin} className={!isAdmin ? 'opacity-70' : undefined}>
           <div className="flex items-center gap-3 mb-4">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -340,10 +350,14 @@ export default function LoyaltyPage() {
             </div>
           </div>
 
-          <Button onClick={saveConfig} disabled={savingConfig}>
-            <Save className="w-4 h-4 mr-2 inline" />
-            {savingConfig ? 'Saving...' : 'Save Configuration'}
-          </Button>
+          </fieldset>
+
+          {isAdmin && (
+            <Button onClick={saveConfig} disabled={savingConfig}>
+              <Save className="w-4 h-4 mr-2 inline" />
+              {savingConfig ? 'Saving...' : 'Save Configuration'}
+            </Button>
+          )}
         </div>
       )}
 

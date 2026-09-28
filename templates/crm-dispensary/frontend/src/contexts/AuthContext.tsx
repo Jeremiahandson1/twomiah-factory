@@ -7,6 +7,10 @@ const AuthContext = createContext<any>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState(null);
   const [company, setCompany] = useState(null);
+  // The permission list the SERVER computed for this person, including any one-off grants an owner
+  // added in Settings. Screens ask this instead of re-deriving the matrix in the browser, which is
+  // how a manager got editable fields and a Save button the API then refused. (T42 L1-L3)
+  const [permissions, setPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -21,6 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await api.getMe();
       setUser(data.user);
       setCompany(data.company);
+      if (Array.isArray(data.permissions)) setPermissions(data.permissions);
     } catch (err) {
       const e = err as any;
       const isTransient = e?.isTransient === true || e?.status === 0 || (typeof e?.status === 'number' && e.status >= 500);
@@ -47,6 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await api.login(email, password);
       setUser(data.user);
       setCompany(data.company);
+      if (Array.isArray(data.permissions)) setPermissions(data.permissions);
       return data;
     } catch (err) {
       setError(err.message || 'Login failed');
@@ -60,6 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await api.register(formData);
       setUser(data.user);
       setCompany(data.company);
+      if (Array.isArray(data.permissions)) setPermissions(data.permissions);
       return data;
     } catch (err) {
       setError(err.message || 'Registration failed');
@@ -73,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setUser(null);
       setCompany(null);
+      setPermissions([]);
     }
   };
 
@@ -88,6 +96,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return company?.enabledFeatures?.includes(featureId) ?? false;
   };
 
+  /**
+   * May this person do `perm` — according to the SERVER, not a second copy of the matrix kept in the
+   * browser. Understands the `resource:*` wildcard the backend grants with.
+   *
+   * Returns false while the list is still loading, so a screen never flashes a control that is about
+   * to be taken away. A screen that gets this wrong shows a manager editable settings and a Save
+   * button that answers "Insufficient permissions". (T42 L1-L3)
+   */
+  const can = (perm) => {
+    if (!perm || !Array.isArray(permissions)) return false;
+    if (permissions.includes('*') || permissions.includes(perm)) return true;
+    const resource = String(perm).split(':')[0];
+    return permissions.includes(`${resource}:*`);
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -97,6 +120,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated,
       isAdmin,
       isManager,
+      permissions,
+      can,
       token: localStorage.getItem('accessToken'),
       login,
       register,

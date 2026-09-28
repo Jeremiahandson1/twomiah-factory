@@ -213,7 +213,7 @@ export default function CustomersPage() {
     {
       key: 'email',
       label: 'Email',
-      render: (val: string) => val ? <a href={`mailto:${val}`} className="text-green-600 hover:underline">{val}</a> : <span className="text-gray-500 dark:text-slate-400">—</span>,
+      render: (val: string) => val ? <a href={`mailto:${val}`} className="text-green-700 hover:underline dark:text-green-400">{val}</a> : <span className="text-gray-500 dark:text-slate-400">—</span>,
     },
     {
       key: 'totalSpent',
@@ -326,7 +326,7 @@ export default function CustomersPage() {
       {/* Create/Edit Modal */}
       <Modal
         isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => setModalOpen(false)}
         title={editingCustomer ? 'Edit Customer' : 'New Customer'}
         size="lg"
       >

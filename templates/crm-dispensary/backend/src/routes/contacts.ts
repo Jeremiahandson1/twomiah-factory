@@ -260,8 +260,19 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
     const m = today.getMonth() - dob.getMonth()
     if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--
     if (dob > today) return c.json({ error: 'dateOfBirth cannot be in the future' }, 400)
-    if (age < 18) return c.json({ error: `Customer would be ${age} years old — cannabis customers must be at least 18 (medical) or 21 (adult use)`, code: 'underage', age }, 400)
-    if (age < 21) warnings.push(`Customer is ${age} — adult-use sales require 21+. Only medical sales with a valid card are permitted.`)
+    // "at least 18 (medical) or 21 (adult use)" read as though 18 were enough on its own, so an
+    // 18-to-20-year-old with no card was saved against a rule that appeared to admit them and then
+    // refused at every sale. 18 is the medical floor and only with a card. (T42 L5)
+    if (age < 18) return c.json({ error: `Customer would be ${age} years old — cannabis customers must be 21+, or 18+ with a valid medical card`, code: 'underage', age }, 400)
+    // Saved either way: a shop records people before their card arrives, and the record is also used
+    // for merchandise. But the warning has to say which of the two situations this is, because only
+    // one of them can buy today.
+    if (age < 21) {
+      const hasCard = !!(data as any).medicalCardNumber
+      warnings.push(hasCard
+        ? `Customer is ${age} — medical sales only. Adult-use sales require 21+.`
+        : `Customer is ${age} and has no medical card recorded, so no cannabis sale to them can be completed. Add a valid card number and expiry, or they must be 21+.`)
+    }
   }
 
   // Duplicate guard (S22, now the same rule as the shared contacts module): a create that matches an

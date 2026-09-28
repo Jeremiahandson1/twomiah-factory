@@ -239,7 +239,11 @@ app.post('/', requireRole('budtender'), async (c) => {
     idVerified: z.boolean().default(false),
     items: z.array(z.object({
       productId: z.string(),
-      quantity: z.number().min(1),
+      // order_items.quantity is an INTEGER column and a line is a count of units, never a weight —
+      // the weight comes from the product. Without .int() a quantity of 1.5 sailed past validation,
+      // hit the column, and came back as the catch-all "One of the values is not in a valid format"
+      // from the Postgres 22P02 handler, which names neither the field nor the rule. (T42 L7)
+      quantity: z.number().int('Quantity must be a whole number of units').min(1),
       priceOverride: z.number().min(0).optional(), // a negative override drove line/subtotal negative
     })).min(1),
     loyaltyPointsRedeemed: z.number().int().min(0).default(0),

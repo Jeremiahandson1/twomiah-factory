@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { sql, eq } from 'drizzle-orm'
 import { company } from '../../db/schema.ts'
-import { storeTimeZone, storeDayRange, isNaiveTimestamp, toIsoUtc } from '../utils/isoTime.ts'
+import { storeTimeZone, storeDayRange, storeDateString, isNaiveTimestamp, toIsoUtc } from '../utils/isoTime.ts'
 import { settledSale, taxCollected, taxNetExpr, exciseNetExpr, salesNetExpr, netExpr } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
@@ -612,6 +612,12 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
 
   // Store report. Columns per schema.ts: the JSON lives in `data` (there is no report_data
   // column and no updated_at) — the old INSERT named both, which is why every generate 500'd.
+  // `endDate` is EXCLUSIVE — the instant the day after the period ends — which is what the queries
+  // above want and the wrong thing to file. A 23–23 September report was stored, listed and exported
+  // with end_date 2026-09-24, so a regulator reading the row saw a two-day period. Store the last
+  // day the report actually covers. (T42 L6)
+  const storedEndDate = storeDateString(new Date(endDate.getTime() - 1), tzDay)
+
   const period = Math.round((endDate.getTime() - startDate.getTime()) / 86400000) <= 1 ? 'daily'
     : Math.round((endDate.getTime() - startDate.getTime()) / 86400000) <= 7 ? 'weekly'
     : Math.round((endDate.getTime() - startDate.getTime()) / 86400000) <= 31 ? 'monthly'
@@ -645,8 +651,24 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
       data, status, generated_by, created_at
     ) VALUES (
       gen_random_uuid(), ${currentUser.companyId}, ${data.reportType}, ${period},
-      ${startDate}, ${endDate}, ${companyRow?.state || null},
-      ${JSON.stringify({ reportType: data.reportType, generatedAt: new Date().toISOString(), rows: reportData })}::json, 'generated',
+      ${startDate}, ${storedEndDate}, ${companyRow?.state || null},
+      ${JSON.stringify({
+        reportType: data.reportType,
+        generatedAt: new Date().toISOString(),
+        // What each money column is measured on. total_revenue is GROSS (what you sold, refunds and
+        // all) while total_tax is NET (what stayed collected, since a refunded sale hands its tax
+        // back) — deliberate, and the two answer different questions, but a row carrying both with
+        // no legend reads as an inconsistency. Every measure is present so a reader can reconcile
+        // them rather than guess. (T42 L6; the definitions live in utils/revenue.ts)
+        measures: {
+          total_revenue: 'gross — every settled sale at full value, before refunds',
+          total_refunded: 'money handed back in the period',
+          net_revenue: 'gross minus refunds, floored per sale — what the business kept',
+          total_tax: 'net — tax charged minus tax returned with refunds, i.e. what is owed',
+          period_end_is_inclusive: true,
+        },
+        rows: reportData,
+      })}::json, 'generated',
       ${currentUser.userId}, NOW()
     ) RETURNING *
   `)

@@ -109,8 +109,10 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/eod', icon: ClipboardList, label: 'EOD Report' },
   { to: '/crm/purchase-orders', icon: PurchaseIcon, label: 'Purchase Orders', features: ['purchase_orders'] },
   { to: '/crm/menu-sync', icon: RefreshCw, label: 'Menu Sync', features: ['menu_sync'] , minRole: 'manager'},
-  { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'] },
-  { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'] },
+  // Both back onto requireAdmin route families (inboundMessages.ts, gbp.ts): a manager could open
+  // them and every call answered 403, leaving "Failed to…" on screen. The menu follows the API. (T42 L3)
+  { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'], minRole: 'admin' },
+  { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'], minRole: 'admin' },
   { to: '/crm/contact-support', icon: LifeBuoy, label: 'Contact Twomiah' },
 ];
 

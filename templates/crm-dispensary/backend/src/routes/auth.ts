@@ -106,7 +106,13 @@ app.post('/login', async (c) => {
   const tokens = generateTokens(foundUser.id, foundUser.companyId, foundUser.email, foundUser.role)
   await storeRefreshToken(foundUser.id, tokens.refreshToken, { lastLogin: new Date() })
 
+  // Same list /me returns, so a screen can ask "may this person do X" from the moment they sign in
+  // rather than rendering editable fields and a Save button that the API will refuse. (T42 L1-L3)
+  const { getPermissions: getPerms, getExtraPermissions: getExtra } = await import('../middleware/permissions.ts')
+  const permissions = await effectivePermissions(getPerms, getExtra, foundUser.id, foundUser.role)
+
   return c.json({
+    permissions,
     user: { id: foundUser.id, email: foundUser.email, firstName: foundUser.firstName, lastName: foundUser.lastName, role: foundUser.role, avatar: foundUser.avatar },
     company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, taxRate: (foundCompany as any).taxRate, localTaxRate: (foundCompany as any).localTaxRate, exciseTaxRate: (foundCompany as any).exciseTaxRate, purchaseLimitOz: (foundCompany as any).purchaseLimitOz, visionUrl: process.env.VISION_URL || null, vertical: 'dispensary',
       // The store's own clock, so no screen has to guess the shop's date from the viewer's laptop.

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Button, PageHeader } from '../components/ui/DataTable';
 
 const sessionStatusColors: Record<string, string> = {
@@ -15,6 +16,7 @@ const sessionStatusColors: Record<string, string> = {
 };
 
 export default function KioskPage() {
+  const { isAdmin } = useAuth();
   const toast = useToast();
   const [tab, setTab] = useState('setup');
   const [sessions, setSessions] = useState<any[]>([]);
@@ -144,13 +146,30 @@ export default function KioskPage() {
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-gray-900">
                 <h3 className="font-medium text-green-800 mb-2">How to set up a kiosk</h3>
                 <ol className="list-decimal list-inside space-y-1 text-sm text-green-700">
+                  {/* Settings is admin-only in this UI, so sending a manager there is a dead end —
+                      they arrive at "not available for your role" holding no code and no way to get
+                      one. Say who can actually mint it rather than naming a door they cannot open.
+                      (T42 L4) */}
                   <li>
-                    Go to <span className="font-medium">Settings → Kiosks</span> and choose{' '}
-                    <span className="font-medium">Add Kiosk</span> to name the tablet. A pairing code appears —
-                    it is shown once and expires on its own.
+                    {isAdmin ? (
+                      <>
+                        Go to <span className="font-medium">Settings → Kiosks</span> and choose{' '}
+                        <span className="font-medium">Add Kiosk</span> to name the tablet. A pairing code appears —
+                        it is shown once and expires on its own.
+                      </>
+                    ) : (
+                      <>
+                        Ask an admin or the owner to add this tablet under{' '}
+                        <span className="font-medium">Settings → Kiosks</span> and send you the pairing code.
+                        It is shown once and expires on its own.
+                      </>
+                    )}
                   </li>
                   <li>On the tablet itself, open the kiosk screen with "Launch Kiosk" below, and enter that code</li>
-                  <li>The tablet stays paired until you revoke it, back in Settings → Kiosks</li>
+                  <li>
+                    The tablet stays paired until it is revoked
+                    {isAdmin ? ', back in Settings → Kiosks' : ' — an admin or the owner can do that in Settings → Kiosks'}
+                  </li>
                   <li>Set the browser to fullscreen mode (F11) on the tablet</li>
                   <li>Customers can browse products, add to cart, and place orders</li>
                   <li>Each order arrives pending in your POS queue — a budtender checks ID and takes payment at the register</li>
