@@ -45,17 +45,23 @@ app.get('/trace/:productId', async (c) => {
   `)
   const batch = ((batchResult as any).rows || batchResult)?.[0]
 
-  // Get lab results
+  // Get lab results.
+  //
+  // This SELECT asked for lt.passed, lt.pesticides_pass, lt.heavy_metals_pass, lt.microbial_pass,
+  // lt.mycotoxins_pass, lt.residual_solvents_pass and lt.moisture_pass - seven columns lab_tests
+  // does not have. It only runs once the product HAS an active batch, which is why the public QR
+  // page answered 500 the moment a batch existed for that product. The real columns are
+  // overall_result and the bare panel names (schema.ts). (T45 H21)
   let labResults = null
   if (batch) {
     const labResult = await db.execute(sql`
       SELECT lt.total_thc, lt.total_cbd, lt.terpenes, lt.tested_at, lt.lab_name,
-             lt.passed, lt.pesticides_pass, lt.heavy_metals_pass, lt.microbial_pass,
-             lt.mycotoxins_pass, lt.residual_solvents_pass, lt.moisture_pass,
+             lt.overall_result, lt.pesticides, lt.heavy_metals, lt.microbials,
+             lt.mycotoxins, lt.residual_solvents, lt.moisture,
              lt.coa_url
       FROM lab_tests lt
       WHERE lt.batch_id = ${batch.id}
-      ORDER BY lt.tested_at DESC
+      ORDER BY lt.tested_at DESC NULLS LAST, lt.created_at DESC
       LIMIT 1
     `)
     labResults = ((labResult as any).rows || labResult)?.[0] || null
@@ -64,9 +70,14 @@ app.get('/trace/:productId', async (c) => {
   // Get grow inputs used (traceability chain: batch -> plant applications + batch applications)
   let growInputs: any[] = []
   if (batch) {
-    // Direct batch applications
+    // Direct batch applications.
+    //
+    // SELECT DISTINCT over grow_inputs.active_ingredients is a DISTINCT over a json column, and
+    // json has no equality operator - Postgres answers "could not identify an equality operator
+    // for type json" and the public page 500s. The rows are deduplicated by name in JS a few
+    // lines below anyway, so DISTINCT was never doing the work. (T45 H21)
     const batchInputsResult = await db.execute(sql`
-      SELECT DISTINCT gi.name, gi.brand, gi.type, gi.is_organic, gi.active_ingredients
+      SELECT gi.name, gi.brand, gi.type, gi.is_organic, gi.active_ingredients
       FROM input_applications ia
       JOIN grow_inputs gi ON gi.id = ia.grow_input_id
       WHERE ia.batch_id = ${batch.id}
@@ -75,7 +86,7 @@ app.get('/trace/:productId', async (c) => {
 
     // Plant-level applications (via harvest)
     const plantInputsResult = await db.execute(sql`
-      SELECT DISTINCT gi.name, gi.brand, gi.type, gi.is_organic, gi.active_ingredients
+      SELECT gi.name, gi.brand, gi.type, gi.is_organic, gi.active_ingredients
       FROM input_applications ia
       JOIN grow_inputs gi ON gi.id = ia.grow_input_id
       JOIN plants p ON p.id = ia.plant_id
@@ -132,14 +143,16 @@ app.get('/trace/:productId', async (c) => {
       terpenes: labResults.terpenes,
       testedAt: labResults.tested_at,
       labName: labResults.lab_name,
-      passed: labResults.passed,
+      passed: labResults.overall_result === null || labResults.overall_result === undefined
+        ? null
+        : labResults.overall_result === 'pass',
       contaminantTests: {
-        pesticides: labResults.pesticides_pass,
-        heavyMetals: labResults.heavy_metals_pass,
-        microbial: labResults.microbial_pass,
-        mycotoxins: labResults.mycotoxins_pass,
-        residualSolvents: labResults.residual_solvents_pass,
-        moisture: labResults.moisture_pass,
+        pesticides: labResults.pesticides,
+        heavyMetals: labResults.heavy_metals,
+        microbial: labResults.microbials,
+        mycotoxins: labResults.mycotoxins,
+        residualSolvents: labResults.residual_solvents,
+        moisture: labResults.moisture,
       },
       coaUrl: labResults.coa_url,
     } : null,

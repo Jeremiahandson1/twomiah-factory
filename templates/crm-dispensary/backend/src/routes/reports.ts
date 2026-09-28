@@ -21,6 +21,70 @@ const camel = (row: any): any => {
 
 // ── Saved Reports ──────────────────────────────────────────────────────
 
+// The New Report dialog sends { name, type, config: { metrics, dateRange: '30d', groupBy } } and
+// this route wanted { name, reportType, config: { dateRange: { start, end, preset } } } - so every
+// custom report was refused with a 400 and none could be saved. Both vocabularies are now read.
+//
+// The type also has to be one this file can actually RUN. The runner below knows four reports;
+// the dialog used to offer five names, none of which matched any of them, so even a saved report
+// would have answered "Unknown report type" when run. Refuse an unrunnable type at save time,
+// where the person can still change it. (T45 H14)
+const REPORT_TYPES = ['sales_summary', 'product_sales', 'inventory_snapshot', 'loyalty_report']
+const REPORT_TYPE_ALIASES: Record<string, string> = {
+  sales: 'sales_summary', sales_summary: 'sales_summary', revenue: 'sales_summary',
+  products: 'product_sales', product: 'product_sales', product_sales: 'product_sales',
+  inventory: 'inventory_snapshot', inventory_snapshot: 'inventory_snapshot', stock: 'inventory_snapshot',
+  loyalty: 'loyalty_report', loyalty_report: 'loyalty_report', members: 'loyalty_report',
+}
+const reportType = z.string().transform((v, ctx) => {
+  const canonical = REPORT_TYPE_ALIASES[String(v).trim().toLowerCase()]
+  if (!canonical) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: `There is no "${v}" report. Choose one of: ${REPORT_TYPES.join(', ')}` })
+    return z.NEVER
+  }
+  return canonical
+})
+
+// The dialog's Date Range is a single string ('7d' | '30d' | '90d' | 'ytd' | 'all'); the runner
+// reads { start, end, preset } with preset names of its own. Normalise a bare string into the
+// object rather than let it through as one - a string dateRange silently disabled the filter and
+// the report quietly covered all time.
+const DATE_PRESETS: Record<string, string> = {
+  '7d': 'last_7', last_7: 'last_7', this_week: 'this_week',
+  '30d': 'last_30', last_30: 'last_30', this_month: 'this_month',
+  '90d': 'last_90', last_90: 'last_90',
+  ytd: 'this_year', this_year: 'this_year',
+  today: 'today',
+  all: 'all', all_time: 'all',
+}
+const dateRange = z.preprocess((raw: any) => {
+  if (typeof raw !== 'string') return raw
+  const preset = DATE_PRESETS[raw.trim().toLowerCase()]
+  return preset ? { preset } : { preset: raw.trim().toLowerCase() }
+}, z.object({
+  start: z.string().optional(),
+  end: z.string().optional(),
+  preset: z.string().optional(),
+}))
+
+// DATE_TRUNC only understands time units. 'category' and 'budtender' are dimensions of a different
+// report, and passing either one straight into DATE_TRUNC is a Postgres error - a 500 on run.
+const GROUP_BY_UNITS = ['hour', 'day', 'week', 'month', 'quarter', 'year']
+const truncUnit = (v: unknown) => {
+  const unit = String(v || 'day').trim().toLowerCase()
+  return GROUP_BY_UNITS.includes(unit) ? unit : 'day'
+}
+
+// `type` is the dialog's name for reportType; take either.
+const withReportAliases = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess((raw: any) => {
+    if (!raw || typeof raw !== 'object') return raw
+    const out = { ...raw }
+    if (out.reportType === undefined && out.type !== undefined) out.reportType = out.type
+    delete out.type
+    return out
+  }, schema)
+
 // List saved reports
 app.get('/saved', async (c) => {
   const currentUser = c.get('user') as any
@@ -41,28 +105,31 @@ app.get('/saved', async (c) => {
 app.post('/saved', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
-  const reportSchema = z.object({
+  const reportSchema = withReportAliases(z.object({
     name: z.string().min(1),
     description: z.string().optional(),
-    reportType: z.string().min(1),
+    reportType,
     config: z.object({
       metrics: z.array(z.string()).optional(),
       dimensions: z.array(z.string()).optional(),
       filters: z.record(z.any()).optional(),
-      dateRange: z.object({
-        start: z.string().optional(),
-        end: z.string().optional(),
-        preset: z.string().optional(),
-      }).optional(),
+      dateRange: dateRange.optional(),
       groupBy: z.string().optional(),
       sortBy: z.string().optional(),
       sortDir: z.enum(['asc', 'desc']).optional(),
       chartType: z.string().optional(),
-    }),
+    }).default({}),
     isPublic: z.boolean().default(false),
     pinned: z.boolean().default(false),
-  })
-  const data = reportSchema.parse(await c.req.json())
+  }))
+
+  let data: any
+  try {
+    data = reportSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
 
   const result = await db.execute(sql`
     INSERT INTO saved_reports(id, company_id, created_by, name, description, report_type, config, is_public, pinned, created_at, updated_at)
@@ -88,19 +155,15 @@ app.put('/saved/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
-  const reportSchema = z.object({
+  const reportSchema = withReportAliases(z.object({
     name: z.string().min(1).optional(),
     description: z.string().optional(),
-    reportType: z.string().optional(),
+    reportType: reportType.optional(),
     config: z.object({
       metrics: z.array(z.string()).optional(),
       dimensions: z.array(z.string()).optional(),
       filters: z.record(z.any()).optional(),
-      dateRange: z.object({
-        start: z.string().optional(),
-        end: z.string().optional(),
-        preset: z.string().optional(),
-      }).optional(),
+      dateRange: dateRange.optional(),
       groupBy: z.string().optional(),
       sortBy: z.string().optional(),
       sortDir: z.enum(['asc', 'desc']).optional(),
@@ -108,8 +171,15 @@ app.put('/saved/:id', requireRole('manager'), async (c) => {
     }).optional(),
     isPublic: z.boolean().optional(),
     pinned: z.boolean().optional(),
-  })
-  const data = reportSchema.parse(await c.req.json())
+  }))
+
+  let data: any
+  try {
+    data = reportSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
 
   const sets: any[] = [sql`updated_at = NOW()`]
   if (data.name !== undefined) sets.push(sql`name = ${data.name}`)
@@ -173,18 +243,27 @@ app.post('/saved/:id/run', requireRole('manager'), async (c) => {
 
   const config = typeof report.config === 'string' ? JSON.parse(report.config) : report.config
 
-  // Build date filter
-  let dateStart = config.dateRange?.start || null
-  let dateEnd = config.dateRange?.end || null
-  if (config.dateRange?.preset) {
+  // Build date filter. A report saved before the dialog and this runner agreed can still hold a
+  // bare string here ('30d'), so read that shape too rather than silently run over all time.
+  const rangeRaw = config.dateRange
+  const range = typeof rangeRaw === 'string'
+    ? { preset: DATE_PRESETS[rangeRaw.trim().toLowerCase()] || rangeRaw.trim().toLowerCase() }
+    : (rangeRaw || {})
+  let dateStart = range.start || null
+  let dateEnd = range.end || null
+  if (range.preset) {
     const now = new Date()
-    switch (config.dateRange.preset) {
-      case 'today': dateStart = now.toISOString().split('T')[0]; dateEnd = dateStart; break
-      case 'this_week': { const d = new Date(now); d.setDate(d.getDate() - d.getDay()); dateStart = d.toISOString().split('T')[0]; dateEnd = now.toISOString().split('T')[0]; break }
-      case 'this_month': dateStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`; dateEnd = now.toISOString().split('T')[0]; break
-      case 'last_30': { const d = new Date(now); d.setDate(d.getDate() - 30); dateStart = d.toISOString().split('T')[0]; dateEnd = now.toISOString().split('T')[0]; break }
-      case 'last_90': { const d = new Date(now); d.setDate(d.getDate() - 90); dateStart = d.toISOString().split('T')[0]; dateEnd = now.toISOString().split('T')[0]; break }
-      case 'this_year': dateStart = `${now.getFullYear()}-01-01`; dateEnd = now.toISOString().split('T')[0]; break
+    const daysAgo = (n: number) => { const d = new Date(now); d.setDate(d.getDate() - n); return d.toISOString().split('T')[0] }
+    const today = now.toISOString().split('T')[0]
+    switch (range.preset) {
+      case 'today': dateStart = today; dateEnd = today; break
+      case 'this_week': { const d = new Date(now); d.setDate(d.getDate() - d.getDay()); dateStart = d.toISOString().split('T')[0]; dateEnd = today; break }
+      case 'this_month': dateStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`; dateEnd = today; break
+      case 'last_7': dateStart = daysAgo(7); dateEnd = today; break
+      case 'last_30': dateStart = daysAgo(30); dateEnd = today; break
+      case 'last_90': dateStart = daysAgo(90); dateEnd = today; break
+      case 'this_year': dateStart = `${now.getFullYear()}-01-01`; dateEnd = today; break
+      case 'all': dateStart = null; dateEnd = null; break
     }
   }
 
@@ -192,15 +271,23 @@ app.post('/saved/:id/run', requireRole('manager'), async (c) => {
   if (dateStart) dateFilter = sql`AND o.created_at >= ${dateStart}::date`
   if (dateEnd) dateFilter = sql`${dateFilter} AND o.created_at <= (${dateEnd}::date + interval '1 day')`
 
-  // Run report based on type
+  // Run report based on type. Reports saved under the dialog's old names ('sales', 'inventory')
+  // are read through the same alias map, so an existing saved report still runs.
+  const runType = REPORT_TYPE_ALIASES[String(report.report_type || '').trim().toLowerCase()] || report.report_type
   let data: any[] = []
-  switch (report.report_type) {
+  switch (runType) {
+    // Every one of these four queries was written against columns that are not there, so a saved
+    // report that DID run would have answered 500 rather than data. Money columns on orders and
+    // order_items are TEXT (SUM(text) is not a function), the batch table is `batches` with
+    // current_quantity / unit_of_measure, and loyalty_members stores total_points_earned and
+    // total_spent - there is no points_earned, points_redeemed or lifetime_spend. (T45 H14)
     case 'sales_summary': {
       const r = await db.execute(sql`
-        SELECT DATE_TRUNC(${config.groupBy || 'day'}, o.created_at) as period,
+        SELECT DATE_TRUNC(${truncUnit(config.groupBy)}, o.created_at) as period,
                COUNT(*)::int as order_count,
-               SUM(o.total)::numeric as revenue,
-               AVG(o.total)::numeric as avg_order_value
+               SUM(COALESCE(NULLIF(o.total, ''), '0')::numeric) as revenue,
+               ROUND(AVG(COALESCE(NULLIF(o.total, ''), '0')::numeric), 2) as avg_order_value,
+               SUM(COALESCE(NULLIF(o.refunded_amount, ''), '0')::numeric) as refunded
         FROM orders o
         WHERE o.company_id = ${currentUser.companyId}
           AND o.status != 'cancelled'
@@ -212,10 +299,13 @@ app.post('/saved/:id/run', requireRole('manager'), async (c) => {
       break
     }
     case 'product_sales': {
+      // Units sold nets off anything handed back - order_items.refunded_quantity is exactly that
+      // count, and a units-sold figure that still counts returned product is not one to file.
       const r = await db.execute(sql`
         SELECT p.name as product_name, p.category,
-               SUM(oi.quantity)::int as units_sold,
-               SUM(oi.quantity * oi.unit_price)::numeric as revenue
+               SUM(GREATEST(COALESCE(oi.quantity, 0) - COALESCE(oi.refunded_quantity, 0), 0))::int as units_sold,
+               SUM(GREATEST(COALESCE(oi.quantity, 0) - COALESCE(oi.refunded_quantity, 0), 0)
+                   * COALESCE(NULLIF(oi.unit_price, ''), '0')::numeric) as revenue
         FROM order_items oi
         JOIN products p ON p.id = oi.product_id
         JOIN orders o ON o.id = oi.order_id
@@ -231,12 +321,12 @@ app.post('/saved/:id/run', requireRole('manager'), async (c) => {
     case 'inventory_snapshot': {
       const r = await db.execute(sql`
         SELECT p.name, p.category, p.sku,
-               ib.batch_number, ib.quantity_remaining, ib.unit,
-               ib.expiration_date
-        FROM inventory_batch ib
-        JOIN products p ON p.id = ib.product_id
-        WHERE ib.company_id = ${currentUser.companyId}
-          AND ib.status = 'active'
+               b.batch_number, b.current_quantity, b.unit_of_measure,
+               b.expiration_date
+        FROM batches b
+        JOIN products p ON p.id = b.product_id
+        WHERE b.company_id = ${currentUser.companyId}
+          AND b.status = 'active'
         ORDER BY p.category, p.name
       `)
       data = (r as any).rows || r
@@ -245,10 +335,17 @@ app.post('/saved/:id/run', requireRole('manager'), async (c) => {
     case 'loyalty_report': {
       const r = await db.execute(sql`
         SELECT lm.tier, COUNT(*)::int as member_count,
-               SUM(lm.points_earned)::int as total_points_earned,
-               SUM(lm.points_redeemed)::int as total_points_redeemed,
-               AVG(lm.lifetime_spend)::numeric as avg_lifetime_spend
+               SUM(COALESCE(lm.total_points_earned, 0))::int as total_points_earned,
+               SUM(COALESCE(redeemed.points, 0))::int as total_points_redeemed,
+               SUM(COALESCE(lm.points_balance, 0))::int as points_outstanding,
+               ROUND(AVG(COALESCE(NULLIF(lm.total_spent, ''), '0')::numeric), 2) as avg_lifetime_spend
         FROM loyalty_members lm
+        LEFT JOIN (
+          SELECT member_id, SUM(ABS(points))::int as points
+          FROM loyalty_transactions
+          WHERE type = 'redeem'
+          GROUP BY member_id
+        ) redeemed ON redeemed.member_id = lm.id
         WHERE lm.company_id = ${currentUser.companyId}
         GROUP BY lm.tier
         ORDER BY avg_lifetime_spend DESC
@@ -257,7 +354,7 @@ app.post('/saved/:id/run', requireRole('manager'), async (c) => {
       break
     }
     default: {
-      return c.json({ error: `Unknown report type: ${report.report_type}` }, 400)
+      return c.json({ error: `There is no "${report.report_type}" report. Saved reports must be one of: ${REPORT_TYPES.join(', ')}` }, 400)
     }
   }
 

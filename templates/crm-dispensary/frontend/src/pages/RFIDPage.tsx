@@ -70,6 +70,38 @@ export default function RFIDPage() {
   );
 }
 
+// Every location box on this page was free text, but rfid_tags.location_id and
+// rfid_scan_log.location_id are foreign keys - a typed place name could never be stored, and the
+// field name (`location`) was not one any handler read either. Choose from the company's real
+// locations, and send the id. /api/rfid/locations serves them without the multi_location gate,
+// which a single-store shop running RFID will not have. (T45 H6)
+function useRfidLocations() {
+  const [locations, setLocations] = useState<any[]>([]);
+  useEffect(() => {
+    api.get('/api/rfid/locations')
+      .then((data: any) => setLocations(Array.isArray(data) ? data : data?.data || []))
+      .catch(() => {});
+  }, []);
+  return locations;
+}
+
+function LocationSelect({ value, onChange, locations, emptyLabel = 'No location', className }: {
+  value: string;
+  onChange: (v: string) => void;
+  locations: any[];
+  emptyLabel?: string;
+  className?: string;
+}) {
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} className={className}>
+      <option value="">{locations.length ? emptyLabel : 'No locations set up yet'}</option>
+      {locations.map((l: any) => (
+        <option key={l.id} value={l.id}>{l.name}</option>
+      ))}
+    </select>
+  );
+}
+
 /* ─── Tags Tab ─── */
 function TagsTab() {
   const toast = useToast();
@@ -89,6 +121,7 @@ function TagsTab() {
   // raw database keys the operator would have to hand-copy.
   const [products, setProducts] = useState<any[]>([]);
   const [batches, setBatches] = useState<any[]>([]);
+  const locations = useRfidLocations();
 
   useEffect(() => {
     api.get('/api/products', { limit: 200 })
@@ -105,7 +138,7 @@ function TagsTab() {
       const params: any = { page, limit: 25 };
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
-      if (locationFilter) params.location = locationFilter;
+      if (locationFilter) params.locationId = locationFilter;
       const data = await api.get('/api/rfid/tags', params);
       setTags(Array.isArray(data) ? data : data?.data || []);
       setPagination(data?.pagination || null);
@@ -157,7 +190,7 @@ function TagsTab() {
     { key: 'tid', label: 'TID', render: (val: string) => val ? <span className="font-mono text-xs text-gray-500 dark:text-slate-400">{val}</span> : <span className="text-gray-500 dark:text-slate-400">--</span> },
     { key: 'productName', label: 'Product', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">Unassigned</span> },
     { key: 'batchId', label: 'Batch', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
-    { key: 'location', label: 'Location', render: (val: string) => val ? <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-gray-400" />{val}</span> : <span className="text-gray-500 dark:text-slate-400">--</span> },
+    { key: 'locationName', label: 'Location', render: (val: string) => val ? <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-gray-400" />{val}</span> : <span className="text-gray-500 dark:text-slate-400">--</span> },
     { key: 'status', label: 'Status', render: (val: string) => <StatusBadge status={val} statusColors={statusColors} /> },
     { key: 'lastScannedAt', label: 'Last Scanned', render: (val: string) => val ? formatDate(val) : <span className="text-gray-500 dark:text-slate-400">Never</span> },
   ];
@@ -173,7 +206,7 @@ function TagsTab() {
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200">
           {tagStatuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
         </select>
-        <input type="text" placeholder="Filter by location..." value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200" />
+        <LocationSelect value={locationFilter} onChange={setLocationFilter} locations={locations} emptyLabel="All locations" className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200 dark:bg-slate-900" />
         <div className="flex gap-2 ml-auto">
           <Button variant="secondary" onClick={() => setBulkModalOpen(true)}>Bulk Register</Button>
           <Button onClick={() => { setFormData({ epc: '', tid: '', productId: '', batchId: '', location: '' }); setModalOpen(true); }}>
@@ -211,7 +244,7 @@ function TagsTab() {
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1">Location</label>
-            <input type="text" value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" placeholder="Sales Floor" />
+            <LocationSelect value={formData.location} onChange={(v) => setFormData({ ...formData, location: v })} locations={locations} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" />
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
@@ -229,7 +262,7 @@ function TagsTab() {
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1">Location</label>
-            <input type="text" value={bulkData.location} onChange={(e) => setBulkData({ ...bulkData, location: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" placeholder="Vault" />
+            <LocationSelect value={bulkData.location} onChange={(v) => setBulkData({ ...bulkData, location: v })} locations={locations} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1">Product (optional)</label>
@@ -254,6 +287,7 @@ function ScanTab() {
   const [epc, setEpc] = useState('');
   const [scanType, setScanType] = useState('inventory_count');
   const [location, setLocation] = useState('');
+  const locations = useRfidLocations();
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<any>(null);
 
@@ -299,7 +333,7 @@ function ScanTab() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Location</label>
-              <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200" placeholder="Sales Floor" />
+              <LocationSelect value={location} onChange={setLocation} locations={locations} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200 dark:bg-slate-900" />
             </div>
           </div>
           <Button onClick={handleScan} disabled={scanning} className="w-full" size="lg">
@@ -339,6 +373,7 @@ function ScanTab() {
 function InventoryCountTab() {
   const toast = useToast();
   const [location, setLocation] = useState('');
+  const locations = useRfidLocations();
   const [epcInput, setEpcInput] = useState('');
   const [scannedEpcs, setScannedEpcs] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -390,7 +425,7 @@ function InventoryCountTab() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Location *</label>
-            <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100" placeholder="Vault, Sales Floor, etc." />
+            <LocationSelect value={location} onChange={setLocation} locations={locations} emptyLabel="Choose a location" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-900" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Scan EPCs</label>
@@ -480,13 +515,14 @@ function ScanHistoryTab() {
   const [tagFilter, setTagFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const locations = useRfidLocations();
 
   const loadLogs = useCallback(async () => {
     setLoading(true);
     try {
       const params: any = { page, limit: 25 };
-      if (tagFilter) params.tag = tagFilter;
-      if (locationFilter) params.location = locationFilter;
+      if (tagFilter) params.tagId = tagFilter;
+      if (locationFilter) params.locationId = locationFilter;
       if (typeFilter) params.scanType = typeFilter;
       const data = await api.get('/api/rfid/scan-log', params);
       setLogs(Array.isArray(data) ? data : data?.data || []);
@@ -504,9 +540,10 @@ function ScanHistoryTab() {
   const columns = [
     { key: 'epc', label: 'EPC', render: (val: string) => <span className="font-mono text-sm text-gray-900 dark:text-slate-100">{val}</span> },
     { key: 'scanType', label: 'Type', render: (val: string) => <StatusBadge status={val} statusColors={{ inventory_count: 'bg-blue-100 text-blue-700', receiving: 'bg-green-100 text-green-700', transfer: 'bg-purple-100 text-purple-700', sale: 'bg-orange-100 text-orange-700', audit: 'bg-gray-100 text-gray-700' }} /> },
-    { key: 'location', label: 'Location', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
+    { key: 'locationName', label: 'Location', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
     { key: 'productName', label: 'Product', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
-    { key: 'scannedBy', label: 'Scanned By', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
+    // scannedBy is the raw user id; the readable name is scannedByName.
+    { key: 'scannedByName', label: 'Scanned By', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
     { key: 'createdAt', label: 'Timestamp', render: (val: string) => val ? new Date(val).toLocaleString() : '--' },
   ];
 
@@ -514,7 +551,7 @@ function ScanHistoryTab() {
     <>
       <div className="flex flex-wrap gap-3 mb-4">
         <input type="text" placeholder="Filter by EPC..." value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 font-mono dark:border-slate-700 dark:text-slate-200" />
-        <input type="text" placeholder="Filter by location..." value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200" />
+        <LocationSelect value={locationFilter} onChange={setLocationFilter} locations={locations} emptyLabel="All locations" className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200 dark:bg-slate-900" />
         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200">
           <option value="">All Types</option>
           {scanTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}

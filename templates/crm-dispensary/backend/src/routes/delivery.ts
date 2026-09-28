@@ -7,6 +7,27 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 
+// Raw db.execute rows come back snake_case; every screen in this app reads camelCase. A zone read
+// back through this route rendered blank in all five fields — active, zipCodes, deliveryFee,
+// minimumOrder — on a zone that had saved perfectly. (T45 H8)
+const camelZone = (row: any): any => {
+  if (!row || typeof row !== "object") return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
+// The Delivery board and this route were built to different words for the same states. Both are
+// accepted and normalised to the stored set, so the board works, its filters match, and the
+// database keeps one vocabulary. (T45 H7)
+const DELIVERY_STATUSES = ['pending', 'assigned', 'picked_up', 'en_route', 'delivered', 'failed', 'returned']
+const STATUS_ALIASES: Record<string, string> = {
+  queued: 'pending', in_transit: 'en_route', out_for_delivery: 'en_route',
+  cancelled: 'failed', canceled: 'failed', picked: 'picked_up',
+  complete: 'delivered', completed: 'delivered',
+}
+const canonicalDeliveryStatus = (v: string) => STATUS_ALIASES[v] || v
+
 const app = new Hono()
 app.use('*', authenticate)
 
@@ -20,7 +41,10 @@ app.get('/zones', async (c) => {
     ORDER BY name ASC
   `)
 
-  return c.json((result as any).rows || result)
+  // Raw rows are snake_case and the screen reads camelCase, so a zone saved active with two ZIPs, a
+  // $5 fee and a $50 minimum rendered as "Inactive, ZIP codes —, fee $0.00, min $0.00" — every field
+  // blank, on a zone that was saved correctly. (T45 H8)
+  return c.json(((result as any).rows || result).map(camelZone))
 })
 
 // Create delivery zone (manager+)
@@ -121,7 +145,9 @@ app.get('/orders', async (c) => {
   const offset = (page - 1) * limit
 
   let statusFilter = sql``
-  if (status) statusFilter = sql`AND o.delivery_status = ${status}`
+  // Normalised here too: the board filters with its own words, so asking for "queued" matched no row
+  // because the column holds "pending" — three of its tabs were permanently empty. (T45 H7)
+  if (status) statusFilter = sql`AND o.delivery_status = ${canonicalDeliveryStatus(status)}`
 
   let driverFilter = sql``
   if (driverId) driverFilter = sql`AND o.driver_id = ${driverId}`
@@ -193,8 +219,21 @@ app.put('/orders/:id/status', requireRole('driver'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
+  // The screen and this route were built to different words for the same states: the Delivery board
+  // offers queued / in_transit / cancelled, this enum knows pending / en_route / failed. So "Start"
+  // answered 400 and three of the board's filters matched nothing, ever. Both vocabularies are
+  // accepted and normalised to the stored one, so the board works and the database keeps one set of
+  // values. (T45 H7)
   const statusSchema = z.object({
-    deliveryStatus: z.enum(['pending', 'assigned', 'picked_up', 'en_route', 'delivered', 'failed', 'returned']),
+    deliveryStatus: z.string().transform((v, ctx) => {
+      const canonical = canonicalDeliveryStatus(v)
+      const allowed = DELIVERY_STATUSES
+      if (!allowed.includes(canonical)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unknown delivery status "${v}". Allowed: ${allowed.join(', ')} (also accepted: ${Object.keys(STATUS_ALIASES).join(', ')})` })
+        return z.NEVER
+      }
+      return canonical
+    }),
     notes: z.string().optional(),
     deliveryLat: z.number().optional(),
     deliveryLng: z.number().optional(),

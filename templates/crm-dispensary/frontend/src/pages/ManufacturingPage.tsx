@@ -161,8 +161,14 @@ export default function ManufacturingPage() {
   };
 
   const handleFail = async (job: any) => {
+    // Failing a run is the one moment the operator knows something the record does not, and this
+    // screen sent no body at all - so the reason was lost every time, and a required reason on the
+    // server turned Fail into a 500. Ask for it, but let the failure be recorded either way:
+    // cancelling the prompt cancels the action, an empty answer still records the failure. (T45 M13)
+    const reason = window.prompt('Why did this run fail? (optional)');
+    if (reason === null) return;
     try {
-      await api.put(`/api/manufacturing/jobs/${job.id}/fail`);
+      await api.put(`/api/manufacturing/jobs/${job.id}/fail`, { reason: reason.trim() || undefined });
       toast.success('Job marked as failed');
       loadJobs();
     } catch (err: any) {

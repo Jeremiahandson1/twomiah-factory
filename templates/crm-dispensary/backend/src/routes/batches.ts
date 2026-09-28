@@ -140,6 +140,19 @@ app.post('/', requireRole('manager'), async (c) => {
   if (harvest && packaged && packaged < harvest) {
     return c.json({ error: `Package date (${packaged}) cannot be before the harvest date (${harvest})`, code: 'package_before_harvest' }, 400)
   }
+  // A batch number is how a recall, a manifest and a state traceability system all name one lot.
+  // Two lots sharing a number make every one of those ambiguous - and a lookup by batch number
+  // (the QR scanner does exactly that) silently picks whichever row came back first. Refuse the
+  // duplicate here, where the person can still change it. (T45 H21)
+  const dupe = await db.execute(sql`
+    SELECT id FROM batches
+    WHERE company_id = ${currentUser.companyId} AND LOWER(batch_number) = ${data.batchNumber.trim().toLowerCase()}
+    LIMIT 1
+  `)
+  if (((dupe as any).rows || dupe)?.[0]) {
+    return c.json({ error: `Batch number "${data.batchNumber}" is already in use`, code: 'duplicate_batch_number' }, 400)
+  }
+
   // A batch that is already past its expiration is recorded as 'expired', never 'active'.
   const status = expiration && expiration < todayIso() ? 'expired' : 'active'
 
@@ -191,6 +204,21 @@ app.put('/:id', requireRole('manager'), async (c) => {
 
   const [current] = ((await db.execute(sql`SELECT * FROM batches WHERE id = ${id} AND company_id = ${currentUser.companyId} LIMIT 1`)) as any).rows || []
   if (!current) return c.json({ error: 'Batch not found' }, 404)
+
+  // Renaming a batch onto another lot's number is the same ambiguity as creating a duplicate.
+  // (T45 H21)
+  if (data.batchNumber !== undefined) {
+    const dupe = await db.execute(sql`
+      SELECT id FROM batches
+      WHERE company_id = ${currentUser.companyId}
+        AND LOWER(batch_number) = ${data.batchNumber.trim().toLowerCase()}
+        AND id != ${id}
+      LIMIT 1
+    `)
+    if (((dupe as any).rows || dupe)?.[0]) {
+      return c.json({ error: `Batch number "${data.batchNumber}" is already in use`, code: 'duplicate_batch_number' }, 400)
+    }
+  }
 
   const harvestIn = data.manufacturingDate ?? data.harvestDate
   const packagedIn = data.receivedDate ?? data.packageDate

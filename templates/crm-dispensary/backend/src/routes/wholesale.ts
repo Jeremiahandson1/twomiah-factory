@@ -18,7 +18,41 @@ const camel = (row: any): any => {
   return out
 }
 
-// ── Wholesale Customers ────────────────────────────────────────────────
+// ── Wholesale Customers ──────────────────────────────────────────
+
+// The buyer dialog offered Net 15 / Net 30 / Net 60 and sent net15/net30/net60, while the column
+// and this schema speak net_15/net_30/net_60 - so every Net buyer was refused with a 400 and only
+// COD ones could be created. The dialog now sends the canonical spelling; the unpunctuated form is
+// kept as an alias so the integration API and anything already storing it keep working. (T45 H11)
+const PAYMENT_TERMS = ['net_15', 'net_30', 'net_60', 'cod', 'prepaid']
+const paymentTerms = z.string().transform((v, ctx) => {
+  const key = String(v).trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+  const canonical = { net15: 'net_15', net30: 'net_30', net60: 'net_60', cod: 'cod', prepaid: 'prepaid' }[key]
+  if (!canonical) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unknown payment terms "${v}". Allowed: ${PAYMENT_TERMS.join(', ')}` })
+    return z.NEVER
+  }
+  return canonical
+})
+
+// The dialog's Contact Email / Contact Phone boxes posted contactEmail and contactPhone, which this
+// schema does not name - so zod stripped them, nothing was ever stored, and an obviously invalid
+// address was "accepted" because it was thrown away before anyone looked at it. Take either name,
+// and validate whichever arrives. (T45 H11)
+const withContactAliases = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess((raw: any) => {
+    if (!raw || typeof raw !== 'object') return raw
+    const out = { ...raw }
+    if (out.email === undefined && out.contactEmail !== undefined) out.email = out.contactEmail
+    if (out.phone === undefined && out.contactPhone !== undefined) out.phone = out.contactPhone
+    // An empty box is "not given", not "an empty address" - otherwise .email() refuses a blank field.
+    if (typeof out.email === 'string' && out.email.trim() === '') delete out.email
+    if (typeof out.phone === 'string' && out.phone.trim() === '') delete out.phone
+    if (typeof out.licenseNumber === 'string') out.licenseNumber = out.licenseNumber.trim()
+    delete out.contactEmail
+    delete out.contactPhone
+    return out
+  }, schema)
 
 // List wholesale customers (paginated, searchable)
 app.get('/customers', async (c) => {
@@ -56,24 +90,34 @@ app.get('/customers', async (c) => {
 app.post('/customers', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
-  const customerSchema = z.object({
+  const customerSchema = withContactAliases(z.object({
     name: z.string().min(1),
-    licenseNumber: z.string().optional(),
+    // A wholesale buyer is another licensee. Selling to one whose licence you never recorded is the
+    // transfer no state traceability system will accept, so the number is required here rather than
+    // discovered missing at manifest time. (T45 H11)
+    licenseNumber: z.string().min(1, 'A wholesale buyer needs a license number'),
     licenseType: z.string().optional(),
     licenseExpiration: z.string().optional(),
     contactName: z.string().optional(),
-    email: z.string().email().optional(),
+    email: z.string().email('That email address is not valid').optional(),
     phone: z.string().optional(),
     address: z.string().optional(),
     city: z.string().optional(),
     state: z.string().optional(),
     zip: z.string().optional(),
-    paymentTerms: z.enum(['net_15', 'net_30', 'net_60', 'cod', 'prepaid']).default('net_30'),
+    paymentTerms: paymentTerms.default('net_30'),
     creditLimit: z.number().min(0).optional(),
     taxExempt: z.boolean().default(false),
     notes: z.string().optional(),
-  })
-  const data = customerSchema.parse(await c.req.json())
+  }))
+
+  let data: any
+  try {
+    data = customerSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
 
   const result = await db.execute(sql`
     INSERT INTO wholesale_customers(id, company_id, name, license_number, license_type, contact_name, email, phone, address, city, state, zip, payment_terms, credit_limit, notes, expiration_date, tax_exempt, status, created_at, updated_at)
@@ -99,25 +143,32 @@ app.put('/customers/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
-  const customerSchema = z.object({
+  const customerSchema = withContactAliases(z.object({
     name: z.string().min(1).optional(),
-    licenseNumber: z.string().optional(),
+    licenseNumber: z.string().min(1, 'A wholesale buyer needs a license number').optional(),
     licenseType: z.string().optional(),
     licenseExpiration: z.string().optional(),
     contactName: z.string().optional(),
-    email: z.string().email().optional(),
+    email: z.string().email('That email address is not valid').optional(),
     phone: z.string().optional(),
     address: z.string().optional(),
     city: z.string().optional(),
     state: z.string().optional(),
     zip: z.string().optional(),
-    paymentTerms: z.enum(['net_15', 'net_30', 'net_60', 'cod', 'prepaid']).optional(),
+    paymentTerms: paymentTerms.optional(),
     creditLimit: z.number().min(0).optional(),
     taxExempt: z.boolean().optional(),
     notes: z.string().optional(),
     status: z.enum(['active', 'inactive', 'suspended']).optional(),
-  })
-  const data = customerSchema.parse(await c.req.json())
+  }))
+
+  let data: any
+  try {
+    data = customerSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
 
   const sets: any[] = [sql`updated_at = NOW()`]
   if (data.name !== undefined) sets.push(sql`name = ${data.name}`)
@@ -702,30 +753,67 @@ app.get('/lab-tests', async (c) => {
 })
 
 // Create lab test
+//
+// Sending a test to the lab could not be recorded at all. The New Test dialog collects a sample
+// id, a batch, a lab name and notes, but this schema demanded batchId, labName AND a testType the
+// dialog has no box for - so it answered 400 "testType: Required". Supplying one by hand then hit
+// a 500, because the INSERT wrote test_type, submitted_date, results, thc_percent, cbd_percent,
+// terpene_profile and passed, and lab_tests has none of those columns (schema.ts: total_thc,
+// total_cbd, total_cannabinoids, terpenes, overall_result, status). Rewritten against the real
+// columns, and only the sample id is required - a sample goes out before the lab is chosen.
+// (T45 H12)
 app.post('/lab-tests', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const testSchema = z.object({
-    batchId: z.string().min(1),
-    labName: z.string().min(1),
-    testType: z.enum(['potency', 'terpenes', 'pesticides', 'heavy_metals', 'microbial', 'mycotoxins', 'residual_solvents', 'moisture', 'full_panel']),
-    sampleId: z.string().optional(),
-    submittedDate: z.string().optional(),
-    results: z.record(z.any()).optional(),
-    thcPercent: z.number().min(0).max(100).optional(),
-    cbdPercent: z.number().min(0).max(100).optional(),
-    totalCannabinoids: z.number().min(0).max(100).optional(),
-    terpeneProfile: z.record(z.number()).optional(),
-    passed: z.boolean().optional(),
+    sampleId: z.string().min(1, 'Give the sample an id'),
+    // The dialog's Batch box is typed by hand, so this is a batch NUMBER as often as an id; both
+    // are resolved below. batch_id is a foreign key - an unresolved value used to be a 500.
+    batchId: z.string().optional(),
+    labName: z.string().optional(),
+    labLicenseNumber: z.string().optional(),
+    testOrderNumber: z.string().optional(),
+    // lab_tests has no test_type column; the panel is recorded by the results, not the request.
+    // Accepted and ignored so callers that still send it are not broken.
+    testType: z.string().optional(),
+    thcPercent: z.coerce.number().min(0).max(100).optional(),
+    cbdPercent: z.coerce.number().min(0).max(100).optional(),
+    totalCannabinoids: z.coerce.number().min(0).max(100).optional(),
     coaUrl: z.string().optional(),
     notes: z.string().optional(),
     metrcTag: z.string().optional(),
   })
-  const data = testSchema.parse(await c.req.json())
+
+  let data: z.infer<typeof testSchema>
+  try {
+    data = testSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  let batchId: string | null = null
+  if (data.batchId && data.batchId.trim()) {
+    const typed = data.batchId.trim()
+    const found = await db.execute(sql`
+      SELECT id FROM batches
+      WHERE company_id = ${currentUser.companyId} AND (id = ${typed} OR batch_number = ${typed})
+      LIMIT 1
+    `)
+    batchId = ((found as any).rows || found)?.[0]?.id || null
+    if (!batchId) return c.json({ error: `No batch "${typed}" in this company` }, 400)
+  }
+
+  const toStr = (v: number | undefined) => (v === undefined ? null : String(v))
 
   const result = await db.execute(sql`
-    INSERT INTO lab_tests(id, company_id, batch_id, lab_name, test_type, sample_id, submitted_date, results, thc_percent, cbd_percent, total_cannabinoids, terpene_profile, passed, coa_url, notes, metrc_tag, status, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${data.batchId}, ${data.labName}, ${data.testType}, ${data.sampleId || null}, ${data.submittedDate || new Date().toISOString().split('T')[0]}, ${data.results ? JSON.stringify(data.results) : '{}'}::jsonb, ${data.thcPercent || null}, ${data.cbdPercent || null}, ${data.totalCannabinoids || null}, ${data.terpeneProfile ? JSON.stringify(data.terpeneProfile) : null}::jsonb, ${data.passed ?? null}, ${data.coaUrl || null}, ${data.notes || null}, ${data.metrcTag || null}, 'submitted', NOW(), NOW())
+    INSERT INTO lab_tests(id, company_id, batch_id, sample_id, lab_name, lab_license_number, test_order_number,
+                          total_thc, total_cbd, total_cannabinoids, coa_url, notes, metrc_tag, status,
+                          created_at, updated_at)
+    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${batchId}, ${data.sampleId}, ${data.labName || null},
+            ${data.labLicenseNumber || null}, ${data.testOrderNumber || null},
+            ${toStr(data.thcPercent)}, ${toStr(data.cbdPercent)}, ${toStr(data.totalCannabinoids)},
+            ${data.coaUrl || null}, ${data.notes || null}, ${data.metrcTag || null}, 'submitted', NOW(), NOW())
     RETURNING *
   `)
 
@@ -735,43 +823,66 @@ app.post('/lab-tests', requireRole('manager'), async (c) => {
     action: audit.ACTIONS.CREATE,
     entity: 'lab_tests',
     entityId: test?.id,
-    entityName: `${data.labName} - ${data.testType}`,
+    entityName: data.labName ? `${data.labName} - ${data.sampleId}` : data.sampleId,
     req: c,
   })
 
   return c.json(camel(test), 201)
 })
 
-// Update lab test results
+// Update a lab test.
+//
+// Same defect as the create above: every column this wrote (results, thc_percent, cbd_percent,
+// terpene_profile, passed, completed_date) is imaginary, so any call that named one 500'd. The
+// real columns are total_thc / total_cbd / total_cannabinoids / terpenes / overall_result, and
+// status runs submitted|in_progress|passed|failed|retesting. Field names from both vocabularies
+// are accepted so nothing that already calls this breaks. (T45 H12)
 app.put('/lab-tests/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
   const testSchema = z.object({
-    results: z.record(z.any()).optional(),
-    thcPercent: z.number().min(0).max(100).optional(),
-    cbdPercent: z.number().min(0).max(100).optional(),
-    totalCannabinoids: z.number().min(0).max(100).optional(),
-    terpeneProfile: z.record(z.number()).optional(),
+    labName: z.string().optional(),
+    sampleId: z.string().optional(),
+    thcPercent: z.coerce.number().min(0).max(100).optional(),
+    cbdPercent: z.coerce.number().min(0).max(100).optional(),
+    totalCannabinoids: z.coerce.number().min(0).max(100).optional(),
+    terpenes: z.any().optional(),
+    terpeneProfile: z.any().optional(),
     passed: z.boolean().optional(),
+    overallResult: z.string().optional(),
     coaUrl: z.string().optional(),
     notes: z.string().optional(),
-    status: z.enum(['submitted', 'in_progress', 'completed', 'failed', 'retesting']).optional(),
-    completedDate: z.string().optional(),
+    status: z.enum(['submitted', 'in_progress', 'passed', 'completed', 'failed', 'retesting']).optional(),
+    metrcTag: z.string().optional(),
   })
-  const data = testSchema.parse(await c.req.json())
+
+  let data: z.infer<typeof testSchema>
+  try {
+    data = testSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  // `passed` is the older spelling of overall_result; 'completed' the older spelling of 'passed'.
+  const overall = data.overallResult ?? (data.passed === undefined ? undefined : data.passed ? 'pass' : 'fail')
+  const status = data.status === 'completed' ? 'passed' : data.status ?? (overall === undefined ? undefined : overall === 'fail' ? 'failed' : 'passed')
+  const terpenes = data.terpenes ?? data.terpeneProfile
 
   const sets: any[] = [sql`updated_at = NOW()`]
-  if (data.results !== undefined) sets.push(sql`results = ${JSON.stringify(data.results)}::jsonb`)
-  if (data.thcPercent !== undefined) sets.push(sql`thc_percent = ${data.thcPercent}`)
-  if (data.cbdPercent !== undefined) sets.push(sql`cbd_percent = ${data.cbdPercent}`)
-  if (data.totalCannabinoids !== undefined) sets.push(sql`total_cannabinoids = ${data.totalCannabinoids}`)
-  if (data.terpeneProfile !== undefined) sets.push(sql`terpene_profile = ${JSON.stringify(data.terpeneProfile)}::jsonb`)
-  if (data.passed !== undefined) sets.push(sql`passed = ${data.passed}`)
+  if (data.labName !== undefined) sets.push(sql`lab_name = ${data.labName}`)
+  if (data.sampleId !== undefined) sets.push(sql`sample_id = ${data.sampleId}`)
+  if (data.thcPercent !== undefined) sets.push(sql`total_thc = ${String(data.thcPercent)}`)
+  if (data.cbdPercent !== undefined) sets.push(sql`total_cbd = ${String(data.cbdPercent)}`)
+  if (data.totalCannabinoids !== undefined) sets.push(sql`total_cannabinoids = ${String(data.totalCannabinoids)}`)
+  if (terpenes !== undefined) sets.push(sql`terpenes = ${JSON.stringify(terpenes)}::jsonb`)
+  if (overall !== undefined) sets.push(sql`overall_result = ${overall}`)
   if (data.coaUrl !== undefined) sets.push(sql`coa_url = ${data.coaUrl}`)
   if (data.notes !== undefined) sets.push(sql`notes = ${data.notes}`)
-  if (data.status !== undefined) sets.push(sql`status = ${data.status}`)
-  if (data.completedDate !== undefined) sets.push(sql`completed_date = ${data.completedDate}`)
+  if (data.metrcTag !== undefined) sets.push(sql`metrc_tag = ${data.metrcTag}`)
+  if (status !== undefined) sets.push(sql`status = ${status}`)
+  if (status === 'passed' || status === 'failed') sets.push(sql`results_received_at = NOW()`)
 
   const setClause = sets.reduce((acc, s, i) => i === 0 ? s : sql`${acc}, ${s}`)
 

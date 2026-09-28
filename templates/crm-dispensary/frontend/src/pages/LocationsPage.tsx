@@ -53,6 +53,7 @@ export default function LocationsPage() {
   const [receivingTransfer, setReceivingTransfer] = useState<any>(null);
   const [receiveItems, setReceiveItems] = useState<any[]>([]);
   const [savingReceive, setSavingReceive] = useState(false);
+  const [shippingId, setShippingId] = useState<string | null>(null);
   const [transferProducts, setTransferProducts] = useState<any[]>([]);
 
   // Count
@@ -237,6 +238,23 @@ export default function LocationsPage() {
       toast.error(err.message || 'Failed to create transfer');
     } finally {
       setSavingTransfer(false);
+    }
+  };
+
+  // A new transfer is created 'pending' and Receive only shows for 'in_transit' - with no way to
+  // ship, a transfer could be created and then never moved again. The ship endpoint existed and
+  // worked the whole time; nothing on the screen called it. (T45 H5)
+  const handleShipTransfer = async (transfer: any) => {
+    if (!window.confirm('Ship this transfer? Stock leaves the source location now.')) return;
+    setShippingId(transfer.id);
+    try {
+      await api.put(`/api/locations/transfers/${transfer.id}/ship`);
+      toast.success('Transfer shipped');
+      loadTransfers();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to ship transfer');
+    } finally {
+      setShippingId(null);
     }
   };
 
@@ -547,6 +565,15 @@ export default function LocationsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
+                        {(transfer.status || 'pending') === 'pending' && (
+                          <button
+                            onClick={() => handleShipTransfer(transfer)}
+                            disabled={shippingId === transfer.id}
+                            className="text-sm text-blue-600 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 disabled:opacity-50"
+                          >
+                            <ArrowRight className="w-3 h-3" /> {shippingId === transfer.id ? 'Shipping...' : 'Ship'}
+                          </button>
+                        )}
                         {transfer.status === 'in_transit' && (
                           <button
                             onClick={() => openReceiveTransfer(transfer)}

@@ -6,6 +6,27 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 
+// The Rooms form offers vegetative / flowering / drying / curing; this route knew veg / flower /
+// dry / cure. Four room types the form offered could not be created at all — the server refused
+// every one. Both spellings are accepted and stored as the short form. (T45 H9)
+const ROOM_TYPE_ALIASES: Record<string, string> = {
+  vegetative: 'veg', vegetation: 'veg', veg: 'veg',
+  flowering: 'flower', flower: 'flower', bloom: 'flower',
+  drying: 'dry', dry: 'dry',
+  curing: 'cure', cure: 'cure',
+  clone: 'clone', cloning: 'clone', propagation: 'clone',
+  mother: 'mother', nursery: 'nursery',
+}
+const ROOM_TYPES = ['veg', 'flower', 'clone', 'dry', 'cure', 'mother', 'nursery']
+const roomType = z.string().transform((v, ctx) => {
+  const canonical = ROOM_TYPE_ALIASES[String(v).trim().toLowerCase()]
+  if (!canonical) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unknown room type "${v}". Allowed: ${ROOM_TYPES.join(', ')} (also accepted: vegetative, flowering, drying, curing)` })
+    return z.NEVER
+  }
+  return canonical
+})
+
 const app = new Hono()
 app.use('*', authenticate)
 
@@ -146,6 +167,10 @@ app.put('/plants/:id', requireRole('manager'), async (c) => {
   const plantSchema = z.object({
     strainName: z.string().min(1).optional(),
     strainType: z.enum(['indica', 'sativa', 'hybrid', 'ruderalis']).optional(),
+    // The Cultivation screen moves a plant through its life by PUTting the plant with a new phase.
+    // This schema had no phase field, so zod stripped it, the update answered 200, and the plant sat
+    // in "clone" forever — a success message for a change that never happened. (T45 H9)
+    phase: z.enum(['clone', 'seedling', 'vegetative', 'flowering', 'harvested', 'destroyed']).optional(),
     roomId: z.string().optional(),
     locationId: z.string().optional(),
     metrcTag: z.string().optional(),
@@ -156,6 +181,7 @@ app.put('/plants/:id', requireRole('manager'), async (c) => {
   const sets: any[] = [sql`updated_at = NOW()`]
   if (data.strainName !== undefined) sets.push(sql`strain_name = ${data.strainName}`)
   if (data.strainType !== undefined) sets.push(sql`strain_type = ${data.strainType}`)
+  if (data.phase !== undefined) sets.push(sql`phase = ${data.phase}`)
   if (data.roomId !== undefined) sets.push(sql`room_id = ${data.roomId}`)
   if (data.locationId !== undefined) sets.push(sql`location_id = ${data.locationId}`)
   if (data.metrcTag !== undefined) sets.push(sql`metrc_tag = ${data.metrcTag}`)
@@ -372,7 +398,7 @@ app.post('/rooms', requireRole('manager'), async (c) => {
 
   const roomSchema = z.object({
     name: z.string().min(1),
-    type: z.enum(['veg', 'flower', 'clone', 'dry', 'cure', 'mother', 'nursery']).optional(),
+    type: roomType.optional(),
     locationId: z.string().optional(),
     capacity: z.number().int().min(0).optional(),
     environment: z.object({
@@ -410,7 +436,7 @@ app.put('/rooms/:id', requireRole('manager'), async (c) => {
 
   const roomSchema = z.object({
     name: z.string().min(1).optional(),
-    type: z.enum(['veg', 'flower', 'clone', 'dry', 'cure', 'mother', 'nursery']).optional(),
+    type: roomType.optional(),
     locationId: z.string().optional(),
     capacity: z.number().int().min(0).optional(),
     environment: z.object({
@@ -473,27 +499,71 @@ app.get('/harvests', async (c) => {
 })
 
 // Create harvest record
+// ─── Harvests ────────────────────────────────────────────────────────────────────────────────────
+//
+// Recording a harvest answered 500 every time, and the reason is not a field-name mismatch between
+// the screen and the server — it is between the server and its OWN table. These handlers wrote
+// `name`, `wet_weight`, `dry_weight`, `trim_weight` and `waste_weight`; the harvests table has
+// harvest_name, total_wet_weight, total_dry_weight, total_waste and plant_count, and no trim column
+// at all. Every insert and every update was a column that does not exist. The status vocabularies
+// disagreed too: this route knew in_progress|complete, the column stores drying|curing|finished|
+// packaged. (T45 H9)
+//
+// The screen sends { plantCount, wetWeight, dryWeight }, so those are the names accepted; the older
+// spellings are taken as aliases rather than broken.
+const HARVEST_STATUSES = ['drying', 'curing', 'finished', 'packaged']
+const HARVEST_STATUS_ALIASES: Record<string, string> = {
+  in_progress: 'drying', drying: 'drying', dry: 'drying',
+  curing: 'curing', cure: 'curing',
+  complete: 'finished', completed: 'finished', finished: 'finished',
+  packaged: 'packaged',
+}
+const harvestStatus = z.string().transform((v, ctx) => {
+  const canonical = HARVEST_STATUS_ALIASES[String(v).trim().toLowerCase()]
+  if (!canonical) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unknown harvest status "${v}". Allowed: ${HARVEST_STATUSES.join(', ')}` })
+    return z.NEVER
+  }
+  return canonical
+})
+
 app.post('/harvests', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const harvestSchema = z.object({
-    name: z.string().min(1),
-    strainName: z.string().min(1),
+    // `name` is what this route called it; harvestName is what the column is. Either will do.
+    name: z.string().min(1).optional(),
+    harvestName: z.string().min(1).optional(),
+    strainName: z.string().optional(),
     harvestDate: z.string().optional(),
-    wetWeight: z.number().min(0).optional(),
-    dryWeight: z.number().min(0).optional(),
-    trimWeight: z.number().min(0).optional(),
-    wasteWeight: z.number().min(0).optional(),
-    status: z.enum(['in_progress', 'drying', 'curing', 'complete']).default('in_progress'),
+    plantCount: z.coerce.number().int().min(0).optional(),
+    wetWeight: z.coerce.number().min(0).optional(),
+    dryWeight: z.coerce.number().min(0).optional(),
+    wasteWeight: z.coerce.number().min(0).optional(),
+    status: harvestStatus.optional(),
     roomId: z.string().optional(),
     notes: z.string().optional(),
     metrcTag: z.string().optional(),
+  }).transform((d, ctx) => {
+    const harvestName = d.harvestName || d.name
+    if (!harvestName) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['harvestName'], message: 'Give the harvest a name' })
+    }
+    return { ...d, harvestName: harvestName as string }
   })
   const data = harvestSchema.parse(await c.req.json())
 
   const result = await db.execute(sql`
-    INSERT INTO harvests(id, company_id, name, strain_name, harvest_date, wet_weight, dry_weight, trim_weight, waste_weight, status, room_id, notes, metrc_tag, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${data.name}, ${data.strainName}, ${data.harvestDate || new Date().toISOString().split('T')[0]}, ${data.wetWeight || null}, ${data.dryWeight || null}, ${data.trimWeight || null}, ${data.wasteWeight || null}, ${data.status}, ${data.roomId || null}, ${data.notes || null}, ${data.metrcTag || null}, NOW(), NOW())
+    INSERT INTO harvests(id, company_id, harvest_name, strain_name, harvest_date, plant_count,
+                         total_wet_weight, total_dry_weight, total_waste, status, room_id, notes, metrc_tag,
+                         created_at, updated_at)
+    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${data.harvestName}, ${data.strainName || null},
+            ${data.harvestDate || new Date().toISOString().split('T')[0]}, ${data.plantCount ?? null},
+            ${data.wetWeight != null ? String(data.wetWeight) : null},
+            ${data.dryWeight != null ? String(data.dryWeight) : null},
+            ${data.wasteWeight != null ? String(data.wasteWeight) : null},
+            ${data.status || 'drying'}, ${data.roomId || null}, ${data.notes || null}, ${data.metrcTag || null},
+            NOW(), NOW())
     RETURNING *
   `)
 
@@ -503,7 +573,7 @@ app.post('/harvests', requireRole('manager'), async (c) => {
     action: audit.ACTIONS.CREATE,
     entity: 'harvest',
     entityId: harvest?.id,
-    entityName: data.name,
+    entityName: data.harvestName,
     req: c,
   })
 
@@ -517,11 +587,15 @@ app.put('/harvests/:id', requireRole('manager'), async (c) => {
 
   const harvestSchema = z.object({
     name: z.string().min(1).optional(),
-    wetWeight: z.number().min(0).optional(),
-    dryWeight: z.number().min(0).optional(),
-    trimWeight: z.number().min(0).optional(),
-    wasteWeight: z.number().min(0).optional(),
-    status: z.enum(['in_progress', 'drying', 'curing', 'complete']).optional(),
+    harvestName: z.string().min(1).optional(),
+    strainName: z.string().optional(),
+    plantCount: z.coerce.number().int().min(0).optional(),
+    wetWeight: z.coerce.number().min(0).optional(),
+    dryWeight: z.coerce.number().min(0).optional(),
+    wasteWeight: z.coerce.number().min(0).optional(),
+    status: harvestStatus.optional(),
+    dryDate: z.string().optional(),
+    cureDate: z.string().optional(),
     finishedDate: z.string().optional(),
     notes: z.string().optional(),
     metrcTag: z.string().optional(),
@@ -529,12 +603,16 @@ app.put('/harvests/:id', requireRole('manager'), async (c) => {
   const data = harvestSchema.parse(await c.req.json())
 
   const sets: any[] = [sql`updated_at = NOW()`]
-  if (data.name !== undefined) sets.push(sql`name = ${data.name}`)
-  if (data.wetWeight !== undefined) sets.push(sql`wet_weight = ${data.wetWeight}`)
-  if (data.dryWeight !== undefined) sets.push(sql`dry_weight = ${data.dryWeight}`)
-  if (data.trimWeight !== undefined) sets.push(sql`trim_weight = ${data.trimWeight}`)
-  if (data.wasteWeight !== undefined) sets.push(sql`waste_weight = ${data.wasteWeight}`)
+  const harvestName = data.harvestName || data.name
+  if (harvestName !== undefined) sets.push(sql`harvest_name = ${harvestName}`)
+  if (data.strainName !== undefined) sets.push(sql`strain_name = ${data.strainName}`)
+  if (data.plantCount !== undefined) sets.push(sql`plant_count = ${data.plantCount}`)
+  if (data.wetWeight !== undefined) sets.push(sql`total_wet_weight = ${String(data.wetWeight)}`)
+  if (data.dryWeight !== undefined) sets.push(sql`total_dry_weight = ${String(data.dryWeight)}`)
+  if (data.wasteWeight !== undefined) sets.push(sql`total_waste = ${String(data.wasteWeight)}`)
   if (data.status !== undefined) sets.push(sql`status = ${data.status}`)
+  if (data.dryDate !== undefined) sets.push(sql`dry_date = ${data.dryDate}`)
+  if (data.cureDate !== undefined) sets.push(sql`cure_date = ${data.cureDate}`)
   if (data.finishedDate !== undefined) sets.push(sql`finished_date = ${data.finishedDate}`)
   if (data.notes !== undefined) sets.push(sql`notes = ${data.notes}`)
   if (data.metrcTag !== undefined) sets.push(sql`metrc_tag = ${data.metrcTag}`)

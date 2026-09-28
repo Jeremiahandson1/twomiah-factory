@@ -530,10 +530,17 @@ app.post('/:id/adjust-stock', requireRole('manager'), async (c) => {
   const id = c.req.param('id')
 
   const adjustSchema = z.object({
-    quantity: z.number(),
-    reason: z.string().min(1),
+    quantity: z.coerce.number(),
+    reason: z.string().min(1, 'Say why the stock is being adjusted'),
   })
-  const data = adjustSchema.parse(await c.req.json())
+
+  let data: z.infer<typeof adjustSchema>
+  try {
+    data = adjustSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
 
   const existingResult = await db.execute(sql`
     SELECT * FROM grow_inputs
@@ -542,13 +549,18 @@ app.post('/:id/adjust-stock', requireRole('manager'), async (c) => {
   const existing = ((existingResult as any).rows || existingResult)?.[0]
   if (!existing) return c.json({ error: 'Grow input not found' }, 404)
 
-  const oldStock = Number(existing.current_stock)
+  // current_stock is TEXT, so an input that has never had a count reads NaN here; NaN fails every
+  // comparison, so the below-zero guard passed and the column was written the string "NaN", which
+  // then poisoned every ::numeric cast that reads it. Treat unset as zero and store a number.
+  const parsed = Number(existing.current_stock)
+  const oldStock = Number.isFinite(parsed) ? parsed : 0
   const newStock = oldStock + data.quantity
+  if (!Number.isFinite(newStock)) return c.json({ error: 'Adjustment must be a number' }, 400)
   if (newStock < 0) return c.json({ error: 'Stock cannot go below zero' }, 400)
 
   const result = await db.execute(sql`
-    UPDATE grow_inputs SET current_stock = ${newStock}, updated_at = NOW()
-    WHERE id = ${id}
+    UPDATE grow_inputs SET current_stock = ${String(newStock)}, updated_at = NOW()
+    WHERE id = ${id} AND company_id = ${currentUser.companyId}
     RETURNING *
   `)
 
@@ -664,27 +676,54 @@ app.get('/applications', async (c) => {
 app.post('/applications', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
-  const applicationSchema = z.object({
+  // The Applications tab picks one target from three tabs and sends { inputId, targetType,
+  // targetId, unit, method }; this schema named growInputId and three separate id fields, so
+  // logging a feed answered 400 every time. Take both vocabularies: targetType + targetId fan out
+  // to plantId / batchId / roomId, and the short names alias the long ones. (T45 H13)
+  const applicationSchema = z.preprocess((raw: any) => {
+    if (!raw || typeof raw !== 'object') return raw
+    const out = { ...raw }
+    if (out.growInputId === undefined && out.inputId !== undefined) out.growInputId = out.inputId
+    if (out.unitOfMeasure === undefined && out.unit !== undefined) out.unitOfMeasure = out.unit
+    if (out.applicationMethod === undefined && out.method !== undefined) out.applicationMethod = out.method
+    const target = out.targetId
+    if (target) {
+      const kind = String(out.targetType || 'plant').toLowerCase()
+      if (kind === 'plant' && out.plantId === undefined) out.plantId = target
+      if (kind === 'batch' && out.batchId === undefined) out.batchId = target
+      if (kind === 'room' && out.roomId === undefined) out.roomId = target
+    }
+    delete out.inputId; delete out.unit; delete out.method
+    delete out.targetId; delete out.targetType
+    return out
+  }, z.object({
     growInputId: z.string().min(1),
     plantId: z.string().optional(),
     batchId: z.string().optional(),
     roomId: z.string().optional(),
-    quantity: z.number().min(0),
+    quantity: z.coerce.number().min(0),
     unitOfMeasure: z.string().optional(),
     dilutionRatio: z.string().optional(),
     applicationMethod: z.string().optional(),
     targetArea: z.string().optional(),
     growPhase: z.enum(['clone', 'seedling', 'vegetative', 'flowering', 'drying', 'curing']).optional(),
     reason: z.string().optional(),
-    preHarvestInterval: z.number().int().min(0).optional(),
+    preHarvestInterval: z.coerce.number().int().min(0).optional(),
     notes: z.string().optional(),
     overridePolicyViolation: z.boolean().default(false),
-  })
-  const data = applicationSchema.parse(await c.req.json())
+  }))
+
+  let data: any
+  try {
+    data = applicationSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
 
   // At least one target required
   if (!data.plantId && !data.batchId && !data.roomId) {
-    return c.json({ error: 'At least one of plantId, batchId, or roomId is required' }, 400)
+    return c.json({ error: 'Say what this was applied to - a plant, a batch or a room' }, 400)
   }
 
   // Get the input
@@ -736,22 +775,39 @@ app.post('/applications', requireRole('manager'), async (c) => {
     }, 422)
   }
 
-  // Check sufficient stock
+  // Check sufficient stock. current_stock is a TEXT column, so an empty or unset one reads NaN and
+  // every comparison against it is false - which quietly let an application through on stock that
+  // was never recorded.
   const currentStock = Number(input.current_stock)
-  if (data.quantity > currentStock) {
-    return c.json({ error: `Insufficient stock. Available: ${currentStock}, requested: ${data.quantity}` }, 400)
+  const onHand = Number.isFinite(currentStock) ? currentStock : 0
+  if (data.quantity > onHand) {
+    return c.json({ error: `Insufficient stock. Available: ${onHand}, requested: ${data.quantity}` }, 400)
   }
 
-  // Decrement stock
+  // Decrement stock. Subtracting a number from a TEXT column is what Postgres answers
+  // "operator does not exist: text - numeric" to, and it surfaced as a 500 on every application.
   await db.execute(sql`
-    UPDATE grow_inputs SET current_stock = current_stock - ${data.quantity}, updated_at = NOW()
-    WHERE id = ${data.growInputId}
+    UPDATE grow_inputs
+    SET current_stock = (COALESCE(NULLIF(current_stock, ''), '0')::numeric - ${String(data.quantity)}::numeric)::text,
+        updated_at = NOW()
+    WHERE id = ${data.growInputId} AND company_id = ${currentUser.companyId}
   `)
 
-  // Create application record
+  // Create application record.
+  //
+  // This INSERT used to write policy_warnings, which input_applications does not have, and to pass
+  // unit_of_measure through as null - a NOT NULL column. Either one made a correctly-shaped request
+  // answer 500. An overridden policy violation still has to survive somewhere a grower will read it,
+  // so it goes on the record's own notes. (T45 H13)
+  const overrideNote = warnings.length > 0
+    ? `Applied over policy warning: ${warnings.join('; ')}`
+    : ''
+  const notes = [data.notes, overrideNote].filter(Boolean).join('\n') || null
+  const unitOfMeasure = data.unitOfMeasure || input.unit_of_measure || 'unit'
+
   const result = await db.execute(sql`
-    INSERT INTO input_applications(id, company_id, grow_input_id, plant_id, batch_id, room_id, quantity, unit_of_measure, dilution_ratio, application_method, target_area, grow_phase, reason, pre_harvest_interval, notes, policy_warnings, applied_by, created_at)
-    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${data.growInputId}, ${data.plantId || null}, ${data.batchId || null}, ${data.roomId || null}, ${data.quantity}, ${data.unitOfMeasure || input.unit_of_measure || null}, ${data.dilutionRatio || null}, ${data.applicationMethod || null}, ${data.targetArea || null}, ${data.growPhase || null}, ${data.reason || null}, ${data.preHarvestInterval || input.pre_harvest_interval || null}, ${data.notes || null}, ${warnings.length > 0 ? JSON.stringify(warnings) : null}::jsonb, ${currentUser.userId}, NOW())
+    INSERT INTO input_applications(id, company_id, grow_input_id, plant_id, batch_id, room_id, quantity, unit_of_measure, dilution_ratio, application_method, target_area, grow_phase, reason, pre_harvest_interval, notes, applied_by, applied_at, created_at)
+    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${data.growInputId}, ${data.plantId || null}, ${data.batchId || null}, ${data.roomId || null}, ${String(data.quantity)}, ${unitOfMeasure}, ${data.dilutionRatio || null}, ${data.applicationMethod || null}, ${data.targetArea || null}, ${data.growPhase || null}, ${data.reason || null}, ${data.preHarvestInterval || input.pre_harvest_interval || null}, ${notes}, ${currentUser.userId}, NOW(), NOW())
     RETURNING *
   `)
 

@@ -31,7 +31,7 @@ export default function ReportsPage() {
   const [reportModal, setReportModal] = useState(false);
   const [reportForm, setReportForm] = useState({
     name: '',
-    type: 'sales',
+    type: 'sales_summary',
     metrics: '',
     dateRange: '30d',
     groupBy: 'day',
@@ -164,7 +164,7 @@ export default function ReportsPage() {
       });
       toast.success('Report created');
       setReportModal(false);
-      setReportForm({ name: '', type: 'sales', metrics: '', dateRange: '30d', groupBy: 'day' });
+      setReportForm({ name: '', type: 'sales_summary', metrics: '', dateRange: '30d', groupBy: 'day' });
       loadReports();
     } catch (err: any) {
       toast.error(err.message || 'Failed to create report');
@@ -397,7 +397,7 @@ export default function ReportsPage() {
       {tab === 'saved' && (
         <div>
           <div className="flex justify-end mb-4">
-            <Button onClick={() => { setReportForm({ name: '', type: 'sales', metrics: '', dateRange: '30d', groupBy: 'day' }); setReportModal(true); }}>
+            <Button onClick={() => { setReportForm({ name: '', type: 'sales_summary', metrics: '', dateRange: '30d', groupBy: 'day' }); setReportModal(true); }}>
               <Plus className="w-4 h-4 mr-2 inline" />
               Create Report
             </Button>
@@ -531,11 +531,13 @@ export default function ReportsPage() {
                   onChange={e => setReportForm({ ...reportForm, type: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 bg-white dark:border-slate-700 dark:text-slate-100 dark:bg-slate-900"
                 >
-                  <option value="sales">Sales</option>
-                  <option value="inventory">Inventory</option>
-                  <option value="customers">Customers</option>
-                  <option value="compliance">Compliance</option>
-                  <option value="loyalty">Loyalty</option>
+                  {/* Only the four reports the runner can actually produce. "Customers" and
+                      "Compliance" were offered here but exist nowhere on the server, so picking
+                      either saved a report that could never be run. (T45 H14) */}
+                  <option value="sales_summary">Sales summary</option>
+                  <option value="product_sales">Product sales</option>
+                  <option value="inventory_snapshot">Inventory snapshot</option>
+                  <option value="loyalty_report">Loyalty</option>
                 </select>
               </div>
               <div>
@@ -568,11 +570,14 @@ export default function ReportsPage() {
                     onChange={e => setReportForm({ ...reportForm, groupBy: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 bg-white dark:border-slate-700 dark:text-slate-100 dark:bg-slate-900"
                   >
+                    {/* Group By is the period a sales summary is bucketed into. Category and
+                        budtender are not periods - they went straight into DATE_TRUNC and made
+                        the report 500 when run. (T45 H14) */}
                     <option value="day">Day</option>
                     <option value="week">Week</option>
                     <option value="month">Month</option>
-                    <option value="category">Category</option>
-                    <option value="budtender">Budtender</option>
+                    <option value="quarter">Quarter</option>
+                    <option value="year">Year</option>
                   </select>
                 </div>
               </div>

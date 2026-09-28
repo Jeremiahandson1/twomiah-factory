@@ -27,11 +27,15 @@ const QB_ENVIRONMENT = process.env.QUICKBOOKS_ENVIRONMENT || 'sandbox'
 // Applied PER-ROUTE to the external-POS endpoints only, so the session-authenticated
 // internal settings routes below can coexist in the same /api/integrations router.
 async function requireIntegrationKey(c: Context, next: Next) {
-  const key = c.req.header('X-Integration-Key')
-  if (!key) return c.json({ error: 'Missing X-Integration-Key header' }, 401)
+  // The published OpenAPI spec (GET /api/enterprise/openapi) names this header X-API-Key, and
+  // this middleware only ever read X-Integration-Key - so an integrator following the documented
+  // contract got 401 on every call. Both names are read; the docs' name is the one quoted back.
+  // (T45 H22)
+  const key = c.req.header('X-API-Key') || c.req.header('X-Integration-Key')
+  if (!key) return c.json({ error: 'Missing X-API-Key header' }, 401)
 
   const [comp] = await db.select().from(company).where(eq(company.integrationKey, key)).limit(1)
-  if (!comp) return c.json({ error: 'Invalid integration key' }, 401)
+  if (!comp) return c.json({ error: 'Invalid API key' }, 401)
 
   c.set('company', comp)
   return next()
@@ -562,6 +566,59 @@ app.get('/status', authenticate, requireRole('manager'), async (c) => {
     stripe: stripeStatus,
     sms: { enabled: settings.smsEnabled || false, usage: smsCount },
     email: { enabled: settings.emailEnabled !== false, usage: emailCount },
+  })
+})
+
+// ─── API KEY (external POS integrations) ──────────────────────────────────────
+//
+// The documented integration API (POST /sale, /customer, /inventory-sync) authenticates with a
+// key held in company.integration_key - and nothing in this product ever wrote that column, so
+// the whole API was unreachable no matter which header you sent. These two routes are the missing
+// half: see whether a key exists, and mint one. (T45 H22)
+//
+// Owner/admin only, and the full key is shown exactly once - on the response to the rotate that
+// created it. Afterwards only the last four characters come back, the way every other API key a
+// shop owner deals with behaves.
+const maskKey = (key: string | null | undefined) =>
+  key ? `${'.'.repeat(8)}${key.slice(-4)}` : null
+
+app.get('/api-key', authenticate, requireRole('admin'), async (c) => {
+  const user = c.get('user') as any
+  const [comp] = await db.select({ integrationKey: company.integrationKey })
+    .from(company).where(eq(company.id, user.companyId)).limit(1)
+  const key = comp?.integrationKey || null
+  return c.json({
+    configured: !!key,
+    maskedKey: maskKey(key),
+    header: 'X-API-Key',
+  })
+})
+
+app.post('/api-key/rotate', authenticate, requireRole('admin'), async (c) => {
+  const user = c.get('user') as any
+
+  // 32 bytes of randomness, hex-encoded. Prefixed so a leaked key is recognisable in a log.
+  const bytes = new Uint8Array(32)
+  crypto.getRandomValues(bytes)
+  const key = `dsp_${Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('')}`
+
+  await db.update(company).set({ integrationKey: key }).where(eq(company.id, user.companyId))
+
+  audit.log({
+    action: audit.ACTIONS.UPDATE,
+    entity: 'company',
+    entityId: user.companyId,
+    entityName: 'Integration API key',
+    // Never the key itself.
+    changes: { integrationKey: { old: 'rotated', new: maskKey(key) } },
+    req: c,
+  })
+
+  return c.json({
+    key,
+    maskedKey: maskKey(key),
+    header: 'X-API-Key',
+    note: 'Copy this now - it is shown once. Rotating again replaces it and breaks anything using the old key.',
   })
 })
 

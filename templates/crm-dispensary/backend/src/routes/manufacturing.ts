@@ -226,17 +226,32 @@ app.put('/jobs/:id/complete', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
-  const completeSchema = z.object({
-    outputBatches: z.array(z.object({
-      productId: z.string().optional(),
-      batchNumber: z.string().optional(),
-      quantity: z.number().min(0),
-      unit: z.string().optional(),
-      metrcTag: z.string().optional(),
-    })),
-    outputWeight: z.number().min(0),
-    qualityNotes: z.string().optional(),
+  const outputBatch = z.object({
+    productId: z.string().optional(),
+    batchNumber: z.string().optional(),
+    quantity: z.coerce.number().min(0).optional(),
+    unit: z.string().optional(),
+    metrcTag: z.string().optional(),
   })
+  const completeSchema = z.object({
+    outputBatches: z.array(outputBatch).optional(),
+    // The Manufacturing screen sends a single `outputBatch`, and this wanted `outputBatches[]`, so
+    // Complete Job answered 400 every time from the screen. One batch is the common case; the array
+    // is what the table stores. (T45 H10)
+    outputBatch: z.union([outputBatch, z.string()]).optional(),
+    outputWeight: z.coerce.number().min(0),
+    qualityNotes: z.string().optional(),
+    // …and `notes` is what the screen calls it.
+    notes: z.string().optional(),
+  }).transform((d) => ({
+    ...d,
+    qualityNotes: d.qualityNotes ?? d.notes,
+    outputBatches: d.outputBatches
+      ?? (d.outputBatch
+        // A bare string is a batch NUMBER, which is how the screen's one-field form sends it.
+        ? [typeof d.outputBatch === 'string' ? { batchNumber: d.outputBatch } : d.outputBatch]
+        : []),
+  }))
   const data = completeSchema.parse(await c.req.json())
 
   const existingResult = await db.execute(sql`
@@ -253,6 +268,20 @@ app.put('/jobs/:id/complete', requireRole('manager'), async (c) => {
   const totalInputQty = (inputBatches || []).reduce((sum: number, b: any) => sum + (b.quantity || 0), 0)
   const inputWeight = Number(existing.input_weight) > 0 ? Number(existing.input_weight) : totalInputQty
   const yieldPercentage = inputWeight > 0 ? ((data.outputWeight / inputWeight) * 100) : null
+
+  // Cannabis does not come out of a machine weighing more than went in, so a yield over 100% is a
+  // typo or a mis-scaled reading — and it was accepted silently, taking the extra product into
+  // inventory as if it existed. 150% on a 10 kg run invents 5 kg the state never saw. (T45 H10)
+  //
+  // Refused rather than clamped: the number is wrong and only the operator knows which of the two
+  // figures to correct.
+  if (yieldPercentage != null && yieldPercentage > 100.5) {
+    return c.json({
+      error: `That is a yield of ${yieldPercentage.toFixed(1)}% — ${data.outputWeight} out of ${inputWeight} in. Check the output weight, or correct the input weight on the job.`,
+      code: 'yield_over_100',
+      inputWeight, outputWeight: data.outputWeight, yieldPercentage: Number(yieldPercentage.toFixed(2)),
+    }, 400)
+  }
 
   // schema.ts columns: yield (NOT yield_percentage); output_weight is TEXT. Match them or the
   // UPDATE 500s (F-15). There is no failure_reason/failed_at pair here — see the fail handler.
@@ -271,6 +300,50 @@ app.put('/jobs/:id/complete', requireRole('manager'), async (c) => {
 
   const updated = ((result as any).rows || result)?.[0]
 
+  // A run CONSUMES its inputs and PRODUCES its outputs, and neither happened: the job went to
+  // "completed" while the input batches stood at full quantity and no output batch existed anywhere.
+  // Every figure downstream — what is on the shelf, what the state is owed, what the shop believes it
+  // holds — was wrong the moment a job finished. (T45 H10)
+  //
+  // Best-effort and reported rather than fatal: the job IS complete and the operator has the product
+  // in their hands, so refusing to record that because a batch row moved underneath would be the
+  // worse failure. Anything that did not happen comes back in the response instead of vanishing.
+  const stockWarnings: string[] = []
+  for (const b of (inputBatches || [])) {
+    if (!b?.batchId || !(Number(b.quantity) > 0)) continue
+    try {
+      const drawn: any = await db.execute(sql`
+        UPDATE batches
+        SET current_quantity = GREATEST(0, COALESCE(current_quantity, 0) - ${Number(b.quantity)}), updated_at = NOW()
+        WHERE id = ${b.batchId} AND company_id = ${currentUser.companyId}
+        RETURNING id
+      `)
+      if (!(((drawn as any).rows || drawn)?.length)) stockWarnings.push(`input batch ${b.batchId} was not found, so it was not drawn down`)
+    } catch (e: any) {
+      stockWarnings.push(`input batch ${b.batchId} could not be drawn down: ${e?.message || e}`)
+    }
+  }
+
+  const createdBatches: any[] = []
+  for (const out of (data.outputBatches || [])) {
+    if (!out?.batchNumber && !out?.productId) continue
+    const qty = Math.round(Number(out.quantity ?? data.outputWeight) || 0)
+    try {
+      const made: any = await db.execute(sql`
+        INSERT INTO batches (id, company_id, batch_number, product_id, metrc_tag, status,
+                             initial_quantity, current_quantity, unit_of_measure, received_date, created_at, updated_at)
+        VALUES (gen_random_uuid(), ${currentUser.companyId},
+                ${out.batchNumber || `MFG-${existing.job_number || String(id).slice(0, 8)}`},
+                ${out.productId || null}, ${out.metrcTag || null}, 'active',
+                ${qty}, ${qty}, ${out.unit || 'g'}, CURRENT_DATE, NOW(), NOW())
+        RETURNING id, batch_number
+      `)
+      createdBatches.push(((made as any).rows || made)?.[0])
+    } catch (e: any) {
+      stockWarnings.push(`output batch ${out.batchNumber || ''} could not be created: ${e?.message || e}`)
+    }
+  }
+
   audit.log({
     action: audit.ACTIONS.STATUS_CHANGE,
     entity: 'manufacturing_jobs',
@@ -280,7 +353,9 @@ app.put('/jobs/:id/complete', requireRole('manager'), async (c) => {
     req: c,
   })
 
-  return c.json(camel(updated))
+  // The batches this run produced, and anything that could not be recorded — so a partial result is
+  // visible instead of silent. (T45 H10)
+  return c.json({ ...camel(updated), outputBatchesCreated: createdBatches, warnings: stockWarnings })
 })
 
 // Mark job as failed
@@ -288,10 +363,14 @@ app.put('/jobs/:id/fail', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
+  // The screen calls this with no body at all, so a required reason threw out of zod and surfaced as
+  // a 500 — Fail simply did not work from the UI. A failed run still has to be recordable: refusing
+  // to record it because nobody typed a reason loses the more important fact. (T45 M13)
   const failSchema = z.object({
-    reason: z.string().min(1),
+    reason: z.string().optional(),
   })
-  const data = failSchema.parse(await c.req.json())
+  const data = failSchema.parse(await c.req.json().catch(() => ({})))
+  const reason = (data.reason || '').trim() || 'No reason given'
 
   const existingResult = await db.execute(sql`
     SELECT * FROM manufacturing_jobs
@@ -305,7 +384,7 @@ app.put('/jobs/:id/fail', requireRole('manager'), async (c) => {
 
   const result = await db.execute(sql`
     UPDATE manufacturing_jobs
-    SET status = 'failed', failure_reason = ${data.reason}, failed_at = NOW(), updated_at = NOW()
+    SET status = 'failed', failure_reason = ${reason}, failed_at = NOW(), updated_at = NOW()
     WHERE id = ${id}
     RETURNING *
   `)
@@ -317,7 +396,7 @@ app.put('/jobs/:id/fail', requireRole('manager'), async (c) => {
     entity: 'manufacturing_jobs',
     entityId: id,
     entityName: existing.job_number,
-    changes: { status: { old: existing.status, new: 'failed' }, reason: data.reason },
+    changes: { status: { old: existing.status, new: 'failed' }, reason },
     req: c,
   })
 

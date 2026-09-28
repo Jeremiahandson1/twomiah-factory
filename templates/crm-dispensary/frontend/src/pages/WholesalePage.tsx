@@ -85,8 +85,12 @@ function CustomersTab() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  // The columns behind these are name / license_number / contact_name / email / phone, and payment
+  // terms are stored net_15|net_30|net_60|cod|prepaid. This dialog used to send contactEmail,
+  // contactPhone and net30, none of which the server names - the contact details were dropped on
+  // the floor and every Net buyer was refused. (T45 H11)
   const [formData, setFormData] = useState({
-    name: '', licenseNumber: '', contactName: '', contactEmail: '', contactPhone: '', paymentTerms: 'net30', address: '',
+    name: '', licenseNumber: '', contactName: '', email: '', phone: '', paymentTerms: 'net_30', address: '',
   });
 
   const loadCustomers = useCallback(async () => {
@@ -109,7 +113,7 @@ function CustomersTab() {
 
   const openCreate = () => {
     setEditingCustomer(null);
-    setFormData({ name: '', licenseNumber: '', contactName: '', contactEmail: '', contactPhone: '', paymentTerms: 'net30', address: '' });
+    setFormData({ name: '', licenseNumber: '', contactName: '', email: '', phone: '', paymentTerms: 'net_30', address: '' });
     setModalOpen(true);
   };
 
@@ -119,9 +123,9 @@ function CustomersTab() {
       name: customer.name || '',
       licenseNumber: customer.licenseNumber || '',
       contactName: customer.contactName || '',
-      contactEmail: customer.contactEmail || '',
-      contactPhone: customer.contactPhone || '',
-      paymentTerms: customer.paymentTerms || 'net30',
+      email: customer.email || '',
+      phone: customer.phone || '',
+      paymentTerms: customer.paymentTerms || 'net_30',
       address: customer.address || '',
     });
     setModalOpen(true);
@@ -129,6 +133,9 @@ function CustomersTab() {
 
   const handleSave = async () => {
     if (!formData.name.trim()) { toast.error('Name is required'); return; }
+    // A wholesale buyer is another licensee; the manifest needs their number. Say so here rather
+    // than let the server refuse it after the dialog is filled in. (T45 H11)
+    if (!formData.licenseNumber.trim()) { toast.error('A wholesale buyer needs a license number'); return; }
     setSaving(true);
     try {
       if (editingCustomer) {
@@ -164,7 +171,7 @@ function CustomersTab() {
     { key: 'contactName', label: 'Contact', render: (val: string, row: any) => (
       <div>
         <p className="text-gray-700 dark:text-slate-200">{val || '--'}</p>
-        {row.contactEmail && <p className="text-xs text-gray-500 dark:text-slate-400">{row.contactEmail}</p>}
+        {row.email && <p className="text-xs text-gray-500 dark:text-slate-400">{row.email}</p>}
       </div>
     )},
     { key: 'paymentTerms', label: 'Payment Terms', render: (val: string) => <span className="text-gray-700 dark:text-slate-200">{({ cod: 'COD', net15: 'Net 15', net30: 'Net 30', net60: 'Net 60', prepaid: 'Prepaid' } as Record<string, string>)[String(val || '').toLowerCase().replace(/[^a-z0-9]/g, '')] || val || '--'}</span> },
@@ -190,16 +197,17 @@ function CustomersTab() {
             <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" placeholder="Green Valley Dispensary" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">License Number</label>
+            <label className="block text-sm font-medium text-slate-300 mb-1">License Number *</label>
             <input type="text" value={formData.licenseNumber} onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" placeholder="C10-0000001" />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1">Payment Terms</label>
             <select value={formData.paymentTerms} onChange={(e) => setFormData({ ...formData, paymentTerms: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500">
               <option value="cod">COD</option>
-              <option value="net15">Net 15</option>
-              <option value="net30">Net 30</option>
-              <option value="net60">Net 60</option>
+              <option value="net_15">Net 15</option>
+              <option value="net_30">Net 30</option>
+              <option value="net_60">Net 60</option>
+              <option value="prepaid">Prepaid</option>
             </select>
           </div>
           <div>
@@ -208,11 +216,11 @@ function CustomersTab() {
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1">Contact Email</label>
-            <input type="email" value={formData.contactEmail} onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" />
+            <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1">Contact Phone</label>
-            <input type="tel" value={formData.contactPhone} onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" />
+            <input type="tel" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1">Address</label>
@@ -643,8 +651,8 @@ function LabTestsTab() {
             <input type="text" value={formData.sampleId} onChange={(e) => setFormData({ ...formData, sampleId: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" placeholder="SAMPLE-001" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Batch ID</label>
-            <input type="text" value={formData.batchId} onChange={(e) => setFormData({ ...formData, batchId: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" />
+            <label className="block text-sm font-medium text-slate-300 mb-1">Batch Number</label>
+            <input type="text" value={formData.batchId} onChange={(e) => setFormData({ ...formData, batchId: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" placeholder="B-0001 (optional)" />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1">Lab Name</label>

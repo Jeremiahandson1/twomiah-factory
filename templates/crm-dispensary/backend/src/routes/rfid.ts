@@ -18,6 +18,53 @@ const camel = (row: any): any => {
   return out
 }
 
+// Every screen on this page calls its location box "location" and every handler here calls it
+// "locationId" - so bulk tagging, scanning and bulk scanning each answered 400, and single-tag
+// registration quietly stored no location at all. The same three screens also send `epcs` where
+// the handlers want `tags` / `scans`. Both vocabularies are read now. (T45 H6)
+//
+// location_id is a foreign key, so a typed place name can never go in it directly - it is resolved
+// against the company's locations by id or by name, and an unresolvable one is refused with a
+// message rather than left to fail as a 500 inside the INSERT.
+const resolveLocation = async (companyId: string, value: unknown): Promise<{ id: string | null; error?: string }> => {
+  const typed = typeof value === 'string' ? value.trim() : ''
+  if (!typed) return { id: null }
+  const found = await db.execute(sql`
+    SELECT id FROM locations
+    WHERE company_id = ${companyId} AND (id = ${typed} OR LOWER(name) = ${typed.toLowerCase()})
+    LIMIT 1
+  `)
+  const id = ((found as any).rows || found)?.[0]?.id
+  if (id) return { id }
+  return { id: null, error: `There is no location "${typed}". Add it under Locations first.` }
+}
+
+const withRfidAliases = <T extends z.ZodTypeAny>(schema: T, listKey?: 'tags' | 'scans') =>
+  z.preprocess((raw: any) => {
+    if (!raw || typeof raw !== 'object') return raw
+    const out = { ...raw }
+    if (out.locationId === undefined && out.location !== undefined) out.locationId = out.location
+    delete out.location
+    // The screens send a flat list of EPC strings; the handlers want a list of objects.
+    if (listKey && out[listKey] === undefined && Array.isArray(out.epcs)) {
+      out[listKey] = out.epcs.map((e: any) => (typeof e === 'string' ? { epc: e } : e))
+    }
+    delete out.epcs
+    return out
+  }, schema)
+
+// The location boxes on this page need a list to choose from, and /api/locations sits behind the
+// multi_location feature - which a single-store shop running RFID will not have. Serve it here.
+app.get('/locations', async (c) => {
+  const currentUser = c.get('user') as any
+  const result = await db.execute(sql`
+    SELECT id, name FROM locations
+    WHERE company_id = ${currentUser.companyId}
+    ORDER BY name ASC
+  `)
+  return c.json(((result as any).rows || result).map(camel))
+})
+
 // List RFID tags
 app.get('/tags', async (c) => {
   const currentUser = c.get('user') as any
@@ -76,19 +123,29 @@ app.get('/tags', async (c) => {
 app.post('/tags', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
-  const tagSchema = z.object({
+  const tagSchema = withRfidAliases(z.object({
     epc: z.string().min(1),
     tid: z.string().optional(),
     productId: z.string().optional(),
     batchId: z.string().optional(),
     locationId: z.string().optional(),
     encodedData: z.record(z.any()).optional(),
-  })
-  const data = tagSchema.parse(await c.req.json())
+  }))
+
+  let data: any
+  try {
+    data = tagSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  const loc = await resolveLocation(currentUser.companyId, data.locationId)
+  if (loc.error) return c.json({ error: loc.error }, 400)
 
   const result = await db.execute(sql`
     INSERT INTO rfid_tags(id, epc, tid, product_id, batch_id, location_id, encoded_data, status, company_id, created_at)
-    VALUES (gen_random_uuid(), ${data.epc}, ${data.tid || null}, ${data.productId || null}, ${data.batchId || null}, ${data.locationId || null}, ${data.encodedData ? JSON.stringify(data.encodedData) : null}::jsonb, 'active', ${currentUser.companyId}, NOW())
+    VALUES (gen_random_uuid(), ${data.epc}, ${data.tid || null}, ${data.productId || null}, ${data.batchId || null}, ${loc.id}, ${data.encodedData ? JSON.stringify(data.encodedData) : null}::jsonb, 'active', ${currentUser.companyId}, NOW())
     RETURNING *
   `)
 
@@ -109,7 +166,9 @@ app.post('/tags', requireRole('manager'), async (c) => {
 app.post('/tags/bulk', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
-  const bulkSchema = z.object({
+  // The bulk dialog sends { epcs: ['E1','E2'], location, productId } - one location and one
+  // product for the whole run, not a per-tag object. Both shapes are taken.
+  const bulkSchema = withRfidAliases(z.object({
     tags: z.array(z.object({
       epc: z.string().min(1),
       tid: z.string().optional(),
@@ -117,16 +176,33 @@ app.post('/tags/bulk', requireRole('manager'), async (c) => {
       batchId: z.string().optional(),
       locationId: z.string().optional(),
       encodedData: z.record(z.any()).optional(),
-    })).min(1),
-  })
-  const data = bulkSchema.parse(await c.req.json())
+    })).min(1, 'Enter at least one EPC'),
+    locationId: z.string().optional(),
+    productId: z.string().optional(),
+    batchId: z.string().optional(),
+  }), 'tags')
+
+  let data: any
+  try {
+    data = bulkSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  const runLoc = await resolveLocation(currentUser.companyId, data.locationId)
+  if (runLoc.error) return c.json({ error: runLoc.error }, 400)
 
   const created: any[] = []
 
   for (const tag of data.tags) {
+    const tagLoc = tag.locationId
+      ? await resolveLocation(currentUser.companyId, tag.locationId)
+      : runLoc
+    if (tagLoc.error) return c.json({ error: tagLoc.error }, 400)
     const result = await db.execute(sql`
       INSERT INTO rfid_tags(id, epc, tid, product_id, batch_id, location_id, encoded_data, status, company_id, created_at)
-      VALUES (gen_random_uuid(), ${tag.epc}, ${tag.tid || null}, ${tag.productId || null}, ${tag.batchId || null}, ${tag.locationId || null}, ${tag.encodedData ? JSON.stringify(tag.encodedData) : null}::jsonb, 'active', ${currentUser.companyId}, NOW())
+      VALUES (gen_random_uuid(), ${tag.epc}, ${tag.tid || null}, ${tag.productId || data.productId || null}, ${tag.batchId || data.batchId || null}, ${tagLoc.id}, ${tag.encodedData ? JSON.stringify(tag.encodedData) : null}::jsonb, 'active', ${currentUser.companyId}, NOW())
       RETURNING *
     `)
     const row = ((result as any).rows || result)?.[0]
@@ -210,18 +286,30 @@ app.delete('/tags/:id', requireRole('manager'), async (c) => {
 app.post('/scan', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
-  const scanSchema = z.object({
+  // A handheld read is worth logging even when nobody says where it happened, and the column is
+  // nullable - a required location made the Scan tab answer 400 whenever the box was left empty.
+  const scanSchema = withRfidAliases(z.object({
     epc: z.string().min(1),
     scanType: z.enum(['inventory_count', 'receiving', 'transfer', 'sale', 'audit']),
-    locationId: z.string(),
+    locationId: z.string().optional(),
     readerDevice: z.string().optional(),
-    rssi: z.number().optional(),
-  })
-  const data = scanSchema.parse(await c.req.json())
+    rssi: z.coerce.number().optional(),
+  }))
+
+  let data: any
+  try {
+    data = scanSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  const scanLoc = await resolveLocation(currentUser.companyId, data.locationId)
+  if (scanLoc.error) return c.json({ error: scanLoc.error }, 400)
 
   // Look up tag
   const tagResult = await db.execute(sql`
-    SELECT t.*, p.name as product_name, p.sku, p.unit_price, p.category, p.thc_percent, p.cbd_percent
+    SELECT t.*, p.name as product_name, p.sku, p.price as unit_price, p.category, p.thc_percent, p.cbd_percent
     FROM rfid_tags t
     LEFT JOIN products p ON p.id = t.product_id
     WHERE t.epc = ${data.epc} AND t.company_id = ${currentUser.companyId}
@@ -231,14 +319,15 @@ app.post('/scan', requireRole('budtender'), async (c) => {
   // Log scan event
   await db.execute(sql`
     INSERT INTO rfid_scan_log(id, epc, tag_id, scan_type, location_id, reader_device, rssi, scanned_by, company_id, created_at)
-    VALUES (gen_random_uuid(), ${data.epc}, ${tag?.id || null}, ${data.scanType}, ${data.locationId}, ${data.readerDevice || null}, ${data.rssi || null}, ${currentUser.userId}, ${currentUser.companyId}, NOW())
+    VALUES (gen_random_uuid(), ${data.epc}, ${tag?.id || null}, ${data.scanType}, ${scanLoc.id}, ${data.readerDevice || null}, ${data.rssi || null}, ${currentUser.userId}, ${currentUser.companyId}, NOW())
   `)
 
-  // Update tag's last scanned timestamp
+  // Update tag's last scanned timestamp. rfid_tags has created_at and no updated_at (schema.ts),
+  // so naming one here made every scan answer 500 the moment the tag was found. (T45 H6)
   if (tag) {
     await db.execute(sql`
-      UPDATE rfid_tags SET last_scanned_at = NOW(), updated_at = NOW()
-      WHERE id = ${tag.id}
+      UPDATE rfid_tags SET last_scanned_at = NOW(), last_scanned_location = ${scanLoc.id}
+      WHERE id = ${tag.id} AND company_id = ${currentUser.companyId}
     `)
   }
 
@@ -265,24 +354,42 @@ app.post('/scan', requireRole('budtender'), async (c) => {
 app.post('/scan/bulk', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
-  const bulkScanSchema = z.object({
+  const bulkScanSchema = withRfidAliases(z.object({
     scans: z.array(z.object({
       epc: z.string().min(1),
-      rssi: z.number().optional(),
-    })).min(1),
-    locationId: z.string(),
+      rssi: z.coerce.number().optional(),
+    })).min(1, 'Scan at least one tag'),
+    // This count compares what was scanned against what the books say is AT a place, so unlike a
+    // single read it genuinely needs one.
+    locationId: z.string().min(1, 'Choose the location being counted'),
     scanType: z.enum(['inventory_count', 'receiving', 'transfer', 'audit']),
-  })
-  const data = bulkScanSchema.parse(await c.req.json())
+  }), 'scans')
 
-  const scannedEpcs = data.scans.map(s => s.epc)
+  let data: any
+  try {
+    data = bulkScanSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  const countLoc = await resolveLocation(currentUser.companyId, data.locationId)
+  if (countLoc.error) return c.json({ error: countLoc.error }, 400)
+  if (!countLoc.id) return c.json({ error: 'Choose the location being counted' }, 400)
+  data.locationId = countLoc.id
+
+  const scannedEpcs = data.scans.map((s: any) => s.epc)
+
+  // Binding a JS array to a ::text[] parameter is what Postgres answers "cannot cast type record
+  // to text[]" to - an in-list built from bound scalars is the shape that works here. (T45 H6)
+  const epcList = sql.join(scannedEpcs.map((e: string) => sql`${e}`), sql`, `)
 
   // Get all tags matching scanned EPCs
   const matchedResult = await db.execute(sql`
-    SELECT t.*, p.name as product_name, p.sku, p.unit_price, p.category
+    SELECT t.*, p.name as product_name, p.sku, p.price as unit_price, p.category
     FROM rfid_tags t
     LEFT JOIN products p ON p.id = t.product_id
-    WHERE t.epc = ANY(${scannedEpcs}::text[]) AND t.company_id = ${currentUser.companyId}
+    WHERE t.epc IN (${epcList}) AND t.company_id = ${currentUser.companyId}
   `)
   const matched = (matchedResult as any).rows || matchedResult
 
@@ -297,7 +404,7 @@ app.post('/scan/bulk', requireRole('budtender'), async (c) => {
     WHERE t.location_id = ${data.locationId}
       AND t.company_id = ${currentUser.companyId}
       AND t.status = 'active'
-      AND t.epc != ALL(${scannedEpcs}::text[])
+      AND t.epc NOT IN (${epcList})
   `)
   const expected = (expectedResult as any).rows || expectedResult
 
@@ -310,12 +417,13 @@ app.post('/scan/bulk', requireRole('budtender'), async (c) => {
     `)
   }
 
-  // Update last_scanned_at for matched tags
+  // Update last_scanned_at for matched tags. rfid_tags.id is TEXT, not uuid, and the table has no
+  // updated_at column - both were wrong here. (T45 H6)
   if (matched.length > 0) {
-    const matchedIds = matched.map((t: any) => t.id)
+    const matchedIds = sql.join(matched.map((t: any) => sql`${t.id}`), sql`, `)
     await db.execute(sql`
-      UPDATE rfid_tags SET last_scanned_at = NOW(), updated_at = NOW()
-      WHERE id = ANY(${matchedIds}::uuid[])
+      UPDATE rfid_tags SET last_scanned_at = NOW(), last_scanned_location = ${data.locationId}
+      WHERE id IN (${matchedIds}) AND company_id = ${currentUser.companyId}
     `)
   }
 
@@ -364,7 +472,7 @@ app.post('/inventory-count/accept', requireRole('manager'), async (c) => {
     const res = await db.execute(sql`
       UPDATE rfid_tags
       SET status = 'lost'
-      WHERE id = ANY(${missingIds}::text[])
+      WHERE id IN (${sql.join(missingIds.map((mid: string) => sql`${mid}`), sql`, `)})
         AND company_id = ${currentUser.companyId}
         AND status = 'active'
       RETURNING id
@@ -403,12 +511,15 @@ app.get('/scan-log', async (c) => {
   let typeFilter = sql``
   if (scanType) typeFilter = sql`AND sl.scan_type = ${scanType}`
 
+  // The history table has a Product column, and nothing here ever selected a product name - so it
+  // read "--" on every row. It comes from the tag the scan matched. (T45 H6)
   const dataResult = await db.execute(sql`
-    SELECT sl.*, l.name as location_name, t.epc,
+    SELECT sl.*, l.name as location_name, t.epc, p.name as product_name,
            u.first_name || ' ' || u.last_name as scanned_by_name
     FROM rfid_scan_log sl
     LEFT JOIN locations l ON l.id = sl.location_id
     LEFT JOIN rfid_tags t ON t.id = sl.tag_id
+    LEFT JOIN products p ON p.id = t.product_id
     LEFT JOIN "user" u ON u.id = sl.scanned_by
     WHERE sl.company_id = ${currentUser.companyId}
       ${tagFilter}

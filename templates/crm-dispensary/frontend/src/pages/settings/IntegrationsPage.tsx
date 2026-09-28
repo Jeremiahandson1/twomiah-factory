@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import {
   Loader2, Check, ExternalLink, ToggleLeft, ToggleRight,
-  MessageSquare, Mail, CreditCard, BookOpen, AlertCircle, RefreshCw
+  MessageSquare, Mail, CreditCard, BookOpen, AlertCircle, RefreshCw, KeyRound, Copy
 } from 'lucide-react';
 
 export default function IntegrationsPage() {
@@ -17,8 +17,12 @@ export default function IntegrationsPage() {
     email: { enabled: false, usage: 0 },
   });
 
+  const [apiKey, setApiKey] = useState({ configured: false, maskedKey: null });
+  const [newApiKey, setNewApiKey] = useState('');
+
   useEffect(() => {
     loadIntegrations();
+    loadApiKey();
   }, []);
 
   const loadIntegrations = async () => {
@@ -118,6 +122,33 @@ export default function IntegrationsPage() {
     }
   };
 
+  // The documented POS API (POST /sale, /customer, /inventory-sync) authenticates with a key held
+  // on the company record - and no screen in the product ever created one, so the whole API was
+  // unusable. This panel is where a key comes from. (T45 H22)
+  const loadApiKey = async () => {
+    try {
+      const data = await api.get('/api/integrations/api-key') as any;
+      setApiKey({ configured: !!data?.configured, maskedKey: data?.maskedKey || null });
+    } catch {
+      // A manager can see this page but not the key; leave the panel in its 'no key' state.
+    }
+  };
+
+  const handleRotateApiKey = async () => {
+    if (apiKey.configured && !confirm('Replace the current API key? Anything using the old key stops working immediately.')) return;
+    setSaving('apiKey');
+    try {
+      const data = await api.post('/api/integrations/api-key/rotate') as any;
+      setNewApiKey(data?.key || '');
+      setApiKey({ configured: true, maskedKey: data?.maskedKey || null });
+      setSuccess('API key created. Copy it now - it is shown once.');
+    } catch (err) {
+      setError(err.message || 'Failed to create an API key');
+    } finally {
+      setSaving(null);
+    }
+  };
+
   const handleSyncNow = async () => {
     setSaving('sync');
     try {
@@ -159,6 +190,54 @@ export default function IntegrationsPage() {
       )}
 
       <div className="space-y-4">
+        {/* POS / Integration API key */}
+        <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+                <KeyRound className="w-6 h-6 text-orange-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-slate-100">POS API key</h3>
+                <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">
+                  For an outside point-of-sale system to send sales, customers and stock counts in.
+                  Send it as the <span className="font-mono">X-API-Key</span> header.
+                </p>
+                {apiKey.configured && !newApiKey && (
+                  <p className="mt-2 text-sm text-gray-700 font-mono dark:text-slate-200">{apiKey.maskedKey}</p>
+                )}
+                {!apiKey.configured && !newApiKey && (
+                  <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">No key yet.</p>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={handleRotateApiKey}
+              disabled={saving === 'apiKey'}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200"
+            >
+              {saving === 'apiKey' ? 'Working...' : apiKey.configured ? 'Replace key' : 'Create key'}
+            </button>
+          </div>
+          {newApiKey && (
+            <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4 dark:bg-amber-950 dark:border-amber-800">
+              <p className="text-sm text-amber-800 mb-2 dark:text-amber-200">
+                Copy this now. It is shown once and cannot be read back.
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 px-3 py-2 bg-white border rounded text-sm font-mono break-all text-gray-900 dark:bg-slate-950 dark:text-slate-100 dark:border-slate-700">{newApiKey}</code>
+                <button
+                  onClick={() => { navigator.clipboard?.writeText(newApiKey); setSuccess('API key copied'); }}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200"
+                  title="Copy"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* QuickBooks */}
         <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
           <div className="flex items-start justify-between">

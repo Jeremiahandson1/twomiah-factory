@@ -156,7 +156,7 @@ app.use('*', async (c, next) => {
 app.use('*', cors({
   origin: '*',
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Request-ID', 'X-Integration-Key'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Request-ID', 'X-Integration-Key', 'X-API-Key'],
 }))
 
 // createRateLimiter moved to middleware/rateLimit.ts so the kiosk routes can use the same one. (T20 B2)
