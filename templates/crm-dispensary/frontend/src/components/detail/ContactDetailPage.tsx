@@ -388,8 +388,16 @@ export default function ContactDetailPage() {
                   const reason = window.prompt('Reason for this adjustment:');
                   if (!reason || !reason.trim()) { toast.error('A reason is required.'); return; }
                   try {
-                    await api.post(`/api/loyalty/members/${loyalty.id}/adjust`, { points, reason: reason.trim() });
-                    toast.success(`Adjusted ${points > 0 ? '+' : ''}${points} pts`);
+                    // A deduction is clamped at the member's balance, so report what the server
+                    // actually applied rather than what was typed — "-999,999 pts" against a
+                    // 245-point balance told the manager something that did not happen. (T42 M3)
+                    const res: any = await api.post(`/api/loyalty/members/${loyalty.id}/adjust`, { points, reason: reason.trim() });
+                    const applied = Number(res?.adjustment ?? points);
+                    toast.success(
+                      applied === points
+                        ? `Adjusted ${applied > 0 ? '+' : ''}${applied} pts`
+                        : `Adjusted ${applied} pts (balance reached 0; ${points} requested)`
+                    );
                     loadLoyalty();
                   } catch (err: any) {
                     toast.error(err?.message || 'Failed to adjust points (manager role required).');

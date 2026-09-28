@@ -166,12 +166,19 @@ app.post('/members/:id/adjust', requireRole('manager'), async (c) => {
   if (!member) return c.json({ error: 'Member not found' }, 404)
 
   const newBalance = Math.max(0, Number(member.points_balance) + data.points)
+  // A deduction is clamped at zero, so the points actually applied can be fewer than the points
+  // asked for. The tier driver, the ledger row and the response all have to use the applied figure:
+  // a -999,999 adjustment that removed 245 points was being recorded as -999,999. (T42 M3)
+  const appliedDelta = newBalance - Number(member.points_balance)
 
+  // total_points_earned drives the tier, and lifetime_points is its outward alias (migrate.ts keeps
+  // the two equal). A deduction now claws both back exactly as a refund does (orders.ts) — before,
+  // only the balance moved, so a mistaken grant promoted a member permanently with no way back.
   await db.execute(sql`
     UPDATE loyalty_members
     SET points_balance = ${newBalance},
-        total_points_earned = CASE WHEN ${data.points} > 0 THEN total_points_earned + ${data.points} ELSE total_points_earned END,
-        lifetime_points = CASE WHEN ${data.points} > 0 THEN COALESCE(lifetime_points,0) + ${data.points} ELSE COALESCE(lifetime_points,0) END,
+        total_points_earned = GREATEST(0, COALESCE(total_points_earned::numeric, 0) + ${appliedDelta}),
+        lifetime_points = GREATEST(0, COALESCE(lifetime_points, 0) + ${appliedDelta}),
         updated_at = NOW()
     WHERE id = ${id}
   `)
@@ -191,7 +198,7 @@ app.post('/members/:id/adjust', requireRole('manager'), async (c) => {
   // Log transaction
   await db.execute(sql`
     INSERT INTO loyalty_transactions(id, member_id, type, points, balance_after, description, company_id, created_at)
-    VALUES (gen_random_uuid(), ${id}, ${data.points > 0 ? 'adjustment_add' : 'adjustment_subtract'}, ${data.points}, ${newBalance}, ${data.reason}, ${currentUser.companyId}, NOW())
+    VALUES (gen_random_uuid(), ${id}, ${data.points > 0 ? 'adjustment_add' : 'adjustment_subtract'}, ${appliedDelta}, ${newBalance}, ${data.reason}, ${currentUser.companyId}, NOW())
   `)
 
   audit.log({
@@ -200,11 +207,11 @@ app.post('/members/:id/adjust', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: member.customer_name,
     changes: { points_balance: { old: member.points_balance, new: newBalance } },
-    metadata: { reason: data.reason, adjustment: data.points },
+    metadata: { reason: data.reason, adjustment: appliedDelta, requested: data.points },
     req: c,
   })
 
-  return c.json({ pointsBalance: newBalance, adjustment: data.points })
+  return c.json({ pointsBalance: newBalance, adjustment: appliedDelta, requested: data.points })
 })
 
 // List rewards
