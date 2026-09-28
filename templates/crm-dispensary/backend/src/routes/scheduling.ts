@@ -3,11 +3,25 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requireRole } from '../middleware/permissions.ts'
+import { requireRole, requireOwnership } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+// Clocking in and out is the employee's OWN shift. Both routes resolved the shift by company_id
+// alone, so any signed-in user could clock a colleague in or out — a payroll write on someone
+// else's timesheet — while the sibling /shifts/:id/swap-request has always matched user_id too.
+// requireOwnership lets manager and above act for another person (covering a missed punch) and
+// holds everyone below to their own row. A shift that does not exist yields '' and so is refused
+// with 403 rather than 404, which also removes an existence oracle.
+const shiftOwnerId = async (c: any): Promise<string> => {
+  const u = c.get('user') as any
+  const r = await db.execute(sql`
+    SELECT user_id FROM shifts WHERE id = ${c.req.param('id')} AND company_id = ${u.companyId} LIMIT 1
+  `)
+  return ((r as any).rows || r)?.[0]?.user_id ?? ''
+}
 
 // Raw db.execute rows come back snake_case; the frontend reads camelCase
 // (employeeName, clockIn, clockOut, …). Convert row keys before responding.
@@ -183,7 +197,7 @@ app.delete('/shifts/:id', requireRole('manager'), async (c) => {
 })
 
 // Clock in
-app.post('/shifts/:id/clock-in', requireRole('budtender'), async (c) => {
+app.post('/shifts/:id/clock-in', requireRole('budtender'), requireOwnership(shiftOwnerId), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -216,7 +230,7 @@ app.post('/shifts/:id/clock-in', requireRole('budtender'), async (c) => {
 })
 
 // Clock out
-app.post('/shifts/:id/clock-out', requireRole('budtender'), async (c) => {
+app.post('/shifts/:id/clock-out', requireRole('budtender'), requireOwnership(shiftOwnerId), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

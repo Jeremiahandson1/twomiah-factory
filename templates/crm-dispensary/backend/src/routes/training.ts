@@ -3,11 +3,24 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requireRole } from '../middleware/permissions.ts'
+import { requireRole, requireOwnership } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+// Recording progress and submitting a quiz belong to the person taking the course. Both resolved
+// the enrollment by company_id alone, so anyone signed in could advance a colleague's training or
+// answer their quiz — a compliance record in a licensed industry — while the sibling
+// /enrollments/:id/advance has always matched user_id too. requireOwnership keeps manager and above
+// able to correct a record and holds everyone below to their own enrollment.
+const enrollmentOwnerId = async (c: any): Promise<string> => {
+  const u = c.get('user') as any
+  const r = await db.execute(sql`
+    SELECT user_id FROM training_enrollments WHERE id = ${c.req.param('id')} AND company_id = ${u.companyId} LIMIT 1
+  `)
+  return ((r as any).rows || r)?.[0]?.user_id ?? ''
+}
 
 // Raw db.execute rows come back snake_case; the frontend reads camelCase
 // (courseTitle, courseCategory, estimatedMinutes, …). Convert row keys before responding.
@@ -377,7 +390,7 @@ app.get('/enrollments/:id', async (c) => {
 })
 
 // Update progress
-app.put('/enrollments/:id/progress', requireRole('budtender'), async (c) => {
+app.put('/enrollments/:id/progress', requireRole('budtender'), requireOwnership(enrollmentOwnerId), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -882,7 +895,7 @@ app.post('/enrollments/:id/advance', async (c) => {
 })
 
 // POST /enrollments/:id/quiz — record a quiz answer and advance past the quiz step.
-app.post('/enrollments/:id/quiz', requireRole('budtender'), async (c) => {
+app.post('/enrollments/:id/quiz', requireRole('budtender'), requireOwnership(enrollmentOwnerId), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
