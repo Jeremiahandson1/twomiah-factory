@@ -1759,6 +1759,8 @@ jobs:
           bun-version: latest
       - name: "Loyalty engine"
         run: bun run tests/shared/loyalty-engine.test.ts
+      - name: "Storefront proxies to crm-store fail soft"
+        run: bun run tests/shared/storefront-proxy.test.ts
 
   store-suite:
     name: "Store behaviour suite (real PGlite)"

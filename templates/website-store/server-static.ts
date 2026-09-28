@@ -10,6 +10,7 @@ import ejs from 'ejs'
 import { fileURLToPath } from 'url'
 
 import adminRoutes from './routes/admin.ts'
+import { fetchLoyaltyQuote, forwardCheckout, originFromHeaders } from './routes/storeApi.ts'
 import { startSchedule as startBackups } from './services/autoBackup.ts'
 import { rebuildMiddleware } from './services/rebuild-middleware.ts'
 import appPaths from './config/paths.ts'
@@ -470,56 +471,27 @@ app.get('/cart', (c) => renderPage(c, 'cart', {
   description: 'Review the items in your cart.',
   canonicalUrl: BASE_URL + '/cart',
 }))
+// The crm-store proxies — the loyalty quote and hosted checkout. The rules live in
+// routes/storeApi.ts, framework-free, so they can be tested without booting this file, which calls
+// serve() and starts backups and migrations the moment it is imported. What is left here is the
+// HTTP plumbing.
+const storeApiDeps = { crmStoreApiUrl: CRM_STORE_API_URL }
 
-// What this shopper can claim against the cart they are holding. Same thin-proxy shape as checkout
-// below: the crm-store URL stays server-side and the browser stays same-origin.
-//
-// Fails SOFT on purpose. A loyalty panel that cannot load must leave the cart working — nobody
-// should be unable to buy something because a rewards lookup timed out.
-app.get('/api/loyalty', async (c) => {
-  const empty = { pointsBalance: 0, punchCard: { enabled: false, visitsRequired: 0, progress: 0, remaining: 0, unclaimed: 0 }, rewards: [] }
-  if (!CRM_STORE_API_URL) return c.json(empty)
-  const email = (c.req.query('email') || '').trim()
-  const subtotalCents = String(Math.max(0, Number(c.req.query('subtotalCents')) || 0))
-  if (!email) return c.json(empty)
-  try {
-    const qs = `email=${encodeURIComponent(email)}&subtotalCents=${encodeURIComponent(subtotalCents)}`
-    const res = await fetch(`${CRM_STORE_API_URL}/api/public/loyalty?${qs}`, { signal: AbortSignal.timeout(6000) })
-    if (!res.ok) return c.json(empty)
-    return c.json(await res.json().catch(() => empty))
-  } catch {
-    return c.json(empty)
-  }
-})
+app.get('/api/loyalty', async (c) => c.json(await fetchLoyaltyQuote(storeApiDeps, {
+  email: c.req.query('email'),
+  subtotalCents: c.req.query('subtotalCents'),
+})))
 
-// Thin proxy to the crm-store hosted-checkout endpoint. Keeps the crm-store API
-// URL server-side and the browser same-origin.
 app.post('/api/checkout', async (c) => {
-  if (!CRM_STORE_API_URL) return c.json({ error: 'Checkout is not available yet.' }, 503)
   let body: any = null
   try { body = await c.req.json() } catch { return c.json({ error: 'Invalid request' }, 400) }
-  // Tell crm-store the exact origin the customer is on so the post-checkout
-  // redirect returns to the live storefront (not a not-yet-live custom domain).
-  try {
-    const host = c.req.header('x-forwarded-host') || c.req.header('host')
-    const proto = (c.req.header('x-forwarded-proto') || 'https').split(',')[0]
-    const origin = host ? `${proto}://${host}` : (BASE_URL || '')
-    if (body && typeof body === 'object' && origin) body.origin = origin
-  } catch {}
-  try {
-    const res = await fetch(CRM_STORE_API_URL + '/api/public/checkout', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(15000),
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) return c.json({ error: data?.error || 'Checkout failed' }, (res.status as any) || 502)
-    if (!data?.url) return c.json({ error: 'Checkout did not return a URL' }, 502)
-    return c.json({ url: data.url })
-  } catch {
-    return c.json({ error: 'Could not reach the checkout service.' }, 502)
-  }
+  const origin = originFromHeaders({
+    host: c.req.header('host'),
+    forwardedHost: c.req.header('x-forwarded-host'),
+    forwardedProto: c.req.header('x-forwarded-proto'),
+  }, BASE_URL)
+  const out = await forwardCheckout(storeApiDeps, { body, origin })
+  return c.json(out.body, out.status as any)
 })
 
 app.get('/checkout/success', async (c) => {
