@@ -55,6 +55,10 @@ const TIER_ORDER = ['bronze', 'silver', 'gold', 'platinum']
 // Thrown inside the completion transaction when an atomic stock decrement finds nothing to take
 // (a concurrent sale grabbed the last unit) — caught to return 400 instead of a 500.
 class OversellError extends Error {}
+// Thrown when the points a ticket's loyalty discount was priced against are no longer on the
+// customer's balance — another sale spent them between ringing up and settling. Same shape as
+// OversellError above, and for the same reason: the check at create does not reserve anything.
+class LoyaltyShortError extends Error {}
 // Thrown when this request lost the race to settle an order someone (or some retry) already settled.
 class AlreadyCompletedError extends Error {}
 const CANNABIS_TAX_RATE = 0.15 // 15% cannabis excise tax (varies by state)
@@ -472,6 +476,27 @@ app.post('/', requireRole('budtender'), async (c) => {
   // Attribute the discount to its source so reporting can tell a points-funded discount from a
   // manager discount (F-32). Loyalty applies first, then the manager discount fills the remaining
   // room up to subtotal; the two are persisted to their own columns and always sum to totalDiscount.
+  //
+  // A reward or a points spend worth more than the basket used to be clamped to the subtotal and
+  // charged in full — the customer paid full price in points for part of the value, with no warning.
+  // (The salon found the same thing as LY0928 M2.) The two cases want different answers:
+  //
+  //   a catalogue reward is all-or-nothing, so it is REFUSED with what is actually on the ticket
+  //   a raw points spend is divisible, so only the points that could be used are charged
+  if (rewardId && rewardDiscount > subtotal + 0.005) {
+    return c.json({
+      error: `"${rewardName}" takes $${round2(rewardDiscount).toFixed(2)} off, and there is only $${round2(subtotal).toFixed(2)} on this ticket. Ring up more, or use a smaller reward.`,
+      code: 'reward_larger_than_order',
+      rewardValue: round2(rewardDiscount),
+      orderSubtotal: round2(subtotal),
+    }, 400)
+  }
+  if (!rewardId && data.loyaltyPointsRedeemed > 0) {
+    // 100 points to the dollar, so the most this basket can absorb is subtotal × 100.
+    const usable = Math.min(data.loyaltyPointsRedeemed, Math.floor(round2(subtotal) * 100))
+    data.loyaltyPointsRedeemed = usable
+  }
+
   const loyaltyApplied = rewardId
     ? round2(Math.min(rewardDiscount, subtotal))
     : round2(Math.min(data.loyaltyPointsRedeemed * 0.01, subtotal))
@@ -1019,21 +1044,37 @@ app.post('/:id/complete', requireRole('budtender'), async (c) => {
         `)
       }
 
-      // Spend the points that were redeemed for this order's discount — previously the discount was
-      // applied but the points were never deducted, so redemption was free and the balance only ever
-      // grew. Deduct now (balance was validated >= redeemed at create; GREATEST guards races). (sweep)
+      // Spend the points that were redeemed for this order's discount.
+      //
+      // The check at create is an early warning, not a guard: nothing reserves the points between
+      // then and here, so several tickets can be raised against one balance and every one of them
+      // passes. GREATEST(0, …) used to floor the result, which stopped the balance going negative
+      // and hid the fact that the shop had handed out more discount than the customer could pay
+      // for. (The salon run found the same shape as LY0928 B1.)
+      //
+      // So the balance check IS the WHERE clause, exactly as the stock decrement above does it, and
+      // a completion that cannot be paid for is refused rather than quietly given away. Same
+      // transaction, so the stock comes back with it.
       const pointsRedeemed = Number(existing.loyaltyPointsRedeemed) || 0
       if (pointsRedeemed > 0) {
-        await tx.execute(sql`
+        const spend: any = await tx.execute(sql`
           UPDATE loyalty_members
-          SET points_balance = GREATEST(0, COALESCE(points_balance::numeric, 0) - ${pointsRedeemed}), updated_at = NOW()
+          SET points_balance = COALESCE(points_balance::numeric, 0) - ${pointsRedeemed}, updated_at = NOW()
           WHERE contact_id = ${existing.contactId} AND company_id = ${currentUser.companyId}
+            AND COALESCE(points_balance::numeric, 0) >= ${pointsRedeemed}
+          RETURNING id, points_balance
         `)
+        const spentRow = ((spend as any).rows || spend)?.[0]
+        if (!spentRow) {
+          const balRes: any = await tx.execute(sql`SELECT COALESCE(points_balance::numeric, 0) AS b FROM loyalty_members WHERE contact_id = ${existing.contactId} AND company_id = ${currentUser.companyId} LIMIT 1`)
+          const have = Number(((balRes as any).rows || balRes)?.[0]?.b || 0)
+          throw new LoyaltyShortError(
+            `This sale takes ${pointsRedeemed} points off and the customer now has ${have} — another sale has spent them since this ticket was rung up. Remove the reward and re-price the order.`,
+          )
+        }
         await tx.execute(sql`
           INSERT INTO loyalty_transactions(id, member_id, type, points, balance_after, order_id, description, company_id, created_at)
-          SELECT gen_random_uuid(), lm.id, 'redeem', ${-pointsRedeemed}, COALESCE(lm.points_balance::numeric, 0), ${id}, ${'Redeemed on ' + existing.number}, ${currentUser.companyId}, NOW()
-          FROM loyalty_members lm
-          WHERE lm.contact_id = ${existing.contactId} AND lm.company_id = ${currentUser.companyId}
+          VALUES (gen_random_uuid(), ${spentRow.id}, 'redeem', ${-pointsRedeemed}, ${Number(spentRow.points_balance)}, ${id}, ${'Redeemed on ' + existing.number}, ${currentUser.companyId}, NOW())
         `)
       }
 
@@ -1043,6 +1084,7 @@ app.post('/:id/complete', requireRole('budtender'), async (c) => {
   })
   } catch (e) {
     if (e instanceof OversellError) return c.json({ error: e.message }, 400)
+    if (e instanceof LoyaltyShortError) return c.json({ error: e.message, code: 'loyalty_points_gone' }, 400)
     // 409, not 400: the request was well-formed and the caller is not at fault — a retry or a second
     // tap arrived after the sale was already settled. A till can treat this as "it went through".
     if (e instanceof AlreadyCompletedError) return c.json({ error: e.message, code: 'order_already_completed' }, 409)

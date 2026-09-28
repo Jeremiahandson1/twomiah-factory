@@ -318,6 +318,12 @@ export const invoice = pgTable('invoice', {
 }, (t) => [
   index('invoice_company_id_idx').on(t.companyId),
   index('invoice_status_idx').on(t.status),
+  // One bill per visit, decided by the database rather than by a read that another request has
+  // already overtaken. Run LY0928 H1 double-clicked Complete and got two invoices both numbered
+  // INV-00216, 2 ms apart, with Outstanding counting the visit twice; six simultaneous completions
+  // over the API made two. Postgres treats NULLs as distinct, so every invoice raised by hand —
+  // which carries no appointment — is unaffected.
+  uniqueIndex('invoice_appointment_unique').on(t.companyId, t.appointmentId),
 ])
 
 export const invoiceLineItem = pgTable('invoice_line_item', {
@@ -3829,6 +3835,11 @@ export const serviceRecord = pgTable('service_record', {
   index('service_record_company_id_idx').on(t.companyId),
   index('service_record_contact_id_idx').on(t.contactId),
   index('service_record_performed_idx').on(t.performedAt),
+  // One visit record per appointment, for the same reason as the invoice above: six simultaneous
+  // completions wrote three, and the client's visit count, last-visit date and rebooking history
+  // were all inflated by the difference. A visit logged without an appointment carries NULL here and
+  // is unaffected. (LY0928 H1)
+  uniqueIndex('service_record_appointment_unique').on(t.companyId, t.appointmentId),
 ])
 
 // Memberships/packages — the salon read of vet's wellness plan. Either a

@@ -20,7 +20,14 @@ export const {
   // Not here, deliberately: pricebook:* (the Service Menu and membership plans are the price list) and
   // invoices:* / reports:* (the salon's money).
   extraRolePermissions: {
-    field: ['contacts:create', 'contacts:update', 'schedule:create', 'schedule:update', 'sms:send'],
+    field: [
+      'contacts:create', 'contacts:update', 'schedule:create', 'schedule:update', 'sms:send',
+      // A stylist checks their own client out, so they enrol and they redeem. They do NOT adjust a
+      // balance and they do NOT write the reward list — run LY0928 M4/H3 found both open to them.
+      'loyalty:enroll', 'loyalty:redeem',
+    ],
+    // Front Desk is the till. Same two, for the same reason.
+    viewer: ['loyalty:enroll', 'loyalty:redeem'],
   },
   // The hierarchy's fifth rung is called "field" because it was built for crews on a job site. A salon
   // has stylists, and the 403 body was telling them "yourRole: field". (Salon T28 M3)

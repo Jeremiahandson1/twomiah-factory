@@ -58,6 +58,17 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'sms:*',
     // ads:read / ads:update (pause, dismiss, A/B tests) / ads:settings (profile, mode, platforms) / ads:spend (launch, resume, apply, AI preview)
     'ads:*',
+    // The loyalty programme, split by what each act costs the business:
+    //   loyalty:read       see a balance, a card, the ledger, the reward list
+    //   loyalty:enroll     put a client on the programme
+    //   loyalty:redeem     spend what they earned, against a real visit or order
+    //   loyalty:adjust     hand-edit a balance — points out of nothing, so manager and up
+    //   loyalty:configure  the rate, the card, and the reward list itself — admin and up
+    // Run LY0928 H3 found salon gating reward create/edit on contacts:update, which every stylist
+    // holds: any staff member could make a reward nearly free and then redeem it. M4 found the same
+    // door open on adjust. Rewards are the price list of the programme; they sit where pricebook and
+    // settings already sit.
+    'loyalty:*',
   ],
   manager: [
     'contacts:*', 'projects:*', 'jobs:*', 'quotes:*', 'invoices:read',
@@ -91,6 +102,9 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'purchase-orders:*',
     'bills:read', 'bills:create', 'bills:update',
     'sms:*',
+    // Runs the programme day to day, including the correction a desk sometimes has to make — but
+    // does not set the rate or write the reward list. Same line settings:* and payments:* draw.
+    'loyalty:read', 'loyalty:enroll', 'loyalty:redeem', 'loyalty:adjust',
   ],
   field: [
     'contacts:read', 'projects:read', 'jobs:read', 'jobs:update', 'time:read',
@@ -100,6 +114,9 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'company:read', 'dashboard:read', 'schedule:read',
     // create + read any; update/delete gated to own tasks (assignee or creator) in the routes
     'tasks:read', 'tasks:create', 'tasks:update',
+    // Sees a balance and a card. Spending and correcting are widened per-vertical, because who works
+    // the till differs: a salon stylist checks their own client out, a site crew never does.
+    'loyalty:read',
   ],
   viewer: [
     'contacts:read', 'projects:read', 'jobs:read', 'quotes:read', 'invoices:read',
@@ -107,6 +124,7 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'punch-lists:read', 'daily-logs:read', 'inspections:read', 'bids:read',
     'team:read', 'company:read', 'dashboard:read', 'schedule:read',
     'tasks:read',
+    'loyalty:read',
   ],
   user: [],
 }

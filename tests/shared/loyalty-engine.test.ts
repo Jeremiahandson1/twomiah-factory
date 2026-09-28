@@ -92,5 +92,22 @@ check('gate: a free item missing from the order says to add it', missing.ok === 
 check('gate: a punch-card reward costs 0 points — the visits were the price',
   canRedeem({ pointsCost: 0, type: 'free_item', itemId: 'svc-cut' }, 0, basket).ok === true)
 
+// ── the refusal is read by a person, in that trade's words ────────────────────────────────────
+// Run LY0928 M3: a salon stylist was told to "add the free cut to the order before redeeming" and
+// that "the customer has 50" — the rule was right and the vocabulary came from a shop. The engine is
+// shared, so the words are an argument; a vertical that passes none keeps the shop's.
+const SALON = { buyer: 'client', sale: 'visit' }
+const salonShort = canRedeem({ pointsCost: 500, type: 'fixed', value: 1000 }, 250, basket, SALON)
+check('words: a salon refusal says "client", never "customer"',
+  /the client has 250/.test(salonShort.reason || '') && !/customer/i.test(salonShort.reason || ''), salonShort)
+const salonMissing = canRedeem({ pointsCost: 0, type: 'free_item', itemId: 'svc-facial', name: 'Free facial' }, 999, basket, SALON)
+check('words: ...and "visit", never "order"',
+  /to the visit/.test(salonMissing.reason || '') && !/order/i.test(salonMissing.reason || ''), salonMissing)
+const salonNothing = canRedeem({ pointsCost: 0, type: 'fixed', value: 0 }, 999, basket, SALON)
+check('words: a reward worth nothing says so about the visit, not the order',
+  /nothing off the current visit/.test(salonNothing.reason || ''), salonNothing)
+check('words: a vertical that passes none still gets the shop wording',
+  /the customer has 250/.test(canRedeem({ pointsCost: 500, type: 'fixed', value: 1000 }, 250, basket).reason || ''))
+
 console.log(`\n  ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

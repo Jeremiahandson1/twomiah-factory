@@ -17,7 +17,7 @@
 // webhook that fires twice cannot pay or charge twice.
 import { db } from '../../db/index.ts'
 import { loyaltyMembers, loyaltyTransactions, loyaltyRewards, storeSettings, orders } from '../../db/schema.ts'
-import { eq, and, desc } from 'drizzle-orm'
+import { eq, and, desc, sql } from 'drizzle-orm'
 import { loyaltyConfig, pointsForSale, punchCardProgress, rewardDiscountCents, canRedeem, type LoyaltyConfig } from '../shared/index.ts'
 
 export const normalizeEmail = (email: string | null | undefined): string =>
@@ -155,41 +155,10 @@ export async function settleLoyaltyForPaidOrder(orderId: string): Promise<Settle
   const member = await ensureMember(order.customerEmail)
   if (!member) return none
 
-  // ── spend first, so a balance can never be earned and immediately re-spent on the same order ──
-  let spent = 0
-  if (order.loyaltyRewardId && order.loyaltyDiscountCents > 0) {
-    const [reward] = await db.select().from(loyaltyRewards).where(eq(loyaltyRewards.id, order.loyaltyRewardId)).limit(1)
-    if (reward) {
-      const progress = punchCardProgress(
-        { qualifyingVisits: member.qualifyingOrders, rewardsEarned: member.punchRewardsEarned }, cfg,
-      )
-      const onTheHouse = reward.pointsCost === 0 && progress.unclaimed > 0
-      // Clamped: a shopper who opened several checkouts against one balance cannot drive it
-      // negative. They keep a small discount they could not quite afford, which is bounded and
-      // preferable to refusing a payment that has already been taken.
-      spent = onTheHouse ? 0 : Math.min(member.pointsBalance, reward.pointsCost)
+  const [reward] = order.loyaltyRewardId && order.loyaltyDiscountCents > 0
+    ? await db.select().from(loyaltyRewards).where(eq(loyaltyRewards.id, order.loyaltyRewardId)).limit(1)
+    : [undefined]
 
-      try {
-        await db.insert(loyaltyTransactions).values({
-          memberId: member.id, type: onTheHouse ? 'punch_reward' : 'redeem',
-          points: -spent, balanceAfter: Math.max(0, member.pointsBalance - spent),
-          description: reward.name, orderId: order.id,
-        })
-        await db.update(loyaltyMembers).set({
-          pointsBalance: Math.max(0, member.pointsBalance - spent),
-          punchRewardsEarned: onTheHouse ? member.punchRewardsEarned + 1 : member.punchRewardsEarned,
-          updatedAt: new Date(),
-        }).where(eq(loyaltyMembers.id, member.id))
-        await db.update(loyaltyRewards)
-          .set({ usedCount: reward.usedCount + 1, updatedAt: new Date() })
-          .where(eq(loyaltyRewards.id, reward.id))
-      } catch {
-        spent = 0 // already settled for this order
-      }
-    }
-  }
-
-  // ── then earn, on what the customer actually paid for goods ──
   // The goods, not the invoice: shipping and tax are not the shop's revenue and a programme that
   // pays points on postage is paying customers to ship.
   // discountCents is the TOTAL taken off (code + loyalty); loyaltyDiscountCents is the share of it,
@@ -198,25 +167,93 @@ export async function settleLoyaltyForPaidOrder(orderId: string): Promise<Settle
   const points = pointsForSale(basis, cfg)
   const counts = cfg.punchCard.visitsRequired > 0
 
+  let spent = 0
   let earned = 0
-  if (points > 0 || counts) {
-    const [current] = await db.select().from(loyaltyMembers).where(eq(loyaltyMembers.id, member.id)).limit(1)
-    try {
-      await db.insert(loyaltyTransactions).values({
-        memberId: member.id, type: 'earn', points,
-        balanceAfter: (current?.pointsBalance ?? 0) + points,
-        description: `Order ${order.orderNumber || order.id.slice(0, 8)}`, orderId: order.id,
-      })
-      await db.update(loyaltyMembers).set({
-        pointsBalance: (current?.pointsBalance ?? 0) + points,
-        lifetimePoints: (current?.lifetimePoints ?? 0) + points,
-        qualifyingOrders: counts ? (current?.qualifyingOrders ?? 0) + 1 : (current?.qualifyingOrders ?? 0),
+
+  // ── one locked pass over the member row ────────────────────────────────────────────────────────
+  // Every figure below is decided from the row as it is INSIDE the lock, not from the copy read
+  // above. The previous version read the balance, worked out the spend, and wrote an absolute new
+  // balance — so two orders paid at the same moment both read 400, both spent 200, and both wrote
+  // 200 back: 400 points of discount given for 200 points. The punch card was worse. It wrote
+  // `earned + 1` from the same stale read, so two orders against one full card each got a free
+  // reward and the counter only moved once. (The salon found both as LY0928 B1 and B2; this is the
+  // same defect in the store's own wiring.)
+  //
+  // SELECT … FOR UPDATE rather than a conditional UPDATE because there are two movements to make
+  // and they have to agree with each other. The lock is held for the few statements below and
+  // released at commit.
+  try {
+    await db.transaction(async (tx) => {
+      const locked: any = await tx.execute(
+        sql`SELECT points_balance, lifetime_points, qualifying_orders, punch_rewards_earned FROM loyalty_members WHERE id = ${member.id} FOR UPDATE`,
+      )
+      const row = (locked.rows || locked)?.[0]
+      if (!row) return
+      const balance = Number(row.points_balance) || 0
+      const lifetime = Number(row.lifetime_points) || 0
+      const qualifying = Number(row.qualifying_orders) || 0
+      const claimed = Number(row.punch_rewards_earned) || 0
+
+      // ── spend first, so a balance can never be earned and immediately re-spent on the same order ──
+      let nextBalance = balance
+      let nextClaimed = claimed
+      if (reward) {
+        const progress = punchCardProgress({ qualifyingVisits: qualifying, rewardsEarned: claimed }, cfg)
+        const onTheHouse = reward.pointsCost === 0 && progress.unclaimed > 0
+        // Clamped: a shopper who opened several checkouts against one balance cannot drive it
+        // negative. They keep a small discount they could not quite afford, which is bounded and
+        // preferable to refusing a payment that has already been taken.
+        spent = onTheHouse ? 0 : Math.min(balance, reward.pointsCost)
+        nextBalance = Math.max(0, balance - spent)
+        nextClaimed = onTheHouse ? claimed + 1 : claimed
+
+        try {
+          await tx.insert(loyaltyTransactions).values({
+            memberId: member.id, type: onTheHouse ? 'punch_reward' : 'redeem',
+            points: -spent, balanceAfter: nextBalance,
+            description: reward.name, orderId: order.id,
+          })
+          await tx.update(loyaltyRewards)
+            .set({ usedCount: reward.usedCount + 1, updatedAt: new Date() })
+            .where(eq(loyaltyRewards.id, reward.id))
+        } catch {
+          // Already settled for this order — the unique key on (member, type, order) said so.
+          spent = 0
+          nextBalance = balance
+          nextClaimed = claimed
+        }
+      }
+
+      // ── then earn, on what the customer actually paid for goods ──
+      let nextLifetime = lifetime
+      let nextQualifying = qualifying
+      if (points > 0 || counts) {
+        try {
+          await tx.insert(loyaltyTransactions).values({
+            memberId: member.id, type: 'earn', points,
+            balanceAfter: nextBalance + points,
+            description: `Order ${order.orderNumber || order.id.slice(0, 8)}`, orderId: order.id,
+          })
+          earned = points
+          nextBalance += points
+          nextLifetime += points
+          if (counts) nextQualifying += 1
+        } catch {
+          earned = 0 // already earned for this order
+        }
+      }
+
+      await tx.update(loyaltyMembers).set({
+        pointsBalance: nextBalance,
+        lifetimePoints: nextLifetime,
+        qualifyingOrders: nextQualifying,
+        punchRewardsEarned: nextClaimed,
         lastActivityAt: new Date(), updatedAt: new Date(),
       }).where(eq(loyaltyMembers.id, member.id))
-      earned = points
-    } catch {
-      earned = 0 // already earned for this order
-    }
+    })
+  } catch {
+    // Loyalty must never fail a payment that has already gone through.
+    return { earned: 0, spent: 0 }
   }
 
   return { earned, spent }

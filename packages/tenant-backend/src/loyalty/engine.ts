@@ -143,24 +143,43 @@ export interface RedeemCheck {
 }
 
 /**
+ * What the vertical calls the two nouns these refusals name.
+ *
+ * A salon has clients and visits; a shop has customers and orders. Run LY0928 M3 found the salon
+ * telling a stylist to "add the free cut to the order before redeeming" — the rule was right and the
+ * wording came from the wrong trade. The engine is shared, so the words are an argument rather than
+ * a second copy of the engine.
+ */
+export interface RedeemVocabulary {
+  /** The person paying: "customer" in a shop, "client" at a salon, "patient" at a vet. */
+  buyer: string
+  /** What they are paying for: "order" in a shop, "visit" at a salon. */
+  sale: string
+}
+const SHOP_WORDS: RedeemVocabulary = { buyer: 'customer', sale: 'order' }
+
+/**
  * May this member redeem this reward right now?
  *
  * Returns a sentence rather than a boolean because every one of these refusals reaches a person
- * standing at a counter with a customer in front of them.
+ * standing at a counter with someone in front of them.
  */
-export function canRedeem(reward: Reward, pointsBalance: number, lines: BasketLine[]): RedeemCheck {
+export function canRedeem(
+  reward: Reward, pointsBalance: number, lines: BasketLine[], vocabulary: Partial<RedeemVocabulary> = {},
+): RedeemCheck {
+  const words = { ...SHOP_WORDS, ...vocabulary }
   if (reward.active === false) return { ok: false, reason: 'That reward is not currently available.' }
 
   const cost = Math.max(0, Math.floor(Number(reward.pointsCost) || 0))
   const balance = Math.max(0, Math.floor(Number(pointsBalance) || 0))
   if (cost > balance) {
-    return { ok: false, reason: `This reward costs ${cost} points and the customer has ${balance}.` }
+    return { ok: false, reason: `This reward costs ${cost} points and the ${words.buyer} has ${balance}.` }
   }
   if (reward.type === 'free_item' && !lines.some((l) => l.itemId === reward.itemId)) {
-    return { ok: false, reason: `Add ${reward.name || 'the free item'} to the order before redeeming this reward.` }
+    return { ok: false, reason: `Add ${reward.name || 'the free item'} to the ${words.sale} before redeeming this reward.` }
   }
   if (rewardDiscountCents(reward, lines) <= 0) {
-    return { ok: false, reason: 'This reward takes nothing off the current order.' }
+    return { ok: false, reason: `This reward takes nothing off the current ${words.sale}.` }
   }
   return { ok: true }
 }

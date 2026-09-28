@@ -11,7 +11,7 @@ import { ensureInvoiceForVisit } from '../services/salonCheckout.ts'
 import { scheduleReviewRequestForVisit } from '../services/reviews.ts'
 import { resolveStylist, unknownStylist, stylistIdOf, type StylistRef } from '../utils/stylist.ts'
 import { isRealCalendarDay } from '../shared/index.ts'
-import { awardForCompletedVisit, priceForVisit } from '../services/loyaltyAward.ts'
+import { awardForCompletedVisit, reverseForCancelledVisit, priceForVisit } from '../services/loyaltyAward.ts'
 import { salonTimezone, calendarDateIn } from '../utils/salonDate.ts'
 
 /**
@@ -156,11 +156,20 @@ async function onVisitCompleted(row: typeof appointment.$inferSelect): Promise<s
     await awardForCompletedVisit({
       companyId: row.companyId, contactId: row.contactId, appointmentId: row.id,
       serviceId: row.serviceId, price,
+      // Which bill these points came off. Raised a few lines above, in this same step. (LY0928 L1)
+      invoiceId,
     })
   } catch (e: any) { console.warn('[appointments] loyalty not awarded:', e?.message || e) }
 
   scheduleReviewRequestForVisit({ companyId: row.companyId, contactId: row.contactId }).catch((e) => console.warn('[appointments] review schedule failed:', e?.message || e))
   return invoiceId
+}
+
+// Reopening a visit: give back what it earned. Never throws — cancelling has to succeed. (LY0928 M1)
+async function onVisitUncompleted(row: typeof appointment.$inferSelect): Promise<void> {
+  try {
+    await reverseForCancelledVisit({ companyId: row.companyId, appointmentId: row.id, serviceId: row.serviceId })
+  } catch (e: any) { console.warn('[appointments] loyalty not reversed:', e?.message || e) }
 }
 
 // GET /appointments — ?from=&to= on startTime, ?stylistId=, ?status=
@@ -390,6 +399,10 @@ app.put('/:id', requirePermission('schedule:update'), async (c) => {
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'appointment' })
   if (nextStatus !== existing.status) await syncOnlineBooking(id, nextStatus)
   const invoiceId = nextStatus === 'completed' && existing.status !== 'completed' ? await onVisitCompleted(updated) : null
+  // …and the other direction. A visit that is cancelled or marked a no-show after it was completed
+  // gives its points and its punch back, or a salon could fill a card by completing and cancelling
+  // the same appointment over and over. (LY0928 M1)
+  if (existing.status === 'completed' && CANCELLED.includes(nextStatus)) await onVisitUncompleted(updated)
   return c.json({ ...updated, stylistId: stylistIdOf(updated), invoiceId })
 })
 
@@ -458,6 +471,9 @@ app.delete('/:id', requirePermission('schedule:update'), async (c) => {
     .where(eq(appointment.id, id))
     .returning()
   await syncOnlineBooking(id, 'cancelled')
+  // Same rule as the status flip above: a completed visit that is cancelled gives its points and its
+  // punch back. Cancelling from the book and cancelling from the list are the same act. (LY0928 M1)
+  if (existing.status === 'completed') await onVisitUncompleted(updated)
 
   await audit.log({ action: 'update', entity: 'appointment', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'appointment' })

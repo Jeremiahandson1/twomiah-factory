@@ -173,13 +173,29 @@ app.post('/members/:id/adjust', requireRole('manager'), async (c) => {
   const appliedDelta = newBalance - Number(member.points_balance)
 
   // total_points_earned drives the tier, and lifetime_points is its outward alias (migrate.ts keeps
-  // the two equal). A deduction now claws both back exactly as a refund does (orders.ts) — before,
-  // only the balance moved, so a mistaken grant promoted a member permanently with no way back.
+  // the two equal). A deduction claws both back exactly as a refund does (orders.ts) — before, only
+  // the balance moved, so a mistaken grant promoted a member permanently with no way back.
+  //
+  // But only as far as the grants themselves go. Earned-to-date is the customer's record of what
+  // their PURCHASES earned, and a -999,999 that floors the balance was taking it to zero as well,
+  // erasing points from real sales and demoting a genuine gold member to bronze. A correction can
+  // now take back at most what corrections previously put in. (The salon found the same code as
+  // LY0928 L3.)
+  let lifetimeDelta = appliedDelta
+  if (appliedDelta < 0) {
+    const standingRes = await db.execute(sql`
+      SELECT COALESCE(SUM(points), 0) AS standing FROM loyalty_transactions
+      WHERE member_id = ${id} AND type IN ('adjustment_add', 'adjustment_subtract')
+    `)
+    const reversible = Math.max(0, Number(((standingRes as any).rows || standingRes)?.[0]?.standing || 0))
+    lifetimeDelta = -Math.min(-appliedDelta, reversible)
+  }
+
   await db.execute(sql`
     UPDATE loyalty_members
     SET points_balance = ${newBalance},
-        total_points_earned = GREATEST(0, COALESCE(total_points_earned::numeric, 0) + ${appliedDelta}),
-        lifetime_points = GREATEST(0, COALESCE(lifetime_points, 0) + ${appliedDelta}),
+        total_points_earned = GREATEST(0, COALESCE(total_points_earned::numeric, 0) + ${lifetimeDelta}),
+        lifetime_points = GREATEST(0, COALESCE(lifetime_points, 0) + ${lifetimeDelta}),
         updated_at = NOW()
     WHERE id = ${id}
   `)
@@ -206,7 +222,19 @@ app.post('/members/:id/adjust', requireRole('manager'), async (c) => {
     req: c,
   })
 
-  return c.json({ pointsBalance: newBalance, adjustment: appliedDelta, requested: data.points })
+  // A correction still works with the programme switched off, and deliberately so: a shop that
+  // pauses loyalty must still be able to undo a mistake made while it was running. Redeeming is
+  // refused when it is off (orders.ts), correcting is not — so the answer says which, and the screen
+  // can tell the truth about what it just did. (LY0928 L2, decided the same way for both verticals.)
+  const [co] = await db.select({ settings: company.settings, loyaltyPointsPerDollar: company.loyaltyPointsPerDollar })
+    .from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+
+  return c.json({
+    pointsBalance: newBalance,
+    adjustment: appliedDelta,
+    requested: data.points,
+    programmeOff: !loyaltyConfig(co).enabled,
+  })
 })
 
 // List rewards

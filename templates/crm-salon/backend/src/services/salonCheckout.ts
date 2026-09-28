@@ -59,22 +59,34 @@ export async function ensureInvoiceForVisit(v: VisitSale): Promise<typeof invoic
   const taxAmount = round2(price * (taxRate / 100))
   const total = round2(price + taxAmount)
 
-  const [created] = await db.insert(invoice).values({
-    companyId: v.companyId,
-    contactId: v.contactId,
-    appointmentId: v.appointmentId || null,
-    number: await nextInvoiceNumber(v.companyId),
-    status: 'open',   // an in-salon sale: owed, never emailed (SALON-N7)
-    subtotal: price.toString(),
-    taxRate: String(taxRate),
-    taxAmount: taxAmount.toString(),
-    discount: '0',
-    total: total.toString(),
-    amountPaid: '0',
-    dueDate: dueDateFromTerms((co?.settings as any)),
-    sentAt: null,
-    notes: 'Created from the appointment book',
-  } as any).returning()
+  // The read above is not a guard — two clicks 2 ms apart both pass it, which is how run LY0928 got
+  // two invoices numbered INV-00216 against one visit. `invoice_appointment_unique` is the guard; the
+  // loser lands here, re-reads, and hands back the bill the winner raised. (LY0928 H1)
+  let created: typeof invoice.$inferSelect
+  try {
+    ;[created] = await db.insert(invoice).values({
+      companyId: v.companyId,
+      contactId: v.contactId,
+      appointmentId: v.appointmentId || null,
+      number: await nextInvoiceNumber(v.companyId),
+      status: 'open',   // an in-salon sale: owed, never emailed (SALON-N7)
+      subtotal: price.toString(),
+      taxRate: String(taxRate),
+      taxAmount: taxAmount.toString(),
+      discount: '0',
+      total: total.toString(),
+      amountPaid: '0',
+      dueDate: dueDateFromTerms((co?.settings as any)),
+      sentAt: null,
+      notes: 'Created from the appointment book',
+    } as any).returning()
+  } catch (e: any) {
+    if (!v.appointmentId) throw e
+    const [winner] = await db.select().from(invoice)
+      .where(and(eq(invoice.companyId, v.companyId), eq(invoice.appointmentId, v.appointmentId))).limit(1)
+    if (winner) return winner
+    throw e
+  }
 
   await db.insert(invoiceLineItem).values({
     invoiceId: created.id,
