@@ -46,6 +46,15 @@ async function finalizeOrder(order: typeof orders.$inferSelect, result: WebhookR
     } catch { /* non-blocking */ }
   }
 
+  // Loyalty settles HERE and nowhere else: points are earned on what was paid, and any reward the
+  // shopper picked at checkout is charged for now rather than then — an abandoned cart must never
+  // burn someone's balance. Both halves are keyed to the order id, so the webhook and the success
+  // page racing each other cannot pay or charge twice. Never blocks a payment that already went
+  // through.
+  import('../services/loyalty.ts')
+    .then(m => m.settleLoyaltyForPaidOrder(order.id))
+    .catch((err: any) => logger.warn('loyalty not settled', { order: order.id, error: err?.message }))
+
   // Dropship: forward the paid order to the connected supplier. Fire-and-forget
   // — supplier problems must never block payment finalization; the sweep retries.
   import('../suppliers/index.ts')
@@ -184,6 +193,41 @@ const checkoutSchema = z.object({
   // flat rates when absent.
   shipTo: z.object({ country: z.string().max(2), state: z.string().max(16) }).partial().optional(),
   discountCode: z.string().max(64).optional(),
+  // A loyalty reward the shopper chose. Only an id travels — what it is worth is decided by the
+  // server against this cart, exactly like the discount code above, because the client is not a
+  // trustworthy source of how much money to take off.
+  loyaltyRewardId: z.string().uuid().optional(),
+})
+
+/**
+ * What this shopper can claim against the cart they are holding.
+ *
+ * Deliberately narrow. There is no shopper login on this storefront, so anyone who knows an address
+ * could ask — which means this answers only what that person is about to be offered at checkout: a
+ * balance, a card position, and the rewards that apply to THIS cart. It returns no order history, no
+ * name, no address, and nothing that would turn a guessed email into a profile. An unknown address
+ * gets the same shape with a zero balance rather than a 404, so the endpoint cannot be used to test
+ * whether someone shops here.
+ */
+pub.get('/loyalty', async (c) => {
+  const email = c.req.query('email') || ''
+  const subtotalCents = Math.max(0, Math.min(10_000_000, Number(c.req.query('subtotalCents')) || 0))
+  try {
+    const { availableRewards } = await import('../services/loyalty.ts')
+    const quote = await availableRewards(email, subtotalCents)
+    return c.json({
+      pointsBalance: quote.pointsBalance,
+      punchCard: quote.punchCard,
+      rewards: quote.rewards.map((r) => ({
+        id: r.id, name: r.name, description: r.description,
+        pointsCost: r.pointsCost, discountCents: r.discountCents,
+        available: r.available, reason: r.reason, onTheHouse: r.onTheHouse,
+      })),
+    })
+  } catch {
+    // A loyalty problem must never stop someone shopping.
+    return c.json({ pointsBalance: 0, punchCard: { enabled: false, visitsRequired: 0, progress: 0, remaining: 0, unclaimed: 0 }, rewards: [] })
+  }
 })
 
 pub.post('/checkout', async (c) => {
@@ -264,9 +308,25 @@ pub.post('/checkout', async (c) => {
     }
   }
 
+  // A loyalty reward, priced by the server against this cart. The points are NOT spent here — that
+  // happens at finalizeOrder, so an abandoned checkout costs the shopper nothing. Kept apart from
+  // the code discount so the books can still say which was which, and the two together are capped
+  // at the subtotal rather than being allowed to make an order pay the customer.
+  let loyaltyDiscountCents = 0
+  let loyaltyRewardId: string | null = null
+  if (parsed.data.loyaltyRewardId && parsed.data.customerEmail) {
+    try {
+      const { quoteRewardForCheckout } = await import('../services/loyalty.ts')
+      const quoted = await quoteRewardForCheckout(parsed.data.customerEmail, parsed.data.loyaltyRewardId, subtotalCents)
+      loyaltyDiscountCents = Math.max(0, Math.min(quoted, subtotalCents - discountCents))
+      if (loyaltyDiscountCents > 0) loyaltyRewardId = parsed.data.loyaltyRewardId
+    } catch { /* a loyalty problem must not stop a customer paying */ }
+  }
+  const totalDiscountCents = Math.min(subtotalCents, discountCents + loyaltyDiscountCents)
+
   const shippingCents = computeShipping(settings, subtotalCents, parsed.data.shipTo)
-  const taxCents = Math.round(Math.max(0, subtotalCents - discountCents) * (computeTaxBps(settings, parsed.data.shipTo) / 10000))
-  const totalCents = Math.max(0, subtotalCents - discountCents) + shippingCents + taxCents
+  const taxCents = Math.round(Math.max(0, subtotalCents - totalDiscountCents) * (computeTaxBps(settings, parsed.data.shipTo) / 10000))
+  const totalCents = Math.max(0, subtotalCents - totalDiscountCents) + shippingCents + taxCents
 
   // Prefer the origin the request carries (the domain the customer is actually
   // browsing) over env — env may hold a derived custom domain that isn't live.
@@ -286,7 +346,12 @@ pub.post('/checkout', async (c) => {
     providerSessionId: `pending_${crypto.randomUUID()}`, // replaced with real id below
     status: 'pending',
     customerEmail: parsed.data.customerEmail ?? 'pending@checkout',
-    subtotalCents, shippingCents, taxCents, discountCents, discountCode: appliedCode, totalCents, currency,
+    subtotalCents, shippingCents, taxCents,
+    // discountCents stays the TOTAL taken off, so every existing reader (totals, exports, refunds)
+    // keeps working; the loyalty share is recorded alongside it rather than hidden inside it.
+    discountCents: totalDiscountCents, discountCode: appliedCode,
+    loyaltyRewardId, loyaltyDiscountCents,
+    totalCents, currency,
   }).returning()
 
   // Stripe fills its own {CHECKOUT_SESSION_ID} placeholder on redirect; Square and

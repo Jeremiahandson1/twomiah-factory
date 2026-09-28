@@ -98,6 +98,11 @@ export const orders = pgTable('orders', {
   currency: text('currency').notNull().default('usd'),
 
   discountCode: text('discount_code'),
+  // Loyalty is kept apart from discountCents so the books can still say how much of a discount was
+  // a code and how much was points. Folding them together loses that the moment anyone asks what
+  // the programme actually cost.
+  loyaltyRewardId: uuid('loyalty_reward_id'),
+  loyaltyDiscountCents: integer('loyalty_discount_cents').notNull().default(0),
   customerNote: text('customer_note'),
   internalNote: text('internal_note'),
   fulfilledAt: timestamp('fulfilled_at', { withTimezone: true }),
@@ -212,7 +217,69 @@ export const storeSettings = pgTable('store_settings', {
   abandonedCartDelayMinutes: integer('abandoned_cart_delay_minutes').notNull().default(60),
   reviewsEnabled: boolean('reviews_enabled').notNull().default(true),
   reviewRequestDays: integer('review_request_days').notNull().default(7),
+  // The loyalty programme's settings, in the shape packages/tenant-backend/src/loyalty/config.ts
+  // reads: { enabled, pointsPerDollar, welcomePoints, punchCard: { visitsRequired, rewardName } }.
+  // A blob rather than columns because the shared reader already parses and defaults it, and every
+  // vertical running the programme then keeps its settings in the same shape.
+  loyalty: jsonb('loyalty'),
   onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }), // set once by POST /api/onboarding/complete
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// ── Loyalty ─────────────────────────────────────────────────────────────────
+//
+// The RULES live in packages/tenant-backend/src/loyalty and are shared with crm-salon; only the
+// storage is here, because the two shapes disagree about nearly everything — salon is multi-tenant
+// with contacts and decimal dollars, this is single-tenant with uuid keys and integer cents.
+//
+// Identity is the EMAIL, because this storefront has no shopper login: `users` above is admin staff
+// (owner | staff) and checkout is guest. That is a deliberate limitation, not an oversight, and it
+// is why store rewards are money off rather than free goods — whoever types the address can spend
+// the balance, which is an acceptable risk for a coupon and a poor one for a free product.
+export const loyaltyMembers = pgTable('loyalty_members', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  // Stored lowercased. Two rows for Ada@x.com and ada@x.com is one customer with half their points.
+  email: text('email').notNull(),
+  pointsBalance: integer('points_balance').notNull().default(0),
+  lifetimePoints: integer('lifetime_points').notNull().default(0),
+  // The punch card, counted in ORDERS — an e-commerce shop's version of "6 cuts, 7th free".
+  qualifyingOrders: integer('qualifying_orders').notNull().default(0),
+  punchRewardsEarned: integer('punch_rewards_earned').notNull().default(0),
+  lastActivityAt: timestamp('last_activity_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('loyalty_members_email_unique').on(t.email)])
+
+export const loyaltyTransactions = pgTable('loyalty_transactions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  memberId: uuid('member_id').notNull().references(() => loyaltyMembers.id, { onDelete: 'cascade' }),
+  // earn | redeem | bonus | adjustment_add | adjustment_subtract | reversal
+  type: text('type').notNull(),
+  points: integer('points').notNull(),
+  balanceAfter: integer('balance_after'),
+  description: text('description'),
+  orderId: uuid('order_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('loyalty_tx_member_idx').on(t.memberId, t.createdAt),
+  // Earning and spending are both keyed to the ORDER. A webhook that fires twice, a success page
+  // racing it, or a replayed event then lands on this index instead of paying (or charging) twice.
+  uniqueIndex('loyalty_tx_once_per_order').on(t.memberId, t.type, t.orderId),
+])
+
+export const loyaltyRewards = pgTable('loyalty_rewards', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  description: text('description'),
+  // 0 means it is earned with a full punch card rather than bought with points.
+  pointsCost: integer('points_cost').notNull().default(0),
+  type: text('type').notNull().default('fixed'), // fixed | percent
+  // Cents for 'fixed', whole percent for 'percent'. Named for its unit so the two cannot be mixed up.
+  valueCents: integer('value_cents').notNull().default(0),
+  minSubtotalCents: integer('min_subtotal_cents').notNull().default(0),
+  active: boolean('active').notNull().default(true),
+  usedCount: integer('used_count').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
