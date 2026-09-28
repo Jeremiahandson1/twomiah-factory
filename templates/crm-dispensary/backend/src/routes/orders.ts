@@ -19,6 +19,17 @@ import { checkFilter } from '../shared/index.ts'
 /** Does this shop have loyalty switched on? The award below is the thing the switch has to reach. */
 const loyaltyEnabled = (companyId: string) => isFeatureEnabled(companyId, 'loyalty_rewards')
 
+// Is the loyalty programme actually live for this shop? Two switches have to hold: the plan-level
+// `loyalty_rewards` feature, and the shop's own toggle on Settings → Loyalty. The redeem path's
+// refusal tells the user to "turn it on in Settings", so it had better be reading the switch that
+// Settings actually writes — it was reading only the feature. Callers are outside a transaction.
+const loyaltyLive = async (companyId: string): Promise<boolean> => {
+  if (!(await isFeatureEnabled(companyId, 'loyalty_rewards'))) return false
+  const [co] = await db.select({ settings: company.settings, loyaltyPointsPerDollar: company.loyaltyPointsPerDollar })
+    .from(company).where(eq(company.id, companyId)).limit(1)
+  return loyaltyConfig(co).enabled
+}
+
 const app = new Hono()
 app.use('*', authenticate)
 
@@ -342,7 +353,7 @@ app.post('/', requireRole('budtender'), async (c) => {
   // Spending points is the same module as earning them, so it answers to the same switch. A shop
   // that has switched Loyalty off should not be able to take a reward off a cart either — the whole
   // point of turning a module off is that it stops, not that one half of it does. (Dispensary T31)
-  if ((data.loyaltyRewardId || data.loyaltyPointsRedeemed > 0) && !(await loyaltyEnabled(currentUser.companyId))) {
+  if ((data.loyaltyRewardId || data.loyaltyPointsRedeemed > 0) && !(await loyaltyLive(currentUser.companyId))) {
     return c.json({ error: 'Loyalty is switched off for this shop. Turn it on in Settings to redeem points or rewards.' }, 403)
   }
 
@@ -837,9 +848,17 @@ app.post('/:id/complete', requireRole('budtender'), async (c) => {
     // another half-fix: the tester turned the module off and points kept accruing on every sale,
     // because the award lives here, on the till, not behind that route. A switch has to reach the
     // thing it switches off, not just the page that displays it. (Dispensary T31)
-    if (existing.contactId && loyaltyOn) {
-      const [coRow] = await tx.select({ settings: company.settings, loyaltyPointsPerDollar: company.loyaltyPointsPerDollar }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
-      const loyalty = loyaltyConfig(coRow)
+    // Two switches, and BOTH have to hold. `loyalty_rewards` is the plan-level feature the Factory
+    // sets; settings.loyalty.enabled is the shop's own toggle on Settings → Loyalty. Only the
+    // welcome and birthday bonuses ever honoured the second one, so a dispensary that switched its
+    // own programme off watched points keep accruing on every sale and customers keep being
+    // auto-enrolled into a programme it had turned off. Same lesson as T31, one switch further in.
+    const [loyaltyCoRow] = loyaltyOn
+      ? await tx.select({ settings: company.settings, loyaltyPointsPerDollar: company.loyaltyPointsPerDollar }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+      : [undefined as any]
+    const loyaltyCfg = loyaltyConfig(loyaltyCoRow)
+    if (existing.contactId && loyaltyOn && loyaltyCfg.enabled) {
+      const loyalty = loyaltyCfg
       const pointsEarned = Math.floor(pointsBasis(existing) * loyalty.pointsPerDollar)
       // A redeemed catalog reward counts a use once the sale actually settles.
       if ((existing as any).loyaltyRewardId) {
