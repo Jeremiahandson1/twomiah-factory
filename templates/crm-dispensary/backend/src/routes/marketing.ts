@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
+import { requireEnabledFeature } from '../middleware/enabledFeature.ts'
 import marketing from '../services/marketing.ts'
 
 const app = new Hono()
@@ -45,8 +46,14 @@ app.get('/unsubscribe/:recipientId/:contactId', async (c) => {
   }
 })
 
-// All remaining routes require authentication
+// All remaining routes require authentication — and the module switch.
+//
+// The gate cannot go on the mount in index.ts because the three routes above it are public by
+// design: an email's tracking pixel and its unsubscribe link are followed by a mail client, with
+// no session to authenticate. So it goes here, below them, the same way branded email does.
+// Either switch opens the module; the screen's nav entry is gated on the same pair. (T45 H23)
 app.use('*', authenticate)
+app.use('*', requireEnabledFeature(['email_campaigns', 'sms_marketing']))
 
 // ============================================
 // TEMPLATES
@@ -124,6 +131,24 @@ app.put('/campaigns/:id', requirePermission('marketing:update'), async (c) => {
   const body = await c.req.json()
   const campaign = await marketing.updateCampaign(id, user.companyId, body)
   return c.json(campaign)
+})
+
+// Who would this reach?
+//
+// T45 H23: an owner could write a campaign and press Send with no idea who was on the other end —
+// there was no way to ask. A draft with an empty audience filter was created, and the only way to
+// find out it reached nobody was to send it. The service has computed this all along
+// (getAudiencePreview); nothing exposed it. (T45 H23)
+app.get('/audience-preview', async (c) => {
+  const user = c.get('user') as any
+  const audienceType = c.req.query('audienceType') || 'all'
+  const raw = c.req.query('filter')
+  let filter: any = {}
+  if (raw) {
+    try { filter = JSON.parse(raw) } catch { return c.json({ error: 'filter must be JSON' }, 400) }
+  }
+  const preview = await marketing.getAudiencePreview(user.companyId, audienceType, filter)
+  return c.json(preview)
 })
 
 app.post('/campaigns/:id/send', requirePermission('marketing:update'), async (c) => {

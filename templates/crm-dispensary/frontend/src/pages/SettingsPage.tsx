@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Users, Gift, Truck, ShoppingBag, Receipt, Clock, ToggleLeft, ToggleRight, AtSign, Globe, Inbox, CreditCard, Plug, Monitor } from 'lucide-react';
+import { Building2, Users, Gift, Truck, ShoppingBag, Receipt, Clock, ToggleLeft, ToggleRight, AtSign, Globe, Inbox, CreditCard, Plug, Monitor, Upload } from 'lucide-react';
 import { Button } from '../components/ui/DataTable';
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
@@ -513,6 +513,14 @@ export default function SettingsPage() {
               <ToggleLeft className="w-5 h-5" />
               Features
             </button>
+            {/* Onboarding points owners here to bring their customers and products across, and
+                until now the link went nowhere. Owner/admin only, matching the API. (T45 H4) */}
+            {isAdmin && (
+              <button onClick={() => navigate('/crm/settings/import')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:text-slate-400">
+                <Upload className="w-5 h-5" />
+                Import
+              </button>
+            )}
             <button onClick={() => navigate('/crm/settings/email')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:text-slate-400">
               <AtSign className="w-5 h-5" />
               Branded Email

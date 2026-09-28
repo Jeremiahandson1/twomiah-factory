@@ -6,7 +6,7 @@ import {
   BarChart3, Star, Shield, DollarSign, Sun, Moon,
   ShoppingBag, LayoutDashboard, Users2, Leaf, Tag, FileCheck,
   MapPin, Layers, Radio, Navigation, Monitor, Sparkles,
-  Share2, PieChart, Sprout, Factory, Store, Globe, Briefcase,
+  Share2, PieChart, Sprout, Factory, Store, Globe, Briefcase, Megaphone,
   UserCheck, ScanLine, Database, Wallet, MessageCircle, Trophy,
   FileSearch, TrendingUp, Tv, Car, Scale, Receipt,
   Puzzle, Activity, Server, Calendar, GraduationCap, AlertTriangle,
@@ -58,6 +58,9 @@ const ALL_NAV_ITEMS = [
   // Sales & Marketing
   { to: '/crm/loyalty', icon: Star, label: 'Loyalty', features: ['loyalty_rewards'] },
   { to: '/crm/referrals', icon: Share2, label: 'Referrals', features: ['referrals'] },
+  // Email Campaigns and SMS Marketing were sellable features with no screen behind them at all.
+  // Either one opens this. (T45 H23)
+  { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['email_campaigns', 'sms_marketing'], minRole: 'manager' },
   { to: '/crm/recommendations', icon: Sparkles, label: 'AI Recs', features: ['ai_recommendations'] },
   { to: '/crm/kiosk', icon: Monitor, label: 'Kiosk', features: ['kiosk'], minRole: 'manager' },
   { to: '/crm/merch', icon: ShoppingBag, label: 'Merch Store', features: ['merch_store'] },

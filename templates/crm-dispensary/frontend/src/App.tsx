@@ -45,6 +45,7 @@ import KioskPage from './pages/KioskPage';
 import KioskOrderPage from './pages/KioskOrderPage';
 import RecommendationsPage from './pages/RecommendationsPage';
 import ReferralsPage from './pages/ReferralsPage';
+import MarketingPage from './pages/MarketingPage';
 import ReportsPage from './pages/ReportsPage';
 import CultivationPage from './pages/CultivationPage';
 import ManufacturingPage from './pages/ManufacturingPage';
@@ -87,6 +88,7 @@ import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage,
 // Settings sub-pages
 import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage';
 import IntegrationsPage from './pages/settings/IntegrationsPage';
+import ImportPage from './pages/settings/ImportPage';
 import ContactSupportPage from './pages/support/ContactSupportPage';
 
 
@@ -164,6 +166,9 @@ function App() {
                     <Route path="settings/integrations" element={<IntegrationsPage />} />
 
                     <Route path="settings/features" element={<FeaturesSettingsPage />} />
+                    {/* Onboarding has told owners to come to "Settings > Import" since day one and
+                        there was no such screen. (T45 H4) */}
+                    <Route path="settings/import" element={<ImportPage />} />
                     {/* New feature routes */}
                     <Route path="metrc" element={<MetrcPage />} />
                     <Route path="labels" element={<LabelsPage />} />
@@ -176,6 +181,8 @@ function App() {
                     <Route path="kiosk" element={<KioskPage />} />
                     <Route path="recommendations" element={<RecommendationsPage />} />
                     <Route path="referrals" element={<ReferralsPage />} />
+                    {/* Email Campaigns and SMS Marketing were sold as features with no screen. (T45 H23) */}
+                    <Route path="marketing" element={<MarketingPage />} />
                     <Route path="reports" element={<ReportsPage />} />
                     <Route path="cultivation" element={<CultivationPage />} />
                     <Route path="manufacturing" element={<ManufacturingPage />} />

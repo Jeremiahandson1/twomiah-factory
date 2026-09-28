@@ -62,6 +62,11 @@ const NOT_API_GATED = new Set([
   'kiosk',        // gated inside kiosk.ts: requireDevice + kioskModuleOn on the public half, requireEnabledFeature on the manager half
   'email',        // branded_email: gated inside its own routes so public unsubscribe/tracking stay open
   'google-reviews', // gbp routes carry public callback endpoints
+  // Same shape as branded email: an email's tracking pixel and its unsubscribe link are followed
+  // by a mail client with no session, so they sit above the authenticate/requireEnabledFeature
+  // pair inside marketing.ts rather than behind a gate on the mount. Check 3 below still proves
+  // email_campaigns and sms_marketing are enforced somewhere. (T45 H23)
+  'marketing',
 ])
 
 // ---- 1. the menu and the API agree ----

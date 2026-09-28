@@ -46,7 +46,8 @@ const INTEGRATIONS: Integration[] = [
       'Log into your Dutchie admin dashboard',
       'Go to Reports and export Products and Customers as CSV files',
       'In your CRM, go to Settings > Import',
-      'Upload each CSV file, map the columns, and confirm the import',
+      'Download the template so your columns match, then upload each CSV and press Check the file',
+      'Review what it found — and any rows it will refuse — then press Import',
     ],
   },
   {

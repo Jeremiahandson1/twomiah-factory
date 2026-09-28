@@ -225,6 +225,40 @@ class ApiClient {
     return this.request(endpoint, { method: 'POST', body: fd });
   }
 
+  // Same as uploadImage but for a form the caller has already built (several fields, or a field
+  // name other than "file").
+  async upload(endpoint: string, form: FormData): Promise<any> {
+    return this.request(endpoint, { method: 'POST', body: form });
+  }
+
+  // A GET whose body is NOT JSON — a CSV template, an export. handleResponse() always calls
+  // .json(), so routing a CSV through request() hands the caller null and the download saves a
+  // file containing the word "null". This takes the same auth header and the same one-shot
+  // refresh, and returns the body as text. (T45 H4)
+  async getText(endpoint: string): Promise<string> {
+    const url = `${this.baseUrl}${endpoint}`;
+    const headers: Record<string, string> = {
+      ...(this.accessToken && { Authorization: `Bearer ${this.accessToken}` }),
+    };
+    let response = await fetchWithTimeout(url, { headers });
+    if (response.status === 401 && this.refreshToken) {
+      const refreshed = await this.refreshAccessToken();
+      if (refreshed === 'ok') {
+        headers.Authorization = `Bearer ${this.accessToken}`;
+        response = await fetchWithTimeout(url, { headers });
+      }
+    }
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      let message = 'Request failed';
+      try { message = JSON.parse(body)?.error || message } catch { /* not JSON */ }
+      const error: ApiError = new Error(message);
+      error.status = response.status;
+      throw error;
+    }
+    return response.text();
+  }
+
   async action(endpoint: string, id: string | number, action: string, data: any = {}): Promise<any> {
     return this.request(`${endpoint}/${id}/${action}`, { method: 'POST', body: JSON.stringify(data) });
   }
