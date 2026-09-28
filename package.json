@@ -19,6 +19,7 @@
     "check:shared-deps": "bun run scripts/check-shared-deps.ts"
   },
   "devDependencies": {
+    "happy-dom": "^20.14.5",
     "turbo": "^2.10.12"
   },
   "//overrides": "Security: force patched versions of transitive production deps flagged by `bun audit --prod` (ws via supabase-realtime; fast-xml-parser/builder via aws-sdk-s3).",

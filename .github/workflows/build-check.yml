@@ -1761,6 +1761,9 @@ jobs:
         run: bun run tests/shared/loyalty-engine.test.ts
       - name: "Storefront proxies to crm-store fail soft"
         run: bun run tests/shared/storefront-proxy.test.ts
+      # happy-dom, so this needs the root dev dependencies — the two above are dependency-free.
+      - name: "The cart keeps a shopper's email and reward across a re-render"
+        run: bun install --frozen-lockfile && bun run tests/shared/cart-dom.test.ts
 
   store-suite:
     name: "Store behaviour suite (real PGlite)"
