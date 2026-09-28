@@ -274,7 +274,12 @@ app.get('/users', requirePermission('users:read'), async (c) => {
 
 app.post('/users', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
-  const schema = z.object({ email: z.string().email(), password: passwordSchema, firstName: z.string().min(1), lastName: z.string().min(1), phone: z.string().optional(), role: z.enum(['admin', 'manager', 'user', 'field']).default('user') })
+  // 'driver' and 'viewer' are in ROLE_PERMISSIONS and ROLE_HIERARCHY (middleware/permissions.ts) but
+  // were missing here, so nobody could be given either one. Every delivery driver therefore had to be
+  // created as a budtender, which carries orders:create, cash:create/update and contacts:create — a
+  // cash drawer for someone who only needs to move orders. 'user' stays the wire value the Settings
+  // screen sends for a budtender (ROLE_MAPPING maps user -> budtender); 'field' stays for older rows.
+  const schema = z.object({ email: z.string().email(), password: passwordSchema, firstName: z.string().min(1), lastName: z.string().min(1), phone: z.string().optional(), role: z.enum(['admin', 'manager', 'driver', 'viewer', 'user', 'field']).default('user') })
   // .catch: a missing or malformed body must not throw past validation into a
   // 500 — the caller gets a 400 that names the problem instead.
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
@@ -361,7 +366,7 @@ app.post('/users', requireAdmin, async (c) => {
 app.put('/users/:id', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const schema = z.object({ firstName: z.string().optional(), lastName: z.string().optional(), phone: z.string().optional(), role: z.enum(['admin', 'manager', 'user', 'field']).optional(), extraPermissions: z.array(z.enum(['users:read'])).optional(), isActive: z.boolean().optional() })
+  const schema = z.object({ firstName: z.string().optional(), lastName: z.string().optional(), phone: z.string().optional(), role: z.enum(['admin', 'manager', 'driver', 'viewer', 'user', 'field']).optional(), extraPermissions: z.array(z.enum(['users:read'])).optional(), isActive: z.boolean().optional() })
   // safeParse, not parse — a ZodError has no .status and the global handler
   // turns it into a 500 that production masks as "Internal server error".
   const parsed = schema.safeParse(await c.req.json().catch(() => ({})))

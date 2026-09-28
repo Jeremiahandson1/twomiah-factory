@@ -1018,8 +1018,10 @@ export default function SettingsPage() {
                         <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Role</label>
                         <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
                           <option value="user">Budtender — register sales, customers, ID checks, cash drawer; needs a manager for discounts, voids and refunds</option>
+                          <option value="driver">Driver — delivery runs only: their route, order status and stop check-offs. No register, no cash drawer</option>
                           <option value="manager">Manager — everything a budtender does plus approvals, inventory, batches, compliance and reports; not company settings or billing</option>
                           <option value="admin">Admin — full access, including company settings, billing and team</option>
+                          <option value="viewer">Viewer — read-only. Can open any page but cannot change anything</option>
                         </select>
                       </div>
                     </div>
