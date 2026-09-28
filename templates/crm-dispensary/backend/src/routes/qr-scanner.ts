@@ -201,11 +201,11 @@ async function buildQrData(companyId: string, entityType: string, entityId: stri
     let labResults = null
     if (batch) {
       const labResult = await db.execute(sql`
-        SELECT lt.total_thc, lt.total_cbd, lt.terpenes, lt.passed as pesticides_status
+        SELECT lt.total_thc, lt.total_cbd, lt.terpenes, lt.pesticides as pesticides_status
         FROM lab_tests lt
         JOIN batches b ON b.id = lt.batch_id
         WHERE b.product_id = ${entityId}
-        ORDER BY lt.tested_at DESC LIMIT 1
+        ORDER BY lt.tested_at DESC NULLS LAST, lt.created_at DESC LIMIT 1
       `)
       labResults = ((labResult as any).rows || labResult)?.[0]
     }
@@ -235,7 +235,9 @@ async function buildQrData(companyId: string, entityType: string, entityId: stri
         thc: labResults.total_thc,
         cbd: labResults.total_cbd,
         terpenes: labResults.terpenes,
-        pesticides: labResults.pesticides_status ? 'pass' : 'fail',
+        // lab_tests.pesticides already holds 'pass' or 'fail'; the old query read lt.passed, a
+        // column that does not exist, and then coerced it to a boolean. (T45 H21)
+        pesticides: labResults.pesticides_status || null,
       } : null,
       growInputs: inputs.map((i: any) => ({
         name: i.name,

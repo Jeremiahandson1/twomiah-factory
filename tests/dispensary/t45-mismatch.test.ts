@@ -59,6 +59,7 @@ for (const [mount, file] of [
   ['/api/reports', 'reports'],
   ['/api/batches', 'batches'],
   ['/api/integrations', 'integrations'],
+  ['/api/qr-scanner', 'qr-scanner'],
 ] as const) {
   app.route(mount, (await import(`./src/routes/${file}.ts`)).default)
 }
@@ -170,6 +171,11 @@ if (qrRes.status === 200) {
   const body: any = await qrRes.json()
   check('H21: ...and carries the batch it found', !!body?.batch?.batchNumber, body?.batch)
 }
+
+// The authenticated generate path reads lab_tests too, and had the same non-existent column in it
+// (lt.passed) - so printing a label for a product that has a batch 500'd as well.
+const qrGen = await asManager('GET', `/api/qr-scanner/generate/product/${prod.id}`)
+check('H21: generating a product QR with a batch present works', qrGen.status === 200, { status: qrGen.status, body: qrGen.json })
 
 // ── H13: grow inputs ────────────────────────────────────────────────────────────────────────────
 const input = await asManager('POST', '/api/grow-inputs', {
