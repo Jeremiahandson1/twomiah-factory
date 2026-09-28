@@ -81,6 +81,7 @@ export default function AnalyticsPage() {
       setCustomerMetrics({
         newCustomers: Number(customersRes?.newCustomers || 0),
         returningCustomers: Number(customersRes?.returningCustomers || 0),
+        repeatCustomers: Number(customersRes?.repeatCustomers || 0),
         retentionRate: Number(customersRes?.retentionRate || 0),
         avgVisits: Number(customersRes?.avgVisits || 0),
         lifetimeValue: Number(customersRes?.lifetimeValue || 0),
@@ -316,9 +317,18 @@ export default function AnalyticsPage() {
               <p className="text-sm text-gray-500 dark:text-slate-400">New Customers</p>
               <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{customerMetrics?.newCustomers || 0}</p>
             </div>
+            {/* Returning and Repeat answer different questions and both have to be on screen.
+                Returning = shopped here before this window opened, and it adds up with New to equal
+                Unique. Repeat = came back INSIDE the window, which is what retention is built from.
+                Showing only Returning is why "0 returning" sat beside "4.9 visits each" and read as
+                a bug. (T42 M4, shipped half-done — T43) */}
             <div className="p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
-              <p className="text-sm text-gray-500 dark:text-slate-400">Returning</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400" title="Shopped here before this period started">Returning</p>
               <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{customerMetrics?.returningCustomers || 0}</p>
+            </div>
+            <div className="p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
+              <p className="text-sm text-gray-500 dark:text-slate-400" title="Bought more than once inside this period — what Retention Rate is based on">Repeat</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{customerMetrics?.repeatCustomers || 0}</p>
             </div>
             <div className="p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
               <p className="text-sm text-gray-500 dark:text-slate-400">Retention Rate</p>

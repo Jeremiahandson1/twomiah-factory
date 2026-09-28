@@ -108,6 +108,67 @@ check('H1: no adult-use excise on a medical sale', medRow.excise === 0, medRow)
 check('H1: sales tax still applies — $40 at 10%', medRow.sales === 4, medRow)
 check('H1: total is $44.00, not the $50.00 T42 measured', medRow.total === 44, medRow)
 
+// ─────────────── T43 N1: asking for medical without a card must achieve nothing
+// The first fix honoured the caller's flag for anyone 21+, on the reasoning that an adult may
+// lawfully buy either way. True — but it never required them to HOLD a card, so any staff token
+// could POST isMedical:true and waive the excise. Every one of these was accepted in run T43.
+const claims = [
+  ['no card at all', adultNoCard.id, 'OH-FAKE-1'],
+  ['an expired card', expiredCard.id, 'OH-MED-0003'],
+] as const
+for (const [label, contactId, claimedCard] of claims) {
+  const r = await till('POST', '/api/orders', { ...posSale(contactId), isMedical: true, medicalCardNumber: claimedCard })
+  if (r.status === 201) {
+    const row = await saved(r.json?.id)
+    check(`N1: claiming medical with ${label} is ignored`, row.isMedical === false, row)
+    check(`N1: ...so the excise is still charged (${label})`, row.excise === 6, row)
+    check(`N1: ...and no card is recorded (${label})`, row.card === null, row)
+  } else {
+    // A refusal is an equally good outcome for the expired-card case, which is underage.
+    check(`N1: claiming medical with ${label} is refused outright`, r.status === 403, r)
+  }
+}
+
+const anon = await till('POST', '/api/orders', {
+  items: [{ productId: flower.id, quantity: 1 }], type: 'walk_in', paymentMethod: 'cash', idVerified: true, isMedical: true,
+})
+check('N1: an anonymous walk-in cannot claim medical', anon.status === 201, anon.json)
+if (anon.status === 201) {
+  const row = await saved(anon.json?.id)
+  check('N1: ...it is saved adult-use with excise charged', row.isMedical === false && row.excise === 6, row)
+}
+
+const merchOnly = await db.insert(product).values({
+  name: 'Branded Tee', sku: 'TEE-1', category: 'accessory', price: '25',
+  stockQuantity: 50, trackInventory: true, taxCategory: 'non_cannabis', companyId: co.id,
+} as any).returning()
+const merchSale = await till('POST', '/api/orders', {
+  contactId: patient19.id, items: [{ productId: merchOnly[0].id, quantity: 1 }],
+  type: 'walk_in', paymentMethod: 'cash', idVerified: true, isMedical: true,
+})
+check('N1: a basket with no cannabis is never a medical sale', merchSale.status === 201, merchSale.json)
+if (merchSale.status === 201) {
+  check('N1: ...so it cannot inflate medical_orders in the compliance report',
+    (await saved(merchSale.json?.id)).isMedical === false, await saved(merchSale.json?.id))
+}
+
+// ─────────────── T43 H1: the register sends no field, and a 21+ patient must still get the exemption
+const registerPatient = await till('POST', '/api/orders', posSale(adultWithCard.id))
+check('H1: the register\'s payload is accepted for a 30-year-old patient', registerPatient.status === 201, registerPatient.json)
+const regRow = await saved(registerPatient.json?.id)
+check('H1: a 21+ card holder is medical by default — the till does not have to ask', regRow.isMedical === true, regRow)
+check('H1: ...so they stop paying adult-use excise', regRow.excise === 0, regRow)
+check('H1: ...total is $44.00, not the $50.00 T43 measured', regRow.total === 44, regRow)
+
+const optedOut = await till('POST', '/api/orders', { ...posSale(adultWithCard.id), isMedical: false })
+check('H1: a patient can still deliberately buy adult-use', optedOut.status === 201, optedOut.json)
+const optRow = await saved(optedOut.json?.id)
+check('H1: ...keeping their medical allotment for another day', optRow.isMedical === false && optRow.excise === 6, optRow)
+
+const minorOptOut = await till('POST', '/api/orders', { ...posSale(patient19.id), isMedical: false })
+check('H1: an 18-to-20-year-old cannot opt out — adult-use is not lawful for them', minorOptOut.status === 201, minorOptOut.json)
+check('H1: ...their sale stays medical', (await saved(minorOptOut.json?.id)).isMedical === true, await saved(minorOptOut.json?.id))
+
 // ───────────────────────────────────── the adult-use path is untouched
 const rec = await till('POST', '/api/orders', posSale(adultNoCard.id))
 check('adult-use: accepted', rec.status === 201, rec.json)
@@ -116,19 +177,17 @@ check('adult-use: still recorded as recreational', recRow.isMedical === false, r
 check('adult-use: still pays the 15% excise — $6.00', recRow.excise === 6, recRow)
 check('adult-use: total is $50.00', recRow.total === 50, recRow)
 
-// A 30-year-old with a card may buy either way; the till's choice stands rather than being overridden.
-const adultChoice = await till('POST', '/api/orders', posSale(adultWithCard.id))
-check('21+: accepted', adultChoice.status === 201, adultChoice.json)
-const adultRow = await saved(adultChoice.json?.id)
-check('21+: a card holder over 21 is NOT forced to medical — their choice stands', adultRow.isMedical === false, adultRow)
-check('21+: so they pay adult-use excise', adultRow.excise === 6, adultRow)
-
-// ...and when they do choose medical, it is honoured and exempt.
-const adultMed = await till('POST', '/api/orders', { ...posSale(adultWithCard.id), isMedical: true, medicalCardNumber: 'OH-MED-0002' })
+// A 30-year-old WITH a card is medical by default — see the H1 block above. The original version of
+// this file asserted the opposite ("their choice stands"), which is the design T43 N1 broke open:
+// honouring the caller's flag without requiring a card is what let anyone waive the excise. The
+// choice still exists, but it is now an opt-OUT, and it is exercised above.
+const adultMed = await till('POST', '/api/orders', { ...posSale(adultWithCard.id), isMedical: true })
 check('21+: a declared medical sale is accepted', adultMed.status === 201, adultMed.json)
 const adultMedRow = await saved(adultMed.json?.id)
 check('21+: declared medical is recorded as medical', adultMedRow.isMedical === true, adultMedRow)
 check('21+: and is excise-exempt', adultMedRow.excise === 0, adultMedRow)
+check('21+: the card on the CONTACT is what gets stored, not one sent with the order',
+  adultMedRow.card === 'OH-MED-0002', adultMedRow)
 
 // ───────────────────────────────────── the refusals that must keep working
 const expired = await till('POST', '/api/orders', posSale(expiredCard.id))

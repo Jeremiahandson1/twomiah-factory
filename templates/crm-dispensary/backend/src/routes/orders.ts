@@ -83,8 +83,10 @@ type AgeGate = { refusal: { status: 403; body: any } | null; isMedical: boolean;
 
 async function checkAgeGate(ord: any, items: any[], idVerified: boolean): Promise<AgeGate> {
   const hasCannabis = items.some(i => isCannabisLine(i))
-  const asSent: AgeGate = { refusal: null, isMedical: !!ord.isMedical, medicalCardNumber: ord.medicalCardNumber ?? null }
-  if (!hasCannabis) return asSent
+  // A basket with no cannabis in it is not a medical sale, whatever the caller said. There is no
+  // excise to exempt, and letting the flag through would still have counted a t-shirt under
+  // medical_orders in the compliance report.
+  if (!hasCannabis) return { refusal: null, isMedical: false, medicalCardNumber: null }
   let dob: string | null = ord.customerDob || null
   // The medical card lives on the CONTACT, with its expiry — the order only carries one if the till happened
   // to repeat it. So an 18-to-20-year-old patient with a card on file was enrolled happily and then refused
@@ -101,19 +103,39 @@ async function checkAgeGate(ord: any, items: any[], idVerified: boolean): Promis
     cardOnFile = ct?.card && !expired ? (ct.card as any) : null
   }
   const age = ageFromDob(dob)
-  // Spelled out rather than via `card` below: check-refund-units-and-gates.ts pins this exact call,
-  // because reading the card off the CONTACT is what let an 18-to-20-year-old patient buy at all (T20 M8).
-  const minAge = minimumAgeFor({ isMedical: ord.isMedical || !!cardOnFile, medicalCardNumber: ord.medicalCardNumber || cardOnFile })
-  const card = ord.medicalCardNumber || cardOnFile
+  // The card that counts is the one on the CONTACT RECORD, checked for expiry — never one typed
+  // into the request. Falling back to ord.medicalCardNumber meant a caller could supply any string
+  // and have it treated as a valid card: it waived the excise (T43 N1) and, worse, it lowered the
+  // minimum age, so an 18-year-old with an invented card number could be sold to. An unverifiable
+  // card is not a card. A genuine walk-in patient gets a customer record with their card on it.
+  // (T20 M8 established reading from the contact; this removes the hole left beside it.)
+  const card = cardOnFile
+  const minAge = minimumAgeFor({ isMedical: ord.isMedical || !!cardOnFile, medicalCardNumber: cardOnFile })
 
-  // Under 21 with a valid card, this sale can only lawfully be a medical one — there is no adult-use
-  // reading of it — so it is recorded as medical whatever the till said, and the card goes on the
-  // order (it was always null before, even on orders flagged medical). At 21+ the customer may
-  // legitimately buy either way, so their choice stands.
+  // Whether a sale is MEDICAL is the server's answer, never the caller's.
+  //
+  // The previous version honoured the caller's flag for anyone 21+, reasoning that an adult may
+  // lawfully buy either way — true, but it never required them to actually HOLD a card. So any
+  // signed-in staff token, script or integration could POST isMedical:true and waive the excise on
+  // a sale to a 35-year-old with no card at all. That is tax evasion by API call. (T43 N1)
+  //
+  // The rule now: a sale is medical when the customer holds a card that is valid on the sale date.
+  //   · no valid card         → never medical, whatever was sent
+  //   · under 21 with a card  → always medical; adult-use is not lawful for them at all
+  //   · 21+ with a card       → medical by default, which is what fixes the register (T43 H1 — it
+  //                             sends no field, so every patient over 21 was paying adult-use
+  //                             excise). They can still deliberately buy adult-use by sending
+  //                             isMedical:false, because a patient may want to keep their medical
+  //                             allotment for another day.
   const under21 = age != null && age < ADULT_USE_MIN_AGE
-  const resolved: AgeGate = under21 && card
-    ? { refusal: null, isMedical: true, medicalCardNumber: card }
-    : { refusal: null, isMedical: !!ord.isMedical, medicalCardNumber: ord.medicalCardNumber ?? null }
+  const optedOutOfMedical = ord.isMedical === false
+  const isMedical = !!card && (under21 || !optedOutOfMedical)
+  const resolved: AgeGate = {
+    refusal: null,
+    isMedical,
+    // The card that authorised it, stored on the order so an audit can see which one it was.
+    medicalCardNumber: isMedical ? card : null,
+  }
 
   if (age != null && age < minAge) {
     return { ...resolved, refusal: { status: 403, body: { error: `Customer is ${age} — cannabis sales require ${minAge}+`, code: 'underage', age, minAge } } }
@@ -233,7 +255,11 @@ app.post('/', requireRole('budtender'), async (c) => {
     customerName: z.string().optional(),
     customerId: z.string().optional(), // state ID for compliance
     customerDob: z.string().optional(),
-    isMedical: z.boolean().default(false),
+    // Optional, NOT defaulted to false: the server has to tell "the till said nothing" apart from
+    // "this patient is deliberately buying adult-use today". Defaulting collapsed the two, so a
+    // register that sends no field looked like an opt-out and every 21+ patient paid the excise.
+    // (T43 H1)
+    isMedical: z.boolean().optional(),
     medicalCardNumber: z.string().optional(),
     paymentMethod: z.enum(['cash', 'debit', 'credit', 'check', 'ach', 'split', 'other']).optional(),
     idVerified: z.boolean().default(false),
@@ -724,6 +750,18 @@ app.post('/:id/complete', requireRole('budtender'), async (c) => {
   {
     const gate = await checkAgeGate(existing, items, idVerifiedNow)
     if (gate.refusal) return c.json(gate.refusal.body, gate.refusal.status)
+
+    // The card is checked again HERE, not only when the order was raised. A sale can sit pending
+    // across the day its card expires, and settling it then would move regulated product against an
+    // authorisation that had lapsed — with the excise already waived at create time. Refuse rather
+    // than quietly re-tax it, because the price the customer was quoted is no longer the right one.
+    // (T43 N1)
+    if ((existing as any).isMedical && !gate.isMedical) {
+      return c.json({
+        error: 'This order was raised as a medical sale, but the customer no longer has a valid medical card. Check the card, then raise it again.',
+        code: 'medical_card_no_longer_valid',
+      }, 403)
+    }
   }
 
   // Re-verify stock at completion. The create-time oversell check can go stale if the same units

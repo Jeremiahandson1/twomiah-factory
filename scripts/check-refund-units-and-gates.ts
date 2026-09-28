@@ -38,7 +38,12 @@ if (!/weightGrams: unitGramsOf\(prod\) > 0 \? String\(round2\(unitGramsOf\(prod\
 if (!/card: contact\.medicalCardNumber, expiry: contact\.medicalCardExpiry/.test(ord)) fail("the age gate must read the customer's card on file, not only the one typed onto the order")
 if (!/const expired = ct\?\.expiry \? endOfExpiryDay\(ct\.expiry\) < Date\.now\(\) : false/.test(ord)) fail('…and must treat an expired card as no card')
 if (!/cardOnFile = ct\?\.card && !expired \? \(ct\.card as any\) : null/.test(ord)) fail('…so only a card that is still valid lowers the age')
-if (!/minimumAgeFor\(\{ isMedical: ord\.isMedical \|\| !!cardOnFile, medicalCardNumber: ord\.medicalCardNumber \|\| cardOnFile \}\)/.test(ord)) fail('…and the minimum age must be computed from that card')
+// The card that lowers the age limit must be the one on the CONTACT, never one supplied with the
+// request. The old form fell back to `ord.medicalCardNumber || cardOnFile`, which let a caller
+// invent a card number and be sold to at 18 — and waive the excise with it (T43 N1). Pinned in the
+// stricter shape so the fallback cannot come back.
+if (!/minimumAgeFor\(\{ isMedical: ord\.isMedical \|\| !!cardOnFile, medicalCardNumber: cardOnFile \}\)/.test(ord)) fail('…and the minimum age must be computed from the card ON THE CONTACT, not one sent with the order')
+if (/medicalCardNumber: ord\.medicalCardNumber \|\| cardOnFile/.test(ord)) fail('a card number sent with the order must not stand in for one on the contact record — that is how an invented card lowered the age limit (T43 N1)')
 
 // M10 (the screen) — the manager picks the lines, the units, and whether the shelf gets them back
 const page = read('templates/crm-dispensary/frontend/src/pages/OrderDetailPage.tsx')

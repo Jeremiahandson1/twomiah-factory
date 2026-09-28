@@ -269,7 +269,7 @@ export default function LoyaltyPage() {
           <div className="flex items-center gap-3 mb-4">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
-                type="checkbox"
+                type="checkbox" disabled={!isAdmin}
                 checked={config.isEnabled}
                 onChange={(e) => setConfig({ ...config, isEnabled: e.target.checked })}
                 className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
@@ -281,7 +281,7 @@ export default function LoyaltyPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Points per Dollar Spent</label>
             <input
-              type="number"
+              type="number" disabled={!isAdmin}
               value={config.pointsPerDollar}
               onChange={(e) => setConfig({ ...config, pointsPerDollar: e.target.value })}
               className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
@@ -291,7 +291,7 @@ export default function LoyaltyPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Welcome Bonus Points</label>
             <input
-              type="number"
+              type="number" disabled={!isAdmin}
               value={config.welcomePoints}
               onChange={(e) => setConfig({ ...config, welcomePoints: e.target.value })}
               className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
@@ -301,7 +301,7 @@ export default function LoyaltyPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Birthday Bonus Points</label>
             <input
-              type="number"
+              type="number" disabled={!isAdmin}
               value={config.birthdayBonus}
               onChange={(e) => setConfig({ ...config, birthdayBonus: e.target.value })}
               className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
@@ -314,7 +314,7 @@ export default function LoyaltyPage() {
               <div>
                 <label className="block text-sm text-gray-600 mb-1 dark:text-slate-400">Silver</label>
                 <input
-                  type="number"
+                  type="number" disabled={!isAdmin}
                   value={config.tierThresholds.silver}
                   onChange={(e) => setConfig({
                     ...config,
@@ -326,7 +326,7 @@ export default function LoyaltyPage() {
               <div>
                 <label className="block text-sm text-gray-600 mb-1 dark:text-slate-400">Gold</label>
                 <input
-                  type="number"
+                  type="number" disabled={!isAdmin}
                   value={config.tierThresholds.gold}
                   onChange={(e) => setConfig({
                     ...config,
@@ -338,7 +338,7 @@ export default function LoyaltyPage() {
               <div>
                 <label className="block text-sm text-gray-600 mb-1 dark:text-slate-400">Platinum</label>
                 <input
-                  type="number"
+                  type="number" disabled={!isAdmin}
                   value={config.tierThresholds.platinum}
                   onChange={(e) => setConfig({
                     ...config,
