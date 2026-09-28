@@ -66,6 +66,17 @@ jobs:
       - name: Every resource gated in a route must be granted to a role in BASE_ROLE_PERMISSIONS (or owner-only by design)
         run: bun run scripts/check-permission-vocabulary.ts
 
+  no-op-auth-middleware:
+    name: permissions — a guard that always calls next() is not a guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: An auth-shaped middleware that never refuses must not be used to gate a route
+        run: bun run scripts/check-no-op-auth-middleware.ts
+
   public-routes-reachable:
     name: routing — a deliberately public route is still reachable
     runs-on: ubuntu-latest

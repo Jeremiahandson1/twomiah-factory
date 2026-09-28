@@ -4,8 +4,7 @@ import { db } from '../../db/index.ts'
 import { lead, leadSource } from '../../db/schema.ts'
 import { clients } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc, sql, gte } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
@@ -113,7 +112,7 @@ app.use('*', authenticate)
 
 // ─── Lead Sources CRUD ─────────────────────────────────────────────────────────
 
-app.get('/sources', requirePermission('contacts:read'), async (c) => {
+app.get('/sources', async (c) => {
   const currentUser = c.get('user') as any
   const sources = await db.select().from(leadSource)
     .where(eq(leadSource.companyId, currentUser.companyId))
@@ -121,7 +120,7 @@ app.get('/sources', requirePermission('contacts:read'), async (c) => {
   return c.json({ data: sources })
 })
 
-app.post('/sources', requirePermission('contacts:create'), async (c) => {
+app.post('/sources', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.json()
   const inboundEmail = `leads+${currentUser.companyId.slice(0, 8)}-${body.platform}@inbound.twomiah.com`
@@ -148,7 +147,7 @@ app.post('/sources', requirePermission('contacts:create'), async (c) => {
   return c.json(source, 201)
 })
 
-app.put('/sources/:id', requirePermission('contacts:update'), async (c) => {
+app.put('/sources/:id', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const body = await c.req.json()
@@ -166,7 +165,7 @@ app.put('/sources/:id', requirePermission('contacts:update'), async (c) => {
   return c.json(updated)
 })
 
-app.delete('/sources/:id', requirePermission('contacts:delete'), async (c) => {
+app.delete('/sources/:id', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -182,7 +181,7 @@ app.delete('/sources/:id', requirePermission('contacts:delete'), async (c) => {
 
 // ─── Lead Inbox CRUD ────────────────────────────────────────────────────────────
 
-app.get('/', requirePermission('contacts:read'), async (c) => {
+app.get('/', async (c) => {
   const currentUser = c.get('user') as any
   const status = c.req.query('status')
   const source = c.req.query('source')
@@ -211,7 +210,7 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
   return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
 })
 
-app.get('/stats', requirePermission('contacts:read'), async (c) => {
+app.get('/stats', async (c) => {
   const currentUser = c.get('user') as any
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 
@@ -257,7 +256,7 @@ app.get('/stats', requirePermission('contacts:read'), async (c) => {
   return c.json({ stats, totals })
 })
 
-app.put('/:id/status', requirePermission('contacts:update'), async (c) => {
+app.put('/:id/status', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { status } = await c.req.json()
@@ -275,7 +274,7 @@ app.put('/:id/status', requirePermission('contacts:update'), async (c) => {
   return c.json(updated)
 })
 
-app.post('/:id/convert', requirePermission('contacts:create'), async (c) => {
+app.post('/:id/convert', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -312,7 +311,7 @@ app.post('/:id/convert', requirePermission('contacts:create'), async (c) => {
   return c.json({ lead: { ...existing, status: 'converted' }, contact: newContact })
 })
 
-app.delete('/:id', requirePermission('contacts:delete'), async (c) => {
+app.delete('/:id', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
