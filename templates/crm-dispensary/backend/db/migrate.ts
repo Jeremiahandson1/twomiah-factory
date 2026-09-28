@@ -243,6 +243,34 @@ const ENSURE_COLUMNS_SQL = `
   UPDATE "loyalty_members" SET "lifetime_points" = COALESCE("total_points_earned", 0)
     WHERE COALESCE("lifetime_points", 0) <> COALESCE("total_points_earned", 0);
 
+  -- Tiers are now earned over a rolling window summed from loyalty_transactions rather than from a
+  -- never-resetting counter. Two things follow. The sum is per member over a date range, so it wants
+  -- an index. And an existing shop's history is NOT fully in the ledger: points awarded before the
+  -- ledger existed, and referral rewards, which wrote no ledger row until that was fixed. Switching
+  -- the window on without allowing for that would demote real customers on the day it shipped.
+  -- One carryover row per member covers the difference, so nobody loses standing at the cutover and
+  -- the grandfathered amount ages out naturally over the next twelve months. Idempotent: a member
+  -- who already has a carryover row is skipped.
+  CREATE INDEX IF NOT EXISTS "loyalty_tx_member_created" ON "loyalty_transactions" ("member_id", "created_at");
+
+  INSERT INTO "loyalty_transactions"("id", "member_id", "type", "points", "balance_after", "description", "company_id", "created_at")
+  SELECT gen_random_uuid(), m."id", 'carryover',
+         GREATEST(0, COALESCE(m."total_points_earned", 0) - COALESCE(w.pts, 0)),
+         COALESCE(m."points_balance", 0),
+         'Tier history carried over when rolling tiers were switched on',
+         m."company_id", NOW()
+  FROM "loyalty_members" m
+  LEFT JOIN (
+    SELECT t."member_id" AS mid, COALESCE(SUM(t."points"), 0) AS pts
+    FROM "loyalty_transactions" t
+    WHERE t."type" <> 'redeem' AND t."created_at" >= NOW() - INTERVAL '12 months'
+    GROUP BY t."member_id"
+  ) w ON w.mid = m."id"
+  WHERE GREATEST(0, COALESCE(m."total_points_earned", 0) - COALESCE(w.pts, 0)) > 0
+    AND NOT EXISTS (
+      SELECT 1 FROM "loyalty_transactions" x WHERE x."member_id" = m."id" AND x."type" = 'carryover'
+    );
+
   -- New tables -----------------------------------------------------------------
   CREATE TABLE IF NOT EXISTS "sms_conversations" (
     "id" TEXT PRIMARY KEY,

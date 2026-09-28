@@ -113,6 +113,7 @@ import mediaRoutes from './routes/media.ts'
 import { normalizeTimestamps } from './utils/isoTime.ts'
 import { ensureIntegrationPartners } from './services/integrationCatalog.ts'
 import { ensureEquivalencyRules } from './services/equivalency.ts'
+import { startLoyaltyTierSweep } from './services/loyaltyTierSweep.ts'
 
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
@@ -593,6 +594,12 @@ ensureIntegrationPartners()
 ensureEquivalencyRules()
   .then((n) => { if (n) logger.info(`[equivalency] seeded standard flower-equivalency rules for ${n} compan${n === 1 ? 'y' : 'ies'}`) })
   .catch((err) => console.error('[equivalency] rule seed failed:', err?.message || err))
+
+// Tiers are earned over a rolling window, and every point event re-tiers the member on the spot —
+// so anyone still shopping is always correct at the moment a discount is applied. This pass exists
+// for the customer who stops coming in: nothing happens to them, so nothing would ever expire their
+// tier. Once a day, five minutes after boot.
+startLoyaltyTierSweep()
 
 const shutdown = async (signal: string) => {
   logger.info(`${signal} received, shutting down gracefully`)

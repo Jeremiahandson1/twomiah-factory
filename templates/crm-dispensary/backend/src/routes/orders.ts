@@ -1267,16 +1267,19 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
           AND company_id = ${currentUser.companyId}
       `)
 
-      // Re-evaluate tier against the reduced lifetime points so a refund can demote — otherwise
-      // a customer keeps a tier earned entirely from returned goods. (retest#10)
-      await recomputeTier(tx, currentUser.companyId, { contactId: existing.contactId })
-
+      // The reversal row goes in FIRST: the tier is summed from the ledger, so a claw-back that has
+      // not been written yet is invisible to the recompute and the demotion would land one refund
+      // late.
       await tx.execute(sql`
         INSERT INTO loyalty_transactions(id, member_id, type, points, balance_after, order_id, description, company_id, created_at)
         SELECT gen_random_uuid(), lm.id, 'reversal', ${-pointsToReverse}, COALESCE(lm.points_balance::numeric, 0), ${id}, ${'Refund ' + existing.number + ': ' + data.reason}, ${currentUser.companyId}, NOW()
         FROM loyalty_members lm
         WHERE lm.contact_id = ${existing.contactId} AND lm.company_id = ${currentUser.companyId}
       `)
+
+      // Re-evaluate tier against the reduced window so a refund can demote — otherwise a customer
+      // keeps a tier earned entirely from returned goods. (retest#10)
+      await recomputeTier(tx, currentUser.companyId, { contactId: existing.contactId })
     }
   })
   } catch (e: any) {

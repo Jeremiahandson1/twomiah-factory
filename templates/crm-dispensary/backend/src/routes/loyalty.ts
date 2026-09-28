@@ -184,15 +184,17 @@ app.post('/members/:id/adjust', requireRole('manager'), async (c) => {
     WHERE id = ${id}
   `)
 
-  // Re-evaluate tier so a manual adjustment can move the customer up or down, same as
-  // award/refund — every point-changing path recomputes tier consistently. (retest#13)
-  await recomputeTier(db, currentUser.companyId, { memberId: id })
-
-  // Log transaction
+  // Log transaction. This has to happen BEFORE the tier is recomputed: the tier is summed from the
+  // ledger over a rolling window, so an adjustment that has not been written yet does not exist as
+  // far as the recompute is concerned and every tier would land one event behind.
   await db.execute(sql`
     INSERT INTO loyalty_transactions(id, member_id, type, points, balance_after, description, company_id, created_at)
     VALUES (gen_random_uuid(), ${id}, ${data.points > 0 ? 'adjustment_add' : 'adjustment_subtract'}, ${appliedDelta}, ${newBalance}, ${data.reason}, ${currentUser.companyId}, NOW())
   `)
+
+  // Re-evaluate tier so a manual adjustment can move the customer up or down, same as
+  // award/refund — every point-changing path recomputes tier consistently. (retest#13)
+  await recomputeTier(db, currentUser.companyId, { memberId: id })
 
   audit.log({
     action: audit.ACTIONS.UPDATE,
