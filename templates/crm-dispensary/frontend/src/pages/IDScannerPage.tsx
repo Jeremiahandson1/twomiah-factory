@@ -19,6 +19,8 @@ const verificationColors: Record<string, string> = {
   expired: 'bg-red-100 text-red-700',
   flagged: 'bg-orange-100 text-orange-700',
   pending: 'bg-yellow-100 text-yellow-700',
+  // A scan that could not be read is a refusal, not a warning — it is the case that used to pass. (T45 BL1)
+  unreadable: 'bg-red-100 text-red-700',
 };
 
 export default function IDScannerPage() {
@@ -320,6 +322,7 @@ export default function IDScannerPage() {
                       {scanResult.status === 'verified' ? 'Identity Verified' :
                        scanResult.status === 'underage' ? 'UNDERAGE - DO NOT SERVE' :
                        scanResult.status === 'expired' ? 'EXPIRED ID' :
+                       scanResult.status === 'unreadable' ? 'COULD NOT READ ID - DO NOT SERVE' :
                        'Flagged - Review Required'}
                     </p>
                     <div className="flex gap-2 mt-1">

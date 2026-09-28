@@ -55,9 +55,22 @@ const printJobSchema = z.object({
   quantity: z.number().int().min(1).default(1),
 })
 
+// The Labels screen has always sent { templateId, productIds: [...], quantity } and this asked for a
+// single productId, so pressing Generate answered 400 "productId: Required" every time — the server
+// worked, and nothing that used it did. Both shapes are accepted; a run over several products is the
+// one the screen actually needs. (T45 BL5)
 const generateSchema = z.object({
-  productId: z.string().min(1),
   templateId: z.string().min(1),
+  productId: z.string().min(1).optional(),
+  productIds: z.array(z.string().min(1)).optional(),
+  batchId: z.string().min(1).optional(),
+  quantity: z.number().int().min(1).max(1000).optional(),
+}).transform((d, ctx) => {
+  const ids = [...new Set([...(d.productIds || []), ...(d.productId ? [d.productId] : [])])]
+  if (!ids.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['productIds'], message: 'Choose at least one product to label' })
+  }
+  return { ...d, productIds: ids }
 })
 
 // ==========================================
@@ -428,79 +441,128 @@ app.post('/generate', requireRole('budtender'), async (c) => {
   const template = ((tmplResult as any).rows || tmplResult)[0]
   if (!template) return c.json({ error: 'Template not found' }, 404)
 
-  // Get product
-  const prodResult = await db.execute(sql`
-    SELECT * FROM products
-    WHERE id = ${data.productId} AND company_id = ${currentUser.companyId}
-    LIMIT 1
-  `)
-  const prod = ((prodResult as any).rows || prodResult)[0]
-  if (!prod) return c.json({ error: 'Product not found' }, 404)
+  const fields = typeof template.fields === 'string' ? JSON.parse(template.fields) : template.fields
+  const perProduct: Array<{ productId: string; batchId: string | null; labelData: Record<string, any>; html: string }> = []
 
-  // Get batch if linked
-  let batch: any = null
-  if (prod.batch_id) {
-    const batchResult = await db.execute(sql`
-      SELECT * FROM batches
-      WHERE id = ${prod.batch_id} AND company_id = ${currentUser.companyId}
+  // One product at a time. The screen has always sent productIds[] and this took a single productId,
+  // so Generate answered 400 every time — the server worked and nothing that used it did. (T45 BL5)
+  for (const productId of data.productIds) {
+    const prodResult = await db.execute(sql`
+      SELECT * FROM products
+      WHERE id = ${productId} AND company_id = ${currentUser.companyId}
       LIMIT 1
     `)
+    const prod = ((prodResult as any).rows || prodResult)[0]
+    if (!prod) return c.json({ error: `Product not found: ${productId}` }, 404)
+
+    // The batch being labelled. Only a batch already pinned to the product was ever looked up, and
+    // nothing pins one — so batch_number and the Metrc tag printed blank on every label. Fall back
+    // to the product's current active batch, which is what a shop is physically labelling. (T45 BL5)
+    let batch: any = null
+    const pinned = prod.batch_id || data.batchId || null
+    const batchQuery = pinned
+      ? sql`SELECT * FROM batches WHERE id = ${pinned} AND company_id = ${currentUser.companyId} LIMIT 1`
+      : sql`SELECT * FROM batches WHERE company_id = ${currentUser.companyId} AND product_id = ${productId} AND status = 'active' ORDER BY received_date ASC NULLS LAST, created_at ASC LIMIT 1`
+    const batchResult = await db.execute(batchQuery)
     batch = ((batchResult as any).rows || batchResult)[0] || null
-  }
 
-  // Get lab test data if available
-  let labTest: any = null
-  const labResult = await db.execute(sql`
-    SELECT * FROM lab_tests
-    WHERE company_id = ${currentUser.companyId}
-      AND (product_id = ${data.productId} OR batch_id = ${prod.batch_id || null})
-    ORDER BY tested_at DESC
-    LIMIT 1
-  `)
-  labTest = ((labResult as any).rows || labResult)[0] || null
+    // Get lab test data if available
+    const labResult = await db.execute(sql`
+      SELECT * FROM lab_tests
+      WHERE company_id = ${currentUser.companyId}
+        AND (product_id = ${productId} OR batch_id = ${batch?.id || null})
+      ORDER BY tested_at DESC
+      LIMIT 1
+    `)
+    const labTest = ((labResult as any).rows || labResult)[0] || null
 
-  // Build resolved label data
-  const labelData: Record<string, any> = {
-    product_name: prod.name || '',
-    strain: prod.strain || '',
-    strain_type: prod.strain_type || '',
-    category: prod.category || '',
-    thc_percent: prod.thc_percent != null ? String(prod.thc_percent) : '',
-    cbd_percent: prod.cbd_percent != null ? String(prod.cbd_percent) : '',
-    weight: prod.weight != null ? `${prod.weight}${prod.weight_unit || 'g'}` : '',
-    price: prod.price != null ? `$${Number(prod.price).toFixed(2)}` : '',
-    sku: prod.sku || '',
-    metrc_tag: prod.metrc_tag || '',
-    batch_number: batch?.batch_number || '',
-    qr_code_data: JSON.stringify({
-      id: prod.id,
-      name: prod.name,
-      sku: prod.sku,
-      metrc_tag: prod.metrc_tag,
-      thc: prod.thc_percent,
-      cbd: prod.cbd_percent,
-      strain: prod.strain,
-    }),
-    barcode_value: prod.sku || prod.metrc_tag || '',
-    compliance_warnings: getComplianceWarnings(template.compliance_state),
-    lab_results_summary: null as any,
-  }
+    // Potency is not one number. Flower is a PERCENT; an edible is MILLIGRAMS per piece, and
+    // thc_percent is null on one of them — so a 100 mg chocolate bar printed "THC 0%". That is a
+    // potency claim on a compliance label, and it was wrong. (T45 BL5)
+    const mg = prod.thc_mg != null && String(prod.thc_mg).trim() !== '' ? Number(prod.thc_mg) : null
+    const pct = prod.thc_percent != null && String(prod.thc_percent).trim() !== '' ? Number(prod.thc_percent) : null
+    const thcLabel = mg && mg > 0 ? `${mg}mg` : pct && pct > 0 ? `${pct}%` : ''
 
-  if (labTest) {
-    labelData.lab_results_summary = {
-      lab: labTest.lab_name,
-      testedAt: labTest.tested_at,
-      totalThc: labTest.total_thc,
-      totalCbd: labTest.total_cbd,
-      terpenes: labTest.terpenes,
-      passed: labTest.passed,
+    const labelData: Record<string, any> = {
+      product_name: prod.name || '',
+      strain: prod.strain || '',
+      strain_type: prod.strain_type || '',
+      category: prod.category || '',
+      thc_percent: pct != null ? String(pct) : '',
+      thc_mg: mg != null ? String(mg) : '',
+      // What a label should actually print: the figure with the unit that belongs to this product.
+      thc: thcLabel,
+      cbd_percent: prod.cbd_percent != null ? String(prod.cbd_percent) : '',
+      weight: prod.weight != null ? `${prod.weight}${prod.weight_unit || 'g'}` : '',
+      price: prod.price != null ? `$${Number(prod.price).toFixed(2)}` : '',
+      sku: prod.sku || '',
+      metrc_tag: batch?.metrc_tag || prod.metrc_tag || '',
+      batch_number: batch?.batch_number || '',
+      expiration_date: batch?.expiration_date ? String(batch.expiration_date).slice(0, 10) : '',
+      qr_code_data: JSON.stringify({
+        id: prod.id,
+        name: prod.name,
+        sku: prod.sku,
+        metrc_tag: batch?.metrc_tag || prod.metrc_tag,
+        thc: thcLabel,
+        cbd: prod.cbd_percent,
+        strain: prod.strain,
+        batch: batch?.batch_number || null,
+      }),
+      barcode_value: prod.sku || batch?.metrc_tag || prod.metrc_tag || '',
+      compliance_warnings: getComplianceWarnings(template.compliance_state),
+      lab_results_summary: labTest ? {
+        lab: labTest.lab_name,
+        testedAt: labTest.tested_at,
+        totalThc: labTest.total_thc,
+        totalCbd: labTest.total_cbd,
+        terpenes: labTest.terpenes,
+        passed: labTest.passed,
+      } : null,
     }
+
+    perProduct.push({ productId, batchId: batch?.id || null, labelData, html: buildLabelHtml(template, fields, labelData) })
   }
 
-  const fields = typeof template.fields === 'string' ? JSON.parse(template.fields) : template.fields
-  const html = buildLabelHtml(template, fields, labelData)
+  // A print job per product. Generating labels recorded nothing at all, so the Print Jobs list was
+  // permanently empty and there was no record of what had been printed. (T45 L7)
+  const quantity = data.quantity ?? 1
+  const jobs: any[] = []
+  for (const p of perProduct) {
+    // Columns per schema.ts: printed_by (not created_by), label_data, no label_html and no
+    // updated_at. The rendered HTML is returned to the caller rather than stored — it is derived
+    // from the template and the data, both of which are recorded here.
+    const jobResult = await db.execute(sql`
+      INSERT INTO label_print_jobs (
+        id, company_id, template_id, product_id, batch_id,
+        quantity, status, label_data, printed_by, created_at
+      ) VALUES (
+        gen_random_uuid(), ${currentUser.companyId}, ${data.templateId},
+        ${p.productId}, ${p.batchId},
+        ${quantity}, 'pending',
+        ${JSON.stringify(p.labelData)}::jsonb, ${currentUser.userId}, NOW()
+      ) RETURNING *
+    `)
+    jobs.push(((jobResult as any).rows || jobResult)[0])
+  }
 
-  return c.json({ labelData, html, template: camel(template) })
+  audit.log({
+    action: audit.ACTIONS.CREATE,
+    entity: 'label_print_job',
+    entityId: jobs[0]?.id,
+    metadata: { templateId: data.templateId, quantity, products: data.productIds.length },
+    req: c,
+  })
+
+  // labelData/html keep the single-product shape older callers read; jobs + labels carry the run.
+  return c.json({
+    labelData: perProduct[0]?.labelData ?? {},
+    html: perProduct.map((p) => p.html).join('\n'),
+    labels: perProduct.map((p) => ({ productId: p.productId, batchId: p.batchId, labelData: p.labelData, html: p.html })),
+    jobs: jobs.map(camel),
+    job: camel(jobs[0]),
+    template: camel(template),
+  }, 201)
 })
 
 // ==========================================

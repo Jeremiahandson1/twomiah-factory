@@ -12,6 +12,7 @@ import jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import crypto from 'crypto'
 import { eq, and, gt } from 'drizzle-orm'
+import { redactCompanySettings, isPrivilegedRole } from './redactSettings'
 
 export interface AuthTables { user: any; company: any }
 export interface AuthOptions {
@@ -74,10 +75,16 @@ export function createAuthRoutes(deps: AuthDeps) {
 
   // One company payload for login AND /me — the frontend's trial gate reads settings.trialEndsAt and falls
   // back to createdAt + 30 days, so both must be present on both responses.
-  const companyPayload = (c: any) => ({
+  // `role` decides two things: secrets are stripped for EVERYONE, and the shop's commercial terms
+  // (plan, monthly amount, billing status, seats) are kept for whoever settles the bill. T45 M27
+  // asked whether a Stripe secret ever reaches a client — it did, to every role, the moment an
+  // owner filled in the Merch tab. See auth/redactSettings.ts.
+  const companyPayload = (c: any, role?: unknown) => ({
     id: c.id, name: c.name, slug: c.slug, logo: c.logo, primaryColor: c.primaryColor,
     phone: c.phone, email: c.email, address: c.address, city: c.city, state: c.state, zip: c.zip, website: c.website,
-    enabledFeatures: c.enabledFeatures, settings: c.settings, createdAt: c.createdAt,
+    enabledFeatures: c.enabledFeatures,
+    settings: redactCompanySettings(c.settings, { privileged: isPrivilegedRole(role) }),
+    createdAt: c.createdAt,
     visionUrl: options.visionUrl ? options.visionUrl() : null,
     vertical: options.vertical,
   })
@@ -153,7 +160,7 @@ export function createAuthRoutes(deps: AuthDeps) {
     const tokens = generateTokens(foundUser.id, foundUser.companyId, foundUser.email, foundUser.role)
     await storeRefreshToken(foundUser.id, tokens.refreshToken, { lastLogin: new Date() })
 
-    return c.json({ user: userPayload(foundUser, foundUser.role), company: companyPayload(foundCompany), ...tokens })
+    return c.json({ user: userPayload(foundUser, foundUser.role), company: companyPayload(foundCompany, permissions.normalizeRole(foundUser.role)), ...tokens })
   })
 
   app.post('/refresh', async (c) => {
@@ -188,7 +195,7 @@ export function createAuthRoutes(deps: AuthDeps) {
     if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
     return c.json({
       user: userPayload(foundUser, permissions.normalizeRole(foundUser.role)),
-      company: companyPayload(foundCompany),
+      company: companyPayload(foundCompany, permissions.normalizeRole(foundUser.role)),
       permissions: await effectivePermissions(foundUser.id, foundUser.role),
     })
   })

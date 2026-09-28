@@ -8,6 +8,7 @@ import { settledSale, taxCollected, taxNetExpr, exciseNetExpr, salesNetExpr, net
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { traceabilityStatus } from '../utils/stateTraceability.ts'
 
 const app = new Hono()
 // Manager and up, like the analytics and audit families beside it. Compliance reports are the
@@ -827,6 +828,18 @@ app.post('/reports/:id/submit', requireRole('manager'), async (c) => {
   const found = ((existing as any).rows || existing)[0]
   if (!found) return c.json({ error: 'Report not found' }, 404)
 
+  // Same rule as the waste report above: "submitted" is a claim about the STATE, not about this
+  // database, and it was being recorded with a timestamp on a shop connected to nothing. A report
+  // that has been generated and reviewed is still useful — it can be exported and filed by hand —
+  // so only the claim is refused, not the report. (T45 BL2)
+  const trace = await traceabilityStatus(currentUser.companyId, 'this report')
+  if (!trace.connected) {
+    return c.json({
+      error: trace.reason + ' You can still export the report and file it manually.',
+      code: 'traceability_not_connected',
+    }, 400)
+  }
+
   // compliance_reports has submitted_at but no submitted_by/updated_at; record who submitted in notes.
   const result = await db.execute(sql`
     UPDATE compliance_reports
@@ -947,6 +960,13 @@ app.put('/waste/:id/metrc', requireRole('manager'), async (c) => {
   `)
   const found = ((existing as any).rows || existing)[0]
   if (!found) return c.json({ error: 'Waste log not found' }, 404)
+
+  // Nothing is sent to the state unless the state can actually be reached. This used to write
+  // metrc_reported = true with a timestamp on a shop with no Metrc credentials at all, so the
+  // database claimed a notification that never happened — the kind of record that is only found
+  // during an audit. (T45 BL2)
+  const trace = await traceabilityStatus(currentUser.companyId, 'this waste')
+  if (!trace.connected) return c.json({ error: trace.reason, code: 'traceability_not_connected' }, 400)
 
   const result = await db.execute(sql`
     UPDATE waste_log

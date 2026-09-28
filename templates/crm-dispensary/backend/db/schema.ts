@@ -344,6 +344,14 @@ export const orderItem = pgTable('order_items', {
   weight: text('weight'),
   weightUnit: text('weight_unit'),
   taxCategory: text('tax_category'),
+  // WHICH batch this line came out of, and its state tag.
+  //
+  // Without these, a recall has no reach: run T45 BL4 recalled batch T45-B-001 and then sold that
+  // product, and there was no way to answer the only question a recall asks — who bought it. A
+  // dispensary that cannot produce that list during a recall has a regulatory problem, not a
+  // reporting one. Nullable, because a shop that does not run batches still sells.
+  batchId: text('batch_id'),
+  metrcTag: text('metrc_tag'),
 })
 
 // ==================== LOYALTY ====================

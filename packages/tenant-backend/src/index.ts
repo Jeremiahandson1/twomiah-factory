@@ -199,3 +199,4 @@ export { loyaltyConfig, loyaltyConfigResponse, LOYALTY_SETTING_KEYS, DEFAULT_POI
 export type { LoyaltyConfig, PunchCardConfig } from './loyalty/config'
 export { pointsForSale, punchCardProgress, visitQualifies, rewardDiscountCents, canRedeem } from './loyalty/engine'
 export type { Reward, RewardType, BasketLine, PunchCardState, PunchCardProgress, RedeemCheck, RedeemVocabulary } from './loyalty/engine'
+export { redactCompanySettings, isPrivilegedRole, SECRET_SETTING_PATHS, PRIVATE_SETTING_KEYS } from './auth/redactSettings'

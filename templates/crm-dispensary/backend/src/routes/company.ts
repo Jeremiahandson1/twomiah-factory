@@ -12,6 +12,7 @@ import { passwordSchema } from '../shared/index.ts'
 import { CRM_TEMPLATE } from '../config/template.ts'
 import { loyaltyConfigResponse, LOYALTY_SETTING_KEYS } from '../utils/loyaltyConfig.ts'
 import { storeTimeZone, isValidTimeZone } from '../utils/isoTime.ts'
+import { redactCompanySettings, isPrivilegedRole, SECRET_SETTING_PATHS } from '../shared/index.ts'
 import { forgetFeatures } from '../middleware/enabledFeature.ts'
 
 // The 50 states plus DC and the territories a licence can be issued in. A state code is not cosmetic
@@ -29,10 +30,14 @@ const app = new Hono()
 // returned the whole company row — including the Twilio auth token, account SID and Stripe
 // customer id — to any authenticated user, regardless of role.
 const COMPANY_SECRETS = ['twilioAuthToken', 'twilioAccountSid', 'stripeCustomerId', 'sendgridApiKey', 'smtpPassword'] as const
-function sanitizeCompany<T extends Record<string, any>>(row: T): T {
+function sanitizeCompany<T extends Record<string, any>>(row: T, role?: unknown): T {
   if (!row) return row
   const clone: any = { ...row }
   for (const f of COMPANY_SECRETS) delete clone[f]
+  // COMPANY_SECRETS strips the row's own secret COLUMNS. Nothing looked inside `settings`, and the
+  // Merch tab writes a Stripe SECRET key straight into it — so the blob went out whole, to every
+  // role, on this route and on /auth/me. (T45 M27, which asked for exactly this confirmation.)
+  clone.settings = redactCompanySettings(clone.settings, { privileged: isPrivilegedRole(role) })
   // Settings → Loyalty reads these flat keys; they live under settings.loyalty. Without them the
   // screen fell back to its own placeholder numbers and looked like it had loaded a saved config. (T21 M7)
   Object.assign(clone, loyaltyConfigResponse(row))
@@ -50,7 +55,7 @@ app.get('/', async (c) => {
   const currentUser = c.get('user') as any
   const [result] = await db.select().from(company).where(eq(company.id, currentUser.companyId)).limit(1)
   if (!result) return c.json({ error: 'Company not found' }, 404)
-  return c.json(sanitizeCompany(result))
+  return c.json(sanitizeCompany(result, currentUser?.role))
 })
 
 app.put('/', requireAdmin, async (c) => {
@@ -236,13 +241,33 @@ app.put('/', requireAdmin, async (c) => {
     // route iterates the request for exactly this reason; this fork iterated the merge.
     const asked = (data.settings && typeof data.settings === 'object') ? (data.settings as Record<string, unknown>) : {}
     for (const [k, v] of Object.entries(asked)) if (v === null) delete (base as any)[k]
+
+    // A secret is never read back (redactCompanySettings), so the Merch form loads with an empty box
+    // even when a key IS stored — and saving any other field on that tab would then write the empty
+    // box over it. An EMPTY incoming secret therefore means "leave it alone"; clearing one is done by
+    // sending an explicit null, which the rule above already handles. Without this, the fix for T45
+    // M27 would silently destroy the key it was protecting.
+    for (const path of SECRET_SETTING_PATHS) {
+      const parts = path.split('.')
+      const read = (root: any) => parts.reduce((o, k) => (o == null ? o : o[k]), root)
+      const incoming = read(asked)
+      if (incoming !== '' && incoming !== undefined) continue        // a real new value, or an explicit null
+      const stored = read((cur?.settings as any) || {})
+      if (stored === undefined || stored === null || stored === '') continue
+      let node: any = base
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (node[parts[i]] == null || typeof node[parts[i]] !== 'object') node[parts[i]] = {}
+        node = node[parts[i]]
+      }
+      node[parts[parts.length - 1]] = stored
+    }
     updates.settings = Object.keys(loyaltyPatch).length
       ? { ...base, loyalty: { ...((base as any).loyalty || {}), ...loyaltyPatch } }
       : base
   }
   const [result] = await db.update(company).set(updates).where(eq(company.id, currentUser.companyId)).returning()
   if (!result) return c.json({ error: 'Company not found' }, 404)
-  return c.json(sanitizeCompany(result))
+  return c.json(sanitizeCompany(result, currentUser?.role))
 })
 
 // The Features page renders THIS — the registry entries offered to this template — never a local
@@ -278,7 +303,7 @@ app.put('/features', requireAdmin, async (c) => {
   const [result] = await db.update(company).set({ enabledFeatures: next, updatedAt: new Date() }).where(eq(company.id, currentUser.companyId)).returning()
   forgetFeatures(currentUser.companyId) // so the very next request sees the switch the owner just flipped (M5)
   if (!result) return c.json({ error: 'Company not found' }, 404)
-  return c.json(sanitizeCompany(result))
+  return c.json(sanitizeCompany(result, currentUser?.role))
 })
 
 // User management (roster carries emails/roles) — require team:read.

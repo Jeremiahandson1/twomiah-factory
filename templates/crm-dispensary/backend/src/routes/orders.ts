@@ -309,10 +309,61 @@ app.post('/', requireRole('budtender'), async (c) => {
   // Largest per-unit price override below the catalog price (drives the price-override approval).
   let maxOverrideDelta = 0
 
+  // ── which batch is each line coming out of ────────────────────────────────────────────────────
+  //
+  // A recall that does not stop the register is not a recall. T45 BL4 set Blue Dream's batch to
+  // "recalled" and then sold Blue Dream, because nothing on the sale path had ever heard of batches.
+  //
+  // Two rules, and the second one is what keeps this from closing the shop:
+  //   · a product whose batches are ALL recalled or quarantined cannot be sold
+  //   · a product with NO batch rows sells exactly as before — plenty of shops do not run batches,
+  //     and refusing those sales would be a far worse bug than the one being fixed
+  const sellableBatch = new Map<string, any>()
+  const blockedProducts = new Map<string, string>()
+  {
+    const ids = [...new Set(data.items.map((i: any) => i.productId))]
+    if (ids.length) {
+      // sql.join, not ANY(${ids}) — a JS array reaches Postgres as one parameter and comes back
+      // "malformed array literal", which in this position would 500 every sale in the shop.
+      const idList = sql.join(ids.map((i) => sql`${i}`), sql`, `)
+      const rows: any = await db.execute(sql`
+        SELECT id, product_id, batch_number, metrc_tag, status, current_quantity, received_date
+        FROM batches
+        WHERE company_id = ${currentUser.companyId} AND product_id IN (${idList})
+        ORDER BY received_date ASC NULLS LAST, created_at ASC
+      `)
+      const byProduct = new Map<string, any[]>()
+      for (const b of ((rows as any).rows || rows)) {
+        byProduct.set(b.product_id, [...(byProduct.get(b.product_id) || []), b])
+      }
+      for (const [productId, list] of byProduct) {
+        // Oldest sellable batch first — the shop sells what came in first, and a recall then bites on
+        // exactly the stock a recall is about.
+        const usable = list.find((b) => b.status === 'active' && Number(b.current_quantity) > 0)
+          || list.find((b) => b.status === 'active')
+        if (usable) { sellableBatch.set(productId, usable); continue }
+        const worst = list.find((b) => b.status === 'recalled') || list[0]
+        blockedProducts.set(productId, String(worst?.status || 'unavailable'))
+      }
+    }
+  }
+
   for (const item of data.items) {
     const prod = productMap.get(item.productId)
     if (!prod) return c.json({ error: `Product not found: ${item.productId}` }, 400)
     if (!prod.active) return c.json({ error: `Product is not active: ${prod.name}` }, 400)
+
+    // Every batch of this product is recalled or held. Refusing here, at the till, is the whole
+    // point: the alternative is selling recalled product and finding out during the recall. (T45 BL4)
+    const blocked = blockedProducts.get(prod.id)
+    if (blocked) {
+      return c.json({
+        error: blocked === 'recalled'
+          ? `${prod.name} has been RECALLED and cannot be sold. Remove it from the order.`
+          : `${prod.name} has no sellable stock — every batch is ${blocked}. Remove it from the order.`,
+        code: 'batch_not_sellable', productId: prod.id, batchStatus: blocked,
+      }, 400)
+    }
 
     // Check stock
     if (prod.trackInventory && Number(prod.stockQuantity) < item.quantity) {
@@ -360,6 +411,10 @@ app.post('/', requireRole('budtender'), async (c) => {
       // Persist the RESOLVED tax category so reports, refunds and the age gate read the same
       // answer the tax math used (seeded products have tax_category NULL).
       taxCategory: isCannabis ? 'cannabis' : 'non_cannabis',
+      // The batch this came out of, so a recall can name the customers who bought it. Null when the
+      // shop does not run batches, which is a real and supported way to work. (T45 BL4)
+      batchId: sellableBatch.get(prod.id)?.id ?? null,
+      metrcTag: sellableBatch.get(prod.id)?.metrc_tag ?? null,
     })
   }
 
@@ -1449,6 +1504,21 @@ app.get('/:id/receipt', async (c) => {
     </tr>
   `).join('')
 
+  // Settings → Receipts saves a header, a footer and a show-logo switch, and nothing read any of
+  // them: every receipt said "Receipt" and "Thank you for your visit!" whatever the shop had typed.
+  // A settings screen that stores a value nothing uses is a promise the product does not keep. (T45 BL3)
+  const [receiptCo] = await db.select({ name: company.name, logo: company.logo, settings: company.settings, address: company.address, city: company.city, state: company.state, zip: company.zip, phone: company.phone })
+    .from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+  const receiptCfg = ((receiptCo?.settings as any) || {}).receipts || {}
+  const headerText = String(receiptCfg.headerText || '').trim()
+  const footerText = String(receiptCfg.footerText || '').trim()
+  const showLogo = receiptCfg.showLogo !== false && !!receiptCo?.logo
+  const shopLines = [
+    receiptCo?.address,
+    [receiptCo?.city, receiptCo?.state, receiptCo?.zip].filter(Boolean).join(' '),
+    receiptCo?.phone,
+  ].filter((l) => String(l || '').trim())
+
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Receipt ${escapeHtml(foundOrder.number)}</title>
 <style>
@@ -1462,9 +1532,15 @@ app.get('/:id/receipt', async (c) => {
   .totals td { padding: 2px; }
   .grand-total { font-weight: bold; font-size: 14px; border-top: 1px solid #000; }
   .footer { text-align: center; margin-top: 16px; font-size: 10px; color: #999; }
+  .logo { display: block; margin: 0 auto 8px; max-height: 64px; }
+  .shop { text-align: center; margin-bottom: 8px; }
+  .custom { text-align: center; white-space: pre-wrap; margin: 8px 0; }
 </style></head>
 <body>
-  <h2>Receipt</h2>
+  ${showLogo ? `<img class="logo" src="${escapeHtml(String(receiptCo!.logo))}" alt="">` : ''}
+  <h2>${escapeHtml(receiptCo?.name || 'Receipt')}</h2>
+  ${shopLines.length ? `<div class="shop">${shopLines.map((l) => escapeHtml(String(l))).join('<br>')}</div>` : ''}
+  ${headerText ? `<div class="custom">${escapeHtml(headerText)}</div>` : ''}
   <div class="info">
     Order: ${escapeHtml(foundOrder.number)}<br>
     Date: ${new Date(foundOrder.createdAt).toLocaleString()}<br>
@@ -1487,9 +1563,13 @@ app.get('/:id/receipt', async (c) => {
   </table>
   <div class="footer">
     Payment: ${escapeHtml((foundOrder as any).paymentMethod || 'N/A')}<br>
-    Thank you for your visit!<br>
-    This receipt is for your records.
+    ${footerText ? escapeHtml(footerText).replace(/\n/g, '<br>') : 'Thank you for your visit!<br>This receipt is for your records.'}
   </div>
+  <script>
+    // Opened to be printed. The dialog is what the till operator asked for when they pressed the
+    // button, so it opens by itself; ?print=0 is there for anyone wanting to read it on screen.
+    if (!location.search.includes('print=0')) window.addEventListener('load', () => window.print())
+  </script>
 </body></html>`
 
   return c.html(html)

@@ -175,8 +175,24 @@ app.post('/scan', requireRole('budtender'), async (c) => {
     const expirationDate = new Date(parsed.expiration)
     isExpired = expirationDate < new Date()
   }
-  const flagReason = [isUnderage ? `underage (${age})` : null, isExpired ? `expired ${parsed.expiration}` : null].filter(Boolean).join('; ') || null
-  const status = isUnderage ? 'underage' : isExpired ? 'expired' : 'verified'
+  // An age-verification tool FAILS CLOSED. A scan that yielded no date of birth has proved nothing —
+  // and "nothing" is not a pass.
+  //
+  // The guard above only catches a barcode scan with no rawData AT ALL. Send rawData that does not
+  // decode — a damaged barcode, the wrong side of the card, a scanner returning junk, or literally
+  // "garbage-not-an-id" as run T45 did — and parseDriverLicenseBarcode returns nothing, so dob is
+  // null, isUnderage and isExpired are both false by default, and this line handed back "verified"
+  // with no date of birth and no age on it. The one job of the device is to stop an underage sale,
+  // and the way it broke was to approve everything it could not read. (T45 BL1)
+  const unreadable = !parsed.dob
+  const flagReason = [
+    unreadable ? 'could not be read — no date of birth' : null,
+    isUnderage ? `underage (${age})` : null,
+    isExpired ? `expired ${parsed.expiration}` : null,
+  ].filter(Boolean).join('; ') || null
+  const status = unreadable ? 'unreadable' : isUnderage ? 'underage' : isExpired ? 'expired' : 'verified'
+  // Flagged, so it lands in the Flagged tab: the History view derives its status from is_flagged.
+  const isFlagged = unreadable || isUnderage || isExpired
 
   // Try to match an existing customer by name + DOB. The contact table stores a single
   // `name` column (no first_name/last_name) — the old query referenced columns that don't
@@ -204,7 +220,7 @@ app.post('/scan', requireRole('budtender'), async (c) => {
   // Log to id_scans table (flag_reason names WHY it was flagged so the Flagged tab is actionable)
   const result = await db.execute(sql`
     INSERT INTO id_scans (id, scan_method, raw_data, device_id, location_id, first_name, last_name, date_of_birth, expiration_date, id_state, id_number, id_type, age_at_scan, is_underage, is_expired, contact_id, is_flagged, flag_reason, company_id, scanned_by, created_at)
-    VALUES (gen_random_uuid(), ${data.scanMethod}, ${JSON.stringify(data.rawData ?? { manual: true })}::jsonb, ${data.deviceId || null}, ${data.locationId}, ${parsed.firstName}, ${parsed.lastName}, ${parsed.dob}, ${parsed.expiration}, ${parsed.state}, ${parsed.idNumber}, ${parsed.idType}, ${age}, ${isUnderage}, ${isExpired}, ${matchedContactId}, ${isUnderage || isExpired}, ${flagReason}, ${currentUser.companyId}, ${currentUser.userId}, NOW())
+    VALUES (gen_random_uuid(), ${data.scanMethod}, ${JSON.stringify(data.rawData ?? { manual: true })}::jsonb, ${data.deviceId || null}, ${data.locationId}, ${parsed.firstName}, ${parsed.lastName}, ${parsed.dob}, ${parsed.expiration}, ${parsed.state}, ${parsed.idNumber}, ${parsed.idType}, ${age}, ${isUnderage}, ${isExpired}, ${matchedContactId}, ${isFlagged}, ${flagReason}, ${currentUser.companyId}, ${currentUser.userId}, NOW())
     RETURNING *
   `)
 

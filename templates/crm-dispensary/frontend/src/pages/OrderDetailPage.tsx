@@ -28,6 +28,30 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [refundOpen, setRefundOpen] = useState(false);
   const [refunding, setRefunding] = useState(false);
+  const [printing, setPrinting] = useState(false);
+
+  /** Fetch the server-rendered receipt (it needs the token) and hand it to a window to print. */
+  const printReceipt = async () => {
+    setPrinting(true);
+    try {
+      const res = await fetch(`/api/orders/${id}/receipt`, {
+        headers: { authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` },
+      });
+      if (!res.ok) throw new Error(`The receipt could not be loaded (${res.status})`);
+      const html = await res.text();
+      // A pop-up blocker is the one failure a till operator cannot diagnose from a silent button, so
+      // it gets its own message rather than nothing happening twice in a row.
+      const win = window.open('', '_blank');
+      if (!win) { toast.error('Your browser blocked the receipt window. Allow pop-ups for this site and try again.'); return; }
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not print the receipt');
+    } finally {
+      setPrinting(false);
+    }
+  };
   // A refund is either UNITS coming back off the shelf or MONEY going back with the goods kept.
   // The screen used to offer neither choice: one button refunded the whole order as a dollar
   // amount, so a single returned gummy was impossible and nothing ever came back to inventory. (T21 M10)
@@ -177,8 +201,18 @@ export default function OrderDetailPage() {
           </div>
         </div>
         <div className="flex gap-3">
-          <button className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center gap-2 dark:border-slate-700 dark:text-slate-200">
-            <Printer className="w-4 h-4" /> Print Receipt
+          {/* This button had no onClick at all: the receipt endpoint has existed all along and
+              nothing ever called it, so pressing Print Receipt did nothing whatsoever. (T45 BL3)
+
+              It cannot be a plain link — /api/orders/:id/receipt needs the bearer token, and a
+              window.open carries no Authorization header. So: fetch it, hand the HTML to a new
+              window, and let the receipt's own onload fire the print dialog. */}
+          <button
+            onClick={printReceipt}
+            disabled={printing}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-60 flex items-center gap-2 dark:border-slate-700 dark:text-slate-200"
+          >
+            <Printer className="w-4 h-4" /> {printing ? 'Preparing…' : 'Print Receipt'}
           </button>
           {/* Refund is only meaningful once money has been taken. It was offered on a PENDING, unpaid
               kiosk order, where pressing it can only produce a refusal — the server refuses anything
