@@ -4,6 +4,11 @@
 //              SERVICE RECORD standing. So the client's chart still held a visit that did not happen
 //              — counted in their visit total, used as their last visit, and feeding the rebooking
 //              reminder. LYR2 Papa sits on Due to Rebook for 8 October because of a cancelled cut.
+// F2 (medium)  Every fix here changes what happens NEXT. The bills the older builds already wrote
+//              stay wrong, and no screen could correct them: $74.36 sitting in Outstanding that was
+//              never owed, and $5.00 of a client's money recorded nowhere. An admin repair puts the
+//              first right and REPORTS the second, because where an over-payment goes is a person's
+//              call.
 // F4 (low)     An invoice a free service brought to $0.00 stayed "open", so a front desk chasing open
 //              bills had to work out for each one that there was nothing to chase.
 // F5 (low)     PUT /api/company accepted settings.taxRate = −5, 150 and "abc" — one word away from
@@ -178,6 +183,122 @@ const bookAndComplete = async (client: any) => {
 
   const none = await api('POST', '/api/reminders/send', { contactIds: [noPhone.id], message: 'See you soon' })
   check('F8: a client with no phone is still reported as noPhone', none.json?.noPhone === 1 && none.json?.sent === 0, none.json)
+}
+
+// ═══════════════════ F2 · the bills the older builds left behind, put right ═════════════════════
+//
+// Every fix above changes what happens NEXT. The rows the old builds already wrote stay wrong, and
+// there was no way to correct them from inside the product. These four shapes are the ones the
+// retest found on the test tenant, rebuilt here exactly: a free cut still billing tax, a bill
+// over-taxed by 85c, a bill paid for $5.00 more than it is worth, and an open bill on a cancelled
+// visit. A fifth is the control — a bill that UNDER-charged tax, which must be left alone.
+{
+  const [legacyClient] = await db.insert(contact).values({ name: 'Legacy Bills', type: 'client', companyId: co.id } as any).returning()
+
+  /** A bill written the way the old build wrote it, straight into the table. */
+  let seq = 900
+  const oldBill = async (v: Record<string, any>) => {
+    const [row] = await db.insert(invoice).values({
+      number: `INV-00${seq++}`, companyId: co.id, contactId: legacyClient.id,
+      status: 'open', taxRate: '8.50', ...v,
+    } as any).returning()
+    return row
+  }
+
+  // INV-00222 on the tenant: a cut given away by a reward, still billing $2.98 of tax on the $35
+  // the client was never charged — and still sitting in the open list.
+  const freeCut = await oldBill({ subtotal: '35.00', discount: '35.00', taxAmount: '2.98', total: '2.98' })
+  // INV-00218: tax taken on the full ticket instead of on what was actually charged.
+  const overTaxed = await oldBill({ subtotal: '100.00', discount: '10.00', taxAmount: '8.50', total: '98.50' })
+  // INV-00239: $37.98 handed over against a bill a later redemption took down to $32.98.
+  const overPaid = await oldBill({
+    subtotal: '30.40', discount: '0', taxAmount: '2.58', total: '32.98', amountPaid: '37.98', status: 'paid',
+  })
+  // The control. Nobody chases a client for 40c of tax six months later.
+  const underTaxed = await oldBill({ subtotal: '50.00', discount: '0', taxAmount: '4.00', total: '54.00' })
+
+  // INV-00240: open at $70.53 against a visit that was cancelled, holding no money.
+  const cancelStart = new Date(Date.now() - 20 * 86400000)
+  const [deadAppt] = await db.insert(appointment).values({
+    contactId: legacyClient.id, serviceId: cut.id, companyId: co.id, status: 'cancelled',
+    startTime: cancelStart, endTime: new Date(cancelStart.getTime() + 1800000), quotedPrice: '65',
+  } as any).returning()
+  const onCancelled = await oldBill({
+    subtotal: '65.00', discount: '0', taxAmount: '5.53', total: '70.53', appointmentId: deadAppt.id,
+  })
+
+  const outstanding = async () => {
+    const [r] = await rows(sql`
+      SELECT COALESCE(SUM(total - amount_paid), 0) AS owed FROM invoice
+      WHERE company_id = ${co.id} AND status NOT IN ('void', 'refunded', 'paid')
+    `)
+    return Math.round(Number(r.owed) * 100)
+  }
+  const owedBefore = await outstanding()
+
+  // A shop manager cannot run it. This re-cuts tax and voids bills, which is the same standing
+  // serviceRecords' own legacy repair asks for: admin and owner only.
+  const [mgr] = await db.insert(user).values({
+    email: 'mgr-full@test.local', passwordHash: 'x', firstName: 'M', lastName: 'G', role: 'manager', companyId: co.id,
+  } as any).returning()
+  const asManager = await app.request('/api/loyalty/repair-legacy-invoices', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-test-user': mgr.id, 'x-test-company': co.id, 'x-test-role': 'manager' },
+  })
+  check('F2: a manager cannot run the repair', asManager.status === 403, asManager.status)
+
+  const fix = await api('POST', '/api/loyalty/repair-legacy-invoices')
+  check('F2: the repair runs', fix.status === 200, { status: fix.status, body: fix.json })
+
+  const bill = async (id: string) => (await db.select().from(invoice).where(eq(invoice.id, id)))[0]
+  const cents = (v: any) => Math.round(Number(v) * 100)
+
+  // ── tax reassessed on what was actually charged ──
+  const free = await bill(freeCut.id)
+  check('F2: a cut given away is no longer taxed', cents(free.taxAmount) === 0, free.taxAmount)
+  check('F2: …so the bill comes to nothing', cents(free.total) === 0, free.total)
+  check('F2: …and nobody owes nothing — it is marked paid, not left open', free.status === 'paid', free.status)
+
+  const over = await bill(overTaxed.id)
+  check('F2: tax is re-cut on (subtotal − discount) at the bill\'s own rate', cents(over.taxAmount) === 765, over.taxAmount)
+  check('F2: …and the total follows it down', cents(over.total) === 9765, over.total)
+  check('F2: …and a bill still owed stays open', over.status === 'open', over.status)
+
+  // ── downwards only ──
+  const under = await bill(underTaxed.id)
+  check('F2: a bill that UNDER-charged tax is left exactly as it was', cents(under.taxAmount) === 400 && cents(under.total) === 5400,
+    { tax: under.taxAmount, total: under.total })
+
+  // ── a cancelled visit's bill ──
+  const dead = await bill(onCancelled.id)
+  check('F2: an open bill on a cancelled visit is voided', dead.status === 'void', dead.status)
+  check('F2: …and says why, in the same words the cancel path uses',
+    /Voided: the appointment it was raised from was cancelled/.test(String(dead.notes || '')), dead.notes)
+
+  // ── the one it must NOT touch ──
+  const paidTooMuch = await bill(overPaid.id)
+  check('F2: an over-payment is not quietly absorbed — the money is left where it is',
+    cents(paidTooMuch.amountPaid) === 3798 && cents(paidTooMuch.amountRefunded) === 0,
+    { paid: paidTooMuch.amountPaid, refunded: paidTooMuch.amountRefunded })
+  const flagged = (fix.json?.overpaid || []).find((o: any) => o.id === overPaid.id)
+  check('F2: …it is reported instead', !!flagged, fix.json?.overpaid)
+  check('F2: …with what the client is owed back', flagged?.owedBack === 5, flagged)
+  check('F2: …and a line telling a person it is theirs to decide',
+    /refund|credit/i.test(String(fix.json?.needsAPerson || '')), fix.json?.needsAPerson)
+
+  // ── what it was all for ──
+  const owedAfter = await outstanding()
+  // $2.98 of tax on a free cut + 85c over-charged + a $70.53 bill on a visit that never happened
+  // = the $74.36 the retest found sitting in Outstanding on the tenant.
+  check('F2: the $74.36 that was never owed leaves the open list', owedBefore - owedAfter === 7436,
+    { before: owedBefore, after: owedAfter, removed: owedBefore - owedAfter })
+
+  // ── run it twice ──
+  const again = await api('POST', '/api/loyalty/repair-legacy-invoices')
+  check('F2: a second run finds nothing left to re-cut, void or close',
+    again.json?.retaxed?.length === 0 && again.json?.voided?.length === 0 && again.json?.closed?.length === 0, again.json)
+  check('F2: …but still reports the over-payment, because a person still has to act on it',
+    again.json?.overpaid?.length === 1, again.json?.overpaid)
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed`)

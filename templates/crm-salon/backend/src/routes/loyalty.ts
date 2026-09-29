@@ -6,6 +6,7 @@ import { eq, and, desc, sql, ilike } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { VOIDED_ON_CANCEL } from '../services/salonCheckout.ts'
 import { loyaltyConfig, loyaltyConfigResponse, LOYALTY_SETTING_KEYS, punchCardProgress, rewardDiscountCents, canRedeem, type Reward, type BasketLine } from '../shared/index.ts'
 
 /**
@@ -712,6 +713,136 @@ app.post('/members/:id/redeem', requirePermission('loyalty:redeem'), async (c) =
     pointsBalance: balanceAfter,
     onTheHouse,
     invoiceId: bill.id,
+  })
+})
+
+// ════════════════════════════ PUTTING RIGHT WHAT THE OLD BUILDS LEFT ════════════════════════════
+
+/**
+ * Repair the bills raised before the loyalty fixes landed.
+ *
+ * FULL0929 F2. Every fix above changed what happens NEXT: a redemption from now on reassesses tax,
+ * refuses a settled bill, and marks a bill taken to nothing as paid. None of them reach backwards,
+ * so a shop that ran the older builds still has the rows those builds wrote — on the test tenant,
+ * $74.36 sitting in Outstanding that should not be, and $5.00 of a client's money recorded nowhere.
+ * There was no way to correct any of it from inside the product: the invoice screen will not let
+ * you re-cut tax on a bill, and it should not.
+ *
+ * Three things put right, and a fourth deliberately left alone:
+ *
+ *   over-taxed   tax reassessed the way the redeem path now does it — on (subtotal − discount) at
+ *                the bill's OWN stored rate, not today's company setting. Only ever DOWNWARDS: a
+ *                bill that under-charged tax is left as it is, because raising what a client owes
+ *                months after they walked out is a conversation to have, not a repair to run.
+ *   cancelled    a bill still open against a cancelled visit, holding no money, is voided and
+ *                annotated exactly as the cancel path now does it — so `repair-legacy/undo` in
+ *                serviceRecords can still recognise and reverse it.
+ *   $0.00 open   marked paid. Nobody owes nothing. (the same rule as F4)
+ *
+ *   over-paid    REPORTED, NEVER MOVED. A client who handed over $37.98 against a bill that later
+ *                became $32.98 is owed $5.00, and whether that comes back as a refund or sits as a
+ *                credit is the salon's decision about their own customer. This is the same line
+ *                LYR N2 drew when it made a redemption against a settled bill refuse rather than
+ *                quietly turn into a credit: software does not get to decide where someone else's
+ *                money goes.
+ *
+ * Idempotent — run it twice and the second run reports nothing but the over-payments, which is the
+ * list a person still has to act on. Gated on `company:update`, the same standing serviceRecords'
+ * `repair-legacy` asks for: admin and owner, not a manager and not the front desk.
+ */
+app.post('/repair-legacy-invoices', requirePermission('company:update'), async (c) => {
+  const u = c.get('user')
+
+  const read: any = await db.execute(sql`
+    SELECT i.id, i.number, i.subtotal, i.discount, i.tax_rate, i.tax_amount, i.total,
+           i.amount_paid, i.amount_refunded, i.status, i.notes, a.status AS appointment_status
+    FROM invoice i
+    LEFT JOIN appointment a ON a.id = i.appointment_id
+    WHERE i.company_id = ${u.companyId} AND i.status NOT IN ('void', 'refunded')
+    ORDER BY i.number
+  `)
+  const bills = ((read as any).rows || read) as any[]
+
+  const retaxed: any[] = []
+  const voided: any[] = []
+  const closed: any[] = []
+  const overpaid: any[] = []
+
+  for (const b of bills) {
+    const subtotalCents = toCents(b.subtotal)
+    const discountCents = Math.min(toCents(b.discount), subtotalCents)
+    const baseCents = Math.max(0, subtotalCents - discountCents)
+    const rate = Number(b.tax_rate) || 0
+    const rightTaxCents = Math.round((baseCents * rate) / 100)
+    const storedTaxCents = toCents(b.tax_amount)
+    // What the shop is actually holding. amountPaid stays gross, so a refund is subtracted here
+    // rather than reopening a balance — the refund model this template already runs on.
+    const heldCents = toCents(b.amount_paid) - toCents(b.amount_refunded)
+    let totalCents = toCents(b.total)
+
+    // A cancelled visit's bill that never took a penny is decided first: there is no sense
+    // re-cutting tax on a figure about to be voided.
+    const cancelled = b.appointment_status === 'cancelled' || b.appointment_status === 'no_show'
+    if (cancelled && heldCents <= 0) {
+      const note = String(b.notes || '')
+      await db.execute(sql`
+        UPDATE invoice
+        SET status = 'void',
+            notes = ${note ? `${note}\n${VOIDED_ON_CANCEL}` : VOIDED_ON_CANCEL},
+            updated_at = NOW()
+        WHERE id = ${b.id} AND company_id = ${u.companyId}
+      `)
+      voided.push({ id: b.id, number: b.number, wasOutstanding: Number(toDollars(totalCents)) })
+      continue
+    }
+
+    if (storedTaxCents > rightTaxCents) {
+      totalCents = baseCents + rightTaxCents
+      await db.execute(sql`
+        UPDATE invoice
+        SET tax_amount = ${toDollars(rightTaxCents)}, total = ${toDollars(totalCents)}, updated_at = NOW()
+        WHERE id = ${b.id} AND company_id = ${u.companyId}
+      `)
+      retaxed.push({
+        id: b.id, number: b.number,
+        taxWas: Number(toDollars(storedTaxCents)), taxNow: Number(toDollars(rightTaxCents)),
+        total: Number(toDollars(totalCents)),
+      })
+    }
+
+    if (totalCents <= 0 && String(b.status).toLowerCase() !== 'paid') {
+      await db.execute(sql`
+        UPDATE invoice SET status = 'paid', updated_at = NOW()
+        WHERE id = ${b.id} AND company_id = ${u.companyId}
+      `)
+      closed.push({ id: b.id, number: b.number })
+    }
+
+    if (heldCents > totalCents) {
+      overpaid.push({
+        id: b.id, number: b.number,
+        paid: Number(toDollars(heldCents)), total: Number(toDollars(totalCents)),
+        owedBack: Number(toDollars(heldCents - totalCents)),
+      })
+    }
+  }
+
+  audit.log({
+    action: audit.ACTIONS.UPDATE, entity: 'invoice', entityId: 'repair-legacy-invoices',
+    metadata: { retaxed: retaxed.length, voided: voided.length, closed: closed.length, overpaid: overpaid.length },
+    req: c,
+  })
+
+  return c.json({
+    scanned: bills.length,
+    retaxed,
+    voided,
+    closed,
+    // Money the shop is holding that belongs to a client. Listed, never moved.
+    overpaid,
+    needsAPerson: overpaid.length
+      ? `${overpaid.length === 1 ? 'One bill was' : `${overpaid.length} bills were`} paid for more than ${overpaid.length === 1 ? 'it is' : 'they are'} now worth. Refund the client or raise a credit — whichever they would rather have.`
+      : undefined,
   })
 })
 
