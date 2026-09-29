@@ -106,7 +106,7 @@ export default function GamifiedLoyaltyPage() {
   const deleteEvent = async (event: any) => {
     if (!window.confirm(`Delete "${event.name}"? Any bonus it is giving stops immediately.`)) return;
     try {
-      await api.delete(`/api/gamified-loyalty/challenges/${event.id}`);
+      await api.delete(`/api/gamified-loyalty/multiplier-events/${event.id}`);
       toast.success('Event deleted');
       loadEvents();
     } catch (err: any) {

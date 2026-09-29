@@ -500,7 +500,11 @@ app.post('/multiplier-events', requireRole('manager'), async (c) => {
 
   const eventSchema = z.object({
     name: z.string().min(1),
-    multiplier: z.coerce.number().min(1).default(2),
+    // T46 N22: 1000x saved without a murmur. A multiplier is a promotion, and there is no promotion
+    // a shop means to run that hands out a thousand points per dollar — it is a typo for 10, and
+    // the first sale after it would owe the customer more in rewards than the shop took. Ten is a
+    // generous ceiling for a real double-points weekend.
+    multiplier: z.coerce.number().min(1, 'A multiplier below 1 would take points away').max(10, 'A multiplier over 10x is almost always a typo — the most a promotion should give is 10x').default(2),
     description: z.string().optional(),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
@@ -543,6 +547,42 @@ app.post('/multiplier-events', requireRole('manager'), async (c) => {
   })
 
   return c.json(created, 201)
+})
+
+// DELETE /multiplier-events/:id — take an event down.
+//
+// T46 N22: an operator looking for the obvious REST path for the thing they had just POSTed to
+// /multiplier-events found nothing there, and reported the event as undeletable. The screen's own
+// button goes through DELETE /challenges/:id, which does work — but a create and a delete that do
+// not live at the same address is a trap laid for the next person, and the next person here was a
+// tester with a 1000x event they could not get rid of.
+//
+// Deactivates rather than drops, which is this file's rule and the reason it is: the ledger lines
+// that credited points under this event still have to resolve to it. GET /multipliers filters on
+// is_active, so the card goes from the shop's screen either way. Points already awarded are the
+// customer's and are not touched.
+app.delete('/multiplier-events/:id', requireRole('manager'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const result = await db.execute(sql`
+    UPDATE loyalty_challenges SET is_active = false, updated_at = NOW()
+    WHERE id = ${id} AND company_id = ${currentUser.companyId} AND type = 'bonus_multiplier' AND is_active = true
+    RETURNING id, name
+  `)
+  const updated = ((result as any).rows || result)?.[0]
+  if (!updated) return c.json({ error: 'Multiplier event not found' }, 404)
+
+  audit.log({
+    action: audit.ACTIONS.UPDATE,
+    entity: 'loyalty_challenge',
+    entityId: id,
+    entityName: updated.name,
+    metadata: { type: 'bonus_multiplier', action: 'deactivate' },
+    req: c,
+  })
+
+  return c.json({ success: true, id, deactivated: updated.name })
 })
 
 export default app

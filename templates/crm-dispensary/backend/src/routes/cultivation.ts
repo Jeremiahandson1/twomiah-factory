@@ -400,13 +400,17 @@ app.post('/rooms', requireRole('manager'), async (c) => {
     name: z.string().min(1),
     type: roomType.optional(),
     locationId: z.string().optional(),
-    capacity: z.number().int().min(0).optional(),
+    // A blank box on a form sends null, and `.optional()` refuses an explicit null: a room saved
+    // with no capacity typed in was rejected outright with "capacity: Expected number, received
+    // null". Three of the five fields on that form behaved this way. `.nullish()` takes both, which
+    // is what a blank box actually means. (T46 N19)
+    capacity: z.number().int().min(0).nullish(),
     environment: z.object({
-      targetTemp: z.number().optional(),
-      targetHumidity: z.number().optional(),
-      lightCycle: z.string().optional(),
-      co2Level: z.number().optional(),
-    }).optional(),
+      targetTemp: z.number().nullish(),
+      targetHumidity: z.number().nullish(),
+      lightCycle: z.string().nullish(),
+      co2Level: z.number().nullish(),
+    }).nullish(),
   })
   const data = roomSchema.parse(await c.req.json())
 
@@ -438,13 +442,17 @@ app.put('/rooms/:id', requireRole('manager'), async (c) => {
     name: z.string().min(1).optional(),
     type: roomType.optional(),
     locationId: z.string().optional(),
-    capacity: z.number().int().min(0).optional(),
+    // A blank box on a form sends null, and `.optional()` refuses an explicit null: a room saved
+    // with no capacity typed in was rejected outright with "capacity: Expected number, received
+    // null". Three of the five fields on that form behaved this way. `.nullish()` takes both, which
+    // is what a blank box actually means. (T46 N19)
+    capacity: z.number().int().min(0).nullish(),
     environment: z.object({
-      targetTemp: z.number().optional(),
-      targetHumidity: z.number().optional(),
-      lightCycle: z.string().optional(),
-      co2Level: z.number().optional(),
-    }).optional(),
+      targetTemp: z.number().nullish(),
+      targetHumidity: z.number().nullish(),
+      lightCycle: z.string().nullish(),
+      co2Level: z.number().nullish(),
+    }).nullish(),
   })
   const data = roomSchema.parse(await c.req.json())
 

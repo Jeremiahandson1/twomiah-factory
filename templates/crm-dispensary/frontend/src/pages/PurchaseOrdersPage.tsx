@@ -40,6 +40,8 @@ export default function PurchaseOrdersPage() {
   // Receive
   const [selectedPO, setSelectedPO] = useState<any>(null);
   const [receiveItems, setReceiveItems] = useState<Record<string, string>>({});
+  // What the delivery actually cost, per line, when it differs from the order. (T46 N26)
+  const [receiveCosts, setReceiveCosts] = useState<Record<string, string>>({});
   const [receiving, setReceiving] = useState(false);
 
   // By supplier
@@ -170,7 +172,17 @@ export default function PurchaseOrdersPage() {
     try {
       const items = Object.entries(receiveItems)
         .filter(([_, qty]) => qty && parseInt(qty) > 0)
-        .map(([itemIndex, qty]) => ({ itemIndex: parseInt(itemIndex), receivedQty: parseInt(qty) }));
+        .map(([itemIndex, qty]) => {
+          // The cost is only sent when the desk actually typed one. A blank box means "as
+          // ordered", which is what the line already says. (T46 N26)
+          const typed = receiveCosts[itemIndex];
+          const unitCost = typed !== undefined && typed !== '' ? Number(typed) : undefined;
+          return {
+            itemIndex: parseInt(itemIndex),
+            receivedQty: parseInt(qty),
+            ...(unitCost !== undefined && Number.isFinite(unitCost) && unitCost >= 0 ? { unitCost } : {}),
+          };
+        });
       if (items.length === 0) { toast.error('Enter received quantities'); setReceiving(false); return; }
       await api.put(`/api/purchase-orders/${selectedPO.id}/receive`, { items });
       toast.success('Inventory updated');
@@ -337,6 +349,11 @@ export default function PurchaseOrdersPage() {
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Ordered</th>
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Already Received</th>
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Receive Now</th>
+                      {/* A supplier who ships at a different price from the one on the order is
+                          most suppliers, most of the time. Receiving could only confirm
+                          quantities, so the shop kept a cost it had stopped paying and every
+                          margin downstream was computed against it. (T46 N26) */}
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Unit cost</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -350,6 +367,12 @@ export default function PurchaseOrdersPage() {
                           <input type="number" min="0" max={item.quantity - (item.receivedQuantity || 0)}
                             value={receiveItems[String(index)] || ''} onChange={e => setReceiveItems({ ...receiveItems, [String(index)]: e.target.value })}
                             className="w-24 px-2 py-1 border rounded text-sm" placeholder="0" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input type="number" min="0" step="0.01"
+                            value={receiveCosts[String(index)] ?? ''} onChange={e => setReceiveCosts({ ...receiveCosts, [String(index)]: e.target.value })}
+                            className="w-24 px-2 py-1 border rounded text-sm"
+                            placeholder={item.unitCost != null ? String(item.unitCost) : '0.00'} />
                         </td>
                       </tr>
                     ))}

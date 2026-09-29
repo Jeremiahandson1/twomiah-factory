@@ -188,7 +188,9 @@ export default function DeliveryPage() {
                         </div>
                         <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
                           <MapPin className="w-4 h-4" />
-                          <span>{delivery.address || '—'}</span>
+                          {/* Where it is going: the address on the ORDER, falling back to the one on
+                              the customer record. `delivery.address` was never a field the API sent. (T46 N18) */}
+                          <span>{delivery.deliveryAddress || delivery.customerAddress || '—'}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-4 mt-2 text-sm">

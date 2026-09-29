@@ -165,14 +165,29 @@ app.get('/orders', async (c) => {
   let statusFilter = sql``
   // Normalised here too: the board filters with its own words, so asking for "queued" matched no row
   // because the column holds "pending" — three of its tabs were permanently empty. (T45 H7)
-  if (status) statusFilter = sql`AND o.delivery_status = ${canonicalDeliveryStatus(status)}`
+  //
+  // …and matched against the status the delivery ACTUALLY has. T46 N18: delivery_status is only
+  // written once a driver is assigned, so an order that has been raised and not yet picked up has
+  // NULL there and matched nothing — the Queued, Cancelled and In Transit tabs were still empty,
+  // this time for a different reason than T45 H7. A delivery that has not started is queued, which
+  // is what the board already calls it, and a cancelled ORDER is a cancelled delivery.
+  if (status) {
+    const wanted = canonicalDeliveryStatus(status)
+    statusFilter = wanted === 'pending'
+      ? sql`AND COALESCE(NULLIF(o.delivery_status, ''), 'pending') = 'pending' AND o.status <> 'cancelled'`
+      : wanted === 'failed'
+        ? sql`AND (COALESCE(NULLIF(o.delivery_status, ''), '') = 'failed' OR o.status = 'cancelled')`
+        : sql`AND COALESCE(NULLIF(o.delivery_status, ''), 'pending') = ${wanted}`
+  }
 
   let driverFilter = sql``
   if (driverId) driverFilter = sql`AND o.driver_id = ${driverId}`
 
   const dataResult = await db.execute(sql`
     SELECT o.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address,
-           u.first_name || ' ' || u.last_name as driver_name
+           u.first_name || ' ' || u.last_name as driver_name,
+           COALESCE(NULLIF(o.delivery_status, ''), CASE WHEN o.status = 'cancelled' THEN 'failed' ELSE 'pending' END) as delivery_status,
+           (SELECT COALESCE(SUM(oi.quantity), 0)::int FROM order_items oi WHERE oi.order_id = o.id) as item_count
     FROM orders o
     LEFT JOIN contact c ON c.id = o.contact_id
     LEFT JOIN "user" u ON u.id = o.driver_id
@@ -192,7 +207,11 @@ app.get('/orders', async (c) => {
       ${driverFilter}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  // Raw rows are snake_case and the board reads camelCase, which is why every card said
+  // "#mhpqsx6q — Unknown — 0 items": the order number, the customer's name and the line count were
+  // all there, under names the screen never looked up. Same fault as the Zones tab beside it.
+  // (T46 N18)
+  const data = ((dataResult as any).rows || dataResult).map(camelZone)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })

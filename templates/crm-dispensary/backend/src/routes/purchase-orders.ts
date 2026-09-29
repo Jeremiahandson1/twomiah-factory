@@ -473,6 +473,13 @@ const receiveSchema = z.object({
   items: z.array(z.object({
     itemIndex: z.number().int().min(0),
     receivedQty: z.number().int().min(0),
+    // What the delivery ACTUALLY cost, when it is not what was ordered.
+    //
+    // T46 N26: receiving could only confirm quantities. A supplier who ships at a different price
+    // from the one on the order — which is most of them, most of the time — left the shop with a
+    // cost it stopped paying, and every margin figure downstream computed against it. A unitCost
+    // sent to this endpoint was simply ignored.
+    unitCost: z.coerce.number().min(0).optional(),
   })).min(1),
 })
 
@@ -557,15 +564,26 @@ app.put('/:id/receive', requireRole('manager'), async (c) => {
           // margin figure downstream — the product page, the shrinkage value on End of Day, the
           // profit column in analytics — was computed against a price the shop stopped paying. The
           // cost on the purchase order is what this delivery actually cost; that is the new cost.
-          const unitCost = Number(poItem.unitCost ?? poItem.cost ?? poItem.unitPrice ?? NaN)
+          // The price on the DELIVERY takes precedence over the price on the order: what the
+          // supplier actually charged is what this stock cost. Falling back to the order's own
+          // figure keeps the T45 L3 behaviour for a receipt that says nothing about price. (T46 N26)
+          const orderedCost = Number(poItem.unitCost ?? poItem.cost ?? poItem.unitPrice ?? NaN)
+          const deliveredCost = Number(received.unitCost ?? NaN)
+          const unitCost = Number.isFinite(deliveredCost) && deliveredCost > 0 ? deliveredCost : orderedCost
+          // Both cost columns, always together. A product carried `cost` null beside `cost_price`
+          // $10, so which figure a margin used depended on which column that screen happened to
+          // read. (T46 N26)
           const costUpdate = Number.isFinite(unitCost) && unitCost > 0
-            ? sql`, cost_price = ${String(unitCost)}`
+            ? sql`, cost_price = ${String(unitCost)}, cost = ${String(unitCost)}`
             : sql``
           await tx.execute(sql`
             UPDATE products
             SET stock_quantity = stock_quantity + ${received.receivedQty}${costUpdate}, updated_at = NOW()
             WHERE id = ${poItem.productId} AND company_id = ${currentUser.companyId}
           `)
+
+          // …and the line records what it was received at, so the PO explains the cost it set.
+          if (Number.isFinite(deliveredCost) && deliveredCost > 0) poItem.receivedUnitCost = deliveredCost
 
           // inventory_adjustments columns: company_id, product_id, user_id, adjustment_type,
           // quantity_change, reason (see schema.ts). No adjusted_by / location_id columns exist.
