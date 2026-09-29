@@ -33,7 +33,11 @@ const camel = (row: any): any => {
 const licenseSchema = z.object({
   licenseType: z.string().min(1),
   licenseNumber: z.string().min(1),
+  // The column is `issuing_authority`, the screen calls it `issuedBy`, and an integration reading
+  // the field back off this API would naturally send `issuingAuthority` — which was accepted by
+  // zod's default stripping and then silently dropped. Both spellings mean the column. (T46 L-e)
   issuedBy: z.string().optional(),
+  issuingAuthority: z.string().optional(),
   issuedDate: z.string().optional(),
   expirationDate: z.string().optional(),
   status: z.enum(['active', 'expired', 'pending', 'suspended', 'revoked']).default('active'),
@@ -295,7 +299,7 @@ app.post('/licenses', requireRole('manager'), async (c) => {
     ) VALUES (
       gen_random_uuid(), ${currentUser.companyId},
       ${data.licenseType}, ${data.licenseNumber},
-      ${data.issuedBy || null},
+      ${data.issuedBy ?? data.issuingAuthority ?? null},
       ${data.issuedDate ? new Date(data.issuedDate) : null},
       ${data.expirationDate ? new Date(data.expirationDate) : null},
       ${data.status}, ${data.state || null}, ${data.city || null},
@@ -367,7 +371,7 @@ app.put('/licenses/:id', requireRole('manager'), async (c) => {
     UPDATE licenses SET
       license_type = COALESCE(${data.licenseType ?? null}, license_type),
       license_number = COALESCE(${data.licenseNumber ?? null}, license_number),
-      issuing_authority = COALESCE(${data.issuedBy ?? null}, issuing_authority),
+      issuing_authority = COALESCE(${data.issuedBy ?? data.issuingAuthority ?? null}, issuing_authority),
       issued_date = COALESCE(${data.issuedDate ? new Date(data.issuedDate) : null}, issued_date),
       expiration_date = COALESCE(${data.expirationDate ? new Date(data.expirationDate) : null}, expiration_date),
       status = COALESCE(${data.status ?? null}, status),

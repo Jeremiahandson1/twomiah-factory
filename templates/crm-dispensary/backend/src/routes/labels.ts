@@ -310,7 +310,12 @@ app.post('/print', requireRole('budtender'), async (c) => {
       category: prod.category || '',
       thc_percent: prod.thc_percent != null ? String(prod.thc_percent) : '',
       cbd_percent: prod.cbd_percent != null ? String(prod.cbd_percent) : '',
-      weight: prod.weight != null ? `${prod.weight}${prod.weight_unit || 'g'}` : '',
+      // weight_grams first: it is the column the register, the purchase limit and the waste log all
+      // read, and the one a flower product actually carries. Reading `weight` alone printed a blank
+      // weight on every flower label in the shop. (T46 L-a)
+      weight: prod.weight_grams != null && String(prod.weight_grams) !== ''
+        ? `${prod.weight_grams}g`
+        : (prod.weight != null ? `${prod.weight}${prod.weight_unit || 'g'}` : ''),
       price: prod.price != null ? `$${Number(prod.price).toFixed(2)}` : '',
       sku: prod.sku || '',
       metrc_tag: prod.metrc_tag || '',
@@ -340,6 +345,13 @@ app.post('/print', requireRole('budtender'), async (c) => {
   // 500 every time, for everyone. The rendered HTML goes back to the caller, which is what it is
   // for; the template and the data that produced it are both recorded here. (T45 L7, same shape
   // as the /generate insert fixed in BL5)
+  //
+  // Recorded as COMPLETED, not pending. T46 L-a: every job sat at "pending" for good, because
+  // nothing in this product ever moved it — there is no print spooler here, the labels are rendered
+  // and handed straight back to the browser that asked for them. A queue that only ever fills up is
+  // a screen a shop learns to ignore, and it hides a job that genuinely failed among hundreds that
+  // did not. A real spooler can still set 'printing' and 'failed' through
+  // PUT /print-jobs/:id/status.
   const jobResult = await db.execute(sql`
     INSERT INTO label_print_jobs (
       id, company_id, template_id, product_id, batch_id,
@@ -347,7 +359,7 @@ app.post('/print', requireRole('budtender'), async (c) => {
     ) VALUES (
       gen_random_uuid(), ${currentUser.companyId}, ${data.templateId},
       ${data.productId || null}, ${data.batchId || null},
-      ${data.quantity}, 'pending',
+      ${data.quantity}, 'completed',
       ${JSON.stringify(labelData)}::jsonb,
       ${currentUser.userId}, NOW()
     ) RETURNING *
@@ -508,7 +520,12 @@ app.post('/generate', requireRole('budtender'), async (c) => {
       // What a label should actually print: the figure with the unit that belongs to this product.
       thc: thcLabel,
       cbd_percent: prod.cbd_percent != null ? String(prod.cbd_percent) : '',
-      weight: prod.weight != null ? `${prod.weight}${prod.weight_unit || 'g'}` : '',
+      // weight_grams first: it is the column the register, the purchase limit and the waste log all
+      // read, and the one a flower product actually carries. Reading `weight` alone printed a blank
+      // weight on every flower label in the shop. (T46 L-a)
+      weight: prod.weight_grams != null && String(prod.weight_grams) !== ''
+        ? `${prod.weight_grams}g`
+        : (prod.weight != null ? `${prod.weight}${prod.weight_unit || 'g'}` : ''),
       price: prod.price != null ? `$${Number(prod.price).toFixed(2)}` : '',
       sku: prod.sku || '',
       metrc_tag: batch?.metrc_tag || prod.metrc_tag || '',

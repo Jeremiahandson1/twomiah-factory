@@ -69,6 +69,25 @@ export function asksAboutACondition(message: string): boolean {
   return false
 }
 
+/**
+ * Is the customer asking HOW MUCH to take?
+ *
+ * T46 L-j: a first-timer asking how many edibles to eat to get "really high" was handed the mg
+ * list and nothing else. Edibles take up to two hours to come on, which is exactly why people take
+ * a second one and end up in A&E; "start low and go slow" is the one piece of advice every state's
+ * own consumer guidance leads with, and the shop's own budtender said none of it.
+ *
+ * This is not a medical question and is not refused — it is an ordinary thing to ask a budtender.
+ * It just cannot be answered with a number and nothing else.
+ */
+export function asksHowMuchToTake(message: string): boolean {
+  const m = String(message || '')
+  return /\bhow (?:many|much)\b[^.?!]{0,40}\b(?:take|eat|consume|have|get|need|should)\b/i.test(m)
+    || /\bhow (?:many|much)\b[^.?!]{0,30}\b(?:gummies|gummy|edibles?|chocolates?|mg|milligrams?|doses?)\b/i.test(m)
+    || /\breally high\b|\bget (?:me )?(?:very |super |really )?(?:high|stoned|baked)\b|\bfirst time\b|\bnever (?:tried|had)\b/i.test(m)
+    || /\bhow much should i\b|\bwhat dose\b|\bdosage\b/i.test(m)
+}
+
 /** Driving, or anything else where being impaired is the risk. */
 export function asksAboutDriving(message: string): boolean {
   return /\bdriv(?:e|ing|er)\b|\bbehind the wheel\b|\bget home\b|\boperate\b[^.?!]{0,20}\bmachin\w*/i.test(String(message || ''))
@@ -104,6 +123,15 @@ export function guardedAnswer(
     return {
       reason: 'medical',
       response: `I'm not able to give medical or health advice, and I can't suggest a product for a health condition — ${companyName} is a retailer, not a clinic. Please talk to your doctor or a licensed pharmacist about that.\n\nIf you'd like, I can fetch a member of staff, or you can tell me a product type, a strain type or a price and I'll show you what's in stock.`,
+    }
+  }
+
+  // Answered, not refused — how much to take is an ordinary thing to ask a budtender. It just
+  // cannot be answered with a number and nothing else, which is what it used to be. (T46 L-j)
+  if (asksHowMuchToTake(message)) {
+    return {
+      reason: 'start_low',
+      response: `Start low and go slow — that is the honest answer, and it is what every state's own guidance says.\n\nAn edible can take up to two hours to come on. Most people new to them start at 2.5 to 5 mg, wait the full two hours before deciding it has not worked, and never take a second one inside that window — taking more because nothing has happened yet is how a pleasant evening turns into a bad one. Eating it with food changes how fast it arrives, and alcohol makes it stronger.\n\nI can show you what is in stock and what each package holds per piece, and a member of staff can talk it through with you.`,
     }
   }
 

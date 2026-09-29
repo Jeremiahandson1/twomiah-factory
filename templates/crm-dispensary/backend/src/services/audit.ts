@@ -94,6 +94,11 @@ export async function log({ action, entity, entityId, entityName, changes, metad
     await db.insert(auditLog).values({
       action,
       entity,
+      // T46 L-i: the table carries BOTH `entity` and `entity_type`, and only `entity` was ever
+      // written — so the Audit Log screen's "filter by type" dropdown, which reads entity_type,
+      // returned nothing for every value in it. One fact, two columns, one of them always null.
+      // Written together so neither the filter nor anything reading the older name can be wrong.
+      entityType: entity,
       entityId: entityId || null,
       entityName: entityName || null,
       changes: changes || null,

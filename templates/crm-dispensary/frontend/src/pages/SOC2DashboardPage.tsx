@@ -61,10 +61,14 @@ const tabs = [
   { id: 'changelog', label: 'Change Log' },
 ];
 
+// T46 L-d: these are dark-theme colours, and this page renders on both. On the light theme the
+// failing scores — the ones that matter, 37% and 0% — read 2.65:1, which is the number a reader is
+// least able to make out and most needs to. Each keeps its dark-theme value and gains the light
+// partner it never had. (The same pairing rule as every other contrast fix in this product.)
 function scoreColor(score: number): string {
-  if (score >= 80) return 'text-emerald-400';
-  if (score >= 50) return 'text-amber-400';
-  return 'text-red-400';
+  if (score >= 80) return 'text-emerald-700 dark:text-emerald-400';
+  if (score >= 50) return 'text-amber-700 dark:text-amber-400';
+  return 'text-red-700 dark:text-red-400';
 }
 
 function scoreBorderColor(score: number): string {

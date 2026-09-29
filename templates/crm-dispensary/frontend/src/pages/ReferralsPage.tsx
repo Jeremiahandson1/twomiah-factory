@@ -201,6 +201,7 @@ export default function ReferralsPage() {
                   </div>
                   <div className="relative">
                     <input
+                      disabled={!isAdmin}
                       type="checkbox"
                       checked={config.enabled}
                       onChange={e => setConfig({ ...config, enabled: e.target.checked })}
@@ -224,6 +225,7 @@ export default function ReferralsPage() {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Reward Type</label>
                       <select
+                        disabled={!isAdmin}
                         value={config.referrerRewardType}
                         onChange={e => setConfig({ ...config, referrerRewardType: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 bg-white dark:border-slate-700 dark:text-slate-100 dark:bg-slate-900"
@@ -236,6 +238,7 @@ export default function ReferralsPage() {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Value</label>
                       <input
+                        disabled={!isAdmin}
                         type="number"
                         step="0.01"
                         value={config.referrerRewardValue}
@@ -256,6 +259,7 @@ export default function ReferralsPage() {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Reward Type</label>
                       <select
+                        disabled={!isAdmin}
                         value={config.referredRewardType}
                         onChange={e => setConfig({ ...config, referredRewardType: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 bg-white dark:border-slate-700 dark:text-slate-100 dark:bg-slate-900"
@@ -268,6 +272,7 @@ export default function ReferralsPage() {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Value</label>
                       <input
+                        disabled={!isAdmin}
                         type="number"
                         step="0.01"
                         value={config.referredRewardValue}
@@ -285,6 +290,7 @@ export default function ReferralsPage() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Min Purchase ($)</label>
                     <input
+                      disabled={!isAdmin}
                       type="number"
                       step="0.01"
                       value={config.minPurchase}
@@ -296,6 +302,7 @@ export default function ReferralsPage() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Expiration (days)</label>
                     <input
+                      disabled={!isAdmin}
                       type="number"
                       value={config.expirationDays}
                       onChange={e => setConfig({ ...config, expirationDays: e.target.value })}
@@ -306,6 +313,7 @@ export default function ReferralsPage() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Max Referrals</label>
                     <input
+                      disabled={!isAdmin}
                       type="number"
                       value={config.maxReferralsPerCustomer}
                       onChange={e => setConfig({ ...config, maxReferralsPerCustomer: e.target.value })}

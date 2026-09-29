@@ -225,9 +225,34 @@ function toGrams(weight: number, unit?: string): number {
   return Math.round(weight * factor * 1000) / 1000
 }
 
+/**
+ * An edible has to say how much THC is in it.
+ *
+ * T46 L-f: an edible saved with no THC value at all, and the label, the menu and the AI budtender
+ * then all showed it as "not recorded" — on the one product category where the milligrams ARE the
+ * product. Every state requires the figure on the package, and the purchase limit counts edibles
+ * by their mg, so a blank one contributes nothing to a cap it should be filling.
+ *
+ * Flower is left alone: it is sold by weight, which is checked elsewhere, and its percentage is a
+ * lab result rather than something the shop types.
+ */
+const EDIBLE_CATEGORIES = new Set(['edible', 'edibles', 'beverage', 'capsule', 'tincture'])
+function missingEdiblePotency(data: any): string | null {
+  const category = String(data?.category || '').trim().toLowerCase()
+  if (!EDIBLE_CATEGORIES.has(category)) return null
+  const mg = Number(data?.thcMg)
+  const pct = Number(data?.thcPercent)
+  if (Number.isFinite(mg) && mg > 0) return null
+  if (Number.isFinite(pct) && pct > 0) return null
+  return 'An edible needs its THC in milligrams — it goes on the label, and the purchase limit counts edibles by it.'
+}
+
 app.post('/', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const data = productSchema.parse(stripNulls(await c.req.json()))
+
+  const noPotency = missingEdiblePotency(data)
+  if (noPotency) return c.json({ error: noPotency, code: 'edible_potency_required', field: 'thcMg' }, 400)
 
   // Block a duplicate SKU within the company (S22). Blank SKU is allowed to repeat.
   if (data.sku && data.sku.trim()) {

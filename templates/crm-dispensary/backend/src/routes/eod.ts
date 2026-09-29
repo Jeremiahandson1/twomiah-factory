@@ -117,6 +117,9 @@ app.post('/generate', requireRole('manager'), async (c) => {
       cs.status as session_status,
       cs.opened_at,
       cs.closed_at,
+      cs.register,
+      opener.first_name || ' ' || opener.last_name AS opened_by_name,
+      closer.first_name || ' ' || closer.last_name AS closed_by_name,
       -- Same attribution as cash.ts (go-live QA M-3): cash IN = cash sales settled in the window
       -- regardless of later refund status; cash OUT = refunds PAID in the window (refunded_at / refunded_amount).
       COALESCE((SELECT SUM(o.total::numeric) FROM orders o
@@ -128,6 +131,8 @@ app.post('/generate', requireRole('manager'), async (c) => {
           AND o.refunded_at >= cs.opened_at
           AND (cs.closed_at IS NULL OR o.refunded_at <= cs.closed_at)), 0) as cash_refunds
     FROM cash_sessions cs
+    LEFT JOIN "user" opener ON opener.id = cs.opened_by_id
+    LEFT JOIN "user" closer ON closer.id = cs.closed_by_id
     WHERE cs.company_id = ${currentUser.companyId}
       AND DATE(cs.opened_at) = ${reportDate}::date
     -- EVERY drawer opened today, newest first. This used to be LIMIT 1, so on a day with five
@@ -149,6 +154,12 @@ app.post('/generate', requireRole('manager'), async (c) => {
       openedAt: s.opened_at,
       closedAt: s.closed_at,
       status: s.session_status,
+      // Who, and which till. T46 L-b: the per-drawer rows carried times and amounts and nothing
+      // else, so a $10 shortfall on one of five drawers named nobody to ask about it — which is
+      // the only question anyone has when they read that line.
+      register: s.register || null,
+      openedByName: (s.opened_by_name || '').trim() || null,
+      closedByName: (s.closed_by_name || '').trim() || null,
       openingBalance: Number(s.opening_amount || 0),
       expected,
       // An open drawer has not been counted yet, so it has no count and no variance to report.

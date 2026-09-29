@@ -6,6 +6,16 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { zodRefusal } from '../utils/errors.ts'
+import { storeTimeZone } from '../utils/isoTime.ts'
+
+/**
+ * A stored instant, read on the shop's clock.
+ *
+ * `created_at` is a naive timestamp holding UTC, so it is labelled UTC and then converted — the
+ * two-step `AT TIME ZONE` that every report in this codebase needs and that DATE_TRUNC on its own
+ * silently skips. (T46 L-k)
+ */
+const storeLocal = (column: any, tz: string) => sql`((${column} AT TIME ZONE 'UTC') AT TIME ZONE ${tz})`
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -242,6 +252,16 @@ app.post('/saved/:id/run', requireRole('manager'), async (c) => {
   const report = ((reportResult as any).rows || reportResult)?.[0]
   if (!report) return c.json({ error: 'Report not found' }, 404)
 
+  // The bucket a sale falls in belongs to the SHOP's day, and the label on it is a date a person
+  // reads — not the ISO instant Postgres hands back from DATE_TRUNC.
+  //
+  // T46 L-k: the sales report's periods came back as UTC timestamps, so the last hours of every
+  // evening's trade were filed under the next day and the column header read
+  // "2026-09-28T00:00:00.000Z". The same bug this codebase has fixed on the dashboard, the
+  // analytics series, cash reconciliation and the compliance report. (T24 N1, and every round since.)
+  const [reportCo] = ((await db.execute(sql`SELECT state, settings FROM company WHERE id = ${currentUser.companyId} LIMIT 1`)) as any).rows || []
+  const reportZone = storeTimeZone(reportCo)
+
   const config = typeof report.config === 'string' ? JSON.parse(report.config) : report.config
 
   // Build date filter. A report saved before the dialog and this runner agreed can still hold a
@@ -284,7 +304,7 @@ app.post('/saved/:id/run', requireRole('manager'), async (c) => {
     // total_spent - there is no points_earned, points_redeemed or lifetime_spend. (T45 H14)
     case 'sales_summary': {
       const r = await db.execute(sql`
-        SELECT DATE_TRUNC(${truncUnit(config.groupBy)}, o.created_at) as period,
+        SELECT (DATE_TRUNC(${truncUnit(config.groupBy)}, ${storeLocal(sql`o.created_at`, reportZone)}))::date as period,
                COUNT(*)::int as order_count,
                SUM(COALESCE(NULLIF(o.total, ''), '0')::numeric) as revenue,
                ROUND(AVG(COALESCE(NULLIF(o.total, ''), '0')::numeric), 2) as avg_order_value,

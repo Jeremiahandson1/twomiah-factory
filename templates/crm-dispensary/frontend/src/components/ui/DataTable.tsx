@@ -289,9 +289,19 @@ export function Button({ children, variant = 'primary', size = 'md', className =
     lg: 'px-6 py-3 text-lg',
   };
 
+  // A disabled button gets its OWN colours rather than half of the live ones.
+  //
+  // T46 L-d: `disabled:opacity-50` over a solid primary left white text on a 50%-opacity fill —
+  // about 2:1 against the page, which is the "Open Drawer" button a cashier stares at before their
+  // first sale of the day, wondering whether it is a button at all. Opacity is a lazy way to say
+  // "off": it fades the LABEL as much as the fill, so the one thing that still has to be readable
+  // is the first thing to go. A flat grey with dark grey text reads as unavailable and stays
+  // legible, on either theme.
+  const disabledLook = 'disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-600 disabled:hover:bg-gray-200 dark:disabled:bg-slate-700 dark:disabled:text-slate-300 dark:disabled:hover:bg-slate-700';
+
   return (
     <button
-      className={`font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`font-medium rounded-lg transition-colors ${disabledLook} ${variants[variant]} ${sizes[size]} ${className}`}
       {...props}
     >
       {children}

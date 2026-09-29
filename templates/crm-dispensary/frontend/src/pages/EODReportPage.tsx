@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { formatTimeInZone } from '../utils/date';
 import { useToast } from '../contexts/ToastContext';
 import { Button, PageHeader } from '../components/ui/DataTable';
 
@@ -15,7 +16,9 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default function EODReportPage() {
-  const { user, isManager } = useAuth();
+  const { user, isManager, company } = useAuth();
+  // A drawer belongs to the shop's clock, like every other figure on this report. (T46 N16)
+  const storeTz = (company as any)?.timeZone as string | undefined;
   const toast = useToast();
   const [tab, setTab] = useState('generate');
   const [loading, setLoading] = useState(false);
@@ -254,6 +257,10 @@ export default function EODReportPage() {
                           <thead>
                             <tr className="text-left text-gray-500 dark:text-slate-400">
                               <th className="py-1 pr-4 font-medium">Opened</th>
+                              {/* A $10 shortfall on one of five drawers has to name somebody to ask
+                                  about it. The rows carried times and amounts only. (T46 L-b) */}
+                              <th className="py-1 pr-4 font-medium">Register</th>
+                              <th className="py-1 pr-4 font-medium">Counted by</th>
                               <th className="py-1 pr-4 font-medium">Status</th>
                               <th className="py-1 pr-4 font-medium text-right">Expected</th>
                               <th className="py-1 pr-4 font-medium text-right">Counted</th>
@@ -263,7 +270,9 @@ export default function EODReportPage() {
                           <tbody>
                             {drawers.map((d: any, i: number) => (
                               <tr key={i} className="border-t dark:border-slate-800">
-                                <td className="py-1.5 pr-4 text-gray-700 dark:text-slate-200">{d.openedAt ? new Date(d.openedAt).toLocaleTimeString() : '—'}</td>
+                                <td className="py-1.5 pr-4 text-gray-700 dark:text-slate-200">{d.openedAt ? formatTimeInZone(d.openedAt, storeTz) : '—'}</td>
+                                <td className="py-1.5 pr-4 text-gray-700 dark:text-slate-200">{d.register || '—'}</td>
+                                <td className="py-1.5 pr-4 text-gray-700 dark:text-slate-200">{d.closedByName || d.openedByName || '—'}</td>
                                 <td className="py-1.5 pr-4 text-gray-700 dark:text-slate-200">{d.status === 'open' ? 'Open' : 'Closed'}</td>
                                 <td className="py-1.5 pr-4 text-right tabular-nums text-gray-700 dark:text-slate-200">${Number(d.expected || 0).toFixed(2)}</td>
                                 <td className="py-1.5 pr-4 text-right tabular-nums text-gray-700 dark:text-slate-200">{d.counted == null ? '—' : `$${Number(d.counted).toFixed(2)}`}</td>

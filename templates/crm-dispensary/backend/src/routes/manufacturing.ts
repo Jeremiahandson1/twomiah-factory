@@ -108,7 +108,10 @@ app.post('/jobs', requireRole('manager'), async (c) => {
     type: z.enum(['extraction', 'infusion', 'edible', 'concentrate', 'topical', 'pre_roll', 'packaging', 'other']),
     inputBatches: z.array(z.object({
       batchId: z.string(),
-      quantity: z.number().min(0),
+      // T46 L-c: a 99,999-unit input job could be created against a batch holding twenty. The
+      // quantity is checked against what the batch actually holds below; this is the typo guard in
+      // front of it, so an obviously impossible figure never reaches a lookup.
+      quantity: z.number().min(0).max(1_000_000, 'That is more than any single batch holds — check the figure'),
       unit: z.string().optional(),
     })),
     inputWeight: z.coerce.number().min(0).optional(),
@@ -126,6 +129,30 @@ app.post('/jobs', requireRole('manager'), async (c) => {
   // the summed input-batch quantities so yield is at least computed against the same basis.
   const totalInputQty = (data.inputBatches || []).reduce((s: number, b: any) => s + (b.quantity || 0), 0)
   const inputWeight = data.inputWeight != null ? data.inputWeight : totalInputQty
+
+  // You cannot put more into a run than the batch holds.
+  //
+  // T46 L-c: a 99,999-unit input job was accepted against a batch of twenty, and the yield figure
+  // it produced was then measured against that invented denominator. The batch is the authority on
+  // what came out of it, the same way the shelf is at the till.
+  for (const line of (data.inputBatches || [])) {
+    if (!line?.batchId || !(line.quantity > 0)) continue
+    const found: any = await db.execute(sql`
+      SELECT batch_number, current_quantity FROM batches
+      WHERE id = ${line.batchId} AND company_id = ${currentUser.companyId} LIMIT 1
+    `)
+    const b = ((found as any).rows || found)?.[0]
+    if (!b) return c.json({ error: `Input batch ${line.batchId} does not exist`, code: 'input_batch_not_found' }, 400)
+    const held = Number(b.current_quantity || 0)
+    if (line.quantity > held) {
+      return c.json({
+        error: `Batch ${b.batch_number} holds ${held} — a run cannot take ${line.quantity} out of it.`,
+        code: 'input_exceeds_batch',
+        batchNumber: b.batch_number,
+        available: held,
+      }, 400)
+    }
+  }
 
   const result = await db.execute(sql`
     INSERT INTO manufacturing_jobs(id, company_id, job_number, type, input_batches, input_weight, method, equipment, operator_id, notes, status, created_at, updated_at)
@@ -327,6 +354,31 @@ app.put('/jobs/:id/complete', requireRole('manager'), async (c) => {
   const createdBatches: any[] = []
   for (const out of (data.outputBatches || [])) {
     if (!out?.batchNumber && !out?.productId) continue
+
+    // T46 L-c: the output batch came out with product_id NULL, so a lot of finished goods sat in
+    // the batch list belonging to nothing — unsellable, untraceable to a product, and invisible to
+    // every screen that lists batches BY product.
+    //
+    // The Complete dialog sends a bare batch number and collects no product, so demanding one here
+    // would simply stop the screen working (T45 H10 is exactly that payload). The INPUT batch knows
+    // what went in, and what comes out of a run is derived from it — so that is the product, unless
+    // the caller named a different one. Only when nothing anywhere names a product is the batch
+    // refused, because then there genuinely is nothing to attach it to.
+    let outProductId = out?.productId || null
+    if (!outProductId) {
+      for (const line of (Array.isArray(inputBatches) ? inputBatches : [])) {
+        if (!line?.batchId) continue
+        const src: any = await db.execute(sql`
+          SELECT product_id FROM batches WHERE id = ${line.batchId} AND company_id = ${currentUser.companyId} LIMIT 1
+        `)
+        const pid = ((src as any).rows || src)?.[0]?.product_id
+        if (pid) { outProductId = pid; break }
+      }
+    }
+    if (!outProductId) {
+      stockWarnings.push(`output batch ${out.batchNumber || ''} was not created: nothing names the product it makes, so the batch would belong to nothing and could not be sold`)
+      continue
+    }
     const qty = Math.round(Number(out.quantity ?? data.outputWeight) || 0)
     try {
       const made: any = await db.execute(sql`
@@ -334,7 +386,7 @@ app.put('/jobs/:id/complete', requireRole('manager'), async (c) => {
                              initial_quantity, current_quantity, unit_of_measure, received_date, created_at, updated_at)
         VALUES (gen_random_uuid(), ${currentUser.companyId},
                 ${out.batchNumber || `MFG-${existing.job_number || String(id).slice(0, 8)}`},
-                ${out.productId || null}, ${out.metrcTag || null}, 'active',
+                ${outProductId}, ${out.metrcTag || null}, 'active',
                 ${qty}, ${qty}, ${out.unit || 'g'}, CURRENT_DATE, NOW(), NOW())
         RETURNING id, batch_number
       `)
@@ -370,6 +422,13 @@ app.put('/jobs/:id/fail', requireRole('manager'), async (c) => {
     reason: z.string().optional(),
   })
   const data = failSchema.parse(await c.req.json().catch(() => ({})))
+  // T46 L-c: the dialog asks for a reason and the server took none, so a failed run could be
+  // recorded with nothing to explain it — on the one status change that costs a shop product. The
+  // reason is required when the caller sends a body at all; a bare call still records the failure
+  // rather than losing it, which is the T45 M13 rule and the more important half.
+  if (data.reason !== undefined && !String(data.reason).trim()) {
+    return c.json({ error: 'Say why the run failed — a failed batch with no reason explains nothing later.', code: 'failure_reason_required' }, 400)
+  }
   const reason = (data.reason || '').trim() || 'No reason given'
 
   const existingResult = await db.execute(sql`
