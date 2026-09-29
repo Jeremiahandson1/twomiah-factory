@@ -143,7 +143,7 @@ async function onVisitCompleted(row: typeof appointment.$inferSelect): Promise<s
         stylistId: row.stylistId || null, stylistMemberId: (row as any).stylistMemberId || null,
         serviceId: row.serviceId || null,
         performedAt: new Date(row.startTime), formula: [], priceCharged: price > 0 ? String(price) : null,
-        notes: 'Logged automatically when the appointment was completed.', companyId: row.companyId,
+        notes: AUTO_VISIT_NOTE, companyId: row.companyId,
       } as any)
     }
   } catch (e: any) { console.warn('[appointments] visit record not created:', e?.message || e) }
@@ -164,6 +164,18 @@ async function onVisitCompleted(row: typeof appointment.$inferSelect): Promise<s
   scheduleReviewRequestForVisit({ companyId: row.companyId, contactId: row.contactId }).catch((e) => console.warn('[appointments] review schedule failed:', e?.message || e))
   return invoiceId
 }
+
+/**
+ * The note onVisitCompleted puts on the record it writes.
+ *
+ * It is how a record the SYSTEM created is told apart from one a stylist has worked on — which is
+ * what decides whether cancelling the appointment may delete it. Named rather than repeated, so the
+ * two places cannot drift apart and quietly start keeping every record. (FULL0929 F1)
+ */
+const AUTO_VISIT_NOTE = 'Logged automatically when the appointment was completed.'
+
+/** What a kept record says about the appointment that was cancelled under it. (FULL0929 F1) */
+const CANCELLED_VISIT_NOTE = 'The appointment this was recorded against was cancelled. Kept because it carries a formula or a note.'
 
 // Reopening a visit: give back what it earned. Never throws — cancelling has to succeed. (LY0928 M1)
 async function onVisitUncompleted(row: typeof appointment.$inferSelect): Promise<void> {
@@ -196,6 +208,45 @@ async function onVisitUncompleted(row: typeof appointment.$inferSelect): Promise
       }
     }
   } catch (e: any) { console.warn('[appointments] sale not voided:', e?.message || e) }
+
+  // …and so does the VISIT RECORD.
+  //
+  // FULL0929 F1: the points went back and the bill was voided, and the service record stayed. So
+  // the client's chart still held a visit that did not happen — counted in their visit total, used
+  // as their last visit, and, worst of all, feeding the rebooking reminder: LYR2 Papa sits on the
+  // Due to Rebook list for 8 October because of a cut that was cancelled. A reminder to come back
+  // for an appointment the salon agreed never took place is the one thing here a CLIENT sees.
+  //
+  // Deleting a visit has voided its invoice since T22; this is the other direction, which was never
+  // built. The record is DELETED rather than flagged, because the salon's own rule is that a
+  // completed appointment IS the visit — re-completing writes it again (onVisitCompleted), so a
+  // disowned row left behind would become a duplicate the moment anyone reopened the appointment.
+  //
+  // The ONE record not deleted is one a stylist has since written a formula or a note of their own
+  // on. That is a colourist's record of what went on a real head of hair, and a status flip on an
+  // appointment is not the right authority to destroy it — a person should decide. Such a record
+  // does still count toward that client's rebooking reminder, which is a compromise rather than a
+  // fix, and it is called out in the retest brief rather than left for someone to discover.
+  try {
+    const [rec] = await db.select().from(serviceRecord)
+      .where(and(eq(serviceRecord.companyId, row.companyId), eq(serviceRecord.appointmentId, row.id))).limit(1)
+    if (rec) {
+      const formula = (rec as any).formula
+      const hasFormula = Array.isArray(formula) ? formula.length > 0 : !!formula
+      const ownNotes = String((rec as any).notes || '').trim()
+      const handWritten = ownNotes !== '' && ownNotes !== AUTO_VISIT_NOTE
+      if (hasFormula || handWritten) {
+        await db.update(serviceRecord).set({
+          notes: `${ownNotes}\n${CANCELLED_VISIT_NOTE}`.trim(),
+          updatedAt: new Date(),
+        } as any).where(eq(serviceRecord.id, rec.id))
+        console.warn(`[appointments] visit record ${rec.id} kept: it carries a stylist's own formula or notes`)
+      } else {
+        await db.delete(serviceRecord).where(eq(serviceRecord.id, rec.id))
+      }
+      emitToCompany(row.companyId, EVENTS.REFRESH, { entity: 'service_record' })
+    }
+  } catch (e: any) { console.warn('[appointments] visit record not removed:', e?.message || e) }
 }
 
 // GET /appointments — ?from=&to= on startTime, ?stylistId=, ?status=

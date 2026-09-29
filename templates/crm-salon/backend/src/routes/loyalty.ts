@@ -640,6 +640,11 @@ app.post('/members/:id/redeem', requirePermission('loyalty:redeem'), async (c) =
       //
       // tax_rate is stored on the invoice, so the new tax is computed from the bill itself and not
       // from a company setting that may have changed since the visit.
+      //
+      // …and a bill a reward has taken to nothing is PAID, not open. FULL0929 F4: three $0.00
+      // invoices sat in the open list — they add nothing to Outstanding, so no money is wrong, but
+      // a front desk chasing open bills has to work out for each one that there is nothing to
+      // chase. Nobody owes nothing.
       await tx.execute(sql`
         UPDATE invoice
         SET discount = LEAST(COALESCE(discount, 0) + ${toDollars(discountCents)}, COALESCE(subtotal, 0)),
@@ -650,6 +655,14 @@ app.post('/members/:id/redeem', requirePermission('loyalty:redeem'), async (c) =
               + ROUND(
                 GREATEST(0, COALESCE(subtotal, 0) - LEAST(COALESCE(discount, 0) + ${toDollars(discountCents)}, COALESCE(subtotal, 0)))
                 * (COALESCE(tax_rate, 0) / 100), 2),
+            status = CASE
+              WHEN GREATEST(0, COALESCE(subtotal, 0) - LEAST(COALESCE(discount, 0) + ${toDollars(discountCents)}, COALESCE(subtotal, 0)))
+                   + ROUND(
+                     GREATEST(0, COALESCE(subtotal, 0) - LEAST(COALESCE(discount, 0) + ${toDollars(discountCents)}, COALESCE(subtotal, 0)))
+                     * (COALESCE(tax_rate, 0) / 100), 2) <= 0.005
+                THEN 'paid'
+              ELSE status
+            END,
             updated_at = NOW()
         WHERE id = ${bill.id} AND company_id = ${u.companyId}
       `)

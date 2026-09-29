@@ -134,6 +134,34 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     if (money && typeof money === 'object') {
       if (money.defaultTaxRate != null && money.defaultTaxRate !== '') { const r = Number(money.defaultTaxRate); if (!Number.isFinite(r) || r < 0 || r > 100) return c.json({ error: 'Default sales tax rate must be between 0 and 100.' }, 400) }
       for (const k of ['paymentTermsDays', 'defaultPaymentTerms']) if (money[k] != null && money[k] !== '') { const d = Number(money[k]); if (!Number.isFinite(d) || d < 0 || d > 365) return c.json({ error: 'Payment terms must be between 0 and 365 days.' }, 400) }
+
+      // …and the same bounds apply to a key NOBODY declared.
+      //
+      // FULL0929 F5: `settings.taxRate` — one word away from the real `defaultTaxRate` — accepted
+      // −5, 150 and "abc" with a 200 each time, while the real field refused all three. The typo
+      // saves, does nothing, and looks saved.
+      //
+      // This is deliberately NOT an allow-list of known keys. This function serves thirteen
+      // verticals and the blob holds plan flags, onboarding state and per-vertical settings that
+      // no single list here could stay ahead of; a key missing from it would break a working screen
+      // silently, which is worse than the bug. What is checked instead is that a value is possible
+      // FOR THE NAME IT WAS GIVEN — anything called a rate or a percentage has to be a number
+      // between 0 and 100, and anything counted in days a number of days. A typo is caught because
+      // it is a typo OF something, and a genuinely new key is still free to be anything.
+      for (const [k, v] of Object.entries(money as Record<string, unknown>)) {
+        if (v == null || v === '' || typeof v === 'object') continue
+        if (/(?:rate|percent|pct)$/i.test(k)) {
+          const n = Number(v)
+          if (!Number.isFinite(n) || n < 0 || n > 100) {
+            return c.json({ error: `${k} reads as a percentage, so it has to be a number between 0 and 100 — got ${JSON.stringify(v)}.`, field: `settings.${k}` }, 400)
+          }
+        } else if (/days$/i.test(k)) {
+          const n = Number(v)
+          if (!Number.isFinite(n) || n < 0 || n > 3650) {
+            return c.json({ error: `${k} reads as a number of days, so it has to be a number — got ${JSON.stringify(v)}.`, field: `settings.${k}` }, 400)
+          }
+        }
+      }
     }
     // MERGE a partial settings object into the stored one — never replace it. A caller sending only
     // { settings: { defaultTaxRate } } used to overwrite the whole JSON blob, wiping plan, seat limit,

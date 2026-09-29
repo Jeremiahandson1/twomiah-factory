@@ -302,7 +302,11 @@ export default function RemindersPage() {
                       <span className="block text-xs text-gray-500 dark:text-slate-400">with {[r.stylistFirstName, r.stylistLastName].filter(Boolean).join(' ')}</span>
                     )}
                   </td>
-                  <td className={`px-4 py-3 ${r.overdue ? 'text-red-700 dark:text-red-400 font-medium' : 'text-gray-600'}`}>
+                  {/* The overdue half carried its dark partner and the not-yet-due half did not, so
+                      on the dark table an upcoming date read 2.36:1 — the only failure in a
+                      12-page dark-mode audit, and it is the column the whole screen is about.
+                      (FULL0929 F3; the same missing-partner shape as every contrast fix here.) */}
+                  <td className={`px-4 py-3 ${r.overdue ? 'text-red-700 dark:text-red-400 font-medium' : 'text-gray-600 dark:text-slate-300'}`}>
                     {fmtDate(r.dueDate)}{r.overdue ? ' (overdue)' : ''}
                   </td>
                 </tr>

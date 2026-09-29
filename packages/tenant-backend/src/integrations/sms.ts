@@ -7,7 +7,7 @@
 // and every version parsed Twilio's form-encoded webhook with c.req.json() → the text was dropped with a 200.
 import { Hono } from 'hono'
 import { eq, and, or, desc, asc, count, sum, sql, gt, isNull } from 'drizzle-orm'
-import { formatPhoneE164, isDialablePhone, parseTwilioBody, verifyTwilioRequest, twilioClient, twilioConfigFromEnv, twilioConfigFor, companyTwilioNumbers, twilioSender, TWIML_EMPTY, type TwilioConfig } from './twilio'
+import { formatPhoneE164, isDialablePhone, parseTwilioBody, verifyTwilioRequest, twilioClient, twilioConfigFromEnv, twilioConfigFor, twilioConfigured, companyTwilioNumbers, twilioSender, TWIML_EMPTY, type TwilioConfig } from './twilio'
 
 export interface SmsTables { smsConversation: any; smsMessage: any; smsTemplate: any; contact: any; company: any; job: any; user: any;
   /** crew roster — present → a roster-only assignee's first name is used for {{tech_name}} (T21 M12) */
@@ -86,6 +86,20 @@ export function createSmsService(deps: SmsServiceDeps) {
     // opened and no message row is written — the caller just gets the refusal. A carrier failure after a
     // real attempt is still recorded as a failed message in the thread. (T16 N2)
     if (!(await usage.walletSufficient())) return { status: 'refused', errorMessage: 'Messaging paused: usage wallet is empty — top up to resume.', refused: true } as any
+
+    // …and a shop that has never set texting up is refused before anything else happens, in words
+    // that say what to do. FULL0929 F8: with no Twilio number on the company and a $0 wallet, a
+    // bulk reminder answered {sent: 1} and nothing went anywhere. The wallet check above caught it
+    // first on that tenant, but a shop with credit and no number would have reached Twilio and got
+    // back a provider error nobody could act on. A missing number is a setup problem, not a send
+    // failure, and it should read like one.
+    if (!twilioConfigured(await cfg())) {
+      return {
+        status: 'refused',
+        errorMessage: 'Texting is not set up for this shop yet — add a number under Settings → Messaging before sending.',
+        refused: true,
+      } as any
+    }
 
     // The thread belongs to the person whose number this is (digits compared, so "(608) 555-0166" matches
     // +16085550166) — the same match the inbound webhook makes — so a text typed to a number is filed

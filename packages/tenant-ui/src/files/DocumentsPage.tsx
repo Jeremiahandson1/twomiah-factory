@@ -48,13 +48,26 @@ async function downloadAuthed(api: FilesApi, url: string, filename: string) {
   const a = document.createElement('a'); a.href = u; a.download = filename; document.body.appendChild(a); a.click(); a.remove()
   setTimeout(() => URL.revokeObjectURL(u), 60_000)
 }
+/**
+ * A thumbnail that carries the session token, fetched once.
+ *
+ * FULL0929 F7: the list requested every stored file TWICE on load. The effect depended on `api`,
+ * which is a new object on each render, so it re-ran the moment anything above it re-rendered —
+ * and each run pulled the whole file down again. Harmless with 25 small files; a page of large PDFs
+ * is a different matter, and it is the client's own bandwidth on a phone.
+ *
+ * The api object is held in a ref so it can be used without being a dependency: the SOURCE is what
+ * decides whether to fetch again, and nothing else.
+ */
 function AuthImg({ api, src, alt, className }: { api: FilesApi; src: string; alt?: string; className?: string }) {
   const [url, setUrl] = useState<string | null>(null)
+  const apiRef = useRef(api)
+  apiRef.current = api
   useEffect(() => {
     let obj: string | null = null, live = true
-    blobUrl(api, src).then(u => { obj = u; if (live) setUrl(u); else URL.revokeObjectURL(u) }).catch(() => { if (live) setUrl(null) })
+    blobUrl(apiRef.current, src).then(u => { obj = u; if (live) setUrl(u); else URL.revokeObjectURL(u) }).catch(() => { if (live) setUrl(null) })
     return () => { live = false; if (obj) URL.revokeObjectURL(obj) }
-  }, [api, src])
+  }, [src])
   return url ? <img src={url} alt={alt || ''} className={className} /> : <div className={className} />
 }
 
@@ -145,7 +158,12 @@ export function DocumentsPage({ api, toast, config }: DocumentsPageProps) {
     { key: 'name', label: 'Name', render: (v: any, r: DocumentRow) => { const Icon = iconFor(r.mimeType); return (
       <div className="flex items-center gap-3 min-w-0">
         <div className="w-10 h-10 shrink-0 rounded-lg bg-gray-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
-          {r.thumbnailUrl ? <AuthImg api={api} src={r.thumbnailUrl} className="w-10 h-10 object-cover" /> : <Icon className="w-5 h-5 text-gray-500 dark:text-slate-400" />}
+          {/* Only an IMAGE gets a preview, whatever thumbnailUrl happens to hold. A text file or a
+              PDF shows its icon and its bytes stay on the server — the list was pulling every
+              stored file down to draw a 40-pixel square. (FULL0929 F7) */}
+          {r.thumbnailUrl && String(r.mimeType || '').startsWith('image/')
+            ? <AuthImg api={api} src={r.thumbnailUrl} className="w-10 h-10 object-cover" />
+            : <Icon className="w-5 h-5 text-gray-500 dark:text-slate-400" />}
         </div>
         <div className="min-w-0"><p className="font-medium truncate">{v}</p><p className="text-xs text-gray-500 dark:text-slate-400 truncate">{r.originalName}</p></div>
       </div>) } },

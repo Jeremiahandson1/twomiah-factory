@@ -189,10 +189,17 @@ app.post('/send', requirePermission('contacts:update'), async (c) => {
     const to = (ct as any).mobile || ct.phone
     if (!to) { failures.push(ct.id); continue }
     try {
-      // sendSMS returns the saved row; a wallet/carrier failure comes back as status "failed", not a throw. (SALON-C4)
+      // sendSMS returns the saved row; a carrier failure comes back as status "failed", not a throw,
+      // and a send that was never attempted comes back "refused". (SALON-C4)
+      //
+      // FULL0929 F8: this counted anything that was not literally 'failed' as a send — so a REFUSED
+      // message, where the shop has no Twilio number and an empty wallet and nothing was attempted,
+      // was reported as {sent: 1}. No thread, no charge, no text, and an API saying it went. A count
+      // of messages sent has to mean messages that were sent, so only a real 'sent' counts now and
+      // everything else carries its reason back to the screen.
       const row: any = await sendSMS(u.companyId, { contactId: ct.id, toPhone: to, message, userId: u.userId })
-      if (row?.status === 'failed') { failures.push(ct.id); reasons.push(row.errorMessage || 'Send failed') }
-      else sent++
+      if (row?.status === 'sent') { sent++ }
+      else { failures.push(ct.id); reasons.push(row?.errorMessage || 'Send failed') }
     } catch (e: any) { failures.push(ct.id); reasons.push(e?.message || 'Send failed') }
   }
   const noPhone = clients.filter((ct) => !((ct as any).mobile || ct.phone)).length

@@ -261,6 +261,12 @@ app.use('/api/selections', authenticate, requireEnabledFeature('selections'))
 app.use('/api/selections/*', authenticate, requireEnabledFeature('selections'))
 app.use('/api/fleet', authenticate, requireEnabledFeature('fleet'))
 app.use('/api/fleet/*', authenticate, requireEnabledFeature('fleet'))
+// A geofence is a GPS boundary — it only means anything to a tenant tracking where their people are,
+// and a salon is not one. FULL0929 F6: this was the single module still answering 200 with an empty
+// list while sixteen others beside it returned 403 — the same leftover field service had until T20,
+// which is where these two lines come from.
+app.use('/api/geofencing', authenticate, requireEnabledFeature('gps_tracking'))
+app.use('/api/geofencing/*', authenticate, requireEnabledFeature('gps_tracking'))
 app.use('/api/inventory', authenticate, requireEnabledFeature('inventory'))
 app.use('/api/inventory/*', authenticate, requireEnabledFeature('inventory'))
 app.use('/api/equipment', authenticate, requireEnabledFeature('equipment_tracking'))

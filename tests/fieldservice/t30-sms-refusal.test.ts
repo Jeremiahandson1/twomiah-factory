@@ -61,11 +61,23 @@ console.log('\n── the API refuses a number it cannot dial, and spends nothin
 
 console.log('\n── a real number still gets through the validator ──')
 {
-  // No Twilio credentials in the sandbox, so the carrier call fails — which is exactly the case that
-  // SHOULD be a 502, and it proves the validator is not swallowing valid numbers.
+  // The point of this case is that the phone validator does not swallow a VALID number. It used to
+  // be observed through the carrier: with no Twilio credentials in the sandbox the call failed, and
+  // a 502 proved the number had got that far.
+  //
+  // A shop with no number set up is now refused BEFORE anything is attempted (FULL0929 F8), which
+  // is the same rule the empty-wallet case has always followed — "a refused send is not a send: no
+  // thread is opened and no message row is written" (T16 N2). So the observable changes and the
+  // intent does not: a valid number must earn a DIFFERENT refusal from the typo above — a setup
+  // problem, naming what to go and do — rather than being turned away as unreadable.
+  const before = await rows(), beforeThreads = await threads()
   const r = await call('POST', '/api/sms/send', { contactId: cust.id, message: 'T30 real number' })
-  check('a dialable number reaches the carrier layer, and its failure is a 502', r.status === 502, { status: r.status, body: r.json })
-  check('…and the attempt is recorded in the thread, as a failed message', (await rows()) >= 1, { rows: await rows() })
+  check('a dialable number gets past the validator', r.status !== 400, { status: r.status, body: r.json })
+  check('…and is refused for the real reason: texting is not set up here',
+    /not set up|wallet|paused/i.test(String(r.json?.error || '')), { status: r.status, error: r.json?.error })
+  check('…not as an unreadable number', !/not a phone number/i.test(String(r.json?.error || '')), { error: r.json?.error })
+  check('…and nothing was attempted, so no message row and no thread', (await rows()) === before && (await threads()) === beforeThreads,
+    { rows: await rows(), threads: await threads() })
 }
 
 console.log(`\nfs-t30-sms-refusal: ${passed} passed, ${failed} failed`)
