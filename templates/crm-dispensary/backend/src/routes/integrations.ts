@@ -6,6 +6,7 @@ import { company, order, orderItem, product, contact, loyaltyMember, loyaltyRewa
 import { eq, and, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
+import { clientKey } from '../middleware/rateLimit.ts'
 import Stripe from 'stripe'
 import audit from '../services/audit.ts'
 import { recomputeTier } from '../utils/loyaltyTier.ts'
@@ -26,17 +27,44 @@ const QB_ENVIRONMENT = process.env.QUICKBOOKS_ENVIRONMENT || 'sandbox'
 // ─── Auth middleware: verify X-Integration-Key against company.integrationKey ──
 // Applied PER-ROUTE to the external-POS endpoints only, so the session-authenticated
 // internal settings routes below can coexist in the same /api/integrations router.
+// Failed key attempts, per client address.
+//
+// T45 L8: thirty wrong keys in a row all answered 401 with nothing slowing them down, which is an
+// invitation to keep going. The key is 32 random bytes so guessing it is not the realistic threat;
+// the realistic one is somebody hammering this endpoint and the cost of answering. Ten failures in
+// fifteen minutes from one address is far more than any integrator makes by accident, and a
+// SUCCESSFUL call clears the count so a working integration is never affected.
+const KEY_FAIL_WINDOW_MS = 15 * 60 * 1000
+const KEY_FAIL_MAX = 10
+const keyFailures = new Map<string, { count: number; resetAt: number }>()
+
 async function requireIntegrationKey(c: Context, next: Next) {
+  const who = clientKey(c)
+  const now = Date.now()
+  const seen = keyFailures.get(who)
+  if (seen && now <= seen.resetAt && seen.count >= KEY_FAIL_MAX) {
+    return c.json({
+      error: 'Too many failed key attempts — try again in a few minutes',
+      retryAfterSeconds: Math.ceil((seen.resetAt - now) / 1000),
+    }, 429)
+  }
+  const noteFailure = () => {
+    const entry = keyFailures.get(who)
+    if (!entry || now > entry.resetAt) keyFailures.set(who, { count: 1, resetAt: now + KEY_FAIL_WINDOW_MS })
+    else entry.count++
+  }
+
   // The published OpenAPI spec (GET /api/enterprise/openapi) names this header X-API-Key, and
   // this middleware only ever read X-Integration-Key - so an integrator following the documented
   // contract got 401 on every call. Both names are read; the docs' name is the one quoted back.
   // (T45 H22)
   const key = c.req.header('X-API-Key') || c.req.header('X-Integration-Key')
-  if (!key) return c.json({ error: 'Missing X-API-Key header' }, 401)
+  if (!key) { noteFailure(); return c.json({ error: 'Missing X-API-Key header' }, 401) }
 
   const [comp] = await db.select().from(company).where(eq(company.integrationKey, key)).limit(1)
-  if (!comp) return c.json({ error: 'Invalid API key' }, 401)
+  if (!comp) { noteFailure(); return c.json({ error: 'Invalid API key' }, 401) }
 
+  keyFailures.delete(who)
   c.set('company', comp)
   return next()
 }

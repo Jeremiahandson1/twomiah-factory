@@ -203,7 +203,10 @@ export default function CashPage() {
                       // disabled surface — and slate-400 rather than the dimmer slate-500 a disabled
                       // label could justify, because check-muted-label-contrast draws that line for the
                       // whole fleet and one cosmetic exception is not worth a hole in it. (T30 M7)
-                      : 'bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-400'
+                      // …and gray-500, not gray-400: on gray-200 that was 2.05:1, which T45 L2
+                      // measured and which is unreadable rather than merely dimmed. A disabled
+                      // control still has to be legible enough to tell you WHICH control it is.
+                      : 'bg-gray-200 text-gray-500 cursor-not-allowed dark:bg-slate-800 dark:text-slate-400'
                   }`}
                 >
                   <Lock className="w-4 h-4" /> Close Drawer

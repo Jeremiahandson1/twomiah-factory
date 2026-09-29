@@ -445,14 +445,25 @@ app.get('/mfa/devices', async (c) => {
   const currentUser = c.get('user') as any
 
   const result = await db.execute(sql`
-    SELECT id, type, is_verified, last_used_at, created_at
+    SELECT id, type, name, is_verified, last_used_at, created_at
     FROM mfa_devices
     WHERE user_id = ${currentUser.userId}
       AND company_id = ${currentUser.companyId}
     ORDER BY created_at DESC
   `)
 
-  return c.json((result as any).rows || result)
+  // T45 L10: the table read device.verified and device.lastUsed while this answered is_verified
+  // and last_used_at in snake_case — so a device the API had recorded as verified was listed
+  // "Pending" forever, which is exactly the wrong thing to tell someone about their own
+  // second factor. camelCase, like every other list in this product.
+  const rows = ((result as any).rows || result).map((row: any) => {
+    const out: any = {}
+    for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+    out.verified = row.is_verified === true
+    out.lastUsed = row.last_used_at ?? null
+    return out
+  })
+  return c.json(rows)
 })
 
 // Remove MFA device (requires password confirmation)

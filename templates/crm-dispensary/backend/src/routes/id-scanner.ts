@@ -368,7 +368,15 @@ app.get('/scans', requireRole('manager'), async (c) => {
     `),
   ])
 
-  const data = (dataResult as any).rows || dataResult
+  // The table reads scan.name, and these rows came back as first_name / last_name in snake_case —
+  // so every scan in the log listed a dash where the customer's name should be. Both halves are
+  // returned, plus the whole name the screen actually renders. (T45 L9)
+  const data = ((dataResult as any).rows || dataResult).map((row: any) => {
+    const out: any = {}
+    for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+    out.name = [row.first_name, row.last_name].filter(Boolean).join(' ') || null
+    return out
+  })
   const countRows = (countResult as any).rows || countResult
   const total = countRows[0]?.total || 0
 

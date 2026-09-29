@@ -283,7 +283,39 @@ app.post('/rewards', requireRole('manager'), async (c) => {
     productId: z.string().optional(), // for free_item type
     isActive: z.boolean().default(true),
   })
-  const data = rewardSchema.parse(await c.req.json())
+  let data: z.infer<typeof rewardSchema>
+  try {
+    data = rewardSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  // A reward that cannot be redeemed should not be creatable.
+  //
+  // T45 L4: "150% off" and "free item" with no product both saved happily, and redemption then
+  // correctly refused them — so the refusal landed on a customer at the counter rather than on the
+  // manager who typed it. The rules are the redemption rules, applied at the point where they can
+  // still be fixed.
+  const rewardProblem = await (async () => {
+    if (data.discountType === 'percent') {
+      if (data.discountValue <= 0 || data.discountValue > 100) {
+        return `A percentage reward has to be between 1 and 100 — ${data.discountValue}% is not a discount anyone can give`
+      }
+    }
+    if (data.discountType === 'fixed' && data.discountValue <= 0) {
+      return 'A money-off reward has to be worth more than $0'
+    }
+    if (data.discountType === 'free_item') {
+      if (!data.productId) return 'A free-item reward has to say which product is free'
+      const found = await db.execute(sql`
+        SELECT id FROM products WHERE id = ${data.productId} AND company_id = ${currentUser.companyId} LIMIT 1
+      `)
+      if (!((found as any).rows || found)?.[0]) return 'That product is not one of yours'
+    }
+    return null
+  })()
+  if (rewardProblem) return c.json({ error: rewardProblem, code: 'unusable_reward' }, 400)
 
   const result = await db.execute(sql`
     INSERT INTO loyalty_rewards(id, name, description, points_cost, discount_type, discount_value, product_id, active, company_id, created_at, updated_at)

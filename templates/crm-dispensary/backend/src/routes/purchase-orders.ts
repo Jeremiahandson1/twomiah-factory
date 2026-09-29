@@ -553,9 +553,17 @@ app.put('/:id/receive', requireRole('manager'), async (c) => {
         poItem.receivedQty = (Number(poItem.receivedQty) || 0) + received.receivedQty
 
         if (poItem.productId && received.receivedQty > 0) {
+          // T45 L3: receiving at $12 left the product's cost at the $18 it had before, so every
+          // margin figure downstream — the product page, the shrinkage value on End of Day, the
+          // profit column in analytics — was computed against a price the shop stopped paying. The
+          // cost on the purchase order is what this delivery actually cost; that is the new cost.
+          const unitCost = Number(poItem.unitCost ?? poItem.cost ?? poItem.unitPrice ?? NaN)
+          const costUpdate = Number.isFinite(unitCost) && unitCost > 0
+            ? sql`, cost_price = ${String(unitCost)}`
+            : sql``
           await tx.execute(sql`
             UPDATE products
-            SET stock_quantity = stock_quantity + ${received.receivedQty}, updated_at = NOW()
+            SET stock_quantity = stock_quantity + ${received.receivedQty}${costUpdate}, updated_at = NOW()
             WHERE id = ${poItem.productId} AND company_id = ${currentUser.companyId}
           `)
 

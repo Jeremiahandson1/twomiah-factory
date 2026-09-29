@@ -490,7 +490,22 @@ app.put('/orders/:id/ship', requireRole('manager'), async (c) => {
           RETURNING id
         `)
         if (!((decr as any).rows || decr)?.[0]) {
-          throw new ShipStockError(`Insufficient stock to ship ${qty} of ${item.productName || item.productId}`)
+          // T45 L12: the wholesale order's line does not always carry a name, so this refusal read
+          // "Insufficient stock to ship 40 of cm3k9x2p0000abcd" — a database id, in front of
+          // somebody trying to work out what to do about it. Look the name up; only fall back to
+          // the id if the product has been deleted out from under the order.
+          const named = await tx.execute(sql`
+            SELECT name, stock_quantity FROM products
+            WHERE id = ${item.productId} AND company_id = ${currentUser.companyId} LIMIT 1
+          `)
+          const prod = ((named as any).rows || named)?.[0]
+          const label = item.productName || prod?.name || `product ${item.productId}`
+          const onHand = prod ? Number(prod.stock_quantity ?? 0) : null
+          throw new ShipStockError(
+            onHand === null
+              ? `${label} is no longer in the catalogue, so this order cannot be shipped`
+              : `Not enough ${label} to ship: ${qty} needed, ${onHand} on hand`,
+          )
         }
       }
       const r = await tx.execute(sql`

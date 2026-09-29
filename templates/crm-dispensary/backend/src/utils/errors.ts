@@ -16,16 +16,31 @@ export const errorHandler = (err: Error, c: Context) => {
   // Postgres errors otherwise leak out as opaque 500s ("unvalidated input reaching
   // the DB"). Map the common ones to a clean, actionable 4xx. The pg driver may
   // wrap the code on the error or its cause, so check both.
-  const pgCode = (err as any).code || (err as any)?.cause?.code
+  const pgError = err as any
+  const pgCode = pgError.code || pgError?.cause?.code
   if (typeof pgCode === 'string') {
+    // Postgres knows WHICH column it was, and saying so is the whole difference between a message
+    // somebody can act on and one they can only stare at. T45 L1: "One of the values is not in a
+    // valid format" told a person nothing about which of twelve fields to look at. The driver puts
+    // it on `column`, or inside `detail` for a constraint.
+    const cause = pgError?.cause || pgError
+    const readable = (s: unknown) => String(s || '').replace(/_/g, ' ').trim()
+    const column = readable(cause?.column)
+    const constraint = readable(cause?.constraint)
+    const detail = String(cause?.detail || '')
+    // "Key (email)=(x) already exists." — the field is the part a person recognises.
+    const keyField = readable((detail.match(/^Key \(([^)]+)\)/) || [])[1])
+    const named = column || keyField || constraint
+    const about = named ? ` (${named})` : ''
+
     switch (pgCode) {
-      case '23502': return c.json({ error: 'A required field is missing.' }, 400)                 // not_null_violation
-      case '23503': return c.json({ error: 'A related record does not exist, or is still in use.' }, 409) // foreign_key_violation
-      case '23505': return c.json({ error: 'That record already exists.' }, 409)                   // unique_violation
-      case '23514': return c.json({ error: 'A value did not pass a validation rule.' }, 400)       // check_violation
-      case '22003': return c.json({ error: 'A number is out of the allowed range.' }, 400)         // numeric_value_out_of_range
+      case '23502': return c.json({ error: `A required field is missing${about}.`, field: named || null }, 400)                 // not_null_violation
+      case '23503': return c.json({ error: `A related record does not exist, or is still in use${about}.`, field: named || null }, 409) // foreign_key_violation
+      case '23505': return c.json({ error: `That ${named || 'record'} is already in use.`, field: named || null }, 409)          // unique_violation
+      case '23514': return c.json({ error: `A value did not pass a validation rule${about}.`, field: named || null }, 400)       // check_violation
+      case '22003': return c.json({ error: `A number is out of the allowed range${about}.`, field: named || null }, 400)         // numeric_value_out_of_range
       case '22P02': case '22007': case '22008':
-        return c.json({ error: 'One of the values is not in a valid format.' }, 400)               // invalid_text_representation / datetime
+        return c.json({ error: `One of the values is not in a valid format${about}.`, field: named || null }, 400)               // invalid_text_representation / datetime
     }
   }
 

@@ -131,7 +131,13 @@ app.post('/store-groups/:id/members', requireRole('admin'), async (c) => {
     locationId: z.string().min(1),
     role: z.string().min(1).default('member'),
   })
-  const data = memberSchema.parse(await c.req.json())
+  let data: z.infer<typeof memberSchema>
+  try {
+    data = memberSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
 
   // Verify group belongs to company
   const groupCheck = await db.execute(sql`
@@ -140,12 +146,34 @@ app.post('/store-groups/:id/members', requireRole('admin'), async (c) => {
   const group = ((groupCheck as any).rows || groupCheck)?.[0]
   if (!group) return c.json({ error: 'Store group not found' }, 404)
 
-  const result = await db.execute(sql`
-    INSERT INTO store_group_members(id, group_id, location_id, role, joined_at)
-    VALUES (gen_random_uuid(), ${groupId}, ${data.locationId}, ${data.role}, NOW())
-    ON CONFLICT (group_id, location_id) DO UPDATE SET role = ${data.role}
-    RETURNING *
+  // …and that the location is this company's, which nothing checked — a group could be given a
+  // location id belonging to somebody else entirely.
+  const locCheck = await db.execute(sql`
+    SELECT id, name FROM locations WHERE id = ${data.locationId} AND company_id = ${currentUser.companyId}
   `)
+  const loc = ((locCheck as any).rows || locCheck)?.[0]
+  if (!loc) return c.json({ error: 'That location is not one of yours' }, 404)
+
+  // T45 L6: the same location could be added to one group twice. The ON CONFLICT here needs a
+  // unique constraint on (group_id, location_id) to do anything, and where that constraint is
+  // missing the statement either errors or simply inserts a second row — so the group listed the
+  // shop twice and its roll-up counted it twice. Read first; update or insert.
+  const existingResult = await db.execute(sql`
+    SELECT id FROM store_group_members WHERE group_id = ${groupId} AND location_id = ${data.locationId} LIMIT 1
+  `)
+  const alreadyIn = ((existingResult as any).rows || existingResult)?.[0]
+
+  const result = alreadyIn
+    ? await db.execute(sql`
+        UPDATE store_group_members SET role = ${data.role}
+        WHERE id = ${alreadyIn.id}
+        RETURNING *
+      `)
+    : await db.execute(sql`
+        INSERT INTO store_group_members(id, group_id, location_id, role, joined_at)
+        VALUES (gen_random_uuid(), ${groupId}, ${data.locationId}, ${data.role}, NOW())
+        RETURNING *
+      `)
 
   const member = ((result as any).rows || result)?.[0]
 

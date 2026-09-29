@@ -52,7 +52,9 @@ const printJobSchema = z.object({
   templateId: z.string().min(1),
   productId: z.string().min(1).optional(),
   batchId: z.string().min(1).optional(),
-  quantity: z.number().int().min(1).default(1),
+  // A print run of 100,000 labels was accepted — a typo that would queue a week of printing and
+  // a jsonb blob to match. The same 1,000 ceiling /generate already carries. (T45 L7)
+  quantity: z.number().int().min(1).max(1000, 'A print run is capped at 1,000 labels').default(1),
 })
 
 // The Labels screen has always sent { templateId, productIds: [...], quantity } and this asked for a
@@ -270,7 +272,14 @@ app.post('/templates/:id/preview', requireRole('budtender'), async (c) => {
 // Create print job
 app.post('/print', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
-  const data = printJobSchema.parse(await c.req.json())
+
+  let data: z.infer<typeof printJobSchema>
+  try {
+    data = printJobSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
 
   // Get template
   const tmplResult = await db.execute(sql`
@@ -323,18 +332,23 @@ app.post('/print', requireRole('budtender'), async (c) => {
   const fields = typeof template.fields === 'string' ? JSON.parse(template.fields) : template.fields
   const html = buildLabelHtml(template, fields, labelData)
 
-  // Create print job record
+  // Create print job record.
+  //
+  // This named label_html, created_by and updated_at — three columns label_print_jobs does not
+  // have (schema.ts: printed_by, label_data, no html, no updated_at). So pressing Print answered
+  // 500 every time, for everyone. The rendered HTML goes back to the caller, which is what it is
+  // for; the template and the data that produced it are both recorded here. (T45 L7, same shape
+  // as the /generate insert fixed in BL5)
   const jobResult = await db.execute(sql`
     INSERT INTO label_print_jobs (
       id, company_id, template_id, product_id, batch_id,
-      quantity, status, label_data, label_html,
-      created_by, created_at, updated_at
+      quantity, status, label_data, printed_by, created_at
     ) VALUES (
       gen_random_uuid(), ${currentUser.companyId}, ${data.templateId},
       ${data.productId || null}, ${data.batchId || null},
       ${data.quantity}, 'pending',
-      ${JSON.stringify(labelData)}::jsonb, ${html},
-      ${currentUser.userId}, NOW(), NOW()
+      ${JSON.stringify(labelData)}::jsonb,
+      ${currentUser.userId}, NOW()
     ) RETURNING *
   `)
 
@@ -517,7 +531,11 @@ app.post('/generate', requireRole('budtender'), async (c) => {
         totalThc: labTest.total_thc,
         totalCbd: labTest.total_cbd,
         terpenes: labTest.terpenes,
-        passed: labTest.passed,
+        // lab_tests has overall_result ('pass'|'fail'), not `passed` — this read undefined and
+        // printed nothing where a label should say whether the lot passed. (T45 L7)
+        passed: labTest.overall_result === null || labTest.overall_result === undefined
+          ? null
+          : labTest.overall_result === 'pass',
       } : null,
     }
 

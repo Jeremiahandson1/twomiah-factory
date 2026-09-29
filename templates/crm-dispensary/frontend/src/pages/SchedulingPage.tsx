@@ -343,7 +343,9 @@ export default function SchedulingPage() {
                               </div>
                             ))}
                             {cellShifts.length === 0 && (
-                              <div className="text-gray-300 text-xs">+</div>
+                              // The only thing telling a manager this empty cell can be clicked,
+                              // at 1.41:1 — a mark nobody can see is not an affordance. (T45 L2)
+                              <div className="text-gray-500 text-xs dark:text-slate-400" aria-label="Add a shift">+</div>
                             )}
                           </td>
                         );

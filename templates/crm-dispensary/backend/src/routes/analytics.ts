@@ -76,12 +76,12 @@ app.get('/sales', async (c) => {
       -- Revenue and AOV share the same NET basis (total − refunded) so AOV × orders = revenue. (retest: AOV vs revenue)
       -- the shared definition, floored per sale: one row refunded beyond its own total used to drag a
       -- whole day negative (-$50 on 13 Sep). utils/revenue.ts. (T29 L3)
-      COALESCE(SUM(${netExprBare}), 0) as revenue,
+      ROUND(COALESCE(SUM(${netExprBare}), 0), 2) as revenue,
       COALESCE(SUM(subtotal::numeric), 0) as subtotal,
       -- the WHERE above keeps every settled sale for revenue; tax is only the ones not handed back in full
       COALESCE(SUM(CASE WHEN status IN ${taxCollected} THEN ${taxNetExprBare} ELSE 0 END), 0) as tax_collected,
       COALESCE(SUM(discount_amount::numeric), 0) as discounts_given,
-      COALESCE(AVG(${netExprBare}), 0) as avg_order_value
+      ROUND(COALESCE(AVG(${netExprBare}), 0), 2) as avg_order_value
     FROM orders
     WHERE company_id = ${currentUser.companyId}
       AND status IN ${settledSale}
@@ -138,9 +138,9 @@ app.get('/products', async (c) => {
       -- restocks from was hiding real sales behind old bad data. A line that was over-refunded
       -- contributes nothing; it can no longer contribute LESS than nothing. (T43 N5)
       SUM(GREATEST(0, oi.quantity - COALESCE(oi.refunded_quantity, 0)))::int as total_sold,
-      COALESCE(SUM(GREATEST(0, oi.line_total::numeric - COALESCE(oi.refunded_quantity, 0) * oi.unit_price::numeric)), 0) as total_revenue,
+      ROUND(COALESCE(SUM(GREATEST(0, oi.line_total::numeric - COALESCE(oi.refunded_quantity, 0) * oi.unit_price::numeric)), 0), 2) as total_revenue,
       COUNT(DISTINCT oi.order_id)::int as order_count,
-      COALESCE(AVG(oi.unit_price::numeric), 0) as avg_price
+      ROUND(COALESCE(AVG(oi.unit_price::numeric), 0), 2) as avg_price
     FROM order_items oi
     JOIN orders o ON o.id = oi.order_id
     LEFT JOIN products p ON p.id = oi.product_id
@@ -182,11 +182,11 @@ app.get('/summary', async (c) => {
         COUNT(CASE WHEN status = 'refunded' THEN 1 END)::int as refunded_orders,
         -- Revenue is NET of refunds: a partially-refunded sale counts what the customer kept,
         -- a fully-refunded one counts $0 (go-live QA V-3).
-        COALESCE(SUM(CASE WHEN status IN ${settledSale} THEN ${netExprBare} ELSE 0 END), 0) as revenue,
+        ROUND(COALESCE(SUM(CASE WHEN status IN ${settledSale} THEN ${netExprBare} ELSE 0 END), 0), 2) as revenue,
         COALESCE(SUM(CASE WHEN status IN ${taxCollected} THEN ${taxNetExprBare} ELSE 0 END), 0) as tax_collected,
         COALESCE(SUM(CASE WHEN status IN ${settledSale} THEN discount_amount::numeric ELSE 0 END), 0) as discounts,
         -- AOV on the same NET basis as revenue (AOV × completed orders = revenue). (retest: AOV vs revenue)
-        COALESCE(AVG(CASE WHEN status IN ${settledSale} THEN ${netExprBare} END), 0) as avg_order_value,
+        ROUND(COALESCE(AVG(CASE WHEN status IN ${settledSale} THEN ${netExprBare} END), 0), 2) as avg_order_value,
         COALESCE(SUM(CASE WHEN status IN ('refunded', 'partially_refunded') THEN COALESCE(NULLIF(refunded_amount, '')::numeric, total::numeric) ELSE 0 END), 0) as refunds_total,
         -- The mix counts SALES, so it counts the same row set the revenue above it does.
         --
@@ -253,8 +253,11 @@ app.get('/summary', async (c) => {
              -- Units are untouched by an amount refund: no goods came back, so none are added back
              -- to stock and none are taken out of the count. Only the money moved. (T43 N5 per-line)
              SUM(ln.units_left)::int as units_sold,
-             COALESCE(SUM(GREATEST(0, ln.value_left - CASE WHEN ot.value_left_total > 0
-               THEN ot.unallocated * (ln.value_left / ot.value_left_total) ELSE 0 END)), 0) as revenue
+             -- Rounded to cents. Postgres hands a numeric division back at full scale, so this
+             -- came out as "617.00000000000000000000" and the screen rendered it verbatim.
+             -- Money is two decimal places everywhere else in this product. (T45 L11)
+             ROUND(COALESCE(SUM(GREATEST(0, ln.value_left - CASE WHEN ot.value_left_total > 0
+               THEN ot.unallocated * (ln.value_left / ot.value_left_total) ELSE 0 END)), 0), 2) as revenue
       FROM line_net ln
       JOIN order_totals ot ON ot.order_id = ln.order_id
       GROUP BY ln.category
@@ -268,7 +271,7 @@ app.get('/summary', async (c) => {
       -- summed to $6,816.25 against a stated $9,039.75. (T42 H2)
       SELECT COALESCE(NULLIF(payment_method, ''), 'unrecorded') as payment_method,
              COUNT(*)::int as count,
-             COALESCE(SUM(${netExprBare}), 0) as total
+             ROUND(COALESCE(SUM(${netExprBare}), 0), 2) as total
       FROM orders
       WHERE company_id = ${currentUser.companyId}
         AND status IN ${settledSale}
@@ -315,7 +318,7 @@ app.get('/peak-hours', async (c) => {
     SELECT
       EXTRACT(HOUR FROM (created_at AT TIME ZONE 'UTC' AT TIME ZONE ${tz}))::int as hour,
       COUNT(*)::int as order_count,
-      COALESCE(SUM(total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0)), 0) as revenue,
+      ROUND(COALESCE(SUM(total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0)), 0), 2) as revenue,
       COALESCE(AVG(total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0)), 0) as avg_order_value
     FROM orders
     WHERE company_id = ${currentUser.companyId}

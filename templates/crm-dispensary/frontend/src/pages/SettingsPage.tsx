@@ -657,6 +657,19 @@ export default function SettingsPage() {
                       carrying 400 days from before that rule could not save ANY setting on this page
                       with nowhere to correct it. A rule the UI gives you no way to satisfy is a trap.
                       (Dispensary T30) */}
+                  {/* …and a tenant that still HOLDS 400 loads this page with 400 in the box and no
+                      hint that the next Save will be refused because of it. Say so on arrival, not
+                      after the attempt. (T45 L13) */}
+                  {(() => {
+                    const days = Number(generalForm.paymentTermsDays);
+                    const outOfRange = generalForm.paymentTermsDays !== '' &&
+                      (!Number.isInteger(days) || days < 0 || days > 365);
+                    return outOfRange ? (
+                      <p className="text-xs text-amber-700 mt-1 dark:text-amber-300">
+                        {generalForm.paymentTermsDays} is outside the range this accepts. Set it between 0 and 365 — nothing on this page will save until you do.
+                      </p>
+                    ) : null;
+                  })()}
                   <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">How long a customer has to pay an invoice. Used as the default due date; 0–365.</p>
                 </div>
 

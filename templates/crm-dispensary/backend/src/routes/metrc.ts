@@ -162,7 +162,7 @@ app.post('/sync', async (c) => {
   } catch (err: any) {
     // "Not connected" is a normal state, not a server fault — return 400 with a
     // clear message instead of a 500 the operator can't act on. (M11 follow-up)
-    if (/No Metrc config/i.test(err?.message || '')) return c.json({ error: 'Metrc is not connected. Add your Metrc API credentials in Settings first.' }, 400)
+    if (/No Metrc config/i.test(err?.message || '')) return c.json({ error: 'Metrc is not connected. Add your Metrc API key and user key on the Metrc screen (Compliance → Metrc) first.' }, 400)
     return c.json({ error: err.message || 'Sync failed' }, 500)
   }
 })
@@ -190,7 +190,7 @@ app.post('/sync/packages', async (c) => {
 
     return c.json({ success: true, result })
   } catch (err: any) {
-    if (/No Metrc config/i.test(err?.message || '')) return c.json({ error: 'Metrc is not connected. Add your Metrc API credentials in Settings first.' }, 400)
+    if (/No Metrc config/i.test(err?.message || '')) return c.json({ error: 'Metrc is not connected. Add your Metrc API key and user key on the Metrc screen (Compliance → Metrc) first.' }, 400)
     return c.json({ error: err.message || 'Package sync failed' }, 500)
   }
 })
@@ -218,7 +218,7 @@ app.post('/sync/sales', async (c) => {
 
     return c.json({ success: true, result })
   } catch (err: any) {
-    if (/No Metrc config/i.test(err?.message || '')) return c.json({ error: 'Metrc is not connected. Add your Metrc API credentials in Settings first.' }, 400)
+    if (/No Metrc config/i.test(err?.message || '')) return c.json({ error: 'Metrc is not connected. Add your Metrc API key and user key on the Metrc screen (Compliance → Metrc) first.' }, 400)
     return c.json({ error: err.message || 'Sales sync failed' }, 500)
   }
 })
