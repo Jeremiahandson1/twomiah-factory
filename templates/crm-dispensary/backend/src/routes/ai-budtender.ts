@@ -76,6 +76,56 @@ const MEDICAL_PATTERNS: RegExp[] = [
 const READS_LIKE_A_DECLINE = /\bmedical or health advice\b|\bspeak (?:to|with) (?:your|a) (?:doctor|physician|pharmacist)\b|\btalk to (?:your|a) (?:doctor|physician|pharmacist)\b|\bnot a clinic\b|\bI'?m not able to give (?:medical|health)\b/i
 
 /** Is this a question about a health condition rather than about what is on the shelf? */
+/**
+ * A refusal with a product list stapled to it is not a refusal. (T48 Q4)
+ *
+ * `modelDeclined` used to be `products.length === 0 && READS_LIKE_A_DECLINE.test(text)`, so the one
+ * case that mattered was the one it missed: the model writes "I can't give medical advice, but
+ * here are three indicas", names three products, and because it named them the reply was not
+ * counted as a decline at all. The cards shipped, the turn went unmarked, and the next "yes
+ * please" walked through the continuation rule as well. The tester saw exactly that — refusing
+ * text with three product cards under it — twice.
+ *
+ * What a reply IS is decided by its words. If it reads like a medical refusal then it is one, and
+ * a refusal ships no product, however many the matcher managed to find in it.
+ *
+ * The system prompt has told the model since T46 N2 not to "name, list, describe or hint at ANY
+ * product in the same reply". It mostly obeys — the tester noted it declined when the same thing
+ * was asked again. Mostly is not a compliance control. This is the part that does not depend on
+ * the model doing as it is told.
+ */
+export function withoutProductIfDeclining<T>(responseText: string, products: T[]): { products: T[]; declined: 'medical' | null } {
+  if (!READS_LIKE_A_DECLINE.test(String(responseText || ''))) return { products, declined: null }
+  return { products: [], declined: 'medical' }
+}
+
+/** Was the last thing the assistant said a medical refusal? */
+export function lastTurnWasMedicalDecline(recent?: { role: string; content?: string; declined?: string | null }[] | null): boolean {
+  if (!recent?.length) return false
+  for (let i = recent.length - 1; i >= 0; i--) {
+    const t = recent[i]
+    if (t.role !== 'assistant') continue
+    // The marker when we set one, the words when the model wrote its own.
+    return t.declined === 'medical' || READS_LIKE_A_DECLINE.test(String(t.content || ''))
+  }
+  return false
+}
+
+/**
+ * Said once, after a refusal, when the customer takes up the offer the refusal made.
+ *
+ * The refusal ends "tell me a product type, a strain type or a price and I'll show you what's in
+ * stock". So when the next message does exactly that, showing the shelf is keeping our own word,
+ * not a way round the rule — refusing it would make the sentence before it a lie, and would lock
+ * anyone who ever mentioned sleeping badly out of browsing at all. Listing inventory by strain
+ * type is the lawful part of this job; the therapeutic CLAIM is the unlawful part, and that is
+ * what withoutProductIfDeclining and the system prompt exist to stop.
+ *
+ * What this line does is make sure the list is not read as the answer to the health question that
+ * came before it.
+ */
+export const NOT_A_RECOMMENDATION = 'Just so we are clear, that is what is on the shelf in that category — not a recommendation for anything health-related. A member of staff can help, and your doctor or pharmacist is the right person for the other question.'
+
 export function asksAboutACondition(message: string): boolean {
   const m = String(message || '')
   if (MEDICAL_PATTERNS.some((re) => re.test(m))) return true
@@ -863,20 +913,28 @@ app.post('/chat', requireRole('budtender'), async (c) => {
     }
 
     // Extract recommended products by matching names in AI response
-    const recommendedProducts = extractRecommendedProductNames(responseMessage, allProducts)
+    const matched = extractRecommendedProductNames(responseMessage, allProducts)
 
-    // A decline the MODEL wrote is marked too.
+    // A decline the MODEL wrote is marked too, and ships nothing.
     //
     // The gate cannot catch every way a customer phrases a health question — T47 P3's opener, "help
     // me wind down and stop overthinking at night", was declined by the model and not by the rule.
-    // Unmarked, the next "yes please" would sail through. So a reply that named NO products and
-    // reads like a refusal is recorded as one, and the continuation rule covers it as well.
-    const modelDeclined = recommendedProducts.length === 0 && READS_LIKE_A_DECLINE.test(responseMessage)
+    // Unmarked, the next "yes please" would sail through. So a reply that reads like a refusal is
+    // recorded as one, and the continuation rule covers it as well.
+    //
+    // T48 Q4: it used to require that the reply named NO products, which meant the dangerous case —
+    // a refusal with three product cards under it — counted as an ordinary answer and went out.
+    const { products: recommendedProducts, declined: modelDeclined } = withoutProductIfDeclining(responseMessage, matched)
+
+    // The customer took up the offer the refusal made. Answer it, and say plainly what the answer
+    // is not — the list must not be read as the reply to the health question before it. (T48 Q4)
+    const afterDecline = !modelDeclined && recommendedProducts.length > 0 && lastTurnWasMedicalDecline(existingMessages as any)
+    const outgoing = afterDecline ? `${responseMessage}\n\n${NOT_A_RECOMMENDATION}` : responseMessage
 
     // Update session with new messages and recommended products
     existingMessages.push(
       { role: 'user', content: data.message, timestamp: new Date().toISOString() },
-      { role: 'assistant', content: responseMessage, timestamp: new Date().toISOString(), ...(modelDeclined ? { declined: 'medical' } : {}) } as any,
+      { role: 'assistant', content: outgoing, timestamp: new Date().toISOString(), ...(modelDeclined ? { declined: 'medical' } : {}) } as any,
     )
 
     const recommendedIds = recommendedProducts.map((p: any) => p.id)
@@ -894,7 +952,7 @@ app.post('/chat', requireRole('budtender'), async (c) => {
     `)
 
     return c.json({
-      response: responseMessage,
+      response: outgoing,
       recommendedProducts: recommendedProducts.slice(0, maxRecs).map((p: any) => ({
         id: p.id,
         name: p.name,
@@ -1059,7 +1117,14 @@ async function handleKeywordFallback(
   }
 
   // Build response message
-  const responseMessage = buildResponseMessage(intents, products, null, false, companyName)
+  const built = buildResponseMessage(intents, products, null, false, companyName)
+
+  // The keyword path writes its own words, so it cannot accidentally make a therapeutic claim —
+  // but it CAN be the thing that answers "just list 3 indicas then" one turn after a refusal, and
+  // then the list is read as the answer to the health question. Same line, same reason. (T48 Q4)
+  const responseMessage = (products.length > 0 && lastTurnWasMedicalDecline(existingMessages as any))
+    ? `${built}\n\n${NOT_A_RECOMMENDATION}`
+    : built
 
   // Update session with new messages and recommended products
   existingMessages.push(
@@ -1420,8 +1485,22 @@ app.post('/demo', requireRole('budtender'), async (c) => {
       const conversation = [...history, { role: 'user', content: message }]
       const temperature = parseFloat(config?.temperature || '0.7')
       const responseMessage = await generateAIResponse(anthropic, systemPrompt, conversation, temperature)
-      const recs = extractRecommendedProductNames(responseMessage, allProducts).slice(0, maxRecs)
-      return c.json({ message: responseMessage, response: responseMessage, source: 'claude', recommendations: recs.map(mapProduct) })
+      // The same rule as the signed-in path, which this one never had at all: a reply that reads
+      // like a medical refusal ships no product. This is the PUBLIC assistant — the one a customer
+      // reaches without signing in — so it is the one that most needed it. (T48 Q4)
+      const { products: recs, declined } = withoutProductIfDeclining(
+        responseMessage,
+        extractRecommendedProductNames(responseMessage, allProducts).slice(0, maxRecs),
+      )
+      const afterDecline = !declined && recs.length > 0 && lastTurnWasMedicalDecline(history as any)
+      const outgoing = afterDecline ? `${responseMessage}\n\n${NOT_A_RECOMMENDATION}` : responseMessage
+      return c.json({
+        message: outgoing,
+        response: outgoing,
+        source: 'claude',
+        recommendations: recs.map(mapProduct),
+        ...(declined ? { declined } : {}),
+      })
     } catch (err: any) {
       console.error('Claude demo error, falling back to keyword matching:', err.message)
     }

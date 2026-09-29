@@ -94,13 +94,29 @@ export async function runSuite(o: SuiteOptions): Promise<number> {
 
   // TZ is pinned: several of these assert on the SHOP's calendar day, and a runner in another zone reads
   // green on a real defect. (A suite that cares refuses to conclude when the two days coincide.)
+  //
+  // ANTHROPIC_API_KEY is pinned EMPTY, and that one is not a nicety.
+  //
+  // The dispensary AI budtender calls the real Anthropic API whenever that variable is set, and the
+  // suite inherits the developer's environment. So on a machine with a key these tests were making
+  // live, billed API calls on every run, asserting on text a model wrote fresh each time — while CI,
+  // which has no key, ran the keyword path instead. Two different code paths, each one tested only
+  // where nobody was looking, and a bill for the privilege. Found while mutation-testing T48 Q4: a
+  // mutation that gutted the keyword path stayed green locally because the keyword path never ran.
+  //
+  // Empty means every runner takes the same deterministic path. The model-side logic is covered by
+  // asserting the exported functions directly, which is where it belongs — a test that needs a live
+  // model to pass is not a test of our code.
   let failedFiles = 0
   let assertions = 0
   console.log(`\nrunning ${tests.length} file(s)\n`)
   for (const f of tests) {
     // FACTORY_ROOT: a test that reads template SOURCE rather than calling the API needs the real tree,
     // because the sandbox is a temp copy.
-    const r = spawnSync('bun', [f], { cwd: SB, encoding: 'utf8', shell: true, env: { ...process.env, TZ: 'UTC', NODE_ENV: 'test', FACTORY_ROOT: o.root } })
+    const r = spawnSync('bun', [f], {
+      cwd: SB, encoding: 'utf8', shell: true,
+      env: { ...process.env, TZ: 'UTC', NODE_ENV: 'test', FACTORY_ROOT: o.root, ANTHROPIC_API_KEY: '' },
+    })
     // Strip ANSI before matching: a coloured "error:" that no longer starts the line is the easiest way
     // for a pattern match on raw output to go quiet exactly when it is needed.
     const out = ((r.stdout || '') + (r.stderr || '')).replace(/\u001b\[[0-9;]*m/g, '')
