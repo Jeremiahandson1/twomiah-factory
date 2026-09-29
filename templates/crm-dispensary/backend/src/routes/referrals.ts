@@ -11,6 +11,30 @@ const app = new Hono()
 app.use('*', authenticate)
 
 /**
+ * Raw rows come back snake_case; every screen in this app reads camelCase.
+ *
+ * T46 N23: GET /config returned the row as it came out of the table once a config had been saved,
+ * and a hand-written camelCase object when none had. So the Referrals screen showed the right
+ * fields until the moment someone pressed Save, and blank ones from then on — a reward of 250
+ * points read back as "Discount (%)" with no value, and Min Purchase sat at 0 however often it was
+ * set. The value was in the table the whole time; nothing could see it.
+ */
+const camelConfig = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  // The numeric columns are TEXT in the table, and a screen that does arithmetic on "250" gets
+  // "2501" the first time someone adds to it.
+  for (const k of ['referrerRewardValue', 'referredRewardValue', 'minPurchaseAmount']) {
+    if (out[k] != null) out[k] = Number(out[k]) || 0
+  }
+  for (const k of ['expirationDays', 'maxReferralsPerCustomer']) {
+    if (out[k] != null) out[k] = Number(out[k]) || 0
+  }
+  return out
+}
+
+/**
  * Grant referral points the same way every other path grants points.
  *
  * Referral rewards used to move the three counters and stop there: no loyalty_transactions row, so
@@ -71,7 +95,7 @@ app.get('/config', async (c) => {
     })
   }
 
-  return c.json(config)
+  return c.json(camelConfig(config))
 })
 
 // Update referral config (manager+)
@@ -138,7 +162,7 @@ app.put('/config', requireRole('admin'), async (c) => {
     req: c,
   })
 
-  return c.json(config)
+  return c.json(camelConfig(config))
 })
 
 // List referrals (paginated, filterable by status)

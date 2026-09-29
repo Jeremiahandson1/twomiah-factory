@@ -166,8 +166,12 @@ export default function CustomerPortal() {
               <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center mb-2">
                 <DollarSign className="w-4 h-4 text-green-500" />
               </div>
+              {/* `today.revenue`, which is what /api/dashboard/stats has always returned. This read
+                  `revenueToday` and then `revenue.today` — two shapes the endpoint has never sent —
+                  so both fell through to the zero at the end of the chain and the hub read $0 and 0
+                  orders on a day the dashboard beside it read $225.75 and 12. (T46 N4) */}
               <p className="text-xl font-bold text-slate-900">
-                {loading ? '—' : `$${(stats.revenueToday ?? stats.revenue?.today ?? 0).toLocaleString()}`}
+                {loading ? '—' : `$${Number(stats.today?.revenue ?? 0).toLocaleString()}`}
               </p>
               <p className="text-xs text-slate-500">Revenue Today</p>
             </div>
@@ -176,7 +180,7 @@ export default function CustomerPortal() {
                 <ClipboardList className="w-4 h-4 text-blue-500" />
               </div>
               <p className="text-xl font-bold text-slate-900">
-                {loading ? '—' : (stats.ordersToday ?? stats.orders?.today ?? 0)}
+                {loading ? '—' : Number(stats.today?.orderCount ?? 0)}
               </p>
               <p className="text-xs text-slate-500">Orders Today</p>
             </div>
@@ -185,7 +189,7 @@ export default function CustomerPortal() {
                 <ShoppingCart className="w-4 h-4 text-emerald-500" />
               </div>
               <p className="text-xl font-bold text-slate-900">
-                {loading ? '—' : (stats.cashSessionActive ? 'Open' : 'Closed')}
+                {loading ? '—' : ((stats.openCashSessions || []).length > 0 ? 'Open' : 'Closed')}
               </p>
               <p className="text-xs text-slate-500">Cash Session</p>
             </div>

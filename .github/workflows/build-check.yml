@@ -1661,6 +1661,17 @@ jobs:
       - name: "Check dispensary API feature gates"
         run: bun run scripts/check-dispensary-api-gates.ts
 
+  dashboard-stats-shape:
+    name: "A screen reads the shape its endpoint sends"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check no screen reads a field the API never sends"
+        run: bun run scripts/check-dashboard-stats-shape.ts
+
   schema-fields-writable:
     name: "Nothing a form sends is silently discarded"
     runs-on: ubuntu-latest
