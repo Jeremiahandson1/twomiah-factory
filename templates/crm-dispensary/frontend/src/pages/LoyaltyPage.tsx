@@ -7,6 +7,15 @@ import { useToast } from '../contexts/ToastContext';
 import { Button } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
 
+// Where a consent came from, in words a person would say. The API's values are in_store | online |
+// import | staff. (T48 Q3)
+const CONSENT_SOURCE_LABEL: Record<string, string> = {
+  in_store: 'asked in store',
+  online: 'signed up online',
+  import: 'came in with an import',
+  staff: 'recorded by staff',
+};
+
 const initialRewardForm = {
   name: '',
   description: '',
@@ -112,6 +121,51 @@ export default function LoyaltyPage() {
     } finally {
       setLoadingMembers(false);
     }
+  };
+
+  /**
+   * Record that a customer said yes — or took it back.
+   *
+   * T48 Q3: PUT /loyalty/members/:id/consent was built in T47 P2 and works, and the word 'consent'
+   * then appeared nowhere in the app. The budtender standing at the counter when the customer says
+   * 'yes, text me' had no way to write it down except the API, so the SMS audience stayed at zero
+   * for any shop that did not have a developer. A consent route with no consent screen is the same
+   * feature-that-cannot-be-switched-on the route itself was filed for.
+   *
+   * The source is 'in_store' because that is what this screen IS — someone at the counter. It is
+   * sent explicitly rather than left to the server's default so the record says where it came from
+   * even if that default ever changes.
+   */
+  const [savingConsent, setSavingConsent] = useState<string | null>(null);
+  const setConsent = async (member: any, field: 'optedInSms' | 'optedInEmail', value: boolean) => {
+    const key = `${member.id}:${field}`;
+    setSavingConsent(key);
+    // Shown immediately, and put back if the server refuses — a tick that waits on a round trip
+    // gets clicked twice.
+    setMembers(prev => prev.map(m => (m.id === member.id ? { ...m, [field]: value } : m)));
+    try {
+      const res = await api.put(`/api/loyalty/members/${member.id}/consent`, { [field]: value, source: 'in_store' });
+      const saved = (res as any)?.data ?? res;
+      setMembers(prev => prev.map(m => (m.id === member.id ? { ...m, ...saved } : m)));
+      toast.success(value
+        ? `${member.customerName || 'This customer'} is opted in to ${field === 'optedInSms' ? 'texts' : 'email'}.`
+        : `${member.customerName || 'This customer'} is opted out of ${field === 'optedInSms' ? 'texts' : 'email'}.`);
+    } catch (err: any) {
+      setMembers(prev => prev.map(m => (m.id === member.id ? { ...m, [field]: !value } : m)));
+      // The server's refusal is the useful sentence here — 'has no phone number on file, so there
+      // is nothing to text' tells the budtender what to do next. A generic 'Save failed' does not.
+      toast.error(err?.response?.data?.error || err?.data?.error || err?.message || 'That consent could not be recorded.');
+    } finally {
+      setSavingConsent(null);
+    }
+  };
+
+  /** Consent is only meaningful with its date and where it came from, so the screen shows both. */
+  const consentNote = (member: any) => {
+    const when = member.optedInSmsAt || member.optedInEmailAt;
+    if (!member.optedInSms && !member.optedInEmail) return 'No marketing consent on file';
+    const src = CONSENT_SOURCE_LABEL[member.consentSource] || member.consentSource || 'not recorded';
+    return `${when ? formatDate(when) : 'date not recorded'} · ${src}`;
   };
 
   const saveConfig = async () => {
@@ -429,6 +483,7 @@ export default function LoyaltyPage() {
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Points</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Lifetime Points</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Total Spent</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Marketing consent</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Joined</th>
                 </tr>
               </thead>
@@ -453,12 +508,42 @@ export default function LoyaltyPage() {
                     <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">{member.pointsBalance ?? member.points ?? 0}</td>
                     <td className="px-4 py-3 text-right text-gray-600 dark:text-slate-400">{member.lifetimePoints || 0}</td>
                     <td className="px-4 py-3 text-right text-gray-900 dark:text-slate-100">${Number(member.totalSpent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    {/* T48 Q3: the place a budtender writes down that the customer said yes. */}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-4">
+                        <label className="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={!!member.optedInSms}
+                            disabled={savingConsent === `${member.id}:optedInSms`}
+                            onChange={(e) => setConsent(member, 'optedInSms', e.target.checked)}
+                            className="rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50 dark:border-slate-600"
+                            aria-label={`Text ${member.customerName || 'this customer'}`}
+                          />
+                          Texts
+                        </label>
+                        <label className="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={!!member.optedInEmail}
+                            disabled={savingConsent === `${member.id}:optedInEmail`}
+                            onChange={(e) => setConsent(member, 'optedInEmail', e.target.checked)}
+                            className="rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50 dark:border-slate-600"
+                            aria-label={`Email ${member.customerName || 'this customer'}`}
+                          />
+                          Email
+                        </label>
+                      </div>
+                      {/* The date and the source, because "why did you text me" is a question with a
+                          legal answer and this is where it is kept. */}
+                      <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">{consentNote(member)}</p>
+                    </td>
                     <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{member.joinedAt ? formatDate(member.joinedAt) : '—'}</td>
                   </tr>
                 ))}
                 {members.length === 0 && !loadingMembers && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No members found</td>
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No members found</td>
                   </tr>
                 )}
               </tbody>

@@ -134,7 +134,10 @@ app.get('/campaigns', requirePermission('marketing:read'), async (c) => {
   return c.json(data)
 })
 
-app.get('/campaigns/:id', async (c) => {
+// Gated for the same reason the list is, and missed when the list was fixed: the campaign body
+// carries the copy and the audience filter, which is the whole of what P22 closed one route
+// along. (T48 Q7)
+app.get('/campaigns/:id', requirePermission('marketing:read'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   const campaign = await marketing.getCampaign(id, user.companyId)
@@ -149,8 +152,14 @@ app.get('/campaigns/:id', async (c) => {
  * the product to find that out — no recipients route existed at all, so the owner's only evidence
  * was a number the sender had made up. The rows were being written the whole time; nothing read
  * them back. A send total with no per-recipient record behind it is a claim, not a receipt.
+ *
+ * T48 Q7: and it went in ungated. This is the most personal thing the marketing module holds —
+ * every recipient's email address or mobile number, whether they opened it, whether they
+ * unsubscribed — and the person on the till could read the lot. P22 drew this line for the
+ * campaign LIST and stopped there; a route added afterwards for a different reason inherited
+ * nothing. The permission is the same one, because it is the same data one click deeper.
  */
-app.get('/campaigns/:id/recipients', async (c) => {
+app.get('/campaigns/:id/recipients', requirePermission('marketing:read'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   const campaign = await marketing.getCampaign(id, user.companyId)

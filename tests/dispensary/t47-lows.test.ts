@@ -137,11 +137,29 @@ const rows = async (q: any) => { const r: any = await db.execute(q); return (r.r
 }
 
 // ══════════════════════ P22 · the marketing list is not the till's ══════════════════════════════
+//
+// T48 Q7: fixing the LIST and stopping there left the two routes one click deeper wide open, and
+// the deeper one is the worse of the three — /recipients is every recipient's email address or
+// mobile number, whether they opened it and whether they unsubscribed. A gate belongs on the data,
+// not on the route that happened to be named in the report.
 {
   const mine = await api('GET', '/api/marketing/campaigns')
   check('P22: an owner reads the campaign list', mine.status === 200, mine.status)
   const theirs = await as(bud)('GET', '/api/marketing/campaigns')
   check('P22: a budtender does not', theirs.status === 403, theirs.status)
+
+  const made = await api('POST', '/api/marketing/campaigns', { name: 'T48 Q7 gate', type: 'email', subject: 'S', content: 'C' })
+  const cid = made.json?.id || made.json?.data?.id
+
+  check('Q7: an owner reads one campaign', (await api('GET', `/api/marketing/campaigns/${cid}`)).status === 200)
+  check('Q7: a budtender does not — the copy and the audience are not theirs either',
+    (await as(bud)('GET', `/api/marketing/campaigns/${cid}`)).status === 403)
+
+  check('Q7: an owner reads who a campaign reached', (await api('GET', `/api/marketing/campaigns/${cid}/recipients`)).status === 200)
+  const pii = await as(bud)('GET', `/api/marketing/campaigns/${cid}/recipients`)
+  check('Q7: a budtender cannot read every recipient\'s address and phone number', pii.status === 403, pii.status)
+  check('Q7: …and no customer contact detail comes back with the refusal',
+    !/@|\d{3}-\d{4}/.test(JSON.stringify(pii.json || '')), pii.json)
 }
 
 // ══════════ N10 follow-on · the refusal stops promising what it cannot do ═══════════════════════

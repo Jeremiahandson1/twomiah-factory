@@ -44,6 +44,16 @@ const singular = (w: string) => {
  * element(s)". That is a stack trace with the stack removed. A refusal has to say what is wrong in
  * the words of the thing the person was doing.
  */
+/** "a, b or c" — the way a person reading an error would say the list back. (T48 Q17) */
+function listOfChoices(options: string[]): string {
+  const shown = options.slice(0, 8)
+  const more = options.length - shown.length
+  const tail = more > 0 ? `${shown.join(', ')} (and ${more} more)` : shown.length > 1
+    ? `${shown.slice(0, -1).join(', ')} or ${shown[shown.length - 1]}`
+    : shown[0]
+  return tail
+}
+
 function humanMessage(issue: any, field: string): string {
   const raw = String(issue?.message || 'is not valid')
   const subject = field || 'that'
@@ -73,9 +83,18 @@ function humanMessage(issue: any, field: string): string {
   if (numMin) return `${subject} must be ${numMin[1]} or more.`
   const numMax = raw.match(/Number must be less than or equal to ([\d.]+)/i)
   if (numMax) return `${subject} must be ${numMax[1]} or less.`
+  // T48 Q17: both branches of this returned the same sentence — the options were matched and then
+  // thrown away — so "source is not one of the choices" never said what the choices ARE. Someone
+  // recording a consent had to read the source code to find out that 'in_store' was one of four
+  // words. Zod hands us the list on the issue; use it, and fall back to the message only if a
+  // future version stops doing so.
   if (/invalid enum value/i.test(raw)) {
-    const options = raw.match(/expected '?([^']+?)'?(?:\s*\|\s*|,\s*)/g)
-    return options ? `${subject} is not one of the choices.` : `${subject} is not one of the choices.`
+    const fromIssue = Array.isArray(issue?.options) ? issue.options.map((o: any) => String(o)) : []
+    const fromMessage = fromIssue.length ? [] : (raw.match(/Expected (.+?), received/i)?.[1] || '')
+      .split('|').map((s: string) => s.trim().replace(/^'|'$/g, '')).filter(Boolean)
+    const options = fromIssue.length ? fromIssue : fromMessage
+    if (!options.length) return `${subject} is not one of the choices.`
+    return `${subject} has to be ${listOfChoices(options)}.`
   }
   if (/invalid email/i.test(raw)) return `${subject} does not look like an email address.`
   if (/invalid url/i.test(raw)) return `${subject} does not look like a web address.`
