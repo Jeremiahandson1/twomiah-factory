@@ -307,6 +307,65 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
   const totalTaxDue = round2(exciseTaxDue + salesTaxDue + localTaxDue)
   const totalCollected = Number(orderStats.total_tax_collected) || 0
 
+  // WHICH orders are out of step with the rate.
+  //
+  // T48, the tester's answer to "is reconciles: false useful?": "Mostly. But a shop owner can't
+  // find 'orders created outside the register' alone. List the orders charged below the rate, with
+  // order number, date and excise taken, and the note becomes something they can act on." They are
+  // right — the note named a variance and then handed the owner a haystack.
+  //
+  // Same arithmetic as the taxable base above, per order rather than summed, so a line here and the
+  // total on the return cannot disagree. Medical orders are skipped where the exemption applies:
+  // they are SUPPOSED to carry no excise, and listing them as undercharged would bury the real
+  // ones under every patient sale of the period.
+  let varianceOrders: any[] = []
+  if (filingType === 'excise_tax' && exciseRatePct > 0 && hasLineDetail) {
+    const varianceResult = await db.execute(sql`
+      WITH per_order AS (
+        SELECT
+          o.id, o.number, o.completed_at,
+          ${exciseNetExprBare} AS excise_collected,
+          COALESCE(SUM(${netLine}) FILTER (WHERE oi.tax_category = 'cannabis'), 0) AS cannabis_net,
+          COALESCE(SUM(${netLine}), 0) AS all_net,
+          COALESCE(SUM(COALESCE(NULLIF(oi.line_total, ''), NULLIF(oi.total_price, ''), '0')::numeric), 0) AS all_gross,
+          COALESCE(NULLIF(o.discount_amount, ''), '0')::numeric
+            + COALESCE(NULLIF(o.loyalty_discount, ''), '0')::numeric AS discount,
+          COALESCE(o.is_medical, false) AS is_medical
+        FROM orders o
+        LEFT JOIN order_items oi ON oi.order_id = o.id
+        WHERE o.company_id = ${currentUser.companyId}
+          AND o.status IN ${taxCollected}
+          AND o.completed_at >= ${periodStart}
+          AND o.completed_at <= ${periodEndBound}
+        GROUP BY o.id, o.number, o.completed_at, o.excise_tax, o.refunded_excise_tax,
+                 o.discount_amount, o.loyalty_discount, o.is_medical
+      ), based AS (
+        SELECT number, completed_at, excise_collected, is_medical,
+          GREATEST(
+            cannabis_net - LEAST(discount * (CASE WHEN all_gross > 0 THEN all_net / all_gross ELSE 0 END), all_net)
+              * (CASE WHEN all_net > 0 THEN cannabis_net / all_net ELSE 0 END),
+            0) AS base
+        FROM per_order
+      )
+      SELECT number, completed_at, excise_collected, base,
+             ROUND(base * ${exciseRatePct} / 100.0, 2) AS expected
+      FROM based
+      WHERE base > 0
+        AND ${exemptApplies ? sql`is_medical = false` : sql`true`}
+        AND ABS(excise_collected - base * ${exciseRatePct} / 100.0) > 0.005
+      ORDER BY ABS(excise_collected - base * ${exciseRatePct} / 100.0) DESC
+      LIMIT 50
+    `)
+    varianceOrders = ((varianceResult as any).rows || varianceResult).map((r: any) => ({
+      orderNumber: r.number,
+      date: r.completed_at ? String(r.completed_at).slice(0, 10) : null,
+      taxableBase: round2(Number(r.base) || 0),
+      exciseTaken: round2(Number(r.excise_collected) || 0),
+      exciseExpected: round2(Number(r.expected) || 0),
+      difference: round2((Number(r.excise_collected) || 0) - (Number(r.expected) || 0)),
+    }))
+  }
+
   // Line items the detail modal renders (only non-zero components).
   const lineItems = [
     { description: 'Excise Tax', amount: exciseTaxDue },
@@ -350,8 +409,11 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
       : null,
     reconcileNote: filingType === 'excise_tax' && exciseRatePct > 0
         && Math.abs(exciseTaxDue - taxableAmount * (exciseRatePct / 100)) > Math.max(0.5, taxableAmount * 0.0005)
-      ? `The excise collected is $${Math.abs(round2(exciseTaxDue - taxableAmount * (exciseRatePct / 100))).toFixed(2)} ${exciseTaxDue < taxableAmount * (exciseRatePct / 100) ? 'less' : 'more'} than ${exciseRatePct}% of the taxable base. Some sales in this period were not charged at the current rate — check sales made before the rate was set, or orders created outside the register.`
+      ? `The excise collected is $${Math.abs(round2(exciseTaxDue - taxableAmount * (exciseRatePct / 100))).toFixed(2)} ${exciseTaxDue < taxableAmount * (exciseRatePct / 100) ? 'less' : 'more'} than ${exciseRatePct}% of the taxable base.${varianceOrders.length ? ` ${varianceOrders.length === 1 ? 'One order is' : `${varianceOrders.length} orders are`} out of step with the rate — they are listed under "orders out of step" with the excise each one took.` : ' Some sales in this period were not charged at the current rate — check sales made before the rate was set, or orders created outside the register.'}`
       : null,
+    // The orders behind the variance, named. Empty when everything reconciles, so a clean period
+    // carries no list at all. (T48, the tester's ask on P5)
+    varianceOrders,
     grossSales: round2(grossSubtotal),
     netSales: netAllSales,
     netCannabisSales,
@@ -424,12 +486,99 @@ app.put('/filings/:id/review', requireRole('manager'), async (c) => {
   return c.json(updated)
 })
 
+/**
+ * PUT /filings/:id/supersede — this one was a mistake, or has been replaced.
+ *
+ * T48 Q8. A filing cannot be deleted and should not be: it is a tax record, and a product that
+ * lets someone quietly remove one is a product that helps hide a number from a regulator. But
+ * "immutable" was being used to mean "nothing can ever be said about it", and the result is a list
+ * where a filing generated by mistake sits beside the real ones looking exactly as authoritative.
+ * The tester's three from one afternoon, and fourteen of mine, are all still in there.
+ *
+ * Superseding keeps the row, its figures and its audit trail exactly as they are, and records that
+ * it is no longer the current one — with a reason, because "why is this one not current" is the
+ * question it exists to answer. The upcoming-deadlines view already looks only at calculated,
+ * reviewed and filed, so a superseded filing stops counting as work outstanding on its own.
+ *
+ * A filing that has actually been FILED is not supersedable. That one was submitted to the state;
+ * saying it never counted is rewriting history rather than recording it. The honest move there is
+ * a new amended filing, and the refusal says so.
+ */
+app.put('/filings/:id/supersede', requireRole('manager'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const parsed = z.object({
+    reason: z.string().trim().min(1, 'Say why this filing is being superseded').max(500),
+  }).safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) {
+    return c.json({
+      error: 'Say why this filing is being superseded — generated by mistake, replaced by a corrected run, wrong period.',
+      code: 'supersede_needs_reason',
+    }, 400)
+  }
+  const why = parsed.data.reason
+
+  const foundResult = await db.execute(sql`
+    SELECT * FROM tax_filings WHERE id = ${id} AND company_id = ${currentUser.companyId} LIMIT 1
+  `)
+  const found = ((foundResult as any).rows || foundResult)?.[0]
+  if (!found) return c.json({ error: 'Filing not found' }, 404)
+
+  if (found.status === 'filed' || found.status === 'confirmed') {
+    return c.json({
+      error: 'This filing has already been submitted, so it cannot be set aside. Generate an amended filing for the same period instead — the submitted one has to stay as it was filed.',
+      code: 'already_filed',
+    }, 400)
+  }
+  if (found.status === 'superseded') {
+    return c.json({ error: 'This filing is already superseded.', code: 'already_superseded' }, 400)
+  }
+
+  const stamp = `Superseded ${new Date().toISOString().slice(0, 10)}: ${why}`
+  const result = await db.execute(sql`
+    UPDATE tax_filings
+    SET status = 'superseded',
+        notes = CASE WHEN COALESCE(notes, '') = '' THEN ${stamp} ELSE notes || E'\n' || ${stamp} END,
+        updated_at = NOW()
+    WHERE id = ${id} AND company_id = ${currentUser.companyId}
+    RETURNING *
+  `)
+  const updated = ((result as any).rows || result)?.[0]
+
+  audit.log({
+    action: audit.ACTIONS.STATUS_CHANGE,
+    entity: 'tax_filing',
+    entityId: id,
+    entityName: updated.filing_number,
+    changes: { status: { old: found.status, new: 'superseded' } },
+    metadata: { reason: why },
+    req: c,
+  })
+
+  return c.json(updated)
+})
+
 // PUT /filings/:id/file — Mark as filed
 app.put('/filings/:id/file', requireRole('admin'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
   const { confirmationNumber } = z.object({ confirmationNumber: z.string().min(1) }).parse(await c.req.json())
+
+  // A filing somebody set aside must not be submittable afterwards — that is the whole point of
+  // setting it aside, and the state would be receiving a return the shop has already disowned. (T48 Q8)
+  const beforeResult = await db.execute(sql`
+    SELECT status FROM tax_filings WHERE id = ${id} AND company_id = ${currentUser.companyId} LIMIT 1
+  `)
+  const before = ((beforeResult as any).rows || beforeResult)?.[0]
+  if (!before) return c.json({ error: 'Filing not found' }, 404)
+  if (before.status === 'superseded') {
+    return c.json({
+      error: 'This filing was superseded, so it cannot be submitted. Generate a fresh filing for the period and submit that one.',
+      code: 'filing_superseded',
+    }, 400)
+  }
 
   const result = await db.execute(sql`
     UPDATE tax_filings

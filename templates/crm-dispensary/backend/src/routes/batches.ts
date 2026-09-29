@@ -300,6 +300,16 @@ app.put('/:id/status', requireRole('manager'), async (c) => {
   const current = ((currentResult as any).rows || currentResult)?.[0]
   if (!current) return c.json({ error: 'Batch not found' }, 404)
 
+  // The same rule as /:id/:action and /:id/deplete: a recall is not left without saying why.
+  // Three doors out of a recalled batch, and all three have to be locked the same way, or the
+  // guard is decoration on whichever one the report happened to name. (T48 Q6)
+  if (current.status === 'recalled' && data.status !== 'recalled' && !String(data.reason || '').trim()) {
+    return c.json({
+      error: `Batch ${current.batch_number} is RECALLED. Say why the recall is being lifted — the supplier withdrew it, the affected lots were destroyed, the state closed it — and it will be recorded against the batch.`,
+      code: 'recall_needs_reason',
+    }, 400)
+  }
+
   const result = await db.execute(sql`
     UPDATE batches SET status = ${data.status}, status_reason = ${data.reason || null}, updated_at = NOW()
     WHERE id = ${id} AND company_id = ${currentUser.companyId}
@@ -358,7 +368,19 @@ app.post('/:id/deplete', requireRole('manager'), async (c) => {
   }
   const reason = data.reason || 'Batch depleted'
   const newQuantity = Math.max(available - depleteQty, 0)
-  const newStatus = newQuantity === 0 ? 'depleted' : current.status
+  // A RECALL SURVIVES BEING EMPTIED.
+  //
+  // T48 Q6: this read `newQuantity === 0 ? 'depleted' : current.status`, so selling or writing off
+  // the last unit of a recalled batch quietly moved it to 'depleted' — and the order path blocks a
+  // product whose batch is RECALLED, not one whose batch is depleted. The recall lifted itself, the
+  // product's untracked stock went back on sale, and nobody was asked anything. A recall is a
+  // public-safety hold, and an inventory count is not a decision to end one.
+  //
+  // Emptying a recalled batch is a normal part of working a recall — the stock is pulled off the
+  // shelf and destroyed — so the quantity still goes to zero. Only the STATUS is left alone.
+  const newStatus = current.status === 'recalled'
+    ? 'recalled'
+    : (newQuantity === 0 ? 'depleted' : current.status)
 
   // The batch and its ledger row move TOGETHER, or neither moves.
   //
@@ -429,6 +451,40 @@ app.post('/:id/:action', requireRole('manager'), async (c) => {
   //
   // A quarantine raised by hand is not covered: a manager who held stock themselves may release it
   // the same way. It is the LAB's verdict that needs overriding in writing.
+  // Ending a RECALL takes a reason, whatever it is being changed to.
+  //
+  // T48 Q6 found a recall lifting itself through Deplete. The same hole is here in the open: any
+  // manager could post /activate on a recalled batch and clear it with nothing recorded at all.
+  // A recall is the most serious thing this table records — it is usually the supplier's or the
+  // state's decision, not the shop's — so leaving one is held to at least the standard a failed
+  // lab test already is: say why, in writing, against the batch.
+  if (current.status === 'recalled' && status !== 'recalled') {
+    // The UI posts these with no body at all, so an absent one is the ordinary case, not an error.
+    const recallBody = await c.req.json().catch(() => ({}))
+    const why = String((recallBody as any)?.reason || '').trim()
+    if (!why) {
+      return c.json({
+        error: `Batch ${current.batch_number} is RECALLED. Say why the recall is being lifted — the supplier withdrew it, the affected lots were destroyed, the state closed it — and it will be recorded against the batch.`,
+        code: 'recall_needs_reason',
+      }, 400)
+    }
+    const result = await db.execute(sql`
+      UPDATE batches SET status = ${status}, status_reason = ${`Recall lifted: ${why.slice(0, 500)}`}, updated_at = NOW()
+      WHERE id = ${id} AND company_id = ${currentUser.companyId}
+      RETURNING *
+    `)
+    audit.log({
+      action: audit.ACTIONS.STATUS_CHANGE,
+      entity: 'batch',
+      entityId: id,
+      entityName: current.batch_number,
+      changes: { status: { old: current.status, new: status } },
+      metadata: { liftedRecall: true, reason: why.slice(0, 500) },
+      req: c,
+    })
+    return c.json(camel(((result as any).rows || result)?.[0]))
+  }
+
   if (status === 'active' && current.status === 'quarantine' && current.lab_test_id) {
     const failed: any = await db.execute(sql`
       SELECT id, overall_result FROM lab_tests

@@ -198,6 +198,20 @@ app.get('/summary', async (c) => {
         COUNT(CASE WHEN status IN ${settledSale} AND type = 'walk_in' THEN 1 END)::int as walk_in_count,
         COUNT(CASE WHEN status IN ${settledSale} AND type = 'delivery' THEN 1 END)::int as delivery_count,
         COUNT(CASE WHEN status IN ${settledSale} AND (source = 'online' OR type = 'online') THEN 1 END)::int as online_count,
+        -- Ordered online and not collected yet.
+        --
+        -- T48 Q9 reported online_count stuck at 0 after placing an order-ahead order. The count was
+        -- right: an order-ahead order is created 'pending', and this mix counts SALES so that the
+        -- owner's dashboard and the compliance report cannot disagree about the same day (T43 N4).
+        -- An order awaiting collection has not been sold yet.
+        --
+        -- Being right is not the same as being useful. "Online: 0" beside a list of online orders
+        -- reads as broken, and it has now been filed twice — T46 N21 and again here. So the panel
+        -- answers the question that keeps getting asked, instead of inviting it a third time: the
+        -- sales figure stays a sales figure, and the orders in the queue are reported next to it as
+        -- what they are.
+        COUNT(CASE WHEN status NOT IN ('completed', 'partially_refunded', 'refunded', 'cancelled')
+                    AND (source = 'online' OR type = 'online') THEN 1 END)::int as online_awaiting_count,
         COUNT(CASE WHEN status IN ${settledSale} AND is_medical = true THEN 1 END)::int as medical_count
       FROM orders
       WHERE company_id = ${currentUser.companyId}

@@ -233,6 +233,25 @@ export default function POSPage() {
     setCart(prev => prev.filter(i => i.id !== itemId));
   };
 
+  /**
+   * An empty cart ends the sale, and the age check goes with it.
+   *
+   * T48 Q5: ID Verified was reset when a sale COMPLETED and nowhere else, so a cart emptied by
+   * hand — the customer changes their mind, walks off, the budtender clears the items — left the
+   * tick on. The next person's basket then started already verified, and the one control standing
+   * between this shop and selling to a minor had been ticked for somebody else.
+   *
+   * On the empty-to-empty case nothing happens, because the effect keys on the LENGTH: a budtender
+   * who ticks the box before scanning the first item keeps their tick.
+   *
+   * This is an effect rather than a line inside removeItem because there is more than one way to
+   * empty a cart — remove the last item, decrement the last item to zero — and a rule about "the
+   * sale is over" belongs where the state says so, not copied into each of them.
+   */
+  useEffect(() => {
+    if (cart.length === 0) setIdVerified(false);
+  }, [cart.length]);
+
   // Mirrors the backend math (orders.ts): excise on the cannabis share, sales tax on everything,
   // BOTH on the post-discount base (QA F-01 / F-07). The server's numbers are authoritative;
   // this only keeps the on-screen quote in step with what gets recorded.
@@ -919,8 +938,14 @@ export default function POSPage() {
             </div>
           )}
 
-          {/* ID Verified */}
-          <label className="flex items-center gap-2 cursor-pointer">
+          {/* ID Verified.
+
+              T48 Q16: the <label> was a flex row with no width limit, so it spanned the whole cart
+              panel and every stray tap in that band toggled the age check. The tester's withdrawn
+              M6 was exactly this — a click aimed at a toast's close button landed on the row and
+              cleared the tick, and it looked like the software had done it. `w-fit` means only the
+              box and its own words are clickable. */}
+          <label className="flex w-fit items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
               checked={idVerified}
