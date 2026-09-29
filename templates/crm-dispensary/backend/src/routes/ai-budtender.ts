@@ -52,9 +52,28 @@ const MEDICAL_PATTERNS: RegExp[] = [
   new RegExp(`\\b(?:${CONDITION_AMBIGUOUS})\\b[^.?!]{0,24}\\b${CONDITION_FRAME}\\b`, 'i'),
   // The plain-English ways a customer describes the same thing.
   /\bcan'?not sleep\b|\bcan'?t sleep\b|\bknock me out\b|\bput me to sleep\b|\bhelp me sleep\b|\bso i can sleep\b|\bcalm me down\b|\bwind me down\b/i,
+  // A mind that will not stop is a complaint, however casually it is put. T47 P3's opener —
+  // "help me wind down and stop overthinking at night" — carried no word in the lists above, so the
+  // rule never saw it and only the model's own judgement stood between it and a product list.
+  // "Wind down" alone stays an ordinary browse: something chill for a Friday night is not a symptom.
+  /\boverthink\w*|\bracing (?:thoughts|mind)\b|\b(?:mind|brain|thoughts?)\b[^.?!]{0,12}\bracing\b|\bswitch off my (?:brain|mind|head)\b|\bshut (?:my|the) (?:brain|mind) off\b|\bquiet(?:en)? my (?:mind|head|brain)\b|\bturn my brain off\b|\bcalm my nerves\b|\bstop (?:my )?(?:worrying|panicking)\b/i,
   // …and the questions that are medical however they are dressed up.
   /\bmedical advice\b|\bdiagnos\w*|\bprescri\w*|\bsymptoms?\b|\bmy doctor\b|\bpregnan\w*|\bbreastfeed\w*|\bnursing\b|\bis it safe\b/i,
 ]
+
+/**
+ * A reply that is refusing rather than answering.
+ *
+ * Used only to MARK a model-written decline so the next "yes please" is caught by the continuation
+ * rule. It never decides whether to refuse — a false positive here costs nothing but a slightly
+ * firmer answer to a bare affirmative, and a false negative only leaves things as they were.
+ */
+// Deliberately narrow: the MEDICAL language the system prompt tells the model to use when it
+// refuses a health question, and nothing else. A first draft matched any "I can't recommend…",
+// which caught ordinary replies like "I can't recommend a product based on what you're planning to
+// do" and filed a normal browse as a medical refusal. Over-marking is not free: it mis-files the
+// analytics a manager reads and makes the next ordinary follow-up answer stiffly.
+const READS_LIKE_A_DECLINE = /\bmedical or health advice\b|\bspeak (?:to|with) (?:your|a) (?:doctor|physician|pharmacist)\b|\btalk to (?:your|a) (?:doctor|physician|pharmacist)\b|\bnot a clinic\b|\bI'?m not able to give (?:medical|health)\b/i
 
 /** Is this a question about a health condition rather than about what is on the shelf? */
 export function asksAboutACondition(message: string): boolean {
@@ -80,8 +99,24 @@ export function asksAboutACondition(message: string): boolean {
  * This is not a medical question and is not refused — it is an ordinary thing to ask a budtender.
  * It just cannot be answered with a number and nothing else.
  */
+/**
+ * A question about what is IN a product, rather than how much of it to have.
+ *
+ * "How much THC is in the Gummy Bears?" is a catalogue question with an answer printed on the box,
+ * and T47 P14 found it getting the start-low dosing speech instead — because "how much" near
+ * "gummies" looked like a dosing question. Reading out a figure the shop has recorded is the job;
+ * refusing to is unhelpful in a way that teaches customers the assistant is useless.
+ */
+export function asksWhatIsInIt(message: string): boolean {
+  const m = String(message || '')
+  return /\b(?:is|are|does|do|per)\b[^.?!]{0,20}\b(?:in|contain|inside|per piece|per gummy|each)\b/i.test(m)
+    && !/\b(?:should i|can i|do i|would i|to take|to eat|to have|to consume)\b/i.test(m)
+}
+
 export function asksHowMuchToTake(message: string): boolean {
   const m = String(message || '')
+  // Asking what a package holds is not asking how much to take. (T47 P14)
+  if (asksWhatIsInIt(m)) return false
   return /\bhow (?:many|much)\b[^.?!]{0,40}\b(?:take|eat|consume|have|get|need|should)\b/i.test(m)
     || /\bhow (?:many|much)\b[^.?!]{0,30}\b(?:gummies|gummy|edibles?|chocolates?|mg|milligrams?|doses?)\b/i.test(m)
     || /\breally high\b|\bget (?:me )?(?:very |super |really )?(?:high|stoned|baked)\b|\bfirst time\b|\bnever (?:tried|had)\b/i.test(m)
@@ -114,11 +149,54 @@ export function requestedGrams(message: string): number | null {
  * browse. `reason` is returned to the caller so a screen can style it and a manager reviewing the
  * transcript can see the rule that fired rather than guessing.
  */
+/**
+ * Is this message only accepting what was just offered?
+ *
+ * "Yes please", "sure, go on", "tell me about those" — a turn that carries no request of its own and
+ * inherits every word of its meaning from the one before it.
+ */
+export function isContinuation(message: string): boolean {
+  const m = String(message || '').trim().toLowerCase().replace(/[.!]+$/, '')
+  if (!m) return false
+  // A long message is making its own request, whatever it opens with.
+  if (m.split(/\s+/).length > 12) return false
+  return /^(?:yes|yeah|yep|yup|ok|okay|sure|please|go on|go ahead|sounds good|that'?d be great|why not|alright|absolutely|definitely|of course)\b/i.test(m)
+    || /\b(?:tell me (?:about )?(?:those|them|that|more)|those ones?|that one|the (?:indica|sativa|hybrid)s? ones?|show me (?:those|them)|what (?:are|were) they)\b/i.test(m)
+}
+
+/**
+ * The fixed answer to a question this shop must not answer with product, or null for an ordinary
+ * browse. `reason` is returned to the caller so a screen can style it and a manager reviewing the
+ * transcript can see the rule that fired rather than guessing.
+ *
+ * `recent` is the conversation so far, oldest first. T47 P3 found the way round a gate that only
+ * ever read one message: ask the medical question, get declined, and then accept the offer the
+ * DECLINE ITSELF made — "would you like me to tell you about indica strains folks enjoy at night?"
+ * — with a bare "yes please". That second message contains no condition, no symptom and nothing to
+ * match on, so it sailed through and returned five products. Two messages, and the rule was gone.
+ *
+ * A turn that only says yes means whatever the turn before it meant. So a continuation inherits the
+ * refusal it is continuing.
+ */
 export function guardedAnswer(
   message: string,
   companyName: string,
   companyRow?: { purchase_limit_oz?: any; state?: any } | null,
+  recent?: { role: string; content: string; declined?: string | null }[] | null,
 ): { response: string; reason: string } | null {
+  // Accepting an offer made in a refused turn is the refused turn, asked again.
+  if (recent?.length && isContinuation(message)) {
+    for (let i = recent.length - 1; i >= 0 && i >= recent.length - 4; i--) {
+      const turn = recent[i]
+      if (turn.role !== 'assistant') continue
+      if (!turn.declined) break // the last thing said was an ordinary answer; this is an ordinary follow-up
+      return {
+        reason: turn.declined,
+        response: `I still can't help with that one, I'm afraid — saying yes doesn't change what I'd have to answer. ${companyName} is a retailer, not a clinic, so anything about a health condition needs your doctor or a licensed pharmacist, and I can fetch a member of staff if that would help.\n\nIf you tell me a product type, a strain type or a price, I'll happily show you what's on the shelf.`,
+      }
+    }
+  }
+
   if (asksAboutACondition(message)) {
     return {
       reason: 'medical',
@@ -151,7 +229,11 @@ export function guardedAnswer(
     if (grams > limitGrams + 0.005) {
       return {
         reason: 'over_purchase_limit',
-        response: `I can't put that together — ${companyRow?.state ? `${companyRow.state} law` : 'the law here'} allows one customer ${limitOz} oz of cannabis (about ${Math.floor(limitGrams)} g) in a single purchase, and that's more. The register will refuse it at the counter too.\n\nTell me what you'd like within the limit and I'll show you what's in stock.`,
+        // "OH law allows 1 oz" was wrong twice over: 1 oz is THIS SHOP's configured limit, and Ohio's
+        // statutory figure is 2.5 oz. The shop may sell under the legal maximum for its own reasons,
+        // and the assistant must not dress a shop policy up as the law — a customer told the wrong
+        // law is a customer misinformed by a licensee. It says whose rule it is. (T47 P14)
+        response: `I can't put that together — ${companyName} sells at most ${limitOz} oz of cannabis (about ${Math.floor(limitGrams)} g) to one customer in a single purchase, and that's more. The register will refuse it at the counter too.\n\nTell me what you'd like within the limit and I'll show you what's in stock.`,
       }
     }
   }
@@ -423,6 +505,11 @@ This shop is a licensed cannabis retailer, and what you write is advertising und
   speak to their doctor or a licensed pharmacist, and offer to fetch a member of staff. Do not offer
   to describe what other customers report either — that is the same recommendation with a different
   sentence in front of it, and it is what this instruction used to permit. (T46 N2)
+- After declining, do NOT offer to come back to it from another angle. Do not ask "would you like me
+  to tell you about indica strains people enjoy at night", or about a strain type, a time of day, or
+  what is popular — an offer whose only meaning comes from the question you just refused is that
+  question, and "yes please" would make you answer it. Offer a member of staff, or invite them to
+  name a product type, a strain type or a price. Nothing else. (T47 P3)
 - NEVER state a potency, dose, weight, price or ingredient that is not in the inventory below. If a
   figure is not there, say it is not recorded. Do not estimate it, do not infer it from the product
   name, and do not repeat a typical value for that kind of product.
@@ -679,11 +766,15 @@ app.post('/chat', requireRole('budtender'), async (c) => {
   // writing that day. Each one returns NO products at all: a decline followed by a product list is
   // the recommendation the decline was supposed to prevent, and that is exactly what the retest
   // found — "I can't give medical advice", then five products for cancer pain. (T46 N2, N25)
-  const guarded = guardedAnswer(data.message, companyName, companyRow)
+  // …and it reads the conversation, not just this message. A refusal a customer can walk around by
+  // answering "yes please" is not a refusal. (T47 P3)
+  const guarded = guardedAnswer(data.message, companyName, companyRow, existingMessages as any)
   if (guarded) {
     existingMessages.push(
       { role: 'user', content: data.message, timestamp: new Date().toISOString() },
-      { role: 'assistant', content: guarded.response, timestamp: new Date().toISOString() },
+      // The reason is kept ON the turn: it is what tells the NEXT message that a bare "yes" is
+      // accepting something that was refused.
+      { role: 'assistant', content: guarded.response, timestamp: new Date().toISOString(), declined: guarded.reason } as any,
     )
     await db.execute(sql`
       UPDATE ai_budtender_sessions
@@ -774,10 +865,18 @@ app.post('/chat', requireRole('budtender'), async (c) => {
     // Extract recommended products by matching names in AI response
     const recommendedProducts = extractRecommendedProductNames(responseMessage, allProducts)
 
+    // A decline the MODEL wrote is marked too.
+    //
+    // The gate cannot catch every way a customer phrases a health question — T47 P3's opener, "help
+    // me wind down and stop overthinking at night", was declined by the model and not by the rule.
+    // Unmarked, the next "yes please" would sail through. So a reply that named NO products and
+    // reads like a refusal is recorded as one, and the continuation rule covers it as well.
+    const modelDeclined = recommendedProducts.length === 0 && READS_LIKE_A_DECLINE.test(responseMessage)
+
     // Update session with new messages and recommended products
     existingMessages.push(
       { role: 'user', content: data.message, timestamp: new Date().toISOString() },
-      { role: 'assistant', content: responseMessage, timestamp: new Date().toISOString() },
+      { role: 'assistant', content: responseMessage, timestamp: new Date().toISOString(), ...(modelDeclined ? { declined: 'medical' } : {}) } as any,
     )
 
     const recommendedIds = recommendedProducts.map((p: any) => p.id)
@@ -815,6 +914,11 @@ app.post('/chat', requireRole('budtender'), async (c) => {
         price: p.sale_price && Number(p.sale_price) < Number(p.price) ? p.sale_price : p.price,
         quantity: 1,
       })),
+      // A decline the model wrote is reported like any other, so the analytics count every refusal
+      // and not only the ones the rule made. T47 P14: these came back with no reason at all, so a
+      // manager reviewing how often the assistant refuses saw a fraction of the truth. Absent when
+      // nothing was refused — every caller already reads this key as "is it set".
+      ...(modelDeclined ? { declined: 'medical' } : {}),
       source: 'claude',
     })
   }
@@ -1256,7 +1360,14 @@ app.post('/demo', requireRole('budtender'), async (c) => {
   // shop and the same catalogue. A rule the register keeps and the demo does not is a rule the
   // owner never sees working. (T46 N2)
   {
-    const guarded = guardedAnswer(message, companyName, companyRow)
+    // The demo's history arrives from the browser with no decline markers on it — the screen only
+    // keeps role and content. So each past assistant turn is read for whether it was refusing, and
+    // the continuation rule works from that. A demo that can be walked around in two messages while
+    // the register cannot would teach an owner the wrong thing about their own product. (T47 P3)
+    const annotated = history.map((m) => m.role === 'assistant' && READS_LIKE_A_DECLINE.test(m.content)
+      ? { ...m, declined: 'medical' }
+      : m)
+    const guarded = guardedAnswer(message, companyName, companyRow, annotated as any)
     if (guarded) {
       return c.json({
         response: guarded.response,
