@@ -7,6 +7,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, or, count, desc, asc, sql, inArray, lt, gte, isNull } from 'drizzle-orm'
 import { round2, calcTotals, rawSubtotal, DEFAULT_OPEN_STATUSES, isOverdue, overdueCutoff, startOfUtcDay, businessToday, deriveStatus, invoiceBalance, recomputeStatus, defaultTaxRateFrom, dueDateFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
+import { ACCOUNT_BALANCE_METHOD } from '../clients/accountBalance'
 import { mailFailureReason } from '../integrations/mailError'
 import { checkFilter } from '../listFilter'
 
@@ -57,6 +58,23 @@ export interface InvoiceOptions {
    * company before it is stored.
    */
   links?: Record<string, any>
+  /**
+   * Client account balances — money a client holds WITH the business, spendable at checkout.
+   *
+   * Wired only by templates that keep the ledger (salon does; see clients/accountBalance.ts). Its
+   * absence is deliberate load-bearing: without it, `account_balance` is refused as a payment method
+   * and as a refund destination, so a vertical with no balances can never settle a sale against one.
+   *
+   * All three run INSIDE the caller's transaction, under the invoice row lock.
+   */
+  accountBalance?: {
+    /** Take `amount` off the invoice's client. A returned message refuses the payment. */
+    spend: (tx: any, invoice: any, amount: number) => Promise<string | null>
+    /** Put `amount` onto the invoice's client. A returned message refuses the refund. */
+    credit: (tx: any, invoice: any, amount: number) => Promise<string | null>
+    /** What this client has on account, for the screen to decide whether to offer it. */
+    balanceOf: (companyId: string, contactId: string) => Promise<number>
+  }
 }
 
 export interface InvoiceDeps {
@@ -101,7 +119,12 @@ const invoiceSchema = z.object({
   terms: z.string().optional(),
   lineItems: z.array(lineItemSchema).default([]),
 })
-const PAYMENT_METHODS = ['card', 'cash', 'check', 'bank_transfer', 'stripe', 'other'] as const
+// `account_balance` means the client's own money, held on account. It is accepted here so the one
+// payment route can take it, and REFUSED inside recordInvoicePayment unless the template actually
+// wired a ledger (options.accountBalance) — a vertical that has no client balances must not be able
+// to settle an invoice against one that does not exist. As a REFUND method it means the other half
+// of the same idea: give the money back onto the client's account rather than onto their card.
+const PAYMENT_METHODS = ['card', 'cash', 'check', 'bank_transfer', 'stripe', 'account_balance', 'other'] as const
 
 const toRow = (items: z.infer<typeof lineItemSchema>[], invoiceId: string) => items.map((item, i) => ({
   description: item.description,
@@ -192,6 +215,13 @@ export interface RecordPaymentInput {
   idempotentByReference?: boolean
   /** The template's InvoiceOptions.onPayment, passed by the route; a returned message refuses (409). */
   beforeWrite?: (tx: any, invoice: any, amount: number) => Promise<string | null>
+  /**
+   * Debit the client's account balance, INSIDE this payment's transaction. Passed only by templates
+   * that keep client balances; its absence is what makes `account_balance` an impossible method
+   * everywhere else. A returned message refuses the payment (400) and the transaction unwinds, so a
+   * balance is never debited for a payment that did not land.
+   */
+  spendFromAccount?: (tx: any, invoice: any, amount: number) => Promise<string | null>
 }
 
 export type RecordPaymentOutcome =
@@ -229,6 +259,17 @@ export async function recordInvoicePayment(db: any, t: { invoice: any; payment: 
       const refusal = await input.beforeWrite(tx, row, amount)
       if (refusal) { outcome = { ok: false, status: 409, error: refusal }; return }
     }
+    // Paying from the client's own account: the balance is debited HERE, under the same lock and in
+    // the same transaction as the payment row. Debiting outside it is money that vanishes when the
+    // payment rolls back, and reading the balance outside it is two tills spending the same $20.
+    if (input.method === ACCOUNT_BALANCE_METHOD) {
+      if (!input.spendFromAccount) {
+        outcome = { ok: false, status: 400, error: 'This business does not keep client account balances, so a sale cannot be settled against one.' }
+        return
+      }
+      const refusal = await input.spendFromAccount(tx, row, amount)
+      if (refusal) { outcome = { ok: false, status: 400, error: refusal }; return }
+    }
     const values: any = { invoiceId: id, amount: amount.toString(), method: input.method, reference: input.reference, notes: input.notes }
     if (tips) values.tipAmount = (input.tipAmount ?? 0).toString()
     if (input.paidAt) values.paidAt = input.paidAt
@@ -260,6 +301,16 @@ export interface RecordRefundInput {
    * this invoice already carries `reference`, return it instead of inserting a second one.
    */
   idempotentByReference?: boolean
+  /**
+   * Put the refunded money on the client's ACCOUNT instead of back where it came from, inside this
+   * refund's transaction. Called only when `method` is `account_balance`; its absence makes that
+   * method impossible, the same way it does for a payment. A returned message refuses (400).
+   *
+   * This is the choice every established platform offers at the moment of refunding — card, or keep
+   * it on account — and it is the only honest way to answer "the client overpaid by $5.43" without
+   * the software deciding on the client's behalf.
+   */
+  creditToAccount?: (tx: any, invoice: any, amount: number) => Promise<string | null>
 }
 
 export type RecordRefundOutcome =
@@ -297,6 +348,17 @@ export async function recordInvoiceRefund(db: any, t: { invoice: any; payment: a
     // Default to how the money came in — the most recent positive payment's method.
     const [last] = await tx.select({ method: t.payment.method }).from(t.payment).where(and(eq(t.payment.invoiceId, id), sql`${t.payment.amount}::numeric > 0`)).orderBy(desc(t.payment.paidAt)).limit(1)
     const method = input.method || last?.method || 'other'
+    // "Refund it to their account" — the money leaves the invoice as a refund exactly as it would to a
+    // card, and lands on the client's balance in the same transaction. If the credit cannot be written
+    // the refund does not happen either; a refund that records no money anywhere is money lost.
+    if (method === ACCOUNT_BALANCE_METHOD) {
+      if (!input.creditToAccount) {
+        outcome = { ok: false, status: 400, error: 'This business does not keep client account balances, so a refund cannot be left on one.' }
+        return
+      }
+      const refusal = await input.creditToAccount(tx, row, amount)
+      if (refusal) { outcome = { ok: false, status: 400, error: refusal }; return }
+    }
     const values: any = { invoiceId: id, amount: (-amount).toString(), method, reference: input.reference || null, notes: input.notes || 'Refund' }
     if (input.paidAt) values.paidAt = input.paidAt
     const [refund] = await tx.insert(t.payment).values(values).returning()
@@ -596,7 +658,13 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       db.select().from(t.payment).where(eq(t.payment.invoiceId, id)).orderBy(desc(t.payment.paidAt)),
     ])
     const balance = invoiceBalance(found)
-    return c.json({ ...found, status: derive(found), balance, contact: ct[0] || null, project: pr[0] || null, quote: qt[0] || null, lineItems, payments })
+    // What this client has on account, when the business keeps balances at all. The screen needs it to
+    // decide whether to OFFER paying from it — a payment method that is always listed and usually
+    // refuses is worse than one that appears when there is money behind it.
+    const accountBalance = deps.options?.accountBalance && found.contactId
+      ? await deps.options.accountBalance.balanceOf(cid, found.contactId).catch(() => 0)
+      : null
+    return c.json({ ...found, status: derive(found), balance, accountBalance, contact: ct[0] || null, project: pr[0] || null, quote: qt[0] || null, lineItems, payments })
   })
 
   // ---------------------------------------------------------------- create
@@ -763,7 +831,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     if (tips && tipAmount > Math.max(amount * 5, 100)) return c.json({ error: `A $${tipAmount.toFixed(2)} tip on a $${amount.toFixed(2)} payment looks wrong — check the amount.` }, 400)
 
     // The locked, refund-aware write lives in recordInvoicePayment (shared with the Stripe webhook).
-    const outcome = await recordInvoicePayment(db, t, tips, { invoiceId: id, companyId: currentUser.companyId, amount, method: data.method, reference: data.reference, notes: data.notes, tipAmount, beforeWrite: deps.options?.onPayment })
+    const outcome = await recordInvoicePayment(db, t, tips, { invoiceId: id, companyId: currentUser.companyId, amount, method: data.method, reference: data.reference, notes: data.notes, tipAmount, beforeWrite: deps.options?.onPayment, spendFromAccount: deps.options?.accountBalance?.spend })
     if (!outcome.ok) return c.json({ error: outcome.error }, outcome.status)
     emitToCompany(currentUser.companyId, EVENTS.PAYMENT_RECEIVED, { invoiceId: id, invoiceNumber: outcome.row.number, amount, newBalance: outcome.newBalance, status: outcome.newStatus })
     if (outcome.newStatus === 'paid') emitToCompany(currentUser.companyId, EVENTS.INVOICE_PAID, { id, number: outcome.row.number, total: outcome.row.total })
@@ -816,7 +884,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const data = refundSchema.parse(await c.req.json())
     const amount = round2(data.amount)
     // The locked write lives in recordInvoiceRefund (shared with the Stripe refund paths).
-    const outcome = await recordInvoiceRefund(db, t, { invoiceId: id, companyId: currentUser.companyId, amount, method: data.method, reference: data.reference, notes: data.notes })
+    const outcome = await recordInvoiceRefund(db, t, { invoiceId: id, companyId: currentUser.companyId, amount, method: data.method, reference: data.reference, notes: data.notes, creditToAccount: deps.options?.accountBalance?.credit })
     if (!outcome.ok) return c.json({ error: outcome.error }, outcome.status)
     emitToCompany(currentUser.companyId, EVENTS.INVOICE_UPDATED, outcome.invoice)
     return c.json({ refund: outcome.refund, invoice: outcome.invoice })

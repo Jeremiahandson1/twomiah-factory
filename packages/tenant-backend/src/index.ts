@@ -37,6 +37,9 @@ export type { FeatureDef } from './featureRegistry'
 // Invoices + quotes — one implementation for every CRM; the template injects its tables and services.
 export { createInvoiceRoutes, insertInvoice, retotalInvoice, replaceInvoiceLines, recordInvoicePayment, recordInvoiceRefund, applyInvoiceCredit } from './invoicing/invoices'
 export type { InvoiceDeps, InvoiceOptions, InvoiceTables, InvoiceLine, RecordPaymentInput, RecordPaymentOutcome, RecordRefundInput, RecordRefundOutcome } from './invoicing/invoices'
+// Money a client has ON ACCOUNT with the business — a ledger, spendable at checkout, never expiring.
+export { createAccountBalanceStore, balanceFrom, describeBalance, ACCOUNT_BALANCE_METHOD } from './clients/accountBalance'
+export type { AccountEntry, AccountEntrySource, AddEntryInput, SpendOutcome, AccountBalanceStore } from './clients/accountBalance'
 export { createQuoteRoutes } from './invoicing/quotes'
 export type { QuoteDeps, QuoteOptions, QuoteTables } from './invoicing/quotes'
 export { round2, calcTotals, isOverdue, deriveStatus, startOfUtcDay, overdueCutoff, DEFAULT_OPEN_STATUSES, defaultTaxRateFrom, paymentTermsDaysFrom, dueDateFromTerms, quoteValidityDaysFrom, quoteExpiryFromTerms, normalizeDateInput, isRealCalendarDay, businessToday, nextNumber, invoiceBalance, recomputeStatus } from './invoicing/money'

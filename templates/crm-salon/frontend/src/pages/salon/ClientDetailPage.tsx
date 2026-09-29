@@ -64,6 +64,9 @@ interface Stats {
   lifetimeValue?: number;
   dueBackAt?: string | null;
   lastVisit?: string | null;
+  /** Money this client is holding with the salon. Positive is theirs to spend; negative they owe. */
+  accountBalance?: number;
+  accountBalanceLabel?: string;
 }
 interface Detail {
   contact?: Contact;
@@ -193,8 +196,30 @@ export default function ClientDetailPage() {
           </div>
         )}
 
-        {/* Retention strip — the numbers the front desk needs at a glance. */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+        {/* Retention strip — the numbers the front desk needs at a glance. On Account sits here
+            rather than behind a tab because a credit nobody can see is a credit nobody spends: the
+            29 Sep retest found $5.43 of a client's money that existed only as a difference between
+            two columns on one invoice. */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
+          <div className={`border rounded-lg p-3 ${
+            (stats.accountBalance ?? 0) > 0
+              ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800'
+              : (stats.accountBalance ?? 0) < 0
+                ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/30 dark:border-amber-800'
+                : ''
+          }`}>
+            <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">On Account</p>
+            <p className={`text-xl font-bold ${
+              (stats.accountBalance ?? 0) > 0
+                ? 'text-emerald-800 dark:text-emerald-200'
+                : (stats.accountBalance ?? 0) < 0
+                  ? 'text-amber-800 dark:text-amber-200'
+                  : 'text-gray-900 dark:text-slate-100'
+            }`}>{money(stats.accountBalance ?? 0)}</p>
+            {(stats.accountBalance ?? 0) < 0 && (
+              <p className="text-xs text-amber-800 dark:text-amber-200 mt-0.5">owed to the salon</p>
+            )}
+          </div>
           <div className="border rounded-lg p-3">
             <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Visits</p>
             <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{stats.visits ?? 0}</p>

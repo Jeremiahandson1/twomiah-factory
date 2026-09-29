@@ -3754,6 +3754,38 @@ export const serviceMenu = pgTable('service_menu', {
 
 // One row per client (1:1 with contact). Allergy + patch-test dates are the
 // safety record a colour salon actually needs.
+/**
+ * Money a client has ON ACCOUNT with the salon — a LEDGER, not a column.
+ *
+ * The balance is the SUM of these rows and is never stored anywhere. A balance that cannot explain
+ * itself is a liability that cannot be audited, and these do not expire: the entry that created one
+ * may be two years old by the time it is spent, so every movement keeps why, who and which sale.
+ *
+ * `amount` is SIGNED — positive puts money on account, negative takes it off. One column and one
+ * sign convention, rather than a separate type field that can drift out of step with the number it
+ * is supposed to describe. The rules live in packages/tenant-backend/src/clients/accountBalance.ts,
+ * shared, because a salon and a shop disagree about nothing here.
+ *
+ * Why it exists: the salon retest found a client who paid $37.98 against a bill a reward later took
+ * down to $32.55. The $5.43 was recorded NOWHERE — not as a credit, not as a refund owed, only as a
+ * disagreement between two columns on one invoice. Every established salon platform has this.
+ */
+export const clientAccountEntry = pgTable('client_account_entry', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),   // signed: + on account, − spent
+  source: text('source').notNull(),                                    // manual/refund_to_account/overpayment/spend/payout
+  reason: text('reason').notNull(),                                    // why, in words a person reads back
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
+  createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('client_account_entry_client_idx').on(t.companyId, t.contactId),
+  index('client_account_entry_invoice_idx').on(t.invoiceId),
+])
+
 export const clientProfile = pgTable('client_profile', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),

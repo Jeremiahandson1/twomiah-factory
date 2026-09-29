@@ -14,6 +14,14 @@ if (!/const minLineItems = deps\.options\?\.minLineItems \?\? 0/.test(shared)) f
 if (!/if \(data\.lineItems\.length < minLineItems\) return c\.json\(\{ error: 'Add at least one line item\.' \}, 400\)/.test(shared)) fail('shared invoices.ts must refuse too few lines on create')
 if (!/if \(lines\.length < minLineItems\) return c\.json\(\{ error: 'Add at least one line item\.' \}, 400\)/.test(shared)) fail('shared invoices.ts must refuse too few lines on edit')
 
+/**
+ * Blank out comments, keeping the line count, so a rule written ABOUT the code in a comment cannot be
+ * mistaken for the code obeying it. (Same trick as check-dashboard-stats-shape.ts.)
+ */
+const withoutComments = (src: string) => src
+  .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+  .replace(/(^|[^:])\/\/[^\n]*/g, (m, p1) => p1 + ' '.repeat(m.length - p1.length))
+
 const users: string[] = []
 for (const t of readdirSync(join(ROOT, 'templates'))) {
   const p = `templates/${t}/backend/src/routes/invoices.ts`
@@ -21,7 +29,14 @@ for (const t of readdirSync(join(ROOT, 'templates'))) {
   const s = read(p)
   if (!/createInvoiceRoutes\(/.test(s)) continue
   users.push(t)
-  if (!/^\s*options: \{[^\r\n]*\bminLineItems: 1\b[^\r\n]*\},?\s*$/m.test(s)) fail(`${t}: the invoice routes must pass options.minLineItems: 1`)
+  // The RULE is "this template passes minLineItems: 1", not "it fits on one line". The old check was
+  // anchored to a single-line `options: { … }` and failed the build the first time an options object
+  // legitimately grew past one line (salon, adding client account balances) — a guard refusing a
+  // refactor it has no opinion about. Comments are blanked first so the prose above the object cannot
+  // satisfy it either.
+  const code = withoutComments(s)
+  if (!/\boptions\s*:\s*\{/.test(code)) fail(`${t}: the invoice routes must pass an options object`)
+  else if (!/\bminLineItems\s*:\s*1\b/.test(code)) fail(`${t}: the invoice routes must pass options.minLineItems: 1`)
 }
 if (users.length < 7) fail(`expected at least 7 CRMs on the shared invoice routes, found ${users.length} (${users.join(', ')})`)
 

@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { contact, clientProfile, serviceRecord, serviceMenu, appointment, membershipEnrollment, membershipPlan, user, invoice, teamMember } from '../../db/schema.ts'
+import { contact, clientProfile, serviceRecord, serviceMenu, appointment, membershipEnrollment, membershipPlan, user, invoice, teamMember, clientAccountEntry } from '../../db/schema.ts'
+import { createAccountBalanceStore, balanceFrom, describeBalance } from '../shared/index.ts'
 import { eq, and, or, ilike, count, desc, ne , sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -22,6 +23,9 @@ import { calendarDateIn, salonTimezone, salonToday } from '../utils/salonDate.ts
 
 const app = new Hono()
 app.use('*', authenticate)
+
+/** The client account-balance ledger, bound to this template's table. Rules live in the shared package. */
+const accounts = createAccountBalanceStore(clientAccountEntry)
 
 // GET /clients — ?search= (name/email/phone), ?stylistId= (preferred stylist)
 app.get('/', requirePermission('contacts:read'), async (c) => {
@@ -188,13 +192,23 @@ app.get('/:contactId', requirePermission('contacts:read'), async (c) => {
     ))
   const lifetimeValue = Math.round(Number(paidRow?.paid || 0) * 100) / 100
 
+  // Money this client is holding with the salon. On the chart because that is where a front desk
+  // looks before they ring anything up — a credit nobody can see is a credit nobody spends.
+  const accountBalance = balanceFrom(await db.select({ amount: clientAccountEntry.amount }).from(clientAccountEntry)
+    .where(and(eq(clientAccountEntry.contactId, contactId), eq(clientAccountEntry.companyId, currentUser.companyId))))
+
   return c.json({
     contact: ct,
     profile: profile || null,
     serviceRecords,
     appointments,
     memberships,
-    stats: { visits: serviceRecords.length, lifetimeValue, dueBackAt, lastVisit: serviceRecords[0]?.performedAt ?? null },
+    stats: {
+      visits: serviceRecords.length, lifetimeValue, dueBackAt,
+      lastVisit: serviceRecords[0]?.performedAt ?? null,
+      accountBalance,
+      accountBalanceLabel: describeBalance(accountBalance),
+    },
   })
 })
 
@@ -245,6 +259,91 @@ app.put('/:contactId/profile', requirePermission('contacts:update'), async (c) =
 
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'client_profile' })
   return c.json(saved)
+})
+
+// ═══════════════════════════════ MONEY THE CLIENT HAS ON ACCOUNT ═══════════════════════════════
+//
+// Every established salon platform keeps a client account balance and we did not. The hole showed
+// up as a real one in the 29 Sep retest: a client paid $37.98 against a bill a reward later took
+// down to $32.55, and the $5.43 existed nowhere but as a disagreement between two columns on one
+// invoice — the desk could not see it, give it back, or spend it.
+//
+// The line drawn here: **the desk can SPEND what is on account; only an admin can CREATE it.**
+// Spending goes through the ordinary payment route (invoices:update, which the front desk holds),
+// because a client paying with their own money is a checkout, not a decision. Putting money on an
+// account, or taking it out of the business, is `payments:delete` — the same right a refund and a
+// credit already ask for, admin and owner. A manual entry makes spendable money out of nothing and
+// belongs exactly where a credit does.
+
+/** Read the balance and how it got there. */
+app.get('/:contactId/account-balance', requirePermission('contacts:read'), async (c) => {
+  const currentUser = c.get('user') as any
+  const contactId = c.req.param('contactId')
+
+  const [ct] = await db.select().from(contact)
+    .where(and(eq(contact.id, contactId), eq(contact.companyId, currentUser.companyId))).limit(1)
+  if (!ct) return c.json({ error: 'Client not found' }, 404)
+
+  const entries = await db.select().from(clientAccountEntry)
+    .where(and(eq(clientAccountEntry.contactId, contactId), eq(clientAccountEntry.companyId, currentUser.companyId)))
+    .orderBy(desc(clientAccountEntry.createdAt))
+
+  const balance = balanceFrom(entries)
+  return c.json({
+    balance,
+    // Said in words, so a screen does not have to decide what a negative number means.
+    describe: describeBalance(balance),
+    entries: entries.map((e: any) => ({ ...e, amount: Number(e.amount) })),
+  })
+})
+
+/**
+ * Put money on account, or take it off.
+ *
+ * A reason is REQUIRED. These balances do not expire, so the row explaining one may be read back two
+ * years later by somebody who was not there; an unexplained movement of a client's money is a bug,
+ * not a shortcut.
+ *
+ * A negative amount is allowed and can take the balance below zero — a client owing the shop is a
+ * real thing a salon tracks (Mangomint calls it an IOU). What is NOT allowed is spending money that
+ * is not there; that is guarded in the spend path, not here.
+ */
+app.post('/:contactId/account-balance', requirePermission('payments:delete'), async (c) => {
+  const currentUser = c.get('user') as any
+  const contactId = c.req.param('contactId')
+  const body = (await c.req.json().catch(() => null)) ?? ({} as any)
+
+  const [ct] = await db.select().from(contact)
+    .where(and(eq(contact.id, contactId), eq(contact.companyId, currentUser.companyId))).limit(1)
+  if (!ct) return c.json({ error: 'Client not found' }, 404)
+
+  const amount = Math.round((Number(body.amount) || 0) * 100) / 100
+  if (!Number.isFinite(amount) || amount === 0) {
+    return c.json({ error: 'Enter an amount to add, or a negative amount to take off.' }, 400)
+  }
+  if (Math.abs(amount) > 100000) return c.json({ error: 'That is more than a salon account balance should ever hold. Check the amount.' }, 400)
+  const reason = String(body.reason || '').trim()
+  if (!reason) return c.json({ error: 'Say why this is being added or taken off — it is the client\'s money and the note is the record of it.' }, 400)
+  if (reason.length > 500) return c.json({ error: 'Keep the reason to 500 characters or fewer.' }, 400)
+
+  // 'payout' when money is leaving the business (cash back over the counter), 'manual' otherwise.
+  const source = amount < 0 ? (body.source === 'payout' ? 'payout' : 'manual') : 'manual'
+
+  const entry = await accounts.add(db, {
+    companyId: currentUser.companyId, contactId, amount, source, reason,
+    invoiceId: body.invoiceId || null, createdBy: currentUser.userId,
+  })
+
+  const balance = balanceFrom(await db.select({ amount: clientAccountEntry.amount }).from(clientAccountEntry)
+    .where(and(eq(clientAccountEntry.contactId, contactId), eq(clientAccountEntry.companyId, currentUser.companyId))))
+
+  await audit.log({
+    action: 'update', entity: 'client_account_entry', entityId: entry.id, entityName: ct.name,
+    metadata: { amount, source, reason, balance }, req: { user: currentUser },
+  })
+  emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'client_account_entry' })
+
+  return c.json({ entry: { ...entry, amount: Number(entry.amount) }, balance, describe: describeBalance(balance) })
 })
 
 export default app

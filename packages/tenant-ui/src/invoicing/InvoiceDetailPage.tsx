@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Edit, Trash2, Send, DollarSign, Download, Ban, RotateCcw, RefreshCw, Tag } from 'lucide-react'
 import type { InvoicingPageProps } from './types'
 import { resolveConfig } from './types'
-import { Button, ConfirmModal, NavLink, Field, Modal, PAYMENT_METHODS, StatusBadge, balanceAfterCredit, dateOnly, dateTime, downloadFile, errMsg, inputCls, isPastDay, money, refundEffectNote } from './ui'
+import { Button, ConfirmModal, NavLink, Field, Modal, PAYMENT_METHODS, paymentMethodsFor, refundMethodsFor, StatusBadge, balanceAfterCredit, dateOnly, dateTime, downloadFile, errMsg, inputCls, isPastDay, money, refundEffectNote } from './ui'
 
 type Inv = Record<string, any>
 
@@ -185,7 +185,9 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
         <div className="space-y-4">
           <Field label="Amount *" hint={`${money(balance)} remaining`}><input type="number" step="0.01" min="0.01" value={payment.amount} onChange={e => setPayment({ ...payment, amount: e.target.value })} className={inputCls} /></Field>
           {cfg.tips && <Field label="Tip (optional)" hint="Gratuity for the stylist. Recorded with the payment, never counted toward the invoice."><input type="number" step="0.01" min="0" value={payment.tipAmount} onChange={e => setPayment({ ...payment, tipAmount: e.target.value })} className={inputCls} placeholder="0.00" /></Field>}
-          <Field label="Method"><select value={payment.method} onChange={e => setPayment({ ...payment, method: e.target.value })} className={inputCls}>{PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></Field>
+          {/* "Account balance" is offered only when this client has money on account — the API sends
+              the figure, and sends null on verticals that keep no balances, where nothing changes. */}
+          <Field label="Method"><select value={payment.method} onChange={e => setPayment({ ...payment, method: e.target.value })} className={inputCls}>{paymentMethodsFor(invoice.accountBalance).map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></Field>
           <Field label="Reference"><input value={payment.reference} onChange={e => setPayment({ ...payment, reference: e.target.value })} className={inputCls} placeholder="Check #, transaction ID…" /></Field>
           <Field label="Notes"><textarea value={payment.notes} onChange={e => setPayment({ ...payment, notes: e.target.value })} rows={2} className={inputCls} /></Field>
         </div>
@@ -196,7 +198,10 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
         <div className="space-y-4">
           <p className="text-sm text-gray-600 dark:text-slate-400">{refundEffectNote(invoice.total, invoice.amountPaid)} Card refunds issued in Stripe are recorded here automatically — record only refunds made outside Stripe (cash, check…) so nothing is counted twice.</p>
           <Field label="Amount *" hint={`${money(netPaid)} refundable`}><input type="number" step="0.01" min="0.01" value={refund.amount} onChange={e => setRefund({ ...refund, amount: e.target.value })} className={inputCls} /></Field>
-          <Field label="Method" hint="Leave as-is to refund the way the money came in."><select value={refund.method} onChange={e => setRefund({ ...refund, method: e.target.value })} className={inputCls}><option value="">Same as payment</option>{PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></Field>
+          {/* Card, or left on the client's account. Offering the choice AT THE MOMENT OF REFUNDING is
+              what every established platform does, and it is the only honest answer to "they overpaid
+              by $5.43" — where that money goes is the client's to decide, not the software's. */}
+          <Field label="Method" hint="Leave as-is to refund the way the money came in."><select value={refund.method} onChange={e => setRefund({ ...refund, method: e.target.value })} className={inputCls}><option value="">Same as payment</option>{refundMethodsFor(invoice.accountBalance != null && !!invoice.contactId).map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></Field>
           <Field label="Reference"><input value={refund.reference} onChange={e => setRefund({ ...refund, reference: e.target.value })} className={inputCls} /></Field>
           <Field label="Reason"><input value={refund.notes} onChange={e => setRefund({ ...refund, notes: e.target.value })} className={inputCls} placeholder="Why the money went back" /></Field>
         </div>

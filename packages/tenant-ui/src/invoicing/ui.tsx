@@ -458,3 +458,30 @@ export function TotalsBox({ subtotal, discount, taxRate, taxAmount, total, warni
 export const PAYMENT_METHODS: Array<{ value: string; label: string }> = [
   { value: 'card', label: 'Card' }, { value: 'cash', label: 'Cash' }, { value: 'check', label: 'Check' }, { value: 'bank_transfer', label: 'Bank Transfer' }, { value: 'other', label: 'Other' },
 ]
+
+/** Paying with money the client already has with the business. */
+export const ACCOUNT_BALANCE_METHOD = 'account_balance'
+
+/**
+ * The methods to OFFER for one invoice.
+ *
+ * "Account balance" appears only when this client actually has money on account, which is how every
+ * platform that has the feature does it. A method that is always listed and usually refuses teaches
+ * the desk to ignore the list; one that appears when there is money behind it tells them something
+ * they did not know. `balance` is null on verticals that keep no client balances, and then nothing
+ * changes for them at all.
+ */
+export function paymentMethodsFor(balance: number | null | undefined): Array<{ value: string; label: string }> {
+  const onAccount = Number(balance) || 0
+  if (!(onAccount > 0.005)) return PAYMENT_METHODS
+  return [
+    { value: ACCOUNT_BALANCE_METHOD, label: `Account balance (${money(onAccount)} available)` },
+    ...PAYMENT_METHODS,
+  ]
+}
+
+/** The refund destinations to offer. Money can go back to a card, or be left on the client's account. */
+export function refundMethodsFor(hasClient: boolean): Array<{ value: string; label: string }> {
+  if (!hasClient) return PAYMENT_METHODS
+  return [...PAYMENT_METHODS, { value: ACCOUNT_BALANCE_METHOD, label: 'Leave it on their account' }]
+}
