@@ -78,6 +78,32 @@ app.post('/zones', requireRole('manager'), async (c) => {
   })
   const data = zoneSchema.parse(await c.req.json())
 
+  // Two zones covering the same ZIP is an unanswerable question at the checkout.
+  //
+  // T47 P20: T45 Zone and T46 Zone both covered the same postcodes, so which fee and which minimum
+  // applied to an address in them depended on whichever row the matcher happened to reach first.
+  // A customer could be quoted $5 or $10 for the same delivery on two different days and nobody
+  // could say why. The shop is told which zone already has the postcode and can widen that one.
+  if (data.zipCodes?.length) {
+    const wanted = data.zipCodes.map((z) => String(z).trim()).filter(Boolean)
+    const existing: any = await db.execute(sql`
+      SELECT name, zip_codes FROM delivery_zones
+      WHERE company_id = ${currentUser.companyId} AND COALESCE(active, true) = true
+    `)
+    for (const zone of ((existing as any).rows || existing)) {
+      const theirs = Array.isArray(zone.zip_codes)
+        ? zone.zip_codes
+        : (typeof zone.zip_codes === 'string' ? JSON.parse(zone.zip_codes || '[]') : [])
+      const clash = wanted.filter((z) => theirs.map((t: any) => String(t).trim()).includes(z))
+      if (clash.length) {
+        return c.json({
+          error: `${clash.join(', ')} ${clash.length === 1 ? 'is' : 'are'} already covered by "${zone.name}". Two zones covering one postcode leaves the checkout unable to say which fee applies — widen that zone instead, or take the postcode out of it.`,
+          code: 'zone_overlap', zone: zone.name, zipCodes: clash,
+        }, 409)
+      }
+    }
+  }
+
   // Both spellings of the minimum are written, always the same value. The table has carried
   // `min_order` and `minimum_order` side by side for a while; writing one and reading the other is
   // how the Zones screen came to show $0.00 for a zone that refuses orders under $50. (T46 N12)

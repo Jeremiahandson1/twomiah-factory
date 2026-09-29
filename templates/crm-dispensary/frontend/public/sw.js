@@ -32,10 +32,44 @@ self.addEventListener('install', (event) => {
   )
 })
 
+/**
+ * Everything the CURRENT index.html actually asks for.
+ *
+ * The bundle is hashed per build — index-CUB83aoE.js — so every deploy puts new files in the cache
+ * and the old ones have nothing to evict them. T47 P17 found the previous build's JS and CSS still
+ * sitting beside the new ones. Deleting the whole cache on activate would work and would also take
+ * the register offline until it had re-fetched everything, which is the opposite of the point.
+ *
+ * So the fresh index is read and anything under /assets/ it no longer references is dropped. If the
+ * network is down the index cannot be read, and nothing is deleted — a service worker waking up
+ * offline must not clear the shell it is there to serve.
+ */
+async function dropAssetsNoLongerReferenced() {
+  let html
+  try {
+    const fresh = await fetch('/index.html', { cache: 'no-store' })
+    if (!fresh || !fresh.ok) return
+    html = await fresh.text()
+  } catch { return }
+  if (!html || !/<script|<link/i.test(html)) return
+
+  const referenced = new Set()
+  for (const m of html.matchAll(/(?:src|href)="([^"]+)"/g)) referenced.add(m[1].split('?')[0])
+
+  const cache = await caches.open(SHELL_CACHE)
+  for (const request of await cache.keys()) {
+    const path = new URL(request.url).pathname
+    if (!path.startsWith('/assets/')) continue
+    if (referenced.has(path)) continue
+    await cache.delete(request)
+  }
+}
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
       .then((names) => Promise.all(names.filter((n) => n !== SHELL_CACHE).map((n) => caches.delete(n))))
+      .then(() => dropAssetsNoLongerReferenced())
       .then(() => self.clients.claim()),
   )
 })

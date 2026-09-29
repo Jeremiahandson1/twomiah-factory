@@ -331,7 +331,14 @@ export default function OfflinePage() {
                   {queue.map(item => (
                     <tr key={item.id} className="border-t">
                       <td className="px-4 py-3 text-sm font-medium">{item.transactionType}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{item.createdAt ? formatDateTime(item.createdAt, storeTz) : '-'}</td>
+                      {/* When the sale was RUNG UP, not when it reached the server.
+                          createdOfflineAt is the device's own clock at the till; created_at is when
+                          the row was written, which for a queued sale is whenever the connection
+                          came back. A column headed "Created" showing the sync time tells a manager
+                          the shop was busy at 7:34 when the queue drained, not at 6:05 when the
+                          customer was actually served — and the API has been sending both all
+                          along. (T47 P16) */}
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{item.createdOfflineAt || item.createdAt ? formatDateTime(item.createdOfflineAt || item.createdAt, storeTz) : '-'}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${SYNC_STATUS_STYLES[item.status] || 'bg-gray-100 text-gray-700'}`}>
                           {item.status}

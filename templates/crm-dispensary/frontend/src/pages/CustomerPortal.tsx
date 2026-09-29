@@ -5,7 +5,7 @@ import {
   DollarSign, ArrowRight, Settings, Clock, LogOut, AlertTriangle
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { brandSurfaceUnderWhite } from '../shared';
+import { brandSurfaceUnderWhite, money } from '../shared';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -171,7 +171,11 @@ export default function CustomerPortal() {
                   so both fell through to the zero at the end of the chain and the hub read $0 and 0
                   orders on a day the dashboard beside it read $225.75 and 12. (T46 N4) */}
               <p className="text-xl font-bold text-slate-900">
-                {loading ? '—' : `$${Number(stats.today?.revenue ?? 0).toLocaleString()}`}
+                {/* money(), not toLocaleString(). A bare toLocaleString drops a trailing zero, so
+                    $269.50 of takings printed as "$269.5" — which reads like a rounding error in the
+                    shop's own till. The shared helper has always formatted money properly; these two
+                    tiles were the ones not using it. (T47 P23, N4) */}
+                {loading ? '—' : money(stats.today?.revenue ?? 0)}
               </p>
               <p className="text-xs text-slate-500">Revenue Today</p>
             </div>

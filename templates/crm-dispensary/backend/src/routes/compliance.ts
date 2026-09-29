@@ -1201,10 +1201,18 @@ app.post('/waste', requireRole('manager'), async (c) => {
     if (Math.abs(exact - unitsToRemove) > 1e-6) {
       // Stock is a count of sealed packages; half an eighth cannot come off it. Saying so is
       // better than rounding, which is what put 14 g in the bin for a 3.5 g destruction.
+      //
+      // The message used to end "…or record the waste against the batch it came out of", which
+      // sent people somewhere the product does not go: batch quantities are whole units too
+      // (batches.current_quantity is an integer), so a batch cannot take 1.7 g either. Weighing
+      // bulk stock properly needs that column widened, and the adjustment ledger with it — worth
+      // doing, too big to slip into a wording fix. Until then this says what it can actually do.
+      // (T47, N10's follow-on)
       return c.json({
-        error: `${prod.name} is stocked in ${gramsPerUnit} g units, so ${Number(wantGrams.toFixed(2))} g is ${Number(exact.toFixed(3))} of them. Destroy a whole number of units, or record the waste against the batch it came out of.`,
+        error: `${prod.name} is stocked in ${gramsPerUnit} g units, so ${Number(wantGrams.toFixed(2))} g is ${Number(exact.toFixed(3))} of them — and stock is a count of sealed packages, so part of one cannot come off it. Destroy a whole number of units (${Math.floor(exact)} or ${Math.ceil(exact)}), or record it in units rather than grams.`,
         code: 'waste_partial_unit',
         gramsPerUnit,
+        wholeUnitOptions: [Math.floor(exact), Math.ceil(exact)].filter((n, i, a) => n > 0 && a.indexOf(n) === i),
       }, 400)
     }
   } else {

@@ -220,6 +220,13 @@ export function ageFromDob(dob: string | Date | null | undefined): number | null
   const birth = new Date(dob as any)
   if (Number.isNaN(birth.getTime())) return null
   const today = new Date()
+  // A birth date in the FUTURE is not a young customer, it is a typo.
+  //
+  // T47 P15: a 2030 date of birth at the public checkout was answered "you have to be 21 or over",
+  // because it parses perfectly and works out to about minus four. Telling somebody they are too
+  // young when they have mistyped the year sends them away to think about it instead of looking at
+  // the box. Null here means "not a real date of birth", which every caller already says properly.
+  if (birth.getTime() > today.getTime()) return null
   let age = today.getFullYear() - birth.getFullYear()
   const m = today.getMonth() - birth.getMonth()
   if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--

@@ -383,6 +383,26 @@ app.post('/generate', requireRole('manager'), async (c) => {
 
   const savedReport = ((insertResult as any).rows || insertResult)?.[0]
 
+  // Sales raised on this day and still not settled — product out of the door, money not taken.
+  // Nearly always an offline cash sale rung up with no drawer open (routes/offline.ts leaves it
+  // standing on purpose, because the customer already has the goods). (T47, N1 cash)
+  const unsettledResult: any = await db.execute(sql`
+    SELECT id, order_number, total, payment_method
+    FROM orders
+    WHERE company_id = ${currentUser.companyId}
+      AND status = 'pending'
+      AND DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay}) = ${reportDate}::date
+    ORDER BY created_at ASC
+  `)
+  const unsettledRows = ((unsettledResult as any).rows || unsettledResult) as any[]
+  const unsettled = {
+    count: unsettledRows.length,
+    total: Math.round(unsettledRows.reduce((s, o) => s + (Number(o.total) || 0), 0) * 100) / 100,
+    orders: unsettledRows.map((o) => ({
+      id: o.id, number: o.order_number, total: Number(o.total) || 0, paymentMethod: o.payment_method,
+    })),
+  }
+
   audit.log({
     action: audit.ACTIONS.CREATE,
     entity: 'eod_report',
@@ -425,6 +445,16 @@ app.post('/generate', requireRole('manager'), async (c) => {
     pointsIssued: report.loyalty.pointsIssued,
     pointsRedeemed: report.loyalty.pointsRedeemed,
     newLoyaltyMembers: report.loyalty.newMembers,
+    // Sales the shop has already handed over and not yet taken money for.
+    //
+    // A cash sale rung up while the connection was down, with no drawer open, is raised and left
+    // PENDING on purpose — the customer has walked out with the product and the shop needs the
+    // record (routes/offline.ts). The T47 retest agreed that is the right call and asked for the
+    // obvious follow-on: say so somewhere it cannot be forgotten. End of Day is that place. A day
+    // that balances perfectly while three sales sit unsettled has not balanced.
+    unsettledSales: unsettled.count,
+    unsettledTotal: unsettled.total,
+    unsettledOrders: unsettled.orders,
   })
 })
 

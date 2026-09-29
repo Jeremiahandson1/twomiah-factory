@@ -14,7 +14,11 @@ app.use('*', requireRole('manager'))
 // Filtered audit log
 app.get('/', async (c) => {
   const currentUser = c.get('user') as any
-  const entity = c.req.query('entity')
+  // ?entityType= is accepted as well as ?entity=. The screen sends `entity`, the audit rows carry
+  // `entityType` in their own payload, and both spellings are in circulation — so asking with the
+  // wrong one silently returned EVERYTHING. A filter that is ignored rather than refused looks
+  // exactly like an answer, which is the worst way for a filter to fail. (T47 P21)
+  const entity = c.req.query('entity') || c.req.query('entityType')
   const entityId = c.req.query('entityId')
   const action = c.req.query('action')
   const userId = c.req.query('userId')
@@ -41,7 +45,9 @@ app.get('/', async (c) => {
 // CSV export of audit log
 app.get('/export', async (c) => {
   const currentUser = c.get('user') as any
-  const entity = c.req.query('entity')
+  // Both spellings here too — an export that quietly ignores the filter is a spreadsheet of
+  // everything, handed over as though it were the thing that was asked for. (T47 P21)
+  const entity = c.req.query('entity') || c.req.query('entityType')
   const action = c.req.query('action')
   const userId = c.req.query('userId')
   const startDate = c.req.query('startDate')

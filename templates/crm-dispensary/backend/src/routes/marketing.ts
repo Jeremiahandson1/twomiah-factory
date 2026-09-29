@@ -97,7 +97,13 @@ app.post('/templates/:id/duplicate', requirePermission('marketing:create'), asyn
 // CAMPAIGNS
 // ============================================
 
-app.get('/campaigns', async (c) => {
+// A budtender does not read the marketing list.
+//
+// Create, update and send have always been gated; the LIST was open to anyone signed in, so the
+// person on the till could read every campaign the shop had ever sent, its audience and its copy.
+// Not a leak of customer data, but not theirs either, and the rest of the module already draws the
+// line one step further up. (T47 P22)
+app.get('/campaigns', requirePermission('marketing:read'), async (c) => {
   const user = c.get('user') as any
   const status = c.req.query('status')
   const page = c.req.query('page')

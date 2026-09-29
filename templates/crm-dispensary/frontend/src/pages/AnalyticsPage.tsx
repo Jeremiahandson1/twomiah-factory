@@ -3,6 +3,7 @@ import { BarChart3, TrendingUp, Users, Clock, DollarSign, Package, Calendar } fr
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { storeDay } from '../utils/date';
+import { money } from '../shared';
 
 export default function AnalyticsPage() {
   const { company } = useAuth();
@@ -238,7 +239,9 @@ export default function AnalyticsPage() {
                   />
                 </div>
                 <span className="text-xs font-medium text-gray-900 w-24 shrink-0 text-right tabular-nums dark:text-slate-100">
-                  {day.revenue > 0 ? `$${Number(day.revenue).toLocaleString()}` : ''}
+                  {/* money(), for the same reason as the portal tile: a bare toLocaleString drops
+                      a trailing zero and prints $269.50 as "$269.5". (T47 P23) */}
+                  {day.revenue > 0 ? money(day.revenue) : ''}
                 </span>
               </div>
             )) : (

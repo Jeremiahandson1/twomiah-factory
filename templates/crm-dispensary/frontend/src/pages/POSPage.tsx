@@ -137,7 +137,11 @@ export default function POSPage() {
   const loadProducts = async () => {
     setLoadingProducts(true);
     try {
-      const params: any = { limit: 100 };
+      // Only what can actually be sold. An inactive product is one the shop has taken off the menu
+      // — usually because it cannot be deleted, having been sold before — and the server refuses it
+      // at the till anyway. Showing it on the grid means a budtender taps it in front of a customer
+      // and gets a refusal for something that should never have been offered. (T47 P19)
+      const params: any = { limit: 100, active: 'true' };
       if (productSearch) params.search = productSearch;
       if (activeCategory) params.category = activeCategory;
       const data = await api.get('/api/products', params);

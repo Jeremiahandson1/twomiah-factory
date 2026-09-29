@@ -568,6 +568,12 @@ app.post('/generate', requireRole('budtender'), async (c) => {
     // Columns per schema.ts: printed_by (not created_by), label_data, no label_html and no
     // updated_at. The rendered HTML is returned to the caller rather than stored — it is derived
     // from the template and the data, both of which are recorded here.
+    //
+    // COMPLETED, for the same reason the single-label route above says so, and this is the insert
+    // T46 L-a missed: the fix went in one route and its sibling kept writing 'pending', so the
+    // Print Jobs list still filled up with jobs nothing would ever move. There is no spooler in
+    // this product — the labels are rendered and handed straight back to the browser that asked
+    // for them, so by the time this row exists the work is done. (T47 P13)
     const jobResult = await db.execute(sql`
       INSERT INTO label_print_jobs (
         id, company_id, template_id, product_id, batch_id,
@@ -575,7 +581,7 @@ app.post('/generate', requireRole('budtender'), async (c) => {
       ) VALUES (
         gen_random_uuid(), ${currentUser.companyId}, ${data.templateId},
         ${p.productId}, ${p.batchId},
-        ${quantity}, 'pending',
+        ${quantity}, 'completed',
         ${JSON.stringify(p.labelData)}::jsonb, ${currentUser.userId}, NOW()
       ) RETURNING *
     `)

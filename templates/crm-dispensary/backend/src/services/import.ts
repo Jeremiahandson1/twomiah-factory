@@ -168,6 +168,11 @@ interface ImportResults {
   imported: number
   skipped: number
   errors: Array<{ line: number; error: string }>
+  /**
+   * Rows that came in, but not whole — something the shop should know about before it wonders why
+   * a product will not sell. Distinct from `errors`, which are rows that did NOT come in. (T47 P18)
+   */
+  warnings?: Array<{ line: number; warning: string }>
   records: Array<any>
 }
 
@@ -303,7 +308,11 @@ const PRODUCT_COLUMN_MAP = {
   // 'weight_g' is the products template's own header, "Weight (g)". It is listed explicitly
   // because separators are dropped, not translated: "Weight (g)" reads as `weightg`, which is not
   // `weightgrams`. (T46 N7)
-  weightGrams: ['weight', 'weight_g', 'weight_grams', 'net_weight', 'net_weight_g'],
+  // 'grams' and 'gram_weight' added by T47 P18: a column headed "Grams" was not on this list, so
+  // every flower row imported with NO weight and no warning — and a cannabis product with no
+  // weight cannot be sold at all, because the till refuses to count it against the purchase limit.
+  // A spreadsheet the shop exported from somewhere else is exactly where that header comes from.
+  weightGrams: ['weight', 'weight_g', 'weight_grams', 'grams', 'gram_weight', 'net_weight', 'net_weight_g'],
   unitType: ['unit', 'unit_type', 'uom'],
   stockQuantity: ['quantity', 'stock', 'stock_quantity', 'qty', 'on_hand'],
   description: ['description', 'desc', 'details', 'notes'],
@@ -379,6 +388,19 @@ export async function importProducts(csvContent: string, companyId: string, opti
         }
       }
 
+      const importedCost = getValue(row, ...PRODUCT_COLUMN_MAP.cost)
+      const importedWeight = getValue(row, ...PRODUCT_COLUMN_MAP.weightGrams)
+
+      // A cannabis product with no weight cannot be SOLD — the till refuses it, because it cannot
+      // count an unknown weight against the purchase limit. Importing one silently means the shop
+      // finds out at the counter with a customer waiting. (T47 P18)
+      if (!importedWeight && rawCategory !== 'merch' && rawCategory !== 'accessories') {
+        ;(results.warnings ||= []).push({
+          line: lineNum,
+          warning: `${name} came in with no weight. A cannabis product needs one before it can be sold — the register counts it against the purchase limit. Add a "Weight (g)" or "Grams" column, or set it on the product.`,
+        })
+      }
+
       const productData = {
         companyId,
         name,
@@ -390,8 +412,15 @@ export async function importProducts(csvContent: string, companyId: string, opti
         thcPercent: getValue(row, ...PRODUCT_COLUMN_MAP.thcPercent),
         cbdPercent: getValue(row, ...PRODUCT_COLUMN_MAP.cbdPercent),
         price: String(price),
-        cost: getValue(row, ...PRODUCT_COLUMN_MAP.cost),
-        weightGrams: getValue(row, ...PRODUCT_COLUMN_MAP.weightGrams),
+        // BOTH cost columns, always the same value.
+        //
+        // `cost` and `cost_price` are one fact in two columns, and T46 N26 taught the goods-in path
+        // to write both. The importer kept writing only one, so a shop that brought its catalogue in
+        // from a spreadsheet had margins computed off a null on whichever screen read the other
+        // spelling. Same bug, second door. (T47 P18)
+        cost: importedCost,
+        costPrice: importedCost,
+        weightGrams: importedWeight,
         unitType: getValue(row, ...PRODUCT_COLUMN_MAP.unitType) || 'each',
         stockQuantity: parseInt(getValue(row, ...PRODUCT_COLUMN_MAP.stockQuantity) || '0') || 0,
         description: getValue(row, ...PRODUCT_COLUMN_MAP.description),
