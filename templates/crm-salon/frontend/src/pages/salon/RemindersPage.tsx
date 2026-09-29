@@ -22,10 +22,16 @@ interface DueRow {
   clientPhone?: string;
   clientMobile?: string;
   serviceName?: string;
+  /** The rhythm this row is about — one row per client per category, not per service. */
+  category?: string;
   dueDate?: string;
   overdue?: boolean;
   stylistFirstName?: string;
   stylistLastName?: string;
+  /** 'client' when the date came from her own visits, 'menu' when it came from the price list. */
+  intervalBasis?: 'client' | 'menu' | 'none';
+  intervalNote?: string;
+  visitsInRhythm?: number;
 }
 interface LapsedRow {
   contactId?: string;
@@ -308,6 +314,12 @@ export default function RemindersPage() {
                       (FULL0929 F3; the same missing-partner shape as every contrast fix here.) */}
                   <td className={`px-4 py-3 ${r.overdue ? 'text-red-700 dark:text-red-400 font-medium' : 'text-gray-600 dark:text-slate-300'}`}>
                     {fmtDate(r.dueDate)}{r.overdue ? ' (overdue)' : ''}
+                    {/* Where the date came from. A front desk about to ring someone is helped by
+                        knowing whether "due today" is this client's own habit or the price list's
+                        default — and it is the difference between a useful call and a nagging one. */}
+                    {r.intervalNote && (
+                      <span className="block text-xs font-normal text-gray-500 dark:text-slate-400">{r.intervalNote}</span>
+                    )}
                   </td>
                 </tr>
               ))}

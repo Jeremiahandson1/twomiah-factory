@@ -1,0 +1,102 @@
+/**
+ * When is this client actually due back?
+ *
+ * The menu row carries a rebookIntervalDays — "a root touch-up is a six-week service" — and that is
+ * the right answer for a client nobody knows yet. It is the wrong answer for a client who has been
+ * coming every five weeks for two years: she gets chased seven days late, every time, and the list
+ * quietly stops matching the salon's actual book.
+ *
+ * Phorest solves this by learning: a client's typical booking interval is calculated automatically
+ * once they have had three appointments in the same Service Category, from the time between those
+ * visits. This does the same, with one deliberate difference — see MEDIAN below.
+ *
+ * Two decisions worth stating:
+ *
+ * **Three visits, and by CATEGORY.** Two visits give one gap, and one gap is an anecdote. Three give
+ * two gaps and the beginnings of a rhythm. Category rather than individual service because a client
+ * who alternates between a gloss and a full colour is on one colour rhythm, not two — and because it
+ * is what makes the recall list one row per client per rhythm rather than one per service they have
+ * ever had.
+ *
+ * **MEDIAN, not mean.** Phorest averages. A mean is wrecked by exactly the thing a salon history is
+ * full of: one interrupted year — a move, a baby, a lockdown — between otherwise regular visits. A
+ * client on a steady 35 days with one 400-day gap averages out to something near 150 and drops off
+ * the list entirely. The median ignores that one gap and keeps her on her real rhythm. With two to
+ * four gaps it behaves the same as a mean when the history is regular, and better when it is not.
+ */
+
+export type IntervalBasis =
+  /** Learned from this client's own visits. */
+  | 'client'
+  /** The service menu's figure — a client we do not know yet. */
+  | 'menu'
+  /** Neither: the menu has no interval and there is not enough history. */
+  | 'none'
+
+export interface RebookInterval {
+  days: number | null
+  basis: IntervalBasis
+  /** How many visits the opinion is based on, when it is the client's own. */
+  visits: number
+}
+
+/** Nobody is due back in three days, and nobody on a recall list is due back in three years. */
+export const MIN_INTERVAL_DAYS = 7
+export const MAX_INTERVAL_DAYS = 365
+
+/** The number of visits before a client's own rhythm is trusted over the menu. Phorest uses three. */
+export const VISITS_TO_LEARN = 3
+
+const DAY = 86400000
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = sorted.length >> 1
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
+}
+
+/**
+ * The interval to use for one client in one category.
+ *
+ * `visitDates` is every visit that client has had in the category, in any order. `menuDays` is the
+ * service menu's figure, used until there is enough history to know better.
+ */
+export function rebookInterval(visitDates: Array<Date | string | number>, menuDays: number | null | undefined): RebookInterval {
+  const times = visitDates
+    .map((d) => new Date(d as any).getTime())
+    .filter((t) => Number.isFinite(t))
+    .sort((a, b) => a - b)
+
+  const fallback: RebookInterval = Number(menuDays) > 0
+    ? { days: clamp(Number(menuDays)), basis: 'menu', visits: times.length }
+    : { days: null, basis: 'none', visits: times.length }
+
+  if (times.length < VISITS_TO_LEARN) return fallback
+
+  const gaps: number[] = []
+  for (let i = 1; i < times.length; i++) {
+    const days = Math.round((times[i] - times[i - 1]) / DAY)
+    // Two visits in the same day are one visit as far as a rhythm is concerned — a cut and a colour
+    // on the same afternoon say nothing about how often she comes.
+    if (days >= 1) gaps.push(days)
+  }
+  if (gaps.length < VISITS_TO_LEARN - 1) return fallback
+
+  return { days: clamp(median(gaps)), basis: 'client', visits: times.length }
+}
+
+function clamp(days: number): number {
+  return Math.min(MAX_INTERVAL_DAYS, Math.max(MIN_INTERVAL_DAYS, Math.round(days)))
+}
+
+/**
+ * Said in words, for the screen. A front desk ringing a client is helped by knowing whether "due
+ * today" comes from her own habit or from the price list.
+ */
+export function describeInterval(i: RebookInterval): string {
+  if (!i.days) return 'No rebooking interval set'
+  const weeks = i.days % 7 === 0 ? `${i.days / 7} week${i.days === 7 ? '' : 's'}` : `${i.days} days`
+  return i.basis === 'client'
+    ? `every ${weeks} — her own rhythm, from ${i.visits} visits`
+    : `every ${weeks} — the menu's interval`
+}

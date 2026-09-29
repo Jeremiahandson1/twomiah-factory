@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { serviceRecord, serviceMenu, contact, clientProfile, user, appointment } from '../../db/schema.ts'
+import { serviceRecord, serviceMenu, contact, clientProfile, user, appointment, company } from '../../db/schema.ts'
+import { rebookInterval, describeInterval } from '../shared/index.ts'
 import { eq, and, inArray, isNotNull, sql, gt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -23,6 +24,22 @@ const app = new Hono()
 app.use('*', authenticate)
 
 const dayStr = (d: Date) => d.toISOString().slice(0, 10)
+
+/**
+ * Categories this salon does not want chased.
+ *
+ * A blow-dry before a wedding is not a rhythm, and a one-off waxing appointment does not mean the
+ * client is overdue six weeks later. Phorest lets a salon exclude Service Categories from Client
+ * Reconnect for the same reason. Stored as settings.rebookingCategoriesOff: string[]; absent means
+ * chase everything, which is what every existing tenant already does.
+ */
+async function excludedCategories(companyId: string): Promise<Set<string>> {
+  try {
+    const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
+    const raw = (co?.settings as any)?.rebookingCategoriesOff
+    return new Set(Array.isArray(raw) ? raw.map((s: any) => String(s)) : [])
+  } catch { return new Set() }
+}
 
 // The rebooking list is answered on the SHOP's calendar, like every other day question in this
 // template (utils/salonDate.ts, Salon T25 N2). It was the one place the N2 sweep missed: `overdue`
@@ -59,6 +76,7 @@ app.get('/due', requirePermission('contacts:read'), async (c) => {
     performedAt: serviceRecord.performedAt,
     serviceId: serviceRecord.serviceId,
     serviceName: serviceMenu.name,
+    category: serviceMenu.category,
     rebookIntervalDays: serviceMenu.rebookIntervalDays,
     stylistFirstName: user.firstName,
     stylistLastName: user.lastName,
@@ -74,22 +92,46 @@ app.get('/due', requirePermission('contacts:read'), async (c) => {
     .leftJoin(user, eq(serviceRecord.stylistId, user.id))
     .where(and(eq(serviceRecord.companyId, u.companyId), isNotNull(serviceMenu.rebookIntervalDays)))
 
-  // Keep only the most recent visit per (client, service) so a client who has
-  // already rebooked isn't nagged on the previous appointment's due date.
-  const latest = new Map<string, any>()
+  // ── one row per client per RHYTHM, not per service ───────────────────────────────────────────
+  //
+  // This used to key on (client, service), so a client who had a root touch-up and a cut in the
+  // same visit appeared TWICE on the same date — Sarah Mitchell, 3 September, two rows, one client
+  // and one phone call. A salon's recall is organised by the rhythm a client is on, and a client
+  // who alternates a gloss with a full colour is on ONE colour rhythm, not two. Phorest groups by
+  // Service Category for exactly this reason; so does this now. Which categories a salon wants
+  // chased is theirs to say (settings.rebookingCategoriesOff).
+  const excluded = await excludedCategories(u.companyId)
+  const byRhythm = new Map<string, any[]>()
   for (const r of rows) {
     if (!r.contactId) continue
-    const key = r.contactId + '|' + r.serviceId
-    const cur = latest.get(key)
-    if (!cur || new Date(r.performedAt) > new Date(cur.performedAt)) latest.set(key, r)
+    const category = String(r.category || 'other')
+    if (excluded.has(category)) continue
+    const key = `${r.contactId}|${category}`
+    const list = byRhythm.get(key)
+    if (list) list.push(r); else byRhythm.set(key, [r])
   }
 
   const t = today
-  const data = [...latest.values()]
-    .map(r => ({
-      ...r,
-      dueDate: dayStr(new Date(new Date(r.performedAt).getTime() + r.rebookIntervalDays * 86400000)),
-    }))
+  const data = [...byRhythm.values()]
+    .map((visits) => {
+      // The most recent visit in this rhythm is the one the row is ABOUT — its date, its service
+      // and its stylist are what the desk needs when they pick up the phone.
+      const last = visits.reduce((a, b) => (new Date(a.performedAt) > new Date(b.performedAt) ? a : b))
+      // …and the whole history is what decides WHEN. A client with three or more visits in this
+      // category is on her own rhythm; the menu's figure is for a client we do not know yet.
+      const interval = rebookInterval(visits.map((v) => v.performedAt), last.rebookIntervalDays)
+      if (!interval.days) return null
+      return {
+        ...last,
+        // Kept for every screen that already reads it, now meaning "the interval actually used".
+        rebookIntervalDays: interval.days,
+        intervalBasis: interval.basis,
+        intervalNote: describeInterval(interval),
+        visitsInRhythm: visits.length,
+        dueDate: dayStr(new Date(new Date(last.performedAt).getTime() + interval.days * 86400000)),
+      }
+    })
+    .filter((r): r is any => !!r)
     .filter(r => r.dueDate <= cutoff && r.dueDate >= floor)
     .map(r => ({ ...r, overdue: r.dueDate < t }))
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
