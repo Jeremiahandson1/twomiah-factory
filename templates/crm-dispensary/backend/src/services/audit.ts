@@ -178,7 +178,31 @@ export function describeLog(row: any): string {
   const transition = status && (status.old || status.new)
     ? ` from ${readable(status.old) || 'unset'} to ${readable(status.new) || 'unset'}`
     : ''
-  return `${verb} ${what}${name}${transition}`.replace(/\s+/g, ' ').trim()
+  // …and WHY, when somebody was made to say.
+  //
+  // T48 Q14: releasing a batch over a failed lab test demands a written reason, records it on the
+  // batch AND passes it to the audit row's metadata — and the audit entry still read "Changed batch
+  // T47-LAB-1 from quarantine to active". The reason was in the row the whole time; the sentence
+  // built from that row simply never mentioned it, so the one place a regulator would look for it
+  // showed a bare status flip. Every reason the product now insists on — a lifted recall, a
+  // superseded filing, a lab release — says itself here.
+  const why = reasonOf(row)
+  const because = why ? ` — ${why}` : ''
+  return `${verb} ${what}${name}${transition}${because}`.replace(/\s+/g, ' ').trim()
+}
+
+/** The reason an action was taken, when one was recorded. Stored in metadata, which arrives as an object or as JSON text depending on the driver. */
+function reasonOf(row: any): string | null {
+  const raw = row?.metadata ?? row?.meta_data
+  if (!raw) return null
+  let meta: any = raw
+  if (typeof raw === 'string') { try { meta = JSON.parse(raw) } catch { return null } }
+  const why = meta && typeof meta === 'object' ? meta.reason : null
+  if (!why) return null
+  const text = String(why).trim().replace(/\s+/g, ' ')
+  if (!text) return null
+  // A description is a line in a list, not the record itself — the full text stays in metadata.
+  return text.length > 160 ? `${text.slice(0, 157)}…` : text
 }
 
 export function presentLog(row: any): any {

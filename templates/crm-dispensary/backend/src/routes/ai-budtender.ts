@@ -1494,11 +1494,19 @@ app.post('/demo', requireRole('budtender'), async (c) => {
       )
       const afterDecline = !declined && recs.length > 0 && lastTurnWasMedicalDecline(history as any)
       const outgoing = afterDecline ? `${responseMessage}\n\n${NOT_A_RECOMMENDATION}` : responseMessage
+      // Two names for each of two things, because this endpoint grew its own vocabulary.
+      //
+      // T48 Q11: /chat answers with `response` and `recommendedProducts`; this one answered with
+      // `message` and `recommendations`, so anything reading the assistant had to know which
+      // endpoint it had called. The canonical names are now always present, and the old ones stay
+      // beside them — the AI Budtender page reads `message` and `recommendations` today and a
+      // rename would break the screen this endpoint exists for.
       return c.json({
         message: outgoing,
         response: outgoing,
         source: 'claude',
         recommendations: recs.map(mapProduct),
+        recommendedProducts: recs.map(mapProduct),
         ...(declined ? { declined } : {}),
       })
     } catch (err: any) {
@@ -1521,12 +1529,14 @@ app.post('/demo', requireRole('budtender'), async (c) => {
   products = products.slice(0, maxRecs)
 
   const responseMessage = buildResponseMessage(intents, products, null, false, companyName)
+  // Both vocabularies, same as the Claude branch above. (T48 Q11)
   return c.json({
     message: responseMessage,
     response: responseMessage,
     source: 'keyword',
     intents: intents.map(i => i.intent),
     recommendations: products.map(mapProduct),
+    recommendedProducts: products.map(mapProduct),
   })
 })
 

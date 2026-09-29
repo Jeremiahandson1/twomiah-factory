@@ -37,6 +37,10 @@ app.get('/', requirePermission('team:read'), async (c) => {
     const users = await db.select({
       id: userTable.id, firstName: userTable.firstName, lastName: userTable.lastName,
       email: userTable.email, phone: userTable.phone, role: userTable.role, isActive: userTable.isActive,
+      // T48 Q10: not selected, and hardcoded null below — so a rate saved onto a LOGIN (which is
+      // what T47 P7 made possible, and what payroll reads first) came straight back as "-" on the
+      // very screen that had just saved it. PUT learned about logins; this list never did.
+      hourlyRate: userTable.hourlyRate,
     }).from(userTable).where(and(...uConds))
 
     const memberEmails = new Set(
@@ -52,7 +56,7 @@ app.get('/', requirePermission('team:read'), async (c) => {
         role: u.role,
         department: null,
         hireDate: null,
-        hourlyRate: null,
+        hourlyRate: u.hourlyRate,
         active: u.isActive,
         _source: 'user' as const,
       })
@@ -71,8 +75,31 @@ app.get('/:id', requirePermission('team:read'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   const [member] = await db.select().from(teamMember).where(and(eq(teamMember.id, id), eq(teamMember.companyId, user.companyId))).limit(1)
-  if (!member) return c.json({ error: 'Team member not found' }, 404)
-  return c.json(member)
+  if (member) return c.json(member)
+
+  // The row might be a LOGIN, not a roster entry — the same union GET / and PUT /:id already do.
+  //
+  // T48 Q10: the list shows logins, PUT was taught to save them in T47 P7, and this route was
+  // left looking in team_member alone. So opening any of those rows answered 404 "Team member not
+  // found" about somebody plainly on the screen. Three routes over one union and the third one
+  // never got the message.
+  const [account] = await db.select().from(userTable)
+    .where(and(eq(userTable.id, id), eq(userTable.companyId, user.companyId))).limit(1)
+  if (!account) return c.json({ error: 'Team member not found' }, 404)
+
+  // Shaped like the row the list handed out, so a screen can open what it listed.
+  return c.json({
+    id: account.id,
+    name: `${account.firstName} ${account.lastName}`.trim(),
+    email: account.email,
+    phone: account.phone,
+    role: account.role,
+    department: null,
+    hireDate: null,
+    hourlyRate: account.hourlyRate,
+    active: account.isActive,
+    _source: 'user' as const,
+  })
 })
 
 app.post('/', requirePermission('team:create'), async (c) => {

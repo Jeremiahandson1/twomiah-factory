@@ -386,22 +386,29 @@ app.post('/generate', requireRole('manager'), async (c) => {
   // Sales raised on this day and still not settled — product out of the door, money not taken.
   // Nearly always an offline cash sale rung up with no drawer open (routes/offline.ts leaves it
   // standing on purpose, because the customer already has the goods). (T47, N1 cash)
-  const unsettledResult: any = await db.execute(sql`
-    SELECT id, order_number, total, payment_method
+  // T48 Q15: an order placed ONLINE and not collected yet is not money in limbo — it is a customer
+  // who has not walked in. Counting it beside an offline cash sale, where the goods are already
+  // out of the door and the money was never taken, asks the closing manager to chase something
+  // that is not missing. They are different facts and the report now says which is which.
+  const pendingResult: any = await db.execute(sql`
+    SELECT id, order_number, total, payment_method, source, type
     FROM orders
     WHERE company_id = ${currentUser.companyId}
       AND status = 'pending'
       AND DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay}) = ${reportDate}::date
     ORDER BY created_at ASC
   `)
-  const unsettledRows = ((unsettledResult as any).rows || unsettledResult) as any[]
-  const unsettled = {
-    count: unsettledRows.length,
-    total: Math.round(unsettledRows.reduce((s, o) => s + (Number(o.total) || 0), 0) * 100) / 100,
-    orders: unsettledRows.map((o) => ({
+  const pendingRows = ((pendingResult as any).rows || pendingResult) as any[]
+  const isAwaitingCollection = (o: any) => o.source === 'online' || o.type === 'online' || o.type === 'pickup' || o.type === 'delivery'
+  const summarise = (list: any[]) => ({
+    count: list.length,
+    total: Math.round(list.reduce((s, o) => s + (Number(o.total) || 0), 0) * 100) / 100,
+    orders: list.map((o) => ({
       id: o.id, number: o.order_number, total: Number(o.total) || 0, paymentMethod: o.payment_method,
     })),
-  }
+  })
+  const unsettled = summarise(pendingRows.filter((o) => !isAwaitingCollection(o)))
+  const awaitingCollection = summarise(pendingRows.filter(isAwaitingCollection))
 
   audit.log({
     action: audit.ACTIONS.CREATE,
@@ -455,6 +462,11 @@ app.post('/generate', requireRole('manager'), async (c) => {
     unsettledSales: unsettled.count,
     unsettledTotal: unsettled.total,
     unsettledOrders: unsettled.orders,
+    // Ordered, paid for or not, and not picked up yet. Reported so the closing manager can see
+    // them, and kept OUT of the unsettled figure so they are not chased as missing money. (T48 Q15)
+    awaitingCollection: awaitingCollection.count,
+    awaitingCollectionTotal: awaitingCollection.total,
+    awaitingCollectionOrders: awaitingCollection.orders,
   })
 })
 

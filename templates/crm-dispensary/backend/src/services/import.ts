@@ -559,6 +559,11 @@ export async function previewImport(csvContent: string, type: string, companyId:
     willImport: dry.imported,
     willSkip: dry.skipped,
     errors: dry.errors,
+    // T48 Q12: the dry run has been producing these all along and Check the file threw them away,
+    // so "no weight recorded" — the one thing that stops a product being sellable — only appeared
+    // AFTER the import had run. A check that hides what the real thing will say is not a check;
+    // the whole point of pressing it is to find this out first.
+    warnings: dry.warnings || [],
   }
 }
 
