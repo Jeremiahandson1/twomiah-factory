@@ -128,8 +128,19 @@ const inTwelveDays = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_Y
   for (const [label, method, path, body] of cases) {
     const r = await asOwner(method, path, body)
     check(`N27: ${label} is refused`, r.status === 400, { status: r.status, body: r.json })
+    // The message must NAME the thing that is wrong. It used to be "Invalid request" with the real
+    // cause buried in a details dump; the first fix put "licenseNumber: Required" in front of it,
+    // and T47 P12 took the last of the code out of the sentence, because a customer at the public
+    // checkout was reading it. So the test asks what it always meant — is the field in there — and
+    // accepts the field spelled as a person would say it.
+    const said = String(r.json?.error || '')
+    const named = String(r.json?.field || '').split('.').pop() || ''
+    const spaced = named.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase()
     check(`N27: …and the message names the field, not "Invalid request"`,
-      r.json?.error !== 'Invalid request' && /: /.test(String(r.json?.error || '')), r.json?.error)
+      said !== 'Invalid request' && (said.includes(named) || said.toLowerCase().includes(spaced)),
+      { said, field: r.json?.field })
+    check('N27: …in words, with no validator wording left in it',
+      !/Expected \w+, received|Array must contain|String must contain|Number must be/.test(said), said)
     check('N27: …with the field on the answer, so the form can point at the box', typeof r.json?.field === 'string' && r.json.field.length > 0, r.json)
   }
 

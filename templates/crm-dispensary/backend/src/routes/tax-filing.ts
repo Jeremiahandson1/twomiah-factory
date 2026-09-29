@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { settledSale, taxCollected, taxNetExprBare, exciseNetExprBare, salesNetExprBare } from '../utils/revenue.ts'
+import { medicalExciseExempt } from '../utils/tax.ts'
 
 const app = new Hono()
 // Manager and up. Every route in this file is the shop's position with the state — what it owes,
@@ -118,8 +119,11 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
   // The filing screen has no state box, so `state` arrived undefined and every filing was stamped
   // "NA" — on a return whose whole purpose is to name the state it is filed with, for a shop whose
   // record says OH. Fall back to the company's own state. (T45 H16)
-  const companyRow: any = await db.execute(sql`SELECT state FROM company WHERE id = ${currentUser.companyId} LIMIT 1`)
-  const companyState = ((companyRow.rows || companyRow)[0] || {}).state as string | null
+  // settings too: whether this state's medical programme exempts patients from excise decides
+  // whether those sales belong in the taxable base or on an exempt line. (T47 P5)
+  const companyResult: any = await db.execute(sql`SELECT state, settings FROM company WHERE id = ${currentUser.companyId} LIMIT 1`)
+  const companyRow = (companyResult.rows || companyResult)[0] || {}
+  const companyState = companyRow.state as string | null
   const state = (data.state || companyState)
     ? String(data.state || companyState).toUpperCase().slice(0, 2)
     : null
@@ -217,6 +221,7 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
         COALESCE(SUM(COALESCE(NULLIF(oi.line_total, ''), NULLIF(oi.total_price, ''), '0')::numeric), 0) AS all_gross,
         COALESCE(NULLIF(o.discount_amount, ''), '0')::numeric
           + COALESCE(NULLIF(o.loyalty_discount, ''), '0')::numeric AS discount,
+        COALESCE(o.is_medical, false) AS is_medical,
         COUNT(oi.id)::int AS lines
       FROM orders o
       LEFT JOIN order_items oi ON oi.order_id = o.id
@@ -224,18 +229,21 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
         AND o.status IN ${taxCollected}
         AND o.completed_at >= ${periodStart}
         AND o.completed_at <= ${periodEndBound}
-      GROUP BY o.id, o.discount_amount, o.loyalty_discount
+      GROUP BY o.id, o.discount_amount, o.loyalty_discount, o.is_medical
     ), apportioned AS (
       SELECT
         cannabis_net,
         all_net,
         lines,
+        is_medical,
         LEAST(discount * (CASE WHEN all_gross > 0 THEN all_net / all_gross ELSE 0 END), all_net) AS discount_net
       FROM per_order
     )
     SELECT
       COALESCE(SUM(GREATEST(cannabis_net - discount_net * (CASE WHEN all_net > 0 THEN cannabis_net / all_net ELSE 0 END), 0)), 0) AS cannabis_net,
       COALESCE(SUM(GREATEST(all_net - discount_net, 0)), 0) AS all_net,
+      COALESCE(SUM(GREATEST(cannabis_net - discount_net * (CASE WHEN all_net > 0 THEN cannabis_net / all_net ELSE 0 END), 0))
+        FILTER (WHERE is_medical), 0) AS medical_cannabis_net,
       COALESCE(SUM(lines), 0)::int AS line_count
     FROM apportioned
   `)
@@ -266,10 +274,25 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
   const netCannabisSales = hasLineDetail ? cannabisNet : grossSubtotal
   let taxableAmount = netAllSales
 
+  // Cannabis sold to a registered patient, which this state's programme exempts from excise.
+  const medicalExemptSales = hasLineDetail ? round2(Number(taxableRow.medical_cannabis_net) || 0) : 0
+  const exemptApplies = filingType === 'excise_tax' && medicalExciseExempt(companyRow) && medicalExemptSales > 0
+
   if (filingType === 'excise_tax') {
     salesTaxDue = 0
-    // Excise is charged on cannabis, not on the T-shirt beside it.
-    taxableAmount = netCannabisSales
+    // Excise is charged on cannabis, not on the T-shirt beside it — and not on a patient's
+    // medicine either.
+    //
+    // T47 P5: taxable $7,079 beside $998.40 due is 14.1%, not the 15% on the return, and a set of
+    // figures that do not divide is the first thing an auditor asks about. Neither number was
+    // wrong: the due is the excise the tills actually took, and the tills charge a registered
+    // patient nothing (utils/tax.ts: medicalExciseExempt). The BASE was the one hiding something —
+    // it counted medical sales that were never charged a penny of excise.
+    //
+    // So the exempt sales come out of the base and are reported on their own line. A return that
+    // shows $6,656 taxable, $423 exempt and $998.40 due at 15% is a return a shop can defend; one
+    // that quietly folds the exempt sales into the base and lands at 14.1% is not.
+    taxableAmount = exemptApplies ? round2(netCannabisSales - medicalExemptSales) : netCannabisSales
   } else if (filingType === 'sales_tax') {
     exciseTaxDue = 0
   } else if (filingType === 'local_tax') {
@@ -293,8 +316,18 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
     totalOrders: orderStats.total_orders || 0,
     taxableSales: taxableAmount,
     // Show the working, so the person signing the return can see what was excluded and why.
-    // (T45 H16)
-    taxableBasis: filingType === 'excise_tax' ? 'cannabis sales, net of refunds' : 'all sales, net of refunds',
+    // (T45 H16; the discount and the medical exemption named since, T46 N17 and T47 P5 — a basis
+    // that says "net of refunds" while the base is also net of discounts and exemptions is a
+    // sentence that does not describe its own number.)
+    taxableBasis: filingType === 'excise_tax'
+      ? `cannabis sales, net of refunds and discounts${exemptApplies ? ', excluding medical (exempt)' : ''}`
+      : 'all sales, net of refunds and discounts',
+    // The exempt line, so the three figures on the return divide into one another.
+    exemptSales: exemptApplies ? medicalExemptSales : 0,
+    exemptBasis: exemptApplies ? 'medical cannabis — registered patients are exempt from excise in this state' : null,
+    // What the return actually works out at, for the person signing it. Rounding means it will not
+    // always be exactly the headline rate, but it should now be within a rounding error of it.
+    effectiveRate: taxableAmount > 0 ? round2((exciseTaxDue / taxableAmount) * 100) : 0,
     grossSales: round2(grossSubtotal),
     netSales: netAllSales,
     netCannabisSales,
