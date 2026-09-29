@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { contact, clientProfile, serviceRecord, serviceMenu, appointment, membershipEnrollment, membershipPlan, user, invoice, teamMember, clientAccountEntry } from '../../db/schema.ts'
 import { createAccountBalanceStore, balanceFrom, describeBalance } from '../shared/index.ts'
+import { listFormulas, keepFormula, forgetFormula, keepFromRecord, recordForKeeping, hasSubstance } from '../services/clientFormulas.ts'
 import { eq, and, or, ilike, count, desc, ne , sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -259,6 +260,86 @@ app.put('/:contactId/profile', requirePermission('contacts:update'), async (c) =
 
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'client_profile' })
   return c.json(saved)
+})
+
+// ═══════════════════════════════ THE FORMULAS A CLIENT IS KEPT ON ══════════════════════════════
+//
+// A formula used to live only on a service_record, which hangs off an appointment — so a colourist's
+// own work was hostage to the status of a booking. These belong to the CLIENT (Mangomint keeps
+// colour formulas as pinned client notes for the same reason), and the per-visit record goes on
+// logging what was mixed on the day. The two answer different questions: "what do I mix for her?"
+// and "what did we do in March?". See services/clientFormulas.ts.
+
+app.get('/:contactId/formulas', requirePermission('contacts:read'), async (c) => {
+  const currentUser = c.get('user') as any
+  const contactId = c.req.param('contactId')
+  const [ct] = await db.select().from(contact)
+    .where(and(eq(contact.id, contactId), eq(contact.companyId, currentUser.companyId))).limit(1)
+  if (!ct) return c.json({ error: 'Client not found' }, 404)
+  return c.json({ formulas: await listFormulas(currentUser.companyId, contactId) })
+})
+
+/**
+ * Keep a formula on this client — typed in, or lifted off a visit with { fromRecordId }.
+ *
+ * contacts:update, the same right editing the rest of the chart needs: a stylist keeps their own
+ * client on a formula, which is the whole point of the feature.
+ */
+app.post('/:contactId/formulas', requirePermission('contacts:update'), async (c) => {
+  const currentUser = c.get('user') as any
+  const contactId = c.req.param('contactId')
+  const body = (await c.req.json().catch(() => null)) ?? ({} as any)
+
+  const [ct] = await db.select().from(contact)
+    .where(and(eq(contact.id, contactId), eq(contact.companyId, currentUser.companyId))).limit(1)
+  if (!ct) return c.json({ error: 'Client not found' }, 404)
+
+  let out
+  if (body.fromRecordId) {
+    const record = await recordForKeeping(currentUser.companyId, String(body.fromRecordId))
+    if (!record) return c.json({ error: 'That visit is not on this client\'s chart.' }, 404)
+    if (record.contactId !== contactId) return c.json({ error: 'That visit belongs to a different client.' }, 400)
+    const kept = await keepFromRecord(currentUser.companyId, record, String(body.label || '').trim() || 'Kept from a visit')
+    if (!kept) return c.json({ error: 'There is no formula or note on that visit to keep.' }, 400)
+    out = { kept, created: true }
+  } else {
+    if (!hasSubstance(body)) {
+      return c.json({ error: 'Add a formula, a developer volume, a processing time or a note — something to keep.' }, 400)
+    }
+    if (Array.isArray(body.formula) && body.formula.length > 40) {
+      return c.json({ error: 'That is more steps than a formula has. Check what was pasted in.' }, 400)
+    }
+    out = await keepFormula(currentUser.companyId, contactId, body)
+  }
+  if (!out) return c.json({ error: 'There was nothing to keep.' }, 400)
+
+  await audit.log({
+    action: 'update', entity: 'client_profile', entityId: contactId, entityName: ct.name,
+    metadata: { keptFormula: out.kept.id, label: out.kept.label, new: out.created }, req: { user: currentUser },
+  })
+  emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'client_profile' })
+  return c.json({
+    formula: out.kept,
+    // False when the same mix was already on the card — it was re-dated rather than duplicated, so a
+    // formula repeated every six weeks does not fill the card with copies of itself.
+    added: out.created,
+    formulas: await listFormulas(currentUser.companyId, contactId),
+  })
+})
+
+/** Forget one. The visit records it was ever used on are untouched — this is the card, not the history. */
+app.delete('/:contactId/formulas/:formulaId', requirePermission('contacts:update'), async (c) => {
+  const currentUser = c.get('user') as any
+  const contactId = c.req.param('contactId')
+  const [ct] = await db.select().from(contact)
+    .where(and(eq(contact.id, contactId), eq(contact.companyId, currentUser.companyId))).limit(1)
+  if (!ct) return c.json({ error: 'Client not found' }, 404)
+
+  const gone = await forgetFormula(currentUser.companyId, contactId, c.req.param('formulaId'))
+  if (!gone) return c.json({ error: 'That formula is not on this client\'s card.' }, 404)
+  await audit.log({ action: 'update', entity: 'client_profile', entityId: contactId, entityName: ct.name, metadata: { forgotFormula: c.req.param('formulaId') }, req: { user: currentUser } })
+  emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'client_profile' })
+  return c.json({ formulas: await listFormulas(currentUser.companyId, contactId) })
 })
 
 // ═══════════════════════════════ MONEY THE CLIENT HAS ON ACCOUNT ═══════════════════════════════

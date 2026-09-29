@@ -8,6 +8,7 @@ import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
 import { ensureInvoiceForVisit, VOIDED_ON_CANCEL } from '../services/salonCheckout.ts'
+import { keepFromRecord, AUTO_VISIT_NOTE, CANCELLED_VISIT_LABEL, REPAIR_MARK } from '../services/clientFormulas.ts'
 import { scheduleReviewRequestForVisit } from '../services/reviews.ts'
 import { resolveStylist, unknownStylist, stylistIdOf, type StylistRef } from '../utils/stylist.ts'
 import { isRealCalendarDay } from '../shared/index.ts'
@@ -166,16 +167,17 @@ async function onVisitCompleted(row: typeof appointment.$inferSelect): Promise<s
 }
 
 /**
- * The note onVisitCompleted puts on the record it writes.
+ * The note onVisitCompleted puts on the record it writes, and the label a rescued formula carries.
  *
- * It is how a record the SYSTEM created is told apart from one a stylist has worked on — which is
- * what decides whether cancelling the appointment may delete it. Named rather than repeated, so the
- * two places cannot drift apart and quietly start keeping every record. (FULL0929 F1)
+ * Both are DEFINED in services/clientFormulas.ts and re-exported here for the routes that already
+ * import them from this file. One definition, deliberately: that module is the one that decides what
+ * counts as a stylist's own work when it lifts a formula onto a client, and a second copy of the
+ * string is a second answer to the same question, waiting to disagree. The first version of this did
+ * leave the decision to each caller, and the two callers promptly disagreed — the repair stripped the
+ * system's note and the cancel path kept it, so cancelling an untouched visit wrote "Logged
+ * automatically…" onto a client's card as if a colourist had typed it. (FULL0929 F1)
  */
-export const AUTO_VISIT_NOTE = 'Logged automatically when the appointment was completed.'
-
-/** What a kept record says about the appointment that was cancelled under it. (FULL0929 F1) */
-export const CANCELLED_VISIT_NOTE = 'The appointment this was recorded against was cancelled. Kept because it carries a formula or a note.'
+export { AUTO_VISIT_NOTE, CANCELLED_VISIT_LABEL, REPAIR_MARK as CANCELLED_VISIT_NOTE }
 
 // Reopening a visit: give back what it earned. Never throws — cancelling has to succeed. (LY0928 M1)
 async function onVisitUncompleted(row: typeof appointment.$inferSelect): Promise<void> {
@@ -222,29 +224,24 @@ async function onVisitUncompleted(row: typeof appointment.$inferSelect): Promise
   // completed appointment IS the visit — re-completing writes it again (onVisitCompleted), so a
   // disowned row left behind would become a duplicate the moment anyone reopened the appointment.
   //
-  // The ONE record not deleted is one a stylist has since written a formula or a note of their own
-  // on. That is a colourist's record of what went on a real head of hair, and a status flip on an
-  // appointment is not the right authority to destroy it — a person should decide. Such a record
-  // does still count toward that client's rebooking reminder, which is a compromise rather than a
-  // fix, and it is called out in the retest brief rather than left for someone to discover.
+  // It used to have to CHOOSE. A record a stylist had written a formula or a note on was kept and
+  // marked, because a colourist's record of what went on a real head of hair is not a status flip's
+  // to destroy — and the cost was that the phantom visit went on counting toward that client's
+  // rebooking reminder. That was a compromise, and it was named as one in the retest brief.
+  //
+  // It no longer has to choose. A formula belongs to the CLIENT, not to a booking (Mangomint keeps
+  // colour formulas as pinned client notes for exactly this reason), so the work is lifted onto the
+  // client's own card FIRST and the record then goes with the visit that did not happen. Nothing
+  // clinical is lost and no ghost drives a reminder. See services/clientFormulas.ts.
   try {
     const [rec] = await db.select().from(serviceRecord)
       .where(and(eq(serviceRecord.companyId, row.companyId), eq(serviceRecord.appointmentId, row.id))).limit(1)
     if (rec) {
-      const formula = (rec as any).formula
-      const hasFormula = Array.isArray(formula) ? formula.length > 0 : !!formula
-      const ownNotes = String((rec as any).notes || '').trim()
-      const handWritten = ownNotes !== '' && ownNotes !== AUTO_VISIT_NOTE
-      if (hasFormula || handWritten) {
-        await db.update(serviceRecord).set({
-          notes: `${ownNotes}\n${CANCELLED_VISIT_NOTE}`.trim(),
-          updatedAt: new Date(),
-        } as any).where(eq(serviceRecord.id, rec.id))
-        console.warn(`[appointments] visit record ${rec.id} kept: it carries a stylist's own formula or notes`)
-      } else {
-        await db.delete(serviceRecord).where(eq(serviceRecord.id, rec.id))
-      }
+      const kept = await keepFromRecord(row.companyId, rec, CANCELLED_VISIT_LABEL)
+      if (kept) console.warn(`[appointments] formula from visit ${rec.id} kept on client ${rec.contactId} before the record was removed`)
+      await db.delete(serviceRecord).where(eq(serviceRecord.id, rec.id))
       emitToCompany(row.companyId, EVENTS.REFRESH, { entity: 'service_record' })
+      if (kept) emitToCompany(row.companyId, EVENTS.REFRESH, { entity: 'client_profile' })
     }
   } catch (e: any) { console.warn('[appointments] visit record not removed:', e?.message || e) }
 }

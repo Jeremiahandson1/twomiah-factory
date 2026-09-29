@@ -11,7 +11,8 @@ import { ensureInvoiceForVisit } from '../services/salonCheckout.ts'
 import { resolveStylist, unknownStylist, stylistIdOf } from '../utils/stylist.ts'
 import { hasHappened } from '../shared/index.ts'
 import { scheduleReviewRequestForVisit } from '../services/reviews.ts'
-import { AUTO_VISIT_NOTE, CANCELLED_VISIT_NOTE } from './appointments.ts'
+import { AUTO_VISIT_NOTE, CANCELLED_VISIT_NOTE, CANCELLED_VISIT_LABEL } from './appointments.ts'
+import { keepFromRecord } from '../services/clientFormulas.ts'
 
 /**
  * The formula log — what was actually done in the chair. This is the salon's
@@ -186,47 +187,44 @@ app.post('/repair-legacy', requirePermission('company:update'), async (c: any) =
   // salon agreed never took place is the one thing here a CLIENT sees, so leaving the old rows in
   // place would leave the finding half-fixed.
   //
-  // Exactly the cancel path's rule, and no wider: a record the SYSTEM wrote and nobody has touched
-  // goes; one carrying a stylist's own formula or notes is kept and marked, because a colourist's
-  // record of what went on a real head of hair is not a housekeeping script's to destroy.
+  // Exactly the cancel path's rule, and no wider. That rule used to be "delete it unless a stylist
+  // wrote on it", and the records it kept went on driving rebooking reminders for visits that never
+  // happened — a compromise, and named as one. It is not a compromise any more: a formula belongs to
+  // the CLIENT, so whatever a stylist wrote is lifted onto their card first and the phantom visit
+  // then goes. Nothing clinical is lost and nothing false survives. (services/clientFormulas.ts)
+  //
+  // Records the OLDER builds annotated are handled too: the repair's own line is stripped before the
+  // note is kept, so a card does not inherit this script's housekeeping as if a stylist had typed it.
   const stale: any = await db.execute(sql`
-    SELECT sr.id, sr.notes, sr.formula, sr.contact_id, a.status AS appointment_status
+    SELECT sr.id, sr.notes, sr.formula, sr.developer_volume, sr.processing_min, sr.performed_at,
+           sr.contact_id, a.status AS appointment_status
     FROM service_record sr
     JOIN appointment a ON a.id = sr.appointment_id AND a.company_id = sr.company_id
     WHERE sr.company_id = ${cid} AND a.status IN ('cancelled', 'no_show')
   `)
   const staleRows = ((stale as any).rows || stale) as any[]
   const visitsRemoved: any[] = []
-  const visitsKept: any[] = []
+  const formulasKept: any[] = []
   for (const row of staleRows) {
-    const formula = row.formula
-    const hasFormula = Array.isArray(formula) ? formula.length > 0 : !!formula
     const ownNotes = String(row.notes || '').trim()
-    // A second run reads its own handwriting. The keep/delete decision is made on what the record
-    // said BEFORE this repair stamped it — otherwise a record kept for a stylist's note looks
-    // auto-generated on the next run and gets deleted by it.
-    const alreadyMarked = ownNotes.endsWith(CANCELLED_VISIT_NOTE)
-    const bare = (alreadyMarked ? ownNotes.slice(0, -CANCELLED_VISIT_NOTE.length) : ownNotes).trim()
-    const handWritten = bare !== '' && bare !== AUTO_VISIT_NOTE
-    if (hasFormula || handWritten) {
-      if (!alreadyMarked) {
-        await db.execute(sql`
-          UPDATE service_record SET notes = ${`${ownNotes}\n${CANCELLED_VISIT_NOTE}`.trim()}, updated_at = NOW()
-          WHERE id = ${row.id} AND company_id = ${cid}
-        `)
-      }
-      visitsKept.push({ id: row.id, contactId: row.contact_id })
-    } else {
-      await db.execute(sql`DELETE FROM service_record WHERE id = ${row.id} AND company_id = ${cid}`)
-      visitsRemoved.push({ id: row.id, contactId: row.contact_id })
-    }
+    const bare = (ownNotes.endsWith(CANCELLED_VISIT_NOTE) ? ownNotes.slice(0, -CANCELLED_VISIT_NOTE.length) : ownNotes).trim()
+    // The note the SYSTEM writes on every completed visit is not a stylist's work and is not kept.
+    const stylistNote = bare === AUTO_VISIT_NOTE ? '' : bare
+    const kept = await keepFromRecord(cid, {
+      id: row.id, contactId: row.contact_id, formula: row.formula,
+      developerVolume: row.developer_volume, processingMin: row.processing_min,
+      performedAt: row.performed_at, notes: stylistNote,
+    }, CANCELLED_VISIT_LABEL)
+    if (kept) formulasKept.push({ recordId: row.id, contactId: row.contact_id, formulaId: kept.id })
+    await db.execute(sql`DELETE FROM service_record WHERE id = ${row.id} AND company_id = ${cid}`)
+    visitsRemoved.push({ id: row.id, contactId: row.contact_id })
   }
 
   await audit.log({
     action: 'update', entity: 'service_record', entityId: 'repair-legacy',
     metadata: {
       invoicesVoided: orphanRows.length, invoicesRestored: unvoidedRows.length, visitsRedated: futureRows.length,
-      visitsRemoved: visitsRemoved.length, visitsKept: visitsKept.length,
+      visitsRemoved: visitsRemoved.length, formulasKept: formulasKept.length,
     },
     req: { user: currentUser },
   })
@@ -244,10 +242,11 @@ app.post('/repair-legacy', requirePermission('company:update'), async (c: any) =
     // Visits that never happened, taken off the chart and off the rebooking list. (FULL0929 F1)
     visitsRemoved: visitsRemoved.length,
     removed: visitsRemoved,
-    // …and the ones a stylist had written on, kept and marked instead. These STILL count toward
-    // that client's rebooking reminder, which is a compromise rather than a fix.
-    visitsKept: visitsKept.length,
-    kept: visitsKept,
+    // …and the stylists' work lifted off them onto the clients' own cards first, so removing the
+    // phantom visit costs nothing. No record is kept back any more: the reminder is clean AND the
+    // formula survives, which the earlier version had to choose between.
+    formulasKept: formulasKept.length,
+    keptFormulas: formulasKept,
   })
 })
 

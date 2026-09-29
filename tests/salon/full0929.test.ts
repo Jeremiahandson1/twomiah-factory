@@ -56,6 +56,7 @@ app.route('/api/appointments', (await import('./src/routes/appointments.ts')).de
 app.route('/api/reminders', (await import('./src/routes/reminders.ts')).default)
 app.route('/api/company', (await import('./src/routes/company.ts')).default)
 app.route('/api/loyalty', (await import('./src/routes/loyalty.ts')).default)
+app.route('/api/clients', (await import('./src/routes/clients.ts')).default)
 app.onError((await import('./src/utils/errors.ts')).errorHandler)
 
 const api = async (method: string, path: string, body?: unknown) => {
@@ -114,16 +115,59 @@ const bookAndComplete = async (client: any) => {
 }
 
 {
-  // A record a stylist has written a formula on is a colourist's own work. It is kept and marked,
-  // not thrown away by a status flip — and the log says so.
+  // A record a stylist has written a formula on is a colourist's own work, and a status flip is not
+  // the authority to destroy it. The FIRST version of this fix kept the whole record for that reason
+  // — and paid for it by leaving a visit that never happened on the chart, still driving the client's
+  // rebooking reminder. That was a compromise and it was named as one.
+  //
+  // It is not needed. A formula belongs to the CLIENT, not to a booking, so the work is lifted onto
+  // their card and the phantom visit goes. Both things are now true at once, which is the whole
+  // point: nothing clinical is lost AND nothing false survives.
   const { appt } = await bookAndComplete(noPhone)
   await db.update(serviceRecord)
-    .set({ formula: [{ product: 'Colour 6N', developer: '20 vol' }] } as any)
+    .set({ formula: [{ product: 'Colour 6N', developer: '20 vol' }], developerVolume: '20 vol' } as any)
     .where(eq(serviceRecord.appointmentId, appt.id))
   await api('PUT', `/api/appointments/${appt.id}`, { status: 'cancelled' })
-  const [kept] = await db.select().from(serviceRecord).where(eq(serviceRecord.appointmentId, appt.id))
-  check('F1: a record carrying a formula is kept', !!kept, kept)
-  check('F1: …and says the appointment under it was cancelled', /cancelled/i.test(String(kept?.notes || '')), kept?.notes)
+
+  const left = await db.select().from(serviceRecord).where(eq(serviceRecord.appointmentId, appt.id))
+  check('F1: the visit that did not happen is gone, formula or no formula', left.length === 0, left)
+
+  const kept = await api('GET', `/api/clients/${noPhone.id}/formulas`)
+  const mine = (kept.json?.formulas || [])[0]
+  check('F1: …because the formula was kept on the CLIENT first', !!mine, kept.json)
+  check('F1: …with the mix intact', mine?.formula?.[0]?.product === 'Colour 6N', mine?.formula)
+  check('F1: …and the developer volume', mine?.developerVolume === '20 vol', mine?.developerVolume)
+  check('F1: …labelled so a stylist knows where it came from', /cancelled/i.test(String(mine?.label)), mine?.label)
+
+  const due = await api('GET', '/api/reminders/due')
+  const listed = (due.json?.data || due.json || []).filter((r: any) => r.contactId === noPhone.id)
+  check('F1: …and no rebooking reminder survives it, which the kept-record version could not manage',
+    listed.length === 0, listed)
+}
+
+{
+  // The same for a record carrying only a stylist's own words. A note is worth keeping too, and it
+  // is kept the same way — on the client, not by preserving a booking that did not happen.
+  const [scribe] = await db.insert(contact).values({ name: 'Note Keeper', type: 'client', companyId: co.id } as any).returning()
+  const { appt } = await bookAndComplete(scribe)
+  await db.update(serviceRecord)
+    .set({ notes: 'Wants half an inch off next time; hates the neck brush.' } as any)
+    .where(eq(serviceRecord.appointmentId, appt.id))
+  await api('PUT', `/api/appointments/${appt.id}`, { status: 'cancelled' })
+
+  check('F1: a notes-only record goes too', (await db.select().from(serviceRecord).where(eq(serviceRecord.appointmentId, appt.id))).length === 0)
+  const kept = await api('GET', `/api/clients/${scribe.id}/formulas`)
+  check('F1: …and the stylist\'s words are on the client card', /half an inch/.test(String((kept.json?.formulas || [])[0]?.note)), kept.json)
+}
+
+{
+  // …and a record the SYSTEM wrote and nobody touched leaves nothing behind. The auto note is not a
+  // stylist's work and must not clutter a card with a line the product typed itself.
+  const [plain] = await db.insert(contact).values({ name: 'Plain Cancel', type: 'client', companyId: co.id } as any).returning()
+  const { appt } = await bookAndComplete(plain)
+  await api('PUT', `/api/appointments/${appt.id}`, { status: 'cancelled' })
+  const kept = await api('GET', `/api/clients/${plain.id}/formulas`)
+  check('F1: an untouched auto-logged visit leaves no formula behind', (kept.json?.formulas || []).length === 0, kept.json)
 }
 
 // ═══════════════════════════════════ F4 · nobody owes nothing ═══════════════════════════════════

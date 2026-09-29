@@ -29,6 +29,17 @@ interface Contact {
   mobile?: string;
   address?: string;
 }
+/** A formula this CLIENT is kept on — theirs, not a booking's. See backend services/clientFormulas.ts. */
+interface KeptFormula {
+  id: string;
+  label?: string;
+  formula?: { product?: string; shade?: string; parts?: string }[];
+  developerVolume?: string | null;
+  processingMin?: number | null;
+  note?: string | null;
+  savedAt?: string;
+  lastUsedAt?: string | null;
+}
 interface Profile {
   id?: string;
   preferredStylistId?: string;
@@ -40,6 +51,7 @@ interface Profile {
   pronouns?: string;
   birthday?: string;
   notes?: string;
+  formulas?: KeptFormula[];
 }
 interface Appointment {
   id: string;
@@ -113,6 +125,8 @@ export default function ClientDetailPage() {
   const [showRecord, setShowRecord] = useState<boolean>(false);
   const [editRecord, setEditRecord] = useState<ServiceRecord | null>(null);
   const [showProfile, setShowProfile] = useState<boolean>(false);
+  const [busyFormula, setBusyFormula] = useState<string>('');
+  const toast = useToast();
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -128,6 +142,37 @@ export default function ClientDetailPage() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  /** Lift a visit's formula onto the client's own card, where it survives the booking. */
+  const keepOnCard = async (record: ServiceRecord) => {
+    if (!id || !record.id) return;
+    setBusyFormula(record.id);
+    try {
+      const res = await api.post(`/api/clients/${id}/formulas`, {
+        fromRecordId: record.id,
+        label: record.serviceName || 'Kept from a visit',
+      });
+      toast.success(res?.added === false ? 'Already on the card — re-dated as used again' : 'Kept on the card');
+      await load();
+    } catch (err) {
+      toast.error((err as Error).message || 'Could not keep that formula');
+    } finally {
+      setBusyFormula('');
+    }
+  };
+
+  const forget = async (formulaId: string) => {
+    if (!id) return;
+    setBusyFormula(formulaId);
+    try {
+      await api.delete(`/api/clients/${id}/formulas/${formulaId}`);
+      await load();
+    } catch (err) {
+      toast.error((err as Error).message || 'Could not remove that formula');
+    } finally {
+      setBusyFormula('');
+    }
+  };
 
   if (loading) {
     return (
@@ -147,6 +192,7 @@ export default function ClientDetailPage() {
   }
 
   const profile = detail.profile || {};
+  const keptFormulas = profile.formulas || [];
   const records = detail.serviceRecords || [];
   const appointments = detail.appointments || [];
   const memberships = detail.memberships || [];
@@ -282,6 +328,57 @@ export default function ClientDetailPage() {
       {/* Formula history */}
       {tab === 'formula' && (
         <div className="space-y-3">
+          {/* The formulas kept on the CLIENT, above the visit-by-visit history.
+              A formula used to exist only on a visit record, which hangs off an appointment — so a
+              colourist's work was hostage to the status of a booking. These belong to the person, and
+              are what a stylist reaches for before they mix anything. The history below still answers
+              the other question: what did we actually do, and when. */}
+          <div className="bg-white rounded-xl border p-4 dark:bg-slate-900">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <h3 className="font-semibold text-gray-900 dark:text-slate-100">Formulas kept for {ct.name?.split(' ')[0] || 'this client'}</h3>
+              <span className="text-xs text-gray-500 dark:text-slate-400">Reach for these before you mix</span>
+            </div>
+            {keptFormulas.length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-2">
+                Nothing kept yet. Use <span className="font-medium">Keep on card</span> on any visit below to put its formula here, where it survives whatever happens to the booking.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-3">
+                {keptFormulas.map((f) => (
+                  <li key={f.id} className="border rounded-lg p-3 dark:border-slate-700">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900 dark:text-slate-100">{f.label || 'Formula'}</p>
+                        {f.lastUsedAt && <p className="text-xs text-gray-500 dark:text-slate-400">Last used {fmtDate(f.lastUsedAt)}</p>}
+                      </div>
+                      <button
+                        onClick={() => forget(f.id)}
+                        disabled={busyFormula === f.id}
+                        className="text-sm text-gray-500 hover:text-red-700 dark:text-slate-400 dark:hover:text-red-300 disabled:opacity-50"
+                      >Remove</button>
+                    </div>
+                    {(f.formula || []).length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {(f.formula || []).map((line, i) => (
+                          <span key={i} className="text-xs bg-purple-50 text-purple-800 px-2 py-0.5 rounded-full dark:bg-purple-900/40 dark:text-purple-200">
+                            {[line.product, line.shade].filter(Boolean).join(' ')}{line.parts ? ` (${line.parts})` : ''}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {(f.developerVolume || f.processingMin) && (
+                      <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500 dark:text-slate-400">
+                        {f.developerVolume ? <span>Developer {f.developerVolume}</span> : null}
+                        {f.processingMin ? <span>{f.processingMin} min</span> : null}
+                      </div>
+                    )}
+                    {f.note && <p className="mt-2 text-sm text-gray-700 whitespace-pre-wrap dark:text-slate-300">{f.note}</p>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           <div className="flex justify-end">
             <button onClick={() => { setEditRecord(null); setShowRecord(true); }} className="flex items-center gap-2 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm">
               <Plus className="w-4 h-4" /> New Service Record
@@ -302,6 +399,14 @@ export default function ClientDetailPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{money(r.priceCharged)}</span>
+                      {((r.formula || []).length > 0 || r.developerVolume || r.notes) && (
+                        <button
+                          onClick={() => keepOnCard(r)}
+                          disabled={busyFormula === r.id}
+                          className="text-sm text-purple-800 hover:text-purple-900 dark:text-purple-300 dark:hover:text-purple-200 disabled:opacity-50"
+                          title="Put this formula on the client's card, where it survives whatever happens to the booking"
+                        >{busyFormula === r.id ? 'Keeping…' : 'Keep on card'}</button>
+                      )}
                       <button onClick={() => { setEditRecord(r); setShowRecord(true); }} className="text-sm text-teal-700 hover:text-teal-800 dark:text-teal-300 dark:hover:text-teal-200">Edit</button>
                     </div>
                   </div>
@@ -309,7 +414,8 @@ export default function ClientDetailPage() {
                   {(r.formula || []).length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1">
                       {(r.formula || []).map((line, i) => (
-                        <span key={i} className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
+                        // The dark partner was missing: purple-700 on a light chip over a dark card.
+                        <span key={i} className="text-xs bg-purple-50 text-purple-800 px-2 py-0.5 rounded-full dark:bg-purple-900/40 dark:text-purple-200">
                           {[line.product, line.shade].filter(Boolean).join(' ')}{line.parts ? ` (${line.parts})` : ''}
                         </span>
                       ))}

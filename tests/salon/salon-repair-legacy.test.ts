@@ -9,7 +9,7 @@
 import { Hono } from 'hono'
 import { setupSchema } from './setup.ts'
 import { db } from './db/index.ts'
-import { company, user, contact, invoice, serviceRecord, appointment } from './db/schema.ts'
+import { company, user, contact, invoice, serviceRecord, appointment, clientProfile } from './db/schema.ts'
 import { sql, eq } from 'drizzle-orm'
 import { errorHandler } from './src/utils/errors.ts'
 
@@ -160,26 +160,45 @@ check('M4: the future-dated visit is redated', r.json?.visitsRedated === 1, { go
   check('a visit that already happened keeps its own date, to the millisecond', String(v?.performed_at) === normalBefore, { before: normalBefore, after: v?.performed_at })
 }
 
-check('F1: two visits that never happened are taken off the chart', r.json?.visitsRemoved === 2, { got: r.json?.visitsRemoved, want: 2 })
+// Every visit standing against a cancelled appointment goes — ALL FOUR, not two. The earlier version
+// kept back the ones a stylist had written on, because the formula lived nowhere else, and paid for
+// it by leaving phantom visits driving rebooking reminders. A formula belongs to the CLIENT, so the
+// work is lifted onto their card first and nothing has to be kept back.
+check('F1: every visit that never happened is taken off the chart', r.json?.visitsRemoved === 4, { got: r.json?.visitsRemoved, want: 4 })
 check('F1: …the cancelled one is gone', !(await visitExists(staleVisit.id)))
 check('F1: …and so is the no-show, which the product treats the same way', !(await visitExists(noShowVisit.id)))
+check('F1: …and so is the one carrying a formula', !(await visitExists(formulaVisit.id)))
+check('F1: …and the one carrying a stylist\'s own note', !(await visitExists(typedVisit.id)))
 check('F1: a visit against an appointment that actually happened is untouched', await visitExists(realVisit.id))
 check('F1: …and keeps the note the system wrote', (await notesOf(realVisit.id)) === AUTO_NOTE, await notesOf(realVisit.id))
 
-check('F1: two a stylist had written on are kept, not deleted', r.json?.visitsKept === 2, { got: r.json?.visitsKept, want: 2 })
-check('F1: …the one carrying a formula survives', await visitExists(formulaVisit.id))
-check('F1: …and says the appointment under it was cancelled', /cancelled/i.test(String(await notesOf(formulaVisit.id))), await notesOf(formulaVisit.id))
-check('F1: …the one carrying a stylist\'s own note survives', await visitExists(typedVisit.id))
-check('F1: …with that note still on it, not replaced', /half an inch/.test(String(await notesOf(typedVisit.id))), await notesOf(typedVisit.id))
+check('F1: the two stylists\' formulas were kept before their visits went', r.json?.formulasKept === 2, { got: r.json?.formulasKept, want: 2 })
+{
+  const keptFor = async (contactId: string) => {
+    const [p] = await db.select().from(clientProfile).where(eq(clientProfile.contactId, contactId))
+    return (Array.isArray(p?.formulas) ? p!.formulas : []) as any[]
+  }
+  const colour = (await keptFor(clientFormula.id))[0]
+  check('F1: …the colour formula is on its client\'s card', colour?.formula?.[0]?.product === 'Colour 6N', colour)
+  check('F1: …labelled so a stylist knows where it came from', /cancelled/i.test(String(colour?.label)), colour?.label)
+
+  const typed = (await keptFor(clientTypist.id))[0]
+  check('F1: …and the stylist\'s own words are on theirs', /half an inch/.test(String(typed?.note)), typed)
+
+  check('F1: an untouched auto-logged visit leaves nothing on the card', (await keptFor(clientCancelled.id)).length === 0, await keptFor(clientCancelled.id))
+  check('F1: …and the system\'s own note is never mistaken for a stylist\'s',
+    !(await keptFor(clientCancelled.id)).some((f: any) => String(f.note || '').includes('Logged automatically')), await keptFor(clientCancelled.id))
+}
 
 {
   const again = await api('POST', '/api/service-records/repair-legacy')
   check('running it again changes nothing — it is idempotent',
     again.json?.invoicesVoided === 0 && again.json?.visitsRedated === 0 && again.json?.visitsRemoved === 0, again.json)
-  // The kept ones are still reported — they are the compromise a person may want to look at — but
-  // the note is not stamped on twice.
-  const stamped = String(await notesOf(formulaVisit.id)).match(/cancelled/gi)?.length
-  check('F1: …and the kept records are not re-annotated on every run', stamped === 1, { stamped, notes: await notesOf(formulaVisit.id) })
+  check('F1: …and keeps no formula a second time, because the visits are already gone',
+    again.json?.formulasKept === 0, again.json)
+  const [p] = await db.select().from(clientProfile).where(eq(clientProfile.contactId, clientFormula.id))
+  check('F1: …so the card does not collect duplicates of the same mix',
+    (Array.isArray(p?.formulas) ? p!.formulas.length : 0) === 1, p?.formulas)
 }
 
 // ── a repair that writes to money has to be reversible ────────────────────────────────────────────

@@ -3798,6 +3798,21 @@ export const clientProfile = pgTable('client_profile', {
   pronouns: text('pronouns'),
   birthday: date('birthday'),                            // birthday offers are a real rebooking lever
   notes: text('notes'),
+  /**
+   * The formulas this CLIENT is kept on — what a colourist reaches for before they mix anything.
+   *
+   * A formula used to exist only on a service_record, which hangs off an appointment. That made a
+   * colourist's own work hostage to the status of a booking: cancelling a completed visit had to
+   * choose between deleting a visit that never happened and destroying the formula written on it.
+   * Mangomint does not have that problem because its colour formulas are PINNED CLIENT NOTES — they
+   * belong to the person, and a visit is only when one was used.
+   *
+   * So they live here too. The per-visit record still logs what was mixed on the day, which is real
+   * history worth keeping; this is the client's kept set, and it survives anything that happens to a
+   * booking. [{ id, label, formula: [{product, shade, parts}], developerVolume, processingMin, note,
+   * savedAt, savedFromRecordId, lastUsedAt }]
+   */
+  formulas: json('formulas').default([]).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
