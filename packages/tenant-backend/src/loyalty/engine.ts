@@ -84,6 +84,30 @@ export function visitQualifies(serviceId: string | null | undefined, cfg: Loyalt
   return !!serviceId && ids.includes(serviceId)
 }
 
+/**
+ * Is this person in their birthday MONTH?
+ *
+ * The month, not the day, on purpose: a bonus tied to the date itself goes unclaimed by everyone
+ * who did not happen to walk in on it, which is not a reward — it is a lottery. crm-dispensary
+ * settled on the month first and this is the same rule, moved somewhere both verticals can reach.
+ *
+ * A birthday is a calendar date, not an instant. One template stores it as a `date` column that
+ * comes back as 'YYYY-MM-DD' and another hands over a Date, and running that string through
+ * new Date() reads it as midnight UTC — which, for a shop west of Greenwich, is the day before,
+ * and on the 1st of a month that is the month before. So a plain date string is read as written
+ * and never parsed.
+ */
+export function inBirthdayMonth(birthday: any, now: Date = new Date()): boolean {
+  if (!birthday) return false
+  if (typeof birthday === 'string') {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(birthday.trim())
+    if (m) return Number(m[2]) === now.getMonth() + 1
+  }
+  const d = birthday instanceof Date ? birthday : new Date(birthday)
+  if (Number.isNaN(d.getTime())) return false
+  return d.getUTCMonth() === now.getMonth()
+}
+
 // ─────────────────────────────────────────────────────────────── redemption
 
 export type RewardType = 'fixed' | 'percent' | 'free_item'

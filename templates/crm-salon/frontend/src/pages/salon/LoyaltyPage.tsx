@@ -64,6 +64,12 @@ interface VisitRow {
   invoiceNumber: string;
   remaining: number;
   rewardUsed: boolean;
+  /**
+   * The client has already paid this one. A reward applied after the money is in drops the total
+   * below what they handed over, so the server refuses it — and a refusal the screen could have
+   * predicted belongs on the screen, not at the end of a click. (LYR N2)
+   */
+  settled?: boolean;
 }
 
 const emptyReward = { name: '', description: '', pointsCost: 0, type: 'fixed' as const, value: 0, serviceId: '', active: true };
@@ -178,7 +184,11 @@ export default function LoyaltyPage() {
   };
 
   const removeReward = async (r: Reward) => {
-    if (!(await confirm({ title: `Delete "${r.name}"?`, body: 'Clients will no longer be able to redeem it.' }))) return;
+    // confirm() takes the message first and its options second — it is shaped like window.confirm.
+    // Passing one object made `message` an object, which React refuses to render, so Delete on a
+    // reward threw instead of asking. Found by the salon frontend's own typechecker, which nothing
+    // in CI runs. (LYR, unreported)
+    if (!(await confirm('Clients will no longer be able to redeem it.', { title: `Delete "${r.name}"?` }))) return;
     try { await api.delete(`/api/loyalty/rewards/${r.id}`); toast.success('Reward deleted'); load(); }
     catch (err: any) { toast.error(err?.message || 'Could not delete the reward'); }
   };
@@ -631,7 +641,7 @@ function MemberPanel({
     }
   };
 
-  const usable = visits.filter((v) => !v.rewardUsed && v.remaining > 0);
+  const usable = visits.filter((v) => !v.rewardUsed && !v.settled && v.remaining > 0);
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-black/40" onClick={onClose}>
@@ -681,7 +691,8 @@ function MemberPanel({
 
             {visits.length > 0 && usable.length === 0 && (
               <p className="text-sm text-gray-600 dark:text-slate-400">
-                Every recent visit is either paid down to nothing or already carries a reward. One reward per visit.
+                Every recent visit is either already paid, already carries a reward, or is paid down to nothing.
+                One reward per visit, and a settled bill takes a refund or a credit instead.
               </p>
             )}
             {visits.length === 0 && (

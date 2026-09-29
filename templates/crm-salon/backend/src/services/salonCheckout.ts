@@ -28,6 +28,15 @@ export async function nextInvoiceNumber(companyId: string, exec: any = db): Prom
   return `INV-${String(maxSeq + 1).padStart(5, '0')}`
 }
 
+/**
+ * The note a cancellation leaves on the bill it voided. (LYR N5)
+ *
+ * Exported because two paths have to agree on it exactly: the cancel writes it, and a later
+ * re-completion reads it to decide that this void was automatic and can be undone. A bill someone
+ * voided on purpose says something else and is never touched.
+ */
+export const VOIDED_ON_CANCEL = 'Voided: the appointment it was raised from was cancelled'
+
 export interface VisitSale {
   companyId: string
   contactId: string
@@ -48,7 +57,24 @@ export async function ensureInvoiceForVisit(v: VisitSale): Promise<typeof invoic
     const [linked] = await db.select().from(invoice)
       .where(and(eq(invoice.companyId, v.companyId), eq(invoice.appointmentId, v.appointmentId)))
       .limit(1)
-    if (linked) return linked
+    if (linked) {
+      // Completing a visit that was cancelled puts its bill back rather than raising a second one:
+      // the appointment already owns an invoice, so a new one cannot be created here anyway, and
+      // returning the void row would bill the visit with a bill nothing counts. Only a void this
+      // codebase wrote on cancellation is undone — the note is the signature. (LYR N5)
+      const note = String(linked.notes || '')
+      if (linked.status === 'void' && (note === VOIDED_ON_CANCEL || note.endsWith('\n' + VOIDED_ON_CANCEL))) {
+        const back = note === VOIDED_ON_CANCEL ? null : note.slice(0, -(VOIDED_ON_CANCEL.length + 1))
+        const [restored] = await db.update(invoice)
+          .set({ status: 'open', notes: back, updatedAt: new Date() } as any)
+          .where(eq(invoice.id, linked.id)).returning()
+        if (restored) {
+          emitToCompany(v.companyId, EVENTS.REFRESH, { entity: 'invoice' })
+          return restored
+        }
+      }
+      return linked
+    }
   }
 
   const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, v.companyId)).limit(1)

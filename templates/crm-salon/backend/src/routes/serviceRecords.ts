@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { serviceRecord, serviceMenu, contact, user, appointment, teamMember, invoice } from '../../db/schema.ts'
-import { eq, and, desc, or, sql } from 'drizzle-orm'
+import { eq, and, ne, desc, or, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -77,6 +77,10 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
  *        Open, owed, and pointing back at a record that no longer exists. Those are voided here, by
  *        the same rule the delete uses — an invoice holding money is never touched, and voiding keeps
  *        the number and the audit trail rather than deleting anything.
+ *   N3 — and the same fix in the other direction, added by the loyalty retest: deleting one of
+ *        several records filed against the SAME appointment voided the sale the visit still needed.
+ *        Those are put back, which is the only one of these three that restores money to the
+ *        outstanding column rather than taking it out.
  *   M4 — a visit must be dated to a day that has happened. The ones accepted before that rule still
  *        sit at the top of Recent Services, because that panel orders by performedAt and theirs are in
  *        the future. They are moved back to the day the record was actually created, which is the one
@@ -130,6 +134,34 @@ app.post('/repair-legacy', requirePermission('company:update'), async (c: any) =
     `)
   }
 
+  // ── LYR N3: sales voided by a duplicate clean-up, whose visit never went anywhere ───────────────
+  //
+  // The mirror image of H3, and the damage runs the other way: a visit with no sale instead of a
+  // sale with no visit. Deleting one of several records filed against the same appointment used to
+  // void the invoice, so tidying LY0928's duplicates voided INV-00204 and left Bravo's 27 Sep
+  // Men's Cut $37.98 unbilled. The delete rule now checks for survivors; this puts back what it
+  // voided before it did.
+  //
+  // Only invoices carrying that rule's exact note are touched, and only where a service record
+  // still points at them — an invoice a person voided deliberately says something else and is left
+  // alone. Restored to 'open', the status a sale raised from the book is given.
+  const unvoided: any = await db.execute(sql`
+    UPDATE invoice i
+    SET status = 'open',
+        notes = NULLIF(regexp_replace(i.notes, E'\nVoided: the visit it was raised from was deleted$', ''), ''),
+        updated_at = NOW()
+    WHERE i.company_id = ${cid}
+      AND i.status = 'void'
+      AND i.notes LIKE '%Voided: the visit it was raised from was deleted'
+      AND EXISTS (
+        SELECT 1 FROM service_record sr
+        WHERE sr.company_id = ${cid}
+          AND (sr.invoice_id = i.id OR (i.appointment_id IS NOT NULL AND sr.appointment_id = i.appointment_id))
+      )
+    RETURNING i.id, i.number, i.total
+  `)
+  const unvoidedRows = ((unvoided as any).rows || unvoided) as any[]
+
   // ── M4: visits dated to a day that has not happened ─────────────────────────────────────────────
   const future: any = await db.execute(sql`
     SELECT id, performed_at, created_at FROM service_record
@@ -145,14 +177,18 @@ app.post('/repair-legacy', requirePermission('company:update'), async (c: any) =
 
   await audit.log({
     action: 'update', entity: 'service_record', entityId: 'repair-legacy',
-    metadata: { invoicesVoided: orphanRows.length, visitsRedated: futureRows.length },
+    metadata: { invoicesVoided: orphanRows.length, invoicesRestored: unvoidedRows.length, visitsRedated: futureRows.length },
     req: { user: currentUser },
   })
-  if (orphanRows.length || futureRows.length) emitToCompany(cid, EVENTS.REFRESH, { entity: 'service_record' })
+  if (orphanRows.length || unvoidedRows.length || futureRows.length) emitToCompany(cid, EVENTS.REFRESH, { entity: 'service_record' })
+  if (orphanRows.length || unvoidedRows.length) emitToCompany(cid, EVENTS.REFRESH, { entity: 'invoice' })
 
   return c.json({
     invoicesVoided: orphanRows.length,
     invoices: orphanRows.map((r) => ({ id: r.id, number: r.number, total: r.total })),
+    // Sales put back on a visit that was never deleted. (LYR N3)
+    invoicesRestored: unvoidedRows.length,
+    restored: unvoidedRows.map((r) => ({ id: r.id, number: r.number, total: r.total })),
     visitsRedated: futureRows.length,
     visits: futureRows.map((r) => ({ id: r.id, was: r.performed_at, now: r.created_at })),
   })
@@ -366,7 +402,28 @@ app.delete('/:id', requirePermission('invoices:update'), async (c) => {
       ? await db.select().from(invoice).where(and(eq(invoice.appointmentId, existing.appointmentId), eq(invoice.companyId, currentUser.companyId))).limit(1)
       : []
 
-  if (linkedInvoice && linkedInvoice.status !== 'void') {
+  // …unless the visit is not actually going anywhere. Deleting one of several records filed against
+  // the SAME appointment is removing a duplicate, not removing the visit, and the sale still has a
+  // visit to belong to.
+  //
+  // LYR N3: clearing up LY0928's duplicates deleted two of Bravo's three records for one 27 Sep
+  // Men's Cut, and this rule voided INV-00204 with the note "the visit it was raised from was
+  // deleted". The visit was still there, still completed, and now $37.98 unbilled — the exact
+  // opposite of the debt H3 was written to prevent. A sale outlives its visit only when nothing is
+  // left pointing at it.
+  const survivors = linkedInvoice
+    ? await db.select({ id: serviceRecord.id }).from(serviceRecord)
+        .where(and(
+          eq(serviceRecord.companyId, currentUser.companyId),
+          ne(serviceRecord.id, id),
+          existing.appointmentId
+            ? or(eq(serviceRecord.appointmentId, existing.appointmentId), eq(serviceRecord.invoiceId, linkedInvoice.id))
+            : eq(serviceRecord.invoiceId, linkedInvoice.id),
+        )).limit(1)
+    : []
+  const visitSurvives = survivors.length > 0
+
+  if (linkedInvoice && !visitSurvives && linkedInvoice.status !== 'void') {
     const paid = Math.round((Number(linkedInvoice.amountPaid || 0) - Number(linkedInvoice.amountRefunded || 0)) * 100) / 100
     if (paid > 0.005) {
       return c.json({
@@ -381,7 +438,7 @@ app.delete('/:id', requirePermission('invoices:update'), async (c) => {
 
   let voidedInvoice: { id: string; number: string } | null = null
   await db.transaction(async (tx: any) => {
-    if (linkedInvoice && linkedInvoice.status !== 'void' && linkedInvoice.status !== 'refunded') {
+    if (linkedInvoice && !visitSurvives && linkedInvoice.status !== 'void' && linkedInvoice.status !== 'refunded') {
       const note = `Voided: the visit it was raised from was deleted`
       await tx.update(invoice)
         .set({ status: 'void', notes: linkedInvoice.notes ? `${linkedInvoice.notes}\n${note}` : note, updatedAt: new Date() })

@@ -1,13 +1,13 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { appointment, serviceMenu, contact, user, serviceRecord, teamMember } from '../../db/schema.ts'
+import { appointment, serviceMenu, contact, user, serviceRecord, teamMember, invoice } from '../../db/schema.ts'
 import { eq, and, gte, lte, ne, sql, or } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
-import { ensureInvoiceForVisit } from '../services/salonCheckout.ts'
+import { ensureInvoiceForVisit, VOIDED_ON_CANCEL } from '../services/salonCheckout.ts'
 import { scheduleReviewRequestForVisit } from '../services/reviews.ts'
 import { resolveStylist, unknownStylist, stylistIdOf, type StylistRef } from '../utils/stylist.ts'
 import { isRealCalendarDay } from '../shared/index.ts'
@@ -170,6 +170,32 @@ async function onVisitUncompleted(row: typeof appointment.$inferSelect): Promise
   try {
     await reverseForCancelledVisit({ companyId: row.companyId, appointmentId: row.id, serviceId: row.serviceId })
   } catch (e: any) { console.warn('[appointments] loyalty not reversed:', e?.message || e) }
+
+  // …and the bill goes with them. LYR N5: a completed $65 visit set to cancelled gave back its
+  // points, its punch and its earned-to-date, and left INV-00240 for $70.53 sitting in Outstanding
+  // — the salon showing money owed for an appointment it had just agreed did not happen.
+  //
+  // The decision, stated because the retest asked for one: cancelling voids the bill, on the same
+  // rule the visit-delete path uses. Voiding keeps the number and the audit trail instead of
+  // deleting anything, and money that was actually collected stops it — a client who paid is owed
+  // a refund or a credit, which is a person's decision, not something a status flip should make.
+  // Completing the appointment again puts the same bill back (see ensureInvoiceForVisit).
+  try {
+    const [bill] = await db.select().from(invoice)
+      .where(and(eq(invoice.companyId, row.companyId), eq(invoice.appointmentId, row.id))).limit(1)
+    if (bill && bill.status !== 'void' && bill.status !== 'refunded') {
+      const held = Math.round((Number(bill.amountPaid || 0) - Number(bill.amountRefunded || 0)) * 100) / 100
+      if (held <= 0.005) {
+        const note = String(bill.notes || '')
+        await db.update(invoice).set({
+          status: 'void',
+          notes: note ? `${note}\n${VOIDED_ON_CANCEL}` : VOIDED_ON_CANCEL,
+          updatedAt: new Date(),
+        } as any).where(eq(invoice.id, bill.id))
+        emitToCompany(row.companyId, EVENTS.REFRESH, { entity: 'invoice' })
+      }
+    }
+  } catch (e: any) { console.warn('[appointments] sale not voided:', e?.message || e) }
 }
 
 // GET /appointments — ?from=&to= on startTime, ?stylistId=, ?status=

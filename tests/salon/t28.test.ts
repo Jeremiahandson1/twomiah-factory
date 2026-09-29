@@ -11,6 +11,19 @@ import { setupSchema } from './setup.ts'
 import { db } from './db/index.ts'
 import { company, user, contact, teamMember, appointment, serviceMenu, serviceRecord, membershipPlan, bookingSettings, reviewRequest, clientProfile } from './db/schema.ts'
 import { errorHandler } from './src/utils/errors.ts'
+import { salonTimezone, salonDayStart, calendarDateIn } from './src/utils/salonDate.ts'
+
+/**
+ * Midday on the salon's own today.
+ *
+ * Check-in is answered on the SHOP's calendar, so a fixture built as "an hour from now" is not
+ * reliably today: for the last hour of the shop's day it is tomorrow, and the L5 and M3 cases below
+ * went red at 23:56 Chicago for exactly that reason. Midday cannot be the wrong day.
+ */
+const salonNoon = async (companyId: string) => {
+  const tz = await salonTimezone(companyId)
+  return new Date(salonDayStart(calendarDateIn(new Date(), tz), tz).getTime() + 12 * 3600_000)
+}
 
 let failed = 0, passed = 0
 const check = (name: string, ok: boolean, detail?: unknown) => { if (ok) { passed++; console.log(`  ok   ${name}`) } else { failed++; console.log(`  FAIL ${name}`, detail === undefined ? '' : JSON.stringify(detail)?.slice(0, 300)) } }
@@ -142,6 +155,10 @@ console.log('\n── M3/M4: a stylist can do a stylist\'s day, and cannot see t
 
   const booked = await S('POST', '/api/appointments', { contactId: client.id, serviceId: svc.id, startTime: new Date(Date.now() + 3600_000).toISOString() })
   check('staff can book an appointment', booked.status === 201, booked.json)
+  // Booked for an hour's time, which is what a front desk does; moved to midday on the shop's
+  // calendar before checking in, because an hour from now is TOMORROW during the last hour of the
+  // shop's day and check-in answers on that calendar.
+  await db.update(appointment).set({ startTime: await salonNoon(co.id) } as any).where(eq(appointment.id, booked.json?.id))
   const checkedIn = await S('POST', `/api/appointments/${booked.json?.id}/check-in`)
   check('staff can check a client in', checkedIn.status === 200, checkedIn.json)
   const visit = await S('POST', '/api/clients/' + client.id + '/profile', { hairType: 'fine' })
@@ -218,7 +235,7 @@ console.log('\n── L5: check-in means they are here ──')
   check('an appointment 25 days out cannot be checked in', r.status === 409, { status: r.status, error: r.json?.error })
   check('…and the refusal names the day it is on', /not today/i.test(String(r.json?.error)), r.json)
 
-  const today = await mkAppt(new Date(Date.now() + 3600_000))
+  const today = await mkAppt(await salonNoon(co.id))
   check("…while today's appointment checks in", (await O('POST', `/api/appointments/${today.id}/check-in`)).status === 200)
 }
 

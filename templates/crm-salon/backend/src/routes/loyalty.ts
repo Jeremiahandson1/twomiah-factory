@@ -33,6 +33,24 @@ const toDollars = (c: number) => (Math.max(0, Math.round(c)) / 100).toFixed(2)
 const toMoney = (c: number) => '$' + toDollars(c)
 
 /**
+ * Has this bill been settled?
+ *
+ * LYR N2: a reward redeemed against a visit the client had already paid for dropped the total
+ * below what they handed over — paid $37.98 against a total that became $32.98 — and the $5
+ * difference was recorded nowhere. The balance stayed pinned at zero, so nothing on any screen
+ * showed the shop was holding money it no longer had a bill for.
+ *
+ * Either the status says so, or the money does. Both are checked, because a bill can be marked
+ * paid by hand and a bill can be paid in full without the status having caught up.
+ */
+const isSettled = (bill: { status?: any; amountPaid?: any; total?: any }) => {
+  if (String(bill?.status || '').toLowerCase() === 'paid') return true
+  const paid = toCents(bill?.amountPaid)
+  const total = toCents(bill?.total)
+  return total > 0 && paid >= total
+}
+
+/**
  * A salon has clients and visits. The shared engine's refusals default to a shop's customers and
  * orders, which is what run LY0928 M3 saw at the desk — "add the free cut to the order". The rule
  * was right; only the trade was wrong.
@@ -210,6 +228,10 @@ app.get('/members/:id/visits', requirePermission('loyalty:read'), async (c) => {
     subtotal: invoice.subtotal,
     discount: invoice.discount,
     total: invoice.total,
+    // What has been taken for this visit. A reward applied after the client has paid drops the
+    // total below what they handed over, and the difference goes nowhere. (LYR N2)
+    amountPaid: invoice.amountPaid,
+    invoiceStatus: invoice.status,
   })
     .from(appointment)
     .innerJoin(invoice, and(eq(invoice.appointmentId, appointment.id), eq(invoice.companyId, u.companyId)))
@@ -237,6 +259,10 @@ app.get('/members/:id/visits', requirePermission('loyalty:read'), async (c) => {
       ...r,
       remaining: Number(toDollars(Math.max(0, toCents(r.subtotal) - toCents(r.discount)))),
       rewardUsed: spent.has(r.appointmentId),
+      // A settled bill is offered the same way a spent one is — visible, with the reason — rather
+      // than hidden, because the desk needs to know the visit exists and why it cannot take a
+      // reward. (LYR N2)
+      settled: isSettled(r),
     })),
   })
 })
@@ -304,15 +330,28 @@ app.post('/members/:id/adjust', requirePermission('loyalty:adjust'), async (c) =
 
   // What earlier corrections put INTO the lifetime figure. That is the ceiling on what this one can
   // take back out of it; everything above it was earned at the chair. (LY0928 L3)
+  //
+  // The ceiling is replayed row by row rather than summed, and this is the whole of LYR L3. A
+  // correction is clamped twice over: the BALANCE cannot go below zero, and the lifetime figure
+  // cannot fall below what visits earned. Those two clamps bite in different places, so what a
+  // correction removed from the balance is not what it removed from earned-to-date — a -999,999
+  // that floors a 35-point balance takes 35 off the balance and, correctly, nothing off
+  // earned-to-date. Summing the ledger counted that floor as 35 points of earned-to-date still
+  // owed back, so a later +100 / -100 pair settled on 70 earned instead of 35 and conjured 35
+  // points of visit history that never happened. Clamping at zero after EACH row reconstructs what
+  // each correction actually took out of the lifetime figure, which is the number this one is
+  // allowed to build on.
   let lifetimeDelta = applied
   if (applied < 0) {
-    const [net] = await db.select({ standing: sql<number>`COALESCE(SUM(${loyaltyTransaction.points}), 0)` })
+    const priors = await db.select({ points: loyaltyTransaction.points })
       .from(loyaltyTransaction)
       .where(and(
         eq(loyaltyTransaction.memberId, member.id),
         sql`${loyaltyTransaction.type} IN ('adjustment_add', 'adjustment_subtract')`,
       ))
-    const reversible = Math.max(0, Number(net?.standing || 0))
+      .orderBy(loyaltyTransaction.createdAt, loyaltyTransaction.id)
+    let reversible = 0
+    for (const p of priors) reversible = Math.max(0, reversible + (Number(p.points) || 0))
     lifetimeDelta = -Math.min(-applied, reversible)
   }
 
@@ -478,6 +517,19 @@ app.post('/members/:id/redeem', requirePermission('loyalty:redeem'), async (c) =
     return c.json({ error: 'That visit has no bill yet. Complete the appointment first, then apply the reward.', code: 'no_invoice' }, 400)
   }
 
+  // A bill the client has already settled cannot take a discount: the total would fall below what
+  // they handed over and the shop would be holding money with no bill against it, recorded nowhere.
+  // Refusing is the honest answer — quietly turning it into a credit is a money movement nobody
+  // asked for, and the desk can raise one deliberately if that is what the client wants. (LYR N2)
+  if (isSettled(bill)) {
+    return c.json({
+      error: `${bill.number} has already been paid. Refund the client or apply a credit instead — a reward cannot be taken off a settled bill.`,
+      code: 'invoice_already_paid',
+      invoiceId: bill.id,
+      invoiceNumber: bill.number,
+    }, 400)
+  }
+
   // The basket is what the salon actually charged, not what the caller says it charged.
   const billSubtotalCents = toCents(bill.subtotal)
   const alreadyOffCents = toCents(bill.discount)
@@ -579,10 +631,25 @@ app.post('/members/:id/redeem', requirePermission('loyalty:redeem'), async (c) =
       // The discount reaches the bill, which is the entire point of redeeming. Recomputed from the
       // stored figures rather than the ones read above, so a bill edited in between cannot be driven
       // negative. (LY0928 H2)
+      //
+      // …and the TAX moves with it. A store-funded reward reduces what the client actually spends,
+      // so it reduces what is taxable: LYR N1 watched a client told the cut was on the house get a
+      // $2.98 bill — tax on $35 of services they were not charged for. The dispensary has always
+      // reassessed tax on the discounted base after a redemption (T22); the two verticals
+      // disagreed, and this one was wrong.
+      //
+      // tax_rate is stored on the invoice, so the new tax is computed from the bill itself and not
+      // from a company setting that may have changed since the visit.
       await tx.execute(sql`
         UPDATE invoice
         SET discount = LEAST(COALESCE(discount, 0) + ${toDollars(discountCents)}, COALESCE(subtotal, 0)),
-            total = GREATEST(0, COALESCE(subtotal, 0) - LEAST(COALESCE(discount, 0) + ${toDollars(discountCents)}, COALESCE(subtotal, 0)) + COALESCE(tax_amount, 0)),
+            tax_amount = ROUND(
+              GREATEST(0, COALESCE(subtotal, 0) - LEAST(COALESCE(discount, 0) + ${toDollars(discountCents)}, COALESCE(subtotal, 0)))
+              * (COALESCE(tax_rate, 0) / 100), 2),
+            total = GREATEST(0, COALESCE(subtotal, 0) - LEAST(COALESCE(discount, 0) + ${toDollars(discountCents)}, COALESCE(subtotal, 0)))
+              + ROUND(
+                GREATEST(0, COALESCE(subtotal, 0) - LEAST(COALESCE(discount, 0) + ${toDollars(discountCents)}, COALESCE(subtotal, 0)))
+                * (COALESCE(tax_rate, 0) / 100), 2),
             updated_at = NOW()
         WHERE id = ${bill.id} AND company_id = ${u.companyId}
       `)
@@ -606,7 +673,7 @@ app.post('/members/:id/redeem', requirePermission('loyalty:redeem'), async (c) =
     })
   } catch (err: any) {
     if (already) {
-      return c.json({ error: 'That card has already been used. Another till may have just claimed it.', code: 'card_already_claimed' }, 409)
+      return c.json({ error: 'That card has already been used. Someone at the front desk may have just claimed it.', code: 'card_already_claimed' }, 409)
     }
     if (err?.message === 'insufficient') {
       const [fresh] = await db.select({ b: loyaltyMember.pointsBalance }).from(loyaltyMember).where(eq(loyaltyMember.id, member.id)).limit(1)
