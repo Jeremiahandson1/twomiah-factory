@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { serviceRecord, serviceMenu, contact, clientProfile, user, appointment, company } from '../../db/schema.ts'
-import { rebookInterval, describeInterval } from '../shared/index.ts'
+import { rebookInterval, describeInterval, categoryKey, preferredCategoryLabel } from '../shared/index.ts'
 import { eq, and, inArray, isNotNull, sql, gt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -45,7 +45,10 @@ async function rebookingTemplates(companyId: string): Promise<Record<string, str
     const out: Record<string, string> = {}
     for (const [k, v] of Object.entries(raw)) {
       const text = String(v ?? '').trim()
-      if (text) out[String(k).trim().toLowerCase()] = text
+      // categoryKey, not just lowercase: the category a template hangs off is folded the same way
+      // the rhythms are, so a message written for "Colour" still reaches the merged chip. Keying
+      // these two things differently is how a template would silently stop attaching. (RR0929)
+      if (text) out[categoryKey(k)] = text
     }
     return out
   } catch { return {} }
@@ -56,8 +59,11 @@ async function excludedCategories(companyId: string): Promise<Set<string>> {
     const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
     const raw = (co?.settings as any)?.rebookingCategoriesOff
     // Matched the same way the rhythms are keyed, so switching off "Waxing" also switches off
-    // "waxing" — a salon should not have to know how their own menu was capitalised.
-    return new Set(Array.isArray(raw) ? raw.map((s: any) => String(s).trim().toLowerCase()) : [])
+    // "waxing" — a salon should not have to know how their own menu was capitalised. Through the
+    // same helper, so switching off "Colour" also switches off "Color": a category that is one
+    // category for chasing has to be one category for switching off too, or the shop turns it off
+    // and half of it keeps ringing. (RR0929)
+    return new Set(Array.isArray(raw) ? raw.map((s: any) => categoryKey(s)) : [])
   } catch { return new Set() }
 }
 
@@ -127,9 +133,10 @@ app.get('/due', requirePermission('contacts:read'), async (c) => {
     // Category is free text on the menu row, and a real tenant has both "Color" and "colour" on it.
     // Grouping on the raw string would put one client on two rhythms that are the same rhythm, and
     // then chase her twice for it — the exact bug this grouping exists to fix, re-entering through
-    // the shift key. Matched case- and space-insensitively; the row still shows what the menu says.
+    // the shift key. categoryKey folds case, spacing AND the British/American spelling (RR0929);
+    // the row still shows what the menu says.
     const category = String(r.category || 'other')
-    const rhythm = category.trim().toLowerCase()
+    const rhythm = categoryKey(category)
     if (excluded.has(rhythm)) continue
     const key = `${r.contactId}|${rhythm}`
     const list = byRhythm.get(key)
@@ -180,23 +187,32 @@ app.get('/due', requirePermission('contacts:read'), async (c) => {
   // So the counts come back for every category whatever the filter, and the screen can offer them
   // as the way in. A client on two rhythms appears once under each, which is one call per
   // conversation rather than two calls or one wrong one.
-  const summary = new Map<string, { category: string; label: string; due: number; overdue: number }>()
+  // Spellings are collected so the chip can be LABELLED with the one the salon actually uses. A
+  // shop whose whole menu says "colour" must not be shown a chip reading "color" just because that
+  // is the key the two fold to. (RR0929)
+  const summary = new Map<string, { category: string; label: string; due: number; overdue: number; seen: string[] }>()
   for (const r of filtered) {
-    const key = String(r.category || 'other').trim().toLowerCase()
-    const row = summary.get(key) || { category: key, label: String(r.category || 'other'), due: 0, overdue: 0 }
+    const key = categoryKey(r.category)
+    const row = summary.get(key) || { category: key, label: '', due: 0, overdue: 0, seen: [] }
+    row.seen.push(String(r.category || 'other'))
     row.due++
     if (r.overdue) row.overdue++
     summary.set(key, row)
   }
+  for (const row of summary.values()) row.label = preferredCategoryLabel(row.seen)
   const templates = await rebookingTemplates(u.companyId)
   const categories = [...summary.values()]
     .sort((a, b) => b.overdue - a.overdue || b.due - a.due || a.label.localeCompare(b.label))
-    .map((row) => ({ ...row, template: templates[row.category] || null }))
+    .map(({ seen, ...row }) => ({ ...row, template: templates[row.category] || null }))
 
   // ?category= narrows the rows. The counts above are deliberately NOT narrowed, so the screen can
   // keep showing what else is waiting while you work one of them.
-  const wanted = String(c.req.query('category') || '').trim().toLowerCase()
-  const shown = wanted ? filtered.filter((r) => String(r.category || 'other').trim().toLowerCase() === wanted) : filtered
+  //
+  // Folded on BOTH sides: a screen that sent back the chip's own key would otherwise miss the rows
+  // spelled the other way — which is the bug this fold exists to remove, one layer up.
+  const askedFor = String(c.req.query('category') || '').trim()
+  const wanted = askedFor ? categoryKey(askedFor) : ''
+  const shown = wanted ? filtered.filter((r) => categoryKey(r.category) === wanted) : filtered
 
   return c.json({
     count: shown.length,
@@ -235,8 +251,10 @@ app.put('/templates', requirePermission('company:update'), async (c) => {
 
   const next: Record<string, string> = {}
   for (const [rawKey, rawValue] of Object.entries(incoming)) {
-    const key = String(rawKey).trim().toLowerCase()
-    if (!key) continue
+    // Folded on the way IN as well, so "Colour" and "Color" cannot be stored as two templates for
+    // one chip — whichever the salon typed last would win at random. (RR0929)
+    const key = categoryKey(rawKey)
+    if (!key || !String(rawKey).trim()) continue
     const text = String(rawValue ?? '').trim()
     // An empty template means "go back to the shop's default", which is how you undo one without a
     // separate delete.

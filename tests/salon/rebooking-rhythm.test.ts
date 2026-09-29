@@ -186,7 +186,12 @@ const rowsFor = async (client: any) => (await due()).filter((r) => r.contactId =
   check('the list comes back with a count per category', cats.length >= 2, cats)
   check('…naming the category as the menu spells it', cats.every((x) => !!x.label), cats)
   check('…and a total across all of them', counts.json?.totalDue === counts.json?.data?.length, { total: counts.json?.totalDue, rows: counts.json?.data?.length })
-  const colour = cats.find((x) => x.category === 'colour')
+  // RR0929: the KEY is now the folded spelling — colour and Color are one category — while the
+  // LABEL is whatever the salon's own menu says. A shop whose menu reads "colour" throughout must
+  // not be shown a chip reading "color" just because that is what the two fold to.
+  const colour = cats.find((x) => x.category === 'color')
+  check('…keyed on the folded spelling, so colour and Color are one chip', !!colour, cats.map((x) => x.category))
+  check('…labelled the way the menu spells it, not the way we key it', colour?.label === 'colour', colour?.label)
   check('…with the overdue subset counted separately', typeof colour?.overdue === 'number', colour)
 
   const onlyColour = await api('GET', '/api/reminders/due?window=400&maxOverdue=3650&category=colour')
@@ -218,10 +223,22 @@ const rowsFor = async (client: any) => (await due()).filter((r) => r.contactId =
   })
   check('templates can be written per category', saved.status === 200, saved.json)
   check('…keyed the same way the rhythms are, so capitalisation does not matter',
-    saved.json?.templates?.colour === 'Your roots are about due — shall we get you in?', saved.json?.templates)
+    saved.json?.templates?.color === 'Your roots are about due — shall we get you in?', saved.json?.templates)
+  // RR0929: and so does the SPELLING. A template written for "Colour" has to reach the merged
+  // chip, or the fold one layer up would silently detach every message a British salon wrote.
+  const usSpelling = await api('PUT', '/api/reminders/templates', {
+    templates: { Color: 'Roots time!', hair: 'Time for a trim!' },
+  })
+  check('…and a template written the American way lands on the same key',
+    usSpelling.json?.templates?.color === 'Roots time!' && !('colour' in (usSpelling.json?.templates || {})),
+    usSpelling.json?.templates)
+  // Put the British wording back — a PUT replaces the whole set, and the assertions below read it.
+  await api('PUT', '/api/reminders/templates', {
+    templates: { Colour: 'Your roots are about due — shall we get you in?', hair: 'Time for a trim!' },
+  })
 
   const withTemplates = await api('GET', '/api/reminders/due?window=400&maxOverdue=3650')
-  const colour = (withTemplates.json?.categories || []).find((x: any) => x.category === 'colour')
+  const colour = (withTemplates.json?.categories || []).find((x: any) => x.category === 'color')
   const waxing = (withTemplates.json?.categories || []).find((x: any) => x.category === 'waxing')
   check('…and ride along with the list, so the send box can prefill the right one',
     colour?.template === 'Your roots are about due — shall we get you in?', colour)

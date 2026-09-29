@@ -40,6 +40,54 @@ export interface RebookInterval {
   visits: number
 }
 
+/**
+ * The key two service categories share when they are the same category.
+ *
+ * RR0929, the tester's judgement call — agreed, having argued the other way first. The FULL0929
+ * brief said `colour` and `Color` were the salon's own data to fix, on the grounds that the two
+ * are genuinely different words and the software should not decide they mean the same thing. That
+ * is true of words in general and wrong about these two: a salon that has both spellings in its
+ * menu does not have two rhythms, it has one rhythm and two typists, and the product was making
+ * the front desk work one list twice and read two different recall templates for the same client.
+ *
+ * Deliberately a short, named list rather than a general en-GB/en-US dictionary. Every entry is a
+ * spelling that actually turns up in a salon price list; nothing is inferred by rule, because a
+ * rule that folds -our to -or would also fold words nobody meant it to. If a salon has a pair we
+ * have not thought of, the answer is to add it here where it can be read, not to be clever.
+ *
+ * Case and spacing were already folded. This adds the spelling, in one place used by every caller
+ * — the key was being recomputed inline at three sites, which is three chances to disagree.
+ */
+const SPELLINGS: Array<[RegExp, string]> = [
+  [/colour/g, 'color'],
+  [/grey/g, 'gray'],
+  [/moustache/g, 'mustache'],
+]
+export function categoryKey(raw: unknown): string {
+  let s = String(raw ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+  if (!s) return 'other'
+  for (const [re, to] of SPELLINGS) s = s.replace(re, to)
+  return s
+}
+
+/**
+ * Which of several spellings to SHOW for a merged category: the one the salon uses most, and the
+ * first one seen when they are level. Showing the folded key instead would print "color" at a
+ * salon whose entire menu says colour.
+ */
+export function preferredCategoryLabel(seen: string[]): string {
+  const counts = new Map<string, number>()
+  for (const s of seen) {
+    const label = String(s ?? '').trim()
+    if (!label) continue
+    counts.set(label, (counts.get(label) || 0) + 1)
+  }
+  let best = ''
+  let bestN = -1
+  for (const [label, n] of counts) if (n > bestN) { best = label; bestN = n }
+  return best || 'other'
+}
+
 /** Nobody is due back in three days, and nobody on a recall list is due back in three years. */
 export const MIN_INTERVAL_DAYS = 7
 export const MAX_INTERVAL_DAYS = 365
@@ -88,6 +136,24 @@ export function rebookInterval(visitDates: Array<Date | string | number>, menuDa
   // Counting gaps rather than rows is also the stricter reading: three visits that all happened on
   // the same afternoon are one visit, and say nothing about anybody's rhythm.
   if (gaps.length < VISITS_TO_LEARN - 1) return fallback
+
+  // TWO gaps that disagree are not a rhythm. (RR0929, the tester's judgement call — agreed)
+  //
+  // Three visits is Phorest's threshold and it stays, but three visits give exactly two gaps, and
+  // a median of two numbers is just their midpoint: 7 days and 90 days reads as "every 7 weeks —
+  // their own rhythm, from 3 visits", which describes neither visit and is said with more
+  // confidence than the menu figure it replaced. With three or more gaps a median survives one
+  // outlier; with two there is no majority for it to find.
+  //
+  // So two gaps have to roughly agree before they are trusted. Beyond a factor of two they are two
+  // unrelated visits and the menu's interval is the better answer — it is at least what the salon
+  // meant to happen. A client who really does come every 7 weeks reaches three gaps soon enough,
+  // and then her own rhythm takes over whatever the spread.
+  if (gaps.length === 2) {
+    const lo = Math.min(gaps[0], gaps[1])
+    const hi = Math.max(gaps[0], gaps[1])
+    if (lo <= 0 || hi > lo * 2) return fallback
+  }
 
   return { days: clamp(median(gaps)), basis: 'client', visits: times.length }
 }

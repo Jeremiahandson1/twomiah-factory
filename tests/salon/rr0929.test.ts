@@ -23,6 +23,7 @@ import { setupSchema } from './setup.ts'
 import { db } from './db/index.ts'
 import { company, user, contact, serviceMenu, appointment, invoice, serviceRecord, clientProfile } from './db/schema.ts'
 import { normaliseFormula, hasSubstance } from './src/services/clientFormulas.ts'
+import { rebookInterval, categoryKey, preferredCategoryLabel } from './src/shared/index.ts'
 
 let failed = 0, passed = 0
 const check = (name: string, ok: boolean, detail?: unknown) => {
@@ -150,6 +151,51 @@ let recordId = ''
     { before, after: (second.json?.formulas || []).length })
   check('N6: …and it is the same row, re-dated',
     second.json?.formula?.id === first.json?.formula?.id, { first: first.json?.formula?.id, second: second.json?.formula?.id })
+}
+
+// ── the two judgement calls the tester asked for ────────────────────────────────────────────────
+//
+// Both were open questions in the FULL0929 brief, and on both the tester's reading is the better
+// one. Argued the other way first, which is why they are pinned here.
+{
+  const day = 86400000
+  const at = (...ago: number[]) => ago.map((d) => new Date(Date.now() - d * day))
+
+  // Three visits is still the threshold — but three visits are TWO gaps, and a median of two
+  // numbers is just their midpoint. 7 days and 90 days would have read "every 7 weeks — their own
+  // rhythm, from 3 visits", describing neither visit, with more confidence than the menu figure it
+  // replaced.
+  const wild = rebookInterval(at(97, 90, 0), 42)
+  check('JC1: two gaps that disagree are not a rhythm', wild.basis === 'menu', wild)
+  check('JC1: …so the menu figure stands', wild.days === 42, wild)
+
+  const steady = rebookInterval(at(84, 42, 0), 30)
+  check('JC1: two gaps that agree still are one', steady.basis === 'client', steady)
+  check('JC1: …at their median', steady.days === 42, steady)
+
+  // …and with three or more gaps a median survives one outlier, so the spread stops mattering.
+  const outlier = rebookInterval(at(160, 70, 35, 0), 30)
+  check('JC1: three gaps are trusted whatever the spread', outlier.basis === 'client', outlier)
+
+  check('JC1: two visits are still not enough', rebookInterval(at(42, 0), 30).basis === 'menu')
+
+  // Colour and Color are one category. The FULL0929 brief argued they were the salon's own data to
+  // fix; a shop with both spellings in its menu does not have two rhythms, it has one rhythm and
+  // two typists, and the front desk was working one list twice.
+  check('JC2: colour and Color fold to one key', categoryKey('Colour') === categoryKey('color'), [categoryKey('Colour'), categoryKey('color')])
+  check('JC2: …case and spacing too', categoryKey('  HAIR   COLOUR ') === categoryKey('hair color'), categoryKey('  HAIR   COLOUR '))
+  check('JC2: …and grey/gray, which a toner menu has both of', categoryKey('Grey Blending') === categoryKey('gray blending'))
+  check('JC2: a blank category is its own bucket, not an empty key', categoryKey('') === 'other' && categoryKey(null) === 'other')
+  check('JC2: categories that are genuinely different stay different', categoryKey('hair') !== categoryKey('nails'))
+
+  // The label is the salon's own spelling, chosen by how often it appears — never the folded key.
+  check('JC2: the label is the spelling the menu uses most',
+    preferredCategoryLabel(['colour', 'colour', 'Color']) === 'colour',
+    preferredCategoryLabel(['colour', 'colour', 'Color']))
+  check('JC2: …the other way round too',
+    preferredCategoryLabel(['Color', 'Color', 'colour']) === 'Color',
+    preferredCategoryLabel(['Color', 'Color', 'colour']))
+  check('JC2: …and something is always shown', preferredCategoryLabel([]) === 'other')
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed`)

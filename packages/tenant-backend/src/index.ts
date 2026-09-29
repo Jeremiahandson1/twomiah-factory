@@ -39,7 +39,7 @@ export { createInvoiceRoutes, insertInvoice, retotalInvoice, replaceInvoiceLines
 export type { InvoiceDeps, InvoiceOptions, InvoiceTables, InvoiceLine, RecordPaymentInput, RecordPaymentOutcome, RecordRefundInput, RecordRefundOutcome } from './invoicing/invoices'
 // When a client is actually due back: their own rhythm once we have enough history, the menu's
 // interval until then.
-export { rebookInterval, describeInterval, MIN_INTERVAL_DAYS, MAX_INTERVAL_DAYS, VISITS_TO_LEARN } from './retention/rebooking'
+export { rebookInterval, describeInterval, categoryKey, preferredCategoryLabel, MIN_INTERVAL_DAYS, MAX_INTERVAL_DAYS, VISITS_TO_LEARN } from './retention/rebooking'
 export type { RebookInterval, IntervalBasis } from './retention/rebooking'
 // Money a client has ON ACCOUNT with the business — a ledger, spendable at checkout, never expiring.
 export { createAccountBalanceStore, balanceFrom, describeBalance, ACCOUNT_BALANCE_METHOD } from './clients/accountBalance'
