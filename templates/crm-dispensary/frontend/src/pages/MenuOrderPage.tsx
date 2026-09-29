@@ -11,7 +11,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ShoppingCart, Plus, Minus, Check, Loader2, Store, Truck } from 'lucide-react';
 
-type CartLine = { productId: string; name: string; price: number; quantity: number };
+type CartLine = { productId: string; name: string; price: number; quantity: number; isCannabis?: boolean };
 
 const money = (n: number) => `$${Number(n || 0).toFixed(2)}`;
 
@@ -28,6 +28,10 @@ export default function MenuOrderPage() {
     customerName: '',
     customerPhone: '',
     customerEmail: '',
+    // Ordering cannabis is age-restricted wherever it happens. This menu took a name and a phone
+    // number and nothing else, so anyone could place an order and the age was only looked at when
+    // they turned up at the counter. (T46 N5)
+    dateOfBirth: '',
     orderType: 'pickup',
     deliveryAddress: '',
     notes: '',
@@ -58,7 +62,7 @@ export default function MenuOrderPage() {
     setCart(prev => {
       const found = prev.find(l => l.productId === product.id);
       if (found) return prev.map(l => (l.productId === product.id ? { ...l, quantity: l.quantity + 1 } : l));
-      return [...prev, { productId: product.id, name: product.name, price: Number(product.price || 0), quantity: 1 }];
+      return [...prev, { productId: product.id, name: product.name, price: Number(product.price || 0), quantity: 1, isCannabis: product.isCannabis === true }];
     });
   };
 
@@ -70,11 +74,15 @@ export default function MenuOrderPage() {
 
   const subtotal = useMemo(() => cart.reduce((s, l) => s + l.price * l.quantity, 0), [cart]);
   const itemCount = useMemo(() => cart.reduce((s, l) => s + l.quantity, 0), [cart]);
+  // A basket with regulated product in it is an age-restricted order. A t-shirt is not, and is
+  // deliberately left alone. (T46 N5)
+  const cartHasCannabis = useMemo(() => cart.some(l => l.isCannabis), [cart]);
 
   const placeOrder = async () => {
     setError('');
     if (!form.customerName.trim()) { setError('Tell us your name'); return; }
     if (!form.customerPhone.trim()) { setError('We need a phone number to reach you'); return; }
+    if (cartHasCannabis && !form.dateOfBirth) { setError('Enter your date of birth — this shop has to check it before it can take the order'); return; }
     if (form.orderType === 'delivery' && !form.deliveryAddress.trim()) { setError('Delivery needs an address'); return; }
     setPlacing(true);
     try {
@@ -86,6 +94,7 @@ export default function MenuOrderPage() {
           customerName: form.customerName,
           customerPhone: form.customerPhone,
           customerEmail: form.customerEmail || undefined,
+          dateOfBirth: form.dateOfBirth || undefined,
           orderType: form.orderType,
           deliveryAddress: form.orderType === 'delivery' ? form.deliveryAddress : undefined,
           notes: form.notes || undefined,
@@ -257,6 +266,18 @@ export default function MenuOrderPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-green-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
+              {cartHasCannabis && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date of birth *</label>
+                  <input
+                    type="date" value={form.dateOfBirth} onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-green-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  />
+                  <p className="mt-1 text-xs text-gray-600 dark:text-slate-400">
+                    Required to order cannabis. Bring photo ID to collect — it is checked again at the counter.
+                  </p>
+                </div>
+              )}
               {form.orderType === 'delivery' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Delivery address *</label>

@@ -9,6 +9,7 @@ import audit from '../services/audit.ts'
 import { getApprovalConfig, requireApproval, linkApprovalToOrder, ApprovalRequiredError } from '../services/approvals.ts'
 import { escapeHtml } from '../utils/sanitize.ts'
 import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, ageFromDob, minimumAgeFor, ADULT_USE_MIN_AGE, unitGramsOf, overPurchaseLimit, lineFlowerEquivalentGrams, uncountableCannabisLines, unweighedCannabisRefusal, gramsText } from '../utils/cannabis.ts'
+import { matchZoneForAddress, zoneTerms } from '../utils/delivery.ts'
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { loyaltyConfig, inBirthdayMonth } from '../utils/loyaltyConfig.ts'
 import { recomputeTier } from '../utils/loyaltyTier.ts'
@@ -659,21 +660,16 @@ app.post('/', requireRole('budtender'), async (c) => {
     } else {
       // Match on the ZIP in the address. A shop with no zones set up simply charges no fee, which
       // is the same thing it did before — the point is to stop SILENTLY ignoring a zone that exists.
-      const zipInAddress = (deliveryAddress.match(/\b[0-9]{5}(?:-[0-9]{4})?\b/g) || []).pop()
-      if (zipInAddress) {
-        const zip5 = zipInAddress.slice(0, 5)
-        zone = zones.find((z: any) => {
-          const list = Array.isArray(z.zip_codes) ? z.zip_codes : (typeof z.zip_codes === 'string' ? JSON.parse(z.zip_codes || '[]') : [])
-          return list.map((v: any) => String(v).trim().slice(0, 5)).includes(zip5)
-        }) || null
-      }
+      // The matching itself lives in utils/delivery.ts, shared with the public order-ahead menu,
+      // which had none of it at all. (T46 N3)
+      zone = matchZoneForAddress(zones as any[], deliveryAddress)
     }
 
     if (zone) {
       deliveryZoneId = zone.id
-      deliveryFee = Number(zone.delivery_fee || 0) || 0
-      // minimum_order is the newer column; min_order is what older rows carry.
-      const minimum = Number(zone.minimum_order ?? zone.min_order ?? 0) || 0
+      const terms = zoneTerms(zone)
+      deliveryFee = terms.fee
+      const minimum = terms.minimum
       if (minimum > 0 && subtotal < minimum) {
         return c.json({
           error: `${zone.name} has a $${minimum.toFixed(2)} minimum for delivery — this order is $${subtotal.toFixed(2)}`,

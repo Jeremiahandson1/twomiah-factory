@@ -85,7 +85,7 @@ check('H24: an unknown slug is a 404, not this shop\'s menu', unknownSlug.status
 // ── Placing an order ────────────────────────────────────────────────────────────────────────────
 const order = await pub('POST', '/api/public/menu/order', {
   items: [{ productId: flower.id, quantity: 2 }, { productId: tee.id, quantity: 1 }],
-  customerName: 'Ada Customer', customerPhone: '555-0100', customerEmail: 'ada@test.local',
+  customerName: 'Ada Customer', customerPhone: '555-0100', customerEmail: 'ada@test.local', dateOfBirth: '1985-04-02',
   orderType: 'pickup', notes: 'ready after 5',
 })
 check('H24: a customer can place an order with no slug and no login', order.status === 201, { status: order.status, body: order.json })
@@ -103,19 +103,19 @@ check('H24: ...as a pickup, with the customer\'s name on it', storedRows[0]?.typ
 // The same refusals the register makes.
 const overLimit = await pub('POST', '/api/public/menu/order', {
   items: [{ productId: flower.id, quantity: 50 }],
-  customerName: 'Greedy', customerPhone: '555-0199', orderType: 'pickup',
+  customerName: 'Greedy', customerPhone: '555-0199', dateOfBirth: '1985-04-02', orderType: 'pickup',
 })
 check('H24: an order over the purchase limit is refused, just as at the counter', overLimit.status === 400, { status: overLimit.status, body: overLimit.json })
 
 const noAddress = await pub('POST', '/api/public/menu/order', {
   items: [{ productId: tee.id, quantity: 1 }],
-  customerName: 'Ada Customer', customerPhone: '555-0100', orderType: 'delivery',
+  customerName: 'Ada Customer', customerPhone: '555-0100', dateOfBirth: '1985-04-02', orderType: 'delivery',
 })
 check('H24: delivery with no address is refused', noAddress.status === 400, { status: noAddress.status, body: noAddress.json })
 
 const invisible = await pub('POST', '/api/public/menu/order', {
   items: [{ productId: hidden.id, quantity: 1 }],
-  customerName: 'Ada Customer', customerPhone: '555-0100', orderType: 'pickup',
+  customerName: 'Ada Customer', customerPhone: '555-0100', dateOfBirth: '1985-04-02', orderType: 'pickup',
 })
 check('H24: a product that is not on the menu cannot be ordered off it', invisible.status === 400, { status: invisible.status, body: invisible.json })
 
@@ -123,7 +123,7 @@ check('H24: a product that is not on the menu cannot be ordered off it', invisib
 await db.execute(sql`UPDATE company SET enabled_features = ${JSON.stringify(['products', 'orders', 'public_menu'])}::jsonb WHERE id = ${co.id}`)
 const switchedOff = await pub('POST', '/api/public/menu/order', {
   items: [{ productId: tee.id, quantity: 1 }],
-  customerName: 'Ada Customer', customerPhone: '555-0100', orderType: 'pickup',
+  customerName: 'Ada Customer', customerPhone: '555-0100', dateOfBirth: '1985-04-02', orderType: 'pickup',
 })
 check('H24: with Order Ahead switched off, the public page cannot take an order', switchedOff.status === 403, { status: switchedOff.status, body: switchedOff.json })
 check('H24: ...and says why', switchedOff.json?.feature === 'order_ahead', switchedOff.json)

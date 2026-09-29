@@ -3,7 +3,8 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { product, company, order, orderItem, contact } from '../../db/schema.ts'
 import { eq, and, asc, sql } from 'drizzle-orm'
-import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, gramsText, cartCannabisGrams, overPurchaseLimit, uncountableCannabisLines, unweighedCannabisRefusal } from '../utils/cannabis.ts'
+import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, gramsText, cartCannabisGrams, overPurchaseLimit, uncountableCannabisLines, unweighedCannabisRefusal, ageFromDob, minimumAgeFor } from '../utils/cannabis.ts'
+import { matchZoneForAddress, zoneTerms } from '../utils/delivery.ts'
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
 
 // Cannabis purchase limit: the company's configured/state limit (utils/cannabis.ts) — was a hardcoded 2.5 oz.
@@ -106,6 +107,10 @@ app.get('/', async (c) => {
       images: (prod as any).images,
       inStock: (prod as any).trackInventory ? Number(prod.stockQuantity) > 0 : true,
       tags: (prod as any).tags,
+      // Whether this is regulated product, answered by the same helper the register uses rather
+      // than by the menu guessing from a category name. The checkout asks for a date of birth on
+      // the strength of it. (T46 N5)
+      isCannabis: isCannabisLine(prod as any),
     })
   }
 
@@ -224,6 +229,11 @@ app.post('/order', async (c) => {
     customerName: z.string().min(1),
     customerPhone: z.string().min(1),
     customerEmail: z.string().email().optional(),
+    // T46 N5: public checkout asked for a name, a phone, an email and notes, and nothing else.
+    // Anyone at all could place an order for cannabis and the age was only looked at when they
+    // turned up. A shop's own menu is advertising and ordering in one, and both are age-restricted
+    // — the counter check is the second gate, not the only one.
+    dateOfBirth: z.string().optional(),
     orderType: z.enum(['pickup', 'delivery']),
     pickupTime: z.string().optional(),
     deliveryAddress: z.string().optional(),
@@ -316,6 +326,81 @@ app.post('/order', async (c) => {
   const menuOver = overPurchaseLimit(totalWeightGrams, limitOz)
   if (menuOver) return c.json(menuOver, 400)
 
+  // ── Age ─────────────────────────────────────────────────────────────────────────────────────
+  //
+  // T46 N5. A basket with cannabis in it is an age-restricted purchase wherever it is rung up, and
+  // this one could be placed by anyone with a phone number. The same two helpers the register uses
+  // answer it, so the menu and the counter agree on who is old enough — and the date is kept on the
+  // customer record, so the counter check has something to check against rather than starting cold.
+  //
+  // A merchandise-only basket is not age-restricted and is deliberately left alone: a t-shirt does
+  // not need a date of birth.
+  const menuHasCannabis = resolvedItems.some((i: any) => i.taxCategory === 'cannabis')
+  let orderDob: string | null = null
+  if (menuHasCannabis) {
+    const dob = (data.dateOfBirth || '').trim()
+    if (!dob) {
+      return c.json({
+        error: 'Enter your date of birth to order cannabis — this shop has to check it before it can take the order.',
+        code: 'dob_required',
+      }, 400)
+    }
+    const age = ageFromDob(dob)
+    if (age == null) {
+      return c.json({ error: 'That date of birth is not a real date.', code: 'dob_invalid' }, 400)
+    }
+    // No medical card is claimable from a public form — an unverifiable card is not a card, which
+    // is the rule the register settled on (T43 N1). So the adult-use age is the one that applies.
+    const minAge = minimumAgeFor({ isMedical: false, medicalCardNumber: null })
+    if (age < minAge) {
+      return c.json({
+        error: `You have to be ${minAge} or over to order cannabis.`,
+        code: 'under_age',
+        minimumAge: minAge,
+      }, 403)
+    }
+    orderDob = dob
+  }
+
+  // ── Delivery: the fee, and whether this shop delivers there at all ──────────────────────────
+  //
+  // T46 N3. The register has charged the zone's fee and enforced its minimum since T45 H7; this
+  // path charged neither. An in-zone delivery came to $70 + tax with no $5 fee, and a Chicago
+  // address was taken by an Ohio shop at the same total. The matching is the register's own, out of
+  // utils/delivery.ts, so the two cannot drift again.
+  //
+  // Where the register is lenient this is not: a budtender taking a delivery by phone can use their
+  // judgement about an address just outside a zone, and a web form has nobody to use any. A shop
+  // with no zones set up still delivers anywhere, because it has not said otherwise.
+  let menuDeliveryFee = 0
+  let menuZoneId: string | null = null
+  if (data.orderType === 'delivery') {
+    const zoneRows: any = await db.execute(sql`
+      SELECT * FROM delivery_zones WHERE company_id = ${foundCompany.id} AND COALESCE(active, true) = true
+    `)
+    const zones = ((zoneRows as any).rows || zoneRows) as any[]
+    if (zones.length) {
+      const zone = matchZoneForAddress(zones, data.deliveryAddress || '')
+      if (!zone) {
+        return c.json({
+          error: 'This shop does not deliver to that address. Choose collection instead, or call the shop.',
+          code: 'outside_delivery_area',
+        }, 400)
+      }
+      menuZoneId = zone.id
+      const terms = zoneTerms(zone)
+      menuDeliveryFee = terms.fee
+      if (terms.minimum > 0 && subtotal < terms.minimum) {
+        return c.json({
+          error: `${zone.name || 'That area'} has a $${terms.minimum.toFixed(2)} minimum for delivery — this order is $${subtotal.toFixed(2)}.`,
+          code: 'below_delivery_minimum',
+          minimum: terms.minimum,
+          subtotal: Number(subtotal.toFixed(2)),
+        }, 400)
+      }
+    }
+  }
+
   // Calculate taxes
   const cannabisSubtotal = resolvedItems
     .filter(i => i.taxCategory === 'cannabis')
@@ -328,7 +413,9 @@ app.post('/order', async (c) => {
   const exciseTax = cannabisSubtotal * (Number.isFinite(exciseRate) ? exciseRate : CANNABIS_TAX_RATE)
   const salesTax = subtotal * (Number.isFinite(salesRate) ? salesRate : SALES_TAX_RATE)
   const totalTax = exciseTax + salesTax
-  const grandTotal = subtotal + totalTax
+  // The fee sits on top of the taxed total — a service charge, not merchandise, and outside the tax
+  // base, which is exactly where the register puts it. (T46 N3)
+  const grandTotal = subtotal + totalTax + menuDeliveryFee
 
   // Find or create contact by phone
   let contactId: string | null = null
@@ -339,11 +426,20 @@ app.post('/order', async (c) => {
 
   if (existingContact) {
     contactId = existingContact.id
+    // A returning customer who has now given their date of birth gets it recorded, so the counter
+    // check has something to check against. An existing date is never overwritten from a web form.
+    if (orderDob) {
+      await db.execute(sql`
+        UPDATE contact SET date_of_birth = ${orderDob}, updated_at = NOW()
+        WHERE id = ${contactId} AND company_id = ${foundCompany.id} AND date_of_birth IS NULL
+      `)
+    }
   } else {
     const [newContact] = await db.insert(contact).values({
       name: data.customerName,
       phone: data.customerPhone,
       email: data.customerEmail || null,
+      dateOfBirth: orderDob,
       type: 'customer',
       source: 'online_order',
       companyId: foundCompany.id,
@@ -351,22 +447,38 @@ app.post('/order', async (c) => {
     contactId = newContact.id
   }
 
-  // Generate order number
-  const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}`
-
   // Create order in transaction
   const result = await db.transaction(async (tx) => {
+    // ONE identifier for one order, from the sequence the Orders list shows. This path stamped a
+    // base-36 timestamp — ORD-MUM6CITF — so an order-ahead sale answered to a different kind of
+    // name from every sale rung up at the counter, and sorted nowhere near them. The register and
+    // the kiosk were brought onto one sequence by T21 L4 and the public menu never was. (T46 N21)
+    const [{ maxNum }] = await tx
+      .select({ maxNum: sql<number>`COALESCE(MAX(${order.orderNumber}), 1000)` })
+      .from(order)
+      .where(eq(order.companyId, foundCompany.id))
+    const nextOrderNumber = Number(maxNum) + 1
+    const orderNumber = `ORD-${nextOrderNumber}`
+
     const [newOrder] = await tx.insert(order).values({
       number: orderNumber,
+      orderNumber: nextOrderNumber,
       type: data.orderType === 'pickup' ? 'pickup' : 'delivery',
+      // Where the order came from. Without it the Orders list's "Online" filter found nothing
+      // and the analytics online count read 0 while seven order-ahead orders sat in the list.
+      // (T46 N21)
+      source: 'online',
       status: 'pending',
       contactId,
       customerName: data.customerName,
+      customerDob: orderDob,
       subtotal: String(subtotal),
       exciseTax: String(exciseTax),
       salesTax: String(salesTax),
       totalTax: String(totalTax),
       total: String(grandTotal),
+      deliveryFee: String(menuDeliveryFee),
+      deliveryZoneId: menuZoneId,
       totalWeightGrams: gramsText(totalWeightGrams),
       notes: data.notes,
       pickupTime: data.pickupTime ? new Date(data.pickupTime) : null,
@@ -388,11 +500,14 @@ app.post('/order', async (c) => {
   })
 
   return c.json({
-    orderNumber,
+    orderNumber: result.number,
     subtotal: subtotal.toFixed(2),
     exciseTax: exciseTax.toFixed(2),
     salesTax: salesTax.toFixed(2),
     totalTax: totalTax.toFixed(2),
+    // Shown on the confirmation, because a fee the customer only discovers on the total is a
+    // complaint waiting to happen. (T46 N3)
+    deliveryFee: menuDeliveryFee.toFixed(2),
     total: grandTotal.toFixed(2),
     status: 'pending',
     type: data.orderType,
