@@ -5,6 +5,8 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole, requireOwnership } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { storeTimeZone, storeDateString } from '../utils/isoTime.ts'
+import { zodRefusal } from '../utils/errors.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -104,7 +106,7 @@ app.post('/shifts', requireRole('manager'), async (c) => {
   try {
     parsed = items.map(item => shiftSchema.parse(item))
   } catch (err) {
-    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    if (err instanceof z.ZodError) return c.json(zodRefusal(err), 400)
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
 
@@ -264,6 +266,17 @@ app.post('/shifts/:id/clock-in', requireRole('budtender'), requireOwnership(shif
   if (!existing) return c.json({ error: 'Shift not found' }, 404)
   if (existing.status !== 'scheduled') return c.json({ error: `Cannot clock in: shift status is ${existing.status}` }, 400)
 
+  // Nobody works a shift before it happens. T46 N24 (low): an owner clocked in to a shift dated
+  // twelve days ahead, which is hours on a payroll run for work nobody has done.
+  const [schedCo] = ((await db.execute(sql`SELECT state, settings FROM company WHERE id = ${currentUser.companyId} LIMIT 1`)) as any).rows || []
+  const storeToday = storeDateString(new Date(), storeTimeZone(schedCo))
+  if (existing.date && String(existing.date).slice(0, 10) > storeToday) {
+    return c.json({
+      error: `That shift is on ${String(existing.date).slice(0, 10)} — you cannot clock in to it yet.`,
+      code: 'shift_not_today',
+    }, 400)
+  }
+
   const result = await db.execute(sql`
     UPDATE shifts SET
       clock_in_at = NOW(),
@@ -273,6 +286,16 @@ app.post('/shifts/:id/clock-in', requireRole('budtender'), requireOwnership(shif
     RETURNING *
   `)
   const updated = ((result as any).rows || result)?.[0]
+
+  // …and the time entry that goes with it.
+  //
+  // T46 N24: clocking in wrote to `shifts` and nothing else, while the Time Tracking tab reads
+  // `time_entries` — so the tab stayed empty after a clock-in and a clock-out, and a manager had
+  // nothing to approve. Two tables recording the same event, and only one of them was written.
+  await db.execute(sql`
+    INSERT INTO time_entries (id, company_id, user_id, shift_id, clock_in, created_at)
+    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${existing.user_id}, ${id}, NOW(), NOW())
+  `)
 
   audit.log({
     action: audit.ACTIONS.STATUS_CHANGE,
@@ -316,6 +339,17 @@ app.post('/shifts/:id/clock-out', requireRole('budtender'), requireOwnership(shi
     RETURNING *
   `)
   const updated = ((result as any).rows || result)?.[0]
+
+  // Close the time entry the clock-in opened, so the Time Tracking tab shows a finished shift with
+  // hours on it and a manager has something to approve. (T46 N24)
+  await db.execute(sql`
+    UPDATE time_entries SET
+      clock_out = NOW(),
+      total_minutes = ${Math.max(0, Math.round(totalMinutes))},
+      break_minutes = ${Number(existing.break_minutes) || 0},
+      overtime_minutes = ${Math.max(0, Math.round(overtimeHours * 60))}
+    WHERE shift_id = ${id} AND company_id = ${currentUser.companyId} AND clock_out IS NULL
+  `)
 
   audit.log({
     action: audit.ACTIONS.STATUS_CHANGE,
@@ -692,6 +726,14 @@ app.get('/payroll-export', requireRole('manager'), async (c) => {
 
   if (!startDate || !endDate) return c.json({ error: 'startDate and endDate are required' }, 400)
 
+  // The RATE comes from the team member record, not from the login.
+  //
+  // T46 N24: every hourly rate on the export read $0.00 and every gross pay with it. `user`
+  // carries an hourly_rate column that nothing in this product ever sets; the rate a shop actually
+  // types is on Team → Hourly Rate, which is a team_members row. Two tables for one fact, and the
+  // export read the empty one. Matched on the member's user link first and then on email, which is
+  // how the Team screen itself pairs the two lists.
+  //
   // shifts.actual_hours and shifts.overtime_hours are TEXT columns, so every SUM() here was
   // SUM(text) — "function sum(text) does not exist" — and the payroll export answered 500 every
   // time it was asked for. Cast once, in a CTE, and the rest reads as arithmetic. The old
@@ -716,14 +758,17 @@ app.get('/payroll-export', requireRole('manager'), async (c) => {
       ROUND(SUM(w.hours), 2) as total_hours,
       ROUND(SUM(LEAST(w.hours, 8)), 2) as regular_hours,
       ROUND(SUM(w.overtime), 2) as overtime_hours,
-      ROUND(COALESCE(u.hourly_rate, 0), 2) as hourly_rate,
+      ROUND(COALESCE(u.hourly_rate, tm.hourly_rate, 0), 2) as hourly_rate,
       ROUND(
-        SUM(LEAST(w.hours, 8)) * COALESCE(u.hourly_rate, 0)
-        + SUM(w.overtime) * COALESCE(u.hourly_rate, 0) * 1.5,
+        SUM(LEAST(w.hours, 8)) * COALESCE(u.hourly_rate, tm.hourly_rate, 0)
+        + SUM(w.overtime) * COALESCE(u.hourly_rate, tm.hourly_rate, 0) * 1.5,
       2) as gross_pay
     FROM worked w
     LEFT JOIN "user" u ON u.id = w.user_id
-    GROUP BY w.user_id, u.first_name, u.last_name, u.email, u.hourly_rate
+    LEFT JOIN team_members tm
+      ON tm.company_id = ${currentUser.companyId}
+     AND (tm.user_id = w.user_id OR LOWER(tm.email) = LOWER(u.email))
+    GROUP BY w.user_id, u.first_name, u.last_name, u.email, u.hourly_rate, tm.hourly_rate
     ORDER BY u.first_name ASC
   `)
 
@@ -733,9 +778,32 @@ app.get('/payroll-export', requireRole('manager'), async (c) => {
     action: audit.ACTIONS.EXPORT,
     entity: 'payroll',
     entityName: `Payroll ${startDate} to ${endDate}`,
-    metadata: { startDate, endDate, employeeCount: data.length },
+    metadata: { startDate, endDate, employeeCount: data.length, format: c.req.query('format') || 'json' },
     req: c,
   })
+
+  // T46 N24: the screen has always asked for `format=csv` and this endpoint has always ignored it,
+  // so the file that landed in the bookkeeper's downloads was a JSON object with a .csv extension.
+  // Excel opens it as one long unreadable column.
+  if ((c.req.query('format') || '').toLowerCase() === 'csv') {
+    const headers = ['Employee', 'Email', 'Total hours', 'Regular hours', 'Overtime hours', 'Hourly rate', 'Gross pay']
+    // A name with a comma in it is one field, not two, and a quote inside it is doubled — the two
+    // things every hand-rolled CSV gets wrong.
+    const cell = (v: any) => {
+      const s = v === null || v === undefined ? '' : String(v)
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+    }
+    const lines = [headers.join(',')]
+    for (const r of data as any[]) {
+      lines.push([r.name, r.email, r.total_hours, r.regular_hours, r.overtime_hours, r.hourly_rate, r.gross_pay].map(cell).join(','))
+    }
+    return new Response(lines.join('\r\n') + '\r\n', {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="payroll_${startDate}_${endDate}.csv"`,
+      },
+    })
+  }
 
   return c.json({ data, period: { startDate, endDate } })
 })

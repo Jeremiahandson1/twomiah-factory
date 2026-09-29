@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { recomputeTier } from '../utils/loyaltyTier.ts'
+import { zodRefusal } from '../utils/errors.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -514,7 +515,7 @@ app.post('/multiplier-events', requireRole('manager'), async (c) => {
   try {
     data = eventSchema.parse(await c.req.json())
   } catch (err) {
-    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    if (err instanceof z.ZodError) return c.json(zodRefusal(err), 400)
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
 

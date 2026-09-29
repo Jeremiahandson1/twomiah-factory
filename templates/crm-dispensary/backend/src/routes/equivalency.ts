@@ -25,6 +25,7 @@ const camel = (row: any): any => {
 // Standard factors by state live in services/equivalency.ts, so the page that SEEDS them and the till
 // that ENFORCES them cannot describe the same state differently. (T20 H5)
 import { DEFAULT_RULES } from '../services/equivalency.ts'
+import { zodRefusal } from '../utils/errors.ts'
 
 // Purchase limit in oz (most states: 2.5 oz recreational)
 const PURCHASE_LIMIT_OZ = 2.5
@@ -80,7 +81,7 @@ app.post('/rules', requireRole('admin'), async (c) => {
   try {
     data = ruleSchema.parse(await c.req.json())
   } catch (err) {
-    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    if (err instanceof z.ZodError) return c.json(zodRefusal(err), 400)
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
   const factor = data.equivalencyFactor ?? data.equivalencyGrams ?? 0

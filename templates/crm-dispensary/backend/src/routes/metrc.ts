@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import metrcService from '../services/metrc.ts'
 import audit from '../services/audit.ts'
+import { zodRefusal } from '../utils/errors.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -58,7 +59,7 @@ app.put('/config', async (c) => {
     data = configSchema.parse(await c.req.json())
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return c.json({ error: 'Invalid request', details: err.errors }, 400)
+      return c.json(zodRefusal(err), 400)
     }
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
@@ -349,7 +350,7 @@ app.post('/packages/:id/link', async (c) => {
     data = linkSchema.parse(await c.req.json())
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return c.json({ error: 'Invalid request', details: err.errors }, 400)
+      return c.json(zodRefusal(err), 400)
     }
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
@@ -433,7 +434,7 @@ app.post('/sales/report', async (c) => {
     data = reportSaleSchema.parse(await c.req.json())
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return c.json({ error: 'Invalid request', details: err.errors }, 400)
+      return c.json(zodRefusal(err), 400)
     }
     return c.json({ error: 'Invalid JSON body' }, 400)
   }

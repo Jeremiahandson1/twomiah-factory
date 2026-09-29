@@ -10,6 +10,7 @@ import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { traceabilityStatus } from '../utils/stateTraceability.ts'
 import { unitGramsOf, GRAMS_PER_OZ } from '../utils/cannabis.ts'
+import { zodRefusal } from '../utils/errors.ts'
 
 const app = new Hono()
 // Manager and up, like the analytics and audit families beside it. Compliance reports are the
@@ -258,7 +259,7 @@ app.post('/licenses', requireRole('manager'), async (c) => {
   try {
     data = licenseSchema.parse(await c.req.json())
   } catch (err) {
-    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    if (err instanceof z.ZodError) return c.json(zodRefusal(err), 400)
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
 
@@ -325,7 +326,7 @@ app.put('/licenses/:id', requireRole('manager'), async (c) => {
   try {
     data = licenseSchema.partial().parse(await c.req.json())
   } catch (err) {
-    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    if (err instanceof z.ZodError) return c.json(zodRefusal(err), 400)
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
 
@@ -1052,7 +1053,7 @@ app.post('/waste', requireRole('manager'), async (c) => {
   try {
     data = wasteSchema.parse(await c.req.json())
   } catch (err) {
-    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    if (err instanceof z.ZodError) return c.json(zodRefusal(err), 400)
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
 

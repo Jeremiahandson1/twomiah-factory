@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { zodRefusal } from '../utils/errors.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -119,7 +120,7 @@ app.post('/customers', requireRole('manager'), async (c) => {
   try {
     data = customerSchema.parse(await c.req.json())
   } catch (err) {
-    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    if (err instanceof z.ZodError) return c.json(zodRefusal(err), 400)
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
 
@@ -170,7 +171,7 @@ app.put('/customers/:id', requireRole('manager'), async (c) => {
   try {
     data = customerSchema.parse(await c.req.json())
   } catch (err) {
-    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    if (err instanceof z.ZodError) return c.json(zodRefusal(err), 400)
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
 
@@ -807,7 +808,7 @@ app.post('/lab-tests', requireRole('manager'), async (c) => {
   try {
     data = testSchema.parse(await c.req.json())
   } catch (err) {
-    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    if (err instanceof z.ZodError) return c.json(zodRefusal(err), 400)
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
 
@@ -880,7 +881,7 @@ app.put('/lab-tests/:id', requireRole('manager'), async (c) => {
   try {
     data = testSchema.parse(await c.req.json())
   } catch (err) {
-    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    if (err instanceof z.ZodError) return c.json(zodRefusal(err), 400)
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
 
@@ -944,7 +945,7 @@ app.put('/lab-tests/:id/results', requireRole('manager'), async (c) => {
   try {
     data = resultsSchema.parse(await c.req.json())
   } catch (err) {
-    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    if (err instanceof z.ZodError) return c.json(zodRefusal(err), 400)
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
 

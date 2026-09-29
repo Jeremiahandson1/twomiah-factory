@@ -36,9 +36,14 @@ const manager = await mkUser('manager', 'manager')
 const alice = await mkUser('user', 'alice')     // budtender
 const bob = await mkUser('user', 'bob')         // budtender, the colleague
 
+// TODAY on the shop's clock, not a date picked out of the air: you cannot clock in to a shift that
+// has not happened yet, and an owner doing exactly that was T46 N24's last item. This shop is in
+// Ohio, so its day is the one that matters — the server's UTC day is a different day for five
+// hours every night.
+const shiftDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date())
 const mkShift = async (owner: any) => (await db.insert(shift).values({
   companyId: co.id, userId: owner.id, role: 'budtender',
-  date: '2026-11-02', startTime: '09:00', endTime: '17:00', status: 'scheduled',
+  date: shiftDay, startTime: '09:00', endTime: '17:00', status: 'scheduled',
 } as any).returning())[0]
 
 const app = new Hono()

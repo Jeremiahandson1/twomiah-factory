@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { zodRefusal } from '../utils/errors.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -124,7 +125,7 @@ app.post('/scan', requireRole('budtender'), async (c) => {
     raw = scanSchema.parse(await c.req.json())
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return c.json({ error: 'Invalid request', details: err.errors }, 400)
+      return c.json(zodRefusal(err), 400)
     }
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
@@ -273,7 +274,7 @@ app.post('/scan/verify', requireRole('budtender'), async (c) => {
     data = verifySchema.parse(await c.req.json())
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return c.json({ error: 'Invalid request', details: err.errors }, 400)
+      return c.json(zodRefusal(err), 400)
     }
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
@@ -461,7 +462,7 @@ app.post('/flag', requireRole('manager'), async (c) => {
     data = flagSchema.parse(await c.req.json())
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return c.json({ error: 'Invalid request', details: err.errors }, 400)
+      return c.json(zodRefusal(err), 400)
     }
     return c.json({ error: 'Invalid JSON body' }, 400)
   }

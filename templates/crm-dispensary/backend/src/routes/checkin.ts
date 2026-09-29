@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { zodRefusal } from '../utils/errors.ts'
 
 const app = new Hono()
 
@@ -23,7 +24,7 @@ app.post('/qr-checkin', async (c) => {
     data = qrSchema.parse(await c.req.json())
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return c.json({ error: 'Invalid request', details: err.errors }, 400)
+      return c.json(zodRefusal(err), 400)
     }
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
@@ -123,7 +124,7 @@ app.post('/', requireRole('budtender'), async (c) => {
     data = checkinSchema.parse(await c.req.json())
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return c.json({ error: 'Invalid request', details: err.errors }, 400)
+      return c.json(zodRefusal(err), 400)
     }
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
@@ -217,7 +218,7 @@ app.post('/queue', requireRole('budtender'), async (c) => {
   try {
     data = queueSchema.parse(await c.req.json())
   } catch (err) {
-    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    if (err instanceof z.ZodError) return c.json(zodRefusal(err), 400)
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
 
@@ -270,7 +271,7 @@ app.put('/queue/:id/status', requireRole('budtender'), async (c) => {
   try {
     data = statusSchema.parse(await c.req.json())
   } catch (err) {
-    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    if (err instanceof z.ZodError) return c.json(zodRefusal(err), 400)
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
 
@@ -313,7 +314,7 @@ app.put('/:id/call', requireRole('budtender'), async (c) => {
     data = callSchema.parse(await c.req.json())
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return c.json({ error: 'Invalid request', details: err.errors }, 400)
+      return c.json(zodRefusal(err), 400)
     }
     return c.json({ error: 'Invalid JSON body' }, 400)
   }

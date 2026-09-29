@@ -212,7 +212,11 @@ export default function SchedulingPage() {
     if (!exportStart || !exportEnd) { toast.error('Select date range'); return; }
     setExporting(true);
     try {
-      const data = await api.get('/api/scheduling/payroll-export', { startDate: exportStart, endDate: exportEnd, format: 'csv' });
+      // getText, not get: handleResponse() always calls .json(), so a CSV routed through get()
+      // hands back null and the file saves the word "null". (T45 H4 added getText for exactly this;
+      // this screen never adopted it, which is why the download was JSON in a .csv. T46 N24)
+      const qs = new URLSearchParams({ startDate: exportStart, endDate: exportEnd, format: 'csv' }).toString();
+      const data = await api.getText(`/api/scheduling/payroll-export?${qs}`);
       const blob = new Blob([data], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');

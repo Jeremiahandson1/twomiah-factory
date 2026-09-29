@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { send } from '../services/email.ts'
+import { zodRefusal } from '../utils/errors.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -161,7 +162,7 @@ app.post('/', requireRole('manager'), async (c) => {
     data = createPOSchema.parse(await c.req.json())
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return c.json({ error: 'Invalid request', details: err.errors }, 400)
+      return c.json(zodRefusal(err), 400)
     }
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
@@ -351,7 +352,7 @@ app.put('/:id', requireRole('manager'), async (c) => {
     data = updatePOSchema.parse(await c.req.json())
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return c.json({ error: 'Invalid request', details: err.errors }, 400)
+      return c.json(zodRefusal(err), 400)
     }
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
@@ -492,7 +493,7 @@ app.put('/:id/receive', requireRole('manager'), async (c) => {
     data = receiveSchema.parse(await c.req.json())
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return c.json({ error: 'Invalid request', details: err.errors }, 400)
+      return c.json(zodRefusal(err), 400)
     }
     return c.json({ error: 'Invalid JSON body' }, 400)
   }

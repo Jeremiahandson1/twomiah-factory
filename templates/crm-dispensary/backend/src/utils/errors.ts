@@ -1,6 +1,32 @@
 import { Context } from 'hono'
 import logger from '../services/logger.ts'
 
+/**
+ * A refusal a person can act on, from a Zod failure.
+ *
+ * T46 N27: most of this product names the field now, because an uncaught ZodError falls through to
+ * errorHandler below, which does. The routes that catch their OWN parse failure answered
+ * `{ error: 'Invalid request', details: [...] }` instead — a sentence that says nothing beside a
+ * validator dump that means nothing to the person filling the form in. Six screens still did it:
+ * order-ahead checkout, the wholesale buyer, a negative multiplier, a reward type, a negative
+ * referral value and a licence with no type.
+ *
+ * The shape matches what errorHandler produces for the uncaught case, so a screen gets the same
+ * answer whichever way the failure travelled. `details` is kept for anything already reading it.
+ */
+export function zodRefusal(err: any): { error: string; field: string | null; details?: any } {
+  const issues = Array.isArray(err?.issues) ? err.issues : (Array.isArray(err?.errors) ? err.errors : [])
+  const first = issues[0] || {}
+  const path = Array.isArray(first.path) ? first.path.filter((p: any) => typeof p === 'string' || typeof p === 'number') : []
+  const field = path.length ? path.join('.') : null
+  const message = first.message || 'Invalid input'
+  return {
+    error: field ? `${field}: ${message}` : message,
+    field,
+    details: issues,
+  }
+}
+
 export const errorHandler = (err: Error, c: Context) => {
   // Zod validation failures must be 400, not 500. Routes call schema.parse(),
   // which throws a ZodError with no .status — it fell through to a generic 500

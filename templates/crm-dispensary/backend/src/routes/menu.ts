@@ -6,6 +6,7 @@ import { eq, and, asc, sql } from 'drizzle-orm'
 import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, gramsText, cartCannabisGrams, overPurchaseLimit, uncountableCannabisLines, unweighedCannabisRefusal, ageFromDob, minimumAgeFor } from '../utils/cannabis.ts'
 import { matchZoneForAddress, zoneTerms } from '../utils/delivery.ts'
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
+import { zodRefusal } from '../utils/errors.ts'
 
 // Cannabis purchase limit: the company's configured/state limit (utils/cannabis.ts) — was a hardcoded 2.5 oz.
 const CANNABIS_TAX_RATE = 0.15 // 15% cannabis excise tax
@@ -246,7 +247,7 @@ app.post('/order', async (c) => {
     data = orderSchema.parse(await c.req.json())
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return c.json({ error: 'Invalid request', details: err.errors }, 400)
+      return c.json(zodRefusal(err), 400)
     }
     return c.json({ error: 'Invalid JSON body' }, 400)
   }

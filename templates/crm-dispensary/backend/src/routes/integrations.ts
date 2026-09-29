@@ -10,6 +10,7 @@ import { clientKey } from '../middleware/rateLimit.ts'
 import Stripe from 'stripe'
 import audit from '../services/audit.ts'
 import { recomputeTier } from '../utils/loyaltyTier.ts'
+import { zodRefusal } from '../utils/errors.ts'
 
 const app = new Hono()
 
@@ -100,7 +101,7 @@ app.post('/sale', requireIntegrationKey, async (c) => {
     data = saleSchema.parse(await c.req.json())
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return c.json({ error: 'Invalid request', details: err.errors }, 400)
+      return c.json(zodRefusal(err), 400)
     }
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
@@ -292,7 +293,7 @@ app.post('/inventory-sync', requireIntegrationKey, async (c) => {
     data = inventorySyncSchema.parse(await c.req.json())
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return c.json({ error: 'Invalid request', details: err.errors }, 400)
+      return c.json(zodRefusal(err), 400)
     }
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
@@ -406,7 +407,7 @@ app.post('/customer', requireIntegrationKey, async (c) => {
     data = customerSchema.parse(await c.req.json())
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return c.json({ error: 'Invalid request', details: err.errors }, 400)
+      return c.json(zodRefusal(err), 400)
     }
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
