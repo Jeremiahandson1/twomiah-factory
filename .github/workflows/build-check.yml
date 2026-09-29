@@ -1397,6 +1397,17 @@ jobs:
       - name: "Cards and alerts follow the theme their text follows"
         run: bun run scripts/check-salon-dark-surfaces.ts
 
+  unpaired-dark-ink:
+    name: "unpaired dark ink"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Near-black ink answers for dark mode, or it is invisible"
+        run: bun run scripts/check-unpaired-dark-ink.ts
+
   dashboard-panels-load:
     name: "dashboard panels load"
     runs-on: ubuntu-latest

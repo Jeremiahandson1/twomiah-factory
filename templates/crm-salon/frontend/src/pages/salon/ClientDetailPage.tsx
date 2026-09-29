@@ -278,9 +278,15 @@ export default function ClientDetailPage() {
             <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Last Visit</p>
             <p className="text-sm font-medium text-gray-900 mt-1 dark:text-slate-100">{fmtDate(stats.lastVisit)}</p>
           </div>
-          <div className={`border rounded-lg p-3 ${isPast(stats.dueBackAt) ? 'bg-red-50 border-red-200' : ''}`}>
+          {/* RR0929 N3: every colour here was light-mode only. `text-gray-900` on the dark card
+              measured 1.01:1 — the date was invisible — and an overdue client got a light red
+              panel in the middle of a dark page. The tiles above it already carry their dark
+              partner; this one was written later and never got one, which is the same miss as the
+              Rebooking dates (F3) one screen along. A colour without its dark: partner is half a
+              colour. */}
+          <div className={`border rounded-lg p-3 ${isPast(stats.dueBackAt) ? 'bg-red-50 border-red-200 dark:bg-red-900/30 dark:border-red-800' : ''}`}>
             <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Due Back</p>
-            <p className={`text-sm font-medium mt-1 ${isPast(stats.dueBackAt) ? 'text-red-700' : 'text-gray-900'}`}>
+            <p className={`text-sm font-medium mt-1 ${isPast(stats.dueBackAt) ? 'text-red-700 dark:text-red-200' : 'text-gray-900 dark:text-slate-100'}`}>
               {fmtDate(stats.dueBackAt)}{isPast(stats.dueBackAt) ? ' (overdue)' : ''}
             </p>
           </div>

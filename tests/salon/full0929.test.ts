@@ -212,6 +212,40 @@ const bookAndComplete = async (client: any) => {
   // A genuinely new key that is not a rate or a day count is still free to be anything.
   const novel = await api('PUT', '/api/company', { settings: { frontDeskGreeting: 'Hello!' } })
   check('F5: an unknown key that claims nothing about itself is still accepted', novel.status === 200, { status: novel.status })
+
+  // ── RR0929 N2 · "rate" does not mean "percentage" ───────────────────────────────────────────
+  //
+  // I asked the tester to try to find a real setting this rule wrongly refuses, and they found
+  // four. Three are money per unit and one is a working week; all four were refused outright, so
+  // a salon could not set a chair rent. Refusing a real setting is worse than accepting a typo,
+  // because the typo does nothing and the refusal stops the shop working.
+  for (const [k, v] of [['hourlyRate', 150], ['laborRate', 125], ['chairRentalRate', 250], ['boothRate', 1200]] as const) {
+    const r = await api('PUT', '/api/company', { settings: { [k]: v } })
+    check(`N2: settings.${k} = ${v} saves — it is money, not a percentage`, r.status === 200, { status: r.status, body: r.json })
+  }
+  const week = await api('PUT', '/api/company', { settings: { workingDays: 'mon-fri' } })
+  check('N2: settings.workingDays = "mon-fri" saves — a working week is not a count of days', week.status === 200, { status: week.status, body: week.json })
+
+  const back = (await db.select({ settings: company.settings }).from(company).where(eq(company.id, co.id)))[0]?.settings as any
+  check('N2: …and they are all actually stored',
+    Number(back?.hourlyRate) === 150 && Number(back?.chairRentalRate) === 250 && back?.workingDays === 'mon-fri', back)
+
+  // The bound still applies where the name really does say percentage, which is what F5 was for.
+  for (const [k, v] of [['taxRate', 150], ['commissionRate', 150], ['discountRate', -1], ['tipRate', 'abc'], ['serviceChargePercent', 150]] as const) {
+    const r = await api('PUT', '/api/company', { settings: { [k]: v } })
+    check(`N2: settings.${k} = ${JSON.stringify(v)} is still refused as a percentage`, r.status === 400, { status: r.status, body: r.json })
+  }
+
+  // …and a money rate still has to be a number, and still cannot be negative.
+  const notANumber = await api('PUT', '/api/company', { settings: { hourlyRate: 'abc' } })
+  check('N2: a money rate that is not a number is refused', notANumber.status === 400, { status: notANumber.status, body: notANumber.json })
+  check('N2: …and told it is an amount, not a percentage', /amount/i.test(String(notANumber.json?.error)), notANumber.json?.error)
+  const negative = await api('PUT', '/api/company', { settings: { hourlyRate: -5 } })
+  check('N2: a negative money rate is refused', negative.status === 400, { status: negative.status, body: negative.json })
+
+  // A days key that IS a number is still bounded.
+  const silly = await api('PUT', '/api/company', { settings: { paymentTermsDays: 99999 } })
+  check('N2: a day count out of all sense is still refused', silly.status === 400, { status: silly.status, body: silly.json })
 }
 
 // ═════════════════════════════════════ F8 · "sent" means sent ═══════════════════════════════════

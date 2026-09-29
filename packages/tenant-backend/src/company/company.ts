@@ -148,17 +148,44 @@ export function createCompanyRoutes(deps: CompanyDeps) {
       // FOR THE NAME IT WAS GIVEN — anything called a rate or a percentage has to be a number
       // between 0 and 100, and anything counted in days a number of days. A typo is caught because
       // it is a typo OF something, and a genuinely new key is still free to be anything.
+      // ── and "rate" does not mean "percentage" ─────────────────────────────────────────────────
+      //
+      // RR0929 N2. The first version of this read every key ending in `rate` as a percentage and
+      // held it to 0–100. Four real settings are not percentages and were refused outright:
+      // hourlyRate 150, laborRate 125, chairRentalRate 250 — money per hour, per job, per chair —
+      // and workingDays "mon-fri", which is a list of days and not a count of them.
+      //
+      // I asked the tester to try to break this rule, and this is what breaking it looks like: a
+      // salon cannot set a chair rent. Refusing a real setting is worse than accepting a typo,
+      // because the typo does nothing while the refusal stops the shop working.
+      //
+      // So the default for a `rate` is MONEY — any non-negative number — and the 0–100 bound
+      // applies only where the name says percentage. That leaves a residual gap: an undeclared
+      // percentage key nobody thought of (`vatRate`) would be read as money and accept 150. Every
+      // percentage the product actually declares is validated by name above; this heuristic only
+      // ever sees keys nobody declared, and on those I would rather be too permissive than break a
+      // working screen. A `days` key that is not a number is somebody's schedule, not a bad count.
+      const READS_AS_A_PERCENTAGE = /tax|vat|gst|hst|pst|commission|tip|gratuity|discount|markup|margin|interest|apr|surcharge|utili[sz]ation|occupancy|conversion|retention|churn|growth/i
       for (const [k, v] of Object.entries(money as Record<string, unknown>)) {
         if (v == null || v === '' || typeof v === 'object') continue
-        if (/(?:rate|percent|pct)$/i.test(k)) {
+        if (/(?:percent|pct)$/i.test(k) || (/rate$/i.test(k) && READS_AS_A_PERCENTAGE.test(k))) {
           const n = Number(v)
           if (!Number.isFinite(n) || n < 0 || n > 100) {
             return c.json({ error: `${k} reads as a percentage, so it has to be a number between 0 and 100 — got ${JSON.stringify(v)}.`, field: `settings.${k}` }, 400)
           }
-        } else if (/days$/i.test(k)) {
+        } else if (/rate$/i.test(k)) {
+          // A money rate: a number, and not a negative one. No upper bound — a chair rents for
+          // what it rents for.
           const n = Number(v)
-          if (!Number.isFinite(n) || n < 0 || n > 3650) {
-            return c.json({ error: `${k} reads as a number of days, so it has to be a number — got ${JSON.stringify(v)}.`, field: `settings.${k}` }, 400)
+          if (!Number.isFinite(n) || n < 0) {
+            return c.json({ error: `${k} reads as an amount, so it has to be a number that is not negative — got ${JSON.stringify(v)}.`, field: `settings.${k}` }, 400)
+          }
+        } else if (/days$/i.test(k) && Number.isFinite(Number(v))) {
+          // Only when it really is a number. "mon-fri" is a working week, and refusing it was the
+          // other half of N2.
+          const n = Number(v)
+          if (n < 0 || n > 3650) {
+            return c.json({ error: `${k} reads as a number of days, so it has to be between 0 and 3650 — got ${JSON.stringify(v)}.`, field: `settings.${k}` }, 400)
           }
         }
       }

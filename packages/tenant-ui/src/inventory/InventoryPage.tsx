@@ -282,7 +282,7 @@ export default function InventoryPage({ api }: InventoryPageProps) {
                       <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{item.sku}</td>
                       <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{item.category || '-'}</td>
                       <td className="px-4 py-3 text-right">
-                        <span className={`font-medium ${item.isLowStock ? 'text-red-600' : 'text-gray-900'}`}>
+                        <span className={`font-medium ${item.isLowStock ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-slate-100'}`}>
                           {item.totalStock} {item.unit}
                         </span>
                       </td>

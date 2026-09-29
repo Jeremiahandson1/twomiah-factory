@@ -123,8 +123,8 @@ export function GbpReviewsPage(): React.ReactElement {
               <div className="text-3xl font-bold">{summary?.averageRating != null ? summary.averageRating.toFixed(1) : '—'}</div>
               {summary?.averageRating != null && <Stars rating={summary.averageRating} />}
             </div>
-            <div className="text-sm text-gray-600">
-              <div className="font-semibold text-gray-900">{status.locationTitle}</div>
+            <div className="text-sm text-gray-600 dark:text-slate-400">
+              <div className="font-semibold text-gray-900 dark:text-slate-100">{status.locationTitle}</div>
               <div>{summary?.totalReviewCount ?? 0} reviews on Google</div>
             </div>
           </div>

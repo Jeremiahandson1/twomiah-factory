@@ -49,10 +49,49 @@ async function downloadAuthed(api: FilesApi, url: string, filename: string) {
   setTimeout(() => URL.revokeObjectURL(u), 60_000)
 }
 /**
- * A thumbnail that carries the session token, fetched once.
+ * Thumbnails already fetched in this session, keyed by their URL.
+ *
+ * RR0929 N5 reported the list still fetching each image twice, and I could not reproduce it from
+ * the code: the effect below depends on `src` alone, `src` is a stable server path with no
+ * cache-buster, the api client is a module singleton so the list loader does not re-run, the table
+ * renders one pass with one thumbnail per row, and StrictMode's double-invoke is development-only
+ * while the deployed bundle is a `vite build`.
+ *
+ * Rather than argue with a measurement, make the question not arise: the fetch is now idempotent
+ * by URL. Whatever causes a second render, a remount, or a return to the page, the bytes are
+ * pulled once. That is also a real improvement on its own — navigating away and back used to
+ * re-download every thumbnail on the page.
+ *
+ * The cache owns the blob URL, so AuthImg must NOT revoke it on unmount; it is released only when
+ * the cache evicts it. Thumbnails are 40-pixel squares, and the cap keeps a long session from
+ * holding an unbounded number of them.
+ */
+const THUMB_CACHE = new Map<string, Promise<string>>()
+const THUMB_CACHE_MAX = 300
+function cachedThumb(api: FilesApi, src: string): Promise<string> {
+  const hit = THUMB_CACHE.get(src)
+  if (hit) return hit
+  const p = blobUrl(api, src)
+  THUMB_CACHE.set(src, p)
+  // A failure must not be cached, or one flaky response leaves a permanently blank square.
+  p.catch(() => { THUMB_CACHE.delete(src) })
+  if (THUMB_CACHE.size > THUMB_CACHE_MAX) {
+    // Map keeps insertion order, so the first key is the oldest.
+    const oldest = THUMB_CACHE.keys().next().value as string | undefined
+    if (oldest !== undefined && oldest !== src) {
+      const dying = THUMB_CACHE.get(oldest)
+      THUMB_CACHE.delete(oldest)
+      dying?.then(u => URL.revokeObjectURL(u)).catch(() => {})
+    }
+  }
+  return p
+}
+
+/**
+ * A thumbnail that carries the session token, fetched once per URL per session.
  *
  * FULL0929 F7: the list requested every stored file TWICE on load. The effect depended on `api`,
- * which is a new object on each render, so it re-ran the moment anything above it re-rendered —
+ * which can be a new object on each render, so it re-ran the moment anything above it re-rendered —
  * and each run pulled the whole file down again. Harmless with 25 small files; a page of large PDFs
  * is a different matter, and it is the client's own bandwidth on a phone.
  *
@@ -64,9 +103,10 @@ function AuthImg({ api, src, alt, className }: { api: FilesApi; src: string; alt
   const apiRef = useRef(api)
   apiRef.current = api
   useEffect(() => {
-    let obj: string | null = null, live = true
-    blobUrl(apiRef.current, src).then(u => { obj = u; if (live) setUrl(u); else URL.revokeObjectURL(u) }).catch(() => { if (live) setUrl(null) })
-    return () => { live = false; if (obj) URL.revokeObjectURL(obj) }
+    let live = true
+    cachedThumb(apiRef.current, src).then(u => { if (live) setUrl(u) }).catch(() => { if (live) setUrl(null) })
+    // No revoke: the cache owns this URL and other rows may be showing it.
+    return () => { live = false }
   }, [src])
   return url ? <img src={url} alt={alt || ''} className={className} /> : <div className={className} />
 }

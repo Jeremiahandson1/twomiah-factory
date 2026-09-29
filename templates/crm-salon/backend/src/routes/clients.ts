@@ -299,9 +299,11 @@ app.post('/:contactId/formulas', requirePermission('contacts:update'), async (c)
     const record = await recordForKeeping(currentUser.companyId, String(body.fromRecordId))
     if (!record) return c.json({ error: 'That visit is not on this client\'s chart.' }, 404)
     if (record.contactId !== contactId) return c.json({ error: 'That visit belongs to a different client.' }, 400)
-    const kept = await keepFromRecord(currentUser.companyId, record, String(body.label || '').trim() || 'Kept from a visit')
-    if (!kept) return c.json({ error: 'There is no formula or note on that visit to keep.' }, 400)
-    out = { kept, created: true }
+    // `created` comes from keepFormula, which is the only thing that knows whether the card gained
+    // a row or re-dated one it already had. This used to hardcode true, so keeping the same visit
+    // twice told the screen "Kept on the card" both times. (RR0929 N6)
+    out = await keepFromRecord(currentUser.companyId, record, String(body.label || '').trim() || 'Kept from a visit')
+    if (!out) return c.json({ error: 'There is no formula or note on that visit to keep.' }, 400)
   } else {
     if (!hasSubstance(body)) {
       return c.json({ error: 'Add a formula, a developer volume, a processing time or a note — something to keep.' }, 400)

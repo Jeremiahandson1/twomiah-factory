@@ -286,7 +286,7 @@ function WarrantiesList({ warranties, onRefresh }: WarrantiesListProps) {
                   <span className="text-red-600">Expired</span>
                 ) : (
                   <div>
-                    <p className={warranty.isExpiringSoon ? 'text-orange-600 font-medium' : 'text-gray-900'}>
+                    <p className={warranty.isExpiringSoon ? 'text-orange-600 dark:text-orange-300 font-medium' : 'text-gray-900 dark:text-slate-100'}>
                       {formatDate(warranty.expiresAt)}
                     </p>
                     <p className="text-sm text-gray-500 dark:text-slate-400">{warranty.daysRemaining} days left</p>

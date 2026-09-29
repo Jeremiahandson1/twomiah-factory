@@ -56,10 +56,39 @@ export interface KeptFormula {
   lastUsedAt?: string | null
 }
 
+/**
+ * The mix, in the one shape everything downstream reads: a list of steps, each an object with
+ * `product`, `shade` and `parts`.
+ *
+ * RR0929 N7: a formula sent as a plain STRING was saved with a 200 and arrived empty.
+ * `hasSubstance` wrapped a non-array into `[input.formula]` and said yes; `keepFormula` then did
+ * `Array.isArray(input.formula) ? input.formula : []` and threw it away. Two functions reading the
+ * same field two different ways, so the request passed the check that decides whether there is
+ * anything to keep and then had the thing itself deleted. The stylist got a formula card with
+ * nothing on it.
+ *
+ * They now share this, which is the point — the disagreement was the bug, not either half of it.
+ *
+ * A string becomes one step rather than a refusal. The UI never sends one (it posts either
+ * structured steps or `fromRecordId`), so nothing is being rescued from itself here; it is an API
+ * caller writing what a stylist would write, and a 400 would lose what they typed for a shape
+ * they had no way to know. `{ product: 'the string' }` is what the card already renders.
+ */
+export function normaliseFormula(raw: any): any[] {
+  const one = (v: any): any | null => {
+    if (typeof v === 'string') { const s = v.trim(); return s ? { product: s } : null }
+    if (v && typeof v === 'object' && !Array.isArray(v)) return v
+    // A number or a boolean says nothing a step could be read from.
+    return null
+  }
+  if (Array.isArray(raw)) return raw.map(one).filter(Boolean) as any[]
+  const single = one(raw)
+  return single ? [single] : []
+}
+
 /** Is there anything here worth keeping? An empty mix with no note is not a formula. */
 export function hasSubstance(input: { formula?: any; note?: any; developerVolume?: any; processingMin?: any }): boolean {
-  const mix = Array.isArray(input.formula) ? input.formula : input.formula ? [input.formula] : []
-  if (mix.length > 0) return true
+  if (normaliseFormula(input.formula).length > 0) return true
   if (String(input.note || '').trim()) return true
   if (String(input.developerVolume || '').trim()) return true
   if (Number(input.processingMin) > 0) return true
@@ -101,7 +130,8 @@ export async function keepFormula(
   const entry: KeptFormula = {
     id: createId(),
     label: String(input.label || '').trim().slice(0, 120) || 'Formula',
-    formula: Array.isArray(input.formula) ? input.formula : [],
+    // The same normaliser hasSubstance used to decide there was something here. (RR0929 N7)
+    formula: normaliseFormula(input.formula),
     developerVolume: input.developerVolume ? String(input.developerVolume).slice(0, 60) : null,
     processingMin: Number.isFinite(Number(input.processingMin)) && Number(input.processingMin) > 0 ? Math.round(Number(input.processingMin)) : null,
     note: input.note ? String(input.note).slice(0, 2000) : null,
@@ -151,7 +181,16 @@ export async function forgetFormula(companyId: string, contactId: string, formul
  * order to keep a stylist's work. Returns null when the record held nothing worth keeping, which is
  * the ordinary case for a visit the system logged and nobody touched.
  */
-export async function keepFromRecord(companyId: string, record: any, why: string): Promise<KeptFormula | null> {
+/**
+ * Lift a visit's formula onto the client's card.
+ *
+ * RR0929 N6: this returned `kept?.kept ?? null` — throwing away the `created` flag keepFormula had
+ * just worked out — and the route then hardcoded `created: true`. So keeping the same visit twice
+ * said "Kept on the card" both times, while the card correctly re-dated the one row it already
+ * had. The screen was already written to say "Already on the card — re-dated as used again" when
+ * told; it was never told.
+ */
+export async function keepFromRecord(companyId: string, record: any, why: string): Promise<{ kept: KeptFormula; created: boolean } | null> {
   if (!record) return null
   // Only a person's words are kept. The system's own line, and the line an older build's repair
   // stamped on top of it, are both stripped — a card is for what a stylist wrote, not for the
@@ -168,7 +207,7 @@ export async function keepFromRecord(companyId: string, record: any, why: string
     savedFromRecordId: record.id,
     lastUsedAt: record.performedAt ? new Date(record.performedAt).toISOString() : undefined,
   })
-  return kept?.kept ?? null
+  return kept
 }
 
 /** Read a visit record by id, scoped to the company — the shape keepFromRecord wants. */

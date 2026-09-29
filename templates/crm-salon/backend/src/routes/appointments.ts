@@ -120,14 +120,29 @@ async function findStationConflict(companyId: string, station: string, start: Da
 async function onVisitCompleted(row: typeof appointment.$inferSelect): Promise<string | null> {
   if (!row.contactId) return null
   let invoiceId: string | null = null
+
+  // ONE price for this visit, worked out once.
+  //
+  // RR0929 N8: the sale below resolved the price as "what was quoted, else what the menu charges",
+  // and the visit record further down re-declared `const price = Number(row.quotedPrice)` with no
+  // menu fallback. So a booking taken without a quoted price — which is most of them, the price
+  // comes off the service — billed the client correctly and wrote the visit at priceCharged null,
+  // and the client's chart showed $0.00 beside an invoice for $32.55. The same function, two
+  // prices, the second shadowing the first.
+  //
+  // Resolved here so the two cannot diverge again: the sale and the visit are the same event and
+  // must agree about what it cost.
+  let price = Number(row.quotedPrice)
+  let serviceName: string | null = null
   try {
-    let price = Number(row.quotedPrice)
-    let serviceName: string | null = null
     if (row.serviceId) {
       const [svc] = await db.select({ name: serviceMenu.name, price: serviceMenu.price }).from(serviceMenu).where(eq(serviceMenu.id, row.serviceId)).limit(1)
       serviceName = svc?.name || null
       if (!(price > 0)) price = Number(svc?.price)
     }
+  } catch (e: any) { console.warn('[appointments] service menu not read:', e?.message || e) }
+
+  try {
     const inv = await ensureInvoiceForVisit({ companyId: row.companyId, contactId: row.contactId, appointmentId: row.id, serviceName, price })
     invoiceId = inv?.id || null
   } catch (e: any) { console.warn('[appointments] sale not created:', e?.message || e) }
@@ -137,7 +152,7 @@ async function onVisitCompleted(row: typeof appointment.$inferSelect): Promise<s
   try {
     const [rec] = await db.select({ id: serviceRecord.id }).from(serviceRecord).where(and(eq(serviceRecord.appointmentId, row.id), eq(serviceRecord.companyId, row.companyId))).limit(1)
     if (!rec) {
-      const price = Number(row.quotedPrice)
+      // …the price resolved above, not a second reading of quotedPrice. (RR0929 N8)
       await db.insert(serviceRecord).values({
         // carry the chair through to the visit, whichever column holds the stylist (T20 H1)
         id: createId(), contactId: row.contactId, appointmentId: row.id,

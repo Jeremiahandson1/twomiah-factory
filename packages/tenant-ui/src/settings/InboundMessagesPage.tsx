@@ -109,7 +109,7 @@ export function InboundMessagesPage(): React.ReactElement {
                     className="w-full min-h-[400px] border-none"
                   />
                 ) : (
-                  <pre className="whitespace-pre-wrap font-sans text-sm text-gray-800">{selected.textBody || '(no body)'}</pre>
+                  <pre className="whitespace-pre-wrap font-sans text-sm text-gray-800 dark:text-slate-200">{selected.textBody || '(no body)'}</pre>
                 )}
                 {/* Reply — sends AS the alias the customer wrote to */}
                 <div className="border-t border-gray-100 mt-4 pt-3">

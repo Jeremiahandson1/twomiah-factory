@@ -215,7 +215,7 @@ app.post('/repair-legacy', requirePermission('company:update'), async (c: any) =
       developerVolume: row.developer_volume, processingMin: row.processing_min,
       performedAt: row.performed_at, notes: stylistNote,
     }, CANCELLED_VISIT_LABEL)
-    if (kept) formulasKept.push({ recordId: row.id, contactId: row.contact_id, formulaId: kept.id })
+    if (kept) formulasKept.push({ recordId: row.id, contactId: row.contact_id, formulaId: kept.kept.id })
     await db.execute(sql`DELETE FROM service_record WHERE id = ${row.id} AND company_id = ${cid}`)
     visitsRemoved.push({ id: row.id, contactId: row.contact_id })
   }
