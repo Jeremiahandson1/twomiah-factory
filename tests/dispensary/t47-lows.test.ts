@@ -31,7 +31,7 @@ await setupSchema()
 
 const [co] = await db.insert(company).values({
   name: 'Twomiah Leaf', slug: 'leaf-t47lo', email: 'lo@test.local', state: 'OH', timezone: 'America/New_York',
-  enabledFeatures: ['products', 'orders', 'compliance', 'delivery', 'labels', 'audit', 'email_campaigns', 'sms_marketing', 'eod', 'cash', 'batches'],
+  enabledFeatures: ['products', 'orders', 'compliance', 'delivery', 'labels', 'audit', 'locations', 'multi_store', 'franchise', 'email_campaigns', 'sms_marketing', 'eod', 'cash', 'batches'],
 } as any).returning()
 const mkUser = async (role: string, tag: string) => (await db.insert(user).values({
   email: `${tag}-t47lo@test.local`, passwordHash: 'x', firstName: tag, lastName: 'U', role, companyId: co.id,
@@ -53,6 +53,8 @@ app.route('/api/compliance', (await import('./src/routes/compliance.ts')).defaul
 app.route('/api/batches', (await import('./src/routes/batches.ts')).default)
 app.route('/api/eod', (await import('./src/routes/eod.ts')).default)
 app.route('/api/orders', (await import('./src/routes/orders.ts')).default)
+app.route('/api/locations', (await import('./src/routes/locations.ts')).default)
+app.route('/api/enterprise', (await import('./src/routes/enterprise.ts')).default)
 app.onError((await import('./src/utils/errors.ts')).errorHandler)
 
 const as = (u: any) => async (method: string, path: string, body?: unknown) => {
@@ -199,6 +201,31 @@ const rows = async (q: any) => { const r: any = await db.execute(q); return (r.r
   // A merch line needs no weight and must not be nagged about one.
   const merch = await importProducts('Name,Category,Price,Stock\nT47 Logo Tee,merch,25,10', co.id, {})
   check('P18: …while merch is left alone', (merch.warnings || []).length === 0, merch.warnings)
+}
+
+// ═══════════ L6 · re-adding a shop to a group creates nothing, and says so ══════════════════════
+{
+  const ent = as(owner)
+  const loc = await ent('POST', '/api/locations', { name: 'T47 Shop', type: 'retail', address: '1 High St', city: 'Columbus', state: 'OH', zipCode: '43004' })
+  const locationId = (loc.json?.data || loc.json)?.id
+  const grp = await ent('POST', '/api/enterprise/store-groups', { name: 'T47 Group', type: 'chain' })
+  const groupId = (grp.json?.data || grp.json)?.id
+
+  check('L6 setup: a location is created', !!locationId, { status: loc.status, body: loc.json })
+  check('L6 setup: a store group is created', !!groupId, { status: grp.status, body: grp.json })
+  if (locationId && groupId) {
+    const first = await ent('POST', `/api/enterprise/store-groups/${groupId}/members`, { locationId, role: 'member' })
+    check('L6: adding a shop to a group is a 201 — something was created', first.status === 201, { status: first.status, body: first.json })
+
+    const again = await ent('POST', `/api/enterprise/store-groups/${groupId}/members`, { locationId, role: 'flagship' })
+    check('L6: re-adding the same shop answers 200, because nothing was created', again.status === 200, { status: again.status, body: again.json })
+
+    const members = await rows(sql`SELECT id, role FROM store_group_members WHERE group_id = ${groupId}`)
+    check('L6: …there is still exactly one membership row', members.length === 1, members.length)
+    check('L6: …with the new role on it', members[0]?.role === 'flagship', members[0]?.role)
+  } else {
+    console.log('  --   L6: locations/enterprise not available in this sandbox')
+  }
 }
 
 // ═══════════ N1 cash · a sale the shop has not been paid for reaches End of Day ══════════════════

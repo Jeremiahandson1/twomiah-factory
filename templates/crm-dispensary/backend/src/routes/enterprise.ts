@@ -179,14 +179,21 @@ app.post('/store-groups/:id/members', requireRole('admin'), async (c) => {
   const member = ((result as any).rows || result)?.[0]
 
   audit.log({
-    action: audit.ACTIONS.CREATE,
+    // Adding a shop to a group and CHANGING its role in that group are different events, and the
+    // log said "create" for both — so a group whose roles had been edited five times read as five
+    // shops joining. (T47, L6's other half)
+    action: alreadyIn ? audit.ACTIONS.UPDATE : audit.ACTIONS.CREATE,
     entity: 'store_group_member',
     entityId: member?.id,
     entityName: `${group.name} - ${data.locationId}`,
     req: c,
   })
 
-  return c.json(camel(member), 201)
+  // 201 means something was created. Re-adding a shop that is already in the group creates
+  // nothing — it updates the role on the row that is already there — so it answers 200. The
+  // duplicate itself was fixed earlier; the status code kept claiming otherwise, and a caller
+  // that trusts 201 to mean "new member" would count the group's shops wrongly. (T47, L6)
+  return c.json(camel(member), alreadyIn ? 200 : 201)
 })
 
 // DELETE /store-groups/:id/members/:locationId — Remove location from group
