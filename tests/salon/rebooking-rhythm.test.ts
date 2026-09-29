@@ -151,6 +151,25 @@ const rowsFor = async (client: any) => (await due()).filter((r) => r.contactId =
   await db.update(company).set({ settings: {} } as any).where(eq(company.id, co.id))
 }
 
+// ══════════════════ the shift key does not make a second rhythm ═════════════════════════════════
+//
+// Category is free text on the menu row, and the live tenant genuinely has both "Color" and
+// "colour" on it. Grouping on the raw string would put one client on two rhythms that are the same
+// rhythm and chase her twice — the exact bug the grouping exists to fix, re-entering sideways.
+{
+  const shouty = await mkService('COLOUR Refresh', 'Colour', 42)
+  const casey = await mkClient('Casey Case')
+  await visit(casey, rootTouchUp, daysAgo(50))   // category 'colour'
+  await visit(casey, shouty, daysAgo(48))        // category 'Colour'
+
+  const rows = await rowsFor(casey)
+  check('"Colour" and "colour" are one rhythm, not two', rows.length === 1, rows.map((r) => `${r.serviceName} [${r.category}]`))
+
+  await db.update(company).set({ settings: { rebookingCategoriesOff: ['COLOUR'] } } as any).where(eq(company.id, co.id))
+  check('…and switching off "COLOUR" switches off "colour" too', (await rowsFor(casey)).length === 0)
+  await db.update(company).set({ settings: {} } as any).where(eq(company.id, co.id))
+}
+
 // ════════════════════════ a service with no interval is still not chased ════════════════════════
 {
   const oneOff = await mkService('Wedding Blow-dry', 'hair', null)

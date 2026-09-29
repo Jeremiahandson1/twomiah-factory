@@ -37,7 +37,9 @@ async function excludedCategories(companyId: string): Promise<Set<string>> {
   try {
     const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
     const raw = (co?.settings as any)?.rebookingCategoriesOff
-    return new Set(Array.isArray(raw) ? raw.map((s: any) => String(s)) : [])
+    // Matched the same way the rhythms are keyed, so switching off "Waxing" also switches off
+    // "waxing" — a salon should not have to know how their own menu was capitalised.
+    return new Set(Array.isArray(raw) ? raw.map((s: any) => String(s).trim().toLowerCase()) : [])
   } catch { return new Set() }
 }
 
@@ -104,9 +106,14 @@ app.get('/due', requirePermission('contacts:read'), async (c) => {
   const byRhythm = new Map<string, any[]>()
   for (const r of rows) {
     if (!r.contactId) continue
+    // Category is free text on the menu row, and a real tenant has both "Color" and "colour" on it.
+    // Grouping on the raw string would put one client on two rhythms that are the same rhythm, and
+    // then chase her twice for it — the exact bug this grouping exists to fix, re-entering through
+    // the shift key. Matched case- and space-insensitively; the row still shows what the menu says.
     const category = String(r.category || 'other')
-    if (excluded.has(category)) continue
-    const key = `${r.contactId}|${category}`
+    const rhythm = category.trim().toLowerCase()
+    if (excluded.has(rhythm)) continue
+    const key = `${r.contactId}|${rhythm}`
     const list = byRhythm.get(key)
     if (list) list.push(r); else byRhythm.set(key, [r])
   }
