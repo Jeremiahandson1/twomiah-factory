@@ -183,6 +183,15 @@ const bookAndComplete = async (client: any) => {
 
   const none = await api('POST', '/api/reminders/send', { contactIds: [noPhone.id], message: 'See you soon' })
   check('F8: a client with no phone is still reported as noPhone', none.json?.noPhone === 1 && none.json?.sent === 0, none.json)
+  check('F8: …and that failure carries a reason too, rather than a null the desk cannot act on',
+    /no mobile number/i.test(String(none.json?.reason)), none.json)
+
+  // …but a missing number is the LAST explanation offered. A shop whose texting is switched off,
+  // sending to one client with a number and one without, must be told about the texting.
+  const mixed = await api('POST', '/api/reminders/send', { contactIds: [withPhone.id, noPhone.id], message: 'See you soon' })
+  check('F8: a real refusal outranks the missing number in the reason shown',
+    /not set up|wallet|paused/i.test(String(mixed.json?.reason)), mixed.json)
+  check('F8: …and both are still counted', mixed.json?.failed === 2 && mixed.json?.noPhone === 1 && mixed.json?.sent === 0, mixed.json)
 }
 
 // ═══════════════════ F2 · the bills the older builds left behind, put right ═════════════════════

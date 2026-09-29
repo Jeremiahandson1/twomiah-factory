@@ -185,9 +185,10 @@ app.post('/send', requirePermission('contacts:update'), async (c) => {
   let sent = 0
   const failures: string[] = []
   const reasons: string[] = []
+  const noPhoneIds: string[] = []
   for (const ct of clients) {
     const to = (ct as any).mobile || ct.phone
-    if (!to) { failures.push(ct.id); continue }
+    if (!to) { failures.push(ct.id); noPhoneIds.push(ct.id); continue }
     try {
       // sendSMS returns the saved row; a carrier failure comes back as status "failed", not a throw,
       // and a send that was never attempted comes back "refused". (SALON-C4)
@@ -202,8 +203,17 @@ app.post('/send', requirePermission('contacts:update'), async (c) => {
       else { failures.push(ct.id); reasons.push(row?.errorMessage || 'Send failed') }
     } catch (e: any) { failures.push(ct.id); reasons.push(e?.message || 'Send failed') }
   }
-  const noPhone = clients.filter((ct) => !((ct as any).mobile || ct.phone)).length
-  return c.json({ sent, failed: failures.length, failures, noPhone, reason: reasons[0] || null })
+  // Every failure now carries a reason back to the screen. A client with no mobile was already
+  // counted and already counted as failed, but `reason` came back null — so the desk saw "1 failed"
+  // and nothing telling them what to do about it. It is the LAST resort of the three, because a
+  // shop whose texting is switched off must not be told the problem was one client's missing
+  // number. (FULL0929 F8)
+  const noPhone = noPhoneIds.length
+  return c.json({
+    sent, failed: failures.length, failures, noPhone,
+    reason: reasons[0]
+      || (noPhone ? `${noPhone === 1 ? 'That client has' : `${noPhone} of these clients have`} no mobile number on file.` : null),
+  })
 })
 
 export default app
