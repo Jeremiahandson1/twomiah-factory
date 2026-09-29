@@ -33,6 +33,24 @@ const dayStr = (d: Date) => d.toISOString().slice(0, 10)
  * Reconnect for the same reason. Stored as settings.rebookingCategoriesOff: string[]; absent means
  * chase everything, which is what every existing tenant already does.
  */
+/**
+ * The per-category recall message, keyed the same way the rhythms are — lowercased — so a salon
+ * does not have to know how their own menu was capitalised to write a message for it.
+ */
+async function rebookingTemplates(companyId: string): Promise<Record<string, string>> {
+  try {
+    const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
+    const raw = (co?.settings as any)?.rebookingTemplates
+    if (!raw || typeof raw !== 'object') return {}
+    const out: Record<string, string> = {}
+    for (const [k, v] of Object.entries(raw)) {
+      const text = String(v ?? '').trim()
+      if (text) out[String(k).trim().toLowerCase()] = text
+    }
+    return out
+  } catch { return {} }
+}
+
 async function excludedCategories(companyId: string): Promise<Set<string>> {
   try {
     const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
@@ -152,7 +170,85 @@ app.get('/due', requirePermission('contacts:read'), async (c) => {
   )
   const filtered = data.filter(r => !booked.has(r.contactId))
 
-  return c.json({ count: filtered.length, overdue: filtered.filter(d => d.overdue).length, data: filtered })
+  // ── the category IS the screen, not a column on it ───────────────────────────────────────────
+  //
+  // Phorest's Client Reconnect is worked one Service Category at a time: you look at the overdue
+  // clients for a category and press Contact Overdue Clients for that category. That is the right
+  // shape, and not only for tidiness — the MESSAGE differs. "Time to book your roots" and "time
+  // for a trim" are not the same text, and a flat list mixing them can only send one of them.
+  //
+  // So the counts come back for every category whatever the filter, and the screen can offer them
+  // as the way in. A client on two rhythms appears once under each, which is one call per
+  // conversation rather than two calls or one wrong one.
+  const summary = new Map<string, { category: string; label: string; due: number; overdue: number }>()
+  for (const r of filtered) {
+    const key = String(r.category || 'other').trim().toLowerCase()
+    const row = summary.get(key) || { category: key, label: String(r.category || 'other'), due: 0, overdue: 0 }
+    row.due++
+    if (r.overdue) row.overdue++
+    summary.set(key, row)
+  }
+  const templates = await rebookingTemplates(u.companyId)
+  const categories = [...summary.values()]
+    .sort((a, b) => b.overdue - a.overdue || b.due - a.due || a.label.localeCompare(b.label))
+    .map((row) => ({ ...row, template: templates[row.category] || null }))
+
+  // ?category= narrows the rows. The counts above are deliberately NOT narrowed, so the screen can
+  // keep showing what else is waiting while you work one of them.
+  const wanted = String(c.req.query('category') || '').trim().toLowerCase()
+  const shown = wanted ? filtered.filter((r) => String(r.category || 'other').trim().toLowerCase() === wanted) : filtered
+
+  return c.json({
+    count: shown.length,
+    overdue: shown.filter(d => d.overdue).length,
+    data: shown,
+    categories,
+    // Everyone waiting, across every category — the number the overview headline is about.
+    totalDue: filtered.length,
+    totalOverdue: filtered.filter(d => d.overdue).length,
+  })
+})
+
+/**
+ * The message each Service Category gets.
+ *
+ * Phorest gives every category its own set of templates, and the reason is the whole point of
+ * working a recall list by category: what you say to a colour client six weeks out is not what you
+ * say to somebody due a trim. A single shop-wide message is the thing that makes recall texts read
+ * like spam.
+ *
+ * Reading is open to anyone who can see the list; writing is company config, like every other
+ * setting a shop's words live in.
+ */
+app.get('/templates', requirePermission('contacts:read'), async (c) => {
+  const u = c.get('user') as any
+  return c.json({ templates: await rebookingTemplates(u.companyId) })
+})
+
+app.put('/templates', requirePermission('company:update'), async (c) => {
+  const u = c.get('user') as any
+  const body = (await c.req.json().catch(() => null)) ?? ({} as any)
+  const incoming = body?.templates
+  if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
+    return c.json({ error: 'Send templates as { templates: { colour: "…" } }.' }, 400)
+  }
+
+  const next: Record<string, string> = {}
+  for (const [rawKey, rawValue] of Object.entries(incoming)) {
+    const key = String(rawKey).trim().toLowerCase()
+    if (!key) continue
+    const text = String(rawValue ?? '').trim()
+    // An empty template means "go back to the shop's default", which is how you undo one without a
+    // separate delete.
+    if (!text) continue
+    if (text.length > 640) return c.json({ error: `The ${key} message is too long for a text — keep it under 640 characters.` }, 400)
+    next[key] = text
+  }
+
+  const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, u.companyId)).limit(1)
+  const settings = { ...(co?.settings as any || {}), rebookingTemplates: next }
+  await db.update(company).set({ settings, updatedAt: new Date() } as any).where(eq(company.id, u.companyId))
+  return c.json({ templates: next })
 })
 
 // GET /reminders/lapsed?months=6 — clients whose last visit is older than N

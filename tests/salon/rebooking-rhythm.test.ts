@@ -174,6 +174,73 @@ const rowsFor = async (client: any) => (await due()).filter((r) => r.contactId =
   await db.update(company).set({ settings: {} } as any).where(eq(company.id, co.id))
 }
 
+// ══════════════════ the category is the way IN, with its own message ════════════════════════════
+//
+// Phorest works Client Reconnect one Service Category at a time — you look at the overdue clients
+// for a category and contact THAT category — and gives each one its own message templates. The
+// reason is not tidiness: "time to book your roots" and "time for a trim" are different
+// conversations, and a flat list mixing them can only ever send one of the two.
+{
+  const counts = await api('GET', '/api/reminders/due?window=400&maxOverdue=3650')
+  const cats: any[] = counts.json?.categories || []
+  check('the list comes back with a count per category', cats.length >= 2, cats)
+  check('…naming the category as the menu spells it', cats.every((x) => !!x.label), cats)
+  check('…and a total across all of them', counts.json?.totalDue === counts.json?.data?.length, { total: counts.json?.totalDue, rows: counts.json?.data?.length })
+  const colour = cats.find((x) => x.category === 'colour')
+  check('…with the overdue subset counted separately', typeof colour?.overdue === 'number', colour)
+
+  const onlyColour = await api('GET', '/api/reminders/due?window=400&maxOverdue=3650&category=colour')
+  const rows: any[] = onlyColour.json?.data || []
+  check('one category can be worked on its own', rows.length > 0 && rows.every((r) => String(r.category).toLowerCase() === 'colour'),
+    rows.map((r) => r.category))
+  check('…and every client in it appears exactly once',
+    new Set(rows.map((r) => r.contactId)).size === rows.length, rows.map((r) => r.clientName))
+  check('…while the counts stay UNfiltered, so the desk sees what else is waiting',
+    (onlyColour.json?.categories || []).length === cats.length, onlyColour.json?.categories?.length)
+  check('…and the filtered count is the rows actually shown', onlyColour.json?.count === rows.length, onlyColour.json?.count)
+
+  // Sarah had a colour and a cut in one visit. Under Colour she is on the list once, which is the
+  // answer to "why is this client here twice" — she never was, for one conversation.
+  const sarahRows = rows.filter((r) => r.clientName === 'Sarah Mitchell')
+  check('a client on two rhythms appears ONCE inside a category', sarahRows.length === 1, sarahRows.length)
+
+  const unknown = await api('GET', '/api/reminders/due?window=400&maxOverdue=3650&category=not-a-category')
+  check('an unknown category is an empty list, not everybody', (unknown.json?.data || []).length === 0, unknown.json?.count)
+}
+
+// ══════════════════════════ each category gets its own words ════════════════════════════════════
+{
+  const empty = await api('GET', '/api/reminders/templates')
+  check('a shop with no templates written yet returns none', Object.keys(empty.json?.templates || {}).length === 0, empty.json)
+
+  const saved = await api('PUT', '/api/reminders/templates', {
+    templates: { Colour: 'Your roots are about due — shall we get you in?', hair: 'Time for a trim!' },
+  })
+  check('templates can be written per category', saved.status === 200, saved.json)
+  check('…keyed the same way the rhythms are, so capitalisation does not matter',
+    saved.json?.templates?.colour === 'Your roots are about due — shall we get you in?', saved.json?.templates)
+
+  const withTemplates = await api('GET', '/api/reminders/due?window=400&maxOverdue=3650')
+  const colour = (withTemplates.json?.categories || []).find((x: any) => x.category === 'colour')
+  const waxing = (withTemplates.json?.categories || []).find((x: any) => x.category === 'waxing')
+  check('…and ride along with the list, so the send box can prefill the right one',
+    colour?.template === 'Your roots are about due — shall we get you in?', colour)
+  check('…while a category nobody has written one for says so, rather than borrowing another\'s',
+    waxing ? waxing.template === null : true, waxing)
+
+  const blanked = await api('PUT', '/api/reminders/templates', { templates: { colour: '   ' } })
+  check('an empty template drops back to the shop default rather than sending blank text',
+    blanked.json?.templates?.colour === undefined, blanked.json?.templates)
+
+  const tooLong = await api('PUT', '/api/reminders/templates', { templates: { colour: 'x'.repeat(700) } })
+  check('a message too long to be a text is refused', tooLong.status === 400, tooLong.json)
+
+  const rubbish = await api('PUT', '/api/reminders/templates', { templates: 'nope' })
+  check('a malformed body is refused', rubbish.status === 400, rubbish.json)
+
+  await api('PUT', '/api/reminders/templates', { templates: {} })
+}
+
 // ════════════════════════ a service with no interval is still not chased ════════════════════════
 {
   const oneOff = await mkService('Wedding Blow-dry', 'hair', null)

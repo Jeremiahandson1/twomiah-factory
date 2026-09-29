@@ -33,6 +33,14 @@ interface DueRow {
   intervalNote?: string;
   visitsInRhythm?: number;
 }
+/** One Service Category's share of the recall list — the way in, and its own message. */
+interface DueCategory {
+  category: string;
+  label: string;
+  due: number;
+  overdue: number;
+  template?: string | null;
+}
 interface LapsedRow {
   contactId?: string;
   clientName?: string;
@@ -89,6 +97,10 @@ export default function RemindersPage() {
   const [dueRows, setDueRows] = useState<DueRow[]>([]);
   const [dueCount, setDueCount] = useState<number>(0);
   const [overdueCount, setOverdueCount] = useState<number>(0);
+  /** Which Service Category is being worked. '' is everyone. */
+  const [category, setCategory] = useState<string>('');
+  const [dueCategories, setDueCategories] = useState<DueCategory[]>([]);
+  const [totalDue, setTotalDue] = useState<number>(0);
 
   const [months, setMonths] = useState<number>(6);
   const [lapsedRows, setLapsedRows] = useState<LapsedRow[]>([]);
@@ -103,16 +115,20 @@ export default function RemindersPage() {
   const loadDue = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/api/reminders/due?window=${windowDays}`);
+      const res = await api.get(`/api/reminders/due?window=${windowDays}${category ? `&category=${encodeURIComponent(category)}` : ''}`);
       setDueRows(res.data || []);
       setDueCount(res.count || 0);
       setOverdueCount(res.overdue || 0);
+      // The category counts come back unfiltered on purpose, so working one category still shows
+      // what else is waiting behind it.
+      setDueCategories(res.categories || []);
+      setTotalDue(res.totalDue ?? res.count ?? 0);
     } catch (error) {
       console.error('Failed to load rebooking list:', error);
     } finally {
       setLoading(false);
     }
-  }, [windowDays]);
+  }, [windowDays, category]);
 
   const loadLapsed = useCallback(async () => {
     setLoading(true);
@@ -202,6 +218,34 @@ export default function RemindersPage() {
           </button>
         ))}
       </div>
+
+      {/* Categories are the way IN to a recall list, not a column on it. Phorest works Client
+          Reconnect one Service Category at a time and gives each its own message, because what you
+          say to a colour client six weeks out is not what you say to somebody due a trim — and a
+          flat list mixing them can only ever send one of the two. Picking a category also settles
+          the "why is this client on here twice" question: under Colour she appears once.
+          Only shown when the shop actually has more than one rhythm running. */}
+      {tab === 'due' && dueCategories.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => { setCategory(''); setSelected(new Set()); }}
+            className={`px-3 py-1 rounded-full text-sm border ${category === ''
+              ? 'bg-teal-700 text-white border-teal-700'
+              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-800'}`}
+          >Everyone ({totalDue})</button>
+          {dueCategories.map((cat) => (
+            <button
+              key={cat.category}
+              onClick={() => { setCategory(cat.category); setSelected(new Set()); }}
+              className={`px-3 py-1 rounded-full text-sm border ${category === cat.category
+                ? 'bg-teal-700 text-white border-teal-700'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-800'}`}
+            >
+              {cat.label} ({cat.due}{cat.overdue > 0 ? `, ${cat.overdue} overdue` : ''})
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Controls */}
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -362,7 +406,11 @@ export default function RemindersPage() {
       {showSend && (
         <SendReminderModal
           contactIds={Array.from(selected)}
-          defaultMessage={DEFAULT_MESSAGE[tab]}
+          // The category being worked writes the message. A shop-wide line sent to everybody is
+          // what makes recall texts read like spam — "time to book your roots" and "time for a
+          // trim" are different conversations. Falls back to the shop default when the salon has
+          // not written one for this category.
+          defaultMessage={(tab === 'due' && dueCategories.find((x) => x.category === category)?.template) || DEFAULT_MESSAGE[tab]}
           onDone={() => { setShowSend(false); setSelected(new Set()); }}
           onClose={() => setShowSend(false)}
         />
