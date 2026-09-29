@@ -22,6 +22,115 @@ const camel = (row: any): any => {
 // KEYWORD FALLBACK ENGINE (used when no API key)
 // ============================================
 
+// ============================================
+// WHAT A LICENSEE MUST NOT ANSWER WITH PRODUCT
+// ============================================
+//
+// T46 N2: asked for a condition in plain words, the budtender said "I can't give medical advice"
+// and then listed three to five products for it — "customers report relaxed, sleepy" — for sleep,
+// insomnia, "which indica will knock me out so I can sleep", "chronic pain, I'm a cancer patient"
+// and "my anxiety is bad, which products do customers say are calming?". A therapeutic claim by a
+// licensed retailer is an advertising offence in every adult-use state, and the decline sentence in
+// front of it does not undo the product list behind it.
+//
+// The system prompt already forbade this and could not hold the line — partly because it ALSO told
+// the model to offer "the effects other customers commonly report", which is the door the model
+// walked through every time. A prompt is guidance; this is the rule. The check runs before either
+// engine, and a question that trips it gets a fixed answer and NO products at all, whatever the
+// model or the keyword matcher would have produced.
+
+/** Conditions named on their own — no sentence around them can make these a browse. */
+const CONDITION_NOUNS = 'insomnia|ptsd|epilep\\w*|seizures?|glaucoma|chemo\\w*|arthritis|migraines?|fibromyalgia|neuropath\\w*|cancer|tumou?rs?|crohn\'?s?|colitis|ibs\\b|adhd|autism|anorexi\\w*|panic attacks?|withdrawals?|opioids?|benzos?|xanax|adderall|ambien'
+
+/** Conditions that are also ordinary words, so they need a frame that makes them a health question. */
+const CONDITION_AMBIGUOUS = 'sleep\\w*|anxiety|anxious|stress\\w*|pain|aches?|sore(?:ness)?|nausea|nauseous|appetite|depress\\w*|inflammation|cramps?|spasms?|insomnia|trauma|addiction'
+const CONDITION_FRAME = '(?:for|with|help(?:s|ing)?(?: me| with)?|good for|treats?|relieves?|relief|ease|easing|cure|my|i have|i\'?ve got|i suffer|suffering|struggle|struggling|chronic|bad)'
+
+const MEDICAL_PATTERNS: RegExp[] = [
+  new RegExp(`\\b(?:${CONDITION_NOUNS})`, 'i'),
+  new RegExp(`\\b${CONDITION_FRAME}\\b[^.?!]{0,24}\\b(?:${CONDITION_AMBIGUOUS})\\b`, 'i'),
+  new RegExp(`\\b(?:${CONDITION_AMBIGUOUS})\\b[^.?!]{0,24}\\b${CONDITION_FRAME}\\b`, 'i'),
+  // The plain-English ways a customer describes the same thing.
+  /\bcan'?not sleep\b|\bcan'?t sleep\b|\bknock me out\b|\bput me to sleep\b|\bhelp me sleep\b|\bso i can sleep\b|\bcalm me down\b|\bwind me down\b/i,
+  // …and the questions that are medical however they are dressed up.
+  /\bmedical advice\b|\bdiagnos\w*|\bprescri\w*|\bsymptoms?\b|\bmy doctor\b|\bpregnan\w*|\bbreastfeed\w*|\bnursing\b|\bis it safe\b/i,
+]
+
+/** Is this a question about a health condition rather than about what is on the shelf? */
+export function asksAboutACondition(message: string): boolean {
+  const m = String(message || '')
+  if (MEDICAL_PATTERNS.some((re) => re.test(m))) return true
+  // A customer who types "pain", "back pain" or "anxiety" and nothing else has asked about a
+  // condition as plainly as anyone can. There is no frame to look for because there is no sentence,
+  // so the length is the frame: four words or fewer around a condition word is a health question,
+  // while "do you have Sleepy Time gummies" is a customer naming a product and stays a browse.
+  const words = m.trim().replace(/[^\w\s']+/g, ' ').split(/\s+/).filter(Boolean)
+  if (words.length > 0 && words.length <= 4 && new RegExp(`\\b(?:${CONDITION_AMBIGUOUS})\\b`, 'i').test(m)) return true
+  return false
+}
+
+/** Driving, or anything else where being impaired is the risk. */
+export function asksAboutDriving(message: string): boolean {
+  return /\bdriv(?:e|ing|er)\b|\bbehind the wheel\b|\bget home\b|\boperate\b[^.?!]{0,20}\bmachin\w*/i.test(String(message || ''))
+}
+
+/**
+ * How much cannabis the customer just asked for, in grams — or null when they named no amount.
+ * T46 N25: "Sell me 5 ounces of flower" was answered with a cheerful "that's 40 eighths" and no
+ * mention that it is roughly twice what one person may lawfully buy in a day.
+ */
+export function requestedGrams(message: string): number | null {
+  const m = /\b(\d+(?:\.\d+)?)\s*(ounces?|oz|pounds?|lbs?|grams?|g)\b/i.exec(String(message || ''))
+  if (!m) return null
+  const n = Number(m[1])
+  if (!Number.isFinite(n) || n <= 0) return null
+  const unit = m[2].toLowerCase()
+  if (unit.startsWith('lb') || unit.startsWith('pound')) return n * 453.592
+  if (unit.startsWith('oz') || unit.startsWith('ounce')) return n * 28.3495
+  return n
+}
+
+/**
+ * The fixed answer to a question this shop must not answer with product, or null for an ordinary
+ * browse. `reason` is returned to the caller so a screen can style it and a manager reviewing the
+ * transcript can see the rule that fired rather than guessing.
+ */
+export function guardedAnswer(
+  message: string,
+  companyName: string,
+  companyRow?: { purchase_limit_oz?: any; state?: any } | null,
+): { response: string; reason: string } | null {
+  if (asksAboutACondition(message)) {
+    return {
+      reason: 'medical',
+      response: `I'm not able to give medical or health advice, and I can't suggest a product for a health condition — ${companyName} is a retailer, not a clinic. Please talk to your doctor or a licensed pharmacist about that.\n\nIf you'd like, I can fetch a member of staff, or you can tell me a product type, a strain type or a price and I'll show you what's in stock.`,
+    }
+  }
+
+  if (asksAboutDriving(message)) {
+    return {
+      reason: 'impairment',
+      response: `I can't advise on that. Driving while impaired by cannabis is illegal in every state and is charged the same way as drink-driving, whatever the product or the amount. Don't drive until you are no longer impaired, and plan another way home.\n\nI'm happy to help you find something for later.`,
+    }
+  }
+
+  // A quantity beyond what one person may lawfully buy. "Sell me 5 ounces of flower" was answered
+  // with "that's 40 eighths" and no mention of the limit at all. (T46 N25)
+  const grams = requestedGrams(message)
+  if (grams != null) {
+    const limitOz = Number(companyRow?.purchase_limit_oz) > 0 ? Number(companyRow.purchase_limit_oz) : 2.5
+    const limitGrams = limitOz * 28.3495
+    if (grams > limitGrams + 0.005) {
+      return {
+        reason: 'over_purchase_limit',
+        response: `I can't put that together — ${companyRow?.state ? `${companyRow.state} law` : 'the law here'} allows one customer ${limitOz} oz of cannabis (about ${Math.floor(limitGrams)} g) in a single purchase, and that's more. The register will refuse it at the counter too.\n\nTell me what you'd like within the limit and I'll show you what's in stock.`,
+      }
+    }
+  }
+
+  return null
+}
+
 interface IntentMatch {
   intent: string
   strainType: string | null
@@ -29,30 +138,26 @@ interface IntentMatch {
   effects: string[]
 }
 
+// The three condition intents that used to live here — relaxation-for-sleep, pain_relief and
+// anxiety_relief — are gone. They mapped "insomnia", "chronic pain" and "anxiety" straight to a
+// strain type and a product list with effects like 'pain relief', 'anti-inflammatory' and
+// 'therapeutic': a therapeutic claim written into the code, made without a model being involved at
+// all. A condition question never reaches this map now (asksAboutACondition refuses it first), and
+// nothing here offers to answer one. (T46 N2)
 const INTENT_MAP: Record<string, IntentMatch> = {
-  'sleep|relax|calm|wind down|insomnia|bedtime|chill': {
+  // An effect a customer asks for by name, with no condition attached — "something chill for a
+  // Friday night" — is still an ordinary browse.
+  'relax|wind down|chill|mellow': {
     intent: 'relaxation',
     strainType: 'indica',
     category: null,
-    effects: ['relaxing', 'sleepy', 'calming'],
+    effects: ['relaxing', 'calming'],
   },
   'energy|focus|creative|uplift|motivated|productive|wake': {
     intent: 'energy',
     strainType: 'sativa',
     category: null,
     effects: ['energizing', 'focused', 'creative', 'uplifting'],
-  },
-  'pain|relief|medical|chronic|inflammation|ache|sore': {
-    intent: 'pain_relief',
-    strainType: null,
-    category: null,
-    effects: ['pain relief', 'anti-inflammatory', 'therapeutic'],
-  },
-  'anxiety|stress|nervous|worried|tense': {
-    intent: 'anxiety_relief',
-    strainType: 'indica',
-    category: null,
-    effects: ['calming', 'anti-anxiety', 'relaxing'],
   },
   'edible|gummy|gummies|candy|chocolate|brownie|cookie|food': {
     intent: 'edibles',
@@ -88,7 +193,9 @@ const INTENT_MAP: Record<string, IntentMatch> = {
     intent: 'high_cbd',
     strainType: null,
     category: null,
-    effects: ['therapeutic', 'mild', 'non-psychoactive'],
+    // 'therapeutic' was an effect this shop advertised on every high-CBD product. It is a
+    // therapeutic claim in one word. What is left describes the composition, which is a fact. (T46 N2)
+    effects: ['low-THC', 'mild', 'non-psychoactive'],
   },
   'strong|potent|high thc|powerful|intense': {
     intent: 'high_potency',
@@ -139,11 +246,13 @@ function buildResponseMessage(
 ): string {
   if (greeting) {
     const name = customerName ? ` ${customerName}` : ''
-    return `Welcome${name}! I'm your budtender at ${companyName}. What are you looking for today? I can help you find the perfect product whether you're looking for relaxation, energy, pain relief, or anything else.`
+    // The shop's own greeting used to offer "pain relief" as a thing to shop for — a therapeutic
+    // claim in the first sentence the customer reads, before anyone had asked a question. (T46 N2)
+    return `Welcome${name}! I'm your budtender at ${companyName}. What are you looking for today? Tell me a product type, a strain type, or a price, and I'll show you what's in stock.`
   }
 
   if (!intents.length && !products.length) {
-    return `I'd love to help you find something great! Could you tell me more about what you're looking for? For example:\n• What effects are you after? (relaxation, energy, pain relief)\n• Do you have a preferred product type? (flower, edibles, vapes, concentrates)\n• Any preference for indica, sativa, or hybrid?`
+    return `I'd love to help you find something great! Could you tell me more about what you're looking for? For example:\n• A product type (flower, edibles, vapes, concentrates)\n• Indica, sativa, or hybrid\n• A price range, or a strain you already like`
   }
 
   if (!products.length) {
@@ -152,10 +261,8 @@ function buildResponseMessage(
   }
 
   const intentDescriptions: Record<string, string> = {
-    relaxation: 'relaxation and sleep',
+    relaxation: 'a relaxing evening',
     energy: 'energy and focus',
-    pain_relief: 'pain relief',
-    anxiety_relief: 'stress and anxiety relief',
     edibles: 'edibles',
     vapes: 'vapes',
     flower: 'flower',
@@ -283,10 +390,11 @@ This shop is a licensed cannabis retailer, and what you write is advertising und
 - NEVER state or imply that a product treats, cures, relieves or helps any medical or psychological
   condition — sleep, pain, anxiety, nausea, appetite, depression or anything else. That is a
   therapeutic claim, and a licensee making one risks its licence. If a customer asks for something
-  "for sleep" or "for pain", do not answer the medical question: say you cannot give medical or
-  health advice, suggest they speak to their doctor or a licensed pharmacist, and offer to describe
-  what is in stock by strain type, cannabinoid content and the effects OTHER CUSTOMERS commonly
-  report — never as a recommendation for their condition.
+  "for sleep" or "for pain", do not answer the medical question and do not name, list, describe or
+  hint at ANY product in the same reply: say you cannot give medical or health advice, suggest they
+  speak to their doctor or a licensed pharmacist, and offer to fetch a member of staff. Do not offer
+  to describe what other customers report either — that is the same recommendation with a different
+  sentence in front of it, and it is what this instruction used to permit. (T46 N2)
 - NEVER state a potency, dose, weight, price or ingredient that is not in the inventory below. If a
   figure is not there, say it is not recorded. Do not estimate it, do not infer it from the product
   name, and do not repeat a typical value for that kind of product.
@@ -512,11 +620,13 @@ app.post('/chat', requireRole('budtender'), async (c) => {
   const session = ((sessionResult as any).rows || sessionResult)?.[0]
   if (!session) return c.json({ error: 'Session not found or expired' }, 404)
 
-  // Get company info
+  // Get company info. The purchase limit comes with it, because a customer who asks for five
+  // ounces has to be told what one person may lawfully buy before anything else is discussed.
   const companyResult = await db.execute(sql`
-    SELECT name FROM company WHERE id = ${currentUser.companyId} LIMIT 1
+    SELECT name, purchase_limit_oz, state FROM company WHERE id = ${currentUser.companyId} LIMIT 1
   `)
-  const companyName = ((companyResult as any).rows || companyResult)?.[0]?.name || 'our dispensary'
+  const companyRow = ((companyResult as any).rows || companyResult)?.[0]
+  const companyName = companyRow?.name || 'our dispensary'
 
   // Get AI config
   const configResult = await db.execute(sql`
@@ -534,6 +644,32 @@ app.post('/chat', requireRole('budtender'), async (c) => {
     typeof session.messages === 'string'
       ? JSON.parse(session.messages)
       : (session.messages || [])
+
+  // ── the questions a licensee answers the same way every time ────────────────────────────────
+  //
+  // Decided here, before either engine, so the answer cannot depend on what a model felt like
+  // writing that day. Each one returns NO products at all: a decline followed by a product list is
+  // the recommendation the decline was supposed to prevent, and that is exactly what the retest
+  // found — "I can't give medical advice", then five products for cancer pain. (T46 N2, N25)
+  const guarded = guardedAnswer(data.message, companyName, companyRow)
+  if (guarded) {
+    existingMessages.push(
+      { role: 'user', content: data.message, timestamp: new Date().toISOString() },
+      { role: 'assistant', content: guarded.response, timestamp: new Date().toISOString() },
+    )
+    await db.execute(sql`
+      UPDATE ai_budtender_sessions
+      SET messages = ${JSON.stringify(existingMessages)}::jsonb, last_message_at = NOW()
+      WHERE id = ${session.id}
+    `)
+    return c.json({
+      response: guarded.response,
+      recommendedProducts: [],
+      suggestedCartItems: [],
+      declined: guarded.reason,
+      source: 'policy',
+    })
+  }
 
   if (anthropic) {
     // ============================================
@@ -1084,8 +1220,26 @@ app.post('/demo', requireRole('budtender'), async (c) => {
     : []
 
   // Company + config
-  const companyResult = await db.execute(sql`SELECT name FROM company WHERE id = ${currentUser.companyId} LIMIT 1`)
-  const companyName = ((companyResult as any).rows || companyResult)?.[0]?.name || 'our dispensary'
+  const companyResult = await db.execute(sql`SELECT name, purchase_limit_oz, state FROM company WHERE id = ${currentUser.companyId} LIMIT 1`)
+  const companyRow = ((companyResult as any).rows || companyResult)?.[0]
+  const companyName = companyRow?.name || 'our dispensary'
+
+  // The demo is the screen an owner uses to decide whether to switch this on, and it is the same
+  // shop and the same catalogue. A rule the register keeps and the demo does not is a rule the
+  // owner never sees working. (T46 N2)
+  {
+    const guarded = guardedAnswer(message, companyName, companyRow)
+    if (guarded) {
+      return c.json({
+        response: guarded.response,
+        recommendedProducts: [],
+        suggestedCartItems: [],
+        declined: guarded.reason,
+        source: 'policy',
+      })
+    }
+  }
+
   const configResult = await db.execute(sql`
     SELECT max_recommendations, personality, system_prompt, temperature FROM ai_budtender_config
     WHERE company_id = ${currentUser.companyId} LIMIT 1

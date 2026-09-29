@@ -97,7 +97,16 @@ export function clearQueue(): void {
   write([])
 }
 
-export type FlushResult = { attempted: number; synced: number; failed: number; conflicts: any[] }
+export type FlushResult = {
+  attempted: number
+  synced: number
+  failed: number
+  conflicts: any[]
+  /** Sales the server rejected outright, with its reason. They are not sent again. (T46 N1) */
+  refused: any[]
+  /** Sales that went through at a total this till disagreed with — the drawer will be out. */
+  repriced: any[]
+}
 
 /**
  * Send everything held to /api/offline/sync.
@@ -109,7 +118,7 @@ export async function flush(
   post: (endpoint: string, body: any) => Promise<any>,
 ): Promise<FlushResult> {
   const entries = read()
-  if (entries.length === 0) return { attempted: 0, synced: 0, failed: 0, conflicts: [] }
+  if (entries.length === 0) return { attempted: 0, synced: 0, failed: 0, conflicts: [], refused: [], repriced: [] }
 
   const batch = entries.slice(0, MAX_QUEUE).map(({ attempts, lastError, ...txn }) => txn)
 
@@ -126,20 +135,20 @@ export async function flush(
   const synced = Number(result?.synced || 0)
   const failed = Number(result?.failed || 0)
   const conflicts = Array.isArray(result?.conflicts) ? result.conflicts : []
+  const refused = Array.isArray(result?.refused) ? result.refused : []
+  const repriced = Array.isArray(result?.repriced) ? result.repriced : []
 
-  // The server accepted the batch. Anything it could not take is identified by its own device id
-  // and instant, so only those stay queued — the rest are done.
-  const rejected = new Set(
-    conflicts
-      .map((cf: any) => `${cf?.deviceId || ''}|${cf?.createdOfflineAt || ''}`)
-      .filter((k: string) => k !== '|'),
-  )
-  const kept = rejected.size > 0
-    ? entries.filter((e) => rejected.has(`${e.deviceId}|${e.createdOfflineAt}`))
-    : entries.slice(batch.length)
+  // The server has ANSWERED for every entry in this batch — taken it, deduped it, or refused it
+  // with a reason and a record a manager can see. So the batch leaves the queue, and only what did
+  // not fit in it stays.
+  //
+  // It used to keep everything the server listed as a conflict, which meant a DUPLICATE — a sale
+  // the server already had — was held and re-sent on every sync, for good. A queue that cannot
+  // drain is a queue a cashier learns to ignore. (Found while fixing T46 N1; not reported.)
+  const kept = entries.slice(batch.length)
   write(kept.map((e) => ({ ...e, attempts: e.attempts + 1 })))
 
-  return { attempted: batch.length, synced, failed, conflicts }
+  return { attempted: batch.length, synced, failed, conflicts, refused, repriced }
 }
 
 /** True when the browser believes it can reach the network. Not a promise that the server is up. */

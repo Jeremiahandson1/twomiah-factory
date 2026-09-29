@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 // Offline POS: a sale the network lost is held locally and replayed, rather than lost. (T45 H17)
 import { enqueue, pendingCount, isNetworkFailure, isOnline } from '../offline/queue';
+import { OFFLINE_SYNC_EVENT } from '../offline/register';
 
 interface CartItem {
   id: string;
@@ -410,6 +411,26 @@ export default function POSPage() {
       clearInterval(timer);
     };
   }, []);
+
+  // …and honest about what the sync actually did. A held sale is now re-run through the real
+  // checkout when it reaches the server, so it can be refused — for an underage customer, an
+  // over-limit basket, a closed drawer — or go through at the catalogue price rather than the one
+  // taken at the till. Either way the cashier is told at the till; the manager sees it under
+  // Offline Mode → Queue. It used to empty silently. (T46 N1)
+  useEffect(() => {
+    const onResult = (e: Event) => {
+      const r = (e as CustomEvent).detail || {};
+      for (const ref of r.refused || []) {
+        toast.error(`A held sale was refused on sync: ${ref.reason}`, 15000);
+      }
+      for (const rp of r.repriced || []) {
+        toast.error(`${rp.orderNumber} took $${rp.tookAtTill} at the till but rings up at $${rp.chargedOnSync}. Check the drawer.`, 15000);
+      }
+      setQueued(pendingCount());
+    };
+    window.addEventListener(OFFLINE_SYNC_EVENT, onResult);
+    return () => window.removeEventListener(OFFLINE_SYNC_EVENT, onResult);
+  }, [toast]);
 
   const completeOrder = async () => {
     if (!idVerified) {

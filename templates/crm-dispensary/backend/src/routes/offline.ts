@@ -5,9 +5,65 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import ordersApp from './orders.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+/**
+ * Replay a queued sale through the REAL order routes.
+ *
+ * T46 N1 (blocker): /sync wrote the sale exactly as the device described it. It took the device's
+ * price, the device's quantity and the device's word on the customer, charged no tax, and needed
+ * nothing but a budtender login. Three queued sales proved it on the live tenant — Blue Dream at
+ * $0.01 against a $35 list, 87.5 g in one basket against Ohio's 2.5 oz limit, and a sale to an
+ * 18-year-old with no card — all $0 excise and $0 sales tax, all counted as ordinary revenue. A
+ * stale queue, a modified one, or anyone holding a register login could sell to minors, over the
+ * limit, at any price, tax-free.
+ *
+ * The queue's own header has always said the server re-checks each sale against live stock, limits
+ * and prices. It did not. It does now, and it does it the only way that cannot drift: by sending the
+ * sale back through POST /api/orders and POST /api/orders/:id/complete — the same routes, the same
+ * middleware, the same age gate, purchase limit, stock check, pricing and tax the register uses. A
+ * rule added to the register is a rule the queue gets for free, because there is no second copy.
+ *
+ * The device's MONEY is not forwarded at all. Price, discount and tax come off the catalogue and the
+ * company's rates, exactly as at the till. What the device thought the sale came to is compared
+ * afterwards and reported, so a shop can see a drawer that will not reconcile — but it never decides
+ * anything.
+ */
+
+/** The caller's own credentials, so the replay runs as that person with exactly their rights. */
+function credentials(c: any): Record<string, string> {
+  const out: Record<string, string> = { 'content-type': 'application/json' }
+  const auth = c.req.header('authorization')
+  if (auth) out.authorization = auth
+  // The behaviour suite swaps bearer verification for an x-test-* bridge; forwarded for the same
+  // reason — the replay must arrive authenticated as whoever called /sync, never as nobody.
+  for (const h of ['x-test-user', 'x-test-company', 'x-test-role']) {
+    const v = c.req.header(h)
+    if (v) out[h] = v
+  }
+  return out
+}
+
+async function callOrders(c: any, path: string, body: any) {
+  const res = await ordersApp.request(path, { method: 'POST', headers: credentials(c), body: JSON.stringify(body) })
+  const text = await res.text()
+  let json: any = text
+  try { json = JSON.parse(text) } catch { /* a non-JSON body is reported as it came */ }
+  return { status: res.status, json }
+}
+
+/** The refusal in the words the register would have shown, so the manager reads the real reason. */
+function refusalText(json: any): string {
+  if (typeof json === 'string') return json.slice(0, 300)
+  const base = json?.error || 'the sale was refused'
+  const details = Array.isArray(json?.details)
+    ? json.details.map((d: any) => `${(d?.path || []).join('.')}: ${d?.message}`).join('; ')
+    : ''
+  return details ? `${base} (${details})` : String(base)
+}
 
 // Raw db.execute rows come back snake_case; convert row keys to camelCase before responding.
 const camel = (row: any): any => {
@@ -44,7 +100,11 @@ app.post('/sync', requireRole('budtender'), async (c) => {
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
 
-  const results = { synced: 0, failed: 0, conflicts: [] as any[] }
+  // `conflicts` means "the server did not take this" — today, only duplicates. `refused` is a
+  // sale the server actively rejected, with the reason, so the till can say so and the manager can
+  // find it in the Queue tab. `repriced` is a sale that went through at a total the till disagreed
+  // with. Neither is a conflict: both are settled, and neither should be sent again. (T46 N1)
+  const results = { synced: 0, failed: 0, conflicts: [] as any[], refused: [] as any[], repriced: [] as any[] }
 
   for (const txn of data.transactions) {
     try {
@@ -74,66 +134,78 @@ app.post('/sync', requireRole('budtender'), async (c) => {
       let syncError: string | null = null
 
       if (txn.transactionType === 'order') {
-        // Replay order creation.
-        //
-        // This used to write the header alone: an order at the right total with no lines and no
-        // stock movement. For a sale a customer has already walked out with, that is a hole in
-        // three places at once — inventory still shows product that left the building, the
-        // compliance surfaces have nothing to report, and a recall could not name who bought it.
-        // The lines and the stock move with the order now. (T45 H17)
+        // Replayed through the real order routes — see the note at the top of this file. Nothing
+        // about the sale is taken from the device except WHAT was sold, to WHOM, and WHEN.
         const p = txn.payload
-        const orderNumber = `ORD-OFF-${Date.now().toString(36).toUpperCase()}`
-        const insertResult = await db.execute(sql`
-          INSERT INTO orders (id, number, type, status, contact_id, customer_name,
-            subtotal, excise_tax, sales_tax, total_tax, total, payment_method, payment_status,
-            notes, budtender_id, id_verified, company_id, created_at, updated_at, completed_at)
-          VALUES (gen_random_uuid(), ${orderNumber}, ${p.type || 'walk_in'}, ${p.status || 'pending'},
-            ${p.contactId || null}, ${p.customerName || null},
-            ${p.subtotal || '0'}, ${p.exciseTax || '0'}, ${p.salesTax || '0'},
-            ${p.totalTax || '0'}, ${p.total || '0'},
-            ${p.paymentMethod || null}, ${p.paymentStatus || (p.status === 'completed' ? 'paid' : 'pending')},
-            ${p.notes || null}, ${currentUser.userId}, ${p.idVerified === true}, ${currentUser.companyId},
-            ${txn.createdOfflineAt}::timestamptz, NOW(),
-            ${p.status === 'completed' ? txn.createdOfflineAt : null}::timestamptz)
-          RETURNING id, number
+        const lines = (Array.isArray(p.items) ? p.items : [])
+          .filter((i: any) => i?.productId)
+          .map((i: any) => ({ productId: String(i.productId), quantity: Math.round(Number(i.quantity) || 0) }))
+          .filter((i: any) => i.quantity > 0)
+        if (!lines.length) throw new Error('The queued sale has no sellable lines.')
+
+        const created = await callOrders(c, '/', {
+          type: p.type || 'walk_in',
+          contactId: p.contactId ?? null,
+          ...(p.customerName ? { customerName: String(p.customerName) } : {}),
+          ...(p.customerId ? { customerId: String(p.customerId) } : {}),
+          ...(p.customerDob ? { customerDob: String(p.customerDob) } : {}),
+          ...(typeof p.isMedical === 'boolean' ? { isMedical: p.isMedical } : {}),
+          ...(p.paymentMethod ? { paymentMethod: p.paymentMethod } : {}),
+          // The till's own ID check, which happened face to face. Everything it implies — the
+          // customer's date of birth, their card and its expiry — is still read from the customer
+          // record by the age gate, which is what refused the 18-year-old.
+          idVerified: p.idVerified === true,
+          items: lines,
+          notes: p.notes || 'Rung up while offline',
+        })
+        if (created.status !== 201 && created.status !== 200) throw new Error(refusalText(created.json))
+        const orderId = created.json?.id
+        const orderNumber = created.json?.number
+        if (!orderId) throw new Error('The sale was accepted but no order came back.')
+        replayResult = { id: orderId, number: orderNumber }
+
+        if ((p.status || 'pending') === 'completed') {
+          const done = await callOrders(c, `/${orderId}/complete`, {
+            paymentMethod: p.paymentMethod || 'cash',
+            ...(p.cashTendered != null ? { cashTendered: Number(p.cashTendered) } : {}),
+            idVerified: p.idVerified === true,
+          })
+          if (done.status !== 200) {
+            // The sale exists and is right; it just cannot be settled yet — most often because the
+            // drawer it was rung into has since been closed. It is LEFT STANDING in Orders rather
+            // than deleted, because the customer has already walked out with the product and a shop
+            // needs the record. The manager settles it from the Orders page once the reason is gone.
+            throw new Error(`${orderNumber} was raised and is waiting in Orders — it could not be settled: ${refusalText(done.json)}`)
+          }
+        }
+
+        // The sale belongs to the moment it was rung up, not to the moment the connection came
+        // back. Without this a Saturday afternoon's offline takings all land on Sunday morning and
+        // no day's figures are true. (Only the timestamps move; everything else was decided above.)
+        await db.execute(sql`
+          UPDATE orders
+          SET created_at = ${txn.createdOfflineAt}::timestamptz,
+              completed_at = CASE WHEN completed_at IS NULL THEN NULL ELSE ${txn.createdOfflineAt}::timestamptz END
+          WHERE id = ${orderId} AND company_id = ${currentUser.companyId}
         `)
-        replayResult = ((insertResult as any).rows || insertResult)?.[0]
 
-        const replayedItems = Array.isArray(p.items) ? p.items : []
-        for (const item of replayedItems) {
-          if (!item?.productId) continue
-          const quantity = Math.max(0, Math.round(Number(item.quantity) || 0))
-          if (quantity === 0) continue
-
-          // Price and classification come off the product as it stands NOW, not off the till's
-          // copy — a queued sale is re-checked against live data, which is the whole reason it
-          // is replayed through the server rather than written by the till.
-          const prodRes = await db.execute(sql`
-            SELECT id, name, category, price, tax_category FROM products
-            WHERE id = ${item.productId} AND company_id = ${currentUser.companyId}
-            LIMIT 1
-          `)
-          const prod = ((prodRes as any).rows || prodRes)?.[0]
-          if (!prod) throw new Error(`Product ${item.productId} no longer exists`)
-
-          const unitPrice = item.unitPrice != null ? String(item.unitPrice) : String(prod.price ?? '0')
-          const lineTotal = (Number(unitPrice) * quantity).toFixed(2)
-
-          await db.execute(sql`
-            INSERT INTO order_items (id, order_id, company_id, product_id, product_name, category,
-              quantity, refunded_quantity, unit_price, total_price, line_total, tax_category)
-            VALUES (gen_random_uuid(), ${replayResult?.id}, ${currentUser.companyId}, ${prod.id},
-              ${prod.name}, ${prod.category}, ${quantity}, 0, ${unitPrice}, ${lineTotal}, ${lineTotal},
-              ${prod.tax_category || null})
-          `)
-
-          // Stock leaves the shelf for a completed sale, exactly as it does at the register.
-          if ((p.status || 'pending') === 'completed') {
-            await db.execute(sql`
-              UPDATE products
-              SET stock_quantity = GREATEST(COALESCE(stock_quantity, 0) - ${quantity}, 0), updated_at = NOW()
-              WHERE id = ${prod.id} AND company_id = ${currentUser.companyId}
-            `)
+        // What the till thought it charged, against what the sale actually comes to. This decides
+        // nothing — the server's figure stands — but a shop whose drawer will be short by $34.99
+        // needs to be told, not to find out at close.
+        if (p.total != null) {
+          const row = ((await db.execute(sql`
+            SELECT total FROM orders WHERE id = ${orderId} AND company_id = ${currentUser.companyId} LIMIT 1
+          `)) as any).rows?.[0]
+          const charged = Number(row?.total || 0)
+          const claimed = Number(p.total)
+          if (Number.isFinite(claimed) && Math.abs(charged - claimed) > 0.005) {
+            results.repriced.push({
+              deviceId: txn.deviceId,
+              createdOfflineAt: txn.createdOfflineAt,
+              orderNumber,
+              tookAtTill: claimed.toFixed(2),
+              chargedOnSync: charged.toFixed(2),
+            })
           }
         }
 
@@ -212,15 +284,24 @@ app.post('/sync', requireRole('budtender'), async (c) => {
       results.synced++
 
     } catch (err: any) {
-      // Log the failed transaction (no synced_by column in schema)
+      // Log the failed transaction (no synced_by column in schema). The message is the register's
+      // own refusal, so the Queue tab shows a manager why this sale did not go through rather than
+      // "Unknown error". (T46 N1)
+      const reason = err?.message || 'Unknown error'
       await db.execute(sql`
         INSERT INTO offline_transactions (id, transaction_type, payload, device_id, location_id,
           created_offline_at, status, sync_error, company_id, created_at)
         VALUES (gen_random_uuid(), ${txn.transactionType}, ${JSON.stringify(txn.payload)}::jsonb,
           ${txn.deviceId}, ${txn.locationId}, ${txn.createdOfflineAt}::timestamptz,
-          'failed', ${err.message || 'Unknown error'},
+          'failed', ${reason},
           ${currentUser.companyId}, NOW())
       `)
+      results.refused.push({
+        deviceId: txn.deviceId,
+        createdOfflineAt: txn.createdOfflineAt,
+        transactionType: txn.transactionType,
+        reason,
+      })
       results.failed++
     }
   }
@@ -229,7 +310,10 @@ app.post('/sync', requireRole('budtender'), async (c) => {
     action: audit.ACTIONS.CREATE,
     entity: 'offline_sync',
     entityName: 'Offline Transaction Sync',
-    metadata: { synced: results.synced, failed: results.failed, conflicts: results.conflicts.length },
+    metadata: {
+      synced: results.synced, failed: results.failed, conflicts: results.conflicts.length,
+      refused: results.refused.length, repriced: results.repriced.length,
+    },
     req: c,
   })
 

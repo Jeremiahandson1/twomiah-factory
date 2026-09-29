@@ -13,11 +13,21 @@ let flushing = false
  * Send whatever is queued. Safe to call often — it does nothing when there is nothing to send, and
  * will not overlap itself.
  */
+/** What a sync did, for anyone watching the till. */
+export const OFFLINE_SYNC_EVENT = 'offline-sync-result'
+
 export async function flushOfflineQueue(): Promise<void> {
   if (flushing || !isOnline() || pendingCount() === 0) return
   flushing = true
   try {
-    await flush((endpoint, body) => api.post(endpoint, body))
+    const result = await flush((endpoint, body) => api.post(endpoint, body))
+    // A sale the server REFUSED is product that left the shop with no sale behind it, and a sale it
+    // repriced is a drawer that will not add up. Both used to be swallowed here: the queue emptied,
+    // the banner cleared, and nobody at the till knew. Announced so the register can say so, and
+    // recorded server-side either way for the Queue tab. (T46 N1)
+    if (result.refused.length || result.repriced.length) {
+      window.dispatchEvent(new CustomEvent(OFFLINE_SYNC_EVENT, { detail: result }))
+    }
   } catch {
     // Still unreachable. The queue keeps everything; the next 'online' event or the next interval
     // tries again. Nothing is lost by failing here.

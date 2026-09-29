@@ -33,11 +33,16 @@ const mkUser = async (role: string, tag: string) => (await db.insert(user).value
 const manager = await mkUser('manager', 'manager')
 const budtender = await mkUser('user', 'budtender')
 
+// Weighed and classified like a real flower product. The queue is replayed through the register's
+// own checkout now (T46 N1), so a line the shop cannot weigh is refused here exactly as it is at
+// the till — which is right, and which this fixture has to satisfy to test anything else. (T29 H3)
 const [kush] = await db.insert(product).values({
   name: 'OG Kush', companyId: co.id, category: 'flower', price: '45', stockQuantity: 20,
+  weightGrams: '3.5', trackInventory: true, taxCategory: 'cannabis',
 } as any).returning()
 const [tee] = await db.insert(product).values({
   name: 'Logo Tee', companyId: co.id, category: 'merch', price: '25', stockQuantity: 10,
+  trackInventory: true, taxCategory: 'merchandise',
 } as any).returning()
 const [cust] = await db.insert(contact).values({
   type: 'customer', name: 'Ada Customer', companyId: co.id, dateOfBirth: '1980-01-01',
@@ -97,7 +102,14 @@ check('H17: the held sale is taken', sync.json?.synced === 1 && sync.json?.faile
 
 const orders = await rows(sql`SELECT id, status, total, customer_name, payment_status, completed_at FROM orders WHERE company_id = ${co.id}`)
 check('H17: ...and lands as a real sale', orders.length === 1 && orders[0].status === 'completed', orders[0])
-check('H17: ...at the total the till rang up', Number(orders[0]?.total) === 134.06, orders[0]?.total)
+// NOT the total the till rang up any more, and deliberately. T46 N1 found that taking the device's
+// figure is what let a queued sale charge $0.01 for a $35 eighth with no tax at all. The sale is
+// priced from the catalogue and taxed at the shop's rates on sync; the till's figure is kept only
+// to be compared, and reported when the two disagree so the drawer can be reconciled.
+check('H17: ...priced by the server, not by the till', Number(orders[0]?.total) > 0, orders[0]?.total)
+check('N1: ...and the till\'s own figure is reported back as a difference to chase',
+  sync.json?.repriced?.[0]?.tookAtTill === '134.06' && Number(sync.json?.repriced?.[0]?.chargedOnSync) > 0,
+  sync.json?.repriced)
 check('H17: ...marked paid', orders[0]?.payment_status === 'paid', orders[0]?.payment_status)
 check('H17: ...timestamped when it was rung up, not when it synced',
   new Date(orders[0]?.completed_at).toISOString().slice(0, 16) === rungUpAt.slice(0, 16),
