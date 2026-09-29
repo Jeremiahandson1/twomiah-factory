@@ -103,7 +103,11 @@ function clamp(days: number): number {
 export function describeInterval(i: RebookInterval): string {
   if (!i.days) return 'No rebooking interval set'
   const weeks = i.days % 7 === 0 ? `${i.days / 7} week${i.days === 7 ? '' : 's'}` : `${i.days} days`
+  // "their", not "her". The first draft said her, and the live list promptly printed "her own
+  // rhythm" next to James Carter. A salon's clients are not all women and the product has no idea
+  // which any of them are — it has a name and nothing else. Guessing from a name is how you
+  // misgender a real person on a screen their stylist reads out loud.
   return i.basis === 'client'
-    ? `every ${weeks} — her own rhythm, from ${i.visits} visits`
+    ? `every ${weeks} — their own rhythm, from ${i.visits} visits`
     : `every ${weeks} — the menu's interval`
 }

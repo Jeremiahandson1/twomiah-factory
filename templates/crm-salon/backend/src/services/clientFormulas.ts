@@ -17,7 +17,7 @@ import { createId } from '@paralleldrive/cuid2'
  *
  * So the client keeps their own set here, and the per-visit record goes on logging what was actually
  * mixed on the day — which is real history and worth keeping. The two answer different questions:
- * "what do I mix for her?" and "what did we do in March?".
+ * "what do I mix for this client?" and "what did we do in March?".
  *
  * With that in place, cancelling a visit no longer has to choose. The formula is kept on the client
  * FIRST, then the record goes, and nothing clinical is lost.

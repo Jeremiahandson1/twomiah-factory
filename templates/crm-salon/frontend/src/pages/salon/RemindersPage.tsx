@@ -28,7 +28,7 @@ interface DueRow {
   overdue?: boolean;
   stylistFirstName?: string;
   stylistLastName?: string;
-  /** 'client' when the date came from her own visits, 'menu' when it came from the price list. */
+  /** 'client' when the date came from their own visits, 'menu' when it came from the price list. */
   intervalBasis?: 'client' | 'menu' | 'none';
   intervalNote?: string;
   visitsInRhythm?: number;

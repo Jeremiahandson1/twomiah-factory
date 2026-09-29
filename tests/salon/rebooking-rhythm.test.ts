@@ -99,7 +99,11 @@ const rowsFor = async (client: any) => (await due()).filter((r) => r.contactId =
   check('…at the interval she actually keeps', row?.rebookIntervalDays === 35, row?.rebookIntervalDays)
   check('…so she is due 35 days after her last visit, not 42',
     row?.dueDate === new Date(daysAgo(35).getTime() + 35 * DAY).toISOString().slice(0, 10), row?.dueDate)
-  check('…and the desk is told which it is', /her own rhythm/.test(String(row?.intervalNote)), row?.intervalNote)
+  check('…and the desk is told which it is', /their own rhythm/.test(String(row?.intervalNote)), row?.intervalNote)
+  // The live list printed "her own rhythm" next to James Carter. The product knows a name and
+  // nothing else, and a name is not a pronoun.
+  check('…without guessing the client\'s gender from their name',
+    !/\b(her|his|she|he)\b/i.test(String(row?.intervalNote)), row?.intervalNote)
   check('…with how much history it rests on', row?.visitsInRhythm === 4, row?.visitsInRhythm)
 }
 
