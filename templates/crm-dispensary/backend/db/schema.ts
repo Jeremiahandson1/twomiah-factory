@@ -373,6 +373,18 @@ export const loyaltyMember = pgTable('loyalty_members', {
   referredBy: text('referred_by'),
   optedInSms: boolean('opted_in_sms').default(false),
   optedInEmail: boolean('opted_in_email').default(false),
+  /**
+   * WHEN consent was given, and where it came from.
+   *
+   * Marketing texts are consent law, not a preference: a carrier or a regulator asking about a
+   * complaint wants the date and the channel, and "the box is ticked" is not an answer to either.
+   * The flags above have existed since the start with nothing to set them — T47 P2 found there was
+   * NO way to opt anyone in at all, so SMS marketing could never send to a single person — and any
+   * route added to set them needed somewhere to put the evidence.
+   */
+  optedInSmsAt: timestamp('opted_in_sms_at'),
+  optedInEmailAt: timestamp('opted_in_email_at'),
+  consentSource: text('consent_source'),            // in_store|online|import|staff
   joinedAt: timestamp('joined_at').defaultNow(),
   lastActivityAt: timestamp('last_activity_at'),
   totalPointsEarned: integer('total_points_earned').default(0),

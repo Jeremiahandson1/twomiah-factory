@@ -501,12 +501,55 @@ async function send(
   }
 }
 
+/**
+ * Send a message whose body is already written — a marketing campaign, not a template.
+ *
+ * It exists so that marketing has no reason to build its own sender, and T47 P1 is what happens
+ * when it does: services/marketing.ts carried a PRIVATE sendEmail hardwired to SendGrid, which this
+ * platform does not use. With no SENDGRID_API_KEY it logged "Email would be sent" and RETURNED
+ * NORMALLY, so every recipient counted as sent, the campaign was stamped sent, and nothing left the
+ * building. The owner had no way to know. Meanwhile every other email in the tenant went out fine
+ * through this file, which detects Resend and five other providers.
+ *
+ * Same transporter, same provider detection, and the same rule as send(): in PRODUCTION, no
+ * transporter is a refusal and not a quiet success. A caller that cannot send must be told.
+ */
+async function sendRaw(
+  to: string,
+  subject: string,
+  html: string,
+  options: Record<string, unknown> = {},
+): Promise<{ success: boolean; messageId?: string; dev?: boolean }> {
+  const from = (options.from as any) || { name: FROM_NAME, address: FROM_EMAIL }
+
+  if (!transporter && process.env.NODE_ENV === 'production') {
+    throw new Error('No email provider is configured, so nothing can be sent. Set RESEND_API_KEY (or another provider) on this service.')
+  }
+  if (!transporter) {
+    console.log('\nEMAIL (dev mode):')
+    console.log('To:', to)
+    console.log('Subject:', subject)
+    console.log('---\n')
+    return { success: true, dev: true }
+  }
+
+  try {
+    const result = await transporter.sendMail({ from, to, subject, html, ...options })
+    logger.info('Email sent', { to, subject, provider: PROVIDER })
+    return { success: true, messageId: result.messageId }
+  } catch (error: unknown) {
+    logger.error('Email failed', { to, subject, error: (error as Error).message })
+    throw error
+  }
+}
+
 // ============================================
 // CONVENIENCE METHODS
 // ============================================
 
 const emailService = {
   send,
+  sendRaw,
   PROVIDER,
 
   // Auth
@@ -533,4 +576,4 @@ const emailService = {
 };
 
 export default emailService;
-export { emailService, send, templates };
+export { emailService, send, sendRaw, templates };

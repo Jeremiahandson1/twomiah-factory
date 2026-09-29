@@ -118,6 +118,22 @@ app.get('/campaigns/:id', async (c) => {
   return c.json(campaign)
 })
 
+/**
+ * Who a campaign actually reached, one row per person.
+ *
+ * T47 P1: a campaign reported "sent 1, failed 0", the email never arrived, and there was NOWHERE in
+ * the product to find that out — no recipients route existed at all, so the owner's only evidence
+ * was a number the sender had made up. The rows were being written the whole time; nothing read
+ * them back. A send total with no per-recipient record behind it is a claim, not a receipt.
+ */
+app.get('/campaigns/:id/recipients', async (c) => {
+  const user = c.get('user') as any
+  const id = c.req.param('id')
+  const campaign = await marketing.getCampaign(id, user.companyId)
+  if (!campaign) return c.json({ error: 'Campaign not found' }, 404)
+  return c.json(await marketing.getCampaignRecipients(id, user.companyId))
+})
+
 app.post('/campaigns', requirePermission('marketing:create'), async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json()

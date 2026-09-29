@@ -17,13 +17,11 @@ import {
   marketingRecipient,
 } from '../../db/schema.ts'
 import { eq, and, gte, sql, desc } from 'drizzle-orm'
-import sgMail from '@sendgrid/mail'
 import { sendSMS } from './sms.ts'
-
-// Initialize SendGrid
-if (process.env.SENDGRID_API_KEY) {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY)
-}
+// The tenant's ONE email sender. The SendGrid client that used to be wired up here is gone: it was
+// a second implementation of something this file already had, and it was the one that did not
+// work. (T47 P1)
+import emailService from './email.ts'
 
 // ============================================
 // SEND PROMOTIONS
@@ -337,25 +335,52 @@ export async function sendCampaign(id: string, companyId: string) {
   return { sent, failed, total: recipients.length, channel }
 }
 
+/**
+ * Every person a campaign was sent to, with what happened to their copy.
+ *
+ * Summarised as well as listed, because the question an owner asks is "did it go out" and the
+ * answer is a count, not a table. (T47 P1)
+ */
+export async function getCampaignRecipients(campaignId: string, companyId: string) {
+  const rows = await db.select().from(marketingRecipient)
+    .where(and(eq(marketingRecipient.campaignId, campaignId), eq(marketingRecipient.companyId, companyId)))
+    .orderBy(desc(marketingRecipient.sentAt))
+
+  const summary = { total: rows.length, sent: 0, failed: 0, opened: 0, clicked: 0, unsubscribed: 0 }
+  for (const r of rows) {
+    if (r.status === 'failed') summary.failed++; else summary.sent++
+    if (r.openedAt) summary.opened++
+    if (r.clickedAt) summary.clicked++
+    if (r.unsubscribedAt) summary.unsubscribed++
+  }
+
+  return {
+    ...summary,
+    recipients: rows.map((r) => ({
+      id: r.id, contactId: r.contactId, channel: r.channel, address: r.address,
+      status: r.status, error: r.error, sentAt: r.sentAt,
+      openedAt: r.openedAt, clickedAt: r.clickedAt, unsubscribedAt: r.unsubscribedAt,
+    })),
+  }
+}
+
 // ============================================
 // HELPERS
 // ============================================
 
+/**
+ * One sender for the whole tenant — services/email.ts, which detects Resend, SendGrid, Mailgun, SES,
+ * Postmark or SMTP and refuses in production when none is configured.
+ *
+ * T47 P1: this used to be a PRIVATE implementation hardwired to SendGrid, which this platform does
+ * not use. With no SENDGRID_API_KEY it logged "Email would be sent" and returned normally, so every
+ * recipient was counted sent, the campaign was stamped sent, and nothing left the building —
+ * while every other email in the tenant went out fine through the shared service. A second
+ * implementation of something that already worked, silently failing next to the one that didn't.
+ */
 async function sendEmail({ to, subject, html, fromName, fromEmail }: { to: string; subject: string; html: string; fromName?: string; fromEmail?: string }) {
-  if (!process.env.SENDGRID_API_KEY) {
-    console.log('Email would be sent:', { to, subject })
-    return
-  }
-
-  await sgMail.send({
-    to,
-    from: {
-      email: fromEmail || process.env.DEFAULT_FROM_EMAIL!,
-      name: fromName || process.env.DEFAULT_FROM_NAME!,
-    },
-    subject,
-    html,
-  })
+  await emailService.sendRaw(to, subject, html,
+    fromEmail ? { from: { name: fromName || fromEmail, address: fromEmail } } : {})
 }
 
 function personalizeContent(content: string, contactData: any): string {
@@ -580,6 +605,7 @@ export default {
   deleteCampaign,
   sendPromoEmail,
   sendCampaign,
+  getCampaignRecipients,
   trackOpen,
   trackClick,
   reachableAudience,

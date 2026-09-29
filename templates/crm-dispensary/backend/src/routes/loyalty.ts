@@ -91,6 +91,11 @@ app.post('/members', requireRole('budtender'), async (c) => {
     initialPoints: z.number().int().min(0).default(0),
     tier: z.enum(['bronze', 'silver', 'gold', 'platinum']).default('bronze'),
     notes: z.string().optional(),
+    // Consent, taken at the counter where the customer is standing. It was silently dropped here
+    // before, which is half of why SMS marketing could never reach anybody. (T47 P2)
+    optedInSms: z.boolean().optional(),
+    optedInEmail: z.boolean().optional(),
+    consentSource: z.enum(['in_store', 'online', 'import', 'staff']).optional(),
   })
   const data = enrollSchema.parse(await c.req.json())
 
@@ -117,9 +122,14 @@ app.post('/members', requireRole('budtender'), async (c) => {
   const welcomeBonus = cfg.enabled ? cfg.welcomePoints : 0
   const startingPoints = data.initialPoints + welcomeBonus
 
+  const smsOk = data.optedInSms === true
+  const emailOk = data.optedInEmail === true
+  const source = data.consentSource || 'in_store'
   const result = await db.execute(sql`
-    INSERT INTO loyalty_members(id, contact_id, tier, points_balance, total_points_earned, lifetime_points, total_visits, total_spent, notes, company_id, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${data.contactId}, ${data.tier}, ${startingPoints}, ${startingPoints}, ${startingPoints}, 0, 0, ${data.notes || null}, ${currentUser.companyId}, NOW(), NOW())
+    INSERT INTO loyalty_members(id, contact_id, tier, points_balance, total_points_earned, lifetime_points, total_visits, total_spent, notes, opted_in_sms, opted_in_email, opted_in_sms_at, opted_in_email_at, consent_source, company_id, created_at, updated_at)
+    VALUES (gen_random_uuid(), ${data.contactId}, ${data.tier}, ${startingPoints}, ${startingPoints}, ${startingPoints}, 0, 0, ${data.notes || null},
+            ${smsOk}, ${emailOk}, ${smsOk ? sql`NOW()` : sql`NULL`}, ${emailOk ? sql`NOW()` : sql`NULL`},
+            ${smsOk || emailOk ? source : null}, ${currentUser.companyId}, NOW(), NOW())
     RETURNING *
   `)
   const member = ((result as any).rows || result)?.[0]
@@ -144,6 +154,84 @@ app.post('/members', requireRole('budtender'), async (c) => {
   // list beside it was camelCase, so the page that had just enrolled someone read undefined off its own
   // response and showed a blank balance until a reload. (Dispensary T31 L6)
   return c.json(camel(member), 201)
+})
+
+/**
+ * Set a member's marketing consent.
+ *
+ * T47 P2: there was no way to opt anybody in to texts — anywhere. Not on the customer page, not on
+ * the loyalty member, not through the API: create ignored the field and there was no update route
+ * at all, so PUT answered 405. The SMS audience correctly counts opted-in members only, so it
+ * counted zero, for ever, and SMS marketing could never reach one person. A consent gate with no
+ * consent path is a feature that cannot be switched on.
+ *
+ * Consent carries its DATE and its SOURCE, because that is what the question "why did you text me"
+ * is actually asking. Withdrawing is recorded the same way, and the unsubscribe link already goes
+ * through the same columns.
+ *
+ * A budtender may take consent — they are the one at the counter when the customer says yes.
+ */
+app.put('/members/:id/consent', requireRole('budtender'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const consentSchema = z.object({
+    optedInSms: z.boolean().optional(),
+    optedInEmail: z.boolean().optional(),
+    source: z.enum(['in_store', 'online', 'import', 'staff']).default('in_store'),
+  }).refine((d) => d.optedInSms !== undefined || d.optedInEmail !== undefined, {
+    message: 'Say which consent is changing: optedInSms, optedInEmail, or both.',
+  })
+  const parsed = consentSchema.safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) return c.json(zodRefusal(parsed.error), 400)
+  const data = parsed.data
+
+  const [member] = ((await db.execute(sql`
+    SELECT m.*, ct.name AS contact_name, ct.phone AS contact_phone
+    FROM loyalty_members m
+    LEFT JOIN contact ct ON ct.id = m.contact_id
+    WHERE m.id = ${id} AND m.company_id = ${currentUser.companyId} LIMIT 1
+  `)) as any).rows || []
+  if (!member) return c.json({ error: 'Loyalty member not found' }, 404)
+
+  // Consent to be TEXTED needs somewhere to text. Accepting it against a customer with no phone
+  // number records a permission that can never be used and looks like an audience that exists.
+  if (data.optedInSms === true && !String(member.contact_phone || '').trim()) {
+    return c.json({
+      error: `${member.contact_name || 'This customer'} has no phone number on file, so there is nothing to text. Add a mobile number first.`,
+      code: 'no_phone_to_consent_to',
+    }, 400)
+  }
+
+  const sets: any[] = [sql`updated_at = NOW()`]
+  if (data.optedInSms !== undefined) {
+    sets.push(sql`opted_in_sms = ${data.optedInSms}`)
+    sets.push(data.optedInSms ? sql`opted_in_sms_at = NOW()` : sql`opted_in_sms_at = NULL`)
+  }
+  if (data.optedInEmail !== undefined) {
+    sets.push(sql`opted_in_email = ${data.optedInEmail}`)
+    sets.push(data.optedInEmail ? sql`opted_in_email_at = NOW()` : sql`opted_in_email_at = NULL`)
+  }
+  if (data.optedInSms === true || data.optedInEmail === true) sets.push(sql`consent_source = ${data.source}`)
+  const setClause = sets.reduce((acc, s, i) => (i === 0 ? s : sql`${acc}, ${s}`))
+
+  const [updated] = ((await db.execute(sql`
+    UPDATE loyalty_members SET ${setClause}
+    WHERE id = ${id} AND company_id = ${currentUser.companyId}
+    RETURNING *
+  `)) as any).rows || []
+
+  audit.log({
+    action: audit.ACTIONS.UPDATE, entity: 'loyalty_member', entityId: id, entityName: member.contact_name,
+    changes: {
+      ...(data.optedInSms !== undefined ? { optedInSms: { old: member.opted_in_sms, new: data.optedInSms } } : {}),
+      ...(data.optedInEmail !== undefined ? { optedInEmail: { old: member.opted_in_email, new: data.optedInEmail } } : {}),
+    },
+    metadata: { source: data.source },
+    req: c,
+  })
+
+  return c.json(camel(updated))
 })
 
 // Adjust points manually (manager+)
