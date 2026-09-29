@@ -71,8 +71,6 @@ export function rebookInterval(visitDates: Array<Date | string | number>, menuDa
     ? { days: clamp(Number(menuDays)), basis: 'menu', visits: times.length }
     : { days: null, basis: 'none', visits: times.length }
 
-  if (times.length < VISITS_TO_LEARN) return fallback
-
   const gaps: number[] = []
   for (let i = 1; i < times.length; i++) {
     const days = Math.round((times[i] - times[i - 1]) / DAY)
@@ -80,6 +78,15 @@ export function rebookInterval(visitDates: Array<Date | string | number>, menuDa
     // on the same afternoon say nothing about how often she comes.
     if (days >= 1) gaps.push(days)
   }
+
+  // The rule — three visits before we have an opinion — is enforced HERE and only here, counted in
+  // GAPS rather than in rows. Three visits give two gaps. An earlier version also checked
+  // times.length up front; the two checks enforced the same rule, so neither could be falsified on
+  // its own (mutation testing found it: breaking either one left every assertion green, and only
+  // breaking both went red). Two guards for one rule is one guard and a place for them to disagree.
+  //
+  // Counting gaps rather than rows is also the stricter reading: three visits that all happened on
+  // the same afternoon are one visit, and say nothing about anybody's rhythm.
   if (gaps.length < VISITS_TO_LEARN - 1) return fallback
 
   return { days: clamp(median(gaps)), basis: 'client', visits: times.length }
