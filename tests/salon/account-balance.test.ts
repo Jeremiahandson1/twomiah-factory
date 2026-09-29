@@ -214,6 +214,41 @@ const mkBill = async (contactId: string, total: string) => (await db.insert(invo
     inv.json?.accountBalance === bal, { got: inv.json?.accountBalance, expected: bal })
 }
 
+// ══════════════ a vertical that keeps NO balances cannot settle a sale against one ══════════════
+//
+// The salon wires the ledger, so nothing reached through these routes can prove what the other
+// twelve CRMs do. This calls the shared writer directly, the way their templates do — with no
+// spendFromAccount — because that absence is the only thing standing between a vertical with no
+// client balances and a sale settled against money that does not exist.
+{
+  const { recordInvoicePayment } = await import('./src/shared/index.ts')
+  const { invoice: invT, payment: payT } = await import('./db/schema.ts')
+  const bill = await mkBill(ada.id, '12.00')
+
+  const noLedger = await recordInvoicePayment(db, { invoice: invT, payment: payT }, true, {
+    invoiceId: bill.id, companyId: co.id, amount: 12, method: 'account_balance',
+  })
+  check('a template that wired no ledger cannot take an account-balance payment',
+    noLedger.ok === false && (noLedger as any).status === 400, noLedger)
+  check('…and says so in a sentence, rather than failing on a null',
+    /does not keep client account balances/i.test(String((noLedger as any).error)), (noLedger as any).error)
+
+  const after = await db.select().from(invoice).where(eq(invoice.id, bill.id))
+  check('…with nothing written to the invoice', Math.round(Number(after[0]?.amountPaid) * 100) === 0, after[0]?.amountPaid)
+
+  const { recordInvoiceRefund } = await import('./src/shared/index.ts')
+  const paid = await api('POST', `/api/invoices/${bill.id}/payments`, { amount: 12, method: 'cash' })
+  check('…(the same bill takes an ordinary payment)', paid.status === 201, paid.json)
+  const noLedgerRefund = await recordInvoiceRefund(db, { invoice: invT, payment: payT }, {
+    invoiceId: bill.id, companyId: co.id, amount: 12, method: 'account_balance',
+  })
+  check('…and a refund cannot be left on an account it does not keep either',
+    noLedgerRefund.ok === false && /does not keep client account balances/i.test(String((noLedgerRefund as any).error)), noLedgerRefund)
+
+  const stillPaid = await db.select().from(invoice).where(eq(invoice.id, bill.id))
+  check('…and that refusal returned no money', Math.round(Number(stillPaid[0]?.amountRefunded) * 100) === 0, stillPaid[0]?.amountRefunded)
+}
+
 // ════════════════════════ the ledger adds up to what was claimed ════════════════════════════════
 {
   const rows = await ledger(ada.id)

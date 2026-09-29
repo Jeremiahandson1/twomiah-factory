@@ -726,6 +726,17 @@ jobs:
       - name: "Check every shared-invoice CRM refuses an invoice with no line items"
         run: bun run scripts/check-invoice-min-lines.ts
 
+  account-balance-locking:
+    name: "Account balance: row-locked spend, refused without a ledger"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check a client balance can only be spent under a lock, and only where one is kept"
+        run: bun run scripts/check-account-balance-locking.ts
+
   audit-direct-identity:
     name: "Audit direct identity guard"
     runs-on: ubuntu-latest
