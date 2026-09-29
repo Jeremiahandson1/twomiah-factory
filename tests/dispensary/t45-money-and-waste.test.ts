@@ -33,8 +33,12 @@ const mkUser = async (role: string, tag: string) => (await db.insert(user).value
 const owner = await mkUser('owner', 'owner')
 const manager = await mkUser('manager', 'manager')
 
+// 23 eighths on the shelf. The unit weight matters: stock is a count of PACKAGES and waste is
+// recorded in grams, and treating the two as the same number is what T46 N10 was. (3.5 g each,
+// so 23 units is 80.5 g.)
 const [kush] = await db.insert(product).values({
   name: 'OG Kush', companyId: co.id, category: 'flower', price: '45', stockQuantity: 23,
+  weightGrams: '3.5', taxCategory: 'cannabis', trackInventory: true,
 } as any).returning()
 const [tee] = await db.insert(product).values({
   name: 'Logo Tee', companyId: co.id, category: 'merch', price: '25', stockQuantity: 50,
@@ -97,15 +101,17 @@ check('H15: ...by name', wrongBatch.json?.code === 'batch_product_mismatch', wro
 
 check('H15: setup — 23 on hand before the destruction', (await stockOf(kush.id)) === 23)
 
+// 7 g of a product stocked in 3.5 g units is TWO units, not seven. This used to take 7 off the
+// count — 24.5 g out of the books for 7 g in the bin. (T46 N10)
 const waste = await asManager('POST', '/api/compliance/waste', {
   productId: kush.id, batchNumber: 'W-KUSH-1', wasteType: 'expired', reason: 'past date',
-  quantity: 3, unit: 'grams', witness: 'Sam Manager', notes: 'binned',
+  quantity: 7, unit: 'grams', witness: 'Sam Manager', notes: 'binned',
 })
 check('H15: a complete waste entry is recorded', waste.status === 201, { status: waste.status, body: waste.json })
-check('H15: ...and stock came down by what was destroyed', (await stockOf(kush.id)) === 20, await stockOf(kush.id))
+check('H15: ...and stock came down by what was destroyed — 7 g is 2 eighths, not 7', (await stockOf(kush.id)) === 21, await stockOf(kush.id))
 const batchAfter = await rows(sql`SELECT current_quantity FROM batches WHERE id = ${kushBatch.id}`)
-check('H15: ...and so did the batch it came out of', Number(batchAfter[0]?.current_quantity) === 20, batchAfter[0])
-check('H15: ...and the response says where stock landed', waste.json?.stockAfter === 20, waste.json?.stockAfter)
+check('H15: ...and so did the batch it came out of', Number(batchAfter[0]?.current_quantity) === 21, batchAfter[0])
+check('H15: ...and the response says where stock landed', waste.json?.stockAfter === 21, waste.json?.stockAfter)
 
 // ── H18: a day with several drawers ─────────────────────────────────────────────────────────────
 // The STORE's today (this shop is in Ohio), not UTC's. End of Day refuses a day that has not

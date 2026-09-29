@@ -9,6 +9,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { traceabilityStatus } from '../utils/stateTraceability.ts'
+import { unitGramsOf, GRAMS_PER_OZ } from '../utils/cannabis.ts'
 
 const app = new Hono()
 // Manager and up, like the analytics and audit families beside it. Compliance reports are the
@@ -1066,7 +1067,7 @@ app.post('/waste', requireRole('manager'), async (c) => {
   }
 
   const prodRes = await db.execute(sql`
-    SELECT id, name, stock_quantity FROM products
+    SELECT id, name, stock_quantity, weight_grams, weight, weight_unit FROM products
     WHERE id = ${data.productId} AND company_id = ${currentUser.companyId}
     LIMIT 1
   `)
@@ -1100,14 +1101,65 @@ app.post('/waste', requireRole('manager'), async (c) => {
     }
   }
 
-  // You cannot destroy more than you hold. Against the batch when one is named, otherwise against
-  // the product's own stock.
-  const onHand = batch ? Number(batch.current_quantity || 0) : Number(prod.stock_quantity || 0)
-  if (data.quantity > onHand) {
-    return c.json({
-      error: `Only ${onHand} ${data.unitOfMeasure} on hand${batch ? ` in batch ${batch.batch_number}` : ''} — cannot destroy ${data.quantity}`,
-      code: 'waste_over_stock',
-    }, 400)
+  // ── Grams are not units ─────────────────────────────────────────────────────────────────────
+  //
+  // T46 N10: the quantity is given in whatever unit the form names, and stock_quantity is a COUNT
+  // OF PACKAGES. The two were treated as the same number, so destroying 3.5 g of an eighth took
+  // FOUR eighths off the shelf — 14 g gone from the books for 3.5 g in the bin — and the refusal
+  // for 99,999 g read "Only 19 grams on hand" when 19 was the package count and the shop held
+  // 66.5 g. Every figure a state inspector reads off this record was wrong in both directions.
+  const measure = String(data.unitOfMeasure || 'g').trim().toLowerCase()
+  const asGrams = (n: number): number => {
+    if (/^(oz|ounce|ounces)$/.test(measure)) return n * GRAMS_PER_OZ
+    if (/^(lb|lbs|pound|pounds)$/.test(measure)) return n * 453.59237
+    if (measure === 'kg') return n * 1000
+    if (measure === 'mg') return n / 1000
+    return n
+  }
+  const isWeight = /^(g|gm|gram|grams|mg|kg|oz|ounce|ounces|lb|lbs|pound|pounds)$/.test(measure)
+  const gramsPerUnit = unitGramsOf({ weightGrams: prod.weight_grams, weight: prod.weight, weightUnit: prod.weight_unit })
+  const onHandUnits = batch ? Number(batch.current_quantity || 0) : Number(prod.stock_quantity || 0)
+
+  let unitsToRemove = data.quantity
+  if (isWeight) {
+    if (!(gramsPerUnit > 0)) {
+      // Nothing to convert with, and guessing is how the original figures went wrong.
+      return c.json({
+        error: `${prod.name} has no weight recorded, so a destruction in ${measure} cannot be turned into stock. Set the product's weight, or record this waste in units.`,
+        code: 'waste_unit_unknown',
+      }, 400)
+    }
+    const wantGrams = asGrams(data.quantity)
+    const onHandGrams = onHandUnits * gramsPerUnit
+    if (wantGrams > onHandGrams + 1e-6) {
+      return c.json({
+        error: `Only ${Number(onHandGrams.toFixed(2))} g on hand${batch ? ` in batch ${batch.batch_number}` : ''} — cannot destroy ${Number(wantGrams.toFixed(2))} g`,
+        code: 'waste_over_stock',
+        onHandGrams: Number(onHandGrams.toFixed(2)),
+        onHandUnits,
+        gramsPerUnit,
+      }, 400)
+    }
+    const exact = wantGrams / gramsPerUnit
+    unitsToRemove = Math.round(exact)
+    if (Math.abs(exact - unitsToRemove) > 1e-6) {
+      // Stock is a count of sealed packages; half an eighth cannot come off it. Saying so is
+      // better than rounding, which is what put 14 g in the bin for a 3.5 g destruction.
+      return c.json({
+        error: `${prod.name} is stocked in ${gramsPerUnit} g units, so ${Number(wantGrams.toFixed(2))} g is ${Number(exact.toFixed(3))} of them. Destroy a whole number of units, or record the waste against the batch it came out of.`,
+        code: 'waste_partial_unit',
+        gramsPerUnit,
+      }, 400)
+    }
+  } else {
+    // Counted in units already.
+    if (data.quantity > onHandUnits) {
+      return c.json({
+        error: `Only ${onHandUnits} ${data.unitOfMeasure || 'units'} on hand${batch ? ` in batch ${batch.batch_number}` : ''} — cannot destroy ${data.quantity}`,
+        code: 'waste_over_stock',
+      }, 400)
+    }
+    unitsToRemove = Math.round(data.quantity)
   }
   // waste_log has no notes column; keep the operator's note with the reason so it is not lost.
   const reason = data.notes ? `${data.reason} — ${data.notes}` : data.reason
@@ -1134,7 +1186,8 @@ app.post('/waste', requireRole('manager'), async (c) => {
   // The whole point: what was destroyed leaves the books. Both ledgers move together - the batch
   // it came out of when one was named, and the product's own count either way. Guarded so a
   // concurrent sale cannot take stock negative between the check above and the write. (T45 H15)
-  const qty = Math.round(data.quantity)
+  // In UNITS, converted above — never the raw figure the form collected. (T46 N10)
+  const qty = Math.round(unitsToRemove)
   let stockAfter: number | null = null
   if (qty > 0) {
     if (batch) {

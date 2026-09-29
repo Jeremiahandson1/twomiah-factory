@@ -272,8 +272,15 @@ export default function LocationsPage() {
     setSavingReceive(true);
     try {
       await api.put(`/api/locations/transfers/${receivingTransfer.id}/receive`, {
-        // the fields hold text while they are typed; they become numbers here, once
-        items: receiveItems.map((i: any) => ({ ...i, receivedQuantity: Number(i.receivedQuantity) || 0 })),
+        // itemId, not the whole line. The screen used to spread the row it had read — which
+        // carries `id` — so the server saw no `itemId` at all and answered 400
+        // "items.0.itemId: Required" for every receipt. Nothing could ever be received from this
+        // screen, and a transfer shipped in T46 is still sitting in transit because of it.
+        // Sending the two fields the endpoint asks for, and nothing else. (T46 N11)
+        items: receiveItems.map((i: any) => ({
+          itemId: i.itemId || i.id,
+          receivedQuantity: Number(i.receivedQuantity) || 0,
+        })),
       });
       toast.success('Transfer received');
       setReceiveModal(false);

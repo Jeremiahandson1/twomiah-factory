@@ -28,6 +28,8 @@ const STATUS_ALIASES: Record<string, string> = {
 }
 const canonicalDeliveryStatus = (v: string) => STATUS_ALIASES[v] || v
 
+import { zoneTerms } from '../utils/delivery.ts'
+
 const app = new Hono()
 app.use('*', authenticate)
 
@@ -44,7 +46,16 @@ app.get('/zones', async (c) => {
   // Raw rows are snake_case and the screen reads camelCase, so a zone saved active with two ZIPs, a
   // $5 fee and a $50 minimum rendered as "Inactive, ZIP codes —, fee $0.00, min $0.00" — every field
   // blank, on a zone that was saved correctly. (T45 H8)
-  return c.json(((result as any).rows || result).map(camelZone))
+  //
+  // …and the fee and the minimum are RESOLVED before they leave, by the same helper the order path
+  // uses. T46 N12: the table carries two spellings of the minimum — `min_order`, which defaults to
+  // '0', and `minimum_order`, which is what the create actually writes — so the screen read 0 off
+  // one column while an order was refused against 50 in the other. A screen and a till disagreeing
+  // about a shop's own terms is worse than either being wrong on its own.
+  return c.json(((result as any).rows || result).map((row: any) => {
+    const terms = zoneTerms(row)
+    return { ...camelZone(row), deliveryFee: terms.fee, minimumOrder: terms.minimum }
+  }))
 })
 
 // Create delivery zone (manager+)
@@ -67,9 +78,12 @@ app.post('/zones', requireRole('manager'), async (c) => {
   })
   const data = zoneSchema.parse(await c.req.json())
 
+  // Both spellings of the minimum are written, always the same value. The table has carried
+  // `min_order` and `minimum_order` side by side for a while; writing one and reading the other is
+  // how the Zones screen came to show $0.00 for a zone that refuses orders under $50. (T46 N12)
   const result = await db.execute(sql`
-    INSERT INTO delivery_zones(id, name, description, zip_codes, radius_miles, center_lat, center_lng, delivery_fee, minimum_order, estimated_minutes, active, hours_start, hours_end, company_id, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${data.name}, ${data.description || null}, ${JSON.stringify(data.zipCodes || [])}::jsonb, ${data.radiusMiles || null}, ${data.centerLat || null}, ${data.centerLng || null}, ${data.deliveryFee}, ${data.minimumOrder}, ${data.estimatedMinutes}, ${data.active}, ${data.hoursStart || null}, ${data.hoursEnd || null}, ${currentUser.companyId}, NOW(), NOW())
+    INSERT INTO delivery_zones(id, name, description, zip_codes, radius_miles, center_lat, center_lng, delivery_fee, minimum_order, min_order, estimated_minutes, active, hours_start, hours_end, company_id, created_at, updated_at)
+    VALUES (gen_random_uuid(), ${data.name}, ${data.description || null}, ${JSON.stringify(data.zipCodes || [])}::jsonb, ${data.radiusMiles || null}, ${data.centerLat || null}, ${data.centerLng || null}, ${data.deliveryFee}, ${data.minimumOrder}, ${data.minimumOrder}, ${data.estimatedMinutes}, ${data.active}, ${data.hoursStart || null}, ${data.hoursEnd || null}, ${currentUser.companyId}, NOW(), NOW())
     RETURNING *
   `)
 
@@ -115,7 +129,11 @@ app.put('/zones/:id', requireRole('manager'), async (c) => {
   if (data.centerLat !== undefined) sets.push(sql`center_lat = ${data.centerLat}`)
   if (data.centerLng !== undefined) sets.push(sql`center_lng = ${data.centerLng}`)
   if (data.deliveryFee !== undefined) sets.push(sql`delivery_fee = ${data.deliveryFee}`)
-  if (data.minimumOrder !== undefined) sets.push(sql`minimum_order = ${data.minimumOrder}`)
+  // Both spellings, always together — see the note on the create. (T46 N12)
+  if (data.minimumOrder !== undefined) {
+    sets.push(sql`minimum_order = ${data.minimumOrder}`)
+    sets.push(sql`min_order = ${data.minimumOrder}`)
+  }
   if (data.estimatedMinutes !== undefined) sets.push(sql`estimated_minutes = ${data.estimatedMinutes}`)
   if (data.active !== undefined) sets.push(sql`active = ${data.active}`)
   if (data.hoursStart !== undefined) sets.push(sql`hours_start = ${data.hoursStart}`)

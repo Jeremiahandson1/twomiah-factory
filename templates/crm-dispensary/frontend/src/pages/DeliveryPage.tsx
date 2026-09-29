@@ -259,14 +259,19 @@ export default function DeliveryPage() {
                     <MapPin className="w-4 h-4 text-green-600" />
                     {zone.name}
                   </h3>
-                  <span className={`px-2 py-0.5 text-xs rounded-full ${zone.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                    {zone.isActive ? 'Active' : 'Inactive'}
-                  </span>
+                {/* The same names the create and the update use, and the same ones the order path
+                    charges on. This read `zone.fee`, `zone.minOrder` and `zone.isActive` — three
+                    fields the API has never returned — so an active $5/$50 zone rendered as
+                    "Inactive, fee $0.00, min $0.00" while the till refused orders under $50
+                    against it. (T46 N12) */}
+                <span className={`px-2 py-0.5 text-xs rounded-full ${zone.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                  {zone.active ? 'Active' : 'Inactive'}
+                </span>
                 </div>
                 <div className="space-y-1 text-sm text-gray-600 dark:text-slate-400">
                   <p>ZIP codes: {Array.isArray(zone.zipCodes) ? zone.zipCodes.join(', ') : zone.zipCodes || '—'}</p>
-                  <p>Delivery fee: ${Number(zone.fee || 0).toFixed(2)}</p>
-                  <p>Min order: ${Number(zone.minOrder || 0).toFixed(2)}</p>
+                  <p>Delivery fee: ${Number(zone.deliveryFee || 0).toFixed(2)}</p>
+                  <p>Min order: ${Number(zone.minimumOrder || 0).toFixed(2)}</p>
                 </div>
               </div>
             ))}

@@ -949,7 +949,31 @@ app.put('/lab-tests/:id/results', requireRole('manager'), async (c) => {
   }
 
   const toStr = (v: number | null | undefined) => (v === null || v === undefined ? null : String(v))
-  const overall = data.overallResult || 'pass'
+
+  // A percentage of a thing cannot exceed the whole of it. T46 N13: THC 150% was accepted and
+  // stored against the batch, where the label printer and the public menu then read it.
+  for (const [label, value] of [['THC', data.thc], ['CBD', data.cbd], ['Total cannabinoids', data.totalCannabinoids], ['Terpenes', data.terpenes]] as const) {
+    if (value === null || value === undefined) continue
+    const n = Number(value)
+    if (!Number.isFinite(n) || n < 0 || n > 100) {
+      return c.json({ error: `${label} of ${value}% is not a possible result — it has to be between 0 and 100.`, code: 'impossible_potency' }, 400)
+    }
+  }
+
+  // ── The overall result is worked out, not taken on trust ────────────────────────────────────
+  //
+  // T46 N13: `data.overallResult || 'pass'` meant a certificate with Pesticides FAIL on it saved
+  // with an overall PASS, and the batch was then sellable. The panels are the evidence; the
+  // overall line is a conclusion drawn from them, and it cannot be kinder than the worst one.
+  //
+  // A lab may still fail a sample for something no panel covers, so an explicit 'fail' is always
+  // honoured — it can only ever make the answer stricter, never gentler.
+  const PANELS: [string, string | undefined][] = [
+    ['Pesticides', data.pesticides], ['Heavy metals', data.heavyMetals], ['Microbials', data.microbials],
+    ['Mycotoxins', data.mycotoxins], ['Residual solvents', data.residualSolvents], ['Foreign matter', data.foreignMatter],
+  ]
+  const failedPanels = PANELS.filter(([, v]) => /^(fail|failed|not ?pass)/i.test(String(v || '').trim())).map(([name]) => name)
+  const overall = failedPanels.length > 0 || String(data.overallResult || '').toLowerCase() === 'fail' ? 'fail' : (data.overallResult || 'pass')
   const status = overall === 'fail' ? 'failed' : 'passed'
 
   const result = await db.execute(sql`
@@ -975,16 +999,44 @@ app.put('/lab-tests/:id/results', requireRole('manager'), async (c) => {
   const updated = ((result as any).rows || result)?.[0]
   if (!updated) return c.json({ error: 'Lab test not found' }, 404)
 
+  // ── The results reach the batch ─────────────────────────────────────────────────────────────
+  //
+  // T46 N13: a batch stayed labTested:false after its results came back, so nothing downstream —
+  // the label, the sellable check, the compliance view — could tell a tested batch from an
+  // untested one. A certificate filed where nobody can see it is not a record.
+  //
+  // A FAILED test quarantines the batch rather than marking it tested-and-fine. That is the whole
+  // purpose of the test: product that failed a pesticide panel must not stay on sale while someone
+  // reads the paperwork.
+  if (updated.batch_id) {
+    if (overall === 'fail') {
+      await db.execute(sql`
+        UPDATE batches SET lab_tested = true, lab_test_id = ${id}, status = 'quarantine', updated_at = NOW()
+        WHERE id = ${updated.batch_id} AND company_id = ${currentUser.companyId}
+      `)
+    } else {
+      await db.execute(sql`
+        UPDATE batches SET
+          lab_tested = true,
+          lab_test_id = ${id},
+          thc_percent = COALESCE(${toStr(data.thc)}, thc_percent),
+          cbd_percent = COALESCE(${toStr(data.cbd)}, cbd_percent),
+          updated_at = NOW()
+        WHERE id = ${updated.batch_id} AND company_id = ${currentUser.companyId}
+      `)
+    }
+  }
+
   audit.log({
     action: audit.ACTIONS.UPDATE,
     entity: 'lab_tests',
     entityId: id,
     entityName: updated.lab_name || 'Lab test',
-    changes: { overallResult: overall, status },
+    changes: { overallResult: overall, status, failedPanels },
     req: c,
   })
 
-  return c.json(camel(updated))
+  return c.json({ ...camel(updated), failedPanels })
 })
 
 // Get CoA document URL/data
