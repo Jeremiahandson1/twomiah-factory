@@ -932,6 +932,14 @@ export const batch = pgTable('batches', {
   productId: text('product_id').references(() => product.id, { onDelete: 'set null' }),
   metrcTag: text('metrc_tag'),
   status: text('status').default('active'), // active|quarantine|depleted|recalled|expired
+  /**
+   * Why the batch is in that status — and, when a hold is lifted over a failed lab test, who said
+   * it could be. `PUT /batches/:id/status` has written this column since it was built and the column
+   * was never declared anywhere, so every call to that endpoint 500'd on "column status_reason does
+   * not exist". No test covered it and the screen posts /:id/:action instead, so nothing noticed
+   * until T47's batch work went looking. (T47 P10)
+   */
+  statusReason: text('status_reason'),
   initialQuantity: integer('initial_quantity').notNull(),
   currentQuantity: integer('current_quantity').notNull(),
   unitOfMeasure: text('unit_of_measure').default('each'),

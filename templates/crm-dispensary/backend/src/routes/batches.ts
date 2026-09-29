@@ -233,6 +233,20 @@ app.put('/:id', requireRole('manager'), async (c) => {
     return c.json({ error: `Package date (${packaged}) cannot be before the harvest date (${harvest})`, code: 'package_before_harvest' }, 400)
   }
 
+  // A status sent here is REFUSED, not ignored.
+  //
+  // T47 P9: this route silently dropped `status` and answered 200, so a caller that asked to
+  // quarantine a batch was told it had worked and nothing had changed — the one outcome worse than
+  // failing. Applying it here instead would be no better: PUT /:id/status exists because a status
+  // change is an audited event with an old and a new value, and a shop needs to be able to ask why
+  // a batch was pulled. So this says where to go.
+  if ((data as any).status !== undefined) {
+    return c.json({
+      error: 'Change a batch\'s status with PUT /batches/:id/status, which records who changed it and why.',
+      code: 'status_has_its_own_route',
+    }, 400)
+  }
+
   const sets: any[] = [sql`updated_at = NOW()`]
   if (data.batchNumber !== undefined) sets.push(sql`batch_number = ${data.batchNumber}`)
   if (data.metrcTag !== undefined) sets.push(sql`metrc_tag = ${data.metrcTag}`)
@@ -346,20 +360,30 @@ app.post('/:id/deplete', requireRole('manager'), async (c) => {
   const newQuantity = Math.max(available - depleteQty, 0)
   const newStatus = newQuantity === 0 ? 'depleted' : current.status
 
-  // Update batch
-  const result = await db.execute(sql`
-    UPDATE batches SET current_quantity = ${newQuantity}, status = ${newStatus}, updated_at = NOW()
-    WHERE id = ${id}
-    RETURNING *
-  `)
+  // The batch and its ledger row move TOGETHER, or neither moves.
+  //
+  // T47 P9: this wrote the batch first and the adjustment second, and the adjustment was missing
+  // `adjustment_type`, which the table declares NOT NULL. So every Deplete answered 400 "a required
+  // field is missing (adjustment type)" AFTER it had already zeroed the batch and marked it
+  // depleted. The screen said it failed, the shelf said otherwise, and the ledger had no record of
+  // where the stock went — the worst of the three possible outcomes.
+  //
+  // 'count_correction' is the type: depleting a batch is the shop reconciling what is physically
+  // there, not a sale, a return or a loss.
+  let updated: any
+  await db.transaction(async (tx: any) => {
+    const result = await tx.execute(sql`
+      UPDATE batches SET current_quantity = ${newQuantity}, status = ${newStatus}, updated_at = NOW()
+      WHERE id = ${id} AND company_id = ${currentUser.companyId}
+      RETURNING *
+    `)
+    updated = ((result as any).rows || result)?.[0]
 
-  const updated = ((result as any).rows || result)?.[0]
-
-  // Create inventory adjustment record
-  await db.execute(sql`
-    INSERT INTO inventory_adjustments(id, product_id, quantity_before, quantity_after, quantity_change, reason, user_id, company_id, created_at)
-    VALUES (gen_random_uuid(), ${current.product_id}, ${current.current_quantity}, ${newQuantity}, ${-depleteQty}, ${reason}, ${currentUser.userId}, ${currentUser.companyId}, NOW())
-  `)
+    await tx.execute(sql`
+      INSERT INTO inventory_adjustments(id, product_id, adjustment_type, quantity_before, quantity_after, quantity_change, reason, user_id, company_id, created_at)
+      VALUES (gen_random_uuid(), ${current.product_id}, 'count_correction', ${current.current_quantity}, ${newQuantity}, ${-depleteQty}, ${reason}, ${currentUser.userId}, ${currentUser.companyId}, NOW())
+    `)
+  })
 
   audit.log({
     action: audit.ACTIONS.UPDATE,
@@ -395,6 +419,46 @@ app.post('/:id/:action', requireRole('manager'), async (c) => {
   `)
   const current = ((currentResult as any).rows || currentResult)?.[0]
   if (!current) return c.json({ error: 'Batch not found' }, 404)
+
+  // Putting a batch that FAILED ITS LAB TEST back on sale takes a reason.
+  //
+  // T47 P10: Activate would clear a quarantine raised by a failed test with no warning and nothing
+  // recorded beyond the status flip. That is the one batch action a regulator will ask about, and
+  // "someone clicked Activate" is not an answer. A retest that passed, a mislabelled sample, a
+  // supplier's corrected certificate — all legitimate, all worth writing down.
+  //
+  // A quarantine raised by hand is not covered: a manager who held stock themselves may release it
+  // the same way. It is the LAB's verdict that needs overriding in writing.
+  if (status === 'active' && current.status === 'quarantine' && current.lab_test_id) {
+    const failed: any = await db.execute(sql`
+      SELECT id, overall_result FROM lab_tests
+      WHERE id = ${current.lab_test_id} AND company_id = ${currentUser.companyId} LIMIT 1
+    `)
+    const test = ((failed as any).rows || failed)?.[0]
+    if (test && String(test.overall_result).toLowerCase() === 'fail') {
+      const body = await c.req.json().catch(() => ({}))
+      const why = String((body as any)?.reason || '').trim()
+      if (why.length < 10) {
+        return c.json({
+          error: `Batch ${current.batch_number} is held because lab test ${current.lab_test_id} FAILED. Say why it is going back on sale — a passing retest, a mislabelled sample — and it will be recorded against the batch.`,
+          code: 'failed_lab_test_needs_reason',
+          labTestId: current.lab_test_id,
+        }, 400)
+      }
+      await db.execute(sql`
+        UPDATE batches SET status = 'active', status_reason = ${`Released over a failed lab test: ${why.slice(0, 500)}`}, updated_at = NOW()
+        WHERE id = ${id} AND company_id = ${currentUser.companyId}
+      `)
+      audit.log({
+        action: audit.ACTIONS.STATUS_CHANGE, entity: 'batch', entityId: id, entityName: current.batch_number,
+        changes: { status: { old: current.status, new: 'active' } },
+        metadata: { overrodeFailedLabTest: current.lab_test_id, reason: why.slice(0, 500) },
+        req: c,
+      })
+      const [row] = ((await db.execute(sql`SELECT * FROM batches WHERE id = ${id}`)) as any).rows || []
+      return c.json(camel(row))
+    }
+  }
 
   const result = await db.execute(sql`
     UPDATE batches SET status = ${status}, updated_at = NOW()

@@ -330,8 +330,22 @@ app.post('/', requireRole('budtender'), async (c) => {
   //   · a product whose batches are ALL recalled or quarantined cannot be sold
   //   · a product with NO batch rows sells exactly as before — plenty of shops do not run batches,
   //     and refusing those sales would be a far worse bug than the one being fixed
+  //   · …and the third rule, which T47 P4 found missing: stock that sits outside EVERY batch is not
+  //     governed by any batch's status either.
+  //
+  // P4, found on the test shop and far worse in a real one: Gummy Bears had 55 units on hand from
+  // before the shop used batches. One batch of 10 was recorded, a failed lab test quarantined it,
+  // and the WHOLE product went off the till — "every batch is quarantine" — including the 45 units
+  // that had never been in any batch. The first batch a shop records against existing stock would
+  // take that product's entire shelf out of service.
+  //
+  // A recall or a hold is about the units IN that batch. Units that were never in it are no more
+  // affected than units of a different product. So the question is not "is any batch sellable" but
+  // "are there units to sell" — and untracked units count.
   const sellableBatch = new Map<string, any>()
   const blockedProducts = new Map<string, string>()
+  /** Units on hand that belong to no batch — sellable, but with no batch to record against. */
+  const untrackedUnits = new Map<string, number>()
   {
     const ids = [...new Set(data.items.map((i: any) => i.productId))]
     if (ids.length) {
@@ -351,10 +365,38 @@ app.post('/', requireRole('budtender'), async (c) => {
       for (const [productId, list] of byProduct) {
         // Oldest sellable batch first — the shop sells what came in first, and a recall then bites on
         // exactly the stock a recall is about.
+        // An active batch holding NOTHING is not what this sale is coming out of. It used to be
+        // picked anyway as a fallback, so a sale was stamped with a batch that had already been
+        // depleted to zero (T47 P9 watched exactly that happen). An empty batch falls through to the
+        // untracked-stock question below, which answers it honestly instead.
         const usable = list.find((b) => b.status === 'active' && Number(b.current_quantity) > 0)
-          || list.find((b) => b.status === 'active')
         if (usable) { sellableBatch.set(productId, usable); continue }
+
         const worst = list.find((b) => b.status === 'recalled') || list[0]
+
+        // A RECALL stops the product, not the batch — and this is the one place untracked stock
+        // does NOT get the benefit of the doubt.
+        //
+        // The difference is what the shop can prove. A quarantine is the shop holding a lot it knows
+        // the bounds of; units outside it are a different lot and are fine. A recall says product
+        // matching this description is unsafe, and untracked units have no provenance at all — the
+        // shop cannot show they are not from the recalled lot, because that is what untracked means.
+        // Selling them and being wrong is a regulatory event, so the till stops the product and a
+        // person sorts out what is what. (T45 BL4 is this rule, and it is a blocker for a reason.)
+        if (worst?.status === 'recalled' || list.some((b) => b.status === 'recalled')) {
+          blockedProducts.set(productId, 'recalled')
+          continue
+        }
+
+        // Otherwise: no sellable batch, but ask whether the shop is holding units no batch ever
+        // claimed. Every batch's quantity added together is what IS tracked; anything the product
+        // still has on hand beyond that never entered one, and a hold on a lot is not a hold on it.
+        const prod = productMap.get(productId) as any
+        const tracked = list.reduce((sum, b) => sum + Math.max(0, Number(b.current_quantity) || 0), 0)
+        const onHand = Number(prod?.stockQuantity) || 0
+        const spare = Math.max(0, onHand - tracked)
+        if (spare > 0) { untrackedUnits.set(productId, spare); continue }
+
         blockedProducts.set(productId, String(worst?.status || 'unavailable'))
       }
     }
@@ -365,8 +407,9 @@ app.post('/', requireRole('budtender'), async (c) => {
     if (!prod) return c.json({ error: `Product not found: ${item.productId}` }, 400)
     if (!prod.active) return c.json({ error: `Product is not active: ${prod.name}` }, 400)
 
-    // Every batch of this product is recalled or held. Refusing here, at the till, is the whole
-    // point: the alternative is selling recalled product and finding out during the recall. (T45 BL4)
+    // Every batch of this product is recalled or held, AND there is no untracked stock behind them.
+    // Refusing here, at the till, is the whole point: the alternative is selling recalled product and
+    // finding out during the recall. (T45 BL4)
     const blocked = blockedProducts.get(prod.id)
     if (blocked) {
       return c.json({
@@ -374,6 +417,16 @@ app.post('/', requireRole('budtender'), async (c) => {
           ? `${prod.name} has been RECALLED and cannot be sold. Remove it from the order.`
           : `${prod.name} has no sellable stock — every batch is ${blocked}. Remove it from the order.`,
         code: 'batch_not_sellable', productId: prod.id, batchStatus: blocked,
+      }, 400)
+    }
+
+    // …and the same refusal, but only for the units a held batch actually holds. The shop has stock
+    // that predates its batches and can sell THAT; it cannot sell more than it has outside the hold.
+    const spare = untrackedUnits.get(prod.id)
+    if (spare !== undefined && item.quantity > spare) {
+      return c.json({
+        error: `${prod.name}: only ${spare} ${spare === 1 ? 'unit is' : 'units are'} sellable — the rest is in a batch that is on hold. Reduce the quantity or release the batch.`,
+        code: 'batch_not_sellable', productId: prod.id, sellableUnits: spare,
       }, 400)
     }
 
