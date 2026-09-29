@@ -98,6 +98,60 @@ const rows = async (q: any) => { const r: any = await db.execute(q); return (r.r
     /exempt/i.test(String(d?.taxableBasis)) && /medical/i.test(String(d?.exemptBasis)), { basis: d?.taxableBasis, exempt: d?.exemptBasis })
   check('P5: …and the basis no longer says only "net of refunds" while the base is net of discounts too',
     /discount/i.test(String(d?.taxableBasis)), d?.taxableBasis)
+
+  // On a shop whose till has always charged correctly, the return reconciles and says so.
+  check('P5: …the return states what it should come to at the configured rate', Number(d?.expectedAtRate) === 60, d?.expectedAtRate)
+  check('P5: …and that it reconciles', d?.reconciles === true, { reconciles: d?.reconciles, variance: d?.collectedVariance })
+  check('P5: …with nothing to explain', d?.reconcileNote === null, d?.reconcileNote)
+}
+
+// ═════════ P5c · a return that does NOT divide says so, instead of printing a rate ═══════════════
+//
+// Found on the live tenant, which the unit case could never have shown: with clean data the
+// figures agree, and disptest lands at 14.38% because some of its sales were recorded with no
+// excise at all — orders written straight into the database by earlier test scripts. The filing
+// was right both times; what it did not do was EXPLAIN itself. A return that prints 14.38% beside
+// a 15% rate and leaves the reader to notice is the original complaint wearing a smaller hat.
+{
+  const [odd] = await db.insert(company).values({
+    name: 'Undercharging Leaf', slug: 'leaf-t47tx3', email: 'tx3@test.local', state: 'OH',
+    exciseTaxRate: '15', salesTaxRate: '0',
+    enabledFeatures: ['products', 'orders', 'compliance', 'tax_filing'],
+  } as any).returning()
+  const owner3 = (await db.insert(user).values({
+    email: 'owner-t47tx3@test.local', passwordHash: 'x', firstName: 'O', lastName: 'U', role: 'owner', companyId: odd.id,
+  } as any).returning())[0]
+  const [bud] = await db.insert(product).values({
+    name: 'Blue Dream', companyId: odd.id, category: 'flower', price: '100', weightGrams: '3.5',
+    stockQuantity: 50, taxCategory: 'cannabis', trackInventory: true,
+  } as any).returning()
+
+  const ring = async (body: unknown) => await app.request('/api/orders', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-test-user': owner3.id, 'x-test-company': odd.id, 'x-test-role': 'owner' },
+    body: JSON.stringify(body),
+  })
+  const r = await ring({ items: [{ productId: bud.id, quantity: 1 }], orderType: 'walk_in' })
+  const made: any = await r.json().catch(() => ({}))
+  const oid = (made?.data || made)?.id
+  // …and then the thing a real shop does by accident: a sale recorded with no excise on it.
+  await db.execute(sql`UPDATE orders SET status = 'completed', completed_at = NOW(), excise_tax = '0' WHERE id = ${oid}`)
+
+  const today = new Date().toISOString().slice(0, 10)
+  const res = await app.request('/api/tax-filing/filings/generate', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-test-user': owner3.id, 'x-test-company': odd.id, 'x-test-role': 'owner' },
+    body: JSON.stringify({ filingType: 'excise_tax', periodStart: today, periodEnd: today }),
+  })
+  const j: any = await res.json().catch(() => ({}))
+  const raw3 = j?.filing_data ?? j?.filingData
+  const d3 = typeof raw3 === 'string' ? JSON.parse(raw3) : raw3
+
+  check('P5: a period whose excise does not match the rate is reported as not reconciling', d3?.reconciles === false,
+    { reconciles: d3?.reconciles, taxable: d3?.taxableSales, due: d3?.exciseTaxDue })
+  check('P5: …naming the shortfall in money', Math.abs(Number(d3?.collectedVariance) + 15) < 0.01, d3?.collectedVariance)
+  check('P5: …and what it should have been', Number(d3?.expectedAtRate) === 15, d3?.expectedAtRate)
+  check('P5: …with a sentence saying where to look', /less than 15% of the taxable base/i.test(String(d3?.reconcileNote)), d3?.reconcileNote)
 }
 
 // ══════════ P5b · a shop whose state taxes patients gets no exempt line ══════════════════════════

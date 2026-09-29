@@ -121,9 +121,12 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
   // record says OH. Fall back to the company's own state. (T45 H16)
   // settings too: whether this state's medical programme exempts patients from excise decides
   // whether those sales belong in the taxable base or on an exempt line. (T47 P5)
-  const companyResult: any = await db.execute(sql`SELECT state, settings FROM company WHERE id = ${currentUser.companyId} LIMIT 1`)
+  const companyResult: any = await db.execute(sql`SELECT state, settings, excise_tax_rate FROM company WHERE id = ${currentUser.companyId} LIMIT 1`)
   const companyRow = (companyResult.rows || companyResult)[0] || {}
   const companyState = companyRow.state as string | null
+  // The rate the shop is configured to charge, so the return can show whether what it collected
+  // actually matches it. (T47 P5)
+  const exciseRatePct = Number(companyRow.excise_tax_rate) || 0
   const state = (data.state || companyState)
     ? String(data.state || companyState).toUpperCase().slice(0, 2)
     : null
@@ -325,9 +328,30 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
     // The exempt line, so the three figures on the return divide into one another.
     exemptSales: exemptApplies ? medicalExemptSales : 0,
     exemptBasis: exemptApplies ? 'medical cannabis — registered patients are exempt from excise in this state' : null,
-    // What the return actually works out at, for the person signing it. Rounding means it will not
-    // always be exactly the headline rate, but it should now be within a rounding error of it.
+    // What the return actually works out at, for the person signing it.
     effectiveRate: taxableAmount > 0 ? round2((exciseTaxDue / taxableAmount) * 100) : 0,
+    // …and what it WOULD come to at the shop's configured rate, with the difference named.
+    //
+    // The base and the due are computed over the same set and both are net of refunds and
+    // discounts, so on a shop whose till has always charged correctly these agree. When they do
+    // not, the shop under- or over-collected — a rate changed mid-period, a sale rung up before
+    // the rate was configured, an order written straight into the database by an integration.
+    // That is exactly what a return must not hide: the first thing an auditor does is divide.
+    //
+    // Saying "$6,839 taxable, $983.40 due, and $42.45 less collected than 15% because of these
+    // orders" is a return a shop can defend. Printing 14.38% beside a 15% rate and leaving them to
+    // notice is not. (T47 P5, the half that only shows on real data)
+    expectedAtRate: filingType === 'excise_tax' && exciseRatePct > 0 ? round2(taxableAmount * (exciseRatePct / 100)) : null,
+    collectedVariance: filingType === 'excise_tax' && exciseRatePct > 0
+      ? round2(exciseTaxDue - taxableAmount * (exciseRatePct / 100))
+      : null,
+    reconciles: filingType === 'excise_tax' && exciseRatePct > 0
+      ? Math.abs(exciseTaxDue - taxableAmount * (exciseRatePct / 100)) <= Math.max(0.5, taxableAmount * 0.0005)
+      : null,
+    reconcileNote: filingType === 'excise_tax' && exciseRatePct > 0
+        && Math.abs(exciseTaxDue - taxableAmount * (exciseRatePct / 100)) > Math.max(0.5, taxableAmount * 0.0005)
+      ? `The excise collected is $${Math.abs(round2(exciseTaxDue - taxableAmount * (exciseRatePct / 100))).toFixed(2)} ${exciseTaxDue < taxableAmount * (exciseRatePct / 100) ? 'less' : 'more'} than ${exciseRatePct}% of the taxable base. Some sales in this period were not charged at the current rate — check sales made before the rate was set, or orders created outside the register.`
+      : null,
     grossSales: round2(grossSubtotal),
     netSales: netAllSales,
     netCannabisSales,
