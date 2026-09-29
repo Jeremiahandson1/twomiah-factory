@@ -378,15 +378,15 @@ export default function SecurityPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2">
           <Shield className="w-6 h-6 text-emerald-400" />
           Security Settings
         </h1>
-        <p className="text-slate-400">Manage multi-factor authentication, password policies, and sessions</p>
+        <p className="text-gray-500 dark:text-slate-400">Manage multi-factor authentication, password policies, and sessions</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-slate-800/50 rounded-lg w-fit">
+      <div className="flex gap-1 p-1 bg-gray-50 dark:bg-slate-800/50 rounded-lg w-fit">
         {tabs.filter(t => {
           if (t.id === 'password-policy' && !isAdmin) return false;
           if (t.id === 'security-events' && !isAdmin) return false;
@@ -397,8 +397,8 @@ export default function SecurityPage() {
             onClick={() => setTab(t.id)}
             className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
               tab === t.id
-                ? 'bg-slate-700 text-white shadow'
-                : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                ? 'bg-gray-200 dark:bg-slate-700 text-gray-900 dark:text-slate-100 shadow'
+                : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700/50'
             }`}
           >
             {t.label}
@@ -410,7 +410,7 @@ export default function SecurityPage() {
       {tab === 'mfa' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">Multi-Factor Authentication</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Multi-Factor Authentication</h2>
             <div className="flex gap-2">
               <Button
                 variant="secondary"
@@ -431,26 +431,26 @@ export default function SecurityPage() {
             </div>
           </div>
 
-          <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+          <div className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
             {loadingDevices ? (
               <div className="flex items-center justify-center h-32">
                 <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : mfaDevices.length === 0 ? (
               <div className="p-12 text-center">
-                <Shield className="w-12 h-12 mx-auto mb-3 text-slate-600" />
-                <p className="text-slate-400 mb-1">No MFA devices configured</p>
-                <p className="text-sm text-slate-500">Add a device to secure your account</p>
+                <Shield className="w-12 h-12 mx-auto mb-3 text-gray-600 dark:text-slate-300" />
+                <p className="text-gray-500 dark:text-slate-400 mb-1">No MFA devices configured</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">Add a device to secure your account</p>
               </div>
             ) : (
               <table className="w-full">
-                <thead className="bg-slate-800/80">
+                <thead className="bg-white dark:bg-slate-800/80">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Type</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Name</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Last Used</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Type</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Name</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Last Used</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700">
@@ -464,19 +464,19 @@ export default function SecurityPage() {
                           </Badge>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-300">{device.name || device.type}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-300">{device.name || device.type}</td>
                       <td className="px-4 py-3">
                         <Badge variant={device.verified ? 'success' : 'warning'} dot>
                           {device.verified ? 'Verified' : 'Pending'}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-400">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                         {device.lastUsed ? relativeTime(device.lastUsed) : 'Never'}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button
                           onClick={() => { setDeviceToDelete(device); setDeleteDeviceOpen(true); }}
-                          className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-slate-700 transition-colors"
+                          className="p-1.5 text-gray-500 dark:text-slate-400 hover:text-red-400 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -492,19 +492,19 @@ export default function SecurityPage() {
           <Modal isOpen={setupModal} onClose={() => setSetupModal(false)} title="Set Up MFA" size="md">
             {setupStep === 'choose' && (
               <div className="space-y-3">
-                <p className="text-slate-400 text-sm mb-4">Choose your preferred authentication method:</p>
+                <p className="text-gray-500 dark:text-slate-400 text-sm mb-4">Choose your preferred authentication method:</p>
                 {MFA_TYPES.map(type => (
                   <button
                     key={type.value}
                     onClick={() => startSetup(type.value)}
-                    className="w-full flex items-center gap-4 p-4 rounded-lg border border-slate-700 hover:border-emerald-500/50 hover:bg-slate-800/50 transition-all text-left"
+                    className="w-full flex items-center gap-4 p-4 rounded-lg border border-gray-200 dark:border-slate-700 hover:border-emerald-500/50 hover:bg-slate-800/50 transition-all text-left"
                   >
-                    <div className="w-10 h-10 rounded-lg bg-slate-700 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-lg bg-gray-200 dark:bg-slate-700 flex items-center justify-center">
                       <type.icon className="w-5 h-5 text-emerald-400" />
                     </div>
                     <div>
-                      <p className="text-white font-medium">{type.label}</p>
-                      <p className="text-sm text-slate-400">{type.description}</p>
+                      <p className="text-gray-900 dark:text-slate-100 font-medium">{type.label}</p>
+                      <p className="text-sm text-gray-500 dark:text-slate-400">{type.description}</p>
                     </div>
                   </button>
                 ))}
@@ -514,24 +514,24 @@ export default function SecurityPage() {
             {setupStep === 'configure' && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Device Name</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Device Name</label>
                   <input
                     type="text"
                     value={deviceName}
                     onChange={(e) => setDeviceName(e.target.value)}
                     placeholder={`My ${setupType}`}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   />
                 </div>
                 {setupType === 'sms' && (
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1">Phone Number</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Phone Number</label>
                     <input
                       type="tel"
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(e.target.value)}
                       placeholder="+1 (555) 000-0000"
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                     />
                   </div>
                 )}
@@ -552,18 +552,18 @@ export default function SecurityPage() {
               <div className="space-y-4">
                 {setupType === 'authenticator' && setupData && (
                   <div className="space-y-4">
-                    <p className="text-slate-300 text-sm">Scan this code in your authenticator app, or enter the secret key manually:</p>
-                    <div className="bg-slate-800 rounded-lg p-4 border border-slate-600">
-                      <p className="text-xs text-slate-400 mb-2">OTP Auth URL:</p>
-                      <p className="text-sm text-slate-300 font-mono break-all">{setupData.otpauthUrl || 'otpauth://totp/Dispensary?secret=' + (setupData.secret || '')}</p>
+                    <p className="text-gray-700 dark:text-slate-300 text-sm">Scan this code in your authenticator app, or enter the secret key manually:</p>
+                    <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-4 border border-gray-300 dark:border-slate-600">
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mb-2">OTP Auth URL:</p>
+                      <p className="text-sm text-gray-700 dark:text-slate-300 font-mono break-all">{setupData.otpauthUrl || 'otpauth://totp/Dispensary?secret=' + (setupData.secret || '')}</p>
                     </div>
-                    <div className="bg-slate-800 rounded-lg p-4 border border-slate-600">
-                      <p className="text-xs text-slate-400 mb-1">Secret Key (for manual entry):</p>
+                    <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-4 border border-gray-300 dark:border-slate-600">
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">Secret Key (for manual entry):</p>
                       <div className="flex items-center gap-2">
                         <code className="text-emerald-400 font-mono text-lg tracking-wider">{setupData.secret}</code>
                         <button
                           onClick={() => { navigator.clipboard.writeText(setupData.secret); toast.success('Secret copied'); }}
-                          className="p-1 text-slate-400 hover:text-white"
+                          className="p-1 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100"
                         >
                           <Copy className="w-4 h-4" />
                         </button>
@@ -572,20 +572,20 @@ export default function SecurityPage() {
                   </div>
                 )}
                 {setupType === 'sms' && (
-                  <p className="text-slate-300 text-sm">A verification code has been sent to {phoneNumber}.</p>
+                  <p className="text-gray-700 dark:text-slate-300 text-sm">A verification code has been sent to {phoneNumber}.</p>
                 )}
                 {setupType === 'email' && (
-                  <p className="text-slate-300 text-sm">A verification code has been sent to your email address.</p>
+                  <p className="text-gray-700 dark:text-slate-300 text-sm">A verification code has been sent to your email address.</p>
                 )}
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Verification Code</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Verification Code</label>
                   <input
                     type="text"
                     value={verificationCode}
                     onChange={(e) => setVerificationCode(e.target.value)}
                     placeholder="000000"
                     maxLength={6}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-center text-2xl tracking-[0.5em] font-mono"
+                    className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-center text-2xl tracking-[0.5em] font-mono"
                   />
                 </div>
                 <div className="flex justify-end gap-3">
@@ -613,7 +613,7 @@ export default function SecurityPage() {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {backupCodes.map((code, i) => (
-                  <div key={i} className="bg-slate-800 rounded px-3 py-2 text-center font-mono text-slate-200 text-sm border border-slate-700">
+                  <div key={i} className="bg-gray-50 dark:bg-slate-800 rounded px-3 py-2 text-center font-mono text-gray-800 dark:text-slate-200 text-sm border border-gray-200 dark:border-slate-700">
                     {code}
                   </div>
                 ))}
@@ -642,7 +642,7 @@ export default function SecurityPage() {
       {tab === 'password-policy' && isAdmin && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">Password Policy</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Password Policy</h2>
             <Button onClick={savePolicy} loading={savingPolicy} icon={CheckCircle}>Save Policy</Button>
           </div>
 
@@ -653,20 +653,20 @@ export default function SecurityPage() {
           ) : (
             <div className="grid lg:grid-cols-2 gap-6">
               {/* Password Requirements */}
-              <div className="bg-slate-800 rounded-lg border border-slate-700 p-6 space-y-4">
-                <h3 className="text-white font-medium flex items-center gap-2">
+              <div className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6 space-y-4">
+                <h3 className="text-gray-900 dark:text-slate-100 font-medium flex items-center gap-2">
                   <Lock className="w-4 h-4 text-emerald-400" />
                   Password Requirements
                 </h3>
                 <div>
-                  <label className="block text-sm text-slate-300 mb-1">Minimum Length</label>
+                  <label className="block text-sm text-gray-700 dark:text-slate-300 mb-1">Minimum Length</label>
                   <input
                     type="number"
                     min={6}
                     max={128}
                     value={policy.minLength}
                     onChange={(e) => setPolicy(p => ({ ...p, minLength: e.target.value }))}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   />
                 </div>
                 {[
@@ -676,11 +676,11 @@ export default function SecurityPage() {
                   { key: 'requireSpecialChars', label: 'Require special characters' },
                 ].map(toggle => (
                   <label key={toggle.key} className="flex items-center justify-between cursor-pointer">
-                    <span className="text-sm text-slate-300">{toggle.label}</span>
+                    <span className="text-sm text-gray-700 dark:text-slate-300">{toggle.label}</span>
                     <button
                       onClick={() => setPolicy(p => ({ ...p, [toggle.key]: !p[toggle.key as keyof typeof p] }))}
                       className={`w-10 h-5 rounded-full transition-colors relative ${
-                        policy[toggle.key as keyof typeof policy] ? 'bg-emerald-500' : 'bg-slate-600'
+                        policy[toggle.key as keyof typeof policy] ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-slate-600'
                       }`}
                     >
                       <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
@@ -690,84 +690,84 @@ export default function SecurityPage() {
                   </label>
                 ))}
                 <div>
-                  <label className="block text-sm text-slate-300 mb-1">Max Password Age (days)</label>
+                  <label className="block text-sm text-gray-700 dark:text-slate-300 mb-1">Max Password Age (days)</label>
                   <input
                     type="number"
                     min={0}
                     value={policy.maxAgeDays}
                     onChange={(e) => setPolicy(p => ({ ...p, maxAgeDays: e.target.value }))}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-300 mb-1">Password History Count</label>
+                  <label className="block text-sm text-gray-700 dark:text-slate-300 mb-1">Password History Count</label>
                   <input
                     type="number"
                     min={0}
                     value={policy.historyCount}
                     onChange={(e) => setPolicy(p => ({ ...p, historyCount: e.target.value }))}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   />
                 </div>
               </div>
 
               {/* Account Lockout & Session */}
-              <div className="bg-slate-800 rounded-lg border border-slate-700 p-6 space-y-4">
-                <h3 className="text-white font-medium flex items-center gap-2">
+              <div className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6 space-y-4">
+                <h3 className="text-gray-900 dark:text-slate-100 font-medium flex items-center gap-2">
                   <Shield className="w-4 h-4 text-emerald-400" />
                   Lockout & Sessions
                 </h3>
                 <div>
-                  <label className="block text-sm text-slate-300 mb-1">Max Failed Attempts</label>
+                  <label className="block text-sm text-gray-700 dark:text-slate-300 mb-1">Max Failed Attempts</label>
                   <input
                     type="number"
                     min={1}
                     value={policy.maxFailedAttempts}
                     onChange={(e) => setPolicy(p => ({ ...p, maxFailedAttempts: e.target.value }))}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-300 mb-1">Lockout Duration (minutes)</label>
+                  <label className="block text-sm text-gray-700 dark:text-slate-300 mb-1">Lockout Duration (minutes)</label>
                   <input
                     type="number"
                     min={1}
                     value={policy.lockoutDurationMinutes}
                     onChange={(e) => setPolicy(p => ({ ...p, lockoutDurationMinutes: e.target.value }))}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-300 mb-1">Session Timeout (minutes)</label>
+                  <label className="block text-sm text-gray-700 dark:text-slate-300 mb-1">Session Timeout (minutes)</label>
                   <input
                     type="number"
                     min={5}
                     value={policy.sessionTimeoutMinutes}
                     onChange={(e) => setPolicy(p => ({ ...p, sessionTimeoutMinutes: e.target.value }))}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-300 mb-1">Idle Timeout (minutes)</label>
+                  <label className="block text-sm text-gray-700 dark:text-slate-300 mb-1">Idle Timeout (minutes)</label>
                   <input
                     type="number"
                     min={1}
                     value={policy.idleTimeoutMinutes}
                     onChange={(e) => setPolicy(p => ({ ...p, idleTimeoutMinutes: e.target.value }))}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   />
                 </div>
-                <hr className="border-slate-700" />
-                <h3 className="text-white font-medium flex items-center gap-2">
+                <hr className="border-gray-200 dark:border-slate-700" />
+                <h3 className="text-gray-900 dark:text-slate-100 font-medium flex items-center gap-2">
                   <Smartphone className="w-4 h-4 text-emerald-400" />
                   MFA Requirements
                 </h3>
                 <label className="flex items-center justify-between cursor-pointer">
-                  <span className="text-sm text-slate-300">Require MFA for all users</span>
+                  <span className="text-sm text-gray-700 dark:text-slate-300">Require MFA for all users</span>
                   <button
                     onClick={() => setPolicy(p => ({ ...p, mfaRequired: !p.mfaRequired }))}
                     className={`w-10 h-5 rounded-full transition-colors relative ${
-                      policy.mfaRequired ? 'bg-emerald-500' : 'bg-slate-600'
+                      policy.mfaRequired ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-slate-600'
                     }`}
                   >
                     <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
@@ -777,7 +777,7 @@ export default function SecurityPage() {
                 </label>
                 {!policy.mfaRequired && (
                   <div>
-                    <label className="block text-sm text-slate-300 mb-2">Require MFA for roles:</label>
+                    <label className="block text-sm text-gray-700 dark:text-slate-300 mb-2">Require MFA for roles:</label>
                     <div className="flex flex-wrap gap-2">
                       {['admin', 'manager', 'budtender', 'viewer'].map(role => (
                         <button
@@ -793,7 +793,7 @@ export default function SecurityPage() {
                           className={`px-3 py-1 text-sm rounded-full border transition-colors ${
                             policy.mfaRequiredRoles.includes(role)
                               ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400'
-                              : 'border-slate-600 text-slate-400 hover:border-slate-500'
+                              : 'border-gray-300 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-gray-400 dark:hover:border-slate-500'
                           }`}
                         >
                           {role}
@@ -812,15 +812,15 @@ export default function SecurityPage() {
       {tab === 'sessions' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">Active Sessions</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Active Sessions</h2>
             <div className="flex items-center gap-3">
               {isAdmin && (
-                <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer">
+                <label className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={showAllSessions}
                     onChange={(e) => setShowAllSessions(e.target.checked)}
-                    className="rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500"
+                    className="rounded border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-emerald-500 focus:ring-emerald-500"
                   />
                   Show all company sessions
                 </label>
@@ -835,29 +835,29 @@ export default function SecurityPage() {
             </div>
           </div>
 
-          <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+          <div className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
             {loadingSessions ? (
               <div className="flex items-center justify-center h-32">
                 <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : sessions.length === 0 ? (
               <div className="p-12 text-center">
-                <Monitor className="w-12 h-12 mx-auto mb-3 text-slate-600" />
-                <p className="text-slate-400">No active sessions found</p>
+                <Monitor className="w-12 h-12 mx-auto mb-3 text-gray-600 dark:text-slate-300" />
+                <p className="text-gray-500 dark:text-slate-400">No active sessions found</p>
               </div>
             ) : (
               <table className="w-full">
-                <thead className="bg-slate-800/80">
+                <thead className="bg-white dark:bg-slate-800/80">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Device</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Device</th>
                     {showAllSessions && isAdmin && (
-                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">User</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">User</th>
                     )}
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">IP Address</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Location</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Last Activity</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Created</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">IP Address</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Location</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Last Activity</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Created</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700">
@@ -870,8 +870,8 @@ export default function SecurityPage() {
                       >
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            <Monitor className={`w-4 h-4 ${isCurrent ? 'text-emerald-400' : 'text-slate-400'}`} />
-                            <span className="text-sm text-slate-300">
+                            <Monitor className={`w-4 h-4 ${isCurrent ? 'text-emerald-400' : 'text-gray-500 dark:text-slate-400'}`} />
+                            <span className="text-sm text-gray-700 dark:text-slate-300">
                               {session.deviceType || session.userAgent || 'Unknown'}
                             </span>
                             {isCurrent && (
@@ -880,19 +880,19 @@ export default function SecurityPage() {
                           </div>
                         </td>
                         {showAllSessions && isAdmin && (
-                          <td className="px-4 py-3 text-sm text-slate-300">{session.userName || session.userEmail || '—'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-300">{session.userName || session.userEmail || '—'}</td>
                         )}
-                        <td className="px-4 py-3 text-sm text-slate-400 font-mono">{session.ipAddress || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400 font-mono">{session.ipAddress || '—'}</td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-1 text-sm text-slate-400">
+                          <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400">
                             <MapPin className="w-3 h-3" />
                             {session.location || 'Unknown'}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-sm text-slate-400">
+                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                           {session.lastActivity ? relativeTime(session.lastActivity) : '—'}
                         </td>
-                        <td className="px-4 py-3 text-sm text-slate-500">
+                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                           {session.createdAt ? formatDate(session.createdAt) : '—'}
                         </td>
                         <td className="px-4 py-3 text-right">
@@ -928,32 +928,32 @@ export default function SecurityPage() {
       {/* Security Events Tab */}
       {tab === 'security-events' && isAdmin && (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-white">Security Events</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Security Events</h2>
 
           {/* Summary Cards */}
           <div className="grid grid-cols-3 gap-4">
-            <div className="bg-slate-800 rounded-lg border border-red-500/30 p-4">
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-red-500/30 p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-slate-400 uppercase">Critical (24h)</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Critical (24h)</p>
                   <p className="text-3xl font-bold text-red-400">{eventSummary.critical}</p>
                 </div>
                 <AlertTriangle className="w-8 h-8 text-red-400/50" />
               </div>
             </div>
-            <div className="bg-slate-800 rounded-lg border border-amber-500/30 p-4">
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-amber-500/30 p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-slate-400 uppercase">Warning (24h)</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Warning (24h)</p>
                   <p className="text-3xl font-bold text-amber-400">{eventSummary.warning}</p>
                 </div>
                 <AlertTriangle className="w-8 h-8 text-amber-400/50" />
               </div>
             </div>
-            <div className="bg-slate-800 rounded-lg border border-blue-500/30 p-4">
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-blue-500/30 p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-slate-400 uppercase">Info (24h)</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Info (24h)</p>
                   <p className="text-3xl font-bold text-blue-400">{eventSummary.info}</p>
                 </div>
                 <Info className="w-8 h-8 text-blue-400/50" />
@@ -962,12 +962,12 @@ export default function SecurityPage() {
           </div>
 
           {/* Filters */}
-          <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
+          <div className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
             <div className="grid md:grid-cols-4 gap-3">
               <select
                 value={eventTypeFilter}
                 onChange={(e) => { setEventTypeFilter(e.target.value); setEventPage(1); }}
-                className="px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                className="px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               >
                 {EVENT_TYPES.map(t => (
                   <option key={t.value} value={t.value}>{t.label}</option>
@@ -976,7 +976,7 @@ export default function SecurityPage() {
               <select
                 value={severityFilter}
                 onChange={(e) => { setSeverityFilter(e.target.value); setEventPage(1); }}
-                className="px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                className="px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               >
                 {SEVERITY_OPTIONS.map(s => (
                   <option key={s.value} value={s.value}>{s.label}</option>
@@ -986,39 +986,39 @@ export default function SecurityPage() {
                 type="date"
                 value={eventDateFrom}
                 onChange={(e) => { setEventDateFrom(e.target.value); setEventPage(1); }}
-                className="px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                className="px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               />
               <input
                 type="date"
                 value={eventDateTo}
                 onChange={(e) => { setEventDateTo(e.target.value); setEventPage(1); }}
-                className="px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                className="px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               />
             </div>
           </div>
 
           {/* Events Table */}
-          <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+          <div className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
             {loadingEvents ? (
               <div className="flex items-center justify-center h-32">
                 <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : events.length === 0 ? (
               <div className="p-12 text-center">
-                <Shield className="w-12 h-12 mx-auto mb-3 text-slate-600" />
-                <p className="text-slate-400">No security events found</p>
+                <Shield className="w-12 h-12 mx-auto mb-3 text-gray-600 dark:text-slate-300" />
+                <p className="text-gray-500 dark:text-slate-400">No security events found</p>
               </div>
             ) : (
               <table className="w-full">
-                <thead className="bg-slate-800/80">
+                <thead className="bg-white dark:bg-slate-800/80">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Type</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Severity</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Description</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">User</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">IP</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Time</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-slate-400 uppercase">Ack</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Type</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Severity</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Description</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">User</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">IP</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Time</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Ack</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700">
@@ -1028,7 +1028,7 @@ export default function SecurityPage() {
                       className="hover:bg-slate-700/30 cursor-pointer"
                       onClick={() => setSelectedEvent(event)}
                     >
-                      <td className="px-4 py-3 text-sm text-slate-300">
+                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-300">
                         {(event.type || '').replace(/_/g, ' ')}
                       </td>
                       <td className="px-4 py-3">
@@ -1036,12 +1036,12 @@ export default function SecurityPage() {
                           {event.severity}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-400 max-w-xs truncate">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400 max-w-xs truncate">
                         {event.description || '—'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-400">{event.userName || event.userEmail || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-slate-500 font-mono">{event.ipAddress || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{event.userName || event.userEmail || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400 font-mono">{event.ipAddress || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400 whitespace-nowrap">
                         {event.createdAt ? relativeTime(event.createdAt) : '—'}
                       </td>
                       <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
@@ -1049,7 +1049,7 @@ export default function SecurityPage() {
                           type="checkbox"
                           checked={event.acknowledged || false}
                           onChange={(e) => acknowledgeEvent(event.id, e.target.checked)}
-                          className="rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500"
+                          className="rounded border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-emerald-500 focus:ring-emerald-500"
                         />
                       </td>
                     </tr>
@@ -1065,38 +1065,38 @@ export default function SecurityPage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-slate-400 uppercase mb-1">Type</p>
-                    <p className="text-white">{(selectedEvent.type || '').replace(/_/g, ' ')}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">Type</p>
+                    <p className="text-gray-900 dark:text-slate-100">{(selectedEvent.type || '').replace(/_/g, ' ')}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-400 uppercase mb-1">Severity</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">Severity</p>
                     <Badge variant={severityColor(selectedEvent.severity)} dot>{selectedEvent.severity}</Badge>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-400 uppercase mb-1">User</p>
-                    <p className="text-white">{selectedEvent.userName || selectedEvent.userEmail || '—'}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">User</p>
+                    <p className="text-gray-900 dark:text-slate-100">{selectedEvent.userName || selectedEvent.userEmail || '—'}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-400 uppercase mb-1">IP Address</p>
-                    <p className="text-white font-mono">{selectedEvent.ipAddress || '—'}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">IP Address</p>
+                    <p className="text-gray-900 dark:text-slate-100 font-mono">{selectedEvent.ipAddress || '—'}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-400 uppercase mb-1">Timestamp</p>
-                    <p className="text-white">{selectedEvent.createdAt ? new Date(selectedEvent.createdAt).toLocaleString() : '—'}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">Timestamp</p>
+                    <p className="text-gray-900 dark:text-slate-100">{selectedEvent.createdAt ? new Date(selectedEvent.createdAt).toLocaleString() : '—'}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-400 uppercase mb-1">Acknowledged</p>
-                    <p className="text-white">{selectedEvent.acknowledged ? 'Yes' : 'No'}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">Acknowledged</p>
+                    <p className="text-gray-900 dark:text-slate-100">{selectedEvent.acknowledged ? 'Yes' : 'No'}</p>
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400 uppercase mb-1">Description</p>
-                  <p className="text-slate-300">{selectedEvent.description || '—'}</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">Description</p>
+                  <p className="text-gray-700 dark:text-slate-300">{selectedEvent.description || '—'}</p>
                 </div>
                 {selectedEvent.metadata && (
                   <div>
-                    <p className="text-xs text-slate-400 uppercase mb-1">Metadata</p>
-                    <pre className="bg-slate-900 rounded-lg p-4 text-sm text-slate-300 overflow-auto max-h-60 border border-slate-700">
+                    <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">Metadata</p>
+                    <pre className="bg-white dark:bg-slate-900 rounded-lg p-4 text-sm text-gray-700 dark:text-slate-300 overflow-auto max-h-60 border border-gray-200 dark:border-slate-700">
                       {typeof selectedEvent.metadata === 'string'
                         ? selectedEvent.metadata
                         : JSON.stringify(selectedEvent.metadata, null, 2)}

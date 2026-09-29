@@ -69,6 +69,14 @@ app.post('/challenges', requireRole('manager'), async (c) => {
   const rules = data.rules ?? { target: data.target, period: data.period, category: data.category }
   const startDate = data.startDate ? new Date(data.startDate) : new Date()
   const endDate = data.endDate ? new Date(data.endDate) : new Date(Date.now() + 30 * 86400000)
+  // An event or challenge that ends before it starts never runs, and nothing said so — it saved,
+  // listed, and quietly did nothing. (T45 L5 for challenges, M14 for multiplier events)
+  if (endDate <= startDate) {
+    return c.json({
+      error: 'It has to end after it starts',
+      code: 'ends_before_it_starts',
+    }, 400)
+  }
 
   const result = await db.execute(sql`
     INSERT INTO loyalty_challenges(id, name, description, type, rules, reward_type, reward_value, bonus_multiplier, start_date, end_date, image_url, is_recurring, is_active, company_id, created_at, updated_at)
@@ -444,21 +452,43 @@ app.post('/challenges/:challengeId/claim', requireRole('budtender'), async (c) =
 })
 
 // GET /multipliers — Active bonus multiplier events
+// Bonus-multiplier events.
+//
+// T45 M14: this returned only the events running RIGHT NOW, so an event created for next week —
+// or one that has finished — was invisible the moment it was saved, and there was no way to reach
+// it to delete it. It also answered in snake_case while the screen read `multiplier`, so every
+// card fell back to its "2x" placeholder no matter what the event actually said. `?active=true`
+// keeps the live-only list for anything that wants it.
 app.get('/multipliers', async (c) => {
   const currentUser = c.get('user') as any
+  const liveOnly = c.req.query('active') === 'true'
+
+  // is_active is this file's DELETE — removing an event deactivates it rather than dropping the
+  // row, so the ledger lines that credit it still resolve. A deactivated event is gone as far as
+  // anyone looking at this list is concerned; a SCHEDULED or FINISHED one is not, which is the
+  // distinction the old query collapsed.
+  const liveClause = liveOnly
+    ? sql`AND start_date <= NOW() AND end_date >= NOW()`
+    : sql``
 
   const result = await db.execute(sql`
-    SELECT id, name, description, bonus_multiplier, start_date, end_date, image_url, rules
+    SELECT id, name, description, bonus_multiplier, start_date, end_date, image_url, rules, is_active,
+           (is_active = true AND start_date <= NOW() AND end_date >= NOW()) AS running
     FROM loyalty_challenges
     WHERE company_id = ${currentUser.companyId}
       AND type = 'bonus_multiplier'
       AND is_active = true
-      AND start_date <= NOW()
-      AND end_date >= NOW()
-    ORDER BY bonus_multiplier DESC
+      ${liveClause}
+    ORDER BY start_date DESC
   `)
 
-  return c.json((result as any).rows || result)
+  // camelCase, because that is what every screen in this product reads.
+  const rows = ((result as any).rows || result).map((row: any) => {
+    const out: any = {}
+    for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+    return out
+  })
+  return c.json(rows)
 })
 
 // POST /multiplier-events — Create a bonus-multiplier event.
@@ -486,6 +516,14 @@ app.post('/multiplier-events', requireRole('manager'), async (c) => {
 
   const startDate = data.startDate ? new Date(data.startDate) : new Date()
   const endDate = data.endDate ? new Date(data.endDate) : new Date(Date.now() + 30 * 86400000)
+  // An event or challenge that ends before it starts never runs, and nothing said so — it saved,
+  // listed, and quietly did nothing. (T45 L5 for challenges, M14 for multiplier events)
+  if (endDate <= startDate) {
+    return c.json({
+      error: 'It has to end after it starts',
+      code: 'ends_before_it_starts',
+    }, 400)
+  }
 
   const result = await db.execute(sql`
     INSERT INTO loyalty_challenges(id, name, description, type, rules, reward_type, reward_value, bonus_multiplier, start_date, end_date, is_recurring, is_active, company_id, created_at, updated_at)

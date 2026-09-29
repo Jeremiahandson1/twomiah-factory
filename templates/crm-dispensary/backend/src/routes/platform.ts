@@ -38,22 +38,41 @@ app.get('/health/status', async (c) => {
     services.push({ service: 'database', status: 'unhealthy', latencyMs: null, checkedAt: new Date().toISOString(), error: 'Connection failed' })
   }
 
-  // Check Metrc (last sync status)
+  // Check Metrc (last sync status).
+  //
+  // T45 M26: a shop with no Metrc has no sync log, so `metrc` came back undefined, `isStale` was
+  // falsy, and the expression fell through to 'unhealthy' — which made the whole platform read
+  // "unhealthy" permanently for every shop that does not use Metrc. Not using a system you never
+  // bought is not a fault. Unconfigured reports as such, exactly the way payments already does,
+  // and the roll-up below already treats that as fine.
   try {
-    const metrcResult = await db.execute(sql`
-      SELECT completed_at, status FROM metrc_sync_log
-      ORDER BY completed_at DESC LIMIT 1
-    `)
-    const metrc = ((metrcResult as any).rows || metrcResult)?.[0]
-    const isStale = metrc?.completed_at && (Date.now() - new Date(metrc.completed_at).getTime()) > 3600000 // >1h
-    services.push({
-      service: 'metrc',
-      status: metrc?.status === 'success' && !isStale ? 'healthy' : isStale ? 'degraded' : 'unhealthy',
-      lastSyncAt: metrc?.completed_at || null,
-      checkedAt: new Date().toISOString(),
-    })
+    // This endpoint has no session — it is the health check — and a tenant database is one shop,
+    // so the presence of any credentials at all is the question.
+    const configured = await db.execute(sql`SELECT 1 FROM metrc_config LIMIT 1`)
+    const isConfigured = (((configured as any).rows || configured)?.length || 0) > 0
+    if (!isConfigured) {
+      services.push({ service: 'metrc', status: 'not_configured', lastSyncAt: null, checkedAt: new Date().toISOString() })
+    } else {
+      const metrcResult = await db.execute(sql`
+        SELECT completed_at, status FROM metrc_sync_log
+        ORDER BY completed_at DESC LIMIT 1
+      `)
+      const metrc = ((metrcResult as any).rows || metrcResult)?.[0]
+      const isStale = metrc?.completed_at && (Date.now() - new Date(metrc.completed_at).getTime()) > 3600000 // >1h
+      services.push({
+        service: 'metrc',
+        // Connected but never synced is 'degraded' — something to look at — not 'unhealthy'.
+        status: metrc?.status === 'success' && !isStale ? 'healthy'
+          : !metrc ? 'degraded'
+          : isStale ? 'degraded'
+          : 'unhealthy',
+        lastSyncAt: metrc?.completed_at || null,
+        checkedAt: new Date().toISOString(),
+      })
+    }
   } catch {
-    services.push({ service: 'metrc', status: 'unknown', checkedAt: new Date().toISOString() })
+    // No metrc_config table on an older tenant reads as not configured, which is the truth for it.
+    services.push({ service: 'metrc', status: 'not_configured', checkedAt: new Date().toISOString() })
   }
 
   // Check payments (Stripe connectivity)

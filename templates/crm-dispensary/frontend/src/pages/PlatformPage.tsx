@@ -404,7 +404,14 @@ export default function PlatformPage() {
                 {hardwareProducts.length === 0 && (
                   <div className="col-span-full text-center py-12 text-gray-500 dark:text-slate-400">
                     <Cpu className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                    <p>No hardware products available</p>
+                    {/* An empty grid under the heading "Hardware" reads as a page that failed to
+                        load. Nothing has been listed yet — say that, and say what to do. (T45 M26) */}
+                    <p className="font-medium text-gray-700 dark:text-slate-200">No hardware is listed yet</p>
+                    <p className="text-sm mt-1">
+                      Receipt printers, barcode scanners and cash drawers can be bought anywhere — the
+                      CRM works with standard USB and network models. Get in touch if you would like
+                      us to source a full till setup.
+                    </p>
                   </div>
                 )}
               </div>

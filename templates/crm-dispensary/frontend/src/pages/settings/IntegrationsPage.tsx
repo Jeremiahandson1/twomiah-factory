@@ -53,7 +53,13 @@ export default function IntegrationsPage() {
       const data = await api.get('/api/integrations/quickbooks/auth-url') as any;
       if (data?.authUrl) {
         window.location.href = data.authUrl;
+        return;
       }
+      // The server answers { configured: false, authUrl: null } when QuickBooks has no client id
+      // on the platform. The button did nothing at all with that — no message, no error, nothing
+      // moved — so it read as broken software rather than a feature that is not switched on yet.
+      // (T45 M4)
+      setError(data?.message || 'QuickBooks is not set up on this platform yet. Get in touch and we will switch it on for your shop.');
     } catch (err) {
       setError('Failed to start QuickBooks connection');
     }
@@ -251,7 +257,9 @@ export default function IntegrationsPage() {
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-slate-100">QuickBooks</h3>
                 <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">
-                  Sync invoices, expenses, and customers with your books.
+                  {/* "invoices" is contractor wording. A dispensary's books take its daily sales,
+                      its purchase orders and its customers. (T45 M4) */}
+                  Send your daily sales, purchases and customers through to your books.
                 </p>
                 {integrations.quickbooks.connected && (
                   <div className="mt-2 text-sm">
@@ -358,7 +366,15 @@ export default function IntegrationsPage() {
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-slate-100">SMS Notifications</h3>
                 <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">
-                  Send text updates to customers and crew members.
+                  {/* "crew members" is contractor wording that came across with the template. A
+                      dispensary has budtenders and it texts customers. (T45 M4) */}
+                  Text your customers when an order is ready, and remind them about deals.
+                </p>
+                {/* The allowance line said "500 messages a month", which contradicts Billing —
+                    messaging is a prepaid wallet, not an inclusive bundle. Point at the one place
+                    that knows the balance rather than restate it here. (T45 M4) */}
+                <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">
+                  Messages are paid from your prepaid messaging wallet — top it up under Billing.
                 </p>
                 {integrations.sms.enabled && (
                   <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">

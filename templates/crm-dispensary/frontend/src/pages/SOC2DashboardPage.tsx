@@ -421,7 +421,7 @@ export default function SOC2DashboardPage() {
         </svg>
         <div className="absolute text-center">
           <span className={`text-4xl font-bold ${scoreColor(score)}`}>{score}</span>
-          <span className="text-slate-500 text-sm block">%</span>
+          <span className="text-gray-500 dark:text-slate-400 text-sm block">%</span>
         </div>
       </div>
     );
@@ -430,23 +430,23 @@ export default function SOC2DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2">
           <ShieldCheck className="w-6 h-6 text-emerald-400" />
           SOC 2 Compliance Dashboard
         </h1>
-        <p className="text-slate-400">Monitor compliance status across Trust Service Criteria</p>
+        <p className="text-gray-500 dark:text-slate-400">Monitor compliance status across Trust Service Criteria</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-slate-800/50 rounded-lg w-fit">
+      <div className="flex gap-1 p-1 bg-gray-50 dark:bg-slate-800/50 rounded-lg w-fit">
         {tabs.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
               tab === t.id
-                ? 'bg-slate-700 text-white shadow'
-                : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                ? 'bg-gray-200 dark:bg-slate-700 text-gray-900 dark:text-slate-100 shadow'
+                : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700/50'
             }`}
           >
             {t.label}
@@ -465,9 +465,17 @@ export default function SOC2DashboardPage() {
             <>
               {/* Score + Criteria Cards */}
               <div className="grid lg:grid-cols-6 gap-6">
-                <div className="lg:col-span-1 bg-slate-800 rounded-lg border border-slate-700 p-6 flex flex-col items-center justify-center">
-                  <p className="text-xs text-slate-400 uppercase mb-3">Overall Score</p>
+                {/* T45 M26: a bare "37/100" in front of a shop owner reads as a grade on the
+                    software. It is not — it is how far THIS shop has got with the controls below,
+                    on the day it opened the page, and a new shop starts near zero because nobody
+                    has done any of it yet. Say what the number is and what moves it. */}
+                <div className="lg:col-span-1 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6 flex flex-col items-center justify-center text-center">
+                  <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-3">Your controls</p>
                   <RadialProgress score={overallScore} />
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-3">
+                    How many of the SOC 2 controls below your shop currently meets. It starts low and
+                    rises as you complete them — it is not a score for the software.
+                  </p>
                 </div>
                 <div className="lg:col-span-5 grid grid-cols-5 gap-4">
                   {TRUST_CRITERIA.map(tc => {
@@ -476,17 +484,17 @@ export default function SOC2DashboardPage() {
                     return (
                       <div
                         key={tc.id}
-                        className={`bg-slate-800 rounded-lg border ${scoreBorderColor(data.score)} p-4 flex flex-col items-center text-center`}
+                        className={`bg-gray-50 dark:bg-slate-800 rounded-lg border ${scoreBorderColor(data.score)} p-4 flex flex-col items-center text-center`}
                       >
                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${
                           data.score >= 80 ? 'bg-emerald-500/10' : data.score >= 50 ? 'bg-amber-500/10' : 'bg-red-500/10'
                         }`}>
                           <Icon className={`w-5 h-5 ${scoreColor(data.score)}`} />
                         </div>
-                        <p className="text-sm text-white font-medium">{tc.label}</p>
-                        <p className="text-xs text-slate-500 mb-2">{tc.code}</p>
+                        <p className="text-sm text-gray-900 dark:text-slate-100 font-medium">{tc.label}</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400 mb-2">{tc.code}</p>
                         <p className={`text-2xl font-bold ${scoreColor(data.score)}`}>{data.score}%</p>
-                        <p className="text-xs text-slate-500 mt-1">
+                        <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                           {data.lastChecked ? formatDate(data.lastChecked) : 'Not checked'}
                         </p>
                       </div>
@@ -496,9 +504,9 @@ export default function SOC2DashboardPage() {
               </div>
 
               {/* Controls Detail */}
-              <div className="bg-slate-800 rounded-lg border border-slate-700">
-                <div className="px-6 py-4 border-b border-slate-700">
-                  <h3 className="text-white font-medium">Controls Detail</h3>
+              <div className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700">
+                <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700">
+                  <h3 className="text-gray-900 dark:text-slate-100 font-medium">Controls Detail</h3>
                 </div>
                 <div className="divide-y divide-slate-700">
                   {categorizedControls.map(cat => {
@@ -511,26 +519,26 @@ export default function SOC2DashboardPage() {
                           className="w-full px-6 py-3 flex items-center justify-between hover:bg-slate-700/30 transition-colors"
                         >
                           <div className="flex items-center gap-3">
-                            <Icon className="w-4 h-4 text-slate-400" />
-                            <span className="text-white font-medium">{cat.label}</span>
-                            <span className="text-sm text-slate-500">({cat.controls.length} controls)</span>
+                            <Icon className="w-4 h-4 text-gray-500 dark:text-slate-400" />
+                            <span className="text-gray-900 dark:text-slate-100 font-medium">{cat.label}</span>
+                            <span className="text-sm text-gray-500 dark:text-slate-400">({cat.controls.length} controls)</span>
                           </div>
-                          {isExpanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                          {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-500 dark:text-slate-400" /> : <ChevronRight className="w-4 h-4 text-gray-500 dark:text-slate-400" />}
                         </button>
                         {isExpanded && cat.controls.length > 0 && (
                           <div className="px-6 pb-4 space-y-2">
                             {cat.controls.map(control => (
                               <div
                                 key={control.id}
-                                className="flex items-center justify-between px-4 py-3 bg-slate-900/50 rounded-lg border border-slate-700/50"
+                                className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-slate-900/50 rounded-lg border border-slate-700/50"
                               >
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm text-white">{control.name}</p>
-                                  <p className="text-xs text-slate-500 truncate">{control.details || 'Not assessed'}</p>
+                                  <p className="text-sm text-gray-900 dark:text-slate-100">{control.name}</p>
+                                  <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{control.details || 'Not assessed'}</p>
                                 </div>
                                 <div className="flex items-center gap-4 ml-4">
                                   {statusBadge(control.status)}
-                                  <span className="text-xs text-slate-500 whitespace-nowrap">
+                                  <span className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">
                                     {control.lastChecked ? formatDate(control.lastChecked) : '—'}
                                   </span>
                                 </div>
@@ -540,7 +548,7 @@ export default function SOC2DashboardPage() {
                         )}
                         {isExpanded && cat.controls.length === 0 && (
                           <div className="px-6 pb-4">
-                            <p className="text-sm text-slate-500 italic">No controls defined for this category</p>
+                            <p className="text-sm text-gray-500 dark:text-slate-400 italic">No controls defined for this category</p>
                           </div>
                         )}
                       </div>
@@ -550,8 +558,8 @@ export default function SOC2DashboardPage() {
               </div>
 
               {/* Actions */}
-              <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-                <h3 className="text-white font-medium mb-4">Actions</h3>
+              <div className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
+                <h3 className="text-gray-900 dark:text-slate-100 font-medium mb-4">Actions</h3>
                 <div className="flex flex-wrap items-center gap-4">
                   <Button onClick={runAssessment} loading={assessing} icon={RefreshCw}>
                     Run Full Assessment
@@ -564,7 +572,7 @@ export default function SOC2DashboardPage() {
                       type="date"
                       value={scheduleDate}
                       onChange={(e) => setScheduleDate(e.target.value)}
-                      className="px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      className="px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                     />
                     <Button variant="secondary" onClick={scheduleReview} disabled={!scheduleDate} icon={Calendar} size="sm">
                       Schedule Review
@@ -581,56 +589,56 @@ export default function SOC2DashboardPage() {
       {tab === 'retention' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">Data Retention Policies</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Data Retention Policies</h2>
             <Button size="sm" icon={Plus} onClick={() => openRetentionModal()}>
               Add Policy
             </Button>
           </div>
 
-          <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+          <div className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
             {loadingRetention ? (
               <div className="flex items-center justify-center h-32">
                 <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : retentionPolicies.length === 0 ? (
               <div className="p-12 text-center">
-                <FileText className="w-12 h-12 mx-auto mb-3 text-slate-600" />
-                <p className="text-slate-400">No retention policies defined</p>
-                <p className="text-sm text-slate-500">Create policies to manage data lifecycle</p>
+                <FileText className="w-12 h-12 mx-auto mb-3 text-gray-600 dark:text-slate-300" />
+                <p className="text-gray-500 dark:text-slate-400">No retention policies defined</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">Create policies to manage data lifecycle</p>
               </div>
             ) : (
               <table className="w-full">
-                <thead className="bg-slate-800/80">
+                <thead className="bg-white dark:bg-slate-800/80">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Category</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Retention (days)</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Action</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Last Purge</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Next Purge</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Category</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Retention (days)</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Action</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Last Purge</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Next Purge</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700">
                   {retentionPolicies.map((policy: any) => (
                     <tr key={policy.id} className="hover:bg-slate-700/30">
-                      <td className="px-4 py-3 text-sm text-white">{policy.category}</td>
-                      <td className="px-4 py-3 text-sm text-slate-300">{policy.retentionDays}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">{policy.category}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-300">{policy.retentionDays}</td>
                       <td className="px-4 py-3">
                         <Badge variant={policy.action === 'delete' ? 'danger' : policy.action === 'anonymize' ? 'warning' : 'info'}>
                           {policy.action}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-400">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                         {policy.lastPurge ? formatDate(policy.lastPurge) : 'Never'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-400">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                         {policy.nextPurge ? formatDate(policy.nextPurge) : '—'}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => openRetentionModal(policy)}
-                            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-700 transition-colors"
+                            className="p-1.5 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
                           >
                             <Edit className="w-4 h-4" />
                           </button>
@@ -658,31 +666,31 @@ export default function SOC2DashboardPage() {
           >
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Category</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Category</label>
                 <input
                   type="text"
                   value={retentionForm.category}
                   onChange={(e) => setRetentionForm(f => ({ ...f, category: e.target.value }))}
                   placeholder="e.g., Customer Data, Audit Logs, Sessions"
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Retention Period (days)</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Retention Period (days)</label>
                 <input
                   type="number"
                   min={1}
                   value={retentionForm.retentionDays}
                   onChange={(e) => setRetentionForm(f => ({ ...f, retentionDays: e.target.value }))}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Action After Retention</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Action After Retention</label>
                 <select
                   value={retentionForm.action}
                   onChange={(e) => setRetentionForm(f => ({ ...f, action: e.target.value }))}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                 >
                   {RETENTION_ACTIONS.map(a => (
                     <option key={a.value} value={a.value}>{a.label}</option>
@@ -690,12 +698,12 @@ export default function SOC2DashboardPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Description</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Description</label>
                 <textarea
                   value={retentionForm.description}
                   onChange={(e) => setRetentionForm(f => ({ ...f, description: e.target.value }))}
                   rows={3}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                 />
               </div>
               <div className="flex justify-end gap-3">
@@ -723,7 +731,7 @@ export default function SOC2DashboardPage() {
       {tab === 'access-reviews' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">Access Reviews</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Access Reviews</h2>
             <Button size="sm" icon={Plus} onClick={startNewReview} loading={startingReview}>
               Start New Review
             </Button>
@@ -735,11 +743,11 @@ export default function SOC2DashboardPage() {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setActiveReview(null)}
-                    className="text-slate-400 hover:text-white transition-colors"
+                    className="text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 transition-colors"
                   >
                     &larr; Back
                   </button>
-                  <h3 className="text-white font-medium">
+                  <h3 className="text-gray-900 dark:text-slate-100 font-medium">
                     Review #{activeReview.id?.slice?.(0, 8) || activeReview.id}
                   </h3>
                   <Badge variant={activeReview.status === 'completed' ? 'success' : 'warning'} dot>
@@ -753,20 +761,20 @@ export default function SOC2DashboardPage() {
                 )}
               </div>
 
-              <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+              <div className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
                 {loadingReviewUsers ? (
                   <div className="flex items-center justify-center h-32">
                     <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : (
                   <table className="w-full">
-                    <thead className="bg-slate-800/80">
+                    <thead className="bg-white dark:bg-slate-800/80">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">User</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Role</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Permissions</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Decision</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Notes</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">User</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Role</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Permissions</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Decision</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Notes</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700">
@@ -774,19 +782,19 @@ export default function SOC2DashboardPage() {
                         <tr key={ru.id || ru.userId} className="hover:bg-slate-700/30">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center">
-                                <Users className="w-3.5 h-3.5 text-slate-400" />
+                              <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-slate-700 flex items-center justify-center">
+                                <Users className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" />
                               </div>
                               <div>
-                                <p className="text-sm text-white">{ru.name || ru.email || '—'}</p>
-                                <p className="text-xs text-slate-500">{ru.email || ''}</p>
+                                <p className="text-sm text-gray-900 dark:text-slate-100">{ru.name || ru.email || '—'}</p>
+                                <p className="text-xs text-gray-500 dark:text-slate-400">{ru.email || ''}</p>
                               </div>
                             </div>
                           </td>
                           <td className="px-4 py-3">
                             <Badge variant="default">{ru.role || '—'}</Badge>
                           </td>
-                          <td className="px-4 py-3 text-sm text-slate-400 max-w-xs truncate">
+                          <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400 max-w-xs truncate">
                             {Array.isArray(ru.permissions) ? ru.permissions.join(', ') : ru.permissions || '—'}
                           </td>
                           <td className="px-4 py-3">
@@ -794,7 +802,7 @@ export default function SOC2DashboardPage() {
                               value={ru.decision || 'keep'}
                               onChange={(e) => updateReviewUser(ru.id || ru.userId, 'decision', e.target.value)}
                               disabled={activeReview.status === 'completed'}
-                              className="px-2 py-1 bg-slate-900 border border-slate-600 rounded text-sm text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:opacity-50"
+                              className="px-2 py-1 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded text-sm text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:opacity-50"
                             >
                               <option value="keep">Keep</option>
                               <option value="modify">Modify</option>
@@ -808,14 +816,14 @@ export default function SOC2DashboardPage() {
                               onChange={(e) => updateReviewUser(ru.id || ru.userId, 'notes', e.target.value)}
                               disabled={activeReview.status === 'completed'}
                               placeholder="Add notes..."
-                              className="w-full px-2 py-1 bg-slate-900 border border-slate-600 rounded text-sm text-white placeholder-slate-600 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:opacity-50"
+                              className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded text-sm text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-600 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:opacity-50"
                             />
                           </td>
                         </tr>
                       ))}
                       {reviewUsers.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                          <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
                             No users found for this review
                           </td>
                         </tr>
@@ -826,33 +834,33 @@ export default function SOC2DashboardPage() {
               </div>
             </div>
           ) : (
-            <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
               {loadingReviews ? (
                 <div className="flex items-center justify-center h-32">
                   <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : reviews.length === 0 ? (
                 <div className="p-12 text-center">
-                  <Users className="w-12 h-12 mx-auto mb-3 text-slate-600" />
-                  <p className="text-slate-400">No access reviews yet</p>
-                  <p className="text-sm text-slate-500">Start a review to audit user access</p>
+                  <Users className="w-12 h-12 mx-auto mb-3 text-gray-600 dark:text-slate-300" />
+                  <p className="text-gray-500 dark:text-slate-400">No access reviews yet</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">Start a review to audit user access</p>
                 </div>
               ) : (
                 <table className="w-full">
-                  <thead className="bg-slate-800/80">
+                  <thead className="bg-white dark:bg-slate-800/80">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Review</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Started</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Completed</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Reviewer</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Actions</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Review</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Started</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Completed</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Reviewer</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700">
                     {reviews.map((review: any) => (
                       <tr key={review.id} className="hover:bg-slate-700/30">
-                        <td className="px-4 py-3 text-sm text-white">
+                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">
                           #{review.id?.slice?.(0, 8) || review.id}
                         </td>
                         <td className="px-4 py-3">
@@ -860,13 +868,13 @@ export default function SOC2DashboardPage() {
                             {review.status || 'in_progress'}
                           </Badge>
                         </td>
-                        <td className="px-4 py-3 text-sm text-slate-400">
+                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                           {review.createdAt ? formatDate(review.createdAt) : '—'}
                         </td>
-                        <td className="px-4 py-3 text-sm text-slate-400">
+                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                           {review.completedAt ? formatDate(review.completedAt) : '—'}
                         </td>
-                        <td className="px-4 py-3 text-sm text-slate-400">
+                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                           {review.reviewerName || review.reviewerEmail || '—'}
                         </td>
                         <td className="px-4 py-3 text-right">
@@ -890,15 +898,15 @@ export default function SOC2DashboardPage() {
       {/* Change Log Tab */}
       {tab === 'changelog' && (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-white">Change Log</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Change Log</h2>
 
           {/* Filters */}
-          <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
+          <div className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
             <div className="flex gap-3">
               <select
                 value={changeTypeFilter}
                 onChange={(e) => { setChangeTypeFilter(e.target.value); setChangeLogPage(1); }}
-                className="px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                className="px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               >
                 {CHANGE_TYPES.map(t => (
                   <option key={t.value} value={t.value}>{t.label}</option>
@@ -907,7 +915,7 @@ export default function SOC2DashboardPage() {
               <select
                 value={riskFilter}
                 onChange={(e) => { setRiskFilter(e.target.value); setChangeLogPage(1); }}
-                className="px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                className="px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               >
                 {RISK_LEVELS.map(r => (
                   <option key={r.value} value={r.value}>{r.label}</option>
@@ -916,26 +924,26 @@ export default function SOC2DashboardPage() {
             </div>
           </div>
 
-          <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+          <div className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
             {loadingChangeLogs ? (
               <div className="flex items-center justify-center h-32">
                 <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : changeLogs.length === 0 ? (
               <div className="p-12 text-center">
-                <Activity className="w-12 h-12 mx-auto mb-3 text-slate-600" />
-                <p className="text-slate-400">No changes recorded</p>
+                <Activity className="w-12 h-12 mx-auto mb-3 text-gray-600 dark:text-slate-300" />
+                <p className="text-gray-500 dark:text-slate-400">No changes recorded</p>
               </div>
             ) : (
               <table className="w-full">
-                <thead className="bg-slate-800/80">
+                <thead className="bg-white dark:bg-slate-800/80">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Type</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Description</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Changed By</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Risk</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Rolled Back</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Type</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Description</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Changed By</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Risk</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">Rolled Back</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700">
@@ -944,21 +952,21 @@ export default function SOC2DashboardPage() {
                       <td className="px-4 py-3">
                         <Badge variant="default">{change.changeType || change.type || '—'}</Badge>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-300 max-w-md truncate">
+                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-300 max-w-md truncate">
                         {change.description || '—'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-400">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                         {change.performedByEmail || change.changedBy || change.userName || '—'}
                       </td>
                       <td className="px-4 py-3">{riskBadge(change.riskLevel || 'low')}</td>
-                      <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400 whitespace-nowrap">
                         {change.createdAt ? formatDate(change.createdAt) : '—'}
                       </td>
                       <td className="px-4 py-3">
                         {change.rolledBack ? (
                           <Badge variant="warning" dot>Rolled Back</Badge>
                         ) : (
-                          <span className="text-sm text-slate-500">No</span>
+                          <span className="text-sm text-gray-500 dark:text-slate-400">No</span>
                         )}
                       </td>
                     </tr>

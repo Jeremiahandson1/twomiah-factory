@@ -240,6 +240,11 @@ function buildSystemPrompt(
     strainType: p.strain_type,
     thcPercent: p.thc_percent ? Number(p.thc_percent) : null,
     cbdPercent: p.cbd_percent ? Number(p.cbd_percent) : null,
+    // An edible's dose lives in thc_mg, not in a percentage of weight. Leaving it out is how the
+    // model came to state "10mg THC per piece" for a product whose record holds no such figure:
+    // there was nothing in front of it to contradict the guess. A null here is the honest answer
+    // and the rules above say to report it as not recorded. (T45 M25)
+    thcMg: p.thc_mg ? Number(p.thc_mg) : null,
     price: Number(p.price),
     salePrice: p.sale_price ? Number(p.sale_price) : null,
     effects: typeof p.effects === 'string' ? JSON.parse(p.effects || '[]') : (p.effects || []),
@@ -269,10 +274,28 @@ function buildSystemPrompt(
 - Always include the price when recommending a product. If a product is on sale, mention both the sale price and original price.
 - Recommend 3-5 products maximum per response.
 - Be conversational and knowledgeable about cannabis.
-- If asked about effects, explain relevant terpenes and cannabinoids.
 - If a customer asks for something not in inventory, let them know and suggest the closest alternatives.
 - When listing products, format them clearly with name, strain type, THC/CBD percentages, and price.
 - If the customer wants to add something to their cart, confirm the product name and ask if they'd like anything else.
+
+## What you must never say
+This shop is a licensed cannabis retailer, and what you write is advertising under its state's rules.
+- NEVER state or imply that a product treats, cures, relieves or helps any medical or psychological
+  condition — sleep, pain, anxiety, nausea, appetite, depression or anything else. That is a
+  therapeutic claim, and a licensee making one risks its licence. If a customer asks for something
+  "for sleep" or "for pain", do not answer the medical question: say you cannot give medical or
+  health advice, suggest they speak to their doctor or a licensed pharmacist, and offer to describe
+  what is in stock by strain type, cannabinoid content and the effects OTHER CUSTOMERS commonly
+  report — never as a recommendation for their condition.
+- NEVER state a potency, dose, weight, price or ingredient that is not in the inventory below. If a
+  figure is not there, say it is not recorded. Do not estimate it, do not infer it from the product
+  name, and do not repeat a typical value for that kind of product.
+- NEVER suggest a quantity to consume, a frequency, or a combination with any medication, alcohol
+  or other substance.
+- NEVER say a product is safe, healthy, non-addictive, or suitable during pregnancy or
+  breastfeeding, or for anyone under the legal age.
+If you are unsure whether something crosses one of these lines, do not say it — offer to fetch a
+member of staff instead.
 
 ## Available Product Inventory (${productCatalog.length} in-stock items)
 ${JSON.stringify(productCatalog, null, 2)}${historySection}${customSection}`
@@ -520,7 +543,7 @@ app.post('/chat', requireRole('budtender'), async (c) => {
     // Fetch all in-stock products for the system prompt
     const allProductsResult = await db.execute(sql`
       SELECT p.id, p.name, p.category, p.strain_name, p.strain_type,
-             p.thc_percent, p.cbd_percent, p.price, p.sale_price,
+             p.thc_percent, p.cbd_percent, p.thc_mg, p.price, p.sale_price,
              p.description, p.effects, p.image_url, p.weight, p.unit_type as unit,
              p.stock_quantity
       FROM products p
@@ -693,7 +716,7 @@ async function handleKeywordFallback(
 
     const productsResult = await db.execute(sql`
       SELECT p.id, p.name, p.category, p.strain_name, p.strain_type,
-             p.thc_percent, p.cbd_percent, p.price, p.sale_price,
+             p.thc_percent, p.cbd_percent, p.thc_mg, p.price, p.sale_price,
              p.description, p.effects, p.image_url, p.weight, p.unit_type as unit,
              COALESCE(p.total_sold, 0) as popularity,
              CASE WHEN p.sale_price IS NOT NULL AND p.sale_price < p.price THEN true ELSE false END as on_sale,
@@ -755,7 +778,7 @@ async function handleKeywordFallback(
   if (!intents.length && session.contact_id) {
     const historyResult = await db.execute(sql`
       SELECT p.id, p.name, p.category, p.strain_name, p.strain_type,
-             p.thc_percent, p.cbd_percent, p.price, p.sale_price,
+             p.thc_percent, p.cbd_percent, p.thc_mg, p.price, p.sale_price,
              p.description, p.effects, p.image_url, p.weight, p.unit_type as unit,
              COALESCE(p.total_sold, 0) as popularity
       FROM products p

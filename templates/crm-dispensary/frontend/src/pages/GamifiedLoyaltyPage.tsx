@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { formatDate } from '../utils/date';
-import { Trophy, Target, Crown, Zap, Search, Plus, RefreshCw, Users, Star, Gift, Calendar } from 'lucide-react';
+import { Trophy, Target, Crown, Zap, Search, Plus, RefreshCw, Users, Star, Gift, Calendar, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -97,6 +97,20 @@ export default function GamifiedLoyaltyPage() {
       console.error('Failed to load leaderboard:', err);
     } finally {
       setLoadingLeaderboard(false);
+    }
+  };
+
+  // A multiplier event that has not started yet, or has finished, is still an event the shop needs
+  // to see and be able to remove. This used to ask for the running ones only, so an event was
+  // invisible the moment it was saved for next week. (T45 M14)
+  const deleteEvent = async (event: any) => {
+    if (!window.confirm(`Delete "${event.name}"? Any bonus it is giving stops immediately.`)) return;
+    try {
+      await api.delete(`/api/gamified-loyalty/challenges/${event.id}`);
+      toast.success('Event deleted');
+      loadEvents();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete the event');
     }
   };
 
@@ -578,11 +592,9 @@ export default function GamifiedLoyaltyPage() {
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {events.map(event => {
-                const isActive = event.active || (
-                  event.startDate && event.endDate &&
-                  new Date(event.startDate) <= new Date() &&
-                  new Date(event.endDate) >= new Date()
-                );
+                // The server says whether it is running; do not re-derive it from two dates the
+                // browser is parsing in its own zone. (T45 M14)
+                const isActive = event.running === true;
                 return (
                   <div key={event.id} className={`bg-white rounded-lg shadow-sm p-5 border-2 ${isActive ? 'border-yellow-300' : 'border-gray-100'}`}>
                     <div className="flex items-center justify-between mb-3">
@@ -593,11 +605,16 @@ export default function GamifiedLoyaltyPage() {
                       <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${
                         isActive ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'
                       }`}>
-                        {isActive ? 'ACTIVE' : 'Ended'}
+                        {isActive
+                          ? 'RUNNING'
+                          : (event.startDate && new Date(event.startDate) > new Date() ? 'Scheduled' : 'Ended')}
                       </span>
                     </div>
                     <div className="text-center my-4">
-                      <span className="text-4xl font-bold text-yellow-600">{event.multiplier || 2}x</span>
+                      {/* The server calls this bonusMultiplier. Reading `multiplier` meant every
+                          card fell through to its "2x" placeholder — including the 1000x event the
+                          report created. (T45 M14) */}
+                      <span className="text-4xl font-bold text-yellow-600">{Number(event.bonusMultiplier ?? event.multiplier ?? 1)}x</span>
                       <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Point Multiplier</p>
                     </div>
                     <div className="space-y-1 text-sm text-gray-600 dark:text-slate-400">
@@ -609,6 +626,15 @@ export default function GamifiedLoyaltyPage() {
                         <Calendar className="w-3 h-3" />
                         End: {event.endDate ? formatDate(event.endDate) : '—'}
                       </p>
+                    </div>
+                    {/* An event that cannot be removed is an event a shop is stuck with. (T45 M14) */}
+                    <div className="mt-4 pt-3 border-t flex justify-end dark:border-slate-700">
+                      <button
+                        onClick={() => deleteEvent(event)}
+                        className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1 dark:hover:text-red-300"
+                      >
+                        <Trash2 className="w-3 h-3" /> Delete
+                      </button>
                     </div>
                   </div>
                 );

@@ -1104,7 +1104,27 @@ app.post('/:id/complete', requireRole('budtender'), async (c) => {
       : [undefined as any]
     const loyalty = loyaltyConfig(coRow)
     if (existing.contactId && loyaltyOn && loyalty.enabled) {
-      const pointsEarned = Math.floor(pointsBasis(existing) * loyalty.pointsPerDollar)
+      // A bonus-multiplier event, if one is running right now.
+      //
+      // T45 M14: Gamified Loyalty let a manager create a "1000x points" event, listed it happily,
+      // and then awarded 1x on every sale — nothing anywhere read bonus_multiplier. An event that
+      // does nothing is worse than no event: the shop advertises double points and the customer
+      // does not get them. The highest multiplier running wins, and a whole-number result is what
+      // a points balance is, so it rounds down the same way the base award does.
+      const multiplierRows = await tx.execute(sql`
+        SELECT name, bonus_multiplier FROM loyalty_challenges
+        WHERE company_id = ${currentUser.companyId}
+          AND type = 'bonus_multiplier'
+          AND is_active = true
+          AND start_date <= NOW()
+          AND end_date >= NOW()
+        ORDER BY bonus_multiplier DESC
+        LIMIT 1
+      `)
+      const runningEvent = ((multiplierRows as any).rows || multiplierRows)?.[0]
+      const rawMultiplier = Number(runningEvent?.bonus_multiplier)
+      const multiplier = Number.isFinite(rawMultiplier) && rawMultiplier > 1 ? rawMultiplier : 1
+      const pointsEarned = Math.floor(pointsBasis(existing) * loyalty.pointsPerDollar * multiplier)
       // A redeemed catalog reward counts a use once the sale actually settles.
       if ((existing as any).loyaltyRewardId) {
         await tx.execute(sql`UPDATE loyalty_rewards SET usage_count = COALESCE(usage_count, 0) + 1, updated_at = NOW() WHERE id = ${(existing as any).loyaltyRewardId} AND company_id = ${currentUser.companyId}`)
@@ -1169,7 +1189,7 @@ app.post('/:id/complete', requireRole('budtender'), async (c) => {
       // above already set — do NOT add pointsEarned again (that double-counted it). (retest#9)
       await tx.execute(sql`
         INSERT INTO loyalty_transactions(id, member_id, type, points, balance_after, order_id, description, company_id, created_at)
-        SELECT gen_random_uuid(), lm.id, 'earn', ${pointsEarned}, COALESCE(lm.points_balance::numeric, 0), ${id}, ${'Purchase ' + existing.number}, ${currentUser.companyId}, NOW()
+        SELECT gen_random_uuid(), lm.id, 'earn', ${pointsEarned}, COALESCE(lm.points_balance::numeric, 0), ${id}, ${multiplier > 1 ? `Purchase ${existing.number} (${multiplier}x ${runningEvent?.name || 'bonus event'})` : 'Purchase ' + existing.number}, ${currentUser.companyId}, NOW()
         FROM loyalty_members lm
         WHERE lm.contact_id = ${existing.contactId} AND lm.company_id = ${currentUser.companyId}
       `)

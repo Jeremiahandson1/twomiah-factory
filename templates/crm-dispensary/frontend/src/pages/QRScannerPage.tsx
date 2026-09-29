@@ -20,11 +20,13 @@ const scanContexts = [
   { value: 'customer_info', label: 'Customer Info', icon: Search },
 ];
 
+// The names the server accepts (qr-scanner.ts validTypes). This offered 'input' where the server
+// wants 'grow_input', so generating a QR for an input answered 400. (T45 M16)
 const entityTypes = [
   { value: 'product', label: 'Product' },
   { value: 'batch', label: 'Batch' },
   { value: 'plant', label: 'Plant' },
-  { value: 'input', label: 'Input' },
+  { value: 'grow_input', label: 'Grow Input' },
 ];
 
 const tabs = [
@@ -79,6 +81,44 @@ function ScannerTab() {
   const [result, setResult] = useState<any>(null);
   const [recentScans, setRecentScans] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [decoding, setDecoding] = useState(false);
+
+  // BarcodeDetector is native in Chrome, Edge and Android WebView — which is what a shop's tablet
+  // and a budtender's phone run. Where it is missing the manual box below is the whole story, and
+  // the panel says so rather than offering a button that cannot work. (T45 M16)
+  const cameraSupported = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+
+  const readCodeFromImage = async (file: File) => {
+    if (!cameraSupported) {
+      toast.error('This browser cannot read a code from a picture — type or paste it below');
+      return;
+    }
+    setDecoding(true);
+    try {
+      const Detector = (window as any).BarcodeDetector;
+      // The formats a dispensary actually meets: our own QR labels, and the UPC/EAN/Code-128 a
+      // supplier prints. An unsupported format list throws, so fall back to the default set.
+      let detector: any;
+      try {
+        detector = new Detector({ formats: ['qr_code', 'code_128', 'ean_13', 'upc_a', 'upc_e', 'data_matrix'] });
+      } catch {
+        detector = new Detector();
+      }
+      const bitmap = await createImageBitmap(file);
+      const found = await detector.detect(bitmap);
+      bitmap.close?.();
+      const value = found?.[0]?.rawValue;
+      if (!value) {
+        toast.error('No code found in that picture — try again, or type it below');
+        return;
+      }
+      await handleScan(value);
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not read that picture');
+    } finally {
+      setDecoding(false);
+    }
+  };
 
   const loadRecentScans = useCallback(async () => {
     setLoadingHistory(true);
@@ -116,16 +156,36 @@ function ScannerTab() {
     <div className="space-y-6">
       {/* Camera Viewport */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
-        <div className="bg-gray-900 aspect-video max-h-80 flex flex-col items-center justify-center relative">
+        {/* T45 M16: this panel was a still picture of a camera with the words "Requires
+            html5-qrcode or @zxing/browser integration" underneath — a note from whoever built it,
+            left where a budtender reads it. It now takes a photo of the code and reads it with the
+            browser's own BarcodeDetector, which Chrome and Android have natively, so no dependency
+            is added to every tenant. Where the browser has no decoder it says so plainly and points
+            at the box below, which has always worked. */}
+        <div className="bg-gray-900 aspect-video max-h-80 flex flex-col items-center justify-center relative px-6 text-center">
           <div className="absolute inset-8 border-2 border-dashed border-gray-600 rounded-xl" />
-          <Camera className="w-16 h-16 text-gray-600 mb-4 dark:text-slate-400" />
-          <p className="text-gray-500 dark:text-slate-400 text-lg font-medium">Camera Preview</p>
-          <p className="text-gray-500 text-sm mt-1 dark:text-slate-400">
-            Point camera at QR code or barcode to scan
-          </p>
-          <p className="text-gray-600 text-xs mt-3 dark:text-slate-400">
-            Requires html5-qrcode or @zxing/browser integration
-          </p>
+          <Camera className="w-12 h-12 text-gray-400 mb-3" />
+          {decoding ? (
+            <p className="text-gray-200 text-lg font-medium">Reading the code…</p>
+          ) : (
+            <>
+              <label className="relative z-10 px-4 py-2 bg-orange-500 text-white rounded-lg font-medium cursor-pointer hover:bg-orange-600">
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="sr-only"
+                  onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) readCodeFromImage(f); }}
+                />
+                Scan with the camera
+              </label>
+              <p className="text-gray-300 text-sm mt-3">
+                {cameraSupported
+                  ? 'Point the camera at the QR code or barcode and take the picture.'
+                  : 'This browser cannot read a code from a picture — type or paste it below instead.'}
+              </p>
+            </>
+          )}
         </div>
 
         {/* Manual Entry */}
@@ -180,7 +240,7 @@ function ScannerTab() {
             <ProductResultCard result={result} context={context} toast={toast} />
           )}
 
-          {result.entityType === 'input' && (
+          {result.entityType === 'grow_input' && (
             <InputResultCard result={result} context={context} toast={toast} />
           )}
 
@@ -188,7 +248,7 @@ function ScannerTab() {
             <BatchResultCard result={result} toast={toast} />
           )}
 
-          {!['product', 'input', 'batch'].includes(result.entityType) && (
+          {!['product', 'grow_input', 'batch'].includes(result.entityType) && (
             <div className="text-gray-500 dark:text-slate-400">
               <p className="font-medium">Entity: {result.entityType || 'Unknown'}</p>
               <pre className="mt-2 p-3 bg-gray-50 rounded-lg text-xs overflow-auto dark:bg-slate-900">
@@ -221,12 +281,12 @@ function ScannerTab() {
                 <div className="flex items-center gap-3">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
                     scan.entityType === 'product' ? 'bg-green-100' :
-                    scan.entityType === 'input' ? 'bg-blue-100' :
+                    scan.entityType === 'grow_input' ? 'bg-blue-100' :
                     scan.entityType === 'batch' ? 'bg-purple-100' :
                     'bg-gray-100'
                   }`}>
                     {scan.entityType === 'product' ? <Package className="w-4 h-4 text-green-600" /> :
-                     scan.entityType === 'input' ? <Leaf className="w-4 h-4 text-blue-600" /> :
+                     scan.entityType === 'grow_input' ? <Leaf className="w-4 h-4 text-blue-600" /> :
                      scan.entityType === 'batch' ? <Layers className="w-4 h-4 text-purple-600" /> :
                      <QrCode className="w-4 h-4 text-gray-600 dark:text-slate-400" />}
                   </div>
@@ -449,7 +509,7 @@ function GeneratorTab() {
           data = await api.get('/api/batches', { limit: 200 });
         } else if (entityType === 'plant') {
           data = await api.get('/api/cultivation/plants', { limit: 200 });
-        } else if (entityType === 'input') {
+        } else if (entityType === 'grow_input') {
           data = await api.get('/api/grow-inputs', { limit: 200 });
         }
         setEntities(Array.isArray(data) ? data : data?.data || []);
@@ -464,7 +524,7 @@ function GeneratorTab() {
     if (entityType === 'product') return entity.name || entity.id;
     if (entityType === 'batch') return `${entity.batchNumber || entity.id} — ${entity.productName || ''}`;
     if (entityType === 'plant') return `${entity.metrcTag || entity.id} — ${entity.strainName || ''}`;
-    if (entityType === 'input') return `${entity.name || entity.id} (${entity.brand || ''})`;
+    if (entityType === 'grow_input') return `${entity.name || entity.id} (${entity.brand || ''})`;
     return entity.name || entity.id;
   };
 
@@ -640,7 +700,7 @@ function AnalyticsTab() {
             {(stats?.byEntityType || [
               { type: 'product', count: stats?.productScans || 0 },
               { type: 'batch', count: stats?.batchScans || 0 },
-              { type: 'input', count: stats?.inputScans || 0 },
+              { type: 'grow_input', count: stats?.inputScans || 0 },
               { type: 'plant', count: stats?.plantScans || 0 },
             ]).map((item: any) => {
               const total = stats?.thisMonth || 1;
