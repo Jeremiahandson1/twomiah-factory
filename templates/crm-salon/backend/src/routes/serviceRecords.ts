@@ -11,6 +11,7 @@ import { ensureInvoiceForVisit } from '../services/salonCheckout.ts'
 import { resolveStylist, unknownStylist, stylistIdOf } from '../utils/stylist.ts'
 import { hasHappened } from '../shared/index.ts'
 import { scheduleReviewRequestForVisit } from '../services/reviews.ts'
+import { AUTO_VISIT_NOTE, CANCELLED_VISIT_NOTE } from './appointments.ts'
 
 /**
  * The formula log — what was actually done in the chair. This is the salon's
@@ -175,12 +176,61 @@ app.post('/repair-legacy', requirePermission('company:update'), async (c: any) =
     `)
   }
 
+  // ── FULL0929 F1: visits standing against an appointment that was cancelled ─────────────────────
+  //
+  // Cancelling a completed visit now takes the visit record with it. That changed what happens
+  // NEXT; the records the old build left are still on the chart — counted in the client's visit
+  // total, used as their last visit, and feeding the rebooking reminder. On the test tenant that is
+  // seven of them, and one is the retest's own named symptom: LYR2 Papa is on Due to Rebook for 8
+  // October because of a cut that was cancelled. A reminder to come back for an appointment the
+  // salon agreed never took place is the one thing here a CLIENT sees, so leaving the old rows in
+  // place would leave the finding half-fixed.
+  //
+  // Exactly the cancel path's rule, and no wider: a record the SYSTEM wrote and nobody has touched
+  // goes; one carrying a stylist's own formula or notes is kept and marked, because a colourist's
+  // record of what went on a real head of hair is not a housekeeping script's to destroy.
+  const stale: any = await db.execute(sql`
+    SELECT sr.id, sr.notes, sr.formula, sr.contact_id, a.status AS appointment_status
+    FROM service_record sr
+    JOIN appointment a ON a.id = sr.appointment_id AND a.company_id = sr.company_id
+    WHERE sr.company_id = ${cid} AND a.status IN ('cancelled', 'no_show')
+  `)
+  const staleRows = ((stale as any).rows || stale) as any[]
+  const visitsRemoved: any[] = []
+  const visitsKept: any[] = []
+  for (const row of staleRows) {
+    const formula = row.formula
+    const hasFormula = Array.isArray(formula) ? formula.length > 0 : !!formula
+    const ownNotes = String(row.notes || '').trim()
+    // A second run reads its own handwriting. The keep/delete decision is made on what the record
+    // said BEFORE this repair stamped it — otherwise a record kept for a stylist's note looks
+    // auto-generated on the next run and gets deleted by it.
+    const alreadyMarked = ownNotes.endsWith(CANCELLED_VISIT_NOTE)
+    const bare = (alreadyMarked ? ownNotes.slice(0, -CANCELLED_VISIT_NOTE.length) : ownNotes).trim()
+    const handWritten = bare !== '' && bare !== AUTO_VISIT_NOTE
+    if (hasFormula || handWritten) {
+      if (!alreadyMarked) {
+        await db.execute(sql`
+          UPDATE service_record SET notes = ${`${ownNotes}\n${CANCELLED_VISIT_NOTE}`.trim()}, updated_at = NOW()
+          WHERE id = ${row.id} AND company_id = ${cid}
+        `)
+      }
+      visitsKept.push({ id: row.id, contactId: row.contact_id })
+    } else {
+      await db.execute(sql`DELETE FROM service_record WHERE id = ${row.id} AND company_id = ${cid}`)
+      visitsRemoved.push({ id: row.id, contactId: row.contact_id })
+    }
+  }
+
   await audit.log({
     action: 'update', entity: 'service_record', entityId: 'repair-legacy',
-    metadata: { invoicesVoided: orphanRows.length, invoicesRestored: unvoidedRows.length, visitsRedated: futureRows.length },
+    metadata: {
+      invoicesVoided: orphanRows.length, invoicesRestored: unvoidedRows.length, visitsRedated: futureRows.length,
+      visitsRemoved: visitsRemoved.length, visitsKept: visitsKept.length,
+    },
     req: { user: currentUser },
   })
-  if (orphanRows.length || unvoidedRows.length || futureRows.length) emitToCompany(cid, EVENTS.REFRESH, { entity: 'service_record' })
+  if (orphanRows.length || unvoidedRows.length || futureRows.length || staleRows.length) emitToCompany(cid, EVENTS.REFRESH, { entity: 'service_record' })
   if (orphanRows.length || unvoidedRows.length) emitToCompany(cid, EVENTS.REFRESH, { entity: 'invoice' })
 
   return c.json({
@@ -191,6 +241,13 @@ app.post('/repair-legacy', requirePermission('company:update'), async (c: any) =
     restored: unvoidedRows.map((r) => ({ id: r.id, number: r.number, total: r.total })),
     visitsRedated: futureRows.length,
     visits: futureRows.map((r) => ({ id: r.id, was: r.performed_at, now: r.created_at })),
+    // Visits that never happened, taken off the chart and off the rebooking list. (FULL0929 F1)
+    visitsRemoved: visitsRemoved.length,
+    removed: visitsRemoved,
+    // …and the ones a stylist had written on, kept and marked instead. These STILL count toward
+    // that client's rebooking reminder, which is a compromise rather than a fix.
+    visitsKept: visitsKept.length,
+    kept: visitsKept,
   })
 })
 

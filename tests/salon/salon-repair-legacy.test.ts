@@ -94,6 +94,47 @@ const api = async (method: string, path: string, body?: unknown) => {
 const statusOf = async (id: string) => rows(await db.execute(sql`SELECT status FROM invoice WHERE id = ${id}`))[0]?.status
 const performedOf = async (id: string) => rows(await db.execute(sql`SELECT performed_at, created_at FROM service_record WHERE id = ${id}`))[0]
 
+// ── FULL0929 F1: visits standing against an appointment that was cancelled ───────────────────────
+//
+// Cancelling a completed visit now takes the visit record with it. That changed what happens NEXT,
+// and the records the old build left are still on the chart — counted in the client's visit total,
+// used as their last visit, and feeding the rebooking reminder. On the live tenant that is seven of
+// them, one of which is the retest's own named symptom: LYR2 Papa on Due to Rebook for 8 October
+// because of a cut that was cancelled.
+const AUTO_NOTE = 'Logged automatically when the appointment was completed.'
+const clientCancelled = await mkClient('Cass Cancelled')
+const clientFormula = await mkClient('Col Formula')
+const clientTypist = await mkClient('Tam Typist')
+const clientReal = await mkClient('Rhea Real')
+const clientNoShow = await mkClient('Nell Noshow')
+
+const mkAppt = async (contactId: string, status: string) => (await db.insert(appointment).values({
+  companyId: co.id, contactId, status, startTime: past, endTime: new Date(past.getTime() + 1800000),
+} as any).returning())[0]
+const mkVisitOn = async (contactId: string, apptId: string, extra: Record<string, any> = {}) =>
+  (await db.insert(serviceRecord).values({
+    companyId: co.id, contactId, appointmentId: apptId, performedAt: past, createdAt: past,
+    priceCharged: '35.00', notes: AUTO_NOTE, ...extra,
+  } as any).returning())[0]
+
+const cancelledAppt = await mkAppt(clientCancelled.id, 'cancelled')
+const staleVisit = await mkVisitOn(clientCancelled.id, cancelledAppt.id)
+
+const formulaAppt = await mkAppt(clientFormula.id, 'cancelled')
+const formulaVisit = await mkVisitOn(clientFormula.id, formulaAppt.id, { formula: [{ product: 'Colour 6N', developer: '20 vol' }] })
+
+const typistAppt = await mkAppt(clientTypist.id, 'cancelled')
+const typedVisit = await mkVisitOn(clientTypist.id, typistAppt.id, { notes: 'Client asked for half an inch off next time.' })
+
+const realAppt = await mkAppt(clientReal.id, 'completed')
+const realVisit = await mkVisitOn(clientReal.id, realAppt.id)
+
+const noShowAppt = await mkAppt(clientNoShow.id, 'no_show')
+const noShowVisit = await mkVisitOn(clientNoShow.id, noShowAppt.id)
+
+const visitExists = async (id: string) => rows(await db.execute(sql`SELECT id FROM service_record WHERE id = ${id}`)).length === 1
+const notesOf = async (id: string) => rows(await db.execute(sql`SELECT notes FROM service_record WHERE id = ${id}`))[0]?.notes
+
 // Captured as the RAW stored value: PGlite hands timestamps back without a zone, so re-parsing them in
 // JS shifts by the local offset and a comparison against the original Date would fail on an unchanged row.
 const normalBefore = String(rows(await db.execute(sql`SELECT performed_at FROM service_record WHERE id = ${normalVisit.id}`))[0]?.performed_at)
@@ -119,9 +160,26 @@ check('M4: the future-dated visit is redated', r.json?.visitsRedated === 1, { go
   check('a visit that already happened keeps its own date, to the millisecond', String(v?.performed_at) === normalBefore, { before: normalBefore, after: v?.performed_at })
 }
 
+check('F1: two visits that never happened are taken off the chart', r.json?.visitsRemoved === 2, { got: r.json?.visitsRemoved, want: 2 })
+check('F1: …the cancelled one is gone', !(await visitExists(staleVisit.id)))
+check('F1: …and so is the no-show, which the product treats the same way', !(await visitExists(noShowVisit.id)))
+check('F1: a visit against an appointment that actually happened is untouched', await visitExists(realVisit.id))
+check('F1: …and keeps the note the system wrote', (await notesOf(realVisit.id)) === AUTO_NOTE, await notesOf(realVisit.id))
+
+check('F1: two a stylist had written on are kept, not deleted', r.json?.visitsKept === 2, { got: r.json?.visitsKept, want: 2 })
+check('F1: …the one carrying a formula survives', await visitExists(formulaVisit.id))
+check('F1: …and says the appointment under it was cancelled', /cancelled/i.test(String(await notesOf(formulaVisit.id))), await notesOf(formulaVisit.id))
+check('F1: …the one carrying a stylist\'s own note survives', await visitExists(typedVisit.id))
+check('F1: …with that note still on it, not replaced', /half an inch/.test(String(await notesOf(typedVisit.id))), await notesOf(typedVisit.id))
+
 {
   const again = await api('POST', '/api/service-records/repair-legacy')
-  check('running it again changes nothing — it is idempotent', again.json?.invoicesVoided === 0 && again.json?.visitsRedated === 0, again.json)
+  check('running it again changes nothing — it is idempotent',
+    again.json?.invoicesVoided === 0 && again.json?.visitsRedated === 0 && again.json?.visitsRemoved === 0, again.json)
+  // The kept ones are still reported — they are the compromise a person may want to look at — but
+  // the note is not stamped on twice.
+  const stamped = String(await notesOf(formulaVisit.id)).match(/cancelled/gi)?.length
+  check('F1: …and the kept records are not re-annotated on every run', stamped === 1, { stamped, notes: await notesOf(formulaVisit.id) })
 }
 
 // ── a repair that writes to money has to be reversible ────────────────────────────────────────────

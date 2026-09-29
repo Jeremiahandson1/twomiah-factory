@@ -172,10 +172,10 @@ async function onVisitCompleted(row: typeof appointment.$inferSelect): Promise<s
  * what decides whether cancelling the appointment may delete it. Named rather than repeated, so the
  * two places cannot drift apart and quietly start keeping every record. (FULL0929 F1)
  */
-const AUTO_VISIT_NOTE = 'Logged automatically when the appointment was completed.'
+export const AUTO_VISIT_NOTE = 'Logged automatically when the appointment was completed.'
 
 /** What a kept record says about the appointment that was cancelled under it. (FULL0929 F1) */
-const CANCELLED_VISIT_NOTE = 'The appointment this was recorded against was cancelled. Kept because it carries a formula or a note.'
+export const CANCELLED_VISIT_NOTE = 'The appointment this was recorded against was cancelled. Kept because it carries a formula or a note.'
 
 // Reopening a visit: give back what it earned. Never throws — cancelling has to succeed. (LY0928 M1)
 async function onVisitUncompleted(row: typeof appointment.$inferSelect): Promise<void> {
