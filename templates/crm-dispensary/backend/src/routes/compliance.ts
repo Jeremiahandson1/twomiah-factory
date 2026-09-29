@@ -960,6 +960,57 @@ app.get('/reports/:id', async (c) => {
 })
 
 // Submit report
+/**
+ * Take back a submission that never happened.
+ *
+ * T46 L-l: T45 BL2 taught this endpoint to refuse a submission when the shop is connected to no
+ * traceability system — and left the row it had already written. A report on this tenant still says
+ * it was filed with the state at 20:41 on 28 September, on a shop that has never been connected to
+ * Metrc or BioTrack, and nothing anywhere could take that back. A false claim of having filed is
+ * worse than not filing: the shop believes it is done.
+ *
+ * Only reports claiming a submission the shop could not have made are touched — if traceability IS
+ * connected, every submitted report stands, because then it might be true. Idempotent, and it says
+ * in the notes what it did and why.
+ */
+app.post('/reports/repair-unsubmitted', requireRole('admin'), async (c) => {
+  const currentUser = c.get('user') as any
+
+  const trace = await traceabilityStatus(currentUser.companyId, 'these reports')
+  if (trace.connected) {
+    return c.json({
+      repaired: 0,
+      reports: [],
+      message: 'This shop is connected to its state system, so a submitted report may well have been submitted. Nothing was changed.',
+    })
+  }
+
+  const result = await db.execute(sql`
+    UPDATE compliance_reports
+    SET status = 'generated',
+        submitted_at = NULL,
+        notes = COALESCE(notes, '') || 'Marked generated again: it was recorded as submitted while this shop was connected to no state system, so no submission can have taken place. Export it and file it by hand, or connect Metrc or BioTrack and submit it. '
+    WHERE company_id = ${currentUser.companyId}
+      AND status = 'submitted'
+    RETURNING id, report_type, start_date, end_date
+  `)
+  const rows = ((result as any).rows || result) as any[]
+
+  audit.log({
+    action: audit.ACTIONS.UPDATE,
+    entity: 'compliance_report',
+    entityId: 'repair-unsubmitted',
+    metadata: { repaired: rows.length, reason: trace.reason },
+    req: c,
+  })
+
+  return c.json({
+    repaired: rows.length,
+    reports: rows.map((r) => ({ id: r.id, reportType: r.report_type, startDate: r.start_date, endDate: r.end_date })),
+    reason: trace.reason,
+  })
+})
+
 app.post('/reports/:id/submit', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')

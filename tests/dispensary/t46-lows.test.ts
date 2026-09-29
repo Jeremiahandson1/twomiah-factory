@@ -181,6 +181,31 @@ const rows = async (q: any) => { const r: any = await db.execute(q); return (r.r
   check('L-f: flower is unaffected — it is sold by weight, not by mg', flower.status === 201, { status: flower.status, body: flower.json })
 }
 
+// ── L-l: a submission that never happened can be taken back ────────────────────────────────────
+{
+  // T45 BL2 taught the submit endpoint to refuse when the shop is connected to nothing, and left
+  // the row it had already written: a report still claiming it was filed with the state, on a shop
+  // that has never been connected. A false claim of having filed is worse than not filing.
+  const [report] = await rows(sql`
+    INSERT INTO compliance_reports (id, company_id, report_type, start_date, end_date, status, submitted_at, data, generated_by, created_at)
+    VALUES (gen_random_uuid(), ${co.id}, 'daily_sales', CURRENT_DATE, CURRENT_DATE, 'submitted', NOW(), '{}'::jsonb, ${owner.id}, NOW())
+    RETURNING id
+  `)
+
+  const repaired = await asOwner('POST', '/api/compliance/reports/repair-unsubmitted')
+  check('L-l: the repair runs', repaired.status === 200, { status: repaired.status, body: repaired.json })
+  check('L-l: …and takes back the claim', repaired.json?.repaired >= 1, repaired.json)
+
+  const [after] = await rows(sql`SELECT status, submitted_at, notes FROM compliance_reports WHERE id = ${report.id}`)
+  check('L-l: …the report is generated again, not submitted', after?.status === 'generated', after)
+  check('L-l: …with no submission time on it', after?.submitted_at === null, after)
+  check('L-l: …and a note saying what happened and what to do instead',
+    /no state system|file it by hand/i.test(String(after?.notes)), after?.notes)
+
+  const again = await asOwner('POST', '/api/compliance/reports/repair-unsubmitted')
+  check('L-l: running it again changes nothing', again.json?.repaired === 0, again.json)
+}
+
 // ── L-i: the audit log's type filter has something to filter on ────────────────────────────────
 {
   const [row] = await rows(sql`
