@@ -80,6 +80,26 @@ export function formatDateTime(value?: string | number | Date | null, timeZone?:
 }
 
 /**
+ * A calendar DATE as the shop would write it.
+ *
+ * T46 N16: Cash session history rendered the opening instant on the viewer's clock, so a drawer
+ * opened at 00:18 on 29 September in Ohio was listed under 28 September for anyone looking from
+ * further west — and a drawer filed under the wrong day is a reconciliation that will not close.
+ * formatDate() is for date-ONLY values, which have no zone to get wrong; this is for an instant.
+ */
+export function formatDateInZone(value?: string | number | Date | null, timeZone?: string | null): string {
+  if (value === null || value === undefined || value === '') return '';
+  const d = value instanceof Date ? value : new Date(String(value));
+  if (isNaN(d.getTime())) return '';
+  if (!timeZone) return d.toLocaleDateString();
+  try {
+    return d.toLocaleDateString(undefined, { timeZone });
+  } catch {
+    return d.toLocaleDateString();
+  }
+}
+
+/**
  * The short form of the above — a time of day on the shop's clock, with the zone named so nobody
  * has to guess which one they are looking at.
  */

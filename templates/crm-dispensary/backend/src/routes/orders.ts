@@ -10,6 +10,7 @@ import { getApprovalConfig, requireApproval, linkApprovalToOrder, ApprovalRequir
 import { escapeHtml } from '../utils/sanitize.ts'
 import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, ageFromDob, minimumAgeFor, ADULT_USE_MIN_AGE, unitGramsOf, overPurchaseLimit, lineFlowerEquivalentGrams, uncountableCannabisLines, unweighedCannabisRefusal, gramsText } from '../utils/cannabis.ts'
 import { matchZoneForAddress, zoneTerms } from '../utils/delivery.ts'
+import { storeTimeZone } from '../utils/isoTime.ts'
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { loyaltyConfig, inBirthdayMonth } from '../utils/loyaltyConfig.ts'
 import { recomputeTier } from '../utils/loyaltyTier.ts'
@@ -1078,6 +1079,21 @@ app.post('/:id/complete', requireRole('budtender'), async (c) => {
       `)
       const ok = ((dec as any).rows || dec)?.length > 0
       if (!ok) throw new OversellError(`Insufficient stock to complete: ${item.productName || item.productId}`)
+
+      // …and the BATCH the units came out of, when the line names one.
+      //
+      // T46 N14: a batch stayed at 20 after a sale from it, so the lot's own count only ever went
+      // down when someone destroyed something. A recall asks two questions — how much is left and
+      // who has the rest — and the first was answered with the number the batch started at.
+      // Floored rather than refused: the product count is what governs whether a sale may happen
+      // (checked above), and a batch figure that has drifted must not block a customer at the till.
+      if ((item as any).batchId) {
+        await tx.execute(sql`
+          UPDATE batches
+          SET current_quantity = GREATEST(COALESCE(current_quantity, 0) - ${item.quantity}, 0), updated_at = NOW()
+          WHERE id = ${(item as any).batchId} AND company_id = ${currentUser.companyId}
+        `)
+      }
     }
 
     // Award loyalty points if customer is linked. The loyalty_members points/money
@@ -1636,6 +1652,24 @@ app.get('/:id/receipt', async (c) => {
     receiptCo?.phone,
   ].filter((l) => String(l || '').trim())
 
+  // The time on the receipt is the time at the SHOP.
+  //
+  // T46 N15: it printed 8:46:46 PM for a sale the order page showed at 4:46:46 PM — the server's
+  // clock, which on Render is UTC. The customer's copy and the shop's own screen disagreed about
+  // when the sale happened by four hours, and the receipt is the half the customer keeps. The zone
+  // is named on it so nobody has to work out which clock it is. (T45 M24 fixed the screens; this is
+  // the piece of paper.)
+  const receiptZone = storeTimeZone(receiptCo)
+  const receiptTime = (() => {
+    const d = new Date(foundOrder.createdAt as any)
+    if (Number.isNaN(d.getTime())) return ''
+    try {
+      return d.toLocaleString('en-US', { timeZone: receiptZone, timeZoneName: 'short' })
+    } catch {
+      return d.toLocaleString('en-US')
+    }
+  })()
+
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Receipt ${escapeHtml(foundOrder.number)}</title>
 <style>
@@ -1660,7 +1694,7 @@ app.get('/:id/receipt', async (c) => {
   ${headerText ? `<div class="custom">${escapeHtml(headerText)}</div>` : ''}
   <div class="info">
     Order: ${escapeHtml(foundOrder.number)}<br>
-    Date: ${new Date(foundOrder.createdAt).toLocaleString()}<br>
+    Date: ${escapeHtml(receiptTime)}<br>
     Type: ${escapeHtml(foundOrder.type)}${(foundOrder as any).isMedical ? ' (Medical)' : ''}
   </div>
   <table>

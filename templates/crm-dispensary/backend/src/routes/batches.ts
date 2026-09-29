@@ -411,7 +411,76 @@ app.post('/:id/:action', requireRole('manager'), async (c) => {
     req: c,
   })
 
-  return c.json(camel(updated))
+  // A recall asks one question before any other: who has it?
+  //
+  // T46 N14: recalling a batch answered with the batch row and nothing else. No affected orders,
+  // no customers, and no endpoint anywhere that could produce them — so the shop knew it had sold
+  // the lot and had no way to find out to whom. order_items has carried batch_id since T45 BL4;
+  // nothing ever read it back. The people to ring come with the recall now.
+  const affected = status === 'recalled' ? await affectedByBatch(currentUser.companyId, id) : null
+
+  return c.json({ ...camel(updated), ...(affected ? { affected } : {}) })
+})
+
+/**
+ * Everyone who bought from a batch, most recent first.
+ *
+ * Contact details are included on purpose: this list exists to be telephoned. A sale with no
+ * customer attached still appears — the shop cannot call a walk-in, but it has to know how many
+ * of them there were, and the order number is what a customer produces at the counter.
+ */
+async function affectedByBatch(companyId: string, batchId: string) {
+  const res = await db.execute(sql`
+    SELECT
+      o.id AS order_id, o.number AS order_number, o.completed_at, o.status AS order_status,
+      oi.quantity, oi.refunded_quantity, oi.product_name, oi.metrc_tag,
+      ct.id AS contact_id, ct.name AS customer_name, ct.phone, ct.email
+    FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    LEFT JOIN contact ct ON ct.id = o.contact_id
+    WHERE oi.batch_id = ${batchId}
+      AND o.company_id = ${companyId}
+      AND o.status NOT IN ('cancelled')
+    ORDER BY o.completed_at DESC NULLS LAST
+    LIMIT 500
+  `)
+  const rows = ((res as any).rows || res) as any[]
+
+  const orders = rows.map((r) => ({
+    orderId: r.order_id,
+    orderNumber: r.order_number,
+    completedAt: r.completed_at,
+    orderStatus: r.order_status,
+    productName: r.product_name,
+    metrcTag: r.metrc_tag,
+    // What the customer still holds: what they took, less anything already handed back.
+    quantity: Math.max(0, Number(r.quantity || 0) - Number(r.refunded_quantity || 0)),
+    customer: r.contact_id
+      ? { id: r.contact_id, name: r.customer_name, phone: r.phone, email: r.email }
+      : null,
+  }))
+
+  const reachable = orders.filter((o) => o.customer && (o.customer.phone || o.customer.email))
+  return {
+    orderCount: orders.length,
+    unitsSold: orders.reduce((n, o) => n + o.quantity, 0),
+    customerCount: new Set(orders.filter((o) => o.customer).map((o) => o.customer!.id)).size,
+    // The ones with no way to reach them are the shop's real problem, so they are counted, not hidden.
+    unreachableOrders: orders.length - reachable.length,
+    orders,
+  }
+}
+
+// Who bought from this batch — readable at any time, not only at the moment of a recall, because
+// the question also comes up before one is declared. (T46 N14)
+app.get('/:id/affected', requireRole('budtender'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+  const [found] = ((await db.execute(sql`
+    SELECT id, batch_number FROM batches WHERE id = ${id} AND company_id = ${currentUser.companyId} LIMIT 1
+  `)) as any).rows || []
+  if (!found) return c.json({ error: 'Batch not found' }, 404)
+  return c.json({ batchId: id, batchNumber: found.batch_number, ...(await affectedByBatch(currentUser.companyId, id)) })
 })
 
 // Get batches expiring in next N days

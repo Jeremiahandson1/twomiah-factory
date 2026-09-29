@@ -6,6 +6,7 @@ import {
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
+import { formatDateTime } from '../utils/date';
 import { Button, PageHeader } from '../components/ui/DataTable';
 
 const SYNC_STATUS_STYLES: Record<string, string> = {
@@ -17,7 +18,10 @@ const SYNC_STATUS_STYLES: Record<string, string> = {
 };
 
 export default function OfflinePage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, company } = useAuth();
+  // A sync stamped on the device's clock told a manager the till last reported at 11:30 PM on the
+  // 28th when the shop's own clock said 00:18 on the 29th. (T46 N16)
+  const storeTz = (company as any)?.timeZone as string | undefined;
   const toast = useToast();
   const [tab, setTab] = useState('status');
   const [loading, setLoading] = useState(true);
@@ -203,7 +207,7 @@ export default function OfflinePage() {
               <Clock className="w-5 h-5 text-gray-400" />
             </div>
             <div className="text-lg font-bold">
-              {status.lastSync ? new Date(status.lastSync).toLocaleString() : 'Never'}
+              {status.lastSync ? formatDateTime(status.lastSync, storeTz) : 'Never'}
             </div>
           </div>
 
@@ -327,7 +331,7 @@ export default function OfflinePage() {
                   {queue.map(item => (
                     <tr key={item.id} className="border-t">
                       <td className="px-4 py-3 text-sm font-medium">{item.transactionType}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{item.createdAt ? new Date(item.createdAt).toLocaleString() : '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{item.createdAt ? formatDateTime(item.createdAt, storeTz) : '-'}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${SYNC_STATUS_STYLES[item.status] || 'bg-gray-100 text-gray-700'}`}>
                           {item.status}

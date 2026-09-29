@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { formatDate } from '../utils/date';
+import { formatDate, formatDateInZone, formatTimeInZone } from '../utils/date';
 import { Banknote, Lock, Unlock, Clock, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,7 +8,11 @@ import { Button } from '../components/ui/DataTable';
 import { ConfirmModal } from '../components/ui/Modal';
 
 export default function CashPage() {
-  const { user, isManager } = useAuth();
+  const { user, isManager, company } = useAuth();
+  // Drawers belong to the shop's day, not the viewer's. A drawer opened at 00:18 in Ohio was
+  // listed under the previous day for anyone looking from further west, which is a reconciliation
+  // that will never close. (T46 N16)
+  const storeTz = (company as any)?.timeZone as string | undefined;
   const toast = useToast();
   const [currentSession, setCurrentSession] = useState<any>(null);
   const [sessions, setSessions] = useState<any[]>([]);
@@ -121,7 +125,7 @@ export default function CashPage() {
                 <h2 className="font-semibold text-gray-900 dark:text-slate-100">Drawer Open</h2>
                 <p className="text-sm text-gray-500 dark:text-slate-400">
                   Opened by {currentSession.openedByName || user?.firstName} at{' '}
-                  {currentSession.openedAt ? new Date(currentSession.openedAt).toLocaleTimeString() : '—'}
+                  {currentSession.openedAt ? formatTimeInZone(currentSession.openedAt, storeTz) : '—'}
                 </p>
               </div>
             </div>
@@ -270,7 +274,7 @@ export default function CashPage() {
                 return (
                   <tr key={session.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">
-                      {session.openedAt ? formatDate(session.openedAt) : '—'}
+                      {session.openedAt ? formatDateInZone(session.openedAt, storeTz) : '—'}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-200">{session.openedByName || '—'}</td>
                     <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-slate-200">${Number(session.openingAmount || 0).toFixed(2)}</td>

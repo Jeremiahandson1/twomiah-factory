@@ -195,17 +195,49 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
     * (GREATEST(COALESCE(oi.quantity, 0) - COALESCE(oi.refunded_quantity, 0), 0)::numeric
        / NULLIF(COALESCE(oi.quantity, 0), 0))
   `
+  // …and the DISCOUNT comes off the base, because it came off the base when the tax was charged.
+  //
+  // T46 N17: excise due of $972.90 sat beside a taxable base of $6,849 — 14.2%, against a 15%
+  // rate. Neither figure was wrong on its own: the due is the excise the tills actually took, and
+  // the base was the sum of the cannabis lines. But the tills charge on the DISCOUNTED base
+  // (assessTax: cannabisSubtotal − discount × cannabis share), and the base reported here did not
+  // subtract a penny of discount. A return whose own three figures do not divide into one another
+  // is the first thing an auditor notices, and the shop cannot explain it.
+  //
+  // Worked per ORDER and then summed, because the discount is an order-level figure apportioned
+  // across that order's own cannabis share — averaging it over the period would be a different
+  // number. The refund proration is the line-level one already in use, applied to the discount
+  // too: a discount on goods that came back was not a discount in the end.
   const taxableResult = await db.execute(sql`
+    WITH per_order AS (
+      SELECT
+        o.id,
+        COALESCE(SUM(${netLine}) FILTER (WHERE oi.tax_category = 'cannabis'), 0) AS cannabis_net,
+        COALESCE(SUM(${netLine}), 0) AS all_net,
+        COALESCE(SUM(COALESCE(NULLIF(oi.line_total, ''), NULLIF(oi.total_price, ''), '0')::numeric), 0) AS all_gross,
+        COALESCE(NULLIF(o.discount_amount, ''), '0')::numeric
+          + COALESCE(NULLIF(o.loyalty_discount, ''), '0')::numeric AS discount,
+        COUNT(oi.id)::int AS lines
+      FROM orders o
+      LEFT JOIN order_items oi ON oi.order_id = o.id
+      WHERE o.company_id = ${currentUser.companyId}
+        AND o.status IN ${taxCollected}
+        AND o.completed_at >= ${periodStart}
+        AND o.completed_at <= ${periodEndBound}
+      GROUP BY o.id, o.discount_amount, o.loyalty_discount
+    ), apportioned AS (
+      SELECT
+        cannabis_net,
+        all_net,
+        lines,
+        LEAST(discount * (CASE WHEN all_gross > 0 THEN all_net / all_gross ELSE 0 END), all_net) AS discount_net
+      FROM per_order
+    )
     SELECT
-      COALESCE(SUM(${netLine}) FILTER (WHERE oi.tax_category = 'cannabis'), 0) as cannabis_net,
-      COALESCE(SUM(${netLine}), 0) as all_net,
-      COUNT(*)::int as line_count
-    FROM order_items oi
-    JOIN orders o ON o.id = oi.order_id
-    WHERE o.company_id = ${currentUser.companyId}
-      AND o.status IN ${taxCollected}
-      AND o.completed_at >= ${periodStart}
-      AND o.completed_at <= ${periodEndBound}
+      COALESCE(SUM(GREATEST(cannabis_net - discount_net * (CASE WHEN all_net > 0 THEN cannabis_net / all_net ELSE 0 END), 0)), 0) AS cannabis_net,
+      COALESCE(SUM(GREATEST(all_net - discount_net, 0)), 0) AS all_net,
+      COALESCE(SUM(lines), 0)::int AS line_count
+    FROM apportioned
   `)
   const taxableRow = ((taxableResult as any).rows || taxableResult)?.[0] || {}
   const round2 = (n: number) => Math.round(n * 100) / 100
