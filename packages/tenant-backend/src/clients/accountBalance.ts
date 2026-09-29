@@ -97,29 +97,60 @@ export type SpendOutcome =
  * payment it pays for commit or fail together — a balance debited outside the payment's transaction
  * is money that can vanish when the payment rolls back.
  */
-export function createAccountBalanceStore(table: any, tableName = 'client_account_entry') {
+export function createAccountBalanceStore(
+  table: any,
+  tableName = 'client_account_entry',
+  /**
+   * The table holding one row per client. Spending locks THAT row, not the ledger — see lockClient.
+   */
+  anchorTableName = 'contact',
+) {
   // FOR UPDATE has no drizzle builder here, so the locking read is raw and the table name is NAMED
   // rather than dug out of drizzle's internals, which are not API and have moved between versions.
   // It is a constant chosen by the template, never request input, and it is checked anyway — the same
   // sql.raw-for-an-identifier pattern tasks.ts already uses for its sort column. The two VALUES are
   // interpolated normally, so they are still bound parameters.
   if (!/^[a-z_][a-z0-9_]*$/.test(tableName)) throw new Error(`accountBalance: bad table name ${tableName}`)
+  if (!/^[a-z_][a-z0-9_]*$/.test(anchorTableName)) throw new Error(`accountBalance: bad anchor table ${anchorTableName}`)
   const from = sql.raw(tableName)
+  const anchor = sql.raw(anchorTableName)
 
   /**
-   * The balance, computed. Row-locked when asked for inside a transaction that is about to spend it,
-   * so two tills cannot both read $50 and both spend it.
+   * Take the lock that makes a spend safe: ONE row, the client's own.
+   *
+   * The first version locked the LEDGER — `SELECT … FROM client_account_entry … FOR UPDATE` — and
+   * that does not do what it looks like it does. FOR UPDATE locks the rows that exist when it runs;
+   * it takes no predicate lock, so another transaction INSERTING a new debit is not blocked by it at
+   * all. And a client with no entries yet locks nothing whatsoever. Two tills read $40, both pass
+   * the check, both insert.
+   *
+   * A live retest proved it on real Postgres: six simultaneous payments against a $40.00 balance,
+   * two of them settled, balance left at −$35.96. No test in this repo could have caught it — PGlite
+   * runs one connection — and the guard I wrote to cover that gap only checked that the words FOR
+   * UPDATE appeared, which they did, on the wrong table.
+   *
+   * Locking the client row instead serialises every spender for that client through one place. The
+   * row always exists, so there is always something to contend on, and the balance read that follows
+   * happens with every other spender waiting. If the client cannot be found there is nothing to
+   * serialise on, and the spend is refused rather than quietly running unlocked.
+   */
+  async function lockClient(tx: any, companyId: string, contactId: string): Promise<boolean> {
+    const rows: any = await tx.execute(
+      sql`SELECT id FROM ${anchor} WHERE id = ${contactId} AND company_id = ${companyId} FOR UPDATE`,
+    )
+    return (((rows as any).rows || rows) as any[]).length > 0
+  }
+
+  /**
+   * The balance, computed. `forUpdate` takes the client lock FIRST, so the sum that comes back
+   * cannot change under the caller before it writes.
    */
   async function balance(tx: any, companyId: string, contactId: string, forUpdate = false): Promise<number> {
-    if (forUpdate) {
-      const rows: any = await tx.execute(
-        sql`SELECT amount FROM ${from} WHERE company_id = ${companyId} AND contact_id = ${contactId} FOR UPDATE`,
-      )
-      return balanceFrom(((rows as any).rows || rows) as AccountEntry[])
-    }
-    const rows = await tx.select({ amount: table.amount }).from(table)
-      .where(and(eq(table.companyId, companyId), eq(table.contactId, contactId)))
-    return balanceFrom(rows as AccountEntry[])
+    if (forUpdate) await lockClient(tx, companyId, contactId)
+    const rows: any = await tx.execute(
+      sql`SELECT amount FROM ${from} WHERE company_id = ${companyId} AND contact_id = ${contactId}`,
+    )
+    return balanceFrom(((rows as any).rows || rows) as AccountEntry[])
   }
 
   /** Write one movement. No rules here beyond "it is written down" — the rules live in the callers. */
@@ -139,13 +170,20 @@ export function createAccountBalanceStore(table: any, tableName = 'client_accoun
   /**
    * Take money off the balance, refusing when it is not there.
    *
-   * The read is FOR UPDATE and the write is in the same transaction, so a client with $20 on account
-   * cannot pay for two $20 services at two tills at the same moment.
+   * The client row is locked first and the write happens in the same transaction, so a client with
+   * $20 on account cannot pay for two $20 services at two tills at the same moment: the second till
+   * waits on the lock, and by the time it reads, the first till's debit is already in the sum.
    */
   async function spend(tx: any, input: { companyId: string; contactId: string; amount: number; invoiceId?: string | null; reason?: string; createdBy?: string | null }): Promise<SpendOutcome> {
     const amount = round2(input.amount)
     if (amount <= 0.005) return { ok: false, error: 'A payment from an account balance has to be for something.', balance: 0 }
-    const before = await balance(tx, input.companyId, input.contactId, true)
+
+    // The lock comes FIRST, and nothing proceeds without it. Everything below — the read, the check
+    // and the write — happens with every other spender for this client waiting behind it.
+    if (!await lockClient(tx, input.companyId, input.contactId)) {
+      return { ok: false, balance: 0, error: 'That client could not be found, so their balance cannot be spent.' }
+    }
+    const before = await balance(tx, input.companyId, input.contactId, false)
     if (amount > before + 0.005) {
       return {
         ok: false,
