@@ -322,7 +322,10 @@ app.post('/scan/verify', requireRole('budtender'), async (c) => {
 })
 
 // GET /scans — List ID scan history (paginated, filterable)
-app.get('/scans', async (c) => {
+// Who else has been ID-checked today is not a budtender's business — these rows carry other
+// customers' names, dates of birth and document numbers. Scanning IS their job and stays open
+// above; reading the log is manager and up. (T45 M21)
+app.get('/scans', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const page = +(c.req.query('page') || '1')
   const limit = +(c.req.query('limit') || '25')
@@ -380,7 +383,7 @@ const STATUS_CASE = sql`CASE
   ELSE 'verified' END`
 
 // GET /history — scan history the IDScanner "Scan History" tab renders (camelCase, derived status).
-app.get('/history', async (c) => {
+app.get('/history', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const status = c.req.query('status')
   const search = c.req.query('search')
@@ -418,7 +421,7 @@ app.get('/history', async (c) => {
 })
 
 // GET /flagged — flagged scans for the "Flagged" tab.
-app.get('/flagged', async (c) => {
+app.get('/flagged', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const result = await db.execute(sql`
     SELECT id,

@@ -54,7 +54,7 @@ app.get('/store-groups', async (c) => {
 })
 
 // POST /store-groups — Create store group
-app.post('/store-groups', requireRole('manager'), async (c) => {
+app.post('/store-groups', requireRole('admin'), async (c) => {
   const currentUser = c.get('user') as any
 
   const groupSchema = z.object({
@@ -84,7 +84,7 @@ app.post('/store-groups', requireRole('manager'), async (c) => {
 })
 
 // PUT /store-groups/:id — Update group
-app.put('/store-groups/:id', requireRole('manager'), async (c) => {
+app.put('/store-groups/:id', requireRole('admin'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -123,7 +123,7 @@ app.put('/store-groups/:id', requireRole('manager'), async (c) => {
 })
 
 // POST /store-groups/:id/members — Add location to group
-app.post('/store-groups/:id/members', requireRole('manager'), async (c) => {
+app.post('/store-groups/:id/members', requireRole('admin'), async (c) => {
   const currentUser = c.get('user') as any
   const groupId = c.req.param('id')
 
@@ -161,7 +161,7 @@ app.post('/store-groups/:id/members', requireRole('manager'), async (c) => {
 })
 
 // DELETE /store-groups/:id/members/:locationId — Remove location from group
-app.delete('/store-groups/:id/members/:locationId', requireRole('manager'), async (c) => {
+app.delete('/store-groups/:id/members/:locationId', requireRole('admin'), async (c) => {
   const currentUser = c.get('user') as any
   const groupId = c.req.param('id')
   const locationId = c.req.param('locationId')

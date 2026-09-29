@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Button, PageHeader } from '../components/ui/DataTable';
 
 // The config fields that are numbers to the API but TEXT while someone is typing into them.
@@ -28,6 +29,7 @@ const referralStatusColors: Record<string, string> = {
 };
 
 export default function ReferralsPage() {
+  const { isAdmin } = useAuth();
   const toast = useToast();
   const [tab, setTab] = useState('config');
   const [loading, setLoading] = useState(false);
@@ -315,10 +317,18 @@ export default function ReferralsPage() {
                 </div>
               </div>
 
+              {/* Referral rewards are money the shop gives away. The server takes this at admin;
+                  the button follows. (T45 M20) */}
               <div className="flex justify-end mt-6 pt-4 border-t">
-                <Button onClick={saveConfig} disabled={savingConfig}>
-                  {savingConfig ? 'Saving...' : 'Save Settings'}
-                </Button>
+                {isAdmin ? (
+                  <Button onClick={saveConfig} disabled={savingConfig}>
+                    {savingConfig ? 'Saving...' : 'Save Settings'}
+                  </Button>
+                ) : (
+                  <p className="text-sm text-gray-500 dark:text-slate-400">
+                    Changing the reward amounts is an admin or owner job.
+                  </p>
+                )}
               </div>
             </div>
           )}

@@ -336,7 +336,7 @@ app.put('/filings/:id/review', requireRole('manager'), async (c) => {
 })
 
 // PUT /filings/:id/file — Mark as filed
-app.put('/filings/:id/file', requireRole('manager'), async (c) => {
+app.put('/filings/:id/file', requireRole('admin'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

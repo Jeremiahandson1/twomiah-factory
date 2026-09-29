@@ -75,7 +75,7 @@ app.get('/config', async (c) => {
 })
 
 // Update referral config (manager+)
-app.put('/config', requireRole('manager'), async (c) => {
+app.put('/config', requireRole('admin'), async (c) => {
   const currentUser = c.get('user') as any
 
   const configSchema = z.object({
@@ -88,24 +88,45 @@ app.put('/config', requireRole('manager'), async (c) => {
     expirationDays: z.number().int().min(1).optional(),
     maxReferralsPerCustomer: z.number().int().min(1).optional(),
   })
-  const data = configSchema.parse(await c.req.json())
+  let data: z.infer<typeof configSchema>
+  try {
+    data = configSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
 
-  // Upsert config
-  const result = await db.execute(sql`
-    INSERT INTO referral_config(id, company_id, enabled, referrer_reward_type, referrer_reward_value, referred_reward_type, referred_reward_value, min_purchase_amount, expiration_days, max_referrals_per_customer, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${data.enabled ?? false}, ${data.referrerRewardType ?? 'points'}, ${data.referrerRewardValue ?? 0}, ${data.referredRewardType ?? 'points'}, ${data.referredRewardValue ?? 0}, ${data.minPurchaseAmount ?? 0}, ${data.expirationDays ?? 90}, ${data.maxReferralsPerCustomer ?? 10}, NOW(), NOW())
-    ON CONFLICT (company_id) DO UPDATE SET
-      enabled = COALESCE(${data.enabled ?? null}::boolean, referral_config.enabled),
-      referrer_reward_type = COALESCE(${data.referrerRewardType ?? null}, referral_config.referrer_reward_type),
-      referrer_reward_value = COALESCE(${data.referrerRewardValue ?? null}::text, referral_config.referrer_reward_value),
-      referred_reward_type = COALESCE(${data.referredRewardType ?? null}, referral_config.referred_reward_type),
-      referred_reward_value = COALESCE(${data.referredRewardValue ?? null}::text, referral_config.referred_reward_value),
-      min_purchase_amount = COALESCE(${data.minPurchaseAmount ?? null}::text, referral_config.min_purchase_amount),
-      expiration_days = COALESCE(${data.expirationDays ?? null}::int, referral_config.expiration_days),
-      max_referrals_per_customer = COALESCE(${data.maxReferralsPerCustomer ?? null}::int, referral_config.max_referrals_per_customer),
-      updated_at = NOW()
-    RETURNING *
+  // Save the config.
+  //
+  // This was an ON CONFLICT (company_id) upsert, which needs a unique constraint by that exact
+  // name to exist — and where it does not, Postgres answers "there is no unique or exclusion
+  // constraint matching the ON CONFLICT specification" and the save is a 500. A read, then an
+  // update or an insert, depends on no constraint at all and says the same thing. (T45 M20)
+  const existingResult = await db.execute(sql`
+    SELECT * FROM referral_config WHERE company_id = ${currentUser.companyId} LIMIT 1
   `)
+  const existing = ((existingResult as any).rows || existingResult)?.[0]
+
+  const result = existing
+    ? await db.execute(sql`
+        UPDATE referral_config SET
+          enabled = COALESCE(${data.enabled ?? null}::boolean, enabled),
+          referrer_reward_type = COALESCE(${data.referrerRewardType ?? null}, referrer_reward_type),
+          referrer_reward_value = COALESCE(${data.referrerRewardValue != null ? String(data.referrerRewardValue) : null}, referrer_reward_value),
+          referred_reward_type = COALESCE(${data.referredRewardType ?? null}, referred_reward_type),
+          referred_reward_value = COALESCE(${data.referredRewardValue != null ? String(data.referredRewardValue) : null}, referred_reward_value),
+          min_purchase_amount = COALESCE(${data.minPurchaseAmount != null ? String(data.minPurchaseAmount) : null}, min_purchase_amount),
+          expiration_days = COALESCE(${data.expirationDays ?? null}::int, expiration_days),
+          max_referrals_per_customer = COALESCE(${data.maxReferralsPerCustomer ?? null}::int, max_referrals_per_customer),
+          updated_at = NOW()
+        WHERE id = ${existing.id} AND company_id = ${currentUser.companyId}
+        RETURNING *
+      `)
+    : await db.execute(sql`
+        INSERT INTO referral_config(id, company_id, enabled, referrer_reward_type, referrer_reward_value, referred_reward_type, referred_reward_value, min_purchase_amount, expiration_days, max_referrals_per_customer, created_at, updated_at)
+        VALUES (gen_random_uuid(), ${currentUser.companyId}, ${data.enabled ?? false}, ${data.referrerRewardType ?? 'points'}, ${String(data.referrerRewardValue ?? 0)}, ${data.referredRewardType ?? 'points'}, ${String(data.referredRewardValue ?? 0)}, ${String(data.minPurchaseAmount ?? 0)}, ${data.expirationDays ?? 90}, ${data.maxReferralsPerCustomer ?? 10}, NOW(), NOW())
+        RETURNING *
+      `)
 
   const config = ((result as any).rows || result)?.[0]
 

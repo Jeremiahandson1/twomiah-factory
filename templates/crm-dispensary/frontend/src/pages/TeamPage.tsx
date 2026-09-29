@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { usePermissions } from '../contexts/PermissionsContext';
 import { DataTable, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
 
@@ -18,6 +19,11 @@ const DISPENSARY_ROLE_LABELS: Record<string, string> = {
 
 export default function TeamPage() {
   const toast = useToast();
+  // The same three permissions team.ts enforces: team:create, team:update, team:delete.
+  const { can } = usePermissions() as any;
+  const canCreate = can ? can('team:create') : true;
+  const canUpdate = can ? can('team:update') : true;
+  const canDelete = can ? can('team:delete') : true;
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState(null);
@@ -72,10 +78,27 @@ export default function TeamPage() {
     } },
   ];
 
+  const tableActions = [
+    ...(canUpdate ? [{ label: 'Edit', icon: Edit, onClick: openEdit }] : []),
+    ...(canDelete ? [{ label: 'Delete', icon: Trash2, onClick: (r: any) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' }] : []),
+  ];
+
   return (
     <div>
-      <PageHeader title="Team" action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>Add Member</Button>} />
-      <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[{ label: 'Edit', icon: Edit, onClick: openEdit }, { label: 'Delete', icon: Trash2, onClick: (r) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' }]} />
+      {/* T45 M19: this page offered a manager "Add Member", and team:create is admin and up — so
+          the button opened a dialog, took a name, an email and a role, and answered 403 on Save.
+          A control that cannot work is a promise the product does not keep; the same three
+          permissions the server enforces decide what is on the screen. (T45 M19) */}
+      <PageHeader
+        title="Team"
+        action={canCreate ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>Add Member</Button> : undefined}
+      />
+      {!canCreate && (
+        <p className="text-sm text-gray-500 mb-4 dark:text-slate-400">
+          Adding and removing people is an admin or owner job. Ask one of them.
+        </p>
+      )}
+      <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={tableActions} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Member' : 'Add Member'} size="md">
         <div className="space-y-4">
           <div><label className="block text-sm font-medium mb-1">Name *</label><input value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>

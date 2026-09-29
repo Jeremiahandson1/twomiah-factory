@@ -67,7 +67,10 @@ app.get('/', async (c) => {
 })
 
 // Create location (manager+)
-app.post('/', requireRole('manager'), async (c) => {
+// Opening or closing a LOCATION changes the shape of the business — it is not a shift decision.
+// T45 M20 found a manager able to create one; transfers and counts below stay manager work,
+// because moving stock between places that already exist is exactly their job.
+app.post('/', requireRole('admin'), async (c) => {
   const currentUser = c.get('user') as any
 
   const locationSchema = z.object({
@@ -114,7 +117,7 @@ app.post('/', requireRole('manager'), async (c) => {
 })
 
 // Update location (manager+)
-app.put('/:id', requireRole('manager'), async (c) => {
+app.put('/:id', requireRole('admin'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -171,7 +174,7 @@ app.put('/:id', requireRole('manager'), async (c) => {
 })
 
 // Soft delete location
-app.delete('/:id', requireRole('manager'), async (c) => {
+app.delete('/:id', requireRole('admin'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

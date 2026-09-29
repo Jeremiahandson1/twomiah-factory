@@ -841,7 +841,7 @@ app.post('/stripe/disconnect', authenticate, requireRole('manager'), async (c) =
 
 // Manager and up. This was `authenticate` alone, so a budtender could do it — switching the tenant's SMS on or off
 // is not part of serving a customer, and it changes the SHOP, not an order. (Dispensary T41)
-app.post('/sms/toggle', authenticate, requireRole('manager'), async (c) => {
+app.post('/sms/toggle', authenticate, requireRole('admin'), async (c) => {
   const user = c.get('user') as any
   const { enabled } = await c.req.json()
 

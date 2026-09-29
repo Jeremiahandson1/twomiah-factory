@@ -103,10 +103,26 @@ for (const [m, p] of TILL) {
 }
 
 // ── reads stay open, which is the convention everywhere in this repo ────────────
-for (const p of ['/api/wholesale/customers', '/api/cultivation/plants', '/api/cash/sessions']) {
+//
+// …with one deliberate exception, recorded here rather than left as a surprise. Wholesale left
+// this list at T45 M21: those rows are buyer credit limits, order totals and payment terms —
+// what the shop charges other licensees — and the report found them readable by a budtender with
+// the page in their menu. The whole module is manager and up now, reads included, and the sidebar
+// entry is gated the same way. The convention still holds everywhere else.
+for (const p of ['/api/cultivation/plants', '/api/cash/sessions']) {
   const r = await as(viewer)('GET', p)
   check(`viewer may still read ${p}`, reached(r), { status: r.status, error: r.json?.error })
 }
+
+const viewerWholesale = await as(viewer)('GET', '/api/wholesale/customers')
+check('viewer is refused the wholesale book (T45 M21)', refused(viewerWholesale),
+  { status: viewerWholesale.status, error: viewerWholesale.json?.error })
+const budtenderWholesale = await as(budtender)('GET', '/api/wholesale/customers')
+check('...and so is a budtender', refused(budtenderWholesale),
+  { status: budtenderWholesale.status, error: budtenderWholesale.json?.error })
+const ownerWholesale = await as(owner)('GET', '/api/wholesale/customers')
+check('...while an owner still reads it', reached(ownerWholesale),
+  { status: ownerWholesale.status, error: ownerWholesale.json?.error })
 
 console.log(`\ndispensary-money-and-regulated: ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

@@ -1,6 +1,9 @@
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission, requireRole } from '../middleware/permissions.ts'
+import { requirePermission, requireRole, normalizeRole, ROLE_HIERARCHY } from '../middleware/permissions.ts'
+import { db } from '../../db/index.ts'
+import { contact } from '../../db/schema.ts'
+import { and, eq } from 'drizzle-orm'
 import sms from '../services/sms.ts'
 
 const app = new Hono()
@@ -110,9 +113,19 @@ app.post('/conversations/:id/link', requireRole('budtender'), async (c) => {
 // ============================================
 
 // Send SMS
+// Texting a customer is budtender work. Texting ANY number is not.
+//
+// T45 M22: a budtender could send a message to any phone number at all, with any contactId
+// attached to it, and the only thing stopping them was an empty messaging wallet. The shop's
+// number is the shop's reputation and its A2P registration; a till operator sending to arbitrary
+// numbers from it is the shape of a problem that ends with the number blocked.
+//
+// So: a budtender may text one of this shop's own contacts, and the number is read off that
+// contact rather than typed. A free-typed number is manager and up.
 app.post('/send', requireRole('budtender'), async (c) => {
   const user = c.get('user') as any
-  const { contactId, toPhone, message, jobId, templateId } = await c.req.json()
+  const body = await c.req.json().catch(() => ({} as any))
+  const { contactId, toPhone, message, jobId, templateId } = body
 
   if (!message) {
     return c.json({ error: 'Message is required' }, 400)
@@ -122,9 +135,34 @@ app.post('/send', requireRole('budtender'), async (c) => {
     return c.json({ error: 'contactId or toPhone is required' }, 400)
   }
 
+  const role = normalizeRole(user?.role)
+  const isManagerUp = ROLE_HIERARCHY.indexOf(role) >= ROLE_HIERARCHY.indexOf('manager')
+
+  let resolvedPhone: string | undefined = toPhone
+  if (contactId) {
+    const [known] = await db.select({ id: contact.id, phone: contact.phone })
+      .from(contact)
+      .where(and(eq(contact.id, contactId), eq(contact.companyId, user.companyId)))
+      .limit(1)
+    // A contactId that is not this shop's customer is either a mistake or someone reaching for
+    // another tenant's record. Either way it is not a message this shop sends.
+    if (!known) return c.json({ error: 'That customer is not on this shop\'s books' }, 404)
+    if (!isManagerUp) {
+      // The number comes off the record, not off the request — otherwise "contactId plus any
+      // number" is the same free-typing with a customer id stapled to it.
+      if (!known.phone) return c.json({ error: 'That customer has no phone number on file' }, 400)
+      resolvedPhone = known.phone
+    }
+  } else if (!isManagerUp) {
+    return c.json({
+      error: 'Choose the customer to text. Sending to a number that is not on the books is a manager job.',
+      code: 'contact_required',
+    }, 403)
+  }
+
   const result = await sms.sendSMS(user.companyId, {
     contactId,
-    toPhone,
+    toPhone: resolvedPhone,
     message,
     userId: user.userId,
     jobId,

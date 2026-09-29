@@ -22,7 +22,7 @@ const initialLocationForm = {
 };
 
 export default function LocationsPage() {
-  const { isManager } = useAuth();
+  const { isManager, isAdmin } = useAuth();
   const toast = useToast();
   const [tab, setTab] = useState('locations');
 
@@ -360,12 +360,17 @@ export default function LocationsPage() {
       {/* Locations Tab */}
       {tab === 'locations' && (
         <div>
-          <div className="flex justify-end mb-4">
-            <Button onClick={openCreateLocation}>
-              <Plus className="w-4 h-4 mr-2 inline" />
-              Add Location
-            </Button>
-          </div>
+          {/* Opening or closing a location changes the shape of the business, so the server takes
+              it at admin. The button follows, or a manager gets a dialog that 403s on Save.
+              Transfers and counts, on the other tabs, stay manager work. (T45 M20) */}
+          {isAdmin && (
+            <div className="flex justify-end mb-4">
+              <Button onClick={openCreateLocation}>
+                <Plus className="w-4 h-4 mr-2 inline" />
+                Add Location
+              </Button>
+            </div>
+          )}
           {loadingLocations ? (
             <div className="flex items-center justify-center h-64">
               <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
@@ -412,14 +417,16 @@ export default function LocationsPage() {
                       <p className="text-xs text-gray-500 dark:text-slate-400">Inventory Value</p>
                     </div>
                   </div>
-                  <div className="flex gap-2 mt-3 pt-3 border-t">
-                    <button onClick={() => openEditLocation(loc)} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 flex items-center gap-1 dark:text-slate-400">
-                      <Edit className="w-3 h-3" /> Edit
-                    </button>
-                    <button onClick={() => { setLocationToDelete(loc); setDeleteLocationOpen(true); }} className="text-sm text-red-600 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1">
-                      <Trash2 className="w-3 h-3" /> Delete
-                    </button>
-                  </div>
+                  {isAdmin && (
+                    <div className="flex gap-2 mt-3 pt-3 border-t">
+                      <button onClick={() => openEditLocation(loc)} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 flex items-center gap-1 dark:text-slate-400">
+                        <Edit className="w-3 h-3" /> Edit
+                      </button>
+                      <button onClick={() => { setLocationToDelete(loc); setDeleteLocationOpen(true); }} className="text-sm text-red-600 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1">
+                        <Trash2 className="w-3 h-3" /> Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

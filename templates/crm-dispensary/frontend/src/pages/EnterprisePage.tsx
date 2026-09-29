@@ -3,6 +3,7 @@ import { formatDate } from '../utils/date';
 import { Plus, Search, Building2, BarChart3, CreditCard, FileCode2, MapPin, ChevronRight, DollarSign, ShieldCheck, Package } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
 
@@ -55,6 +56,7 @@ export default function EnterprisePage() {
 
 /* ─── Store Groups Tab ─── */
 function StoreGroupsTab() {
+  const { isAdmin } = useAuth();
   const toast = useToast();
   const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,11 +139,15 @@ function StoreGroupsTab() {
 
   return (
     <>
-      <div className="flex justify-end mb-4">
-        <Button onClick={() => { setFormData({ name: '', type: 'chain', description: '' }); setModalOpen(true); }}>
-          <Plus className="w-4 h-4 mr-2 inline" />Create Group
-        </Button>
-      </div>
+      {/* A store group is the shape of the business, not a shift decision. The server takes it at
+          admin; the button follows. (T45 M20) */}
+      {isAdmin && (
+        <div className="flex justify-end mb-4">
+          <Button onClick={() => { setFormData({ name: '', type: 'chain', description: '' }); setModalOpen(true); }}>
+            <Plus className="w-4 h-4 mr-2 inline" />Create Group
+          </Button>
+        </div>
+      )}
 
       <div className="grid md:grid-cols-3 gap-6">
         {/* Groups List */}

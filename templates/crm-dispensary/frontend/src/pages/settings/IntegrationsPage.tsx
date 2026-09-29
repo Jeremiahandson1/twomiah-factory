@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   Loader2, Check, ExternalLink, ToggleLeft, ToggleRight,
   MessageSquare, Mail, CreditCard, BookOpen, AlertCircle, RefreshCw, KeyRound, Copy
@@ -17,6 +18,8 @@ export default function IntegrationsPage() {
     email: { enabled: false, usage: 0 },
   });
 
+  // Turning a paid module on or off is an admin or owner decision; the API agrees. (T45 M20)
+  const { isAdmin: canChangeModules } = useAuth();
   const [apiKey, setApiKey] = useState({ configured: false, maskedKey: null });
   const [newApiKey, setNewApiKey] = useState('');
 
@@ -364,10 +367,14 @@ export default function IntegrationsPage() {
                 )}
               </div>
             </div>
+            {/* Switching SMS on commits the shop to spending its messaging wallet. The server takes
+                it at admin, so the control is disabled rather than 403ing under a manager's hand.
+                (T45 M20) */}
             <button
               onClick={() => handleToggle('sms')}
-              disabled={saving === 'sms'}
-              className="flex items-center"
+              disabled={saving === 'sms' || !canChangeModules}
+              title={canChangeModules ? undefined : 'Switching SMS on or off is an admin or owner job'}
+              className="flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving === 'sms' ? (
                 <Loader2 className="w-10 h-10 text-gray-400 animate-spin" />

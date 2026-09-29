@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Button, PageHeader } from '../components/ui/DataTable';
 
 const SYNC_STATUS_STYLES: Record<string, string> = {
@@ -16,6 +17,7 @@ const SYNC_STATUS_STYLES: Record<string, string> = {
 };
 
 export default function OfflinePage() {
+  const { isAdmin } = useAuth();
   const toast = useToast();
   const [tab, setTab] = useState('status');
   const [loading, setLoading] = useState(true);
@@ -280,9 +282,17 @@ export default function OfflinePage() {
                 </div>
               </div>
 
-              <Button onClick={saveConfig} disabled={savingConfig}>
-                {savingConfig ? 'Saving...' : 'Save Config'}
-              </Button>
+              {/* Offline behaviour is a shop-wide setting — how long a till may keep taking money
+                  with no connection. The server takes it at admin; the button follows. (T45 M20) */}
+              {isAdmin ? (
+                <Button onClick={saveConfig} disabled={savingConfig}>
+                  {savingConfig ? 'Saving...' : 'Save Config'}
+                </Button>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-slate-400">
+                  Changing offline settings is an admin or owner job.
+                </p>
+              )}
             </div>
           )}
         </div>

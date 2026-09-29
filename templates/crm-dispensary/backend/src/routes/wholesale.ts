@@ -8,6 +8,10 @@ import audit from '../services/audit.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+// Wholesale is the shop selling to other licensees: buyer credit limits, order totals, payment
+// terms and lab results. T45 M21 found all of it readable by a budtender, with the page in their
+// menu. Manager and up, and the nav entry is gated to match.
+app.use('*', requireRole('manager'))
 
 // Raw-SQL rows come back snake_case but the frontend reads camelCase, so tables
 // rendered blank. Convert row keys to camelCase before responding.

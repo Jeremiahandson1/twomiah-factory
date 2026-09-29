@@ -409,7 +409,7 @@ const offlineConfigSchema = z.object({
   offlineInventoryCount: z.boolean().optional(),
 })
 
-app.put('/config', requireRole('manager'), async (c) => {
+app.put('/config', requireRole('admin'), async (c) => {
   const currentUser = c.get('user') as any
 
   let data: z.infer<typeof offlineConfigSchema>

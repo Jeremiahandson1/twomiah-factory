@@ -72,7 +72,8 @@ const ALL_NAV_ITEMS = [
   // Supply Chain
   { to: '/crm/cultivation', icon: Sprout, label: 'Cultivation', features: ['cultivation'] },
   { to: '/crm/manufacturing', icon: Factory, label: 'Manufacturing', features: ['manufacturing'] },
-  { to: '/crm/wholesale', icon: Store, label: 'Wholesale', features: ['wholesale'] },
+  // Buyer credit limits, order totals and payment terms. Manager and up, matching the API. (T45 M21)
+  { to: '/crm/wholesale', icon: Store, label: 'Wholesale', features: ['wholesale'], minRole: 'manager' },
 
   // Analytics & Reporting
   { to: '/crm/analytics', icon: BarChart3, label: 'Analytics' , minRole: 'manager'},
@@ -113,7 +114,8 @@ const ALL_NAV_ITEMS = [
   // shown the entry, opened a working-looking page — date picker, Generate Report, empty History —
   // and every request it made was refused. The menu has to ask what the API asks. (T44 L1)
   { to: '/crm/eod', icon: ClipboardList, label: 'EOD Report', minRole: 'manager' },
-  { to: '/crm/purchase-orders', icon: PurchaseIcon, label: 'Purchase Orders', features: ['purchase_orders'] },
+  // What the shop pays its suppliers. Manager and up, matching the API. (T45 M21)
+  { to: '/crm/purchase-orders', icon: PurchaseIcon, label: 'Purchase Orders', features: ['purchase_orders'], minRole: 'manager' },
   { to: '/crm/menu-sync', icon: RefreshCw, label: 'Menu Sync', features: ['menu_sync'] , minRole: 'manager'},
   // Both back onto requireAdmin route families (inboundMessages.ts, gbp.ts): a manager could open
   // them and every call answered 403, leaving "Failed to…" on screen. The menu follows the API. (T42 L3)

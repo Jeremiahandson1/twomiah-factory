@@ -9,6 +9,10 @@ import { send } from '../services/email.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+// What the shop PAYS its suppliers is not part of serving a customer. T45 M21 found purchase
+// orders — unit costs, supplier names, margins — readable by a budtender, with the page sitting
+// in their menu. Manager and up, and the nav entry is gated to match.
+app.use('*', requireRole('manager'))
 
 // Thrown inside the receive transaction (after re-checking under a row lock) — caught to return
 // a 4xx instead of a 500. Carries the intended HTTP status.
