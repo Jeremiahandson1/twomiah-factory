@@ -39,16 +39,30 @@ function parseCSV(content: string, options: Record<string, any> = {}): Record<st
 /**
  * Normalize column names (handle variations)
  */
+/**
+ * One spelling for a column name, used on BOTH sides of every lookup.
+ *
+ * T46 N6/N7: there were two normalizers and they disagreed. The header was folded to
+ * `weight__g_` → `weight_g` while the alias list was folded to `weight_grams`, so the products
+ * template's OWN "Weight (g)" column never matched anything and every flower product imported from
+ * the official template arrived with no weight — and a product with no weight cannot be sold at
+ * all ("no weight recorded"). The same gap silently dropped a `dateOfBirth` header on the customer
+ * import, so a person born in 2012 was imported as a lead with no date of birth and no refusal,
+ * while "Date of Birth", "DOB" and "date_of_birth" all worked.
+ *
+ * Separators carry no meaning in a spreadsheet header, so they are removed rather than
+ * standardised: "Weight (g)", "weight_g" and "WEIGHT G" are one column, and "dateOfBirth",
+ * "Date of Birth" and "date_of_birth" are one column, which is what anyone exporting from another
+ * system would expect.
+ */
+function canonicalColumn(key: string): string {
+  return String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
 function normalizeColumns(row: Record<string, string>): Record<string, string> {
   const normalized: Record<string, string> = {}
   for (const [key, value] of Object.entries(row)) {
-    const normalizedKey = key
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]/g, '_')
-      .replace(/_+/g, '_')
-      .replace(/^_|_$/g, '')
-    normalized[normalizedKey] = value
+    normalized[canonicalColumn(key)] = value
   }
   return normalized
 }
@@ -58,7 +72,7 @@ function normalizeColumns(row: Record<string, string>): Record<string, string> {
  */
 function getValue(row: Record<string, string>, ...keys: string[]): string | null {
   for (const key of keys) {
-    const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, '_')
+    const normalizedKey = canonicalColumn(key)
     if (row[normalizedKey] !== undefined && row[normalizedKey] !== '') {
       return row[normalizedKey]
     }
@@ -87,6 +101,10 @@ const CONTACT_COLUMN_MAP = {
   // a dispensary means the age gate has nothing to check and a 2012-born row imports cleanly. (T45 H2)
   dateOfBirth: ['date_of_birth', 'dob', 'birth_date', 'birthdate', 'birthday'],
   medicalCardNumber: ['medical_card_number', 'medical_card', 'mmj_card', 'card_number'],
+  // An expiry is half of a medical card: a card with no expiry is treated as valid for ever, and
+  // the register reads the expiry to decide whether a patient under 21 may be sold to at all. The
+  // customers template offers the column now, so it has to be read. (T46 N6)
+  medicalCardExpiry: ['medical_card_expiry', 'card_expiry', 'mmj_expiry', 'medical_card_expiration', 'card_expiration'],
 }
 
 // ─── the rules the FORMS enforce, applied to imported rows too ──────────────────────────────────
@@ -236,6 +254,7 @@ export async function importContacts(csvContent: string, companyId: string, opti
         // Read at last, so an imported customer can actually be sold to. (T45 H2)
         dateOfBirth,
         medicalCardNumber: getValue(row, ...CONTACT_COLUMN_MAP.medicalCardNumber),
+        medicalCardExpiry: parseDob(getValue(row, ...CONTACT_COLUMN_MAP.medicalCardExpiry)),
         notes: getValue(row, ...CONTACT_COLUMN_MAP.notes),
         source: getValue(row, ...CONTACT_COLUMN_MAP.source),
       }
@@ -281,7 +300,10 @@ const PRODUCT_COLUMN_MAP = {
   cbdPercent: ['cbd', 'cbd_percent', 'cbd_pct'],
   price: ['price', 'unit_price', 'retail_price', 'amount'],
   cost: ['cost', 'cost_price', 'wholesale'],
-  weightGrams: ['weight', 'weight_grams', 'net_weight'],
+  // 'weight_g' is the products template's own header, "Weight (g)". It is listed explicitly
+  // because separators are dropped, not translated: "Weight (g)" reads as `weightg`, which is not
+  // `weightgrams`. (T46 N7)
+  weightGrams: ['weight', 'weight_g', 'weight_grams', 'net_weight', 'net_weight_g'],
   unitType: ['unit', 'unit_type', 'uom'],
   stockQuantity: ['quantity', 'stock', 'stock_quantity', 'qty', 'on_hand'],
   description: ['description', 'desc', 'details', 'notes'],
@@ -322,6 +344,25 @@ export async function importProducts(csvContent: string, companyId: string, opti
       const rawCategory = (getValue(row, ...PRODUCT_COLUMN_MAP.category) || 'flower').trim().toLowerCase().replace(/[\s-]+/g, '_')
       if (!PRODUCT_CATEGORIES.has(rawCategory)) {
         results.errors.push({ line: lineNum, error: `"${rawCategory}" is not a product category. Use one of: ${[...PRODUCT_CATEGORIES].join(', ')}` })
+        results.skipped++
+        continue
+      }
+
+      // A percentage of a thing cannot exceed the whole of it. T46 N7: THC 150% imported cleanly
+      // and was then listed on the shop's public menu, where it is both an impossible figure and an
+      // advertised one. The same rule applies to CBD, for the same reason.
+      let badPotency: string | null = null
+      for (const [label, keys] of [['THC', PRODUCT_COLUMN_MAP.thcPercent], ['CBD', PRODUCT_COLUMN_MAP.cbdPercent]] as const) {
+        const raw = getValue(row, ...keys)
+        if (raw == null || raw === '') continue
+        const pct = Number(String(raw).replace(/%/g, '').trim())
+        if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+          badPotency = `"${raw}" is not a valid ${label} percentage for ${name} — it has to be between 0 and 100`
+          break
+        }
+      }
+      if (badPotency) {
+        results.errors.push({ line: lineNum, error: badPotency })
         results.skipped++
         continue
       }
@@ -451,17 +492,51 @@ export function validateCSV(csvContent: string, type: string) {
  */
 export function getTemplate(type: string): string {
   const templates: Record<string, string> = {
-    contacts: 'Name,Email,Phone,Mobile,Company,Type,Address,City,State,Zip,Notes\nJohn Smith,john@example.com,555-1234,555-5678,,customer,123 Main St,Denver,CO,80201,Regular customer',
+    // T46 N6: the customers template carried no Date of Birth and no Medical Card column, although
+    // the Import screen says it imports both and refuses under-21s — so every customer imported
+    // from the shop's own template arrived with no date of birth, and the age rule the screen
+    // promised had nothing to check. A template that omits the column the rule depends on is how a
+    // shop ends up with an unverifiable customer list.
+    contacts: 'Name,Email,Phone,Mobile,Company,Type,Date of Birth,Medical Card Number,Medical Card Expiry,Address,City,State,Zip,Notes\nJohn Smith,john@example.com,555-1234,555-5678,,customer,1985-04-02,,,123 Main St,Denver,CO,80201,Regular customer',
     products: 'Name,SKU,Category,Brand,Strain,Strain Type,THC%,CBD%,Price,Cost,Weight (g),Unit,Stock,Description,Barcode\nBlue Dream,SKU-001,flower,Local Farms,Blue Dream,hybrid,22.5,0.5,35.00,18.00,3.5,eighth,100,Premium hybrid flower,123456789',
   }
 
   return templates[type] || ''
 }
 
+/**
+ * What "Check the file" answers.
+ *
+ * T46 N20: it reported valid:true and nothing else, so a file with a 2012-born customer, a
+ * negative price and a duplicate SKU checked out clean and only showed its refusals AFTER the
+ * import had run — which is the wrong way round for a screen whose whole purpose is to tell you
+ * before you commit.
+ *
+ * It runs the REAL import in dry-run now, which is the only way the preview and the import can
+ * agree about what will happen: same column reading, same rules, same messages, nothing written.
+ */
+export async function previewImport(csvContent: string, type: string, companyId: string) {
+  const shape = validateCSV(csvContent, type)
+  if (!shape.valid) return shape
+
+  const dry = type === 'contacts'
+    ? await importContacts(csvContent, companyId, { dryRun: true })
+    : await importProducts(csvContent, companyId, { dryRun: true })
+
+  return {
+    ...shape,
+    // `valid` still means the file is readable and has the column the import needs — a single bad
+    // row must not stop a shop importing the other nine hundred.
+    willImport: dry.imported,
+    willSkip: dry.skipped,
+    errors: dry.errors,
+  }
+}
+
 export default {
   importContacts,
   importProducts,
   validateCSV,
-  previewImport: validateCSV,
+  previewImport,
   getTemplate,
 }

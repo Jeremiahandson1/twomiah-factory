@@ -147,7 +147,10 @@ app.get('/audience-preview', async (c) => {
   if (raw) {
     try { filter = JSON.parse(raw) } catch { return c.json({ error: 'filter must be JSON' }, 400) }
   }
-  const preview = await marketing.getAudiencePreview(user.companyId, audienceType, filter)
+  // The channel decides who is reachable, not just how. Text messages need an opt-in and email
+  // needs the absence of an opt-out, so the same audience is two different numbers. (T46 N9)
+  const channel = (c.req.query('channel') || c.req.query('type') || 'email').toLowerCase() === 'sms' ? 'sms' : 'email'
+  const preview = await marketing.getAudiencePreview(user.companyId, audienceType, filter, channel)
   return c.json(preview)
 })
 
@@ -159,7 +162,15 @@ app.post('/campaigns/:id/send', requirePermission('marketing:update'), async (c)
     return c.json(result)
   } catch (e: any) {
     // Empty-audience / all-failed sends throw — report the truth as a 400, not a 500.
-    return c.json({ error: e?.message || 'Unable to send campaign' }, 400)
+    //
+    // The message is checked before it is shown. sendCampaign did not exist at all (T46 N8), so
+    // every send answered with the TypeError's own words — "marketing.sendCampaign is not a
+    // function" — handing the operator a piece of the server's internals and no idea what to do.
+    // A message that names an identifier rather than an action is a fault, not an explanation.
+    const raw = String(e?.message || '')
+    const internal = /is not a function|undefined|null|Cannot read|\bat \w+\.\w+/.test(raw)
+    if (internal) console.error('[marketing] send failed:', raw)
+    return c.json({ error: internal ? 'That campaign could not be sent. The shop\'s support team has the details.' : raw || 'Unable to send campaign' }, 400)
   }
 })
 

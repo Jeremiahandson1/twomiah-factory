@@ -85,12 +85,15 @@ export default function MarketingPage() {
   // the owner needs before pressing Send, not after. (T45 H23)
   const audienceFilter = () => (form.audienceType === 'segment' ? { type: form.contactType } : {});
 
-  const refreshAudience = useCallback(async (audienceType: string, filter: any) => {
+  const refreshAudience = useCallback(async (audienceType: string, filter: any, channel: string) => {
     setCheckingAudience(true);
     try {
       const data = await api.get('/api/marketing/audience-preview', {
         audienceType,
         filter: JSON.stringify(filter),
+        // The channel is part of the question. A text message needs an opt-in and an email needs
+        // the absence of an opt-out, so the same audience is two different numbers. (T46 N9)
+        channel,
       });
       setAudience(data);
     } catch {
@@ -102,14 +105,14 @@ export default function MarketingPage() {
 
   useEffect(() => {
     if (!modalOpen) return;
-    refreshAudience(form.audienceType, form.audienceType === 'segment' ? { type: form.contactType } : {});
-  }, [modalOpen, form.audienceType, form.contactType, refreshAudience]);
+    refreshAudience(form.audienceType, form.audienceType === 'segment' ? { type: form.contactType } : {}, form.type);
+  }, [modalOpen, form.audienceType, form.contactType, form.type, refreshAudience]);
 
-  // How many of the audience this channel can actually reach: an email campaign reaches the ones
-  // with an email address, an SMS campaign the ones with a phone number.
-  const reachable = audience
-    ? (form.type === 'sms' ? Number(audience.withPhone || 0) : Number(audience.withEmail || 0))
-    : null;
+  // How many of the audience this channel can actually REACH — the server's own answer, because
+  // the rule differs by channel and only it knows who opted in. This used to count every contact
+  // holding a phone number, so an SMS campaign showed an audience of 26 when the number who had
+  // agreed to be texted was nought. (T46 N9)
+  const reachable = audience ? Number(audience.reachable || 0) : null;
 
   const openCreate = () => { setForm(emptyForm); setAudience(null); setModalOpen(true); };
 
@@ -118,7 +121,9 @@ export default function MarketingPage() {
     if (form.type === 'email' && !form.subject.trim()) { toast.error('An email needs a subject line'); return; }
     if (!form.content.trim()) { toast.error('Write the message'); return; }
     if (andSend && reachable === 0) {
-      toast.error(`Nobody in this audience has ${form.type === 'sms' ? 'a phone number' : 'an email address'} — this would reach no one`);
+      toast.error(form.type === 'sms'
+        ? 'Nobody in this audience has opted in to text messages — this would reach no one'
+        : 'Nobody in this audience has an email address — this would reach no one');
       return;
     }
     setSaving(true);
@@ -293,7 +298,9 @@ export default function MarketingPage() {
             </div>
             {audience && reachable === 0 && (
               <p className="text-xs text-amber-300 mt-2">
-                Nobody in this audience has {form.type === 'sms' ? 'a phone number' : 'an email address'} on file, so this would reach no one.
+                {form.type === 'sms'
+                  ? `Nobody in this audience has opted in to text messages, so this would reach no one. ${Number(audience.withPhone || 0)} have a number on file — they have to agree to be texted first.`
+                  : 'Nobody in this audience has an email address on file, so this would reach no one.'}
               </p>
             )}
           </div>

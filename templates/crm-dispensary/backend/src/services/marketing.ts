@@ -14,9 +14,11 @@ import {
   marketingCampaign,
   marketingSequence,
   marketingSequenceEnrollment,
+  marketingRecipient,
 } from '../../db/schema.ts'
 import { eq, and, gte, sql, desc } from 'drizzle-orm'
 import sgMail from '@sendgrid/mail'
+import { sendSMS } from './sms.ts'
 
 // Initialize SendGrid
 if (process.env.SENDGRID_API_KEY) {
@@ -70,13 +72,47 @@ export async function sendPromoEmail(
 /**
  * Get a preview of the audience (how many contacts will receive the message)
  */
-export async function getAudiencePreview(companyId: string, audienceType: string, filter: any) {
+export async function getAudiencePreview(companyId: string, audienceType: string, filter: any, channel = 'email') {
   const contacts = await getAudienceContacts(companyId, audienceType, filter)
+  const reachable = await reachableAudience(companyId, contacts, channel)
   return {
     total: contacts.length,
     withEmail: contacts.filter(c => c.email).length,
+    // T46 N9: this counted every contact holding a phone number — 26 of them — while the number
+    // who had actually opted in to SMS was nought. Email is an opt-OUT medium and text messages
+    // are an opt-IN one; counting them the same way is how a shop sends its first campaign to 26
+    // people who never asked for it. `withPhone` is left as the raw count because the screen shows
+    // it as "on file"; `reachable` is who the send will actually go to.
     withPhone: contacts.filter(c => c.phone).length,
+    channel,
+    reachable: reachable.length,
   }
+}
+
+/**
+ * Who a campaign on this channel may lawfully go to.
+ *
+ *   email — anyone in the audience with an address who has not opted out (CAN-SPAM)
+ *   sms   — only those who opted in, and only while they still have a number (TCPA, and every
+ *           state's own rules on top of it)
+ *
+ * The SMS opt-in lives on the loyalty member, which is where a customer gives it. (T46 N9)
+ */
+export async function reachableAudience(
+  companyId: string,
+  contacts: { id: string; name: string | null; email: string | null; phone: string | null }[],
+  channel: string,
+): Promise<{ contactId: string; name: string | null; address: string }[]> {
+  if (channel === 'sms') {
+    const optedIn = await getSmsOptedInMembers(companyId)
+    const allowed = new Map(optedIn.map((m: any) => [m.contactId, m.contactPhone]))
+    return contacts
+      .filter((c) => c.phone && allowed.has(c.id))
+      .map((c) => ({ contactId: c.id, name: c.name, address: String(allowed.get(c.id) || c.phone) }))
+  }
+  return contacts
+    .filter((c) => !!c.email)
+    .map((c) => ({ contactId: c.id, name: c.name, address: String(c.email) }))
 }
 
 // ============================================
@@ -163,16 +199,142 @@ export async function getEmailOptedInMembers(companyId: string) {
 /**
  * Handle unsubscribe
  */
-export async function handleUnsubscribe(contactId: string) {
-  const [c] = await db.select().from(contact).where(eq(contact.id, contactId))
-  if (c) {
-    const customFields = (c.customFields as any) || {}
-    customFields.emailOptOut = true
-    customFields.emailOptOutDate = new Date().toISOString()
-    await db.update(contact)
-      .set({ customFields })
-      .where(eq(contact.id, contactId))
+/**
+ * Someone followed the unsubscribe link in a campaign.
+ *
+ * T46 N8, unreported half: the route calls this with (recipientId, contactId) and it took one
+ * argument, so it received the RECIPIENT id, looked for a contact with that id, found none, and
+ * did nothing at all — silently, because the caller wraps it in a try/catch and shows the same
+ * "You have been unsubscribed" page either way. An unsubscribe link that lies is worse than no
+ * link, and under CAN-SPAM it is the one thing a marketing email must actually do.
+ *
+ * The recipient row is what proves the person following the link was sent that campaign — without
+ * it, the URL is an open invitation to unsubscribe anyone whose id you can guess.
+ */
+export async function handleUnsubscribe(recipientId: string, contactId?: string) {
+  let targetId = contactId || null
+
+  if (recipientId) {
+    const [rec] = await db.select().from(marketingRecipient).where(eq(marketingRecipient.id, recipientId)).limit(1)
+    if (rec) {
+      // The link has to name the contact the campaign actually went to.
+      if (contactId && rec.contactId && rec.contactId !== contactId) {
+        throw new Error('That unsubscribe link does not match the message it came from')
+      }
+      targetId = rec.contactId || targetId
+      await db.update(marketingRecipient)
+        .set({ unsubscribedAt: new Date() } as any)
+        .where(eq(marketingRecipient.id, recipientId))
+    } else if (!contactId) {
+      // No recipient row and no contact named: there is nothing this link can honestly do.
+      throw new Error('That unsubscribe link is no longer valid')
+    }
   }
+
+  if (!targetId) throw new Error('That unsubscribe link is no longer valid')
+
+  const [c] = await db.select().from(contact).where(eq(contact.id, targetId))
+  if (!c) throw new Error('That unsubscribe link is no longer valid')
+
+  const customFields = (c.customFields as any) || {}
+  customFields.emailOptOut = true
+  customFields.emailOptOutDate = new Date().toISOString()
+  await db.update(contact)
+    .set({ customFields })
+    .where(eq(contact.id, targetId))
+
+  // Unsubscribing from marketing means marketing, not just email. Someone who has asked to be left
+  // alone should not still be on the text list.
+  await db.update(loyaltyMember)
+    .set({ optedInSms: false, optedInEmail: false } as any)
+    .where(and(eq(loyaltyMember.companyId, c.companyId as string), eq(loyaltyMember.contactId, targetId)))
+
+  return { contactId: targetId }
+}
+
+/** The open pixel was fetched. Recorded once — a mail client that re-renders is not a second open. */
+export async function trackOpen(recipientId: string) {
+  if (!recipientId) return
+  await db.execute(sql`
+    UPDATE marketing_recipients SET opened_at = COALESCE(opened_at, NOW()) WHERE id = ${recipientId}
+  `)
+}
+
+/** A link in the campaign was followed. */
+export async function trackClick(recipientId: string, _url?: string | null) {
+  if (!recipientId) return
+  await db.execute(sql`
+    UPDATE marketing_recipients
+    SET clicked_at = COALESCE(clicked_at, NOW()), opened_at = COALESCE(opened_at, NOW())
+    WHERE id = ${recipientId}
+  `)
+}
+
+/**
+ * Send a campaign.
+ *
+ * T46 N8 (high): this function did not exist. The route called it, every send answered 400 with
+ * the TypeError's own text — "marketing.sendCampaign is not a function" — which also put a piece
+ * of the server's internals in front of the operator. No campaign could be sent at all.
+ *
+ * A send is recorded per recipient before anything leaves, so the open pixel, the click redirect
+ * and the unsubscribe link in the message have a row to point at, and so "who did we text" can be
+ * answered later. A campaign that reaches nobody is refused rather than marked sent.
+ */
+export async function sendCampaign(id: string, companyId: string) {
+  const [campaign] = await db.select().from(marketingCampaign)
+    .where(and(eq(marketingCampaign.id, id), eq(marketingCampaign.companyId, companyId))).limit(1)
+  if (!campaign) throw new Error('Campaign not found')
+  if (campaign.status === 'sent') throw new Error('That campaign has already been sent')
+
+  const channel = String(campaign.type || 'email').toLowerCase() === 'sms' ? 'sms' : 'email'
+  const filter: any = campaign.audienceFilter || {}
+  const audienceType = filter?.audienceType || (filter && Object.keys(filter).length ? 'segment' : 'all')
+
+  const contacts = await getAudienceContacts(companyId, audienceType, filter)
+  const recipients = await reachableAudience(companyId, contacts, channel)
+
+  if (recipients.length === 0) {
+    throw new Error(channel === 'sms'
+      ? 'Nobody in this audience has opted in to text messages, so there is nobody to send to.'
+      : 'Nobody in this audience has an email address, so there is nobody to send to.')
+  }
+
+  let sent = 0
+  let failed = 0
+
+  for (const r of recipients) {
+    const [row] = await db.insert(marketingRecipient).values({
+      companyId, campaignId: campaign.id, contactId: r.contactId,
+      channel, address: r.address, status: 'sent',
+    } as any).returning()
+
+    try {
+      if (channel === 'sms') {
+        await sendSMS(companyId, { contactId: r.contactId, toPhone: r.address, message: personalizeContent(String(campaign.content || ''), r) })
+      } else {
+        await sendEmail({
+          to: r.address,
+          subject: personalizeContent(String(campaign.subject || campaign.name || ''), r),
+          html: personalizeContent(String(campaign.content || ''), r),
+        })
+      }
+      sent++
+    } catch (err: any) {
+      failed++
+      await db.update(marketingRecipient)
+        .set({ status: 'failed', error: String(err?.message || 'send failed').slice(0, 500) } as any)
+        .where(eq(marketingRecipient.id, row.id))
+    }
+  }
+
+  if (sent === 0) throw new Error(`Nothing could be sent — all ${failed} message(s) failed.`)
+
+  await db.update(marketingCampaign).set({
+    status: 'sent', sentAt: new Date(), recipientCount: sent, updatedAt: new Date(),
+  } as any).where(eq(marketingCampaign.id, campaign.id))
+
+  return { sent, failed, total: recipients.length, channel }
 }
 
 // ============================================
@@ -417,6 +579,10 @@ export async function enrollInSequence(sequenceId: string, contactId: string, co
 export default {
   deleteCampaign,
   sendPromoEmail,
+  sendCampaign,
+  trackOpen,
+  trackClick,
+  reachableAudience,
   getAudiencePreview,
   getSmsOptedInMembers,
   getEmailOptedInMembers,

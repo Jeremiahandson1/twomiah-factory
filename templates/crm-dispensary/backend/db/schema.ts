@@ -2907,6 +2907,38 @@ export const marketingCampaign = pgTable('marketing_campaigns', {
   index('marketing_campaign_status_idx').on(t.status),
 ])
 
+/**
+ * One row per person a campaign was sent to.
+ *
+ * T46 N8: nothing recorded a send at all. The route called marketing.sendCampaign, which did not
+ * exist — every send answered 400 with the TypeError's own text — and the three public tracking
+ * routes beside it (open pixel, click redirect, unsubscribe link) all addressed a `recipientId`
+ * that was never written anywhere. So an unsubscribe link in a marketing email did nothing at all,
+ * which is not a gap in a feature, it is a legal obligation missed.
+ *
+ * The address is stored as it was sent to, not read back off the contact: a customer who changes
+ * their email later has not changed where last month's campaign went, and "who did we actually
+ * text" is the question a TCPA complaint asks.
+ */
+export const marketingRecipient = pgTable('marketing_recipients', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull(),
+  campaignId: text('campaign_id').notNull(),
+  contactId: text('contact_id'),
+  channel: text('channel').default('email'),        // email|sms
+  address: text('address'),                          // the email or phone it went to
+  status: text('status').default('sent'),            // sent|failed
+  error: text('error'),
+  sentAt: timestamp('sent_at').defaultNow(),
+  openedAt: timestamp('opened_at'),
+  clickedAt: timestamp('clicked_at'),
+  unsubscribedAt: timestamp('unsubscribed_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (t) => [
+  index('marketing_recipient_company_idx').on(t.companyId),
+  index('marketing_recipient_campaign_idx').on(t.campaignId),
+])
+
 export const marketingSequence = pgTable('marketing_sequences', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id'),

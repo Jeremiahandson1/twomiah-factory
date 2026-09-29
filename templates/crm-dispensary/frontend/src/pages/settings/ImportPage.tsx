@@ -211,8 +211,33 @@ export default function ImportPage() {
               <div>
                 <p className="font-medium text-gray-900 dark:text-slate-100">
                   <Check className="w-4 h-4 inline mr-1 text-green-600" />
-                  {preview.rowCount} row{preview.rowCount === 1 ? '' : 's'} ready to import
+                  {typeof preview.willImport === 'number'
+                    ? `${preview.willImport} of ${preview.rowCount} row${preview.rowCount === 1 ? '' : 's'} will import`
+                    : `${preview.rowCount} row${preview.rowCount === 1 ? '' : 's'} ready to import`}
                 </p>
+                {/* What the import WOULD refuse, before it is run. The check used to say only that
+                    the file was readable, so a 2012-born customer and a duplicate SKU sailed
+                    through it and were only reported after the import had committed. (T46 N20) */}
+                {Array.isArray(preview.errors) && preview.errors.length > 0 && (
+                  <div className="mt-3 rounded border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
+                    <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+                      {preview.errors.length} row{preview.errors.length === 1 ? '' : 's'} will be refused
+                    </p>
+                    <ul className="mt-2 space-y-1">
+                      {preview.errors.slice(0, 25).map((e: any, i: number) => (
+                        <li key={i} className="text-xs text-amber-900 dark:text-amber-200">
+                          Line {e.line}: {e.error}
+                        </li>
+                      ))}
+                    </ul>
+                    {preview.errors.length > 25 && (
+                      <p className="mt-2 text-xs text-amber-800 dark:text-amber-300">…and {preview.errors.length - 25} more.</p>
+                    )}
+                    <p className="mt-2 text-xs text-amber-800 dark:text-amber-300">
+                      Importing now brings in the rest. Fix these rows in the file and import again to add them.
+                    </p>
+                  </div>
+                )}
                 <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Columns: {(preview.columns || []).join(', ')}</p>
                 {Array.isArray(preview.sample) && preview.sample.length > 0 && (
                   <div className="mt-3 overflow-x-auto">

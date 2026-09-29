@@ -343,6 +343,27 @@ const ENSURE_COLUMNS_SQL = `
   );
   CREATE INDEX IF NOT EXISTS "push_subscription_user_idx" ON "push_subscription" ("user_id");
 
+  -- One row per person a campaign was sent to. Without it the open pixel, the click redirect and
+  -- the unsubscribe link in every marketing email address a recipient id that exists nowhere, so
+  -- the unsubscribe silently does nothing. (T46 N8)
+  CREATE TABLE IF NOT EXISTS "marketing_recipients" (
+    "id" TEXT PRIMARY KEY,
+    "company_id" TEXT NOT NULL,
+    "campaign_id" TEXT NOT NULL,
+    "contact_id" TEXT,
+    "channel" TEXT DEFAULT 'email',
+    "address" TEXT,
+    "status" TEXT DEFAULT 'sent',
+    "error" TEXT,
+    "sent_at" TIMESTAMP DEFAULT now(),
+    "opened_at" TIMESTAMP,
+    "clicked_at" TIMESTAMP,
+    "unsubscribed_at" TIMESTAMP,
+    "created_at" TIMESTAMP DEFAULT now()
+  );
+  CREATE INDEX IF NOT EXISTS "marketing_recipient_company_idx" ON "marketing_recipients" ("company_id");
+  CREATE INDEX IF NOT EXISTS "marketing_recipient_campaign_idx" ON "marketing_recipients" ("campaign_id");
+
   CREATE TABLE IF NOT EXISTS "marketing_templates" (
     "id" TEXT PRIMARY KEY,
     "company_id" TEXT,
