@@ -8,6 +8,7 @@
 
 import { db } from '../../db/index.ts'
 import {
+  company,
   contact,
   loyaltyMember,
   marketingTemplate,
@@ -298,8 +299,21 @@ export async function sendCampaign(id: string, companyId: string) {
       : 'Nobody in this audience has an email address, so there is nobody to send to.')
   }
 
+  // Refused BEFORE anything goes out, not per recipient — a marketing email with no postal address
+  // is unlawful to send at all, so the honest failure is the whole campaign, once, saying what to
+  // fix. (T48 Q1)
+  const [co] = await db.select().from(company).where(eq(company.id, companyId)).limit(1)
+  let address: string | null = null
+  if (channel === 'email') {
+    address = postalAddress(co)
+    if (!address) {
+      throw new Error('Add your business\'s street address in Settings first. US anti-spam law requires a postal address in every marketing email, so this cannot be sent without one.')
+    }
+  }
+
   let sent = 0
   let failed = 0
+  const reasons: string[] = []
 
   for (const r of recipients) {
     const [row] = await db.insert(marketingRecipient).values({
@@ -311,22 +325,33 @@ export async function sendCampaign(id: string, companyId: string) {
       if (channel === 'sms') {
         await sendSMS(companyId, { contactId: r.contactId, toPhone: r.address, message: personalizeContent(String(campaign.content || ''), r) })
       } else {
+        // The link names this recipient row, which is what proves the person following it was sent
+        // this campaign. The header is what puts an Unsubscribe control next to the sender in Gmail.
+        const url = unsubscribeUrl(row.id, String(r.contactId || ''))
         await sendEmail({
           to: r.address,
           subject: personalizeContent(String(campaign.subject || campaign.name || ''), r),
-          html: personalizeContent(String(campaign.content || ''), r),
+          html: personalizeContent(String(campaign.content || ''), r) + marketingFooter(co, address as string, url),
+          headers: {
+            'List-Unsubscribe': `<${url}>`,
+            'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+          },
         })
       }
       sent++
     } catch (err: any) {
       failed++
+      const reason = String(err?.message || 'send failed').slice(0, 500)
+      if (!reasons.includes(reason)) reasons.push(reason)
       await db.update(marketingRecipient)
-        .set({ status: 'failed', error: String(err?.message || 'send failed').slice(0, 500) } as any)
+        .set({ status: 'failed', error: reason } as any)
         .where(eq(marketingRecipient.id, row.id))
     }
   }
 
-  if (sent === 0) throw new Error(`Nothing could be sent — all ${failed} message(s) failed.`)
+  // Say WHY, not just how many. A campaign that reached nobody because the wallet is empty and one
+  // that reached nobody because every address bounced need different things done about them. (T48 Q2)
+  if (sent === 0) throw new Error(`Nothing was sent. ${reasons[0] || `All ${failed} message(s) failed.`}`)
 
   await db.update(marketingCampaign).set({
     status: 'sent', sentAt: new Date(), recipientCount: sent, updatedAt: new Date(),
@@ -378,9 +403,57 @@ export async function getCampaignRecipients(campaignId: string, companyId: strin
  * while every other email in the tenant went out fine through the shared service. A second
  * implementation of something that already worked, silently failing next to the one that didn't.
  */
-async function sendEmail({ to, subject, html, fromName, fromEmail }: { to: string; subject: string; html: string; fromName?: string; fromEmail?: string }) {
-  await emailService.sendRaw(to, subject, html,
-    fromEmail ? { from: { name: fromName || fromEmail, address: fromEmail } } : {})
+async function sendEmail({ to, subject, html, fromName, fromEmail, headers }: { to: string; subject: string; html: string; fromName?: string; fromEmail?: string; headers?: Record<string, string> }) {
+  await emailService.sendRaw(to, subject, html, {
+    ...(fromEmail ? { from: { name: fromName || fromEmail, address: fromEmail } } : {}),
+    ...(headers ? { headers } : {}),
+  })
+}
+
+// ── what the law requires to be in the message ──────────────────────────────────────────────────
+//
+// T48 Q1: the campaign body was sent exactly as typed and nothing else. No unsubscribe link, no
+// postal address, and no List-Unsubscribe header — so Gmail showed no unsubscribe control next to
+// the sender either. CAN-SPAM (15 U.S.C. §7704(a)(3),(5)) requires a working opt-out mechanism and
+// the sender's valid physical postal address in every commercial email. Both were missing from
+// every campaign this product has ever sent.
+//
+// The unsubscribe machinery already existed and worked — handleUnsubscribe, the public route, the
+// recipient row that proves the link belongs to the person following it. Nothing ever put the link
+// in the message. This is the half that was missing.
+
+/** The sender's postal address on one line, or null when the tenant has not set one. */
+function postalAddress(co: any): string | null {
+  const parts = [co?.address, co?.city, [co?.state, co?.zip].filter(Boolean).join(' ').trim()]
+    .map((p: any) => String(p || '').trim()).filter(Boolean)
+  // Street and town at minimum — "OH" on its own is not an address anyone could write back to.
+  return parts.length >= 2 ? parts.join(', ') : null
+}
+
+/** Absolute, because a mail client has no page to be relative to. */
+function unsubscribeUrl(recipientId: string, contactId: string): string {
+  const base = String(process.env.FRONTEND_URL || '').replace(/\/+$/, '')
+  return `${base}/api/marketing/unsubscribe/${recipientId}/${contactId}`
+}
+
+/**
+ * The footer every marketing email carries. Plain, small, and last — it is a legal notice, not a
+ * design element, and it says who sent this and how to stop it.
+ */
+function marketingFooter(co: any, address: string, url: string): string {
+  const who = esc(String(co?.name || 'This business'))
+  return [
+    '<div style="margin-top:32px;padding-top:16px;border-top:1px solid #ddd;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#666">',
+    `<p style="margin:0 0 6px">You are receiving this because you gave ${who} your email address.`,
+    ` <a href="${esc(url)}" style="color:#666">Unsubscribe</a> to stop receiving marketing email from us.</p>`,
+    `<p style="margin:0">${who}, ${esc(address)}</p>`,
+    '</div>',
+  ].join('')
+}
+
+/** The campaign body is operator-written, but the footer is ours and must not be breakable by a name. */
+function esc(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
 function personalizeContent(content: string, contactData: any): string {

@@ -160,16 +160,23 @@ app.post('/send', requireRole('budtender'), async (c) => {
     }, 403)
   }
 
-  const result = await sms.sendSMS(user.companyId, {
-    contactId,
-    toPhone: resolvedPhone,
-    message,
-    userId: user.userId,
-    jobId,
-    templateId,
-  })
-
-  return c.json(result)
+  // sendSMS throws when nothing went out (T48 Q2). These routes report the outcome rather than
+  // 500, so they catch it and say so in the same shape the screen already reads — status 'failed'
+  // with the reason — instead of a bare success the sender never earned.
+  try {
+    const result = await sms.sendSMS(user.companyId, {
+      contactId,
+      toPhone: resolvedPhone,
+      message,
+      userId: user.userId,
+      jobId,
+      templateId,
+    })
+    return c.json(result)
+  } catch (error: any) {
+    const reason = String(error?.message || 'The text could not be sent.')
+    return c.json({ status: 'failed', errorMessage: reason, error: reason, to: resolvedPhone }, 502)
+  }
 })
 
 // Reply to conversation
@@ -188,14 +195,18 @@ app.post('/conversations/:id/reply', requireRole('budtender'), async (c) => {
     return c.json({ error: 'Conversation not found' }, 404)
   }
 
-  const result = await sms.sendSMS(user.companyId, {
-    toPhone: conversation.phone,
-    contactId: conversation.contactId,
-    message,
-    userId: user.userId,
-  })
-
-  return c.json(result)
+  try {
+    const result = await sms.sendSMS(user.companyId, {
+      toPhone: conversation.phone,
+      contactId: conversation.contactId,
+      message,
+      userId: user.userId,
+    })
+    return c.json(result)
+  } catch (error: any) {
+    const reason = String(error?.message || 'The reply could not be sent.')
+    return c.json({ status: 'failed', errorMessage: reason, error: reason, to: conversation.phone }, 502)
+  }
 })
 
 // Send bulk SMS
@@ -231,8 +242,13 @@ app.post('/job-update/:jobId', requireRole('budtender'), async (c) => {
     return c.json({ error: 'Invalid updateType' }, 400)
   }
 
-  const result = await sms.sendJobUpdate(user.companyId, jobId, updateType)
-  return c.json(result || { sent: false, reason: 'No phone number' })
+  try {
+    const result = await sms.sendJobUpdate(user.companyId, jobId, updateType)
+    return c.json(result || { sent: false, reason: 'No phone number' })
+  } catch (error: any) {
+    const reason = String(error?.message || 'The update could not be sent.')
+    return c.json({ status: 'failed', errorMessage: reason, error: reason }, 502)
+  }
 })
 
 // ============================================

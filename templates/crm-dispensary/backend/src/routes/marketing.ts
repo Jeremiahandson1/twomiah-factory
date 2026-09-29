@@ -46,6 +46,24 @@ app.get('/unsubscribe/:recipientId/:contactId', async (c) => {
   }
 })
 
+// The same thing by POST, because the message advertises List-Unsubscribe-Post: One-Click.
+//
+// RFC 8058: a mail client that sees that header posts here when the reader clicks the Unsubscribe
+// control next to the sender, and expects a 2xx and no interactive page. Advertising one-click
+// without answering the POST would put a button in Gmail that silently fails — the same shape of
+// lie as the unsubscribe link that did nothing (T46 N8), which is why it is wired the same day the
+// header is. Nothing here is a redirect or a form: a one-click unsubscribe must complete on its own.
+app.post('/unsubscribe/:recipientId/:contactId', async (c) => {
+  const recipientId = c.req.param('recipientId')
+  const contactId = c.req.param('contactId')
+  try {
+    await marketing.handleUnsubscribe(recipientId, contactId)
+    return c.body(null, 200)
+  } catch (error: any) {
+    return c.json({ error: String(error?.message || 'Could not process this unsubscribe request.') }, 400)
+  }
+})
+
 // All remaining routes require authentication — and the module switch.
 //
 // The gate cannot go on the mount in index.ts because the three routes above it are public by

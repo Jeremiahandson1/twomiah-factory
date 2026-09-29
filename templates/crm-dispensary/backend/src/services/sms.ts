@@ -48,11 +48,18 @@ export async function sendSMS(
 
   const formattedPhone = formatPhoneNumber(toPhone)
 
-  // Send via Twilio
+  // A send that did not happen THROWS. It used to catch its own failure, set status: 'failed' on
+  // the object it returned, and return normally — so every caller written as try/catch counted it
+  // as a success. The marketing campaign did exactly that: with the wallet at $0, six words of
+  // Twilio error were swallowed here, the recipient row was left reading "sent" with error null,
+  // and the owner was told the text went out. It had not. (T48 Q2)
+  //
+  // This is the same defect as T47 P1 on the email side, in the sibling sender nobody checked:
+  // a failure reported in-band is a failure the caller is free to ignore, and callers always do.
+  // There is now ONE way for a send to fail and it cannot be read as success by accident. The two
+  // enrolment paths in routes/security.ts already wrapped this call in try/catch expecting exactly
+  // that, and the routes that want to render the outcome rather than 500 catch it themselves.
   let twilioResponse: any
-  let status = 'sent'
-  let errorMessage: string | null = null
-
   try {
     if (!(await walletSufficient())) throw new Error('Messaging paused: usage wallet is empty — top up to resume.')
     twilioResponse = await twilioClient.messages.create({
@@ -61,16 +68,15 @@ export async function sendSMS(
       ...(process.env.TWILIO_MESSAGING_SERVICE_SID ? { messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID } : { from: TWILIO_PHONE }),
     })
   } catch (error: any) {
-    status = 'failed'
-    errorMessage = error.message
     console.error('Twilio send error:', error)
+    throw new Error(String(error?.message || 'The text could not be sent.'))
   }
 
-  if (twilioResponse) reportSmsUsage(Number(twilioResponse.numSegments) || 1, twilioResponse.sid)
+  reportSmsUsage(Number(twilioResponse?.numSegments) || 1, twilioResponse?.sid)
 
   return {
-    status,
-    errorMessage,
+    status: 'sent',
+    errorMessage: null as string | null,
     twilioSid: twilioResponse?.sid,
     to: formattedPhone,
   }

@@ -26,8 +26,12 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
 
 await setupSchema()
 
+// The postal address is not decoration: CAN-SPAM requires it in every marketing email, so a
+// company without one cannot lawfully send and the product refuses. This fixture had only a state,
+// which is why the refusal fired here first. (T48 Q1)
 const [co] = await db.insert(company).values({
-  name: 'Twomiah Leaf', slug: 'leaf-mkt', email: 'mkt@test.local', state: 'OH',
+  name: 'Twomiah Leaf', slug: 'leaf-mkt', email: 'mkt@test.local',
+  address: '1 Main St', city: 'Columbus', state: 'OH', zip: '43004',
   enabledFeatures: ['contacts', 'email_campaigns', 'sms_marketing', 'loyalty'],
 } as any).returning()
 const [owner] = await db.insert(user).values({
@@ -101,18 +105,32 @@ const rows = async (q: any) => { const r: any = await db.execute(q); return (r.r
   check('N8: sending the same campaign twice is refused', again.status === 400 && /already been sent/i.test(String(again.json?.error)), again.json)
 }
 
-// ── N9 + N8: an SMS campaign goes only to the opted-in ─────────────────────────────────────────
+// ── N9 + N8: an SMS campaign goes only to the opted-in, and never claims more than it did ───────
+//
+// This sandbox has no Twilio credentials, so nothing can actually go out — which is exactly the
+// live tenant's position with a $0 wallet, and exactly the case T48 Q2 was filed about. This block
+// used to assert `sent === 1` and PASSED, because sendSMS caught its own failure and returned
+// normally: the campaign counted a send that never happened and stamped itself sent. The
+// assertion encoded the bug. What it proves now is the audience (one row, the opted-in customer)
+// AND that an undeliverable campaign says so.
 {
   const created = await api('POST', '/api/marketing/campaigns', {
     name: 'T46 Text Blast', type: 'sms', content: 'New drop at the shop today.',
   })
   const id = created.json?.id
   const sent = await api('POST', `/api/marketing/campaigns/${id}/send`)
-  check('N9: the text campaign sends', sent.status === 200, { status: sent.status, body: sent.json })
-  check('N9: …to the one customer who opted in, not the three with a number', sent.json?.sent === 1, sent.json)
 
-  const recipients = await rows(sql`SELECT contact_id, channel FROM marketing_recipients WHERE campaign_id = ${id}`)
-  check('N9: …and only that one is recorded as texted', recipients.length === 1 && recipients[0].contact_id === opted.id, recipients)
+  const recipients = await rows(sql`SELECT contact_id, channel, status, error FROM marketing_recipients WHERE campaign_id = ${id}`)
+  check('N9: …to the one customer who opted in, not the three with a number',
+    recipients.length === 1 && recipients[0].contact_id === opted.id, recipients)
+  check('N9: …recorded against the sms channel', recipients[0]?.channel === 'sms', recipients)
+
+  check('N9: a text that could not be sent is NOT reported as sent', sent.status !== 200, { status: sent.status, body: sent.json })
+  check('N9: …and the answer carries the reason, not just a count',
+    /wallet|messaging|username|could not/i.test(String(sent.json?.error)), sent.json)
+  check('N9: …the recipient row reads failed, with why', recipients[0]?.status === 'failed' && !!recipients[0]?.error, recipients)
+  const [camp] = await rows(sql`SELECT status, sent_at FROM marketing_campaigns WHERE id = ${id}`)
+  check('N9: …and the campaign is never stamped sent', camp?.status === 'draft' && !camp?.sent_at, camp)
 }
 
 // ── a campaign that would reach nobody is refused, in words ─────────────────────────────────────

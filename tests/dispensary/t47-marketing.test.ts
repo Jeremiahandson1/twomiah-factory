@@ -27,7 +27,9 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
 await setupSchema()
 
 const [co] = await db.insert(company).values({
-  name: 'Twomiah Leaf', slug: 'leaf-t47m', email: 'm@test.local', state: 'OH',
+  // The postal address every marketing email must carry by law — without it the send is refused. (T48 Q1)
+  name: 'Twomiah Leaf', slug: 'leaf-t47m', email: 'm@test.local',
+  address: '1 Main St', city: 'Columbus', state: 'OH', zip: '43004',
   enabledFeatures: ['products', 'orders', 'email_campaigns', 'sms_marketing', 'loyalty', 'contacts'],
 } as any).returning()
 const mkUser = async (role: string, tag: string) => (await db.insert(user).values({
