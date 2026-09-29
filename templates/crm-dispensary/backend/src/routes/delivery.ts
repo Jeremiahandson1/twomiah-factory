@@ -52,9 +52,40 @@ app.get('/zones', async (c) => {
   // '0', and `minimum_order`, which is what the create actually writes — so the screen read 0 off
   // one column while an order was refused against 50 in the other. A screen and a till disagreeing
   // about a shop's own terms is worse than either being wrong on its own.
-  return c.json(((result as any).rows || result).map((row: any) => {
+  // …and each zone says whether it CLASHES with another, because the ones already in the table
+  // when the rule arrived are still there.
+  //
+  // T48 Q13: T45 Zone and T46 Zone still cover 43004 and 43085 between them. P20 stopped new
+  // overlaps; it could not unmake the old ones, and nothing in the product showed them — so the
+  // shop's checkout quotes whichever fee the matcher reaches first and nobody can see why. A rule
+  // that only applies to rows created after it was written leaves the shop with a problem it
+  // cannot even find. Reported, not auto-corrected: which of two zones should keep a postcode is
+  // the shop's decision and worth real money to them.
+  const rows = ((result as any).rows || result) as any[]
+  const zipsOf = (row: any): string[] => {
+    const raw = Array.isArray(row.zip_codes)
+      ? row.zip_codes
+      : (typeof row.zip_codes === 'string' ? (() => { try { return JSON.parse(row.zip_codes || '[]') } catch { return [] } })() : [])
+    return (raw as any[]).map((z) => String(z).trim()).filter(Boolean)
+  }
+  const active = rows.filter((r) => r.active !== false)
+
+  return c.json(rows.map((row: any) => {
     const terms = zoneTerms(row)
-    return { ...camelZone(row), deliveryFee: terms.fee, minimumOrder: terms.minimum }
+    const mine = zipsOf(row)
+    const clashes = row.active === false ? [] : active
+      .filter((other) => other.id !== row.id)
+      .map((other) => ({ zone: other.name, zipCodes: mine.filter((z) => zipsOf(other).includes(z)) }))
+      .filter((o) => o.zipCodes.length > 0)
+    return {
+      ...camelZone(row),
+      deliveryFee: terms.fee,
+      minimumOrder: terms.minimum,
+      overlaps: clashes,
+      overlapWarning: clashes.length
+        ? `${clashes.flatMap((o) => o.zipCodes).join(', ')} ${clashes.flatMap((o) => o.zipCodes).length === 1 ? 'is' : 'are'} also covered by ${clashes.map((o) => `"${o.zone}"`).join(', ')}. The checkout cannot say which fee applies to an address in ${clashes.flatMap((o) => o.zipCodes).length === 1 ? 'it' : 'them'} — take the postcode out of one of the zones.`
+        : null,
+    }
   }))
 })
 
@@ -146,6 +177,34 @@ app.put('/zones/:id', requireRole('manager'), async (c) => {
     hoursEnd: z.string().optional(),
   })
   const data = zoneSchema.parse(await c.req.json())
+
+  // The same refusal the CREATE has had since T47 P20, which this route never got.
+  //
+  // T48: P20 stopped a new zone claiming a postcode another zone already covers, and editing one
+  // into exactly that state was left open — so the rule held for thirty seconds and then anybody
+  // could walk round it by saving the zone again with the postcode added. A guard on create only
+  // is a guard on the order somebody does things in.
+  //
+  // Itself excluded, or widening a zone's hours would refuse on its own postcodes.
+  if (data.zipCodes?.length) {
+    const wanted = data.zipCodes.map((z) => String(z).trim()).filter(Boolean)
+    const existing: any = await db.execute(sql`
+      SELECT name, zip_codes FROM delivery_zones
+      WHERE company_id = ${currentUser.companyId} AND id <> ${id} AND COALESCE(active, true) = true
+    `)
+    for (const zone of ((existing as any).rows || existing)) {
+      const theirs = Array.isArray(zone.zip_codes)
+        ? zone.zip_codes
+        : (typeof zone.zip_codes === 'string' ? JSON.parse(zone.zip_codes || '[]') : [])
+      const clash = wanted.filter((z) => theirs.map((t: any) => String(t).trim()).includes(z))
+      if (clash.length) {
+        return c.json({
+          error: `${clash.join(', ')} ${clash.length === 1 ? 'is' : 'are'} already covered by "${zone.name}". Two zones covering one postcode leaves the checkout unable to say which fee applies — widen that zone instead, or take the postcode out of it.`,
+          code: 'zone_overlap', zone: zone.name, zipCodes: clash,
+        }, 409)
+      }
+    }
+  }
 
   const sets: any[] = [sql`updated_at = NOW()`]
   if (data.name !== undefined) sets.push(sql`name = ${data.name}`)
