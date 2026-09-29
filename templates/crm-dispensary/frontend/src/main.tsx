@@ -3,6 +3,10 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
+// Offline POS is a feature this product sells. Nothing registered the service worker, so a
+// reload with no internet could not open the register and a sale rung up offline was lost.
+// (T45 H17)
+import { installOfflineSupport } from './offline/register';
 
 // Error boundary for the entire app
 class GlobalErrorBoundary extends React.Component<any, any> {
@@ -54,3 +58,5 @@ ReactDOM.createRoot(rootEl).render(
 
 // Clear React 18's no-op onclick trap that can block event delegation
 requestAnimationFrame(() => { if (rootEl.onclick) rootEl.onclick = null; });
+
+installOfflineSupport();

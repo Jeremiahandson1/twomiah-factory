@@ -105,7 +105,9 @@ export interface AppShellProps {
 }
 
 // ---------------------------------------------------------------- settings
-export interface RoleOption { value: 'field' | 'manager' | 'admin'; label: string; description: string }
+// `viewer` was added to DEFAULT_ROLES below and never to this union, so the shared shell has not
+// typechecked since — and no template runs tsc in CI, which is why it sat there.
+export interface RoleOption { value: 'viewer' | 'field' | 'manager' | 'admin'; label: string; description: string }
 
 export interface SettingsConfig {
   /** Wording of the Add User role picker (the values are what the backend accepts). */

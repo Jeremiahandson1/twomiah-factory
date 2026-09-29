@@ -74,20 +74,68 @@ app.post('/sync', requireRole('budtender'), async (c) => {
       let syncError: string | null = null
 
       if (txn.transactionType === 'order') {
-        // Replay order creation
+        // Replay order creation.
+        //
+        // This used to write the header alone: an order at the right total with no lines and no
+        // stock movement. For a sale a customer has already walked out with, that is a hole in
+        // three places at once — inventory still shows product that left the building, the
+        // compliance surfaces have nothing to report, and a recall could not name who bought it.
+        // The lines and the stock move with the order now. (T45 H17)
         const p = txn.payload
         const orderNumber = `ORD-OFF-${Date.now().toString(36).toUpperCase()}`
         const insertResult = await db.execute(sql`
           INSERT INTO orders (id, number, type, status, contact_id, customer_name,
-            subtotal, total_tax, total, notes, budtender_id, company_id, created_at, updated_at)
+            subtotal, excise_tax, sales_tax, total_tax, total, payment_method, payment_status,
+            notes, budtender_id, id_verified, company_id, created_at, updated_at, completed_at)
           VALUES (gen_random_uuid(), ${orderNumber}, ${p.type || 'walk_in'}, ${p.status || 'pending'},
             ${p.contactId || null}, ${p.customerName || null},
-            ${p.subtotal || '0'}, ${p.totalTax || '0'}, ${p.total || '0'},
-            ${p.notes || null}, ${currentUser.userId}, ${currentUser.companyId},
-            ${txn.createdOfflineAt}::timestamptz, NOW())
+            ${p.subtotal || '0'}, ${p.exciseTax || '0'}, ${p.salesTax || '0'},
+            ${p.totalTax || '0'}, ${p.total || '0'},
+            ${p.paymentMethod || null}, ${p.paymentStatus || (p.status === 'completed' ? 'paid' : 'pending')},
+            ${p.notes || null}, ${currentUser.userId}, ${p.idVerified === true}, ${currentUser.companyId},
+            ${txn.createdOfflineAt}::timestamptz, NOW(),
+            ${p.status === 'completed' ? txn.createdOfflineAt : null}::timestamptz)
           RETURNING id, number
         `)
         replayResult = ((insertResult as any).rows || insertResult)?.[0]
+
+        const replayedItems = Array.isArray(p.items) ? p.items : []
+        for (const item of replayedItems) {
+          if (!item?.productId) continue
+          const quantity = Math.max(0, Math.round(Number(item.quantity) || 0))
+          if (quantity === 0) continue
+
+          // Price and classification come off the product as it stands NOW, not off the till's
+          // copy — a queued sale is re-checked against live data, which is the whole reason it
+          // is replayed through the server rather than written by the till.
+          const prodRes = await db.execute(sql`
+            SELECT id, name, category, price, tax_category FROM products
+            WHERE id = ${item.productId} AND company_id = ${currentUser.companyId}
+            LIMIT 1
+          `)
+          const prod = ((prodRes as any).rows || prodRes)?.[0]
+          if (!prod) throw new Error(`Product ${item.productId} no longer exists`)
+
+          const unitPrice = item.unitPrice != null ? String(item.unitPrice) : String(prod.price ?? '0')
+          const lineTotal = (Number(unitPrice) * quantity).toFixed(2)
+
+          await db.execute(sql`
+            INSERT INTO order_items (id, order_id, company_id, product_id, product_name, category,
+              quantity, refunded_quantity, unit_price, total_price, line_total, tax_category)
+            VALUES (gen_random_uuid(), ${replayResult?.id}, ${currentUser.companyId}, ${prod.id},
+              ${prod.name}, ${prod.category}, ${quantity}, 0, ${unitPrice}, ${lineTotal}, ${lineTotal},
+              ${prod.tax_category || null})
+          `)
+
+          // Stock leaves the shelf for a completed sale, exactly as it does at the register.
+          if ((p.status || 'pending') === 'completed') {
+            await db.execute(sql`
+              UPDATE products
+              SET stock_quantity = GREATEST(COALESCE(stock_quantity, 0) - ${quantity}, 0), updated_at = NOW()
+              WHERE id = ${prod.id} AND company_id = ${currentUser.companyId}
+            `)
+          }
+        }
 
       } else if (txn.transactionType === 'payment') {
         // Replay payment completion

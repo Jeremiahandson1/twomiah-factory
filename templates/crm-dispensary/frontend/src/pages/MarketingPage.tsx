@@ -8,7 +8,7 @@
 // recipients of before you send it is a campaign you send blind — so the audience count sits beside
 // the Send button and updates as the audience is chosen, and Send is refused when it is zero.
 import { useState, useEffect, useCallback } from 'react';
-import { Mail, MessageSquare, Plus, Send, Trash2, Users, Clock, Loader2 } from 'lucide-react';
+import { Mail, MessageSquare, Plus, Send, Trash2, Users, Clock } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { usePermissions } from '../contexts/PermissionsContext';
@@ -146,6 +146,7 @@ export default function MarketingPage() {
   };
 
   const sendExisting = async (campaign: any) => {
+    if (sendingId) return;
     setSendingId(campaign.id);
     try {
       const result = await api.post(`/api/marketing/campaigns/${campaign.id}/send`) as any;
@@ -186,25 +187,18 @@ export default function MarketingPage() {
     { key: 'createdAt', label: 'Created', render: (v: string) => (v ? formatDate(v) : '--') },
   ];
 
-  const tableActions = (row: any) => (
-    <div className="flex items-center gap-3">
-      {canSend && row.status !== 'sent' && (
-        <button
-          onClick={() => sendExisting(row)}
-          disabled={sendingId === row.id}
-          className="text-sm text-green-600 hover:text-green-700 flex items-center gap-1 disabled:opacity-50 dark:hover:text-green-300"
-        >
-          {sendingId === row.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
-          Send
-        </button>
-      )}
-      {canDelete && (
-        <button onClick={() => setDeleting(row)} className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1 dark:hover:text-red-300">
-          <Trash2 className="w-3 h-3" />Delete
-        </button>
-      )}
-    </div>
-  );
+  // DataTable takes a list of actions, not a render function.
+  const tableActions = [
+    ...(canSend ? [{
+      label: 'Send',
+      icon: Send,
+      onClick: (row: any) => {
+        if (row.status === 'sent') { toast.error('That campaign has already been sent'); return; }
+        sendExisting(row);
+      },
+    }] : []),
+    ...(canDelete ? [{ label: 'Delete', icon: Trash2, onClick: (row: any) => setDeleting(row) }] : []),
+  ];
 
   return (
     <div>

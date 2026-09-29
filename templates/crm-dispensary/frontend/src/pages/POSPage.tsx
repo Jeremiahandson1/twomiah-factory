@@ -3,6 +3,8 @@ import { Search, Plus, Minus, Trash2, User, CreditCard, Banknote, ShieldCheck, G
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
+// Offline POS: a sale the network lost is held locally and replayed, rather than lost. (T45 H17)
+import { enqueue, pendingCount, isNetworkFailure, isOnline } from '../offline/queue';
 
 interface CartItem {
   id: string;
@@ -54,6 +56,9 @@ export default function POSPage() {
   const [loyaltyApplied, setLoyaltyApplied] = useState(false);
   const [loyaltyDiscount, setLoyaltyDiscount] = useState(0);
   const [processing, setProcessing] = useState(false);
+  // Whether this till can reach the network, and how many sales it is holding. (T45 H17)
+  const [online, setOnline] = useState(isOnline());
+  const [queued, setQueued] = useState(pendingCount());
   /**
    * A ticket that was raised but not settled.
    *
@@ -392,6 +397,20 @@ export default function POSPage() {
     setRewardPickerOpen(false);
   };
 
+  // Keep the banner honest. The queue is flushed by src/offline/register.ts on reconnect; this
+  // only watches, so a cashier can see the count go down rather than wonder. (T45 H17)
+  useEffect(() => {
+    const sync = () => { setOnline(isOnline()); setQueued(pendingCount()); };
+    window.addEventListener('online', sync);
+    window.addEventListener('offline', sync);
+    const timer = window.setInterval(sync, 5000);
+    return () => {
+      window.removeEventListener('online', sync);
+      window.removeEventListener('offline', sync);
+      clearInterval(timer);
+    };
+  }, []);
+
   const completeOrder = async () => {
     if (!idVerified) {
       toast.error('ID must be verified before completing sale');
@@ -466,6 +485,52 @@ export default function POSPage() {
       setMemberPoints(null);
       searchRef.current?.focus();
     } catch (err: any) {
+      // A DROPPED CONNECTION is not a refused sale.
+      //
+      // The customer is standing there and the product is in their hand; refusing to record it
+      // loses the money and loses a regulated transaction the state expects to see. So when the
+      // network is what failed — and only then — the sale is held locally and replayed to
+      // /api/offline/sync the moment the connection returns, where the server re-checks it
+      // against live stock and limits before committing anything. A 400 means the sale is wrong
+      // and is still refused here, exactly as before. (T45 H17)
+      if (!pendingOrderId && isNetworkFailure(err)) {
+        const held = enqueue({
+          transactionType: 'order',
+          locationId: (user as any)?.locationId || 'default',
+          payload: {
+            type: 'walk_in',
+            status: 'completed',
+            contactId: customer?.id || null,
+            customerName: customer?.name || null,
+            paymentMethod,
+            paymentStatus: 'paid',
+            idVerified,
+            subtotal: subtotal.toFixed(2),
+            exciseTax: exciseAmount.toFixed(2),
+            salesTax: salesTaxAmount.toFixed(2),
+            totalTax: taxAmount.toFixed(2),
+            total: total.toFixed(2),
+            items: cart.map(i => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.price })),
+            notes: 'Rung up while offline',
+          },
+        });
+        if (held) {
+          setQueued(pendingCount());
+          toast.success(`No connection — the sale is held and will be sent when you are back online (${pendingCount()} waiting)`);
+          setCart([]);
+          setCustomer(null);
+          setCashTendered('');
+          setIdVerified(false);
+          setLoyaltyApplied(false);
+          setLoyaltyDiscount(0);
+          setSelectedReward(null);
+          setMemberPoints(null);
+          searchRef.current?.focus();
+          return;
+        }
+        toast.error('No connection, and the offline queue is full. Write this sale down before clearing it.');
+        return;
+      }
       // Say which ticket is being held, or the operator cannot tell why the next press behaves
       // differently — and cannot find the order to void it.
       toast.error((err.message || 'Failed to complete order') + (pendingOrderId ? ' — the ticket is held; Checkout will finish this same order.' : ''));
@@ -475,7 +540,19 @@ export default function POSPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] -m-6 gap-0">
+    <div className="flex flex-col h-[calc(100vh-4rem)] -m-6 gap-0">
+      {/* A cashier has to be able to see that the till is off the network, and that sales are
+          being held rather than sent. Without this the register looks normal right up until
+          someone asks where the day's takings went. (T45 H17) */}
+      {(!online || queued > 0) && (
+        <div className={`px-4 py-2 text-sm font-medium flex items-center gap-2 ${online ? 'bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200' : 'bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200'}`}>
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          {online
+            ? `Back online — sending ${queued} held ${queued === 1 ? 'sale' : 'sales'}…`
+            : `No connection. Sales are being held on this till${queued > 0 ? ` (${queued} waiting)` : ''} and will be sent when you are back online.`}
+        </div>
+      )}
+      <div className="flex flex-1 gap-0 overflow-hidden">
       {/* LEFT: Product Grid */}
       <div className="flex-1 flex flex-col bg-gray-50 border-r overflow-hidden dark:bg-slate-900">
         {/* Category Tabs */}
@@ -852,6 +929,7 @@ export default function POSPage() {
             {processing ? 'Processing...' : 'Complete Sale'}
           </button>
         </div>
+      </div>
       </div>
     </div>
   );
