@@ -103,7 +103,67 @@ app.put('/:id', requirePermission('team:update'), async (c) => {
   // Scope by companyId — an id alone must never reach another tenant's row.
   const [existing] = await db.select({ id: teamMember.id }).from(teamMember)
     .where(and(eq(teamMember.id, id), eq(teamMember.companyId, user.companyId))).limit(1)
-  if (!existing) return c.json({ error: 'Team member not found' }, 404)
+
+  // ── the row might be a LOGIN, not a roster entry ─────────────────────────────────────────────
+  //
+  // GET / unions team_member rows together with the `user` accounts (F-14, so the owner does not
+  // vanish from the Team page the moment staff are added) — and this only ever looked in
+  // team_member. On a shop whose staff all have logins, which is most of them, EVERY row on that
+  // page 404'd "Team member not found" when you pressed Save.
+  //
+  // T47 P7 found it through the hourly rate, and that is the whole chain: payroll reads
+  // COALESCE(u.hourly_rate, tm.hourly_rate, 0) — the login's rate first — and nothing in the
+  // product could write to u.hourly_rate. So every rate stayed null, every gross pay came out $0,
+  // and the 8-hours-plus-overtime calculation could not be exercised at all.
+  if (!existing) {
+    const [account] = await db.select().from(userTable)
+      .where(and(eq(userTable.id, id), eq(userTable.companyId, user.companyId))).limit(1)
+    if (!account) return c.json({ error: 'Team member not found' }, 404)
+
+    // A login carries fewer fields than a roster entry. Say so rather than accepting a department
+    // or a skills list and quietly dropping it.
+    //
+    // Only a REAL value counts. The Team dialog posts the whole form every time, so `department: ''`
+    // arrives on every save whether or not anyone typed in it — refusing that would break the exact
+    // screen this is fixing, which is the shape of bug a new 400 usually is.
+    const givenAValue = (v: any) => v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && v.length === 0)
+    const notOnALogin = (['department', 'hireDate', 'skills', 'notes'] as const).filter((k) => givenAValue((data as any)[k]))
+    if (notOnALogin.length) {
+      return c.json({
+        error: `${account.firstName} ${account.lastName} is a login, not a roster entry, so ${notOnALogin.join(', ')} cannot be set here.`,
+        code: 'not_on_a_login', fields: notOnALogin,
+      }, 400)
+    }
+
+    // Two things nobody should do to themselves by accident on a staff screen.
+    if (id === user.userId && data.role !== undefined && data.role !== account.role) {
+      return c.json({ error: 'You cannot change your own role.', code: 'cannot_change_own_role' }, 400)
+    }
+    if (id === user.userId && data.active === false) {
+      return c.json({ error: 'You cannot deactivate your own account.', code: 'cannot_deactivate_self' }, 400)
+    }
+
+    const names = data.name ? String(data.name).trim().split(/\s+/) : null
+    const [updated] = await db.update(userTable).set({
+      ...(names ? { firstName: names[0], lastName: names.slice(1).join(' ') || account.lastName } : {}),
+      ...(data.email !== undefined ? { email: data.email } : {}),
+      ...(data.phone !== undefined ? { phone: data.phone } : {}),
+      ...(data.role !== undefined ? { role: data.role } : {}),
+      ...(data.active !== undefined ? { isActive: data.active } : {}),
+      ...(data.hourlyRate !== undefined ? { hourlyRate: data.hourlyRate === null ? null : String(data.hourlyRate) } : {}),
+      updatedAt: new Date(),
+    } as any).where(and(eq(userTable.id, id), eq(userTable.companyId, user.companyId))).returning()
+
+    // Shaped like the list this row came from, so the screen reads back what it just sent.
+    return c.json({
+      id: updated.id,
+      name: `${updated.firstName} ${updated.lastName}`.trim(),
+      email: updated.email, phone: updated.phone, role: updated.role,
+      department: null, hireDate: null,
+      hourlyRate: updated.hourlyRate, active: updated.isActive,
+      _source: 'user' as const,
+    })
+  }
 
   if (data.email) {
     const [dupe] = await db.select({ id: teamMember.id }).from(teamMember)

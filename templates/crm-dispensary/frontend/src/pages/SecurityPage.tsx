@@ -277,13 +277,20 @@ export default function SecurityPage() {
   };
 
   const generateBackupCodes = async () => {
+    // A POST, and it says what it is about to do. Generating replaces any codes already printed and
+    // put somewhere safe, and the old set stops working the instant this runs — so the person
+    // pressing the button is asked first, and the request carries their answer. This used to be a
+    // GET, which meant merely opening the address destroyed the owner's recovery codes. (T47 P11)
+    if (!window.confirm(
+      'Generate new recovery codes?\n\nIf you already have a set, those codes stop working immediately and cannot be recovered. The new ones are shown once.'
+    )) return;
     setGeneratingCodes(true);
     try {
-      const data = await api.get('/api/security/mfa/backup-codes');
+      const data = await api.post('/api/security/mfa/backup-codes', { confirm: true });
       setBackupCodes(data?.codes || []);
       setBackupCodesModal(true);
-    } catch {
-      toast.error('Failed to generate backup codes');
+    } catch (err) {
+      toast.error((err as Error)?.message || 'Failed to generate backup codes');
     } finally {
       setGeneratingCodes(false);
     }

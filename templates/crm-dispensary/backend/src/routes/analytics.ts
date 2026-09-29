@@ -197,7 +197,7 @@ app.get('/summary', async (c) => {
         -- how many medical sales a shop made. (T43 N4)
         COUNT(CASE WHEN status IN ${settledSale} AND type = 'walk_in' THEN 1 END)::int as walk_in_count,
         COUNT(CASE WHEN status IN ${settledSale} AND type = 'delivery' THEN 1 END)::int as delivery_count,
-        COUNT(CASE WHEN status IN ${settledSale} AND type = 'online' THEN 1 END)::int as online_count,
+        COUNT(CASE WHEN status IN ${settledSale} AND (source = 'online' OR type = 'online') THEN 1 END)::int as online_count,
         COUNT(CASE WHEN status IN ${settledSale} AND is_medical = true THEN 1 END)::int as medical_count
       FROM orders
       WHERE company_id = ${currentUser.companyId}

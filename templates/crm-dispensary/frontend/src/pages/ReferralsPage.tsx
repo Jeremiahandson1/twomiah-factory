@@ -11,11 +11,11 @@ import { Button, PageHeader } from '../components/ui/DataTable';
 
 // The config fields that are numbers to the API but TEXT while someone is typing into them.
 // Listed once so the load, the save and the validation cannot drift apart.
-const NUMERIC_CONFIG_FIELDS = ['referrerRewardValue', 'referredRewardValue', 'minPurchase', 'expirationDays', 'maxReferralsPerCustomer'] as const;
+const NUMERIC_CONFIG_FIELDS = ['referrerRewardValue', 'referredRewardValue', 'minPurchaseAmount', 'expirationDays', 'maxReferralsPerCustomer'] as const;
 const CONFIG_FIELD_LABELS: Record<string, string> = {
   referrerRewardValue: 'Referrer reward',
   referredRewardValue: 'Referred reward',
-  minPurchase: 'Minimum purchase',
+  minPurchaseAmount: 'Minimum purchase',
   expirationDays: 'Expiry (days)',
   maxReferralsPerCustomer: 'Max referrals per customer',
 };
@@ -41,7 +41,7 @@ export default function ReferralsPage() {
     referrerRewardValue: '10',
     referredRewardType: 'discount_percent',
     referredRewardValue: '10',
-    minPurchase: '0',
+    minPurchaseAmount: '0',
     expirationDays: '30',
     maxReferralsPerCustomer: '0',
   });
@@ -133,12 +133,18 @@ export default function ReferralsPage() {
     }
   };
 
+  // The four the SERVER accepts and acts on, spelled its way.
+  //
+  // These used to be five values of the screen's own invention — loyalty_points, discount_fixed,
+  // free_item, store_credit — none of which the API has ever taken. A stored 'points' matched no
+  // option, so the select fell back to rendering the FIRST one and the screen said "Discount (%)"
+  // over a config that gives points. Pressing Save then wrote back whatever it was showing.
+  // (T47 P8; the grant path in routes/referrals.ts handles exactly these four.)
   const rewardTypes = [
+    { value: 'points', label: 'Loyalty Points' },
     { value: 'discount_percent', label: 'Discount (%)' },
-    { value: 'discount_fixed', label: 'Discount ($)' },
-    { value: 'loyalty_points', label: 'Loyalty Points' },
-    { value: 'free_item', label: 'Free Item' },
-    { value: 'store_credit', label: 'Store Credit ($)' },
+    { value: 'discount_flat', label: 'Discount ($)' },
+    { value: 'credit', label: 'Store Credit ($)' },
   ];
 
   const tabs = [
@@ -293,8 +299,8 @@ export default function ReferralsPage() {
                       disabled={!isAdmin}
                       type="number"
                       step="0.01"
-                      value={config.minPurchase}
-                      onChange={e => setConfig({ ...config, minPurchase: e.target.value })}
+                      value={config.minPurchaseAmount}
+                      onChange={e => setConfig({ ...config, minPurchaseAmount: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                       placeholder="0"
                     />

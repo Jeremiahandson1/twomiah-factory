@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { order, orderItem, product, contact, company, user } from '../../db/schema.ts'
-import { eq, and, gte, lte, desc, count, sql, inArray, isNull } from 'drizzle-orm'
+import { eq, and, or, gte, lte, desc, count, sql, inArray, isNull } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
@@ -178,7 +178,22 @@ app.get('/', async (c) => {
 
   const conditions: any[] = [eq(order.companyId, currentUser.companyId)]
   if (status) conditions.push(eq(order.status, status))
-  if (type) conditions.push(eq(order.type, type))
+
+  // "Online" is not a TYPE of order, it is where the order came FROM.
+  //
+  // An order placed on the public menu is a pickup or a delivery — that is what the customer chose
+  // — and it carries source 'online'. The Orders screen's Online tab sends type=online, which
+  // matched nothing, so the tab read "No orders found" with three online orders sitting in the
+  // list behind it. (T47 P6, and T46 N21 before it: the source was added and nothing read it.)
+  //
+  // The filter is translated rather than the screen changed, because type=online is what every
+  // caller already sends and an order genuinely placed with type 'online' by an older build should
+  // still be found by the same tab.
+  if (type === 'online') conditions.push(or(eq(order.source, 'online'), eq(order.type, 'online'))!)
+  else if (type) conditions.push(eq(order.type, type))
+  // …and asking by source directly, for anyone who would rather be explicit.
+  const source = c.req.query('source')
+  if (source) conditions.push(eq(order.source, source))
   // PRIVACY: without this the customer order-history panel showed EVERY customer's
   // orders/spend under one patient's name. Scope to the requested contact. (N1)
   if (contactId) conditions.push(eq(order.contactId, contactId))

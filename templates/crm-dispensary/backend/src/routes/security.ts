@@ -513,9 +513,63 @@ app.delete('/mfa/devices/:id', async (c) => {
   return c.json({ success: true })
 })
 
-// Generate backup codes
+/**
+ * How many recovery codes are on file, and when they were made. Reading is safe; it returns no code.
+ *
+ * T47 P11: the only route here was a GET that REPLACED the owner's recovery codes on every call.
+ * Opening the address — a link, a browser prefetch, a refresh, a crawler following a URL out of the
+ * logs — silently invalidated the ten codes they had printed and put in a drawer, and they would
+ * find out the day they were locked out of their own dispensary. A GET must not destroy anything.
+ */
 app.get('/mfa/backup-codes', async (c) => {
   const currentUser = c.get('user') as any
+  const [row] = ((await db.execute(sql`
+    SELECT backup_codes, created_at FROM mfa_devices
+    WHERE user_id = ${currentUser.userId} AND company_id = ${currentUser.companyId} AND type = 'backup_codes'
+    LIMIT 1
+  `)) as any).rows || []
+
+  const stored = Array.isArray(row?.backup_codes)
+    ? row.backup_codes
+    : (typeof row?.backup_codes === 'string' ? JSON.parse(row.backup_codes || '[]') : [])
+
+  return c.json({
+    // The codes themselves are shown ONCE, when they are made, and are only stored hashed — there
+    // is nothing here to give back even if this wanted to.
+    hasCodes: stored.length > 0,
+    remaining: stored.length,
+    createdAt: row?.created_at || null,
+    hint: stored.length > 0
+      ? 'Generating a new set replaces these. Any code you have written down stops working.'
+      : 'No recovery codes yet. Generate a set and keep them somewhere safe.',
+  })
+})
+
+/**
+ * Make a new set of ten, replacing any that exist.
+ *
+ * A POST, and it asks to be meant: `{ confirm: true }`. Replacing recovery codes is destructive and
+ * irreversible — the previous set stops working the instant this runs, and the only copy of the new
+ * one is the response. (T47 P11)
+ */
+app.post('/mfa/backup-codes', async (c) => {
+  const currentUser = c.get('user') as any
+
+  const body = await c.req.json().catch(() => ({}))
+  if ((body as any)?.confirm !== true) {
+    const [existing] = ((await db.execute(sql`
+      SELECT id FROM mfa_devices
+      WHERE user_id = ${currentUser.userId} AND company_id = ${currentUser.companyId} AND type = 'backup_codes'
+      LIMIT 1
+    `)) as any).rows || []
+    return c.json({
+      error: existing
+        ? 'This replaces the recovery codes you already have, and the old ones stop working immediately. Send confirm: true if that is what you want.'
+        : 'This creates your recovery codes and shows them once. Send confirm: true to go ahead.',
+      code: 'confirm_required',
+      replacesExisting: !!existing,
+    }, 400)
+  }
 
   // Generate 10 single-use backup codes
   const codes: string[] = []
