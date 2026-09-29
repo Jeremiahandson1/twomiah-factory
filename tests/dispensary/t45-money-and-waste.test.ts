@@ -108,7 +108,9 @@ check('H15: ...and so did the batch it came out of', Number(batchAfter[0]?.curre
 check('H15: ...and the response says where stock landed', waste.json?.stockAfter === 20, waste.json?.stockAfter)
 
 // ── H18: a day with several drawers ─────────────────────────────────────────────────────────────
-const today = new Date().toISOString().split('T')[0]
+// The STORE's today (this shop is in Ohio), not UTC's. End of Day refuses a day that has not
+// happened yet on the shop's clock, and for five hours a night the two calendars disagree.
+const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date())
 // Pinned to clock times ON the report date rather than "N minutes ago": run this shortly after
 // UTC midnight and "ten hours ago" is yesterday, so EOD finds no drawers and the assertions read
 // as a regression that is really the clock.
@@ -161,7 +163,11 @@ await db.execute(sql`
          (gen_random_uuid(), ${ord.id}, ${co.id}, ${tee.id}, 'Logo Tee', 1, 0, '25', '25', '25', 'merch', 'non_cannabis')
 `)
 
-const period = { periodStart: `${today}T00:00:00.000Z`, periodEnd: today }
+// A tax filing's period is bounded on the raw completed_at timestamps, not on the store's
+// calendar — so this window is written in UTC, which is what NOW() above wrote. (End of Day, just
+// up the file, is the opposite: it buckets by the SHOP's day and needs the shop's date.)
+const utcToday = new Date().toISOString().split('T')[0]
+const period = { periodStart: `${utcToday}T00:00:00.000Z`, periodEnd: utcToday }
 const excise = await asOwner('POST', '/api/tax-filing/filings/generate', { filingType: 'excise_tax', ...period })
 check('H16: an excise filing is created', excise.status === 201 || excise.status === 200, { status: excise.status, body: excise.json })
 check('H16: it is stamped with the shop\'s own state, not "NA"',

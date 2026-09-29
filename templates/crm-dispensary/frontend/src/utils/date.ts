@@ -55,3 +55,41 @@ export function storeDay(timeZone?: string | null, d: Date = new Date()): string
     return localDay(d);
   }
 }
+
+/**
+ * A timestamp as the SHOP would read it.
+ *
+ * T45 M24: the order list and the order page rendered times with the browser's zone, so a manager
+ * in Central saw an Ohio sale at 11:01 AM that the till rang, printed on the receipt and filed
+ * with the state at 12:01 PM. Two different times for one sale, and neither screen said which
+ * clock it was using.
+ *
+ * The shop's zone comes from /auth/me as company.timeZone. With none given this falls back to the
+ * viewer's own clock — the old behaviour — rather than showing nothing.
+ */
+export function formatDateTime(value?: string | number | Date | null, timeZone?: string | null): string {
+  if (value === null || value === undefined || value === '') return '';
+  const d = value instanceof Date ? value : new Date(String(value));
+  if (isNaN(d.getTime())) return '';
+  if (!timeZone) return d.toLocaleString();
+  try {
+    return d.toLocaleString(undefined, { timeZone });
+  } catch {
+    return d.toLocaleString();
+  }
+}
+
+/**
+ * The short form of the above — a time of day on the shop's clock, with the zone named so nobody
+ * has to guess which one they are looking at.
+ */
+export function formatTimeInZone(value?: string | number | Date | null, timeZone?: string | null): string {
+  if (value === null || value === undefined || value === '') return '';
+  const d = value instanceof Date ? value : new Date(String(value));
+  if (isNaN(d.getTime())) return '';
+  try {
+    return d.toLocaleTimeString(undefined, timeZone ? { timeZone, timeZoneName: 'short' } : { timeZoneName: 'short' });
+  } catch {
+    return d.toLocaleTimeString();
+  }
+}

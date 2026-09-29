@@ -188,9 +188,12 @@ const row: any = await db.execute(sql`SELECT delivery_status, delivered_at FROM 
 const r0 = ((row as any).rows || row)?.[0]
 check('H20: ...and nothing was recorded', !r0?.delivered_at, r0)
 
+// A delivery needs somewhere to go — the customer here has no address on file, so the order says
+// where. (T45 M10)
 const del = await asOwner('POST', '/api/orders', {
   contactId: cust.id, items: [{ productId: shirt.id, quantity: 1 }],
   type: 'delivery', idVerified: true, paymentMethod: 'cash',
+  deliveryAddress: '1 Main St, Columbus, OH 43004',
 })
 const earlyDeliver = await asBudtender('PUT', `/api/delivery/orders/${del.json?.id}/status`, { deliveryStatus: 'delivered' })
 check('H20: a real delivery that has not been settled cannot be marked delivered either',

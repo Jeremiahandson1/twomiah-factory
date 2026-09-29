@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { formatDate } from '../utils/date';
+import { formatDate, formatDateTime } from '../utils/date';
+import { useAuth } from '../contexts/AuthContext';
 import { orderRef } from '../utils/order';
 import { useNavigate } from 'react-router-dom';
 import { Search, Eye, RotateCcw, ShoppingCart } from 'lucide-react';
@@ -41,6 +42,9 @@ const statusColors: Record<string, string> = {
 };
 
 export default function OrdersPage() {
+  const { company } = useAuth();
+  // The shop's clock, so the list agrees with the receipt. (T45 M24)
+  const storeTz = (company as any)?.timeZone as string | undefined;
   const toast = useToast();
   const navigate = useNavigate();
   const [orders, setOrders] = useState<any[]>([]);
@@ -142,9 +146,12 @@ export default function OrdersPage() {
     {
       key: 'createdAt',
       label: 'Date',
+      // On the SHOP's clock, not the viewer's — a manager in Central was reading 11:01 AM for a
+      // sale the Ohio till rang at 12:01 PM, and the list said nothing about which zone it meant.
+      // (T45 M24)
       render: (val: string) => (
         <span className="text-gray-500 text-sm dark:text-slate-400">
-          {val ? formatDate(val) : '—'}
+          {val ? formatDateTime(val, storeTz) : '—'}
         </span>
       ),
     },

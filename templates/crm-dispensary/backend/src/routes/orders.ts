@@ -288,6 +288,16 @@ app.post('/', requireRole('budtender'), async (c) => {
     // a manager's POS PIN, or the id of a request a manager approved on the Approvals page.
     managerPin: z.union([z.string(), z.number()]).optional(),
     approvalRequestId: z.string().optional(),
+    // Where a DELIVERY is going, and on whose terms.
+    //
+    // T45 M10: a staff-created delivery order kept none of this. No address, so nobody could
+    // deliver it; no zone, so no fee was charged and the zone's minimum order was not enforced;
+    // and the Active list showed raw ids, "Unknown" for the customer and "0 items", because there
+    // was nothing to show. The public order-ahead path has always collected these — the staff path
+    // simply never named them, so zod stripped them.
+    deliveryAddress: z.string().optional(),
+    deliveryNotes: z.string().optional(),
+    deliveryZoneId: z.string().optional(),
   })
 
   const body = await c.req.json()
@@ -599,10 +609,85 @@ app.post('/', requireRole('budtender'), async (c) => {
   // and non-cannabis merchandise pro rata so excise (cannabis only) and sales tax (everything)
   // each apply to their own net base. Round to cents: raw floats like 2.8000000000000003
   // rendered badly and broke exact-match reconciliation/exports. (retest#5 tax)
-  const { exciseTax, salesTax, totalTax, grandTotal } = assessTax({
+  const { exciseTax, salesTax, totalTax, grandTotal: taxedTotal } = assessTax({
     subtotal, cannabisSubtotal, discount: totalDiscount, rates: { salesRate, exciseRate },
   })
 
+  // ── Delivery: where it goes, what it costs, and whether this zone will take it ──────────────
+  //
+  // T45 M10. A delivery with no address is not a delivery; a zone with a fee and a minimum has
+  // both of them for a reason. The zone is taken as sent, else matched on the address's ZIP —
+  // the same zip_codes list the Delivery screen fills in.
+  let deliveryAddress: string | null = null
+  let deliveryZoneId: string | null = null
+  let deliveryFee = 0
+  if (data.type === 'delivery') {
+    deliveryAddress = (data.deliveryAddress || '').trim() || null
+    if (!deliveryAddress && data.contactId) {
+      // The customer's own address is the obvious default, and the till should not have to retype it.
+      const [known] = await db.select({ address: contact.address, city: contact.city, state: contact.state, zip: contact.zip })
+        .from(contact)
+        .where(and(eq(contact.id, data.contactId), eq(contact.companyId, currentUser.companyId)))
+        .limit(1)
+      const parts = [known?.address, known?.city, known?.state, known?.zip].filter(Boolean)
+      if (parts.length) deliveryAddress = parts.join(', ')
+    }
+    if (!deliveryAddress) {
+      return c.json({
+        error: 'A delivery needs an address — either on the order or on the customer record',
+        code: 'delivery_address_required',
+      }, 400)
+    }
+
+    const zoneResult = data.deliveryZoneId
+      ? await db.execute(sql`
+          SELECT * FROM delivery_zones
+          WHERE id = ${data.deliveryZoneId} AND company_id = ${currentUser.companyId}
+          LIMIT 1
+        `)
+      : await db.execute(sql`
+          SELECT * FROM delivery_zones
+          WHERE company_id = ${currentUser.companyId} AND COALESCE(active, true) = true
+        `)
+    const zones = (zoneResult as any).rows || zoneResult
+
+    let zone: any = null
+    if (data.deliveryZoneId) {
+      zone = zones?.[0]
+      if (!zone) return c.json({ error: 'That delivery zone does not exist', code: 'delivery_zone_not_found' }, 400)
+      if (zone.active === false) return c.json({ error: `${zone.name} is not currently taking deliveries`, code: 'delivery_zone_inactive' }, 400)
+    } else {
+      // Match on the ZIP in the address. A shop with no zones set up simply charges no fee, which
+      // is the same thing it did before — the point is to stop SILENTLY ignoring a zone that exists.
+      const zipInAddress = (deliveryAddress.match(/\b[0-9]{5}(?:-[0-9]{4})?\b/g) || []).pop()
+      if (zipInAddress) {
+        const zip5 = zipInAddress.slice(0, 5)
+        zone = zones.find((z: any) => {
+          const list = Array.isArray(z.zip_codes) ? z.zip_codes : (typeof z.zip_codes === 'string' ? JSON.parse(z.zip_codes || '[]') : [])
+          return list.map((v: any) => String(v).trim().slice(0, 5)).includes(zip5)
+        }) || null
+      }
+    }
+
+    if (zone) {
+      deliveryZoneId = zone.id
+      deliveryFee = Number(zone.delivery_fee || 0) || 0
+      // minimum_order is the newer column; min_order is what older rows carry.
+      const minimum = Number(zone.minimum_order ?? zone.min_order ?? 0) || 0
+      if (minimum > 0 && subtotal < minimum) {
+        return c.json({
+          error: `${zone.name} has a $${minimum.toFixed(2)} minimum for delivery — this order is $${subtotal.toFixed(2)}`,
+          code: 'below_delivery_minimum',
+          minimum,
+          subtotal: round2(subtotal),
+        }, 400)
+      }
+    }
+  }
+
+  // The fee is charged on top of the taxed total. It is a service charge, not merchandise, so it
+  // is deliberately outside the tax base the assessment above computed.
+  const grandTotal = round2(taxedTotal + deliveryFee)
 
   // Create order in transaction
   const result = await db.transaction(async (tx) => {
@@ -656,6 +741,12 @@ app.post('/', requireRole('budtender'), async (c) => {
       // Compliance/EOD read the oz field too; it was left at its '0' default. (retest#7)
       totalCannabisWeightOz: (totalWeightGrams / 28.3495).toFixed(2),
       notes: data.notes,
+      // A delivery keeps where it is going, which zone it belongs to and what the zone charges —
+      // none of which a staff-created delivery order held before. (T45 M10)
+      deliveryAddress,
+      deliveryNotes: data.deliveryNotes || null,
+      deliveryZoneId,
+      deliveryFee: String(deliveryFee),
       budtenderId: currentUser.userId,
       companyId: currentUser.companyId,
     } as any).returning()

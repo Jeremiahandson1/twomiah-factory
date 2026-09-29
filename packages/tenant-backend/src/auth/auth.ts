@@ -13,6 +13,7 @@ import { z } from 'zod'
 import crypto from 'crypto'
 import { eq, and, gt } from 'drizzle-orm'
 import { redactCompanySettings, isPrivilegedRole } from './redactSettings'
+import { companyRowTimeZone } from '../time/businessDay'
 
 export interface AuthTables { user: any; company: any }
 export interface AuthOptions {
@@ -84,6 +85,13 @@ export function createAuthRoutes(deps: AuthDeps) {
     phone: c.phone, email: c.email, address: c.address, city: c.city, state: c.state, zip: c.zip, website: c.website,
     enabledFeatures: c.enabledFeatures,
     settings: redactCompanySettings(c.settings, { privileged: isPrivilegedRole(role) }),
+    // The clock the shop keeps its books on, resolved here rather than in the browser. Every figure
+    // the server reports is bucketed on it, so a screen rendering a timestamp with the viewer's own
+    // zone shows a different time from the one on the receipt — T45 M24 read an order at 11:01 AM in
+    // Central that the Ohio till rang at 12:01 PM. AnalyticsPage was already reaching for
+    // company.timeZone and getting undefined, so its own store-day fix had quietly been falling back
+    // to the viewer's calendar since it shipped.
+    timeZone: companyRowTimeZone(c),
     createdAt: c.createdAt,
     visionUrl: options.visionUrl ? options.visionUrl() : null,
     vertical: options.vertical,

@@ -55,12 +55,29 @@ export async function companyTimeZone(db: any, companyId: string): Promise<strin
     const r: any = await db.execute(sql`SELECT settings, state FROM company WHERE id = ${companyId} LIMIT 1`)
     const row = ((r as any)?.rows || r)?.[0]
     if (!row) return DEFAULT_BUSINESS_ZONE
-    const s = typeof row.settings === 'string' ? JSON.parse(row.settings) : row.settings
-    if (isValidTimeZone(s?.timezone)) return s.timezone
-    const byState = STATE_TIME_ZONES[String(row.state || '').trim().toUpperCase()]
-    return byState || DEFAULT_BUSINESS_ZONE
+    return companyRowTimeZone(row)
   } catch {
     // No company row, unreadable settings, a table that does not exist on this vertical: behave as before.
+    return DEFAULT_BUSINESS_ZONE
+  }
+}
+
+/**
+ * The same answer, from a company row already in hand — no query.
+ *
+ * The SCREENS need this too. Every figure the server reports is bucketed on the shop's clock, and a
+ * screen that renders a timestamp with the browser's zone shows the manager a different time from
+ * the one on the receipt: T45 M24 watched an order read 11:01 AM in Central for a sale the Ohio
+ * till rang at 12:01 PM. /auth/me now carries `timeZone` so a screen has the shop's clock without
+ * keeping its own copy of the state table. (T45 M24)
+ */
+export function companyRowTimeZone(row: any): string {
+  try {
+    const s = typeof row?.settings === 'string' ? JSON.parse(row.settings) : row?.settings
+    if (isValidTimeZone(s?.timezone)) return s.timezone
+    const byState = STATE_TIME_ZONES[String(row?.state || '').trim().toUpperCase()]
+    return byState || DEFAULT_BUSINESS_ZONE
+  } catch {
     return DEFAULT_BUSINESS_ZONE
   }
 }

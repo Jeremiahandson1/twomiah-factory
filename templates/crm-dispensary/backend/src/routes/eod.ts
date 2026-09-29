@@ -3,11 +3,11 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { sql, eq } from 'drizzle-orm'
 import { company } from '../../db/schema.ts'
-import { storeTimeZone } from '../utils/isoTime.ts'
+import { storeTimeZone, storeDateString } from '../utils/isoTime.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
-import { taxCollected } from '../utils/revenue.ts'
+import { taxCollected, settledSale } from '../utils/revenue.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -46,6 +46,17 @@ app.post('/generate', requireRole('manager'), async (c) => {
     .from(company).where(eq(company.id, currentUser.companyId)).limit(1)
   const tzDay = storeTimeZone(coRow)
 
+  // A day that has not happened has nothing to reconcile. T45 M18 generated one for a future date
+  // and got a report of zeros that then sits in the history looking like a day with no trade.
+  // "Today" is the store's today, for the same reason the report itself is.
+  const storeToday = storeDateString(new Date(), tzDay)
+  if (reportDate > storeToday) {
+    return c.json({
+      error: `${reportDate} has not happened yet — End of Day can only be run up to ${storeToday}`,
+      code: 'future_date',
+    }, 400)
+  }
+
   // ── Orders summary ──
   // Revenue/tax/count are COMPLETED-only. Previously order_count and total_revenue had no
   // status filter, so refunded and voided orders inflated Total Revenue while the cash
@@ -53,7 +64,11 @@ app.post('/generate', requireRole('manager'), async (c) => {
   // Cash $0.00. Refunds/voids are reported on their own lines. (retest#7)
   const ordersResult = await db.execute(sql`
     SELECT
-      COUNT(*) FILTER (WHERE status IN ('completed', 'partially_refunded'))::int as order_count,
+      -- "How many sales today" has one answer in this product: the settled set, fully refunded
+      -- sales included. This counted completed + partially refunded only, so End of Day reported
+      -- fewer sales than the dashboard for the same day and neither number was wrong on its own
+      -- terms — they were answering different questions with the same words. (T45 M18)
+      COUNT(*) FILTER (WHERE status IN ${settledSale})::int as order_count,
       -- NET revenue: partial refunds subtract what was returned; full refunds count $0 (QA V-3).
       COALESCE(SUM(total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0)) FILTER (WHERE status IN ('completed', 'partially_refunded')), 0) as total_revenue,
       -- These three were already right; they are pinned to the shared row set so they cannot drift away
@@ -307,13 +322,28 @@ app.post('/generate', requireRole('manager'), async (c) => {
   // Persist to the flat eod_reports columns (this table has no report_data JSON
   // column and no unique index for ON CONFLICT). Replace any prior report for
   // the same company/date/location so a re-generate overwrites cleanly.
+  // One report per day.
+  //
+  // T45 M18: generating End of Day again for a day left the first report behind. The replace was
+  // keyed on company + date + LOCATION, so a company-wide run and a per-location run for the same
+  // day produced two rows, the history listed both, and nothing said which was the day's answer.
+  // A company-wide report is the whole day, so it supersedes everything for that date; a report
+  // for one location replaces that location's.
   const locId = locationId || null
-  await db.execute(sql`
-    DELETE FROM eod_reports
-    WHERE company_id = ${currentUser.companyId}
-      AND date = ${reportDate}::date
-      AND location_id IS NOT DISTINCT FROM ${locId}
-  `)
+  if (locId) {
+    await db.execute(sql`
+      DELETE FROM eod_reports
+      WHERE company_id = ${currentUser.companyId}
+        AND date = ${reportDate}::date
+        AND location_id = ${locId}
+    `)
+  } else {
+    await db.execute(sql`
+      DELETE FROM eod_reports
+      WHERE company_id = ${currentUser.companyId}
+        AND date = ${reportDate}::date
+    `)
+  }
   const insertResult = await db.execute(sql`
     INSERT INTO eod_reports (
       id, company_id, location_id, date, status,

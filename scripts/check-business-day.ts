@@ -29,8 +29,14 @@ const day = read(B + 'time/businessDay.ts')
 if (!day) fail('the business day must have one home (packages/tenant-backend/src/time/businessDay.ts)')
 if (!/export const DEFAULT_BUSINESS_ZONE = 'UTC'/.test(day)) fail("the fallback must be UTC — that is what the old code did, and it is what keeps an unconfigured company unchanged")
 if (!/export async function companyTimeZone\(/.test(day)) fail('…with one resolver for a company\'s zone')
+// …and a pure form of the same resolver for a row already in hand. /auth/me carries the shop's zone
+// now (T45 M24), so a SCREEN can render a timestamp on the shop's clock instead of the viewer's —
+// and it must get that answer from here rather than keeping its own copy of the state table.
+if (!/export function companyRowTimeZone\(/.test(day)) fail('…and a query-free form for a row already loaded')
 if (!/isValidTimeZone\(s\?\.timezone\)/.test(day)) fail('…preferring what the company configured')
-if (!/STATE_TIME_ZONES\[String\(row\.state \|\| ''\)/.test(day)) fail('…then what its state implies')
+if (!/STATE_TIME_ZONES\[String\(row\??\.state \|\| ''\)/.test(day)) fail('…then what its state implies')
+const authPayload = read(B + 'auth/auth.ts')
+if (!/timeZone: companyRowTimeZone\(c\)/.test(authPayload)) fail('…and /auth/me hands the shop\'s zone to the screens')
 if (!/} catch \{[\s\S]{0,200}return DEFAULT_BUSINESS_ZONE/.test(day)) fail('…and never throwing: an unreadable company row must behave as before, not 500 the dashboard')
 if (!/export function storeDayRange\(/.test(day)) fail('…and one definition of the day itself')
 if (/const end = new Date\(start\.getTime\(\) \+ 86400000\)/.test(day)) fail('a business day is not always 24 hours — the day the clocks change is 23 or 25, so the end must come from the zone')

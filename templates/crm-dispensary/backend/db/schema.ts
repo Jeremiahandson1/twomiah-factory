@@ -275,6 +275,12 @@ export const order = pgTable('orders', {
   deliveryAddress: text('delivery_address'),
   deliveryNotes: text('delivery_notes'),
   deliveryZoneId: text('delivery_zone_id'),
+  // What the zone charges to bring it. A staff-created delivery order carried no fee at all, so
+  // the shop drove the order out for nothing and no surface could say why the total differed from
+  // the merchandise. It is money the customer owes, so it is in `total`; it is not merchandise, so
+  // it is outside `subtotal` and outside the tax base — this column is what explains the gap.
+  // (T45 M10)
+  deliveryFee: text('delivery_fee').default('0'),
   budtenderId: text('budtender_id').references(() => user.id),
   driverId: text('driver_id').references(() => user.id),
   idVerified: boolean('id_verified').default(false),

@@ -7,6 +7,7 @@ import { useToast } from '../contexts/ToastContext';
 import { Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
 import { orderLabel } from '../utils/order';
+import { formatDateTime } from '../utils/date';
 
 const statusSteps = ['pending', 'processing', 'completed'];
 
@@ -21,7 +22,10 @@ const statusIcons: Record<string, any> = {
 export default function OrderDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { isManager } = useAuth();
+  const { isManager, company } = useAuth();
+  // The clock the shop keeps its books on. Rendering an order's time with the browser's zone showed
+  // a manager in Central 11:01 AM for a sale the Ohio till rang at 12:01 PM. (T45 M24)
+  const storeTz = (company as any)?.timeZone as string | undefined;
   const toast = useToast();
   const [order, setOrder] = useState<any>(null);
   const [auditLog, setAuditLog] = useState<any[]>([]);
@@ -195,7 +199,7 @@ export default function OrderDetailPage() {
               Order #{orderLabel(order)}
             </h1>
             <p className="text-gray-500 dark:text-slate-400">
-              {order.createdAt ? new Date(order.createdAt).toLocaleString() : '—'}
+              {order.createdAt ? formatDateTime(order.createdAt, storeTz) : '—'}
               {order.customerName && ` — ${order.customerName}`}
             </p>
           </div>
@@ -520,7 +524,7 @@ export default function OrderDetailPage() {
                   <div>
                     <p className="text-gray-900 dark:text-slate-100">{entry.action || entry.description}</p>
                     <p className="text-gray-500 text-xs dark:text-slate-400">
-                      {entry.userName || 'System'} — {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : ''}
+                      {entry.userName || 'System'} — {entry.createdAt ? formatDateTime(entry.createdAt, storeTz) : ''}
                     </p>
                   </div>
                 </div>
