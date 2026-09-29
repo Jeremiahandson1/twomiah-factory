@@ -129,6 +129,75 @@ app.put('/', requireAdmin, async (c) => {
     }
   }
 
+  // The company record is not free-form.
+  //
+  // T45 M3: a whitespace-only name, a 500-character name, a name carrying HTML, a phone of "abc",
+  // a ZIP of "1", a website of "javascript:alert(3)", a brand colour of "red;background:url(x)"
+  // and opening hours of 25:00 or an open after the close were all accepted. Nothing executed —
+  // the screen escapes what it renders — but this record is the shop's identity: it is on the
+  // receipt, the public menu, the label and the manifest. "Nothing exploded" is not the standard
+  // for the name a regulator reads.
+  const problems: string[] = []
+  const trimmed = (v: unknown) => (typeof v === 'string' ? v.trim() : v)
+
+  if (data.name !== undefined) {
+    const name = String(trimmed(data.name) ?? '')
+    if (!name) problems.push('The shop needs a name')
+    else if (name.length > 120) problems.push('The name is longer than 120 characters')
+    else if (/<[^>]+>/.test(name)) problems.push('The name cannot contain HTML')
+    else data.name = name
+  }
+  if (data.phone !== undefined && String(trimmed(data.phone) ?? '')) {
+    const phone = String(trimmed(data.phone))
+    // Digits, and enough of them to be a phone number. Punctuation and a country code are fine.
+    const digits = phone.replace(/[^0-9]/g, '')
+    if (digits.length < 7 || digits.length > 15 || /[a-zA-Z]/.test(phone)) {
+      problems.push(`"${phone.slice(0, 40)}" is not a phone number`)
+    } else data.phone = phone
+  }
+  if (data.zip !== undefined && String(trimmed(data.zip) ?? '')) {
+    const zip = String(trimmed(data.zip))
+    if (!/^[0-9]{5}(-[0-9]{4})?$/.test(zip)) problems.push(`"${zip.slice(0, 20)}" is not a ZIP code`)
+    else data.zip = zip
+  }
+  if (data.state !== undefined && String(trimmed(data.state) ?? '')) {
+    const st = String(trimmed(data.state)).toUpperCase()
+    if (!/^[A-Z]{2}$/.test(st)) problems.push(`"${st.slice(0, 20)}" is not a two-letter state code`)
+    else data.state = st
+  }
+  if (data.website !== undefined && String(trimmed(data.website) ?? '')) {
+    const site = String(trimmed(data.website))
+    // A link the shop's own screens render. javascript: and data: are the two that turn a stored
+    // string into running code the moment something makes it an href.
+    if (!/^https?:\/\/[^\s]+$/i.test(site)) {
+      problems.push('The website must start with http:// or https://')
+    } else data.website = site
+  }
+  if (data.primaryColor !== undefined && String(trimmed(data.primaryColor) ?? '')) {
+    const colour = String(trimmed(data.primaryColor))
+    // This value reaches a style attribute. Only a hex colour goes in.
+    if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(colour)) {
+      problems.push(`"${colour.slice(0, 40)}" is not a colour — use a hex value such as #2563eb`)
+    } else data.primaryColor = colour
+  }
+  if (data.storeHours !== undefined && data.storeHours && typeof data.storeHours === 'object') {
+    const HHMM = /^([01][0-9]|2[0-3]):[0-5][0-9]$/
+    for (const [day, raw] of Object.entries(data.storeHours as Record<string, any>)) {
+      if (!raw || typeof raw !== 'object') continue
+      if (raw.closed === true) continue
+      const open = String(raw.open ?? '')
+      const close = String(raw.close ?? '')
+      if (open && !HHMM.test(open)) problems.push(`${day}: "${open.slice(0, 10)}" is not a time of day`)
+      else if (close && !HHMM.test(close)) problems.push(`${day}: "${close.slice(0, 10)}" is not a time of day`)
+      // A shop that closes before it opens is a shop that is never open. Equal times are the same
+      // thing said differently, and are refused too.
+      else if (open && close && close <= open) problems.push(`${day}: closing at ${close} is not after opening at ${open}`)
+    }
+  }
+  if (problems.length) {
+    return c.json({ error: problems.join('; '), code: 'INVALID_COMPANY_FIELD', fields: problems }, 400)
+  }
+
   const SHADOWED = ['taxRate', 'localTaxRate', 'exciseTaxRate', 'purchaseLimitOz', 'storeHours'] as const
   if (data.settings && typeof data.settings === 'object') {
     const shadowed = SHADOWED.filter(k => (data.settings as any)[k] !== undefined)
@@ -262,6 +331,15 @@ app.put('/', requireAdmin, async (c) => {
       }
       node[parts[parts.length - 1]] = stored
     }
+    // Clear out the SHADOW copies while we are here.
+    //
+    // Those keys have real columns, and a write of one into settings is refused above — but a blob
+    // that already held them from before that rule keeps holding them for good. Settings → General
+    // showed the column while settings.storeHours still said 9–21 every day, so the shop had two
+    // sets of opening hours that disagreed and no way to tell which one anything was reading. The
+    // column is the answer; the stale copy goes on the next save. (T45 M2)
+    for (const k of SHADOWED) delete (base as any)[k]
+
     updates.settings = Object.keys(loyaltyPatch).length
       ? { ...base, loyalty: { ...((base as any).loyalty || {}), ...loyaltyPatch } }
       : base

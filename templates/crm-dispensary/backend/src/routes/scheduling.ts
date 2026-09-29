@@ -93,12 +93,68 @@ app.post('/shifts', requireRole('manager'), async (c) => {
     date: z.string(), // YYYY-MM-DD
     startTime: z.string(), // HH:MM
     endTime: z.string(),
-    breakMinutes: z.number().int().min(0).default(0),
+    breakMinutes: z.coerce.number().int().min(0).default(0),
   })
 
-  const body = await c.req.json()
+  const body = await c.req.json().catch(() => null)
+  if (body === null) return c.json({ error: 'Invalid JSON body' }, 400)
   const items = Array.isArray(body) ? body : [body]
-  const parsed = items.map(item => shiftSchema.parse(item))
+
+  let parsed: z.infer<typeof shiftSchema>[]
+  try {
+    parsed = items.map(item => shiftSchema.parse(item))
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  // A rota is a promise about who is behind the counter and when, and it is what the payroll
+  // export is computed from. T45 M12: a shift ending before it started, two overlapping shifts for
+  // one person, and a 600-minute break inside an 8-hour shift were all accepted — so the schedule
+  // could say things that cannot happen and the hours derived from it were nonsense.
+  const HHMM = /^([01][0-9]|2[0-3]):[0-5][0-9]$/
+  const minutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
+  for (const shift of parsed) {
+    if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(shift.date)) {
+      return c.json({ error: `"${shift.date}" is not a date (use YYYY-MM-DD)` }, 400)
+    }
+    if (!HHMM.test(shift.startTime) || !HHMM.test(shift.endTime)) {
+      return c.json({ error: 'Start and end must be times of day, such as 09:00' }, 400)
+    }
+    const span = minutes(shift.endTime) - minutes(shift.startTime)
+    if (span <= 0) {
+      return c.json({
+        error: `A shift ending at ${shift.endTime} cannot start at ${shift.startTime}`,
+        code: 'shift_ends_before_it_starts',
+      }, 400)
+    }
+    if (shift.breakMinutes >= span) {
+      return c.json({
+        error: `A ${shift.breakMinutes}-minute break does not fit in a shift of ${span} minutes`,
+        code: 'break_longer_than_shift',
+      }, 400)
+    }
+
+    // Nobody is in two places at once. An overlap is almost always a rota mistake, and the one
+    // time it is not, the manager can move the existing shift first.
+    const clash = await db.execute(sql`
+      SELECT id, start_time, end_time FROM shifts
+      WHERE company_id = ${currentUser.companyId}
+        AND user_id = ${shift.userId}
+        AND date = ${shift.date}
+        AND status NOT IN ('cancelled', 'no_show')
+        AND start_time < ${shift.endTime}
+        AND end_time > ${shift.startTime}
+      LIMIT 1
+    `)
+    const clashing = ((clash as any).rows || clash)?.[0]
+    if (clashing) {
+      return c.json({
+        error: `That person is already on ${shift.date} from ${clashing.start_time} to ${clashing.end_time}`,
+        code: 'shift_overlaps',
+      }, 400)
+    }
+  }
 
   const created: any[] = []
   for (const shift of parsed) {
@@ -636,27 +692,38 @@ app.get('/payroll-export', requireRole('manager'), async (c) => {
 
   if (!startDate || !endDate) return c.json({ error: 'startDate and endDate are required' }, 400)
 
+  // shifts.actual_hours and shifts.overtime_hours are TEXT columns, so every SUM() here was
+  // SUM(text) — "function sum(text) does not exist" — and the payroll export answered 500 every
+  // time it was asked for. Cast once, in a CTE, and the rest reads as arithmetic. The old
+  // "CASE WHEN actual_hours > 8" also dropped a long shift's regular hours entirely rather than
+  // capping them at 8, so a 10-hour day paid nothing but its overtime. (T45 M12)
   const dataResult = await db.execute(sql`
+    WITH worked AS (
+      SELECT
+        s.user_id,
+        COALESCE(NULLIF(s.actual_hours, ''), '0')::numeric AS hours,
+        COALESCE(NULLIF(s.overtime_hours, ''), '0')::numeric AS overtime
+      FROM shifts s
+      WHERE s.company_id = ${currentUser.companyId}
+        AND s.status = 'clocked_out'
+        AND s.date >= ${startDate}
+        AND s.date <= ${endDate}
+    )
     SELECT
-      s.user_id,
+      w.user_id,
       u.first_name || ' ' || u.last_name as name,
       u.email,
-      COALESCE(SUM(s.actual_hours), 0)::numeric(10,2) as total_hours,
-      COALESCE(SUM(CASE WHEN s.actual_hours > 8 THEN 0 ELSE s.actual_hours END), 0)::numeric(10,2) as regular_hours,
-      COALESCE(SUM(s.overtime_hours), 0)::numeric(10,2) as overtime_hours,
-      COALESCE(u.hourly_rate, 0)::numeric(10,2) as hourly_rate,
-      COALESCE(
-        SUM(CASE WHEN s.actual_hours > 8 THEN 0 ELSE s.actual_hours END) * COALESCE(u.hourly_rate, 0)
-        + SUM(s.overtime_hours) * COALESCE(u.hourly_rate, 0) * 1.5,
-        0
-      )::numeric(10,2) as gross_pay
-    FROM shifts s
-    LEFT JOIN "user" u ON u.id = s.user_id
-    WHERE s.company_id = ${currentUser.companyId}
-      AND s.status = 'clocked_out'
-      AND s.date >= ${startDate}
-      AND s.date <= ${endDate}
-    GROUP BY s.user_id, u.first_name, u.last_name, u.email, u.hourly_rate
+      ROUND(SUM(w.hours), 2) as total_hours,
+      ROUND(SUM(LEAST(w.hours, 8)), 2) as regular_hours,
+      ROUND(SUM(w.overtime), 2) as overtime_hours,
+      ROUND(COALESCE(u.hourly_rate, 0), 2) as hourly_rate,
+      ROUND(
+        SUM(LEAST(w.hours, 8)) * COALESCE(u.hourly_rate, 0)
+        + SUM(w.overtime) * COALESCE(u.hourly_rate, 0) * 1.5,
+      2) as gross_pay
+    FROM worked w
+    LEFT JOIN "user" u ON u.id = w.user_id
+    GROUP BY w.user_id, u.first_name, u.last_name, u.email, u.hourly_rate
     ORDER BY u.first_name ASC
   `)
 

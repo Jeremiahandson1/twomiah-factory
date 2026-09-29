@@ -38,8 +38,15 @@ function setCache(key: string, data: any) {
 async function resolveSlug(c: any): Promise<string | null> {
   const given = c.req.query('slug') || c.req.header('x-company-slug')
   if (given) return given
-  const rows = await db.select({ slug: company.slug }).from(company).limit(2)
-  return rows.length === 1 ? rows[0].slug : null
+  // The shop this database was created for: the first company row in it. A tenant database is
+  // one dispensary; a second row is QA debris or an enterprise import, and either way the seeded
+  // shop is the oldest. "Exactly one row" was the first version of this and it was too strict —
+  // the live test tenant carries two, so its own page was still told "Company slug is required".
+  const rows = await db.select({ slug: company.slug })
+    .from(company)
+    .orderBy(asc(company.createdAt))
+    .limit(1)
+  return rows[0]?.slug || null
 }
 
 // These routes are public — a customer with no session — so requireEnabledFeature, which reads

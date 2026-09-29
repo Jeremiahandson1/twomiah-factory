@@ -324,6 +324,41 @@ app.delete('/:id', requireRole('manager'), async (c) => {
     .limit(1)
   if (!existing) return c.json({ error: 'Product not found' }, 404)
 
+  // A product that has been sold is part of the sales record.
+  //
+  // T45 M7: a product with sales history deleted with a 204, while a CUSTOMER with history is
+  // protected — the same rule, applied to one side of the same order. Deleting it takes the line
+  // items' product with it, which is what a recall reads, what the tax filing splits on, and what
+  // a refund prices against. Retiring it is the operation that was actually wanted: it comes off
+  // the menu and out of the register, and the history it belongs to stays whole.
+  const soldResult = await db.execute(sql`
+    SELECT COUNT(*)::int AS n FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    WHERE oi.product_id = ${id} AND o.company_id = ${currentUser.companyId}
+  `)
+  const soldCount = Number(((soldResult as any).rows || soldResult)?.[0]?.n || 0)
+  if (soldCount > 0) {
+    return c.json({
+      error: `${existing.name} has been sold ${soldCount} time${soldCount === 1 ? '' : 's'} and is part of the sales record. Set it inactive instead — it comes off the menu and out of the register, and the history stays.`,
+      code: 'product_has_history',
+      soldCount,
+    }, 409)
+  }
+
+  // Same for a batch: a lot recorded against this product is a traceability record.
+  const batchResult = await db.execute(sql`
+    SELECT COUNT(*)::int AS n FROM batches
+    WHERE product_id = ${id} AND company_id = ${currentUser.companyId}
+  `)
+  const batchCount = Number(((batchResult as any).rows || batchResult)?.[0]?.n || 0)
+  if (batchCount > 0) {
+    return c.json({
+      error: `${existing.name} has ${batchCount} batch${batchCount === 1 ? '' : 'es'} recorded against it. Set it inactive instead.`,
+      code: 'product_has_batches',
+      batchCount,
+    }, 409)
+  }
+
   await db.delete(product).where(eq(product.id, id))
 
   audit.log({

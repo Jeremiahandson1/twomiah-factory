@@ -426,14 +426,28 @@ app.get('/menu', async (c) => {
   let searchFilter = sql``
   if (search) searchFilter = sql`AND (p.name ILIKE ${'%' + search + '%'} OR p.strain_name ILIKE ${'%' + search + '%'})`
 
+  // What a customer standing at the kiosk may be offered.
+  //
+  // T45 M8: this menu ignored `visible`, so a product deliberately hidden from customers was on
+  // the tablet; it listed a product priced at −$5, which the register refuses and which cancels
+  // out the rest of a basket; and it showed a zero-stock item as in stock, because `in_stock` is a
+  // flag somebody set rather than a count. All three are the same mistake — the menu asking an
+  // easier question than the till behind it.
+  const onSale = sql`
+    AND p.active = true
+    AND COALESCE(p.visible, true) = true
+    AND COALESCE(p.in_stock, true) = true
+    AND COALESCE(NULLIF(p.price, ''), '0')::numeric > 0
+    AND (COALESCE(p.track_inventory, false) = false OR COALESCE(p.stock_quantity, 0) > 0)
+  `
+
   const dataResult = await db.execute(sql`
     SELECT p.id, p.name, p.description, p.category, p.strain_name, p.strain_type,
            p.thc_percent, p.cbd_percent, p.weight, p.weight_unit, p.price, p.sale_price,
-           p.image_url, p.in_stock
+           p.image_url, p.in_stock, p.stock_quantity, p.track_inventory
     FROM products p
     WHERE p.company_id = ${companyId}
-      AND p.active = true
-      AND COALESCE(p.in_stock, true) = true
+      ${onSale}
       ${categoryFilter}
       ${searchFilter}
       ${sellableFilter}
@@ -444,8 +458,7 @@ app.get('/menu', async (c) => {
   const countResult = await db.execute(sql`
     SELECT COUNT(*)::int as total FROM products p
     WHERE p.company_id = ${companyId}
-      AND p.active = true
-      AND COALESCE(p.in_stock, true) = true
+      ${onSale}
       ${categoryFilter}
       ${searchFilter}
       ${sellableFilter}

@@ -159,6 +159,58 @@ const wasteSchema = z.object({
 // Licenses
 // ==========================================
 
+// A licence's real state, derived rather than typed.
+//
+// T45 M9: a licence whose expiry had passed was listed "active", because status is a field
+// somebody filled in once and nothing ever revisits. A shop's licence status is not an opinion —
+// if the date has gone, it is expired, and this is the page that is supposed to say so. The
+// stored status still decides suspended/revoked/pending, which a date cannot know.
+// "Today" is the shop's today. A licence that lapses at the end of the month lapses on the shop's
+// calendar, not on UTC's — for five hours a night those are different dates, and this is the
+// field that decides whether the doors may open.
+const licenceState = (row: any, today: string) => {
+  const stored = String(row.status || 'active')
+  if (stored === 'suspended' || stored === 'revoked' || stored === 'pending') return stored
+  if (!row.expiration_date) return stored
+  const expires = String(row.expiration_date).slice(0, 10)
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(expires)) return stored
+  return expires < today ? 'expired' : 'active'
+}
+
+// How long is left, in whole days. Negative means it has already gone.
+const daysUntil = (value: any, today: string): number | null => {
+  if (!value) return null
+  const when = String(value).slice(0, 10)
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(when)) return null
+  return Math.round((Date.parse(`${when}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000)
+}
+
+// The shop's clock, for a route that has a user but has not already loaded the company row.
+async function storeToday(companyId: string): Promise<string> {
+  const [coRow] = await db.select({ settings: company.settings, state: company.state })
+    .from(company).where(eq(company.id, companyId)).limit(1)
+  return storeDateString(new Date(), storeTimeZone(coRow))
+}
+
+// A licence that lapses closes the shop, so "it expires in three weeks" is the single most useful
+// thing this page can say. Nothing said it. (T45 M9)
+const EXPIRY_WARNING_DAYS = 60
+
+const presentLicence = (row: any, today: string) => {
+  const days = daysUntil(row.expiration_date, today)
+  return {
+    ...camel(row),
+    // The form collects "issued by" and the column is issuing_authority, so the table read a key
+    // that was never in the response and every row showed a dash. Both names are returned.
+    issuedBy: row.issuing_authority ?? null,
+    status: licenceState(row, today),
+    storedStatus: row.status ?? null,
+    daysUntilExpiry: days,
+    expiringSoon: days !== null && days >= 0 && days <= EXPIRY_WARNING_DAYS,
+    expired: days !== null && days < 0,
+  }
+}
+
 // List licenses
 app.get('/licenses', async (c) => {
   const currentUser = c.get('user') as any
@@ -169,13 +221,68 @@ app.get('/licenses', async (c) => {
     ORDER BY expiration_date ASC NULLS LAST
   `)
 
-  return c.json(((result as any).rows || result).map(camel))
+  const today = await storeToday(currentUser.companyId)
+  const rows = ((result as any).rows || result).map((r: any) => presentLicence(r, today))
+  return c.json(rows)
+})
+
+// What is about to lapse. A dashboard or a banner can ask this without reading the whole list.
+app.get('/licenses/expiring', async (c) => {
+  const currentUser = c.get('user') as any
+  const withinDays = Math.max(1, Math.min(365, Number(c.req.query('days')) || EXPIRY_WARNING_DAYS))
+
+  const result = await db.execute(sql`
+    SELECT * FROM licenses
+    WHERE company_id = ${currentUser.companyId}
+      AND expiration_date IS NOT NULL
+      AND status NOT IN ('revoked')
+    ORDER BY expiration_date ASC
+  `)
+
+  const today = await storeToday(currentUser.companyId)
+  const all = ((result as any).rows || result).map((r: any) => presentLicence(r, today))
+  const expiring = all.filter((l: any) => l.expired || (l.daysUntilExpiry !== null && l.daysUntilExpiry <= withinDays))
+  return c.json({
+    withinDays,
+    expired: expiring.filter((l: any) => l.expired),
+    expiringSoon: expiring.filter((l: any) => !l.expired),
+  })
 })
 
 // Create license (manager+)
 app.post('/licenses', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
-  const data = licenseSchema.parse(await c.req.json())
+
+  let data: z.infer<typeof licenseSchema>
+  try {
+    data = licenseSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  // A licence that expires before it was issued is a typo, and this is the record a regulator asks
+  // for. (T45 M9)
+  if (data.issuedDate && data.expirationDate && new Date(data.expirationDate) < new Date(data.issuedDate)) {
+    return c.json({
+      error: `An expiry of ${data.expirationDate} cannot come before the issue date of ${data.issuedDate}`,
+      code: 'expiry_before_issue',
+    }, 400)
+  }
+
+  // Two rows for one licence number means two answers to "is this licence current".
+  const dupe = await db.execute(sql`
+    SELECT id FROM licenses
+    WHERE company_id = ${currentUser.companyId}
+      AND LOWER(license_number) = ${data.licenseNumber.trim().toLowerCase()}
+    LIMIT 1
+  `)
+  if (((dupe as any).rows || dupe)?.[0]) {
+    return c.json({
+      error: `Licence ${data.licenseNumber} is already recorded`,
+      code: 'duplicate_license_number',
+    }, 409)
+  }
 
   const result = await db.execute(sql`
     INSERT INTO licenses (
@@ -206,14 +313,20 @@ app.post('/licenses', requireRole('manager'), async (c) => {
     req: c,
   })
 
-  return c.json(camel(created), 201)
+  return c.json(presentLicence(created, await storeToday(currentUser.companyId)), 201)
 })
 
 // Update license (manager+)
 app.put('/licenses/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const data = licenseSchema.partial().parse(await c.req.json())
+  let data: Partial<z.infer<typeof licenseSchema>>
+  try {
+    data = licenseSchema.partial().parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
 
   const existing = await db.execute(sql`
     SELECT * FROM licenses
@@ -222,6 +335,31 @@ app.put('/licenses/:id', requireRole('manager'), async (c) => {
   `)
   const found = ((existing as any).rows || existing)[0]
   if (!found) return c.json({ error: 'License not found' }, 404)
+
+  // The same two rules as on the way in, against the values this edit would leave behind. (T45 M9)
+  const issued = data.issuedDate ?? found.issued_date
+  const expires = data.expirationDate ?? found.expiration_date
+  if (issued && expires && new Date(expires) < new Date(issued)) {
+    return c.json({
+      error: 'The expiry cannot come before the issue date',
+      code: 'expiry_before_issue',
+    }, 400)
+  }
+  if (data.licenseNumber) {
+    const dupe = await db.execute(sql`
+      SELECT id FROM licenses
+      WHERE company_id = ${currentUser.companyId}
+        AND LOWER(license_number) = ${data.licenseNumber.trim().toLowerCase()}
+        AND id != ${id}
+      LIMIT 1
+    `)
+    if (((dupe as any).rows || dupe)?.[0]) {
+      return c.json({
+        error: `Licence ${data.licenseNumber} is already recorded`,
+        code: 'duplicate_license_number',
+      }, 409)
+    }
+  }
 
   const result = await db.execute(sql`
     UPDATE licenses SET
@@ -250,7 +388,7 @@ app.put('/licenses/:id', requireRole('manager'), async (c) => {
     req: c,
   })
 
-  return c.json(camel(updated))
+  return c.json(presentLicence(updated, await storeToday(currentUser.companyId)))
 })
 
 // Delete license (manager+)

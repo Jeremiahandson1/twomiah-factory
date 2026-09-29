@@ -157,17 +157,38 @@ app.post('/routes', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const routeSchema = z.object({
-    driverId: z.string(),
-    orderIds: z.array(z.string()).min(1),
+    driverId: z.string().min(1, 'Choose a driver'),
+    orderIds: z.array(z.string()).min(1, 'Pick at least one delivery'),
   })
-  const data = routeSchema.parse(await c.req.json())
 
-  // Fetch delivery addresses for each order
+  let data: z.infer<typeof routeSchema>
+  try {
+    data = routeSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  // delivery_routes.driver_id is a NOT NULL foreign key to the user table, so a driver id that is
+  // not one of this shop's people reached the INSERT and came back as a 500 with nothing a planner
+  // could act on. Check it here, where the answer can name the problem. (T45 M11)
+  const driverResult = await db.execute(sql`
+    SELECT id FROM "user" WHERE id = ${data.driverId} AND company_id = ${currentUser.companyId} LIMIT 1
+  `)
+  if (!((driverResult as any).rows || driverResult)?.[0]) {
+    return c.json({ error: 'That driver is not on this team', code: 'driver_not_found' }, 400)
+  }
+
+  // Fetch delivery addresses for each order.
+  //
+  // orders.id is a TEXT column, so casting the list to uuid[] was wrong twice over — the cast
+  // itself, and binding a JS array to it. An in-list of bound scalars is the shape that works.
+  const orderIdList = sql.join(data.orderIds.map((id) => sql`${id}`), sql`, `)
   const ordersResult = await db.execute(sql`
     SELECT o.id as order_id, c.address, c.lat, c.lng
     FROM orders o
     LEFT JOIN contact c ON c.id = o.contact_id
-    WHERE o.id = ANY(${data.orderIds}::uuid[])
+    WHERE o.id IN (${orderIdList})
       AND o.company_id = ${currentUser.companyId}
       AND o.type = 'delivery'
   `)
@@ -206,9 +227,11 @@ app.post('/routes', requireRole('manager'), async (c) => {
 
   const stopsJson = ordered.map((s, i) => ({ ...s, index: i }))
 
+  // The column is total_duration_minutes, not estimated_minutes, and total_distance_miles is TEXT.
+  // Either one would have taken this down even with a real driver. (T45 M11)
   const result = await db.execute(sql`
-    INSERT INTO delivery_routes(id, driver_id, stops, status, total_distance_miles, estimated_minutes, company_id, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${data.driverId}, ${JSON.stringify(stopsJson)}::jsonb, 'planned', ${totalDistance}, ${estimatedMinutes}, ${currentUser.companyId}, NOW(), NOW())
+    INSERT INTO delivery_routes(id, driver_id, stops, status, total_distance_miles, total_duration_minutes, optimized_at, company_id, created_at, updated_at)
+    VALUES (gen_random_uuid(), ${data.driverId}, ${JSON.stringify(stopsJson)}::jsonb, 'planned', ${String(totalDistance)}, ${estimatedMinutes}, NOW(), ${currentUser.companyId}, NOW(), NOW())
     RETURNING *
   `)
 

@@ -76,8 +76,38 @@ app.post('/rules', requireRole('admin'), async (c) => {
     description: z.string().optional(),
     effectiveDate: z.string().optional(),
   })
-  const data = ruleSchema.parse(await c.req.json())
+  let data: z.infer<typeof ruleSchema>
+  try {
+    data = ruleSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
   const factor = data.equivalencyFactor ?? data.equivalencyGrams ?? 0
+
+  // One rule per category per state.
+  //
+  // T45 M15: a second active rule for the same category was accepted, so a shop could hold two
+  // different factors for concentrate and nothing said which one the register uses. The factors
+  // are what a purchase limit is counted in — two answers to that question is two answers to
+  // "may this customer buy this", and the one that wins is whichever row the loader happens to
+  // read first. Edit the existing rule instead.
+  const clash = await db.execute(sql`
+    SELECT id, equivalency_factor FROM equivalency_rules
+    WHERE company_id = ${currentUser.companyId}
+      AND LOWER(category) = ${data.category.trim().toLowerCase()}
+      AND COALESCE(state, '') = ${data.state}
+      AND is_active = true
+    LIMIT 1
+  `)
+  const clashing = ((clash as any).rows || clash)?.[0]
+  if (clashing) {
+    return c.json({
+      error: `There is already a rule for ${data.category} in ${data.state || 'all states'} (${clashing.equivalency_factor} per unit). Edit that one rather than adding a second.`,
+      code: 'duplicate_equivalency_rule',
+      existingId: clashing.id,
+    }, 409)
+  }
 
   const result = await db.execute(sql`
     INSERT INTO equivalency_rules (id, state, category, equivalency_factor, unit_of_measure, purchase_limit_grams, description, effective_date, is_active, company_id, created_at)

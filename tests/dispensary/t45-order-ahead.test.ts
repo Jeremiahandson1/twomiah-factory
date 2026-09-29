@@ -67,6 +67,18 @@ check('H24: ...with the price and potency a customer chooses on',
 const withSlug = await pub('GET', '/api/public/menu?slug=orderahead')
 check('H24: an explicit slug still works', withSlug.status === 200, { status: withSlug.status })
 
+// A tenant that has been QA'd can carry a second company row. "Exactly one" was the first version
+// of this rule and the live test tenant broke it, so its own page was still refused; the shop is
+// the row the database was seeded with.
+await db.insert(company).values({
+  name: 'Leftover Import', slug: 'leftover', email: 'leftover@test.local', state: 'OH',
+  enabledFeatures: ['products'],
+} as any)
+const stillResolves = await pub('GET', '/api/public/menu')
+check('H24: a second company row does not break the shop own menu',
+  stillResolves.status === 200 && stillResolves.json?.company?.name === 'Order Ahead Dispensary',
+  { status: stillResolves.status, company: stillResolves.json?.company?.name })
+
 const unknownSlug = await pub('GET', '/api/public/menu?slug=nope')
 check('H24: an unknown slug is a 404, not this shop\'s menu', unknownSlug.status === 404, { status: unknownSlug.status })
 

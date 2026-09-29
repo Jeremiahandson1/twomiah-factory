@@ -31,6 +31,33 @@ function settingsWithoutColumns(stored: any): Record<string, any> {
 
 const pad = (t: string) => { const [h, m] = String(t).split(':'); return `${String(h ?? '').padStart(2, '0')}:${m ?? '00'}`; };
 
+// Whether a module is switched on, and where the switch is.
+//
+// The Delivery and Merch tabs each carried their own on/off toggle stored under settings, which
+// nothing on the server reads — so both said "disabled" while the module was on and its page was
+// in the menu. A switch that changes nothing is worse than no switch: it tells the owner their
+// shop is in a state it is not in. (T45 M23)
+function ModuleState({ on, onLabel, offLabel, onNavigate }: {
+  on: boolean;
+  onLabel: string;
+  offLabel: string;
+  onNavigate: () => void;
+}) {
+  return (
+    <div className={`flex items-center justify-between gap-4 rounded-lg border px-4 py-3 ${on ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950' : 'border-gray-200 bg-gray-50 dark:border-slate-700 dark:bg-slate-800'}`}>
+      <span className={`text-sm font-medium ${on ? 'text-green-800 dark:text-green-200' : 'text-gray-600 dark:text-slate-300'}`}>
+        {on ? onLabel : offLabel}
+      </span>
+      <button
+        onClick={onNavigate}
+        className="text-sm font-medium text-green-700 hover:text-green-800 whitespace-nowrap dark:text-green-300 dark:hover:text-green-200"
+      >
+        Change in Features
+      </button>
+    </div>
+  );
+}
+
 // Which clock the shop runs on. The server's storeTimeZone() prefers settings.timezone, then the
 // licensed state, then UTC — so "Automatic" is a real choice and must write NOTHING rather than an
 // empty string. This is the shortlist a US dispensary needs, not the authority: the server validates
@@ -811,13 +838,19 @@ export default function SettingsPage() {
             <div className="space-y-6 max-w-xl">
               <h2 className="text-lg font-semibold">Delivery Settings</h2>
 
-              <Toggle
-                enabled={deliveryForm.enabled}
-                onChange={v => setDeliveryForm({ ...deliveryForm, enabled: v })}
-                label={deliveryForm.enabled ? 'Delivery is enabled' : 'Delivery is disabled'}
+              {/* This tab used to carry its own on/off switch, stored at settings.delivery.enabled,
+                  which NOTHING on the server reads — so it said "Delivery is disabled" while the
+                  module was switched on and Delivery was sitting in the menu. Two switches for one
+                  thing, disagreeing. The module switch is Settings → Features; this tab now reports
+                  it and sets the numbers that the delivery module actually uses. (T45 M23) */}
+              <ModuleState
+                on={hasFeature('delivery')}
+                onLabel="Delivery is switched on for this shop"
+                offLabel="Delivery is switched off for this shop"
+                onNavigate={() => navigate('/crm/settings/features')}
               />
 
-              {deliveryForm.enabled && (
+              {hasFeature('delivery') && (
                 <div className="space-y-4 pt-2">
                   <div className="w-56">
                     <FieldLabel>Default Delivery Fee ($)</FieldLabel>
@@ -860,13 +893,15 @@ export default function SettingsPage() {
             <div className="space-y-6 max-w-xl">
               <h2 className="text-lg font-semibold">Merch Store</h2>
 
-              <Toggle
-                enabled={merchForm.enabled}
-                onChange={v => setMerchForm({ ...merchForm, enabled: v })}
-                label={merchForm.enabled ? 'Merch store is active' : 'Merch store is disabled'}
+              {/* Same as Delivery above: settings.merch.enabled is read by nothing. (T45 M23) */}
+              <ModuleState
+                on={hasFeature('merch_store')}
+                onLabel="The merch store is switched on for this shop"
+                offLabel="The merch store is switched off for this shop"
+                onNavigate={() => navigate('/crm/settings/features')}
               />
 
-              {merchForm.enabled && (
+              {hasFeature('merch_store') && (
                 <div className="space-y-4 pt-2">
                   <p className="text-sm text-gray-500 dark:text-slate-400">
                     Connect your Stripe account to accept payments for merchandise.
