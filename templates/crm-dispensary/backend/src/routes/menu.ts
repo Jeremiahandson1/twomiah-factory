@@ -27,10 +27,36 @@ function setCache(key: string, data: any) {
   menuCache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS })
 }
 
+// Which shop this is.
+//
+// The slug exists because this router was written for a menu served across several shops. A
+// tenant CRM has exactly one company in its own database, and its own order-ahead page has no
+// slug to send — so every call from it was refused with "Company slug is required" and there was
+// no customer-facing ordering path at all. When no slug is given and there is exactly one company
+// here, that is the one. Where there is more than one, the slug is still required rather than
+// guessed. (T45 H24)
+async function resolveSlug(c: any): Promise<string | null> {
+  const given = c.req.query('slug') || c.req.header('x-company-slug')
+  if (given) return given
+  const rows = await db.select({ slug: company.slug }).from(company).limit(2)
+  return rows.length === 1 ? rows[0].slug : null
+}
+
+// These routes are public — a customer with no session — so requireEnabledFeature, which reads
+// the signed-in user, cannot guard them. The switch is read off the resolved company instead.
+// Public Menu is a core feature and browsing stays open where it is unset; taking an ORDER needs
+// Order Ahead switched on, because a shop that has not turned online ordering on should not find
+// orders arriving from it. (T45 H24)
+const featureOn = (co: any, id: string) => {
+  const list = (co?.enabledFeatures ?? co?.enabled_features) as unknown
+  if (!Array.isArray(list)) return true // unset means nothing has been configured yet
+  return list.includes(id)
+}
+
 // Public menu — NO auth required
 // Requires company slug as query param or subdomain
 app.get('/', async (c) => {
-  const slug = c.req.query('slug') || c.req.header('x-company-slug')
+  const slug = await resolveSlug(c)
   if (!slug) return c.json({ error: 'Company slug is required' }, 400)
 
   const cacheKey = `menu:${slug}`
@@ -76,28 +102,50 @@ app.get('/', async (c) => {
     })
   }
 
-  // Category display order
-  const categoryOrder = ['flower', 'pre_roll', 'edible', 'concentrate', 'vape', 'tincture', 'topical', 'accessory', 'apparel', 'other']
+  // Category display order.
+  //
+  // This list was the WHOLE menu, not just its order — a category that was not on it did not sort
+  // late, it disappeared. `merch`, `preroll`, `beverage`, `capsule`, `seed` and `clone` are all
+  // real product categories in this product (schema.ts, and the CSV importer accepts every one of
+  // them), and none of them was listed, so those products were on sale in the shop and absent from
+  // the shop's own public menu. Known categories keep their order; anything else follows it under
+  // its own name rather than vanishing. (T45 H24)
+  const categoryOrder = [
+    'flower', 'pre_roll', 'preroll', 'edible', 'beverage', 'capsule', 'concentrate', 'vape',
+    'cartridge', 'tincture', 'topical', 'seed', 'clone', 'accessory', 'merch', 'apparel', 'other',
+  ]
   const categoryLabels: Record<string, string> = {
     flower: 'Flower',
     pre_roll: 'Pre-Rolls',
+    preroll: 'Pre-Rolls',
     edible: 'Edibles',
+    beverage: 'Drinks',
+    capsule: 'Capsules',
     concentrate: 'Concentrates',
     vape: 'Vape',
+    cartridge: 'Cartridges',
     tincture: 'Tinctures',
     topical: 'Topicals',
+    seed: 'Seeds',
+    clone: 'Clones',
     accessory: 'Accessories',
+    merch: 'Merch',
     apparel: 'Apparel',
     other: 'Other',
   }
 
-  const menu = categoryOrder
-    .filter(cat => categories[cat]?.length > 0)
-    .map(cat => ({
-      key: cat,
-      label: categoryLabels[cat] || cat,
-      products: categories[cat],
-    }))
+  const titleCase = (key: string) =>
+    key.split(/[_-]+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+  const orderedKeys = [
+    ...categoryOrder.filter(cat => categories[cat]?.length > 0),
+    ...Object.keys(categories).filter(cat => !categoryOrder.includes(cat)).sort(),
+  ]
+
+  const menu = orderedKeys.map(cat => ({
+    key: cat,
+    label: categoryLabels[cat] || titleCase(cat),
+    products: categories[cat],
+  }))
 
   const response = {
     company: foundCompany,
@@ -111,7 +159,7 @@ app.get('/', async (c) => {
 
 // Public single product detail — NO auth
 app.get('/:slug', async (c) => {
-  const companySlug = c.req.query('slug') || c.req.header('x-company-slug')
+  const companySlug = await resolveSlug(c)
   if (!companySlug) return c.json({ error: 'Company slug is required' }, 400)
 
   const productSlug = c.req.param('slug')
@@ -158,7 +206,7 @@ app.get('/:slug', async (c) => {
 
 // Public order submission — NO auth required
 app.post('/order', async (c) => {
-  const slug = c.req.query('slug') || c.req.header('x-company-slug')
+  const slug = await resolveSlug(c)
   if (!slug) return c.json({ error: 'Company slug is required' }, 400)
 
   const orderSchema = z.object({
@@ -192,9 +240,13 @@ app.post('/order', async (c) => {
   }
 
   // Resolve company
-  const [foundCompany] = await db.select({ id: company.id, name: company.name, taxRate: company.taxRate, exciseTaxRate: company.exciseTaxRate, purchaseLimitOz: company.purchaseLimitOz, state: company.state })
+  const [foundCompany] = await db.select({ id: company.id, name: company.name, taxRate: company.taxRate, exciseTaxRate: company.exciseTaxRate, purchaseLimitOz: company.purchaseLimitOz, state: company.state, enabledFeatures: company.enabledFeatures })
     .from(company).where(eq(company.slug, slug)).limit(1)
   if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
+
+  if (!featureOn(foundCompany, 'order_ahead')) {
+    return c.json({ error: 'Online ordering is not switched on for this shop', code: 'FEATURE_NOT_ENABLED', feature: 'order_ahead' }, 403)
+  }
 
   // Fetch all requested products
   const productIds = data.items.map(i => i.productId)

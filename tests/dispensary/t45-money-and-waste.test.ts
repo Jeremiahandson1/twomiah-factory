@@ -109,9 +109,13 @@ check('H15: ...and the response says where stock landed', waste.json?.stockAfter
 
 // ── H18: a day with several drawers ─────────────────────────────────────────────────────────────
 const today = new Date().toISOString().split('T')[0]
-const mkSession = async (opening: number, expected: number, counted: number, minutesAgo: number) => {
-  const opened = new Date(Date.now() - minutesAgo * 60_000).toISOString()
-  const closed = new Date(Date.now() - (minutesAgo - 30) * 60_000).toISOString()
+// Pinned to clock times ON the report date rather than "N minutes ago": run this shortly after
+// UTC midnight and "ten hours ago" is yesterday, so EOD finds no drawers and the assertions read
+// as a regression that is really the clock.
+const mkSession = async (opening: number, expected: number, counted: number, hour: number) => {
+  const at = (h: number) => `${today}T${String(h).padStart(2, '0')}:00:00.000Z`
+  const opened = at(hour)
+  const closed = at(hour + 1)
   await db.execute(sql`
     INSERT INTO cash_sessions(id, company_id, user_id, opened_at, closed_at, opening_amount, expected_amount,
                               actual_count, closing_amount, variance, status, created_at)
@@ -121,11 +125,11 @@ const mkSession = async (opening: number, expected: number, counted: number, min
   `)
 }
 // Five drawers: $1,191.25 expected, $1,181.25 counted — $10 short, all of it in the third.
-await mkSession(200, 250.50, 250.50, 600)
-await mkSession(200, 312.00, 312.00, 500)
-await mkSession(200, 325.00, 315.00, 400)
-await mkSession(200, 200.00, 200.00, 300)
-await mkSession(200, 103.75, 103.75, 200)
+await mkSession(200, 250.50, 250.50, 8)
+await mkSession(200, 312.00, 312.00, 10)
+await mkSession(200, 325.00, 315.00, 12)
+await mkSession(200, 200.00, 200.00, 14)
+await mkSession(200, 103.75, 103.75, 16)
 
 const eod = await asManager('POST', '/api/eod/generate', { date: today })
 check('H18: End of Day generates', eod.status === 200 || eod.status === 201, { status: eod.status, body: eod.json })

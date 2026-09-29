@@ -46,6 +46,7 @@ import KioskOrderPage from './pages/KioskOrderPage';
 import RecommendationsPage from './pages/RecommendationsPage';
 import ReferralsPage from './pages/ReferralsPage';
 import MarketingPage from './pages/MarketingPage';
+import MenuOrderPage from './pages/MenuOrderPage';
 import ReportsPage from './pages/ReportsPage';
 import CultivationPage from './pages/CultivationPage';
 import ManufacturingPage from './pages/ManufacturingPage';
@@ -223,6 +224,16 @@ function App() {
 
                   {/* Kiosk mode — standalone fullscreen interface (no auth) */}
                   <Route path="/kiosk" element={<KioskOrderPage />} />
+
+                  {/* Order ahead — the customer-facing menu, public by design. Order-ahead and the
+                      public menu were sold as features and /menu, /shop and /order all rendered the
+                      in-app 404; the only way to create a customer order was the in-store kiosk.
+                      Three paths because all three are what people type. (T45 H24) */}
+                  <Route path="/menu" element={<MenuOrderPage />} />
+                  <Route path="/shop" element={<MenuOrderPage />} />
+                  <Route path="/order" element={<MenuOrderPage />} />
+                  {/* The customer portal lives at / — /portal is the path people type for it. */}
+                  <Route path="/portal" element={<ProtectedRoute><CustomerPortal /></ProtectedRoute>} />
 
                   {/* Catch all */}
                   <Route path="*" element={<CrmNotFound />} />

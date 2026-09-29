@@ -56,7 +56,12 @@ const [anyProduct] = await db.insert(product).values({
 //   completed              cash   $100, nothing returned
 //   partially_refunded     debit  $87.50 with $43.75 handed back  → the one T42 watched disappear
 //   refunded (in full)     cash   $50 with $50 back               → contributes 0 to net
-const today = new Date().toISOString().slice(0, 10)
+// Analytics buckets a sale into the STORE's day, not UTC's — that is the whole point of
+// storeDayRange (isoTime.ts), and this shop is in Ohio, so America/New_York. Between UTC midnight
+// and the store's, the two calendars disagree: asking for the UTC date found none of these sales
+// and every assertion below read as a regression for about five hours every night. Ask for the
+// day the server would call today.
+const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date())
 // One statement per call: PGlite refuses multiple commands in a prepared statement.
 const mkOrder = async (n: number, status: string, method: string, total: number, refunded: number, category: string | null) => {
   await db.execute(sql`
