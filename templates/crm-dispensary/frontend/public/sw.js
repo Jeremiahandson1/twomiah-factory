@@ -17,7 +17,10 @@
 //     made on numbers that are not true. Sales made while the connection is down are held by the
 //     app's own queue (src/offline/queue.ts) and replayed to /api/offline/sync, where the server
 //     re-checks them against live data before anything is committed.
-const SHELL_CACHE = '{{COMPANY_SLUG}}-shell-v2'
+// v3, not v2: every register already running carries a cached /health in its v2 shell, and the
+// activate handler drops any cache that is not the current name. Renaming is what evicts the stale
+// answer from the tills that already have one. (T52 N7)
+const SHELL_CACHE = '{{COMPANY_SLUG}}-shell-v3'
 
 // The bare minimum to boot the app. Everything else the shell pulls is cached as it is fetched.
 const SHELL_SEED = ['/', '/index.html', '/manifest.json', '/favicon.svg']
@@ -74,6 +77,34 @@ self.addEventListener('activate', (event) => {
   )
 })
 
+/**
+ * Is this path part of the app SHELL — the only thing this worker is allowed to keep?
+ *
+ * ── T52 N7: an allowlist, because a denylist froze /health for 22 hours ─────────────────────────
+ *
+ * This used to exclude /api/ and cache everything else, so /health — a server route that lives
+ * OUTSIDE /api/ — went into the shell cache and was then served from it, cache-first, for as long as
+ * the cache lived. A tester checking whether a deploy had landed got a response about 22 hours
+ * stale, reporting an uptime for a process that had been replaced, and only a cache-busted request
+ * told the truth. Any method that reads /health to tell whether the new build is live was quietly
+ * broken, which is the method everyone uses.
+ *
+ * The prefix list was never the rule; it was a guess at the rule. The rule is that this worker
+ * exists to make the register open with no internet, and the only thing that needs is the built
+ * shell. So: name the shell, send everything else to the network. A server route added next year is
+ * live by default instead of silently frozen — and being wrong in that direction costs a round trip,
+ * where being wrong the other way costs a sale rung on numbers that are not true.
+ */
+const isShell = (url) => {
+  const p = url.pathname
+  return p === '/'
+    || p === '/index.html'
+    || p === '/manifest.json'
+    || p.startsWith('/assets/')          // Vite's fingerprinted JS and CSS
+    || /^\/(?:favicon|apple-touch-icon|icon-|logo)[^/]*$/.test(p)
+}
+
+/** Kept for the explicit refusal below — the API is never cached, and that is worth saying twice. */
 const isApi = (url) => url.pathname.startsWith('/api/')
 
 self.addEventListener('fetch', (event) => {
@@ -102,6 +133,10 @@ self.addEventListener('fetch', (event) => {
     )
     return
   }
+
+  // Anything that is not part of the built shell goes to the network, untouched and uncached. That
+  // is /health, /media/*, and every server route added after this was written. (T52 N7)
+  if (!isShell(url)) return
 
   // Everything else the shell needs — the fingerprinted JS and CSS, fonts, icons: serve from cache
   // when it is there, otherwise fetch and keep a copy.
