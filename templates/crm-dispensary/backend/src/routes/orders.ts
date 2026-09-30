@@ -1476,6 +1476,12 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
   let refundedTaxThisTime = 0
   let refundedExciseThisTime = 0
   let refundedSalesThisTime = 0
+  // What this order has left to give back, per component. Nothing below may exceed these. (T56 S2)
+  const outstandingOf = (charged: unknown, refunded: unknown) =>
+    Math.max(0, round2((Number(charged) || 0) - (Number(refunded) || 0)))
+  const outstandingTax = outstandingOf(existing.taxAmount, existing.refundedTax)
+  const outstandingExcise = outstandingOf(existing.exciseTax, (existing as any).refundedExciseTax)
+  const outstandingSales = outstandingOf(existing.salesTax, (existing as any).refundedSalesTax)
   if (requestedAmount != null) {
     if (remainingRefundable <= 0) return c.json({ error: 'Nothing left to refund on this order' }, 400)
     if (requestedAmount > remainingRefundable + 0.005) {
@@ -1489,9 +1495,15 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
     fullyRefunded = round2(alreadyRefunded + refundAmount) + 0.005 >= orderTotal
     // A dollar refund returns money against no particular line, so its tax share is the order's own
     // tax at the same fraction — there is nothing more specific to go on. (M4)
-    refundedTaxThisTime = round2((Number(existing.taxAmount) || 0) * refundFraction)
-    refundedExciseThisTime = round2((Number(existing.exciseTax) || 0) * refundFraction)
-    refundedSalesThisTime = round2((Number(existing.salesTax) || 0) * refundFraction)
+    //
+    // Of what is STILL OUTSTANDING, not of the original. (T56 S2) On the first refund these are the
+    // same number; on a second one they are not, and taking the fraction of the original excise
+    // again handed back tax that had already been handed back — ORD-1494 recorded $6.18 of sales tax
+    // refunded on an order that only ever charged $6.00.
+    const remainingFraction = remainingRefundable > 0 ? Math.min(1, refundAmount / remainingRefundable) : 1
+    refundedTaxThisTime = round2(outstandingTax * remainingFraction)
+    refundedExciseThisTime = round2(outstandingExcise * remainingFraction)
+    refundedSalesThisTime = round2(outstandingSales * remainingFraction)
   } else {
     if (data.partialItems && data.partialItems.length) {
       for (const pi of data.partialItems) {
@@ -1512,7 +1524,7 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
     if (refundPlan.length === 0) {
       // Every unit is back but money may still be outstanding after an amount refund — finish it.
       if (remainingRefundable > 0) {
-        refundAmount = remainingRefundable; refundFraction = orderTotal > 0 ? refundAmount / orderTotal : 1; fullyRefunded = true; refundedTaxThisTime = round2(Math.max(0, (Number(existing.taxAmount) || 0) - (Number(existing.refundedTax) || 0))); refundedExciseThisTime = round2(Math.max(0, (Number(existing.exciseTax) || 0) - (Number(existing.refundedExciseTax) || 0))); refundedSalesThisTime = round2(Math.max(0, (Number(existing.salesTax) || 0) - (Number(existing.refundedSalesTax) || 0)))
+        refundAmount = remainingRefundable; refundFraction = orderTotal > 0 ? refundAmount / orderTotal : 1; fullyRefunded = true; refundedTaxThisTime = outstandingTax; refundedExciseThisTime = outstandingExcise; refundedSalesThisTime = outstandingSales
       } else {
         return c.json({ error: 'Nothing left to refund on this order' }, 400)
       }
@@ -1551,6 +1563,34 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
       })
       fullyRefunded = unitsAllBack || round2(alreadyRefunded + refundAmount) + 0.005 >= orderTotal
     }
+  }
+
+  /**
+   * The parts add up to the whole, and neither part exceeds what was charged. (T56 S2)
+   *
+   * ORD-1494 took $5.25 excise and $6.00 sales. An itemised refund followed by a refund by amount
+   * left the order recording $3.22 excise and $6.18 sales returned — more sales tax back than it
+   * ever charged — against a refundedTax of $9.41 that matched neither figure. The three numbers
+   * were written independently by two code paths and nothing made them agree.
+   *
+   * Every summary and every filing stayed correct because those recompute from the line items. What
+   * was wrong is the ORDER's own record of what it gave back, and that is what a receipt, a customer
+   * dispute and a chargeback are read from.
+   */
+  refundedExciseThisTime = Math.min(round2(refundedExciseThisTime), outstandingExcise)
+  refundedSalesThisTime = Math.min(round2(refundedSalesThisTime), outstandingSales)
+  {
+    // Tax cannot exceed the money actually being returned, nor the tax still outstanding. When the
+    // cap bites, both components give way in proportion rather than one absorbing all of it.
+    const taxCap = Math.min(outstandingTax, round2(refundAmount))
+    let parts = round2(refundedExciseThisTime + refundedSalesThisTime)
+    if (parts > taxCap + 0.005) {
+      const factor = parts > 0 ? taxCap / parts : 0
+      refundedExciseThisTime = round2(refundedExciseThisTime * factor)
+      refundedSalesThisTime = Math.max(0, round2(taxCap - refundedExciseThisTime))
+      parts = round2(refundedExciseThisTime + refundedSalesThisTime)
+    }
+    refundedTaxThisTime = parts
   }
 
   // Refund approval (F-04): the route is already manager+ only, so the caller IS the approver;

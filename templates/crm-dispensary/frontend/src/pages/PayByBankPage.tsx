@@ -18,7 +18,20 @@ const txnStatusColors: Record<string, string> = {
 export default function PayByBankPage() {
   const { isManager } = useAuth();
   const toast = useToast();
-  const [tab, setTab] = useState('setup');
+  /**
+   * The Plaid setup is manager-only, so a budtender is not shown it at all. (T56 L11)
+   *
+   * T53 hid the Save button and left everything else: a budtender still landed on Setup, still saw
+   * the Client ID and Secret fields, and the page still fetched the config for them — which is where
+   * "Failed to load Plaid config: Insufficient role" in their console came from. Hiding the button
+   * on a form nobody can submit is not hiding the form.
+   *
+   * This mirrors the server, which gates /api/pay-by-bank/config on requireRole('manager'). There is
+   * no permission to ask for here — this module's guards are rank-based — so the screen asks the
+   * same question the server does rather than inventing a second answer.
+   */
+  const canSetup = isManager;
+  const [tab, setTab] = useState(canSetup ? 'setup' : 'accounts');
 
   // Setup
   const [config, setConfig] = useState({ clientId: '', secret: '', environment: 'sandbox', enabled: false });
@@ -43,9 +56,10 @@ export default function PayByBankPage() {
   const [stats, setStats] = useState<any>({ totalTransactions: 0, totalVolume: 0, avgSize: 0 });
 
   useEffect(() => {
-    loadConfig();
+    // Don't ask for something this person is not allowed to have — that request was the console error.
+    if (canSetup) loadConfig();
     loadStats();
-  }, []);
+  }, [canSetup]);
 
   useEffect(() => {
     if (tab === 'transactions') loadTransactions();
@@ -143,7 +157,7 @@ export default function PayByBankPage() {
   };
 
   const tabs = [
-    { id: 'setup', label: 'Setup', icon: Settings },
+    ...(canSetup ? [{ id: 'setup', label: 'Setup', icon: Settings }] : []),
     { id: 'accounts', label: 'Customer Accounts', icon: Users },
     { id: 'transactions', label: 'Transactions', icon: ArrowRightLeft },
   ];
@@ -206,8 +220,8 @@ export default function PayByBankPage() {
         ))}
       </div>
 
-      {/* Setup Tab */}
-      {tab === 'setup' && (
+      {/* Setup Tab — manager+ only, form and all */}
+      {tab === 'setup' && canSetup && (
         <div className="bg-white rounded-lg shadow-sm p-6 max-w-2xl space-y-6 dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Plaid Configuration</h3>

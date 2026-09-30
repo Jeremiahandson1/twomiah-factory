@@ -161,12 +161,15 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
   // record says OH. Fall back to the company's own state. (T45 H16)
   // settings too: whether this state's medical programme exempts patients from excise decides
   // whether those sales belong in the taxable base or on an exempt line. (T47 P5)
-  const companyResult: any = await db.execute(sql`SELECT state, settings, excise_tax_rate FROM company WHERE id = ${currentUser.companyId} LIMIT 1`)
+  const companyResult: any = await db.execute(sql`SELECT state, settings, excise_tax_rate, tax_rate FROM company WHERE id = ${currentUser.companyId} LIMIT 1`)
   const companyRow = (companyResult.rows || companyResult)[0] || {}
   const companyState = companyRow.state as string | null
   // The rate the shop is configured to charge, so the return can show whether what it collected
   // actually matches it. (T47 P5)
   const exciseRatePct = Number(companyRow.excise_tax_rate) || 0
+  // …and the sales-tax rate, for the same reason. A sales return had no rate to check itself
+  // against, which is why it printed 0.00% and no reconciliation at all. (T56 S1)
+  const salesRatePct = Number(companyRow.tax_rate) || 0
   const state = (data.state || companyState)
     ? String(data.state || companyState).toUpperCase().slice(0, 2)
     : null
@@ -405,6 +408,31 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
     }))
   }
 
+  /**
+   * What THIS return is about — the tax it declares and the rate it should have been charged at.
+   * (T56 S1)
+   *
+   * Every figure below used the excise unconditionally, so a SALES return read "Works out at 0.00%"
+   * on $135.00 taxable with $13.50 due — which is 10%, the shop's configured rate, sitting right
+   * there in Settings — and carried no reconciliation line at all. Dividing the tax by the base is
+   * the first thing anyone signing a return does; it was only ever offered on one of the three.
+   *
+   * A COMBINED return declares three taxes at three rates, so there is no single rate to check it
+   * against: it gets its effective rate (what the whole return works out at) and no reconciliation,
+   * rather than a comparison against one of the three rates pretending to be all of them.
+   */
+  const filed = filingType === 'sales_tax'
+    ? { due: salesTaxDue, ratePct: salesRatePct, label: 'sales tax' }
+    : filingType === 'local_tax'
+      ? { due: localTaxDue, ratePct: localRatePct, label: 'local tax' }
+      : filingType === 'excise_tax'
+        ? { due: exciseTaxDue, ratePct: exciseRatePct, label: 'excise' }
+        : { due: totalTaxDue, ratePct: 0, label: 'tax' }
+  const expectedAtRate = filed.ratePct > 0 ? round2(taxableAmount * (filed.ratePct / 100)) : null
+  const variance = expectedAtRate === null ? null : round2(filed.due - expectedAtRate)
+  // Half a penny per $1,000, floor 50c: rounding on hundreds of orders must not read as a discrepancy.
+  const withinRounding = variance === null ? null : Math.abs(variance) <= Math.max(0.5, taxableAmount * 0.0005)
+
   // Line items the detail modal renders (only non-zero components).
   const lineItems = [
     { description: 'Excise Tax', amount: exciseTaxDue },
@@ -426,8 +454,9 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
     // The exempt line, so the three figures on the return divide into one another.
     exemptSales: exemptApplies ? medicalExemptSales : 0,
     exemptBasis: exemptApplies ? 'medical cannabis — registered patients are exempt from excise in this state' : null,
-    // What the return actually works out at, for the person signing it.
-    effectiveRate: taxableAmount > 0 ? round2((exciseTaxDue / taxableAmount) * 100) : 0,
+    // What the return actually works out at, for the person signing it — the tax THIS return
+    // declares, divided by the base it is charged on. (T56 S1)
+    effectiveRate: taxableAmount > 0 ? round2((filed.due / taxableAmount) * 100) : 0,
     // …and what it WOULD come to at the shop's configured rate, with the difference named.
     //
     // The base and the due are computed over the same set and both are net of refunds and
@@ -439,16 +468,14 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
     // Saying "$6,839 taxable, $983.40 due, and $42.45 less collected than 15% because of these
     // orders" is a return a shop can defend. Printing 14.38% beside a 15% rate and leaving them to
     // notice is not. (T47 P5, the half that only shows on real data)
-    expectedAtRate: filingType === 'excise_tax' && exciseRatePct > 0 ? round2(taxableAmount * (exciseRatePct / 100)) : null,
-    collectedVariance: filingType === 'excise_tax' && exciseRatePct > 0
-      ? round2(exciseTaxDue - taxableAmount * (exciseRatePct / 100))
-      : null,
-    reconciles: filingType === 'excise_tax' && exciseRatePct > 0
-      ? Math.abs(exciseTaxDue - taxableAmount * (exciseRatePct / 100)) <= Math.max(0.5, taxableAmount * 0.0005)
-      : null,
-    reconcileNote: filingType === 'excise_tax' && exciseRatePct > 0
-        && Math.abs(exciseTaxDue - taxableAmount * (exciseRatePct / 100)) > Math.max(0.5, taxableAmount * 0.0005)
-      ? `The excise collected is $${Math.abs(round2(exciseTaxDue - taxableAmount * (exciseRatePct / 100))).toFixed(2)} ${exciseTaxDue < taxableAmount * (exciseRatePct / 100) ? 'less' : 'more'} than ${exciseRatePct}% of the taxable base.${varianceOrders.length ? ` ${varianceOrders.length === 1 ? 'One order is' : `${varianceOrders.length} orders are`} out of step with the rate — they are listed under "orders out of step" with the excise each one took.` : ' Some sales in this period were not charged at the current rate — check sales made before the rate was set, or orders created outside the register.'}`
+    // Which tax the two lines above are talking about, so the screen does not have to guess — it
+    // used to say "the excise collected matches" on a sales return. (T56 S1)
+    filedTaxLabel: filed.label,
+    expectedAtRate,
+    collectedVariance: variance,
+    reconciles: withinRounding,
+    reconcileNote: variance !== null && withinRounding === false
+      ? `The ${filed.label} collected is $${Math.abs(variance).toFixed(2)} ${variance < 0 ? 'less' : 'more'} than ${filed.ratePct}% of the taxable base.${varianceOrders.length ? ` ${varianceOrders.length === 1 ? 'One order is' : `${varianceOrders.length} orders are`} out of step with the rate — they are listed under "orders out of step" with the excise each one took.` : ' Some sales in this period were not charged at the current rate — check sales made before the rate was set, or orders created outside the register.'}`
       : null,
     // The orders behind the variance, named. Empty when everything reconciles, so a clean period
     // carries no list at all. (T48, the tester's ask on P5)

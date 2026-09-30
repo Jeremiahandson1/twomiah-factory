@@ -17,7 +17,7 @@ import { Modal, ConfirmModal } from '../ui/Modal';
 export default function ContactDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const toast = useToast();
   const [contact, setContact] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -149,20 +149,28 @@ export default function ContactDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            to={`/crm/customers?edit=${id}`}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2 dark:bg-slate-800 dark:text-slate-200"
-          >
-            <Edit className="w-4 h-4" />
-            Edit
-          </Link>
-          <button
-            onClick={() => setDeleteOpen(true)}
-            className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 flex items-center gap-2"
-          >
-            <Trash2 className="w-4 h-4" />
-            Delete
-          </button>
+          {/* This link has always been right and the page it points at ignored the id, so Edit put
+              you back on the list and stopped. The list reads ?edit now. (T56 R1) */}
+          {can('contacts:update') && (
+            <Link
+              to={`/crm/customers?edit=${id}`}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2 dark:bg-slate-800 dark:text-slate-200"
+            >
+              <Edit className="w-4 h-4" />
+              Edit
+            </Link>
+          )}
+          {/* A budtender was offered this and always got a 403. The list hid it a round ago and this
+              page did not — the same control, the other door. (T56 L11) */}
+          {can('contacts:delete') && (
+            <button
+              onClick={() => setDeleteOpen(true)}
+              className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 flex items-center gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete
+            </button>
+          )}
         </div>
       </div>
 
@@ -378,6 +386,9 @@ export default function ContactDetailPage() {
                 <ShoppingCart className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Create Order
               </Link>
+              {/* Adjusting a balance is loyalty:adjust — a budtender got "manager role required"
+                  from a button sitting in their own Quick Actions. (T56 L11) */}
+              {can('loyalty:adjust') && (
               <button
                 onClick={async () => {
                   if (!loyalty?.id) { toast.info('This contact is not enrolled in loyalty yet.'); return; }
@@ -408,6 +419,7 @@ export default function ContactDetailPage() {
                 <Gift className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Adjust Loyalty Points
               </button>
+              )}
               {contact.phone && (
                 <button
                   onClick={() => { setSmsBody(''); setSmsOpen(true); }}

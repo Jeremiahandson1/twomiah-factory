@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode, ComponentType, ButtonHTMLAttributes } from 'react';
 import { ChevronLeft, ChevronRight, Search, Filter, MoreVertical, Edit, Trash2, Eye } from 'lucide-react';
 
@@ -17,6 +17,17 @@ export interface DataTableAction<Row = any> {
   onClick: (row: Row) => void;
   icon?: ComponentType<{ className?: string }>;
   className?: string;
+  /**
+   * Offer this action only for the rows it can actually work on. (T56 R1)
+   *
+   * The shared table in packages/tenant-ui has had this for a long time; this fork did not, and
+   * nothing said so: a page passing `show` compiled, rendered, and the action appeared anyway. The
+   * T55 L11 fix — hide Delete on a customer row from a budtender, who always got a 403 — was a
+   * silent no-op for a whole round because of that. An unsupported prop that fails quietly is worse
+   * than one that fails loudly, so this is now part of the contract and scripts/check-row-action-show.ts
+   * (#179) keeps the two tables in step.
+   */
+  show?: (row: Row) => boolean;
 }
 export interface DataTablePagination {
   page: number;
@@ -59,6 +70,35 @@ export function DataTable<Row extends { id?: any } = any>({
   // Anchor the row action menu with fixed positioning so it escapes the card's
   // overflow-hidden / overflow-x-auto clipping (S21).
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const menuRef = useRef<HTMLDivElement>(null);
+  /**
+   * Closing the menu must not open the record. (T56 R1 — the High.)
+   *
+   * The menu used to be dismissed by a full-screen `<div onClick>` rendered INSIDE the row, and that
+   * click bubbled to the row's own onClick — so on the Customers list, opening the ⋮ and then
+   * clicking anywhere to close it navigated straight into the customer's page. From there Edit was a
+   * dead link, so the whole way in read as "nobody can edit a customer". Measured on the deployed
+   * build: click ⋮, click away, and the URL became /crm/customers/<id>.
+   *
+   * A document-level mousedown listener closes it instead — the same thing the shared table does. It
+   * is outside the row, so nothing bubbles, and Escape works too (it did not before).
+   */
+  useEffect(() => {
+    if (openMenu === null) return;
+    const onDown = (e: MouseEvent) => { if (!menuRef.current?.contains(e.target as Node)) setOpenMenu(null); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpenMenu(null); };
+    // The menu is position:fixed, so it has to close when the thing it is anchored to moves.
+    const onScroll = () => setOpenMenu(null);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [openMenu]);
+  const visibleActions = (row: Row) => (actions || []).filter((a) => !a.show || a.show(row));
 
   return (
     <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
@@ -150,13 +190,19 @@ export function DataTable<Row extends { id?: any } = any>({
                   {actions && (
                     <td className="px-4 py-3">
                       <div className="relative">
+                        {/* No action this person can use on this row means no menu to open — an empty
+                            menu is indistinguishable from a broken one. */}
+                        {visibleActions(row).length > 0 && (
                         <button
+                          aria-label="Row actions"
+                          aria-haspopup="menu"
+                          aria-expanded={openMenu === row.id}
                           onClick={(e) => {
                             e.stopPropagation();
                             if (openMenu === row.id) { setOpenMenu(null); return; }
                             const r = e.currentTarget.getBoundingClientRect();
                             const width = 144;
-                            const estHeight = (actions.length * 40) + 8;
+                            const estHeight = (visibleActions(row).length * 40) + 8;
                             const top = (r.bottom + estHeight > window.innerHeight) ? Math.max(8, r.top - estHeight) : r.bottom + 4;
                             const left = Math.max(8, r.right - width);
                             setMenuPos({ top, left });
@@ -166,29 +212,32 @@ export function DataTable<Row extends { id?: any } = any>({
                         >
                           <MoreVertical className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                         </button>
+                        )}
                         {openMenu === row.id && (
-                          <>
-                            <div className="fixed inset-0 z-40" onClick={() => setOpenMenu(null)} />
-                            <div
-                              className="fixed w-36 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1 dark:bg-slate-900 dark:border-slate-700"
-                              style={{ top: menuPos.top, left: menuPos.left }}
-                            >
-                              {actions.map((action, idx) => (
-                                <button
-                                  key={idx}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setOpenMenu(null);
-                                    action.onClick(row);
-                                  }}
-                                  className={`w-full px-4 py-2 text-sm text-left flex items-center gap-2 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-800 ${action.className || ''}`}
-                                >
-                                  {action.icon && <action.icon className="w-4 h-4" />}
-                                  {action.label}
-                                </button>
-                              ))}
-                            </div>
-                          </>
+                          <div
+                            ref={menuRef}
+                            role="menu"
+                            // A click inside the menu must not reach the row either: the row navigates.
+                            onClick={(e) => e.stopPropagation()}
+                            className="fixed w-36 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1 dark:bg-slate-900 dark:border-slate-700"
+                            style={{ top: menuPos.top, left: menuPos.left }}
+                          >
+                            {visibleActions(row).map((action, idx) => (
+                              <button
+                                key={idx}
+                                role="menuitem"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenMenu(null);
+                                  action.onClick(row);
+                                }}
+                                className={`w-full px-4 py-2 text-sm text-left flex items-center gap-2 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-800 ${action.className || ''}`}
+                              >
+                                {action.icon && <action.icon className="w-4 h-4" />}
+                                {action.label}
+                              </button>
+                            ))}
+                          </div>
                         )}
                       </div>
                     </td>

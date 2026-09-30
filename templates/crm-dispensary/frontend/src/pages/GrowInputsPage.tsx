@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { formatDate } from '../utils/date';
 import {
   Search, Plus, AlertTriangle, Leaf, Shield, ShieldCheck, ShieldX, Clock,
@@ -137,8 +138,21 @@ const initialPolicyForm = {
 /* ─── Main Page ─── */
 
 export default function GrowInputsPage() {
-  const [activeTab, setActiveTab] = useState('inventory');
+  // ?tab=applications lands on that tab. (T56, the same class as R1)
+  //
+  // The QR scanner's "Log Application" button has always sent people to
+  // `/grow-inputs?tab=applications` and it was wrong twice over: the route is /crm/grow-inputs, and
+  // nothing here read `?tab`, so even the corrected URL opened Inventory. Sweeping for the R1 fault
+  // — a link carrying state nothing reads — found this one.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const wanted = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(tabs.some((t) => t.id === wanted) ? String(wanted) : 'inventory');
   const [stats, setStats] = useState<any>(null);
+  // Keep the URL and the tab in step, so a link can be shared and Back works.
+  const selectTab = (id: string) => {
+    setActiveTab(id);
+    setSearchParams((p) => { const next = new URLSearchParams(p); next.set('tab', id); return next; }, { replace: true });
+  };
 
   useEffect(() => {
     api.get('/api/grow-inputs/stats').then(setStats).catch(() => {});
@@ -175,7 +189,7 @@ export default function GrowInputsPage() {
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => selectTab(tab.id)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'

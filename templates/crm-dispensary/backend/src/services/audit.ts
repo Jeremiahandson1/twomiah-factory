@@ -188,7 +188,33 @@ export function describeLog(row: any): string {
   // superseded filing, a lab release — says itself here.
   const why = reasonOf(row)
   const because = why ? ` — ${why}` : ''
+  // An attempt that was REFUSED did not happen, and must not be described as though it did. (T56 S4)
+  //
+  // The refused date-of-birth change is recorded so an owner can see that somebody tried — and it
+  // rendered as `Updated contact "T56 Age18"`, which says the opposite of what the row means. The
+  // rule is general: any row whose metadata carries `refused` says so first, because every refusal
+  // this product decides to keep will land here.
+  const refusal = refusalOf(row)
+  if (refusal) return `Refused: ${refusal} on ${what}${name}`.replace(/\s+/g, ' ').trim()
   return `${verb} ${what}${name}${transition}${because}`.replace(/\s+/g, ' ').trim()
+}
+
+/** The words for a refused attempt, when the row records one. */
+const REFUSAL_WORDS: Record<string, string> = {
+  dob_change_needs_manager: 'a date of birth change, which needs a manager',
+}
+function refusalOf(row: any): string | null {
+  const raw = row?.metadata ?? row?.meta_data
+  if (!raw) return null
+  let meta: any = raw
+  if (typeof raw === 'string') { try { meta = JSON.parse(raw) } catch { return null } }
+  const code = meta && typeof meta === 'object' ? meta.refused : null
+  if (!code) return null
+  const what = REFUSAL_WORDS[String(code)] || readable(String(code)) || 'the change'
+  const detail = meta.recorded || meta.attempted
+    ? ` (on file ${meta.recorded || 'nothing'}, attempted ${meta.attempted || 'nothing'})`
+    : ''
+  return `${what}${detail}`
 }
 
 /** The reason an action was taken, when one was recorded. Stored in metadata, which arrives as an object or as JSON text depending on the driver. */

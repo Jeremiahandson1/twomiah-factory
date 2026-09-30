@@ -6,7 +6,7 @@ import { loyaltyConfig } from '../utils/loyaltyConfig.ts'
 import { recomputeTier } from '../utils/loyaltyTier.ts'
 import { eq, and, ilike, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requireRole } from '../middleware/permissions.ts'
+import { requireRole, requirePermission } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { zodRefusal } from '../utils/errors.ts'
 
@@ -266,8 +266,17 @@ app.put('/members/:id/consent', requireRole('budtender'), async (c) => {
   return c.json(camel(updated))
 })
 
-// Adjust points manually (manager+)
-app.post('/members/:id/adjust', requireRole('manager'), async (c) => {
+// Adjust points manually — the permission, not the rank. (T56 L11)
+//
+// The screen has to hide this from a budtender, and a screen must mirror what the server actually
+// enforces. requireRole('manager') would have forced the screen to ask the RANK, which is the thing
+// this codebase has been moving away from: a shop that grants one senior budtender the right to fix
+// a points balance gets it granted and still sees nothing.
+//
+// The outcome is unchanged for every role that exists here: manager, admin and owner all hold
+// loyalty:* (or *), and budtender, driver and viewer hold neither loyalty:adjust nor the wildcard.
+// The difference is only that a per-user grant now works.
+app.post('/members/:id/adjust', requirePermission('loyalty:adjust'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

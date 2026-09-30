@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { formatDate } from '../utils/date';
 import {
   Camera, QrCode, BarChart3, Search, Plus, Package, Leaf, FlaskConical,
@@ -377,6 +378,7 @@ function ProductResultCard({ result, context, toast }: { result: any; context: s
 }
 
 function InputResultCard({ result, context, toast }: { result: any; context: string; toast: any }) {
+  const navigate = useNavigate();
   const input = result.input || result;
   const typeColors: Record<string, string> = {
     nutrient: 'bg-green-100 text-green-700',
@@ -427,8 +429,10 @@ function InputResultCard({ result, context, toast }: { result: any; context: str
             </div>
           )}
           <div className="flex gap-2 mt-3">
+            {/* /grow-inputs is not a route — the CRM is mounted under /crm — and a full page load
+                threw away the session context for nothing. (T56) */}
             {context === 'input_application' && (
-              <Button onClick={() => window.location.href = '/grow-inputs?tab=applications'}>
+              <Button onClick={() => navigate('/crm/grow-inputs?tab=applications')}>
                 <Leaf className="w-4 h-4 mr-2 inline" />Log Application
               </Button>
             )}

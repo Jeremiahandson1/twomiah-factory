@@ -554,9 +554,25 @@ export async function getMarketingStats(companyId: string) {
     .from(contact)
     .where(eq(contact.companyId, companyId))
 
+  /**
+   * "Reachable by email" has to mean reachable. (T56)
+   *
+   * The tile counted `email IS NOT NULL`, which is neither of the two things that decide whether a
+   * send reaches someone: an empty string passed as an address, and a contact who has unsubscribed
+   * was still counted. So the page said 28 reachable while the New Campaign dialog — which asks
+   * reachableAudience(), the function the send itself uses — said 25. Two numbers for one question,
+   * on the same screen.
+   *
+   * This is now the same rule reachableAudience applies for the email channel: a non-empty address,
+   * and no CAN-SPAM opt-out.
+   */
   const [withEmail] = await db.select({ value: sql<number>`count(*)` })
     .from(contact)
-    .where(and(eq(contact.companyId, companyId), sql`${contact.email} IS NOT NULL`))
+    .where(and(
+      eq(contact.companyId, companyId),
+      sql`COALESCE(${contact.email}, '') <> ''`,
+      sql`COALESCE(custom_fields->>'emailOptOut', '') <> 'true'`,
+    ))
 
   const [smsOptIn] = await db.select({ value: sql<number>`count(*)` })
     .from(loyaltyMember)

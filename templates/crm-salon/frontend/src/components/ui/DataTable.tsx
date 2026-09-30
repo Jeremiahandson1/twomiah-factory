@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Search, Filter, MoreVertical, Edit, Trash2, Eye, LucideIcon } from 'lucide-react';
 
 interface DataTableColumn<T = Record<string, unknown>> {
@@ -56,6 +56,31 @@ export function DataTable<T extends Record<string, unknown> = Record<string, unk
   // The menu is position:fixed at the button's screen position so the table's overflow-x-auto
   // wrapper cannot clip it (the last rows' menus were cut off). (SALON-H6)
   const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
+  const menuRef = useRef<HTMLDivElement>(null);
+  /**
+   * Closing the row menu must not open the row. (T56 R1)
+   *
+   * It was dismissed by a full-screen `<div onClick>` rendered INSIDE the row, and that click
+   * bubbled to the row's own onClick — so opening the ⋮ and clicking anywhere to close it navigated
+   * into the record. Measured on a deployed tenant: click ⋮, click away, and the URL changed.
+   *
+   * A document listener closes it instead. It is outside the row, so nothing bubbles, and Escape
+   * works too. scripts/check-row-action-show.ts (#179) holds every copy of this table to it.
+   */
+  useEffect(() => {
+    if (openMenu === null) return;
+    const onDown = (e: MouseEvent) => { if (!menuRef.current?.contains(e.target as Node)) setOpenMenu(null); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpenMenu(null); };
+    const onScroll = () => setOpenMenu(null);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [openMenu]);
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm overflow-hidden">
@@ -132,10 +157,14 @@ export function DataTable<T extends Record<string, unknown> = Record<string, unk
                           <MoreVertical className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                         </button>
                         {openMenu === (row as Record<string, unknown>).id && (
-                          <>
-                            <div className="fixed inset-0 z-10" onClick={() => setOpenMenu(null)} />
-                            <div className="fixed w-40 bg-white dark:bg-slate-800 rounded-lg shadow-lg border dark:border-slate-700 z-20 py-1" style={{ top: menuPos.top, right: menuPos.right }}>
-                              {actions.map((action, idx) => (
+                          <div
+                            ref={menuRef}
+                            role="menu"
+                            onClick={(e) => e.stopPropagation()}
+                            className="fixed w-40 bg-white dark:bg-slate-800 rounded-lg shadow-lg border dark:border-slate-700 z-20 py-1"
+                            style={{ top: menuPos.top, right: menuPos.right }}
+                          >
+                              {actions.filter((action) => !action.show || action.show(row)).map((action, idx) => (
                                 <button
                                   key={idx}
                                   onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
@@ -149,8 +178,7 @@ export function DataTable<T extends Record<string, unknown> = Record<string, unk
                                   {action.label}
                                 </button>
                               ))}
-                            </div>
-                          </>
+                          </div>
                         )}
                       </div>
                     </td>

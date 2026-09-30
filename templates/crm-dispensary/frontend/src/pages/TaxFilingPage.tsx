@@ -581,7 +581,9 @@ export default function TaxFilingPage() {
                   {reconciles === true && (
                     <p className="mt-3 flex items-center gap-2 text-green-700 dark:text-green-300">
                       <CheckCircle className="h-4 w-4 shrink-0" />
-                      The excise collected matches the configured rate.
+                      {/* A sales return said "the excise collected matches" — the server names the
+                          tax this return declares now. (T56 S1) */}
+                      The {d.filedTaxLabel || 'excise'} collected matches the configured rate.
                     </p>
                   )}
                 </div>

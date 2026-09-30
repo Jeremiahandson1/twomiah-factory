@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '../utils/date';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Edit, Trash2, Search, Star } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -46,8 +46,9 @@ const initialFormData = {
 };
 
 export default function CustomersPage() {
-  // Manager+ actions are hidden rather than shown-and-refused. (T53 L11, T55 leftovers)
-  const { isManager } = useAuth();
+  // Actions this person cannot use are hidden rather than shown-and-refused, and the test is the
+  // PERMISSION the server enforces, not the rank. (T53 L11, T55 leftovers, T56 R1)
+  const { can } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
   const [customers, setCustomers] = useState<any[]>([]);
@@ -106,6 +107,41 @@ export default function CustomersPage() {
   useEffect(() => {
     setPage(1);
   }, [search, tierFilter]);
+
+  /**
+   * /crm/customers?edit=<id> opens that customer's form. (T56 R1 — the High.)
+   *
+   * The customer's own page has always had an Edit button and it links HERE, with the id in the
+   * query string — and nothing on this page ever read it. So Edit sent you back to the list and
+   * stopped, which is why the round was reported as "nobody can edit a customer in any role": the
+   * server was fine, both ways in were broken, and the other way in (the row ⋮) put you on this
+   * page by accident when you dismissed it.
+   *
+   * The row is fetched by id rather than looked up in the current page of the list, because the
+   * person arriving here came from that customer's page and the list may be on page 3 or filtered.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const editId = searchParams.get('edit');
+  useEffect(() => {
+    if (!editId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res: any = await api.get(`/api/contacts/${editId}`);
+        const row = res?.data || res;
+        if (cancelled) return;
+        if (row?.id) openEditModal(row);
+        else toast.error('That customer could not be found');
+      } catch (err: any) {
+        if (!cancelled) toast.error(err?.message || 'That customer could not be found');
+      } finally {
+        // Take the id out of the URL either way: a refresh should not reopen a form the person closed,
+        // and a failed open should not sit there retrying.
+        if (!cancelled) setSearchParams((p) => { const next = new URLSearchParams(p); next.delete('edit'); return next; }, { replace: true });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [editId]);
 
   const openCreateModal = () => {
     setSavedWarnings([]);
@@ -268,9 +304,14 @@ export default function CustomersPage() {
   ];
 
   const actions = [
-    { label: 'Edit', icon: Edit, onClick: openEditModal },
-    // contacts:delete is manager+; a budtender was offered this and always got a 403. (T55 L11)
-    { label: 'Delete', icon: Trash2, onClick: (row: any) => { setCustomerToDelete(row); setDeleteModalOpen(true); }, className: 'text-red-600', show: () => isManager },
+    { label: 'Edit', icon: Edit, onClick: openEditModal, show: () => can('contacts:update') },
+    // A budtender was offered this and always got a 403. (T55 L11)
+    //
+    // Two things were wrong with the first attempt. It asked the RANK — and rank is not permission,
+    // so a shop that grants a senior budtender contacts:delete still had it hidden — and the table
+    // this page uses ignored `show` entirely, so the control never actually disappeared. Both fixed;
+    // the gate is now the permission the server enforces. (T56 R1)
+    { label: 'Delete', icon: Trash2, onClick: (row: any) => { setCustomerToDelete(row); setDeleteModalOpen(true); }, className: 'text-red-600', show: () => can('contacts:delete') },
   ];
 
   return (

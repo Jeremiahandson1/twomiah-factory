@@ -1496,6 +1496,17 @@ jobs:
       - name: "A bg-white surface with dark-mode text inside needs a dark:bg-* partner"
         run: bun run scripts/check-light-card-dark-text.ts
 
+  row-action-show:
+    name: "row menus honour show, and closing one does not open the row"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "A row-action table must filter on `show` and dismiss without bubbling into the row"
+        run: bun run scripts/check-row-action-show.ts
+
   dashboard-panels-load:
     name: "dashboard panels load"
     runs-on: ubuntu-latest
