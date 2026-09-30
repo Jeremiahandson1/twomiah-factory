@@ -5,7 +5,7 @@ import { contact, order, loyaltyMember, loyaltyTransaction } from '../../db/sche
 import { eq, and, or, ilike, count, desc, sql } from 'drizzle-orm'
 import { settledSale, netExprBare } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { stripHtml } from '../utils/sanitize.ts'
@@ -348,6 +348,40 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
 
   const [existing] = await db.select().from(contact).where(and(eq(contact.id, id), eq(contact.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Contact not found' }, 404)
+
+  // ── changing a RECORDED date of birth is a manager's decision (T53/T54 N10) ────────────────────
+  //
+  // M6 closed the arithmetic: no edit may make someone under 18. It did not close the question of
+  // WHO may edit. A budtender took an 18-year-old the till had just refused, rewrote their date of
+  // birth to 1990, and rang the same sale through at 201 — the age gate doing exactly as it was
+  // told, on a number the person selling had just changed.
+  //
+  // Not a role check, and not an age-bracket check either. A bracket rule ("may not cross 21")
+  // sounds tighter and is worse: it has to reason about birthdays, it says nothing about a quiet
+  // correction from 1990 to 1991, and it invites a two-step walk. The honest rule is about the
+  // FIELD. A date of birth is copied off a government ID at intake; changing one afterwards is not
+  // data entry, it is amending the evidence the whole age gate rests on — the thing a regulator
+  // asks to see a second signature on.
+  //
+  // A budtender still takes the date at intake (contacts:create is untouched — that is the job, and
+  // the ID is in their hand). Changing one already on file needs `contacts:change-dob`, which
+  // manager, admin and owner hold through `contacts:*` and budtender, driver and viewer do not.
+  // A permission rather than a rank, so a shop that trusts a senior budtender can grant it.
+  {
+    const sent = (data as any).dateOfBirth
+    const before = existing.dateOfBirth ? String(existing.dateOfBirth).slice(0, 10) : null
+    const after = sent ? String(sent).slice(0, 10) : null
+    if (after && after !== before) {
+      const extra = await getExtraPermissions(currentUser.userId)
+      if (!hasPermission(currentUser.role, 'contacts:change-dob', extra)) {
+        return c.json({
+          error: `A date of birth already on file can only be changed by a manager. ${existing.name || 'This customer'} is recorded as ${before || 'having no date of birth'} — if that is wrong, ask a manager to correct it with the ID in front of them.`,
+          code: 'dob_change_needs_manager',
+          recorded: before,
+        }, 403)
+      }
+    }
+  }
 
   // The same notice the create path gives. T29 L8 put it on POST only, so editing a customer and
   // typing "T31 <i>it</i>" still saved "T31 it" in silence — the half of the screen most likely to
