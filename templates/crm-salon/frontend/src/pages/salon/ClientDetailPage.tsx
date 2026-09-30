@@ -12,6 +12,21 @@ import { stylistNameOf as stylistName } from '../../lib/staff';
 import { useToast } from '../../contexts/ToastContext';
 
 /**
+ * The steps of a formula, whatever shape the row is in.
+ *
+ * RR2 R1: the visit list ran `formulaSteps(r.formula).map(...)`, which guards null and NOT a string —
+ * a string is truthy and has no .map. One visit with `formula: "6N + 20vol"` threw, the error
+ * boundary caught it, and the whole client chart went to "Something went wrong": no formulas, no
+ * appointments, no account balance, for that client. Every writer normalises now, but rows can
+ * already be in the table from the importer or a migration, so the reader does not assume.
+ */
+function formulaSteps(raw: any): any[] {
+  if (Array.isArray(raw)) return raw.filter((s) => s && typeof s === 'object')
+  if (typeof raw === 'string' && raw.trim()) return [{ product: raw.trim() }]
+  return []
+}
+
+/**
  * Client chart — GET /api/clients/:contactId returns
  * { contact, profile, serviceRecords[], appointments[], memberships[], stats }.
  *
@@ -285,7 +300,7 @@ export default function ClientDetailPage() {
               Rebooking dates (F3) one screen along. A colour without its dark: partner is half a
               colour. */}
           <div className={`border rounded-lg p-3 ${isPast(stats.dueBackAt) ? 'bg-red-50 border-red-200 dark:bg-red-900/30 dark:border-red-800' : ''}`}>
-            <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Due Back</p>
+            <p className={`text-xs uppercase ${isPast(stats.dueBackAt) ? 'text-red-800 dark:text-red-200' : 'text-gray-500 dark:text-slate-400'}`}>Due Back</p>
             <p className={`text-sm font-medium mt-1 ${isPast(stats.dueBackAt) ? 'text-red-700 dark:text-red-200' : 'text-gray-900 dark:text-slate-100'}`}>
               {fmtDate(stats.dueBackAt)}{isPast(stats.dueBackAt) ? ' (overdue)' : ''}
             </p>
@@ -322,7 +337,7 @@ export default function ClientDetailPage() {
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
-              tab === t.id ? 'border-teal-600 text-teal-700' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+              tab === t.id ? 'border-teal-600 text-teal-700 dark:border-teal-300 dark:text-teal-200' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             {t.icon} {t.label}
@@ -363,9 +378,9 @@ export default function ClientDetailPage() {
                         className="text-sm text-gray-500 hover:text-red-700 dark:text-slate-400 dark:hover:text-red-300 disabled:opacity-50"
                       >Remove</button>
                     </div>
-                    {(f.formula || []).length > 0 && (
+                    {formulaSteps(f.formula).length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">
-                        {(f.formula || []).map((line, i) => (
+                        {formulaSteps(f.formula).map((line, i) => (
                           <span key={i} className="text-xs bg-purple-50 text-purple-800 px-2 py-0.5 rounded-full dark:bg-purple-900/40 dark:text-purple-200">
                             {[line.product, line.shade].filter(Boolean).join(' ')}{line.parts ? ` (${line.parts})` : ''}
                           </span>
@@ -405,7 +420,7 @@ export default function ClientDetailPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{money(r.priceCharged)}</span>
-                      {((r.formula || []).length > 0 || r.developerVolume || r.notes) && (
+                      {(formulaSteps(r.formula).length > 0 || r.developerVolume || r.notes) && (
                         <button
                           onClick={() => keepOnCard(r)}
                           disabled={busyFormula === r.id}
@@ -417,9 +432,9 @@ export default function ClientDetailPage() {
                     </div>
                   </div>
 
-                  {(r.formula || []).length > 0 && (
+                  {formulaSteps(r.formula).length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1">
-                      {(r.formula || []).map((line, i) => (
+                      {formulaSteps(r.formula).map((line, i) => (
                         // The dark partner was missing: purple-700 on a light chip over a dark card.
                         <span key={i} className="text-xs bg-purple-50 text-purple-800 px-2 py-0.5 rounded-full dark:bg-purple-900/40 dark:text-purple-200">
                           {[line.product, line.shade].filter(Boolean).join(' ')}{line.parts ? ` (${line.parts})` : ''}

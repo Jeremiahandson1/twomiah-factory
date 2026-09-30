@@ -362,7 +362,7 @@ export default function RemindersPage() {
                         knowing whether "due today" is this client's own habit or the price list's
                         default — and it is the difference between a useful call and a nagging one. */}
                     {r.intervalNote && (
-                      <span className="block text-xs font-normal text-gray-500 dark:text-slate-400">{r.intervalNote}</span>
+                      <span className="block text-xs font-normal text-gray-600 dark:text-slate-400">{r.intervalNote}</span>
                     )}
                   </td>
                 </tr>

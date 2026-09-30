@@ -12,7 +12,10 @@ import { resolveStylist, unknownStylist, stylistIdOf } from '../utils/stylist.ts
 import { hasHappened } from '../shared/index.ts'
 import { scheduleReviewRequestForVisit } from '../services/reviews.ts'
 import { AUTO_VISIT_NOTE, CANCELLED_VISIT_NOTE, CANCELLED_VISIT_LABEL } from './appointments.ts'
-import { keepFromRecord } from '../services/clientFormulas.ts'
+// normaliseFormula: a formula is ALWAYS a list of step objects, at every write. RR2 R1 — the card
+// path normalised a string and this file did not, so `formula: "6N + 20vol"` was stored raw and the
+// client chart's visit list threw on `.map`, taking the whole chart down behind an error boundary.
+import { keepFromRecord, normaliseFormula } from '../services/clientFormulas.ts'
 
 /**
  * The formula log — what was actually done in the chair. This is the salon's
@@ -231,9 +234,53 @@ app.post('/repair-legacy', requirePermission('company:update'), async (c: any) =
   if (orphanRows.length || unvoidedRows.length || futureRows.length || staleRows.length) emitToCompany(cid, EVENTS.REFRESH, { entity: 'service_record' })
   if (orphanRows.length || unvoidedRows.length) emitToCompany(cid, EVENTS.REFRESH, { entity: 'invoice' })
 
+  // ── R3: visits written before N8, which show $0.00 on the chart ─────────────────────────────
+  //
+  // RR2 R3: N8 fixed the WRITE — a completed booking now carries the price the service charges —
+  // and 105 of the 122 appointment-linked records already on the tenant still had priceCharged
+  // null, so most of a client's history reads $0.00 beside real invoices. Fixing the writer never
+  // heals the rows already written; that is the same lesson as the formula normaliser one file
+  // over, and it needs a one-off pass like the loyalty invoices got.
+  //
+  // The price comes from the SALE first and the menu second, which is the same order
+  // onVisitCompleted resolves it in — so a backfilled row and a fresh one agree. Only rows with NO
+  // price are touched: a visit someone priced by hand is their number, not ours.
+  const pricelessRows: any[] = []
+  {
+    const rows: any = await db.execute(sql`
+      -- These columns are DECIMAL in the salon schema, not text. The first version wrapped them in
+      -- NULLIF(x, '') out of habit from the dispensary, where they ARE text, and every call answered
+      -- 400 "One of the values is not in a valid format" — which also took the four repairs that
+      -- share this route down with it. Numeric columns are compared to NULL, not to ''.
+      SELECT sr.id,
+             COALESCE(i.subtotal, a.quoted_price, sm.price) AS price
+      FROM service_record sr
+      LEFT JOIN invoice i ON i.appointment_id = sr.appointment_id AND i.company_id = ${cid} AND i.status <> 'void'
+      LEFT JOIN appointment a ON a.id = sr.appointment_id AND a.company_id = ${cid}
+      LEFT JOIN service_menu sm ON sm.id = sr.service_id AND sm.company_id = ${cid}
+      WHERE sr.company_id = ${cid}
+        AND sr.appointment_id IS NOT NULL
+        AND sr.price_charged IS NULL
+    `)
+    for (const r of ((rows as any).rows || rows)) {
+      const price = Number(r.price)
+      // No sale, no quote and no menu price is not a zero — it is unknown, and writing 0.00 would
+      // turn "we do not know" into "it was free".
+      if (!Number.isFinite(price) || price <= 0) continue
+      await db.execute(sql`
+        UPDATE service_record SET price_charged = ${price.toFixed(2)}, updated_at = NOW()
+        WHERE id = ${r.id} AND company_id = ${cid}
+      `)
+      pricelessRows.push({ id: r.id, price: Number(price.toFixed(2)) })
+    }
+  }
+
   return c.json({
     invoicesVoided: orphanRows.length,
     invoices: orphanRows.map((r) => ({ id: r.id, number: r.number, total: r.total })),
+    // Visits that predate N8 and showed $0.00, given the price their own sale or menu says. (RR2 R3)
+    visitsPriced: pricelessRows.length,
+    priced: pricelessRows,
     // Sales put back on a visit that was never deleted. (LYR N3)
     invoicesRestored: unvoidedRows.length,
     restored: unvoidedRows.map((r) => ({ id: r.id, number: r.number, total: r.total })),
@@ -311,7 +358,9 @@ app.post('/', requirePermission('schedule:create'), async (c) => {
   if (body.processingMin != null && body.processingMin !== '' && (isNaN(Number(body.processingMin)) || Number(body.processingMin) < 0 || Number(body.processingMin) > 600)) {
     return c.json({ error: 'Processing time must be between 0 and 600 minutes.' }, 400)
   }
-  const hasFormula = Array.isArray(body.formula) && body.formula.some((l: any) => (l?.product || l?.shade || '').toString().trim())
+  // Through the normaliser, so "is there a formula here" is decided the same way the card decides
+  // it. Asking Array.isArray meant a string formula counted as no formula at all. (RR2 R1)
+  const hasFormula = normaliseFormula(body.formula).some((l: any) => (l?.product || l?.shade || '').toString().trim())
   if (!body.serviceId && !hasFormula && !body.result && !body.productsUsed && (body.priceCharged == null || body.priceCharged === '') && !body.notes) {
     return c.json({ error: 'Add a service, a formula, a result or a price — an empty record tells the next stylist nothing.' }, 400)
   }
@@ -340,7 +389,7 @@ app.post('/', requirePermission('schedule:create'), async (c) => {
       for (const k of ['serviceId', 'developerVolume', 'processingMin', 'productsUsed', 'result', 'photoBefore', 'photoAfter', 'priceCharged', 'notes']) if (k in body) upd[k] = body[k] === '' ? null : body[k]
       // the resolved chair, into whichever column holds it (T20 H1)
       if ('stylistId' in body) { upd.stylistId = stylist.stylistId; upd.stylistMemberId = stylist.stylistMemberId }
-      if (Array.isArray(body.formula)) upd.formula = body.formula
+      if ('formula' in body) upd.formula = normaliseFormula(body.formula)
       if (body.performedAt) upd.performedAt = /^\d{4}-\d{2}-\d{2}$/.test(String(body.performedAt)) ? new Date(`${body.performedAt}T12:00:00.000Z`) : new Date(body.performedAt)
       const [merged] = await db.update(serviceRecord).set(upd).where(eq(serviceRecord.id, auto.id)).returning()
       emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'service_record' })
@@ -357,7 +406,9 @@ app.post('/', requirePermission('schedule:create'), async (c) => {
     // A date-only value ("2026-09-11") is a calendar date: store it at noon UTC so it renders as that
     // date in any US timezone instead of UTC midnight rolling back a day. (SALON-H9)
     performedAt: body.performedAt ? (/^\d{4}-\d{2}-\d{2}$/.test(String(body.performedAt)) ? new Date(`${body.performedAt}T12:00:00.000Z`) : new Date(body.performedAt)) : new Date(),
-    formula: Array.isArray(body.formula) ? body.formula : [],
+    // Normalised, not dropped: `Array.isArray(...) ? ... : []` silently deleted a string formula
+    // rather than keeping it as one step. (RR2 R1)
+    formula: normaliseFormula(body.formula),
     developerVolume: body.developerVolume || null,
     processingMin: body.processingMin ?? null,
     productsUsed: body.productsUsed || null,
@@ -413,6 +464,17 @@ app.put('/:id', requirePermission('schedule:update'), async (c) => {
   const EDITABLE = ['appointmentId', 'stylistId', 'serviceId', 'performedAt', 'formula', 'developerVolume', 'processingMin', 'productsUsed', 'result', 'photoBefore', 'photoAfter', 'priceCharged', 'notes'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+  // …and the formula through the normaliser, like every other write of it.
+  //
+  // RR2 R1: this whitelist copied the body value straight through, so
+  // PUT /api/service-records/:id { formula: "6N + 20vol" } answered 200 and stored the string. The
+  // client chart's visit list then ran `(r.formula || []).map(...)` on it and threw, and the error
+  // boundary took down the WHOLE chart — formulas, appointments and the account balance — for that
+  // client. `formula: true` did the same.
+  //
+  // A whitelist says which keys may be written. It does not say the values are the right shape, and
+  // I had read it as though it did.
+  if ('formula' in body) updates.formula = normaliseFormula(body.formula)
   // Reassigning the stylist has to land in the right column, and they have to exist. (T20 H1)
   if ('stylistId' in updates) {
     const resolved = await resolveStylist(currentUser.companyId, updates.stylistId)

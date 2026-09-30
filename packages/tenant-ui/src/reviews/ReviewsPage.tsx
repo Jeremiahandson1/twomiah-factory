@@ -19,7 +19,7 @@ export function ReviewsPage({ api, toast, config }: { api: SettingsApi; toast?: 
       <div><h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reviews</h1><p className="text-gray-500 dark:text-slate-400">{copy.subtitle}</p></div>
       <div className="border-b dark:border-slate-700">
         <nav className="flex gap-6">{([{ id: 'dashboard' as Tab, label: 'Dashboard', icon: BarChart3 }, { id: 'settings' as Tab, label: 'Settings', icon: Settings }]).map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-2 pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${tab === t.id ? 'border-orange-500 text-orange-600 dark:text-orange-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400'}`}><t.icon className="w-4 h-4" />{t.label}</button>
+          <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-2 pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${tab === t.id ? 'border-orange-500 text-orange-600 dark:text-orange-200' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400'}`}><t.icon className="w-4 h-4" />{t.label}</button>
         ))}</nav>
       </div>
       {tab === 'dashboard' ? <DashboardTab api={api} toast={toast} copy={copy} /> : <SettingsTab api={api} toast={toast} copy={copy} />}

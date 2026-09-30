@@ -7,6 +7,21 @@ import { useConfirm } from '../../shared';
 import { useToast } from '../../contexts/ToastContext';
 
 /**
+ * The steps of a formula, whatever shape the row is in.
+ *
+ * RR2 R1: the visit list ran `formulaSteps(r.formula).map(...)`, which guards null and NOT a string —
+ * a string is truthy and has no .map. One visit with `formula: "6N + 20vol"` threw, the error
+ * boundary caught it, and the whole client chart went to "Something went wrong": no formulas, no
+ * appointments, no account balance, for that client. Every writer normalises now, but rows can
+ * already be in the table from the importer or a migration, so the reader does not assume.
+ */
+function formulaSteps(raw: any): any[] {
+  if (Array.isArray(raw)) return raw.filter((s) => s && typeof s === 'object')
+  if (typeof raw === 'string' && raw.trim()) return [{ product: raw.trim() }]
+  return []
+}
+
+/**
  * Service record editor — the formula log.
  *
  * The formula is a repeatable list of {product, shade, parts} rather than a free
@@ -218,7 +233,7 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
                 </button>
               </div>
               <div className="space-y-2">
-                {formula.map((line, i) => (
+                {formulaSteps(formula).map((line, i) => (
                   <div key={i} className="grid grid-cols-12 gap-2">
                     <input
                       type="text" value={line.product || ''} onChange={(e) => setLine(i, 'product', e.target.value)}

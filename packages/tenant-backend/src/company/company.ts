@@ -168,7 +168,11 @@ export function createCompanyRoutes(deps: CompanyDeps) {
       const READS_AS_A_PERCENTAGE = /tax|vat|gst|hst|pst|commission|tip|gratuity|discount|markup|margin|interest|apr|surcharge|utili[sz]ation|occupancy|conversion|retention|churn|growth/i
       for (const [k, v] of Object.entries(money as Record<string, unknown>)) {
         if (v == null || v === '' || typeof v === 'object') continue
-        if (/(?:percent|pct)$/i.test(k) || (/rate$/i.test(k) && READS_AS_A_PERCENTAGE.test(k))) {
+        // `percentage` as well as `percent`. RR2 R2: the suffix list had "percent" and "pct" but not
+        // "percentage", so tipPercent 150 was refused and tipPercentage 150 saved — the same setting
+        // spelled the longer way. The word "percentage" is not a borderline case for this rule; it
+        // IS the rule.
+        if (/(?:percent|percentage|pct)$/i.test(k) || (/rate$/i.test(k) && READS_AS_A_PERCENTAGE.test(k))) {
           const n = Number(v)
           if (!Number.isFinite(n) || n < 0 || n > 100) {
             return c.json({ error: `${k} reads as a percentage, so it has to be a number between 0 and 100 — got ${JSON.stringify(v)}.`, field: `settings.${k}` }, 400)

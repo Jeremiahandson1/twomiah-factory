@@ -48,7 +48,7 @@ const statusColors: Record<string, string> = {
   open: 'bg-blue-500/20 text-blue-700 dark:text-blue-400',
   in_progress: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400',
   waiting: 'bg-purple-500/20 text-purple-700 dark:text-purple-400',
-  resolved: 'bg-green-500/20 text-green-700 dark:text-green-400',
+  resolved: 'bg-green-500/20 text-green-800 dark:text-green-300',
   closed: 'bg-gray-500/20 text-gray-600 dark:text-gray-400',
 };
 
