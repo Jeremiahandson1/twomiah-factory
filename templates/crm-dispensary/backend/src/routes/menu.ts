@@ -16,19 +16,52 @@ const SALES_TAX_RATE = 0.0875 // state + local sales tax
 
 const app = new Hono()
 
-// In-memory cache for menu responses
-const menuCache = new Map<string, { data: any; expiresAt: number }>()
-const CACHE_TTL_MS = 60_000 // 60 seconds
+// ── the public menu cache, and why it is stamped rather than merely timed ───────────────────────
+//
+// T52 N8. The menu was cached for 60 seconds flat, so a recall took up to a minute to leave the
+// public menu. For a minute the shop was still offering, by name and price, a product it had just
+// declared unsafe — and "the website was a minute behind" is not a thing a shop wants to explain
+// to a regulator or to the person who bought it.
+//
+// The obvious fix is to have the recall route clear the cache. That is the fix this codebase has
+// now been burned by four times (T48 Q6, T47 P20, T49 B1, T52 M6): a rule that every writer has to
+// remember, which works until someone adds the writer that does not. Batch status alone is written
+// from batches.ts in five places, wholesale.ts, manufacturing.ts and compliance.ts, and a product
+// leaves the menu through `active`, `visible`, price and stock as well as through a recall.
+//
+// So the cache validates itself instead. A cached menu carries a STAMP — the newest updated_at and
+// the row count across this company's products and batches — and it is served only while the shop's
+// stock still stamps the same. One small indexed query replaces the twenty the menu build runs, the
+// cache keeps doing its job on a hot public page, and no writer anywhere has to know the cache
+// exists. A writer added next year gets this for free, which is the whole point.
+const menuCache = new Map<string, { data: any; stamp: string; expiresAt: number }>()
+const CACHE_TTL_MS = 60_000 // an upper bound only — the stamp is what actually decides
 
-function getCached(key: string) {
+/**
+ * What the menu is a picture of. Any insert, update or delete against this company's products or
+ * batches changes it; nothing else does.
+ */
+async function menuStamp(companyId: string): Promise<string> {
+  const r: any = await db.execute(sql`
+    SELECT
+      (SELECT COALESCE(MAX(updated_at), 'epoch'::timestamp) FROM products WHERE company_id = ${companyId}) AS p_at,
+      (SELECT COUNT(*) FROM products WHERE company_id = ${companyId}) AS p_n,
+      (SELECT COALESCE(MAX(updated_at), 'epoch'::timestamp) FROM batches  WHERE company_id = ${companyId}) AS b_at,
+      (SELECT COUNT(*) FROM batches  WHERE company_id = ${companyId}) AS b_n
+  `)
+  const row = (r.rows || r)[0] || {}
+  return `${new Date(row.p_at ?? 0).getTime()}:${row.p_n ?? 0}:${new Date(row.b_at ?? 0).getTime()}:${row.b_n ?? 0}`
+}
+
+function getCached(key: string, stamp: string) {
   const entry = menuCache.get(key)
-  if (entry && entry.expiresAt > Date.now()) return entry.data
-  menuCache.delete(key)
+  if (entry && entry.expiresAt > Date.now() && entry.stamp === stamp) return entry.data
+  if (entry) menuCache.delete(key)
   return null
 }
 
-function setCache(key: string, data: any) {
-  menuCache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS })
+function setCache(key: string, stamp: string, data: any) {
+  menuCache.set(key, { data, stamp, expiresAt: Date.now() + CACHE_TTL_MS })
 }
 
 // Which shop this is.
@@ -70,14 +103,17 @@ app.get('/', async (c) => {
   const slug = await resolveSlug(c)
   if (!slug) return c.json({ error: 'Company slug is required' }, 400)
 
-  const cacheKey = `menu:${slug}`
-  const cached = getCached(cacheKey)
-  if (cached) return c.json(cached)
-
-  // Resolve company
+  // Resolve company first — the cache is now checked against what the shop's stock actually says,
+  // and that question needs a company id. Two indexed lookups on a hit, against the twenty-odd
+  // queries the build below runs on a miss.
   const [foundCompany] = await db.select({ id: company.id, name: company.name, logo: company.logo, primaryColor: company.primaryColor })
     .from(company).where(eq(company.slug, slug)).limit(1)
   if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
+
+  const cacheKey = `menu:${slug}`
+  const stamp = await menuStamp(foundCompany.id)
+  const cached = getCached(cacheKey, stamp)
+  if (cached) return c.json(cached)
 
   // Fetch visible, active products
   const products = await db.select().from(product)
@@ -173,10 +209,13 @@ app.get('/', async (c) => {
   const response = {
     company: foundCompany,
     menu,
-    totalProducts: products.length,
+    // Count what is ON the menu, not what was fetched before the recall filter ran. It said
+    // "2 products" over a list of one from the day the recall filter was added — a small lie, but
+    // it is the number a shop quotes and the one a menu-sync would trust.
+    totalProducts: menu.reduce((n, cat) => n + cat.products.length, 0),
   }
 
-  setCache(cacheKey, response)
+  setCache(cacheKey, stamp, response)
   return c.json(response)
 })
 
