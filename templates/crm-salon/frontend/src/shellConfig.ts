@@ -19,11 +19,11 @@ const NAV: NavItem[] = [
   // The salon had the expense TABLE and no way to reach it — no create, no screen, and a read
   // endpoint that answered 500 on every call. Gated on the permission the API itself requires, so
   // a role that would be refused does not see the link. (rule 3)
-  { to: '/crm/expenses', icon: DollarSign, label: 'Expenses', permission: 'expenses:read' },
+  { to: '/crm/expenses', icon: DollarSign, label: 'Expenses', features: ['expense_tracking'], permission: 'expenses:read' },
   // …and the hours. /api/payroll/summary has always reported on time_entry, and nothing in the
   // product could write one — no clock-in, no entry form, no screen — so the report was of an
   // empty table and a salon could not pay anybody from it. (rule 3)
-  { to: '/crm/time', icon: Clock, label: 'Time', permission: 'time:read' },
+  { to: '/crm/time', icon: Clock, label: 'Time', features: ['time_tracking'], permission: 'time:read' },
   { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['google_reviews'], minRole: 'manager' },
   { to: '/crm/bookings', icon: CalendarCheck, label: 'Online Booking', features: ['online_booking'] },
   // The Marketing page is email marketing (campaigns, templates, drips); Reviews has its own item above. (T15 M5)

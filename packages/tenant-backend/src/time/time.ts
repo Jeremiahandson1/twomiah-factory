@@ -63,15 +63,45 @@ export function createTimeRoutes(deps: TimeDeps) {
   app.use('*', authenticate)
 
   const isManager = (u: any) => MANAGER_ROLES.has(u.role)
+
+  // ── what an approval is, and what breaks it (RR4 M2 / M3) ─────────────────────────────────────
+  //
+  // An approval is a SECOND PERSON vouching for a specific number of hours before they are paid.
+  // Everything below follows from that one sentence:
+  //
+  //   · you cannot be that second person for your own entry (M3). A manager logged an hour and
+  //     approved it themselves — which removes the check for the one person who approves everyone
+  //     else. The exception is the top of the tree: an owner or admin has nobody above them to ask,
+  //     and refusing them would leave their own time unapprovable forever, which is the "a refusal
+  //     can be the bug" failure this project has already had once.
+  //
+  //   · an approval vouches for the FIGURE it was given, so changing the figure ends it (M2). An
+  //     approved 2.5-hour entry could be PUT to 6 hours and came back "6.00 hours, still approved" —
+  //     an approval standing over a number nobody approved. The edit is still allowed, because
+  //     correcting a genuine mistake is normal; what it cannot do is keep the tick. It goes back for
+  //     re-approval, and the response says so rather than leaving it to be noticed.
+  //
+  // Taken with the expenses module's matching rule, this is what stops "log my own hours, approve
+  // them, then change the number" — which is a payroll fraud in three requests.
+  const OWN_APPROVAL_OK = new Set(['owner', 'admin'])
+  const isOwnEntry = (u: any, entry: any) => String(entry?.userId || '') === String(u?.userId || '')
+  const selfApprovalRefusal = (u: any, entry: any) =>
+    isOwnEntry(u, entry) && !OWN_APPROVAL_OK.has(u.role)
+      ? 'You cannot approve your own time. Approval is a second person checking the hours before they are paid — ask an owner or admin to approve this one.'
+      : null
+  /** Changing what the approval vouches for: the hours themselves, or the day they were worked. */
+  const figureChanged = (updates: any) => updates.hours !== undefined || updates.date !== undefined
   const invalid = (c: any, err: z.ZodError) => c.json({ error: err.errors[0]?.message || 'Invalid time entry', details: err.flatten().fieldErrors }, 400)
 
   const entrySchema = z.object({
     date: z.string().optional().nullable().refine(validDate, { message: 'Enter a valid date' }).refine(notFuture, { message: 'Time can only be logged for a date that has happened' }),
-    hours: z.coerce.number().positive('Hours must be greater than 0').max(maxHours, `Hours cannot exceed ${maxHours} for one entry`).optional(),
+    // RR4 L2's rule, applied here too: the type check fires before .positive(), so without its own
+    // message a typed word answers with zod's "Expected number, received nan".
+    hours: z.coerce.number({ invalid_type_error: 'Hours must be a number, for example 2.5' }).positive('Hours must be greater than 0').max(maxHours, `Hours cannot exceed ${maxHours} for one entry`).optional(),
     startTime: z.string().regex(TIME_RE, 'Start time must be HH:MM').optional(),
     endTime: z.string().regex(TIME_RE, 'End time must be HH:MM').optional(),
-    breakMinutes: z.coerce.number().int().min(0).max(24 * 60).optional(),
-    hourlyRate: z.coerce.number().min(0).max(100000).optional().nullable(),
+    breakMinutes: z.coerce.number({ invalid_type_error: 'Break must be a number of minutes, for example 30' }).int('Break must be a whole number of minutes').min(0, 'Break cannot be negative').max(24 * 60).optional(),
+    hourlyRate: z.coerce.number({ invalid_type_error: 'An hourly rate must be a number, for example 18.00' }).min(0, 'An hourly rate cannot be negative').max(100000).optional().nullable(),
     description: z.string().max(2000).transform(stripTags).optional().nullable(),
     notes: z.string().max(2000).transform(stripTags).optional().nullable(),
     billable: z.boolean().optional(),
@@ -400,9 +430,22 @@ export function createTimeRoutes(deps: TimeDeps) {
     if (data.jobId !== undefined) updates.jobId = data.jobId
     if (data.approved !== undefined) {
       if (!isManager(currentUser)) return c.json({ error: 'Only owners, admins and managers can approve time' }, 403)
+      if (data.approved) {
+        const refusal = selfApprovalRefusal(currentUser, existing)
+        if (refusal) return c.json({ error: refusal, code: 'self_approval' }, 403)
+      }
       updates.approved = data.approved; updates.approvedAt = data.approved ? new Date() : null
     }
+    // The approval vouched for a figure. Change the figure and it no longer vouches for anything, so
+    // it goes back for re-approval — unless this same request is deliberately re-approving. (RR4 M2)
+    const approvalCleared = existing.approved && figureChanged(updates) && updates.approved !== true
+    if (approvalCleared) { updates.approved = false; updates.approvedAt = null }
+
     const [row] = await db.update(t.timeEntry).set(updates).where(and(eq(t.timeEntry.id, id), eq(t.timeEntry.companyId, currentUser.companyId))).returning()
+    if (approvalCleared) {
+      audit?.log({ action: 'status_change', entity: 'time_entry', entityId: id, metadata: { approved: false, reason: 'the hours or the date changed after approval' }, req: { user: currentUser } })
+      return c.json({ ...row, warnings: ['This entry was approved. The hours changed, so the approval has been removed and it needs approving again.'] })
+    }
     return c.json(row)
   })
 
@@ -424,6 +467,8 @@ export function createTimeRoutes(deps: TimeDeps) {
     const id = c.req.param('id')
     const existing = await ownEntry(id, currentUser.companyId)
     if (!existing) return c.json({ error: 'Time entry not found' }, 404)
+    const refusal = selfApprovalRefusal(currentUser, existing)
+    if (refusal) return c.json({ error: refusal, code: 'self_approval' }, 403)
     const [row] = await db.update(t.timeEntry).set({ approved: true, approvedAt: new Date(), updatedAt: new Date() }).where(and(eq(t.timeEntry.id, id), eq(t.timeEntry.companyId, currentUser.companyId))).returning()
     audit?.log({ action: 'status_change', entity: 'time_entry', entityId: id, metadata: { approved: true }, req: { user: currentUser } })
     return c.json(row)
@@ -434,9 +479,35 @@ export function createTimeRoutes(deps: TimeDeps) {
     if (!isManager(currentUser)) return c.json({ error: 'Only owners, admins and managers can approve time' }, 403)
     const parsed = z.object({ entryIds: z.array(z.string()).min(1).max(500) }).safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return c.json({ error: 'entryIds array is required' }, 400)
+
+    // The same door as /:id/approve, and it has to answer the same way — a rule enforced on the one
+    // that approves a single entry and not on the one that approves five hundred is not a rule.
+    // Own entries are left out and NAMED, rather than the whole batch being refused: a manager
+    // approving the week's timesheet should not be blocked because their own line is in it.
+    // (RR4 M3, and rule 2 — the same rule at every door that does the same thing.)
+    let mine: string[] = []
+    let ids = parsed.data.entryIds
+    if (!OWN_APPROVAL_OK.has(currentUser.role)) {
+      const rows = await db.select({ id: t.timeEntry.id, userId: t.timeEntry.userId }).from(t.timeEntry)
+        .where(and(inArray(t.timeEntry.id, ids), eq(t.timeEntry.companyId, currentUser.companyId)))
+      mine = rows.filter((r: any) => String(r.userId) === String(currentUser.userId)).map((r: any) => r.id)
+      ids = ids.filter((id) => !mine.includes(id))
+    }
+    if (!ids.length) {
+      return c.json({
+        error: 'You cannot approve your own time. Approval is a second person checking the hours before they are paid — ask an owner or admin to approve these.',
+        code: 'self_approval', approved: 0, skipped: mine.length,
+      }, 403)
+    }
     const rows = await db.update(t.timeEntry).set({ approved: true, approvedAt: new Date(), updatedAt: new Date() })
-      .where(and(inArray(t.timeEntry.id, parsed.data.entryIds), eq(t.timeEntry.companyId, currentUser.companyId))).returning({ id: t.timeEntry.id })
-    return c.json({ approved: rows.length })
+      .where(and(inArray(t.timeEntry.id, ids), eq(t.timeEntry.companyId, currentUser.companyId))).returning({ id: t.timeEntry.id })
+    return c.json({
+      approved: rows.length,
+      ...(mine.length ? {
+        skipped: mine.length,
+        warnings: [`${mine.length} of your own ${mine.length === 1 ? 'entry was' : 'entries were'} left for someone else to approve.`],
+      } : {}),
+    })
   })
 
   return app

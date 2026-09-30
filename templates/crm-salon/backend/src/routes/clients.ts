@@ -329,8 +329,20 @@ app.post('/:contactId/formulas', requirePermission('contacts:update'), async (c)
   })
 })
 
-/** Forget one. The visit records it was ever used on are untouched — this is the card, not the history. */
-app.delete('/:contactId/formulas/:formulaId', requirePermission('contacts:update'), async (c) => {
+/**
+ * Forget one. The visit records it was ever used on are untouched — this is the card, not the history.
+ *
+ * RR4 L3: this asked for `contacts:update`, which a stylist holds, so any stylist could remove a
+ * kept formula — their own by mistake, or a colleague's. Adding stays open, because building the
+ * card is the stylist's job and the whole point of the feature; REMOVING is the salon's record of
+ * what went on a client's hair going away, and there is no undo.
+ *
+ * `contacts:delete`, not a role check. A manager, admin and owner hold `contacts:*` and a stylist
+ * does not, so this lands exactly where the tester asked — and it stays right for a shop that hands
+ * a senior stylist extra permissions, which a minRole would quietly override. (Rank is not
+ * permission; that lesson cost this project a round already.)
+ */
+app.delete('/:contactId/formulas/:formulaId', requirePermission('contacts:delete'), async (c) => {
   const currentUser = c.get('user') as any
   const contactId = c.req.param('contactId')
   const [ct] = await db.select().from(contact)

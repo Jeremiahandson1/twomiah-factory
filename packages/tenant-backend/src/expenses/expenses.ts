@@ -47,8 +47,11 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     category: z.string().trim().refine((v) => categories.includes(v), { message: `Category must be one of ${categories.join(', ')}` }),
     vendor: z.string().trim().max(120).transform(stripTags).optional().nullable(),
     description: z.string().trim().min(1, 'Description is required').max(1000).transform(stripTags),
-    amount: z.coerce.number().positive('Amount must be greater than 0').max(100_000_000),
-    taxAmount: z.coerce.number().min(0).max(100_000_000).optional(),
+    // RR4 L2: 'abc' fell through to zod's own "Expected number, received nan" — the type check fails
+    // before .positive() ever runs, so the plain-English message never got a chance. Every number in
+    // this module now says what it wants in words a person typed the box would recognise.
+    amount: z.coerce.number({ invalid_type_error: 'Amount must be a number, for example 24.50' }).positive('Amount must be greater than 0').max(100_000_000),
+    taxAmount: z.coerce.number({ invalid_type_error: 'Tax must be a number, for example 4.90' }).min(0, 'Tax cannot be negative').max(100_000_000).optional(),
     billable: z.boolean().default(false),
     reimbursable: z.boolean().default(false),
     receiptUrl: z.string().trim().url().max(2000).optional().nullable().or(z.literal('').transform(() => null)),
@@ -145,12 +148,43 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     if (!existing) return c.json({ error: 'Expense not found' }, 404)
     const refErr = await checkRefs(currentUser.companyId, data)
     if (refErr) return c.json({ error: refErr }, 400)
+
+    // ── what an approval vouches for, and what a payment settles (RR4 M2) ───────────────────────
+    //
+    // A $24.50 expense was reimbursed and then PUT to 500, and came back "$500.00, still reimbursed"
+    // — a record claiming the shop paid out five hundred pounds it never paid. The two states are
+    // not the same kind of thing and they do not get the same answer:
+    //
+    //   REIMBURSED  the money has left the building at a figure. The record of what was paid cannot
+    //               be rewritten afterwards; a wrong payment is corrected with another entry, the
+    //               way every other ledger in this product works.
+    //   APPROVED    somebody vouched for a figure and nothing has been paid. Correcting it is
+    //               normal — it just cannot keep the tick, so it goes back for re-approval.
+    //
+    // Only the figure matters. Fixing a typo in the description or attaching the receipt is left
+    // alone, on both — refusing those would make the rule an obstacle rather than a control.
+    const moneyChanged = data.amount !== undefined || data.taxAmount !== undefined || data.date !== undefined
+    if (existing.reimbursed && moneyChanged) {
+      return c.json({
+        error: `${existing.description ? `"${existing.description}" ` : 'This expense '}has already been reimbursed for ${existing.amount}. What was paid cannot be rewritten — add a new expense for the difference, or reverse this one.`,
+        code: 'already_reimbursed',
+      }, 409)
+    }
+
     const updates: any = { updatedAt: new Date() }
     for (const [k, v] of Object.entries(data)) if (v !== undefined) updates[k] = v
     if (data.amount !== undefined) updates.amount = String(data.amount)
     if (data.taxAmount !== undefined) updates.taxAmount = String(data.taxAmount)
     if (data.date !== undefined) updates.date = data.date ? new Date(data.date) : existing.date
+
+    const approvalCleared = existing.approved && moneyChanged
+    if (approvalCleared) updates.approved = false
+
     const [row] = await db.update(t.expense).set(updates).where(and(eq(t.expense.id, id), eq(t.expense.companyId, currentUser.companyId))).returning()
+    if (approvalCleared) {
+      audit?.log({ action: 'status_change', entity: 'expense', entityId: id, metadata: { approved: false, reason: 'the amount or the date changed after approval' }, req: { user: currentUser } })
+      return c.json({ ...row, warnings: ['This expense was approved. The amount changed, so the approval has been removed and it needs approving again.'] })
+    }
     return c.json(row)
   })
 
@@ -165,12 +199,26 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
   })
 
   // Reimburse / approve: managers only, scoped to the company.
+  //
+  // ── and reimbursing pays the money out, so it comes AFTER approval (RR4 M4) ───────────────────
+  //
+  // An expense read `reimbursed: true` while `approved: false`. Approval exists so somebody checks a
+  // claim before it is paid; if the payment can be made without it, the check does nothing at all —
+  // it is a tickbox next to a payment that has already happened. The order is now enforced, and the
+  // refusal says which step is missing rather than just saying no.
   const managerAction = (field: 'reimbursed' | 'approved') => async (c: any) => {
     const currentUser = (c as any).get('user')
     if (!MANAGER_ROLES.has(currentUser.role)) return c.json({ error: `Only owners, admins and managers can mark expenses ${field}` }, 403)
     const id = c.req.param('id')
     const existing = await ownExpense(id, currentUser.companyId)
     if (!existing) return c.json({ error: 'Expense not found' }, 404)
+    if (field === 'reimbursed' && !existing.approved) {
+      return c.json({
+        error: 'Approve this expense before reimbursing it. Reimbursing pays the money out, and approval is the check that happens first.',
+        code: 'approval_required',
+        approveWith: `POST /api/expenses/${id}/approve`,
+      }, 409)
+    }
     const updates: any = { [field]: true, updatedAt: new Date() }
     if (field === 'reimbursed') updates.reimbursedAt = new Date()
     const [row] = await db.update(t.expense).set(updates).where(and(eq(t.expense.id, id), eq(t.expense.companyId, currentUser.companyId))).returning()

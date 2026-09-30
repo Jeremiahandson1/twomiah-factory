@@ -120,7 +120,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'event_deposits', name: 'Deposits & Balances', description: 'Staged payment schedule per event with overdue tracking across the whole book', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant'] },
 
   // Field Operations
-  { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in/out with GPS', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare'] },
+  { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in/out with GPS', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-salon'] },
   { id: 'gps_tracking', name: 'GPS Tracking', description: 'Real-time crew location', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare'] },
   { id: 'photo_capture', name: 'Photo Capture', description: 'Job site photo documentation', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'] },
   { id: 'equipment_tracking', name: 'Equipment', description: 'Equipment and tool tracking', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
@@ -128,7 +128,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 
   // Finance
   { id: 'online_payments', name: 'Online Payments', description: 'Stripe payment processing — deposits and payments by card or ACH', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant'] },
-  { id: 'expense_tracking', name: 'Expense Tracking', description: 'Expense logging and receipts', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
+  { id: 'expense_tracking', name: 'Expense Tracking', description: 'Expense logging and receipts', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-salon'] },
   { id: 'job_costing', name: 'Job Costing', description: 'Detailed job cost analysis', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
   { id: 'purchase_orders', name: 'Purchase Orders', description: 'Commit spend with vendors per job — sent, acknowledged, received, billed', category: 'Finance', core: false, templates: ['crm', 'crm-dispensary'] },
   { id: 'vendor_bills', name: 'Bills & Payables', description: 'Vendor bills with due dates, payments, and committed-vs-billed job rollups', category: 'Finance', core: false, templates: ['crm'] },

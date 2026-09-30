@@ -93,10 +93,10 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
     { key: 'user', label: 'User', render: (v: any) => (v ? `${v.firstName || ''} ${v.lastName || ''}`.trim() || '-' : '-') },
     ...(showJobs ? [{ key: 'job', label: jobLabel, render: (v: any) => v?.title || '-' }] : []),
     ...(showProjects ? [{ key: 'project', label: 'Project', render: (v: any) => v?.name || '-' }] : []),
-    { key: 'hours', label: 'Hours', render: (v: any, row: Entry) => (row.clockIn && !row.clockOut ? <span className="text-orange-600">running</span> : Number(v || 0).toFixed(2)) },
+    { key: 'hours', label: 'Hours', render: (v: any, row: Entry) => (row.clockIn && !row.clockOut ? <span className="text-orange-700 dark:text-orange-400">running</span> : Number(v || 0).toFixed(2)) },
     { key: 'description', label: 'Description', render: (v: any) => v || '-' },
-    { key: 'billable', label: 'Billable', render: (v: any) => (v ? <span className="text-green-600">Yes</span> : <span className="text-gray-500 dark:text-slate-400">No</span>) },
-    { key: 'approved', label: 'Approved', render: (v: any) => (v ? <span className="text-green-600 inline-flex items-center gap-1"><Check className="w-3 h-3" /> Yes</span> : <span className="text-gray-500 dark:text-slate-400">No</span>) },
+    { key: 'billable', label: 'Billable', render: (v: any) => (v ? <span className="text-green-700 dark:text-green-400">Yes</span> : <span className="text-gray-500 dark:text-slate-400">No</span>) },
+    { key: 'approved', label: 'Approved', render: (v: any) => (v ? <span className="text-green-700 dark:text-green-400 inline-flex items-center gap-1"><Check className="w-3 h-3" /> Yes</span> : <span className="text-gray-500 dark:text-slate-400">No</span>) },
   ]
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm({ ...form, [k]: e.target.value })
 

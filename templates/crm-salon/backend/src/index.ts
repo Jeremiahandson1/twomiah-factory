@@ -319,6 +319,13 @@ app.route('/api/maps', mapsRoutes)
 app.route('/api/marketing', marketingRoutes)
 app.route('/api/payroll', payrollRoutes)
 app.route('/api/expenses', expensesRoutes)
+// Both sides of the switch, the way every other optional module is done. These two were mounted
+// with no feature gate at all, so a tenant whose feature list contained neither still answered 200
+// on /api/time and /api/expenses while every other switched-off module answered 403. (RR4 M1)
+app.use('/api/time', authenticate, requireEnabledFeature('time_tracking'))
+app.use('/api/time/*', authenticate, requireEnabledFeature('time_tracking'))
+app.use('/api/expenses', authenticate, requireEnabledFeature('expense_tracking'))
+app.use('/api/expenses/*', authenticate, requireEnabledFeature('expense_tracking'))
 app.route('/api/time', timeRoutes)
 app.route('/api/photos', photosRoutes)
 app.route('/api/portal', portalRoutes)
