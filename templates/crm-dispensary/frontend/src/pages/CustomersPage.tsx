@@ -16,6 +16,19 @@ const loyaltyTiers = [
 ];
 
 const initialFormData = {
+  // What this screen creates. (T49 / T53 M3)
+  //
+  // The form sent no type at all, so POST /api/contacts fell through to its schema default of
+  // 'lead' and every person added from the Customers page was stored as a lead. Marketing's
+  // Customer segment read 9 contacts and 0 with an email while Lead held 14 reachable ones, so an
+  // owner choosing Segment → Customer to email their customers reached nobody — and could not tell
+  // why, because the screen they added those people on is called Customers.
+  //
+  // No picker: on a screen titled Customers, "is this a customer?" is not a question worth asking.
+  // The other four creators already say what they make — order-ahead and the external-POS import
+  // both write 'customer', the leads route writes a lead, the CSV importer maps the column — so
+  // this was the one door that stayed silent. The API normalises 'customer' to the stored 'client'.
+  type: 'customer',
   name: '',
   email: '',
   phone: '',
@@ -101,6 +114,11 @@ export default function CustomersPage() {
     setSavedWarnings([]);
     setEditingCustomer(customer);
     setFormData({
+      // Editing preserves what the record IS; only CREATE decides it is a customer. This list shows
+      // leads as well as customers, so without this an edit to a lead's phone number would quietly
+      // promote them. It happened to be safe before only because `type` was absent from this object
+      // and JSON dropped the undefined — an accident one added line would have turned into a bug.
+      type: customer.type || 'customer',
       name: customer.name || '',
       email: customer.email || '',
       phone: customer.phone || '',
