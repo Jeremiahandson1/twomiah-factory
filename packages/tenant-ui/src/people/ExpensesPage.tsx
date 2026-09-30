@@ -2,14 +2,14 @@
 // the shared /api/expenses routes. Before: two copies — the crm-family one had no job picker and posted the amount as a
 // string the backend refused; both silently dropped validation errors into a generic toast.
 import React, { useState, useEffect, useCallback } from 'react'
-import { Plus, Edit, Trash2, CheckCircle } from 'lucide-react'
+import { Plus, Edit, Trash2, CheckCircle, Undo2 } from 'lucide-react'
 import { DataTable, PageHeader, Button, Modal, ConfirmModal, Field, inputCls, errMsg, dateOnly, money } from '../invoicing/ui'
 import type { Pagination } from '../invoicing/ui'
 import { useAuth } from '../auth/AuthContext'
 import type { PeopleApi, PeopleToast, ExpensesConfig } from './types'
 import { DEFAULT_EXPENSE_CATEGORIES, isManagerRole } from './types'
 
-interface Expense { id: string; date: string; category: string; vendor?: string | null; description: string; amount: string | number; billable: boolean; reimbursable?: boolean; reimbursed?: boolean; approved?: boolean; submittedById?: string | null; projectId?: string | null; jobId?: string | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
+interface Expense { id: string; date: string; category: string; vendor?: string | null; description: string; amount: string | number; billable: boolean; reimbursable?: boolean; reimbursed?: boolean; approved?: boolean; submittedById?: string | null; repaidAmount?: string | number | null; repaidReason?: string | null; projectId?: string | null; jobId?: string | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
 // The person's own day, not UTC's: toISOString() rolls over at UTC midnight, so west of Greenwich this
 // pre-filled TOMORROW all evening. It is also the ceiling the date box is given — an expense is money already
 // spent. (Contractor T30 L1, the same fix the timesheet got)
@@ -134,6 +134,42 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
     try { await api.post(`/api/expenses/${row.id}/reimburse`); toast.success('Marked reimbursed'); load() }
     catch (e) { toast.error(errMsg(e, 'Failed to mark reimbursed')) }
   }
+  /**
+   * Record money handed back on a claim that was paid too much. (Salon RR8/X6)
+   *
+   * The refusal on a reimbursed expense used to end with "this sheet cannot record a repayment yet —
+   * settle it outside the expense sheet". This is the door that sentence now points at, and the
+   * reason it can: a rule with no screen to satisfy it is a module that cannot be used, which is
+   * exactly the mistake RR6 N1 caught me making.
+   *
+   * The amount is never rewritten. The claim keeps the figure it was paid at, and the row carries
+   * what came back beside it.
+   */
+  const [repayFor, setRepayFor] = useState<Expense | null>(null)
+  const [repayForm, setRepayForm] = useState({ amount: '', reason: '' })
+  const [repayError, setRepayError] = useState('')
+  const [repaying, setRepaying] = useState(false)
+  const repaid = (r: Expense) => Number(r.repaidAmount || 0)
+  const outstanding = (r: Expense) => Math.round((Number(r.amount || 0) - repaid(r)) * 100) / 100
+  const openRepayment = (row: Expense) => {
+    setRepayFor(row)
+    // Pre-filled with everything still outstanding, because paying the whole thing back is the
+    // common case and typing it again is just a chance to typo it.
+    setRepayForm({ amount: String(outstanding(row) || ''), reason: '' })
+    setRepayError('')
+  }
+  const saveRepayment = async () => {
+    if (!repayFor) return
+    if (repayForm.amount === '' || Number(repayForm.amount) <= 0) { setRepayError('A repayment has to be more than 0'); return }
+    if (!repayForm.reason.trim()) { setRepayError('Say why the money came back — the sheet has to explain itself later'); return }
+    setRepaying(true); setRepayError('')
+    try {
+      await api.post(`/api/expenses/${repayFor.id}/repayment`, { amount: Number(repayForm.amount), reason: repayForm.reason.trim() })
+      toast.success('Repayment recorded')
+      setRepayFor(null); load()
+    } catch (e) { setRepayError(errMsg(e, 'Failed to record the repayment')) }
+    finally { setRepaying(false) }
+  }
   // Opening a form is the moment the list matters, so a first attempt that failed is retried here.
   // It does not block the dialog: the fallback list opens now and the picker corrects itself the
   // moment the answer arrives. (Salon RR8 Y2)
@@ -164,7 +200,19 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
     { key: 'category', label: 'Category', render: (v: any) => catLabel(v) },
     { key: 'vendor', label: 'Vendor', render: (v: any) => v || '-' },
     { key: 'description', label: 'Description' },
-    { key: 'amount', label: 'Amount', render: (v: any) => money(v) },
+    // What was claimed, and — when some of it came back — what it cost in the end. Showing only the
+    // net would hide a payment that really happened; showing only the claim is the figure that sent
+    // people to the amount field to rewrite it. Both, with the claim first. (Salon RR8/X6)
+    {
+      key: 'amount',
+      label: 'Amount',
+      render: (v: any, row: Expense) => (repaid(row) > 0 ? (
+        <span className="inline-flex flex-col leading-tight">
+          <span>{money(v)}</span>
+          <span className="text-xs text-amber-700 dark:text-amber-300">{money(repaid(row))} back · {money(outstanding(row))} net</span>
+        </span>
+      ) : money(v)),
+    },
     ...(showJobs ? [{ key: 'job', label: jobLabel, render: (v: any) => v?.title || '-' }] : []),
     ...(showProjects ? [{ key: 'project', label: 'Project', render: (v: any) => v?.name || '-' }] : []),
     // Whether it can be passed on to the customer — the question an expense list exists to answer, and the
@@ -194,6 +242,9 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
           { label: 'Approve', icon: CheckCircle, onClick: approve, show: (r) => canApprove(r) && !r.approved },
           // …and Mark reimbursed only once it IS approved, so the 409 is unreachable from here.
           { label: 'Mark reimbursed', icon: CheckCircle, onClick: reimburse, show: (r) => canApprove(r) && !!r.approved && !!r.reimbursable && !r.reimbursed },
+          // The door the "too much was paid" refusal points at. Only on a row where money actually
+          // went out, and only while some of it is still outstanding. (Salon RR8/X6)
+          { label: 'Record repayment', icon: Undo2, onClick: openRepayment, show: (r) => manager && !!r.reimbursed && outstanding(r) > 0 },
           // Your own claim is yours to correct until somebody approves it; after that it is a
           // manager's. That is the server's rule, so it is this menu's rule.
           { label: 'Edit', icon: Edit, onClick: openEdit, show: (r) => manager || !r.approved },
@@ -219,6 +270,32 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
+      </Modal>
+      {/* Money handed back on a claim that was paid too much. (Salon RR8/X6) */}
+      <Modal isOpen={!!repayFor} onClose={() => setRepayFor(null)} title="Record a repayment" size="sm">
+        <div className="space-y-4">
+          {repayError && <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{repayError}</div>}
+          {repayFor && (
+            <p className="text-sm text-gray-600 dark:text-slate-300">
+              {repayFor.description ? `"${repayFor.description}" was` : 'This expense was'} reimbursed for{' '}
+              <span className="font-medium text-gray-900 dark:text-slate-100">{money(repayFor.amount)}</span>
+              {repaid(repayFor) > 0 && <> , with {money(repaid(repayFor))} already back</>}.
+              {' '}The payment stays on the record; this is what came back against it.
+            </p>
+          )}
+          <Field label="Amount returned *">
+            <input type="number" min="0.01" step="0.01" max={repayFor ? outstanding(repayFor) : undefined}
+              value={repayForm.amount} onChange={(e) => setRepayForm({ ...repayForm, amount: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="Why *">
+            <input value={repayForm.reason} onChange={(e) => setRepayForm({ ...repayForm, reason: e.target.value })}
+              placeholder="e.g. overpaid by $10, returned in cash" className={inputCls} />
+          </Field>
+        </div>
+        <div className="flex justify-end gap-3 mt-6">
+          <Button variant="secondary" onClick={() => setRepayFor(null)}>Cancel</Button>
+          <Button onClick={saveRepayment} disabled={repaying}>{repaying ? 'Saving...' : 'Record repayment'}</Button>
+        </div>
       </Modal>
       <ConfirmModal isOpen={!!toDelete} onClose={() => setToDelete(null)} onConfirm={handleDelete} title="Delete Expense" message="Delete this expense?" confirmText="Delete" />
     </div>

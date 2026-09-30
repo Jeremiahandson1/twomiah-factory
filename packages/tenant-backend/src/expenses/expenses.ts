@@ -46,11 +46,16 @@ const fk = z.string().optional().nullable().transform((v) => (v ? v : null))
  * sent the reader round in a circle.
  *
  * Rather than weaken that rule (a negative expense is a credit note, and this module has no concept
- * of one), the message now says the true thing in both directions and admits the gap instead of
+ * of one), the message said the true thing in both directions and admitted the gap instead of
  * pretending. A refusal that recommends something impossible is worse than one that says so.
+ *
+ * RR8: the tester agreed the admission was right for now and said a real correction entry was worth
+ * building before this ships to salons that reimburse heavily. It is built —
+ * POST /:id/repayment — so the advice now names something that exists rather than sending the
+ * reader outside the system. A refusal is only as good as the door it points at.
  */
 const CORRECTION_ADVICE =
-  'if too little was paid, add a new expense for the shortfall. If too much was paid, this sheet cannot record a repayment yet — settle it outside the expense sheet and note it here.'
+  'if too little was paid, add a new expense for the shortfall. If too much was paid, record what came back with Record repayment on this expense.'
 
 export function createExpenseRoutes(deps: ExpenseDeps) {
   const { db, tables: t, authenticate, requirePermission, audit } = deps
@@ -178,9 +183,35 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     if (!MANAGER_ROLES.has(currentUser.role)) conditions.push(eq(t.expense.submittedById, currentUser.userId))
     if (q.startDate && !isNaN(new Date(q.startDate).getTime())) conditions.push(gte(t.expense.date, new Date(q.startDate)))
     if (q.endDate && !isNaN(new Date(q.endDate).getTime())) { const end = new Date(q.endDate); end.setHours(23, 59, 59, 999); conditions.push(lte(t.expense.date, end)) }
-    const groups = await db.select({ category: t.expense.category, totalAmount: sql<string>`sum(${t.expense.amount})`, cnt: count() }).from(t.expense).where(and(...conditions)).groupBy(t.expense.category)
-    const total = groups.reduce((s: number, g: any) => s + Number(g.totalAmount || 0), 0)
-    return c.json({ total: Math.round(total * 100) / 100, byCategory: Object.fromEntries(groups.map((g: any) => [g.category, { amount: Number(g.totalAmount || 0), count: Number(g.cnt) }])) })
+    /**
+     * What the business actually spent — claimed, less anything handed back. (RR8/X6 repayments)
+     *
+     * A $50 claim paid at $50 with $10 returned cost the salon $40, and a total that still says $50
+     * is the reason someone reaches for the amount field and tries to rewrite a payment. `claimed`
+     * stays beside it so the two can be reconciled rather than one quietly replacing the other:
+     * every other money surface in this product reports the gross and the deduction, not a single
+     * number that has already had something taken off it without saying so.
+     */
+    const groups = await db.select({
+      category: t.expense.category,
+      totalAmount: sql<string>`sum(${t.expense.amount})`,
+      repaid: sql<string>`sum(COALESCE(${t.expense.repaidAmount}, 0))`,
+      cnt: count(),
+    }).from(t.expense).where(and(...conditions)).groupBy(t.expense.category)
+    const r2 = (n: number) => Math.round(n * 100) / 100
+    const claimed = groups.reduce((s: number, g: any) => s + Number(g.totalAmount || 0), 0)
+    const repaid = groups.reduce((s: number, g: any) => s + Number(g.repaid || 0), 0)
+    return c.json({
+      total: r2(claimed - repaid),
+      claimed: r2(claimed),
+      repaid: r2(repaid),
+      byCategory: Object.fromEntries(groups.map((g: any) => [g.category, {
+        amount: r2(Number(g.totalAmount || 0) - Number(g.repaid || 0)),
+        claimed: Number(g.totalAmount || 0),
+        repaid: Number(g.repaid || 0),
+        count: Number(g.cnt),
+      }])),
+    })
   })
 
   app.get('/:id', requirePermission('expenses:read'), async (c) => {
@@ -407,6 +438,93 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
   }
   app.post('/:id/reimburse', requirePermission('expenses:update'), managerAction('reimbursed'))
   app.post('/:id/approve', requirePermission('expenses:update'), managerAction('approved'))
+
+  /**
+   * Money handed BACK against a claim that was paid too much. (Salon RR8/X6, and the tester asked
+   * for it by name.)
+   *
+   * Until now the refusal on a reimbursed expense said: if too little was paid add another expense
+   * for the shortfall, and if too much was paid the sheet cannot record a repayment — settle it
+   * outside and note it here. Admitting the gap was better than the advice it replaced, which sent
+   * people round in a circle, but "settle it outside the system" is not a feature. A salon that
+   * over-pays a stylist $10 has $10 coming back and nowhere to put it.
+   *
+   * Three things this is NOT, on purpose:
+   *
+   *   · it does not rewrite the amount. $50 was paid; that is what happened, and the record of a
+   *     payment is not editable. RR6 E4 and RR7 X2 both turn on that, and this must not undo it.
+   *   · it is not a negative expense. A negative amount is refused everywhere in this module and a
+   *     credit note is a different kind of document; inventing one under the word "expense" would
+   *     leave every total and every filing to guess which rows are money out and which are money in.
+   *   · it does not need a second person's approval. Approval exists so somebody checks a claim
+   *     BEFORE money leaves the building. This is money arriving, and requiring a second signature
+   *     on it would only delay putting the books right. It takes the authority that pays a claim out
+   *     (manager+), it demands a written reason, and it is audited — which is the control that fits.
+   *
+   * Cumulative, because a repayment can arrive in instalments, and capped at what was actually paid:
+   * more coming back than went out is not a correction, it is a different transaction.
+   */
+  const repaymentSchema = z.object({
+    amount: z.coerce.number({ invalid_type_error: 'Amount must be a number, for example 10.00' })
+      .positive('A repayment has to be more than 0')
+      .max(100_000_000),
+    // required_error as well as min(1): a field that is simply ABSENT gets zod's own "Required",
+    // which is the sort of message this module has spent three rounds replacing with English.
+    reason: z.string({ required_error: 'Say why the money came back — the sheet has to explain itself later' })
+      .trim().min(1, 'Say why the money came back — the sheet has to explain itself later').max(500).transform(stripTags),
+    date: dateField,
+  })
+  app.post('/:id/repayment', requirePermission('expenses:update'), async (c) => {
+    const currentUser = (c as any).get('user')
+    if (!MANAGER_ROLES.has(currentUser.role)) {
+      return c.json({ error: 'Only owners, admins and managers can record a repayment' }, 403)
+    }
+    const id = c.req.param('id')
+    const existing = await ownExpense(id, currentUser.companyId)
+    if (!existing) return c.json({ error: 'Expense not found' }, 404)
+    const parsed = repaymentSchema.safeParse(await c.req.json().catch(() => ({})))
+    if (!parsed.success) return invalid(c, parsed.error)
+
+    // Nothing went out, so nothing can come back. An unpaid claim that is wrong is simply corrected.
+    if (!existing.reimbursed) {
+      return c.json({
+        error: `${existing.description ? `"${existing.description}" ` : 'This expense '}has not been reimbursed, so there is nothing to pay back. Correct the amount instead.`,
+        code: 'not_reimbursed',
+      }, 409)
+    }
+    const paid = Number(existing.amount) || 0
+    const already = Number(existing.repaidAmount) || 0
+    const left = Math.round((paid - already) * 100) / 100
+    if (parsed.data.amount > left + 0.005) {
+      return c.json({
+        error: left <= 0
+          ? `The whole ${paid.toFixed(2)} paid on this expense has already been paid back.`
+          : `Only ${left.toFixed(2)} of the ${paid.toFixed(2)} paid on this expense is still outstanding, so ${parsed.data.amount.toFixed(2)} cannot come back against it.`,
+        code: 'exceeds_paid',
+        paid, alreadyRepaid: already, outstanding: left,
+      }, 400)
+    }
+
+    const total = Math.round((already + parsed.data.amount) * 100) / 100
+    const [row] = await db.update(t.expense).set({
+      repaidAmount: String(total),
+      repaidAt: parsed.data.date ? new Date(parsed.data.date) : new Date(),
+      repaidById: currentUser.userId,
+      // The latest reason, with the ones before it kept in the audit log rather than overwritten.
+      repaidReason: parsed.data.reason,
+      updatedAt: new Date(),
+    }).where(and(eq(t.expense.id, id), eq(t.expense.companyId, currentUser.companyId))).returning()
+    audit?.log({
+      action: 'payment', entity: 'expense', entityId: id,
+      metadata: { repayment: parsed.data.amount, repaidTotal: total, of: paid, reason: parsed.data.reason },
+      req: { user: currentUser },
+    })
+    return c.json({
+      ...row,
+      netAmount: Math.round((paid - total) * 100) / 100,
+      fullyRepaid: total + 0.005 >= paid,
+    })
+  })
 
   return app
 }

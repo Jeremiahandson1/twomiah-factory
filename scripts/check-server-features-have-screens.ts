@@ -173,6 +173,29 @@ if (builtSince.length) {
     if (!new RegExp(`to: '/crm/${what}'`).test(shell))
       fail(`crm-salon has a ${what} screen with no sidebar entry — it is only reachable by typing the URL`)
   }
+  /**
+   * …and the rule applies to what the SHARED module grows, not only to what a template mounts.
+   *
+   * The expense repayment (RR8/X6) is a server capability written for a salon owner: money handed
+   * back on a claim that was paid too much. The refusal on a reimbursed expense NAMES it — "record
+   * what came back with Record repayment on this expense" — so if the control ever goes, the product
+   * starts telling people to use something that is not there, which is the exact shape of the T49 M1
+   * family this guard exists for.
+   *
+   * Pinned on the POST that performs it and on the control that opens the dialog, not on the words.
+   */
+  const shared = frontendSource('packages/tenant-ui/src')
+  for (const [what, needle, why] of [
+    ['recording a repayment', /expenses\/\$\{[^}]+\}\/repayment`/,
+      'the 409 on a reimbursed expense tells the reader to use it'],
+    ['…its control', /label: 'Record repayment'/,
+      'a POST with nothing that opens it is an API, not a feature'],
+    ['…and what came back is visible on the row', /money\(repaid\(row\)\)/,
+      'a repayment nobody can see on the sheet leaves the total unexplained'],
+  ] as Array<[string, RegExp, string]>) {
+    if (!needle.test(shared)) fail(`${what} has no screen in packages/tenant-ui — ${why}`)
+  }
+
   // …and the half-broken duplicate it replaced must not come back.
   const payroll = backend('backend/src/routes/payroll.ts')
   if (/app\.get\('\/expenses'/.test(payroll)) {

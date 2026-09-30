@@ -183,6 +183,13 @@
       "when": 1791400900000,
       "tag": "0025_expense_submitter",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791401000000,
+      "tag": "0026_expense_repayment",
+      "breakpoints": true
     }
   ]
 }

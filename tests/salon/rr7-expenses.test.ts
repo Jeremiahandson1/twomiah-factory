@@ -226,8 +226,13 @@ const addExpense = async (who: any, desc: string, amount = 20, extra: Record<str
     check(`X6: ${what} a reimbursed claim is still refused`, r.status === 409, { status: r.status, body: r.json })
     check(`X6: …and no longer says only "add a new expense for the difference"`, !/for the difference/i.test(msg), msg)
     check(`X6: …it names the shortfall case`, /shortfall/i.test(msg), msg)
-    check(`X6: …and admits the module cannot record a repayment instead of sending them in a circle`,
-      /cannot record a repayment/i.test(msg) && /settle it outside/i.test(msg), msg)
+    // This used to assert the ADMISSION — "this sheet cannot record a repayment yet, settle it
+    // outside the expense sheet" — which was the honest answer while there was nowhere to record
+    // one. RR8 asked for the real thing and it now exists, so the advice names it. The assertion
+    // moves with the product rather than pinning it to a sentence that has stopped being true;
+    // tests/salon/expense-repayment.test.ts is where the door itself is proven.
+    check(`X6: …and points the reader at the repayment, which now exists`,
+      /Record repayment/.test(msg) && !/cannot record a repayment/i.test(msg), msg)
   }
 }
 

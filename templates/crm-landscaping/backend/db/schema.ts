@@ -418,6 +418,13 @@ export const expense = pgTable('expense', {
   approvedById: text('approved_by_id'),
   approvedAt: timestamp('approved_at'),
   reimbursedById: text('reimbursed_by_id'),
+  // Money that came BACK against a reimbursed expense — an over-payment the person handed back.
+  // Cumulative, so several partial repayments add up, the way orders.refundedAmount already works.
+  // The expense keeps the amount it was paid at; this says how much of it returned. (RR8/X6)
+  repaidAmount: decimal('repaid_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  repaidAt: timestamp('repaid_at'),
+  repaidById: text('repaid_by_id'),
+  repaidReason: text('repaid_reason'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
