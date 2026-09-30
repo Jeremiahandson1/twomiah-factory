@@ -261,22 +261,47 @@ async function onVisitUncompleted(row: typeof appointment.$inferSelect): Promise
   } catch (e: any) { console.warn('[appointments] visit record not removed:', e?.message || e) }
 }
 
-// GET /appointments — ?from=&to= on startTime, ?stylistId=, ?status=
+// GET /appointments — ?from=&to= on startTime, ?contactId=, ?stylistId=, ?status=, ?page=&limit=
+//
+// Two things were wrong with this list, and the second one cost a tenant its book.
+//
+// It took no contactId. Asking for one client's appointments returned EVERY appointment the
+// company has, with no error and no clue — the answer to a different question, in the shape of
+// the right one. An operator script asked for one client's visits so it could tidy up after
+// itself, got all 525, and cancelled the lot. Silently ignoring a filter is not a smaller bug
+// than refusing it; it is a bigger one, because the caller cannot tell.
+//
+// And it was unbounded. from/to are OPTIONAL, so a bare GET / returns the whole table: four
+// years of a busy salon in one response.
+//
+// Bounding it needed care, because the book is the one caller and it must not silently lose
+// appointments off the end of a day. So: a date WINDOW is itself a bound, and a windowed request
+// stays unlimited exactly as before — the calendar's behaviour does not change. It is the
+// WINDOWLESS request that gets a page, and it says so in the response, so a caller can tell the
+// difference between "that is all of them" and "that is the first hundred".
 app.get('/', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
   const from = c.req.query('from')
   const to = c.req.query('to')
+  const contactId = c.req.query('contactId')
   const stylistId = c.req.query('stylistId')
   const status = c.req.query('status')
 
   const conditions = [eq(appointment.companyId, currentUser.companyId)]
   if (from) conditions.push(gte(appointment.startTime, new Date(from)))
   if (to) conditions.push(lte(appointment.startTime, new Date(to)))
+  if (contactId) conditions.push(eq(appointment.contactId, contactId))
   // filter on either column — the caller knows one stylist id, not which table it came from (T20 H1)
   if (stylistId) conditions.push(or(eq(appointment.stylistId, stylistId), eq(appointment.stylistMemberId, stylistId))!)
   if (status) conditions.push(eq(appointment.status, status))
 
-  const data = await db.select({
+  // A window bounds the answer on its own; without one, page it.
+  const windowed = !!(from || to)
+  const page = Math.max(1, Number(c.req.query('page') || '1') || 1)
+  const limit = Math.min(500, Math.max(1, Number(c.req.query('limit') || '100') || 100))
+  const offset = (page - 1) * limit
+
+  const q = db.select({
     appointment,
     clientName: contact.name,
     clientPhone: contact.phone,
@@ -296,6 +321,10 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
     .where(and(...conditions))
     .orderBy(appointment.startTime)
 
+  // A windowed request is left exactly as it was — no LIMIT at all, rather than a large one
+  // standing in for none. The book asks for one day and must get all of it.
+  const data = windowed ? await q : await q.limit(limit).offset(offset)
+
   const rows = data.map((r: any) => {
     // The book asked for a stylist and gets one back the same way, whichever column holds them —
     // the caller never has to know there are two. (T20 H1)
@@ -310,7 +339,13 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
       stylistLastName: r.stylistLastName ?? memberLast,
     }
   })
-  return c.json({ data: rows })
+  // `data` keeps its shape, so the book is untouched. A windowless caller also gets `pagination`,
+  // which is how it can tell "all of them" from "the first page of them".
+  if (windowed) return c.json({ data: rows })
+  const [{ total }] = await db.select({ total: sql<number>`COUNT(*)::int` }).from(appointment)
+    .leftJoin(contact, eq(appointment.contactId, contact.id))
+    .where(and(...conditions)) as any
+  return c.json({ data: rows, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
 })
 
 // POST /appointments
