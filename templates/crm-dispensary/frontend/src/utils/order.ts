@@ -29,3 +29,31 @@ export const orderRef = (o: Parameters<typeof orderLabel>[0]): string => {
   const label = orderLabel(o)
   return label === '—' ? label : `#${label}`
 }
+
+/**
+ * Who took this date of birth down — named, not assumed. (T52 N5)
+ *
+ * The ID-check banner on an order said "The kiosk recorded …" on every order carrying a date of
+ * birth, and several doors write that column: the kiosk (routes/kiosk.ts), the public order-ahead
+ * page (routes/menu.ts), and the till (routes/orders.ts), which is also where an offline sale lands
+ * when the device reconnects. A budtender reading "the kiosk" on an order the customer placed on
+ * their phone is being told something untrue about where the number came from — and the whole point
+ * of that sentence is to say how much to trust it before they look at the card. An unattended
+ * tablet, a form somebody filled in at home, and a colleague typing at the till are three different
+ * amounts of trust.
+ *
+ * Where the order does not say — rows older than the `source` column, and imports — it claims
+ * nothing it cannot show.
+ */
+export function dobSourceLabel(
+  o: { source?: string | null; kioskSessionId?: string | null; type?: string | null } | null | undefined,
+): string {
+  const source = String(o?.source || '').toLowerCase()
+  if (o?.kioskSessionId || source === 'kiosk') return 'The kiosk recorded'
+  if (source === 'online' || source === 'online_order' || String(o?.type || '') === 'online') {
+    return 'The customer gave'
+  }
+  if (source === 'pos' || source === 'walk_in') return 'The till recorded'
+  if (source === 'external_pos' || String(o?.type || '') === 'external_pos') return 'The imported sale carries'
+  return 'This order carries'
+}

@@ -1452,6 +1452,17 @@ jobs:
       - name: "A rule applied when a record is created also applies when it is edited"
         run: bun run scripts/check-create-rules-apply-on-edit.ts
 
+  every-order-names-its-door:
+    name: "every order records which door it came through"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Every door that creates an order records which door it was"
+        run: bun run scripts/check-every-order-names-its-door.ts
+
   dashboard-panels-load:
     name: "dashboard panels load"
     runs-on: ubuntu-latest

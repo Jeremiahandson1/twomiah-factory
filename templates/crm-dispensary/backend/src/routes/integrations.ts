@@ -185,6 +185,11 @@ app.post('/sale', requireIntegrationKey, async (c) => {
       number: orderNumber,
       type: 'external_pos' as any,
       status: 'completed',
+      // Which door this sale came through, same as the till, the kiosk and the public menu now
+      // write. Left null, a sale imported from the shop's other POS was indistinguishable from a
+      // row older than the column, and `?source=` could not separate own-till trade from imported.
+      // (T52 N5)
+      source: 'external_pos',
       contactId,
       customerName: data.customerName || null,
       subtotal: String(data.subtotal),

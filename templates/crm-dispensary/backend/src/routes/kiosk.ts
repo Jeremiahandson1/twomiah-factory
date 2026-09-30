@@ -721,13 +721,16 @@ app.post('/session/:token/checkout', async (c) => {
 
   // Create order (walk-in style; a budtender reviews and completes it at the register).
   const orderResult = await db.execute(sql`
-    INSERT INTO orders(id, order_number, number, type, status, subtotal, excise_tax, sales_tax, total_tax, tax_amount, total, total_cannabis_weight_oz, total_weight_grams, customer_dob, kiosk_session_id, location_id, company_id, customer_name, notes, created_at, updated_at)
+    INSERT INTO orders(id, order_number, number, type, status, source, subtotal, excise_tax, sales_tax, total_tax, tax_amount, total, total_cannabis_weight_oz, total_weight_grams, customer_dob, kiosk_session_id, location_id, company_id, customer_name, notes, created_at, updated_at)
     VALUES (
       gen_random_uuid(),
       ${nextNumber},
       ${orderCode},
       'kiosk',
       'pending',
+      -- the door this sale came through. It was left null while the type column carried it, so
+      -- ?source=kiosk on the orders list matched nothing at all. (T52 N5)
+      'kiosk',
       ${String(subtotal)},
       ${String(tax.exciseTax)},
       ${String(tax.salesTax)},

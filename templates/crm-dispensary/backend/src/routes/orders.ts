@@ -730,6 +730,12 @@ app.post('/', requireRole('budtender'), async (c) => {
       orderNumber: nextOrderNumber,
       type: data.type,
       status: 'pending',
+      // Which door this sale came through. It was left null here while the kiosk and the public menu
+      // each set something, so the shop could not tell a till sale from a row predating the column,
+      // `?source=pos` on the orders list matched nothing, and the ID-check banner had to guess where
+      // a date of birth came from — which is how it ended up telling budtenders "the kiosk recorded"
+      // it on sales rung at the register. (T52 N5)
+      source: 'pos',
       contactId: data.contactId ?? null,
       customerName: data.customerName,
       customerId: data.customerId,

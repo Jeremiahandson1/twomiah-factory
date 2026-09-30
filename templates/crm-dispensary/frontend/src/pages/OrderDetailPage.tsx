@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
-import { orderLabel } from '../utils/order';
+import { orderLabel, dobSourceLabel } from '../utils/order';
 import { formatDateTime } from '../utils/date';
 
 const statusSteps = ['pending', 'processing', 'completed'];
@@ -316,7 +316,9 @@ export default function OrderDetailPage() {
                 A cannabis sale cannot be completed until someone has checked the customer's ID.
                 {/* Show the date, not just the fact that there is one: a budtender holding the card cannot
                     check it against a sentence. (T31 L5) */}
-                {order.customerDob ? ` The kiosk recorded ${new Date(String(order.customerDob).slice(0, 10) + 'T00:00:00').toLocaleDateString()} as the date of birth — check it against the card.` : ''}
+                {order.customerDob
+                  ? ` ${dobSourceLabel(order)} ${new Date(String(order.customerDob).slice(0, 10) + 'T00:00:00').toLocaleDateString()} as the date of birth — check it against the card.`
+                  : ''}
               </p>
             )}
           </div>
