@@ -186,6 +186,32 @@ export default function AppLayout() {
     return here.features.some((f: string) => hasFeature(f)) ? null : here;
   }, [location.pathname, company, hasFeature, user?.role]);
 
+  /**
+   * Is the blocked module one this product OFFERS and the shop has switched off? (Salon RR6)
+   *
+   * Same fix as packages/tenant-ui/src/shell/AppShell.tsx, which every other CRM uses. This file is
+   * a FORK of that shell — 531 lines of it — so the shared fix did not reach the dispensary, and a
+   * redeploy left the bundle hash unchanged, which is how I noticed. It is the third fork in this
+   * codebase to bite (permissions.ts, sw.js, now the shell); the honest note is that a fix to the
+   * shared shell must be checked against this file every time.
+   *
+   * hasFeature() is false whether a module is absent or merely off, so the CATALOGUE is what tells
+   * them apart. Fetched only when this page renders; a failure keeps the original wording.
+   */
+  const [offeredHere, setOfferedHere] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    if (!gatedItem || (gatedItem as any).reason === 'role' || offeredHere) return;
+    let cancelled = false;
+    api.get('/api/company/features/catalog')
+      .then((res: any) => { if (!cancelled) setOfferedHere(new Set((res?.features || []).map((f: any) => String(f.id)))); })
+      .catch(() => { if (!cancelled) setOfferedHere(new Set()); });
+    return () => { cancelled = true; };
+  }, [gatedItem, offeredHere]);
+  const switchable = !!gatedItem && (gatedItem as any).reason !== 'role' && !!offeredHere
+    && ((gatedItem as any).features || []).some((f: string) => offeredHere.has(f));
+  // PUT /api/company/features is requireAdmin, so anyone else is told who to ask.
+  const canSwitch = ['owner', 'admin'].includes(String(user?.role || ''));
+
   // Close sidebar on route change (mobile)
   useEffect(() => {
     if (isMobile) setSidebarOpen(false);
@@ -512,14 +538,22 @@ export default function AppLayout() {
               <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100 mb-2">
                 {(gatedItem as any).reason === 'role'
                   ? `${gatedItem.label} is not available for your role`
-                  : `${gatedItem.label} isn't part of this CRM`}
+                  : switchable
+                    ? `${gatedItem.label} is switched off`
+                    : `${gatedItem.label} isn't part of this CRM`}
               </h1>
               <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
                 {(gatedItem as any).reason === 'role'
                   ? 'Your account does not have access to this screen. Ask a manager or the owner if you need it.'
-                  : 'This module is not included for your business type or plan. Everything you can use is in the left menu.'}
+                  : switchable
+                    ? (canSwitch
+                      ? 'It is part of this CRM and can be turned on whenever you want it — Settings → Features.'
+                      : 'It is part of this CRM but is currently switched off. An owner or admin can turn it on in Settings → Features.')
+                    : 'This module is not included for your business type or plan. Everything you can use is in the left menu.'}
               </p>
-              <NavLink to="/crm" className="inline-block px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold dark:bg-slate-100 dark:text-slate-900">Back to dashboard</NavLink>
+              {switchable && canSwitch
+                ? <NavLink to="/crm/settings" className="inline-block px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold dark:bg-slate-100 dark:text-slate-900">Open Settings</NavLink>
+                : <NavLink to="/crm" className="inline-block px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold dark:bg-slate-100 dark:text-slate-900">Back to dashboard</NavLink>}
             </div>
           ) : (
             <Outlet />

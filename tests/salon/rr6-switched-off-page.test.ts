@@ -60,5 +60,30 @@ const shell = (await Bun.file(`${ROOT}packages/tenant-ui/src/shell/AppShell.tsx`
     /const canSwitch = \['owner', 'admin'\]\.includes/.test(shell), null)
 }
 
+// ══════════ …and the FORK says the same thing ═══════════════════════════════════════════════════
+//
+// Eleven CRMs wrap the shared shell in a 13-line file. crm-dispensary does not: it carries its own
+// 531-line copy, so fixing AppShell.tsx left the dispensary saying "not included in your plan" for a
+// module its owner had switched off two minutes earlier. A redeploy that did not change the bundle
+// hash is what gave it away.
+//
+// That is the third fork in this codebase to bite — permissions.ts, sw.js, and now the shell — so
+// the pairing is pinned here rather than left to be remembered.
+{
+  const fork = (await Bun.file(`${ROOT}templates/crm-dispensary/frontend/src/components/layout/AppLayout.tsx`).text()).replace(/\r\n/g, '\n')
+  check('the dispensary fork still exists (if it was replaced by the shared shell, delete this block)',
+    fork.length > 5000 && /const gatedItem = useMemo/.test(fork), fork.length)
+  for (const [what, re] of [
+    ['asks the catalogue', /api\.get\('\/api\/company\/features\/catalog'\)/],
+    ['says "is switched off"', /\$\{gatedItem\.label\} is switched off/],
+    ['points an admin at Settings → Features', /can be turned on whenever you want it — Settings → Features/],
+    ['tells everyone else who to ask', /An owner or admin can turn it on in Settings → Features/],
+    ['keeps the not-offered wording', /This module is not included for your business type or plan/],
+    ['gates the switch on owner/admin', /const canSwitch = \['owner', 'admin'\]\.includes/],
+  ] as Array<[string, RegExp]>) {
+    check(`the dispensary fork ${what}`, re.test(fork), null)
+  }
+}
+
 console.log(`\n  ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)
