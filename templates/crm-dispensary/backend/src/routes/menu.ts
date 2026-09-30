@@ -462,14 +462,38 @@ app.post('/order', async (c) => {
   // base, which is exactly where the register puts it. (T46 N3)
   const grandTotal = subtotal + totalTax + menuDeliveryFee
 
-  // Find or create contact by phone
+  // Find or create contact — by phone, and then CHECKED.
+  //
+  // T51/T52 N3: this matched on the phone number alone. A public order placed as "T52 Stranger",
+  // DOB 1985-05-05, was attached to an existing customer with a different name and a different date
+  // of birth, and the order page then showed that customer's email. Anyone who knows a phone number
+  // could place orders against someone else's record and read their history back off the order.
+  //
+  // A phone number is a way to FIND a record, not proof of being the person on it. So the match has
+  // to agree on something the real customer knows: their date of birth, which a cannabis order
+  // always carries, or failing that their name.
+  //
+  // A mismatch does not refuse the order — a legitimate customer who mistypes a digit would be
+  // turned away at checkout, and the shop would lose the sale over a typo. It simply does not LINK.
+  // A duplicate contact is a tidy-up; attaching a stranger to someone's history is not.
   let contactId: string | null = null
-  const [existingContact] = await db.select({ id: contact.id })
+  const [existingContact] = await db.select({ id: contact.id, name: contact.name, dateOfBirth: contact.dateOfBirth })
     .from(contact)
     .where(and(eq(contact.phone, data.customerPhone), eq(contact.companyId, foundCompany.id)))
     .limit(1)
 
-  if (existingContact) {
+  const sameName = (a: unknown, b: unknown) =>
+    String(a || '').trim().toLowerCase().replace(/\s+/g, ' ') === String(b || '').trim().toLowerCase().replace(/\s+/g, ' ')
+  const existingDob = existingContact?.dateOfBirth ? String(existingContact.dateOfBirth).slice(0, 10) : null
+  const identifies = !existingContact
+    ? false
+    : existingDob
+      // The record has a date of birth: the order has to match it.
+      ? (!!orderDob && orderDob.slice(0, 10) === existingDob)
+      // It has none, so there is nothing stronger than the name to go on.
+      : sameName(existingContact.name, data.customerName)
+
+  if (existingContact && identifies) {
     contactId = existingContact.id
     // A returning customer who has now given their date of birth gets it recorded, so the counter
     // check has something to check against. An existing date is never overwritten from a web form.
@@ -488,6 +512,12 @@ app.post('/order', async (c) => {
       type: 'customer',
       source: 'online_order',
       companyId: foundCompany.id,
+      // When a record with this phone number already existed but did not identify, say so on the
+      // new one. Two contacts sharing a number is either a household or a typo, and the person at
+      // the counter is the one who can tell which — they cannot if nothing records that it happened.
+      notes: existingContact
+        ? `Ordered online with a phone number already on another customer's record, but the details did not match, so this was kept separate. Check with the customer before merging.`
+        : null,
     } as any).returning()
     contactId = newContact.id
   }

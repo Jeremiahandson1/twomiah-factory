@@ -10,6 +10,10 @@ import { medicalExciseExempt } from '../utils/tax.ts'
 import { storeDayRange, zoneFor } from '../utils/isoTime.ts'
 
 const app = new Hono()
+
+/** Money, to the cent. Module-level because more than one route in this file reports money. */
+const round2 = (n: number) => Math.round(n * 100) / 100
+
 // Manager and up. Every route in this file is the shop's position with the state — what it owes,
 // what it has filed, what is outstanding. A budtender needs none of it to serve a customer, and it
 // was readable by anyone signed in. Generating and reviewing a filing already required manager.
@@ -279,7 +283,6 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
     FROM apportioned
   `)
   const taxableRow = ((taxableResult as any).rows || taxableResult)?.[0] || {}
-  const round2 = (n: number) => Math.round(n * 100) / 100
   const cannabisNet = round2(Number(taxableRow.cannabis_net) || 0)
   const allLinesNet = round2(Number(taxableRow.all_net) || 0)
   // A shop whose sales predate line-level tax_category has no split to read; falling back to the
@@ -855,7 +858,27 @@ app.get('/summary', async (c) => {
   const exciseCollected = Number(collected.excise_collected) || 0
   const salesCollected = Number(collected.sales_collected) || 0
   const totalCollected = Number(collected.total_collected) || 0
-  const localCollected = Math.max(0, totalCollected - exciseCollected - salesCollected)
+
+  // Local tax is the residual: whatever the till took that was not excise and not sales.
+  //
+  // T51/T52 N4: the breakdown did not add up to its own total — Excise $1,003.65 + Sales $786.27 +
+  // Local $0.00 against a total of $1,784.24, a $5.68 gap, and the shop had no way to see where it
+  // came from. `Math.max(0, …)` was quietly absorbing it.
+  //
+  // The cause is that each of the three figures carries its OWN GREATEST(0, charged − refunded)
+  // clamp. That is right per column — a component cannot collect a negative amount — but it breaks
+  // additivity: when one column's refund exceeds its charge, that component floors at zero while
+  // total_tax keeps the whole deduction, and the parts then exceed the whole.
+  //
+  // Local still cannot be shown as negative, so the clamp stays. What changes is that the
+  // difference is REPORTED rather than swallowed — the same decision the filing itself already
+  // makes about its effective rate (T47 P5): a set of figures that does not add up is the first
+  // thing an auditor asks about, and the shop should hear it from us first.
+  const residual = round2(totalCollected - exciseCollected - salesCollected)
+  const localCollected = Math.max(0, residual)
+  const breakdownTotal = round2(exciseCollected + salesCollected + localCollected)
+  const breakdownVariance = round2(breakdownTotal - totalCollected)
+  const reconciles = Math.abs(breakdownVariance) < 0.005
 
   const row = (type: string, label: string, coll: number, filed: number) => ({
     type: label,
@@ -875,6 +898,12 @@ app.get('/summary', async (c) => {
     totalFiled,
     outstanding: Math.max(0, totalCollected - totalFiled),
     breakdown,
+    // Does the breakdown add up to the total above it? (T51/T52 N4)
+    breakdownTotal,
+    breakdownVariance,
+    reconciles,
+    breakdownNote: reconciles ? null
+      : `The three lines add to $${breakdownTotal.toFixed(2)} against a total of $${totalCollected.toFixed(2)} — a difference of $${Math.abs(breakdownVariance).toFixed(2)}. This happens when a refund returned more of one tax than that tax was charged on the sale, so the component floors at zero while the order's total tax keeps the full deduction. The total is the figure to file; the lines are for reading.`,
   })
 })
 

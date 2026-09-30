@@ -148,6 +148,17 @@ const mkVisit = async (opts: { price?: string | null; performedAt?: Date } = {})
   }
   const ok = await api('PUT', '/api/company', { settings: { tipPercentage: 15 } })
   check('R2: …and a real percentage still saves', ok.status === 200, { status: ok.status, body: ok.json })
+
+  // RR3 observation: the test read the END of the name, so a key that LEADS with the word slipped
+  // through — discountPct 150 refused, percentageOff 150 saved. Not filed, because no such key
+  // exists in the product today; closed anyway, because "which end of the name the word falls on"
+  // was never the rule.
+  for (const k of ['percentageOff', 'percentDiscount', 'pctBonus', 'PercentageMarkup']) {
+    const r = await api('PUT', '/api/company', { settings: { [k]: 150 } })
+    check(`R2: settings.${k} = 150 is refused — the word leads the name`, r.status === 400, { status: r.status, body: r.json })
+  }
+  const lead = await api('PUT', '/api/company', { settings: { percentageOff: 20 } })
+  check('R2: …and a sane one still saves', lead.status === 200, { status: lead.status, body: lead.json })
   // The money rates from RR0929 must not have been caught by widening the word list.
   for (const [k, v] of [['hourlyRate', 150], ['chairRentalRate', 250], ['boothRentRate', 300]] as const) {
     const r = await api('PUT', '/api/company', { settings: { [k]: v } })

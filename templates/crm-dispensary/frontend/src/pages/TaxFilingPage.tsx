@@ -390,6 +390,23 @@ export default function TaxFilingPage() {
                       ))}
                     </tbody>
                   </table>
+                  {/* Do the three lines add up to the total above them?
+                      T51/T52 N4: they did not — $1,789.92 against a total of $1,784.24 — and the
+                      difference was silently absorbed into the Local line, which showed $0.00. A
+                      set of figures that does not add up is the first thing an auditor asks about,
+                      so the shop hears it here rather than there. */}
+                  {summary?.reconciles === false && summary?.breakdownNote && (
+                    <p className="mt-3 flex gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-900/30 dark:text-amber-100">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>{summary.breakdownNote}</span>
+                    </p>
+                  )}
+                  {summary?.reconciles === true && (
+                    <p className="mt-3 flex items-center gap-2 text-sm text-green-700 dark:text-green-300">
+                      <CheckCircle className="h-4 w-4 shrink-0" />
+                      The lines add up to the total collected.
+                    </p>
+                  )}
                 </div>
               )}
             </div>

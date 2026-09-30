@@ -172,7 +172,19 @@ export function createCompanyRoutes(deps: CompanyDeps) {
         // "percentage", so tipPercent 150 was refused and tipPercentage 150 saved — the same setting
         // spelled the longer way. The word "percentage" is not a borderline case for this rule; it
         // IS the rule.
-        if (/(?:percent|percentage|pct)$/i.test(k) || (/rate$/i.test(k) && READS_AS_A_PERCENTAGE.test(k))) {
+        // …and the word ANYWHERE in the name, not only at the end.
+        //
+        // RR3 observation: the test read the suffix, so `discountPct` 150 was refused and
+        // `percentageOff` 150 saved — the word is right there at the front. The tester did not file
+        // it because no such key exists in the product today, and noted it was worth one line if one
+        // ever gets added. This is that line: a rule that depends on which end of the name the word
+        // falls on is not a rule about the word.
+        //
+        // `rate` stays a SUFFIX test on purpose. A rate is money unless something else in the name
+        // says otherwise (READS_AS_A_PERCENTAGE), and hourlyRate / chairRentalRate / boothRentRate
+        // are real settings a salon sets to 150 and 250 — refusing those stopped the shop, which is
+        // the finding this whole rule was corrected for once already. (RR0929 F5)
+        if (/percent|percentage|pct/i.test(k) || (/rate$/i.test(k) && READS_AS_A_PERCENTAGE.test(k))) {
           const n = Number(v)
           if (!Number.isFinite(n) || n < 0 || n > 100) {
             return c.json({ error: `${k} reads as a percentage, so it has to be a number between 0 and 100 — got ${JSON.stringify(v)}.`, field: `settings.${k}` }, 400)
