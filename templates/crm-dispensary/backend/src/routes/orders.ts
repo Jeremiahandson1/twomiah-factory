@@ -817,7 +817,15 @@ app.put('/:id/status', requireRole('driver'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const statusBody = await c.req.json()
-  const { status } = z.object({ status: z.enum(STATUS_FLOW) }).parse(statusBody)
+  // The reason was being thrown away here. This schema parsed { status } alone, so a caller that
+  // sent one — the approvals path already does, and the tester did — had it dropped before anything
+  // could store it, and the audit row for a void said only "pending → cancelled". A refund has
+  // carried its reason since the first migration; voiding a sale takes the same money and the same
+  // stock out of the day. (T52 M5)
+  const { status, reason } = z.object({
+    status: z.enum(STATUS_FLOW),
+    reason: z.string().trim().max(500).optional(),
+  }).parse(statusBody)
 
   const [existing] = await db.select().from(order)
     .where(and(eq(order.id, id), eq(order.companyId, currentUser.companyId)))
@@ -863,6 +871,15 @@ app.put('/:id/status', requireRole('driver'), async (c) => {
   }
 
   if (status === 'cancelled' && existing.status !== 'cancelled') {
+    // A void has to say why, the same as a refund does. This is a new refusal on a shape that was
+    // being accepted, so it is deliberately narrow: only the cancel transition, and only when the
+    // reason is genuinely absent. Every other status change is untouched.
+    if (!String(reason || '').trim()) {
+      return c.json({
+        error: `Say why ${existing.number || 'this order'} is being voided. A void takes the money and the stock back out of the day, and the record has to show who decided that and why.`,
+        code: 'cancel_reason_required',
+      }, 400)
+    }
     const settled = !!existing.completedAt || existing.paymentStatus === 'paid' || Number(existing.refundedAmount || 0) > 0
     if (settled) {
       return c.json({
@@ -881,7 +898,7 @@ app.put('/:id/status', requireRole('driver'), async (c) => {
       try {
         voidApproval = await requireApproval({
           companyId: currentUser.companyId, caller: currentUser, type: 'void',
-          amount: Number(existing.total) || null, orderId: id, body: statusBody, reason: statusBody?.reason || `Void ${existing.number}`,
+          amount: Number(existing.total) || null, orderId: id, body: statusBody, reason: reason || `Void ${existing.number}`,
         })
       } catch (err) {
         if (err instanceof ApprovalRequiredError) return approvalDenied(c, err)
@@ -890,9 +907,19 @@ app.put('/:id/status', requireRole('driver'), async (c) => {
     }
   }
 
+  const nowCancelling = status === 'cancelled' && existing.status !== 'cancelled'
+
   const updated = await db.transaction(async (tx) => {
     const [u] = await tx.update(order)
-      .set({ status, updatedAt: new Date(), ...(nowCompleting ? { completedAt: new Date(), paymentStatus: 'paid' } : {}) } as any)
+      .set({
+        status,
+        updatedAt: new Date(),
+        ...(nowCompleting ? { completedAt: new Date(), paymentStatus: 'paid' } : {}),
+        // On the sale itself, not only in the audit log. The audit log is the trail of who did what;
+        // the order is what a manager, an export and a regulator read. A refund writes all three of
+        // these and a void wrote none. (T52 M5)
+        ...(nowCancelling ? { cancellationReason: reason, cancelledAt: new Date(), cancelledBy: currentUser.userId } : {}),
+      } as any)
       .where(eq(order.id, id))
       .returning()
     if (nowCompleting) {
@@ -913,7 +940,12 @@ app.put('/:id/status', requireRole('driver'), async (c) => {
     entityId: id,
     entityName: existing.number,
     changes: { status: { old: existing.status, new: status } },
-    metadata: voidApproval ? { approvedBy: voidApproval.approvedBy, approvalVia: voidApproval.via } : undefined,
+    // `reason` sits where the refund audit puts its own, so the Audit Log screen reads one shape for
+    // both. Before this the void row carried nothing but "pending → cancelled". (T52 M5)
+    metadata: (reason || voidApproval) ? {
+      ...(reason ? { reason } : {}),
+      ...(voidApproval ? { approvedBy: voidApproval.approvedBy, approvalVia: voidApproval.via } : {}),
+    } : undefined,
     req: c,
   })
 

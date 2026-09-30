@@ -219,10 +219,20 @@ app.put('/:id/approve', requireRole('manager'), async (c) => {
 
   switch (request.type) {
     case 'void': {
-      // Cancel the order
+      // Cancel the order — and record WHY, exactly as the refund case below has always done.
+      //
+      // This is the second door onto the same event, and it was the one still writing nothing. The
+      // status route dropped the reason before it could be stored (T52 M5); this one had the reason
+      // in hand — a void request cannot be raised without one — and put it nowhere. A shop looking
+      // at a voided sale saw the word "cancelled" and no account of it from either path.
       if (request.order_id) {
         const orderResult = await db.execute(sql`
-          UPDATE orders SET status = 'cancelled', updated_at = NOW()
+          UPDATE orders SET
+            status = 'cancelled',
+            cancellation_reason = ${request.reason},
+            cancelled_at = NOW(),
+            cancelled_by = ${currentUser.userId},
+            updated_at = NOW()
           WHERE id = ${request.order_id} AND company_id = ${currentUser.companyId}
           RETURNING *
         `)

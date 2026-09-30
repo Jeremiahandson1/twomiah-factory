@@ -32,6 +32,9 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [refundOpen, setRefundOpen] = useState(false);
   const [refunding, setRefunding] = useState(false);
+  const [voidOpen, setVoidOpen] = useState(false);
+  const [voidReason, setVoidReason] = useState('');
+  const [voiding, setVoiding] = useState(false);
   const [printing, setPrinting] = useState(false);
 
   /** Fetch the server-rendered receipt (it needs the token) and hand it to a window to print. */
@@ -154,6 +157,35 @@ export default function OrderDetailPage() {
     }
   };
 
+  /**
+   * Void an unpaid order. (T52 M5)
+   *
+   * There was no way to do this in the product at all. The server has taken a cancel since the
+   * beginning, Settings → Approvals can require a manager to sign one off, and the Approvals screen
+   * shows void requests — but nothing anywhere could raise one, so a shop with an abandoned
+   * order-ahead or a basket the customer walked away from had to leave it sitting in the list.
+   *
+   * The reason is not optional, for the same cause the refund reason is not: a void takes money and
+   * stock back out of the day, and the record has to show who decided that and why. It goes onto the
+   * order and into the audit row.
+   */
+  const handleVoid = async () => {
+    const why = voidReason.trim();
+    if (!why) return;
+    setVoiding(true);
+    try {
+      await api.put(`/api/orders/${id}/status`, { status: 'cancelled', reason: why });
+      toast.success(`${orderLabel(order)} voided`);
+      setVoidOpen(false);
+      setVoidReason('');
+      loadOrder();
+    } catch (err: any) {
+      toast.error(err.message || 'The order could not be voided');
+    } finally {
+      setVoiding(false);
+    }
+  };
+
   // Settle the sale properly: POST /complete is the path that takes payment, moves the stock, marks
   // the order paid and awards loyalty. The status route only ever changed a word on the record.
   const handleComplete = async () => {
@@ -229,8 +261,31 @@ export default function OrderDetailPage() {
               <RotateCcw className="w-4 h-4" /> Refund
             </button>
           )}
+          {/* Void is the other half of that pair, and it had no control anywhere in the product.
+              Offered only where it can work: a sale with money against it has to be REFUNDED, and
+              the server says so (409 cancel_requires_refund) rather than quietly unsettling it. */}
+          {isManager && !order.completedAt && order.status !== 'cancelled' && order.status !== 'refunded' && (
+            <button
+              onClick={() => { setVoidReason(''); setVoidOpen(true); }}
+              className="px-4 py-2 text-red-600 border border-red-200 rounded-lg hover:bg-red-50 font-medium flex items-center gap-2 dark:border-red-900/60 dark:hover:bg-red-950/40"
+            >
+              <XCircle className="w-4 h-4" /> Void Order
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Why this order was voided, kept where whoever opens it next will see it — not only in the
+          audit log, which is a different screen and a different question. (T52 M5) */}
+      {order.status === 'cancelled' && order.cancellationReason && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/60 dark:bg-red-950/30">
+          <p className="text-sm font-medium text-red-800 dark:text-red-200">Voided</p>
+          <p className="text-sm text-red-700 dark:text-red-300">{order.cancellationReason}</p>
+          {order.cancelledAt && (
+            <p className="mt-1 text-xs text-red-600 dark:text-red-400">{formatDateTime(order.cancelledAt, storeTz)}</p>
+          )}
+        </div>
+      )}
 
       {/* Status Timeline */}
       <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
@@ -651,6 +706,36 @@ export default function OrderDetailPage() {
               disabled={refunding || (refundMode === 'items' && remainingUnits > 0 && selectedUnits === 0)}
             >
               {refunding ? 'Processing…' : refundMode === 'amount' ? 'Process Refund' : `Refund ${selectedUnits} item${selectedUnits === 1 ? '' : 's'}`}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={voidOpen} onClose={() => setVoidOpen(false)} title={`Void ${orderLabel(order)}`}>
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-slate-300">
+            The order is cancelled and comes out of the day's takings. Nothing was paid on it, so no money moves
+            and no stock comes back — those only happen on a sale that was settled, which has to be refunded instead.
+          </p>
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300" htmlFor="void-reason">Why is it being voided?</label>
+            <input
+              id="void-reason"
+              type="text"
+              aria-label="Why is it being voided?"
+              value={voidReason}
+              onChange={(e) => setVoidReason(e.target.value)}
+              placeholder="Customer did not collect"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
+            />
+            <p className="text-xs text-gray-500 dark:text-slate-400">
+              Kept on the order and in the audit log. Settings → Approvals can require a manager to sign a void off.
+            </p>
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="secondary" onClick={() => setVoidOpen(false)} disabled={voiding}>Keep Order</Button>
+            <Button variant="danger" onClick={handleVoid} disabled={voiding || !voidReason.trim()}>
+              {voiding ? 'Voiding…' : 'Void Order'}
             </Button>
           </div>
         </div>

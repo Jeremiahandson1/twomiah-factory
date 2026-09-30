@@ -291,6 +291,12 @@ export const order = pgTable('orders', {
   refundReason: text('refund_reason'),
   refundedBy: text('refunded_by'),
   refundedAt: timestamp('refunded_at'),
+  // Why a sale was voided, on the sale itself — the same three facts a refund has carried since the
+  // first migration. Cancelling took money and stock out of the day and recorded no reason anywhere.
+  // (T52 M5)
+  cancellationReason: text('cancellation_reason'),
+  cancelledAt: timestamp('cancelled_at'),
+  cancelledBy: text('cancelled_by'),
   completedAt: timestamp('completed_at'),
   number: text('number'),
   customerName: text('customer_name'),

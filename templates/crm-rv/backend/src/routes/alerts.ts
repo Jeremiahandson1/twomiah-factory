@@ -18,7 +18,7 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
 
   const conditions = [
     eq(serviceSalesAlert.companyId, currentUser.companyId),
-    eq(serviceSalesAlert.salespersonId, currentUser.id),
+    eq(serviceSalesAlert.salespersonId, currentUser.userId),
   ]
   if (!showAll) {
     conditions.push(isNull(serviceSalesAlert.dismissedAt))
@@ -50,7 +50,7 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
   const [{ value: total }] = await db.select({ value: count() }).from(serviceSalesAlert).where(where)
   const [{ value: unreadCount }] = await db.select({ value: count() }).from(serviceSalesAlert).where(and(
     eq(serviceSalesAlert.companyId, currentUser.companyId),
-    eq(serviceSalesAlert.salespersonId, currentUser.id),
+    eq(serviceSalesAlert.salespersonId, currentUser.userId),
     isNull(serviceSalesAlert.dismissedAt),
   ))
 
@@ -66,7 +66,7 @@ app.get('/count', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
   const [{ value }] = await db.select({ value: count() }).from(serviceSalesAlert).where(and(
     eq(serviceSalesAlert.companyId, currentUser.companyId),
-    eq(serviceSalesAlert.salespersonId, currentUser.id),
+    eq(serviceSalesAlert.salespersonId, currentUser.userId),
     isNull(serviceSalesAlert.dismissedAt),
   ))
   return c.json({ count: Number(value) })
@@ -78,7 +78,7 @@ app.post('/:id/dismiss', requirePermission('contacts:update'), async (c) => {
   const id = c.req.param('id')
 
   const [existing] = await db.select().from(serviceSalesAlert)
-    .where(and(eq(serviceSalesAlert.id, id), eq(serviceSalesAlert.salespersonId, currentUser.id)))
+    .where(and(eq(serviceSalesAlert.id, id), eq(serviceSalesAlert.salespersonId, currentUser.userId)))
     .limit(1)
   if (!existing) return c.json({ error: 'Alert not found' }, 404)
 

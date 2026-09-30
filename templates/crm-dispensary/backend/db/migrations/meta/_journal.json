@@ -92,6 +92,13 @@
       "when": 1791600200000,
       "tag": "0012_loyalty_consent_record",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791600300000,
+      "tag": "0013_order_cancellation_reason",
+      "breakpoints": true
     }
   ]
 }

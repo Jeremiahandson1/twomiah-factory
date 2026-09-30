@@ -1463,6 +1463,17 @@ jobs:
       - name: "Every door that creates an order records which door it was"
         run: bun run scripts/check-every-order-names-its-door.ts
 
+  signed-in-user-is-userid:
+    name: "nothing reads .id off the signed-in user"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "The signed-in user carries userId; .id is undefined and fails silently"
+        run: bun run scripts/check-signed-in-user-is-userid.ts
+
   dashboard-panels-load:
     name: "dashboard panels load"
     runs-on: ubuntu-latest

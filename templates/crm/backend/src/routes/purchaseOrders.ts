@@ -134,7 +134,7 @@ app.post('/', requirePermission('purchase-orders:create'), async (c) => {
     taxAmount: totals.taxAmount.toFixed(2),
     total: totals.total.toFixed(2),
     notes: data.notes || null,
-    createdById: currentUser.id,
+    createdById: currentUser.userId,
   }).returning()
 
   await db.insert(purchaseOrderLine).values(data.lines.map((l, i) => ({
