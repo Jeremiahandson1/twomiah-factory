@@ -10,6 +10,7 @@ import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { stripHtml } from '../utils/sanitize.ts'
 import { isValidPhone } from '../shared/index.ts'
+import { underageRefusal } from '../utils/cannabis.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -258,16 +259,21 @@ function checkDateOfBirth(data: { dateOfBirth?: string; type?: string; medicalCa
   // "at least 18 (medical) or 21 (adult use)" read as though 18 were enough on its own, so an
   // 18-to-20-year-old with no card was saved against a rule that appeared to admit them and then
   // refused at every sale. 18 is the medical floor and only with a card. (T42 L5)
+  //
+  // …and then the message that says so was refusing a RECORD while describing who can BUY, which is
+  // how a tester refused at 14 went on to create an 18-year-old with no card, get a 201, and file
+  // the contradiction. One shared sentence now says which question it is answering. (T52 N6)
   if (age < 18) {
-    return { status: 400, body: { error: `Customer would be ${age} years old — cannabis customers must be 21+, or 18+ with a valid medical card`, code: 'underage', age } }
+    return { status: 400, body: { error: underageRefusal('Customer', age), code: 'underage', age } }
   }
   // Saved either way: a shop records people before their card arrives, and the record is also used
   // for merchandise. But the warning has to say which of the two situations this is, because only
-  // one of them can buy today.
+  // one of them can buy today — and that the record is being kept on purpose, which is the half the
+  // refusal above was leaving the reader to guess at.
   if (age < 21) {
     warnings.push(data.medicalCardNumber
       ? `Customer is ${age} — medical sales only. Adult-use sales require 21+.`
-      : `Customer is ${age} and has no medical card recorded, so no cannabis sale to them can be completed. Add a valid card number and expiry, or they must be 21+.`)
+      : `Customer is ${age} and has no medical card recorded, so no cannabis sale to them can be completed. The record is saved anyway, so add the card number and expiry when it arrives — or they must be 21+.`)
   }
   return null
 }

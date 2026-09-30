@@ -49,6 +49,9 @@ for (const [mount, file] of [
   ['/api/orders', 'orders'],
   ['/api/company', 'company'],
   ['/api/import', 'import'],
+  // H2 compares the CSV importer's underage refusal with the FORM's, word for word — they used to
+  // be two copies of one sentence. (T52 N6)
+  ['/api/contacts', 'contacts'],
   ['/api/delivery', 'delivery'],
   ['/api/equivalency', 'equivalency'],
 ] as const) {
@@ -128,7 +131,20 @@ const errText = JSON.stringify(custResult.json?.errors || [])
 check('H2: "not-an-email" is refused', /not a valid email/i.test(errText), errText.slice(0, 200))
 check('H2: an HTML name is refused', /contains HTML/i.test(errText), errText.slice(0, 200))
 check('H2: a spreadsheet formula name is refused', /formula character/i.test(errText), errText.slice(0, 200))
-check('H2: a 2012-born customer is refused by the same age rule the form uses', /must be 21\+/.test(errText), errText.slice(0, 300))
+// The same rule AND the same words. The importer and the form each carried their own copy of this
+// sentence until T52 N6, which is how the copy on the form could be corrected and the one in the
+// importer left saying something else. Asserting the shared text is what stops that happening again.
+{
+  const formRefusal = await asOwner('POST', '/api/contacts', { name: 'H2 Child', type: 'customer', dateOfBirth: '2012-01-01' })
+  const formSaid = String(formRefusal.json?.error || '')
+  check('H2: the form refuses a 2012-born customer', formRefusal.status === 400, formRefusal.json)
+  check('H2: a 2012-born customer is refused by the same age rule the form uses',
+    /nobody under 18 can be a cannabis customer/i.test(errText), errText.slice(0, 300))
+  // Both say "…would be N years old, and nobody under 18…"; only the name at the front differs.
+  const shared = (s: string) => s.replace(/^.*?would be/, 'would be')
+  check('H2: …and in the same words, from one definition',
+    !!formSaid && errText.includes(shared(formSaid)), { form: formSaid.slice(0, 160), csv: errText.slice(0, 240) })
+}
 
 const savedCustomer: any = await db.execute(sql`SELECT name, date_of_birth FROM contact WHERE email = 'good@example.com'`)
 const sc = ((savedCustomer as any).rows || savedCustomer)?.[0]

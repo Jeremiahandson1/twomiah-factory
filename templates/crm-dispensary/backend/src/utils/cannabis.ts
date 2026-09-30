@@ -236,3 +236,24 @@ export function ageFromDob(dob: string | Date | null | undefined): number | null
 /** The minimum age this sale requires: 18 only for a medical sale that actually carries a card. */
 export const minimumAgeFor = (o: { isMedical?: boolean | null; medicalCardNumber?: string | null }): number =>
   o?.isMedical && o?.medicalCardNumber ? MEDICAL_MIN_AGE : ADULT_USE_MIN_AGE
+
+/**
+ * Why a date of birth cannot be put on a customer record at all. (T52 N6)
+ *
+ * The old sentence was "cannabis customers must be 21+, or 18+ with a valid medical card". It is a
+ * true statement about who can BUY, and it was being used to refuse a RECORD — so a tester refused
+ * at 14 read it as "18 needs a card", then created an 18-year-old with no card and got a 201, and
+ * quite reasonably filed the contradiction.
+ *
+ * Both behaviours are deliberate and they are answers to different questions. A shop records people
+ * before the card arrives, and the same record sells them a t-shirt; the till is what refuses the
+ * cannabis sale, off the stored date. Under 18 there is no card and no birthday that makes the
+ * record usable, which is the only case where the record itself is refused. The message now says
+ * which question it is answering.
+ *
+ * One definition, because there were two: routes/contacts.ts (create and edit) and
+ * services/import.ts (the CSV importer) each carried their own copy of the old wording.
+ */
+export const underageRefusal = (who: string, age: number): string =>
+  `${who} would be ${age} years old, and nobody under ${MEDICAL_MIN_AGE} can be a cannabis customer in any circumstances — so this date of birth cannot be saved. ` +
+  `From ${MEDICAL_MIN_AGE} to ${ADULT_USE_MIN_AGE - 1} the record is kept, and only a valid medical card lets them buy; from ${ADULT_USE_MIN_AGE} they can buy adult-use.`

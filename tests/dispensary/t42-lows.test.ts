@@ -69,8 +69,19 @@ const yearsAgo = (n: number) => { const d = new Date(); d.setFullYear(d.getFullY
 
 const minor = await asOwner('POST', '/api/contacts', { name: 'T42 Minor', type: 'customer', dateOfBirth: yearsAgo(16) })
 check('L5: a 16-year-old is still refused', minor.status === 400, minor.json)
-check('L5: and the message no longer reads as if 18 alone were enough',
-  /21\+.*18\+ with a valid medical card/i.test(String(minor.json?.error)), minor.json?.error)
+// The wording changed at T52 N6 and the rule did not. L5 is that the sentence must not read as if 18
+// alone were enough, so that is what is asserted — not the sentence it happened to be in 2026.
+{
+  const said = String(minor.json?.error)
+  check('L5: and the message no longer reads as if 18 alone were enough — a card is named as the condition',
+    /medical card/i.test(said), said)
+  check('L5: …and 21 is named as the age that needs no card', /\b21\b/.test(said), said)
+  // T52 N6: it was refusing a RECORD while describing who can BUY, so a tester refused at 14 went on
+  // to create an 18-year-old with no card, get a 201, and file the contradiction. It now says which
+  // question it is answering.
+  check('L5: …and it says what it is actually refusing, which is the record',
+    /cannot be saved/i.test(said), said)
+}
 
 const noCard = await asOwner('POST', '/api/contacts', { name: 'T42 NoCard19', type: 'customer', dateOfBirth: yearsAgo(19) })
 check('L5: an 18-to-20-year-old is still SAVED — a shop records people before the card arrives', noCard.status === 201, noCard.json)
@@ -83,6 +94,33 @@ const withCard = await asOwner('POST', '/api/contacts', {
 })
 check('L5: a young patient WITH a card gets the medical-only warning instead',
   withCard.status === 201 && (withCard.json?.warnings || []).some((w: string) => /medical sales only/i.test(w)), withCard.json?.warnings)
+
+// ── T52 N6: the tester's exact sequence, which is what made the old wording read as a contradiction
+//
+// Refused at 14 with a sentence about 21+ and "18+ with a valid medical card", then an 18-year-old
+// with NO card created happily at 201. Both are correct — the record is kept, the till refuses the
+// sale — but the refusal was describing who can BUY while refusing a RECORD, so the pair read as a
+// rule the product was not following. The behaviour is unchanged here; the sentences have to make
+// the two questions distinguishable.
+{
+  const fourteen = await asOwner('POST', '/api/contacts', { name: 'T52 Fourteen', type: 'customer', dateOfBirth: yearsAgo(14) })
+  const eighteen = await asOwner('POST', '/api/contacts', { name: 'T52 Eighteen', type: 'customer', dateOfBirth: yearsAgo(18) })
+
+  check('N6: a 14-year-old is refused', fourteen.status === 400, fourteen.json)
+  check('N6: an 18-year-old with no card is still accepted — that is deliberate', eighteen.status === 201,
+    { status: eighteen.status, body: eighteen.json })
+
+  const refusal = String(fourteen.json?.error || '')
+  check('N6: the refusal says it is refusing the RECORD, not describing who can buy',
+    /cannot be saved/i.test(refusal), refusal)
+  check('N6: …and says 18-to-20 IS kept, so the 201 above is not a surprise',
+    /the record is kept/i.test(refusal), refusal)
+
+  const kept = (eighteen.json?.warnings || []).join(' ')
+  check('N6: …and the 18-year-old is told, on the record that was just saved, that no sale can complete',
+    /no cannabis sale to them can be completed/i.test(kept), eighteen.json?.warnings)
+  check('N6: …and that the record is being kept on purpose', /saved anyway/i.test(kept), eighteen.json?.warnings)
+}
 
 // ── L7: a fractional quantity is refused by name, not by a Postgres format error ────────────────
 const [flower] = await db.insert(product).values({

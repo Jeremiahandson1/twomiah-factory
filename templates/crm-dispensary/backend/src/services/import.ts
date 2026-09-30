@@ -10,6 +10,7 @@ import { parse } from 'csv-parse/sync'
 import { db } from '../../db/index.ts'
 import { contact, product } from '../../db/schema.ts'
 import { eq, and } from 'drizzle-orm'
+import { underageRefusal } from '../utils/cannabis.ts'
 
 /**
  * Parse CSV content
@@ -224,7 +225,7 @@ export async function importContacts(csvContent: string, companyId: string, opti
         }
         const age = ageOn(dateOfBirth)
         if (age < 18) {
-          results.errors.push({ line: lineNum, error: `${name} would be ${age} years old — cannabis customers must be 21+, or 18+ with a valid medical card` })
+          results.errors.push({ line: lineNum, error: underageRefusal(name, age) })
           results.skipped++
           continue
         }
