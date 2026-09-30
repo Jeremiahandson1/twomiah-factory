@@ -342,12 +342,19 @@ export default function LabelsPage() {
                     <button onClick={() => previewTemplate(tpl)} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 flex items-center gap-1 dark:text-slate-400">
                       <Eye className="w-3 h-3" /> Preview
                     </button>
-                    <button onClick={() => openEditTemplate(tpl)} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 flex items-center gap-1 dark:text-slate-400">
-                      <Edit className="w-3 h-3" /> Edit
-                    </button>
-                    <button onClick={() => { setTemplateToDelete(tpl); setDeleteOpen(true); }} className="text-sm text-red-600 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1">
-                      <Trash2 className="w-3 h-3" /> Delete
-                    </button>
+                    {/* Preview above is open to everyone — a budtender prints labels, which is the
+                        job. Editing and deleting a TEMPLATE are requireRole('manager') on the
+                        server, so showing them invites a 403. (T53 L11) */}
+                    {isManager && (
+                      <>
+                        <button onClick={() => openEditTemplate(tpl)} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 flex items-center gap-1 dark:text-slate-400">
+                          <Edit className="w-3 h-3" /> Edit
+                        </button>
+                        <button onClick={() => { setTemplateToDelete(tpl); setDeleteOpen(true); }} className="text-sm text-red-600 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1">
+                          <Trash2 className="w-3 h-3" /> Delete
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}

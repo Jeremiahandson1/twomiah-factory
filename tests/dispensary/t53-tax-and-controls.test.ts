@@ -172,6 +172,14 @@ const round2 = (n: number) => Math.round(n * 100) / 100
     ['SEOPagesPage.tsx', 'Generate All'],
     ['SignagePage.tsx', 'Add Screen'],
     ['GrowInputsPage.tsx', 'Add Input'],
+    // Added after the first pass: I wrote in the T55 brief that these two were left visible
+    // deliberately, because the server allows them. It does not — batch status changes and label
+    // template edit/delete are all requireRole('manager'). Checking the claim before publishing it
+    // is what caught that; the excuse became a fix.
+    // Anchored on the control's own call, not its label: "Recall" also appears in doLiftRecall and
+    // in a toast, and "Delete" in several places — the FIRST match would be neither button.
+    ['BatchesPage.tsx', "confirmAction(detail.id, 'recall', 'Recall')"],
+    ['LabelsPage.tsx', 'setTemplateToDelete(tpl)'],
   ]
   for (const [file, label] of CONTROLS) {
     const raw = readFileSync(`${ROOT}templates/crm-dispensary/frontend/src/pages/${file}`, 'utf8').replace(/\r\n/g, '\n')
@@ -188,8 +196,11 @@ const round2 = (n: number) => Math.round(n * 100) / 100
     // label (Manufacturing's resets seven form fields), and the gate is still the nearest thing
     // above them.
     const before = at === -1 ? '' : src.slice(Math.max(0, at - 1400), at)
+    // `isManager &&` or `isManager ?`, not `isManager && (` — a real gate often carries another
+    // condition with it (`isManager && detail.status === 'active' && (`), and requiring the paren
+    // immediately after reported a correctly-gated control as ungated.
     check(`${file}: "${label}" is behind a manager gate`,
-      at !== -1 && /isManager \&\& \(|isManager \? \(/.test(before), { found: at !== -1 })
+      at !== -1 && /isManager\s*(\?|&&)/.test(before), { found: at !== -1 })
   }
 }
 

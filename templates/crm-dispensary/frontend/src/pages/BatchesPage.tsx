@@ -359,7 +359,7 @@ export default function BatchesPage() {
                 <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
                   <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Quick Actions</h3>
                   <div className="flex flex-wrap gap-2">
-                    {detail.status === 'active' && (
+                    {isManager && detail.status === 'active' && (
                       <>
                         <Button variant="secondary" size="sm" onClick={() => confirmAction(detail.id, 'quarantine', 'Quarantine')}>
                           <Shield className="w-4 h-4 mr-1 inline" /> Quarantine
@@ -372,7 +372,7 @@ export default function BatchesPage() {
                         </Button>
                       </>
                     )}
-                    {detail.status === 'quarantine' && (
+                    {isManager && detail.status === 'quarantine' && (
                       <>
                         <Button variant="secondary" size="sm" onClick={() => confirmAction(detail.id, 'activate', 'Activate')}>
                           Release
@@ -602,14 +602,14 @@ export default function BatchesPage() {
                   </td>
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex gap-2">
-                      {batch.status === 'active' && (
+                      {isManager && batch.status === 'active' && (
                         <>
                           <button onClick={() => confirmAction(batch.id, 'quarantine', 'Quarantine')} className="text-xs text-yellow-600 hover:text-yellow-700 dark:hover:text-yellow-300">Quarantine</button>
                           <button onClick={() => confirmAction(batch.id, 'deplete', 'Deplete')} className="text-xs text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 dark:text-slate-400">Deplete</button>
                           <button onClick={() => confirmAction(batch.id, 'recall', 'Recall')} className="text-xs text-red-600 hover:text-red-700 dark:hover:text-red-300">Recall</button>
                         </>
                       )}
-                      {batch.status === 'quarantine' && (
+                      {isManager && batch.status === 'quarantine' && (
                         <button onClick={() => confirmAction(batch.id, 'activate', 'Activate')} className="text-xs text-green-600 hover:text-green-700 dark:hover:text-green-300">Release</button>
                       )}
                       {isManager && (
