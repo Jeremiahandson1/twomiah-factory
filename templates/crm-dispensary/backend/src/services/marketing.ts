@@ -23,6 +23,8 @@ import { sendSMS } from './sms.ts'
 // a second implementation of something this file already had, and it was the one that did not
 // work. (T47 P1)
 import emailService from './email.ts'
+// A customer unsubscribing is a consent change like any other, and is written down like one. (T49 H1)
+import audit from './audit.ts'
 
 // ============================================
 // SEND PROMOTIONS
@@ -109,9 +111,32 @@ export async function reachableAudience(
       .filter((c) => c.phone && allowed.has(c.id))
       .map((c) => ({ contactId: c.id, name: c.name, address: String(allowed.get(c.id) || c.phone) }))
   }
+  // The EMAIL opt-out belongs to the email channel, and only to it. (T49 H1)
+  //
+  // It used to sit in getAudienceContacts, which both channels share, so following an unsubscribe
+  // link in an email removed the contact from the TEXT audience as well — the tester watched a
+  // segment go from 1 to 0 for both. Under US law these are two different permissions: a text needs
+  // prior express consent (TCPA) and email is opt-out (CAN-SPAM). An email unsubscribe cannot
+  // revoke a consent it was never given.
+  const optedOut = await emailOptedOutContactIds(companyId, contacts.map((c) => c.id))
   return contacts
-    .filter((c) => !!c.email)
+    .filter((c) => !!c.email && !optedOut.has(c.id))
     .map((c) => ({ contactId: c.id, name: c.name, address: String(c.email) }))
+}
+
+/** Which of these contacts have asked not to receive marketing EMAIL. */
+export async function emailOptedOutContactIds(companyId: string, contactIds: string[]): Promise<Set<string>> {
+  const out = new Set<string>()
+  const ids = [...new Set(contactIds.filter(Boolean))]
+  if (!ids.length) return out
+  const rows: any = await db.execute(sql`
+    SELECT id FROM contact
+    WHERE company_id = ${companyId}
+      AND id IN (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})
+      AND custom_fields->>'emailOptOut' = 'true'
+  `)
+  for (const r of ((rows as any).rows || rows)) out.add(String(r.id))
+  return out
 }
 
 // ============================================
@@ -135,10 +160,9 @@ async function getAudienceContacts(companyId: string, audienceType: string, filt
     }
   }
 
-  // Filter to contacts that haven't opted out
-  conditions.push(
-    sql`(${contact.customFields}->>'emailOptOut' IS NULL OR ${contact.customFields}->>'emailOptOut' != 'true')`
-  )
+  // The email opt-out is NOT applied here. It is a per-CHANNEL permission and this query serves
+  // both channels, so filtering it here took an email unsubscriber off the text list too. It moved
+  // to reachableAudience, which knows which channel it is answering for. (T49 H1)
 
   return db.select({
     id: contact.id,
@@ -242,11 +266,34 @@ export async function handleUnsubscribe(recipientId: string, contactId?: string)
     .set({ customFields })
     .where(eq(contact.id, targetId))
 
-  // Unsubscribing from marketing means marketing, not just email. Someone who has asked to be left
-  // alone should not still be on the text list.
+  // EMAIL only. (T49 H1)
+  //
+  // This used to set optedInSms: false as well, on the reasoning that "unsubscribing from marketing
+  // means marketing". That reasoning is wrong in law and wrong for the customer. A marketing text
+  // needs prior express consent under the TCPA and is given at the counter; marketing email is
+  // opt-out under CAN-SPAM. They are two permissions, and a link at the bottom of an email cannot
+  // revoke the one it was never granted. The tester's customer agreed to texts at the till, clicked
+  // unsubscribe in an email, and could never be texted again.
+  //
+  // The date goes with the flag: an optedInEmailAt left filled in beside optedInEmail false is the
+  // "date left behind looking like live consent" that Q3 exists to prevent. (T49 L5)
   await db.update(loyaltyMember)
-    .set({ optedInSms: false, optedInEmail: false } as any)
+    .set({ optedInEmail: false, optedInEmailAt: null, updatedAt: new Date() } as any)
     .where(and(eq(loyaltyMember.companyId, c.companyId as string), eq(loyaltyMember.contactId, targetId)))
+
+  // …and it is written down where every other consent change is written down. Every tick on the
+  // Members screen is audited; the one change a CUSTOMER makes was the only one that was not, so
+  // "why did this person stop receiving email" had no answer. (T49 H1)
+  try {
+    // There is no signed-in user on an unsubscribe — a mail client follows the link — so the
+    // company is named directly and the actor is described in words.
+    await audit.log({
+      action: 'update', entity: 'marketing_consent', entityId: targetId, entityName: c.name || 'Customer',
+      changes: { optedInEmail: { old: true, new: false } },
+      metadata: { channel: 'email', by: 'the customer, through the unsubscribe link in a campaign', recipientId: recipientId || null },
+      req: { user: { companyId: c.companyId, email: 'the customer (unsubscribe link)' } },
+    } as any)
+  } catch { /* an unsubscribe must never fail for want of an audit row */ }
 
   return { contactId: targetId }
 }
@@ -422,12 +469,22 @@ async function sendEmail({ to, subject, html, fromName, fromEmail, headers }: { 
 // recipient row that proves the link belongs to the person following it. Nothing ever put the link
 // in the message. This is the half that was missing.
 
-/** The sender's postal address on one line, or null when the tenant has not set one. */
+/** The sender's postal address on one line, or null when the tenant has not set a usable one. */
 function postalAddress(co: any): string | null {
-  const parts = [co?.address, co?.city, [co?.state, co?.zip].filter(Boolean).join(' ').trim()]
-    .map((p: any) => String(p || '').trim()).filter(Boolean)
-  // Street and town at minimum — "OH" on its own is not an address anyone could write back to.
-  return parts.length >= 2 ? parts.join(', ') : null
+  // The STREET is required, not "two of the four fields". (T49 H3)
+  //
+  // The first version counted non-empty parts and accepted any two, so blanking the street while
+  // city, state and zip stayed set still passed — and a campaign went out with a footer reading
+  // "Columbus, OH 43004", which is not an address anyone could send post to. The refusal talks
+  // about a street address, so the check has to be about the street address.
+  //
+  // CAN-SPAM asks for a valid physical postal address. A town and a postcode identify a place; they
+  // do not identify the sender's premises, which is the point of the requirement.
+  const street = String(co?.address || '').trim()
+  const city = String(co?.city || '').trim()
+  const region = [co?.state, co?.zip].map((p: any) => String(p || '').trim()).filter(Boolean).join(' ')
+  if (!street || !city) return null
+  return [street, city, region].filter(Boolean).join(', ')
 }
 
 /** Absolute, because a mail client has no page to be relative to. */

@@ -73,6 +73,15 @@ const MEDICAL_PATTERNS: RegExp[] = [
 // which caught ordinary replies like "I can't recommend a product based on what you're planning to
 // do" and filed a normal browse as a medical refusal. Over-marking is not free: it mis-files the
 // analytics a manager reads and makes the next ordinary follow-up answer stiffly.
+/**
+ * Never offer a RECALLED product.
+ *
+ * T49 B1: the assistant recommended one by name and quoted its remaining stock, while the register
+ * refused to sell it. A recall has to reach every channel a product is offered through, and this
+ * file has four product pools — the Claude path, two in the keyword fallback, and the public demo.
+ * One fragment, interpolated into all four, so they cannot drift apart.
+ */
+const NOT_RECALLED = sql`AND NOT EXISTS (SELECT 1 FROM batches b WHERE b.product_id = p.id AND b.company_id = p.company_id AND b.status = 'recalled')`
 const READS_LIKE_A_DECLINE = /\bmedical or health advice\b|\bspeak (?:to|with) (?:your|a) (?:doctor|physician|pharmacist)\b|\btalk to (?:your|a) (?:doctor|physician|pharmacist)\b|\bnot a clinic\b|\bI'?m not able to give (?:medical|health)\b/i
 
 /** Is this a question about a health condition rather than about what is on the shelf? */
@@ -855,6 +864,7 @@ app.post('/chat', requireRole('budtender'), async (c) => {
       WHERE p.company_id = ${currentUser.companyId}
         AND p.active = true
         AND p.in_stock = true
+        ${NOT_RECALLED}
       ORDER BY p.total_sold DESC NULLS LAST
       LIMIT 200
     `)
@@ -1051,6 +1061,7 @@ async function handleKeywordFallback(
       WHERE p.company_id = ${currentUser.companyId}
         AND p.active = true
         AND p.in_stock = true
+        ${NOT_RECALLED}
         ${strainFilter}
         ${categoryFilter}
         ${potencyFilter}
@@ -1110,6 +1121,7 @@ async function handleKeywordFallback(
       FROM products p
       WHERE p.company_id = ${currentUser.companyId}
         AND p.active = true AND p.in_stock = true
+        ${NOT_RECALLED}
       ORDER BY p.total_sold DESC NULLS LAST
       LIMIT ${maxRecs}
     `)
@@ -1458,6 +1470,7 @@ app.post('/demo', requireRole('budtender'), async (c) => {
            p.description, p.effects, p.image_url, p.weight, p.unit_type as unit, p.stock_quantity
     FROM products p
     WHERE p.company_id = ${currentUser.companyId} AND p.active = true AND p.in_stock = true
+      ${NOT_RECALLED}
     ORDER BY p.total_sold DESC NULLS LAST
     LIMIT 200
   `)

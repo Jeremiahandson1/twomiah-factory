@@ -1408,6 +1408,17 @@ jobs:
       - name: "Near-black ink answers for dark mode, or it is invisible"
         run: bun run scripts/check-unpaired-dark-ink.ts
 
+  every-sale-path-checks-batches:
+    name: "every sale path checks batches"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "A recall reaches every door a sale comes in through"
+        run: bun run scripts/check-every-sale-path-checks-batches.ts
+
   dashboard-panels-load:
     name: "dashboard panels load"
     runs-on: ubuntu-latest

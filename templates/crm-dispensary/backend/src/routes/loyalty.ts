@@ -221,6 +221,24 @@ app.put('/members/:id/consent', requireRole('budtender'), async (c) => {
     RETURNING *
   `)) as any).rows || []
 
+  // A fresh opt-in at the counter OVERRIDES an old unsubscribe. (T49 H1)
+  //
+  // The unsubscribe writes contact.customFields.emailOptOut, which the email audience reads. Until
+  // now nothing in the product could clear it — PUT /api/contacts answers 200 and silently ignores
+  // customFields — so a customer who unsubscribed in March and asked to be put back on the list in
+  // April showed a ticked Email box and received nothing, for ever. The newer decision is the
+  // customer's current one, and the person standing in front of them is recording it.
+  if (data.optedInEmail === true) {
+    await db.execute(sql`
+      UPDATE contact
+      SET custom_fields = COALESCE(custom_fields, '{}'::jsonb)
+            - 'emailOptOut' - 'emailOptOutDate'
+          || jsonb_build_object('emailOptInAt', ${new Date().toISOString()}::text, 'emailOptInSource', ${data.source}::text),
+          updated_at = NOW()
+      WHERE id = ${member.contact_id} AND company_id = ${currentUser.companyId}
+    `)
+  }
+
   audit.log({
     action: audit.ACTIONS.UPDATE, entity: 'loyalty_member', entityId: id, entityName: member.contact_name,
     changes: {

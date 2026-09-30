@@ -15,6 +15,19 @@ const app = new Hono()
 // (Dispensary T39 M3)
 app.use('*', authenticate, requireRole('manager'))
 
+/**
+ * A filing that has actually been FILED.
+ *
+ * T49 H2: two separate summary queries summed every filing whatever its status, so "Total Filed"
+ * read twelve times the tax the shop had collected while nothing had been filed at all — and
+ * superseded filings still counted, leaving a set-aside return's money inside the total it was set
+ * aside from. One fragment, used by both, so they cannot answer the same question two ways.
+ *
+ * 'confirmed' counts: it is 'filed' with the state's acknowledgement on it, and a return the state
+ * has confirmed is the most filed a filing gets.
+ */
+const ACTUALLY_FILED = sql`status IN ('filed', 'confirmed')`
+
 // GET /filings — List tax filings (paginated, filterable)
 app.get('/filings', async (c) => {
   const currentUser = c.get('user') as any
@@ -685,10 +698,19 @@ app.get('/filings/summary', async (c) => {
 
   // tax_filings.total_tax_due is a TEXT column; SUM(text) throws — cast per-row (NULLIF guards
   // empty strings). (schema fix)
+  //
+  // …and "filed" means FILED. (T49 H2)
+  //
+  // This summed every filing whatever its status, so the screen read Total Collected $1,766.74 and
+  // Total Filed $22,198.19 — twelve times the tax the shop had taken — while nothing had actually
+  // been filed at all: all 23 rows were still 'calculated'. Superseded filings were in there too,
+  // so setting one aside left its money in the total it was set aside from, which is half of Q8
+  // undone. A Total Filed bigger than Total Collected is the kind of number that stops an owner
+  // trusting the module, and they would be right.
   const filedResult = await db.execute(sql`
     SELECT
-      COALESCE(SUM(CAST(NULLIF(total_tax_due, '') AS numeric)), 0) as total_filed,
-      COUNT(*) FILTER (WHERE status = 'filed')::int as filings_filed,
+      COALESCE(SUM(CAST(NULLIF(total_tax_due, '') AS numeric)) FILTER (WHERE ${ACTUALLY_FILED}), 0) as total_filed,
+      COUNT(*) FILTER (WHERE ${ACTUALLY_FILED})::int as filings_filed,
       COUNT(*) FILTER (WHERE status IN ('calculated', 'reviewed'))::int as filings_outstanding
     FROM tax_filings
     WHERE company_id = ${currentUser.companyId}
@@ -793,12 +815,18 @@ app.get('/summary', async (c) => {
   const collected = ((collectedResult as any).rows || collectedResult)?.[0] || {}
 
   // tax_filings.total_tax_due is TEXT; cast per-row. Group filed amounts by filing_type.
+  //
+  // The SAME filter as /filings/summary, through the same named fragment. These two queries answer
+  // the same question on two screens and both had the same bug: the tester found the Excise "filed"
+  // line at $19,658.25 — every excise filing ever generated, superseded ones included — and the
+  // whole Local Tax line was one superseded combined filing. (T49 H2)
   const filedResult = await db.execute(sql`
     SELECT filing_type,
       COALESCE(SUM(CAST(NULLIF(total_tax_due, '') AS numeric)), 0) as filed
     FROM tax_filings
     WHERE company_id = ${currentUser.companyId}
       AND period_end >= ${yearStart}
+      AND ${ACTUALLY_FILED}
     GROUP BY filing_type
   `)
   const filedRows = (filedResult as any).rows || filedResult

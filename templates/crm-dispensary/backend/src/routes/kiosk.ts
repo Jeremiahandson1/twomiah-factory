@@ -11,6 +11,8 @@ import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { createRateLimiter, isWrite, KIOSK_WINDOW_MS, KIOSK_MAX_SESSIONS, KIOSK_MAX_CHECKOUTS } from '../middleware/rateLimit.ts'
 import { deviceForToken, claimPairingCode, kioskEnforcement, newPairingCode, PAIRING_TTL_MS, type PairedDevice } from '../services/kioskDevice.ts'
 import { isFeatureEnabled, requireEnabledFeature } from '../middleware/enabledFeature.ts'
+// The same batch rule the register runs — one implementation, every door. (T49 B1)
+import { resolveSellableStock, recalledProductIds } from '../services/sellableStock.ts'
 
 // Typed context: the signed-in user on the manager routes, and the paired tablet on the customer ones.
 // Untyped, every c.get(...) in this file was a TS2769 — two of them before this change, six after it.
@@ -413,8 +415,13 @@ app.get('/menu', async (c) => {
   // With the SAME equivalency rules the register uses. Without them this menu asked a different
   // question from the till standing behind it. (T32 B1)
   const menuFactors = await loadEquivalencyFactors(companyId)
+  // …and a RECALLED product is unsellable for a different reason but in exactly the same way, so it
+  // joins the same exclusion list. T49 B1 found it listed here, on the public menu and in the AI
+  // budtender's recommendations, while the register refused to sell it. (T49 B1)
+  const recalledIds = await recalledProductIds(db, companyId, rows(sellability).map((p: any) => String(p.id)))
   const unsellableIds = rows(sellability)
-    .filter((p: any) => uncountableCannabisLines([{ product: camel(p), quantity: 1 }], menuFactors).length > 0)
+    .filter((p: any) => recalledIds.has(String(p.id))
+      || uncountableCannabisLines([{ product: camel(p), quantity: 1 }], menuFactors).length > 0)
     .map((p: any) => String(p.id))
   const sellableFilter = unsellableIds.length
     ? sql`AND p.id NOT IN (${sql.join(unsellableIds.map((m) => sql`${m}`), sql`, `)})`
@@ -503,6 +510,24 @@ app.post('/session/:token/add-item', async (c) => {
   const addFactors = await loadEquivalencyFactors(session.company_id)
   const unsellable = uncountableCannabisLines([{ product: camel(product), quantity: data.quantity }], addFactors)
   if (unsellable.length) return c.json(CANNOT_SELL_HERE(unsellable), 400)
+
+  // The batch rule, here at the basket rather than at the end. Same reasoning as the line above:
+  // a tablet holding a stale page can still ask for a product the menu no longer lists, and a
+  // kiosk basket has no way back out once it is full. (T49 B1)
+  const addStock = await resolveSellableStock(db, session.company_id, [data.productId], new Map([[data.productId, camel(product)]]))
+  const addBlocked = addStock.blockedProducts.get(data.productId)
+  if (addBlocked) {
+    return c.json({
+      error: addBlocked === 'recalled'
+        ? `${product.name} has been recalled and is no longer available. Please ask a member of staff.`
+        : `${product.name} is out of stock. Please ask a member of staff.`,
+      code: 'batch_not_sellable',
+    }, 400)
+  }
+  const addSpare = addStock.untrackedUnits.get(data.productId)
+  if (addSpare !== undefined && data.quantity > addSpare) {
+    return c.json({ error: `Only ${addSpare} of ${product.name} ${addSpare === 1 ? 'is' : 'are'} available.`, code: 'batch_not_sellable' }, 400)
+  }
 
   const items = sessionItems(session)
   const unitPrice = Number(product.sale_price || product.price)
@@ -593,6 +618,34 @@ app.post('/session/:token/checkout', async (c) => {
   }
   if (!items.length) items = sessionItems(session)
   if (!items.length) return c.json({ error: 'No items in order' }, 400)
+
+  // The batch rule, at the last gate too. add-item checks it and the menu hides it, and this
+  // still has to check: the checkout re-prices the cart the CLIENT sent, so a basket assembled
+  // before the recall — or posted straight at this route — arrives here having passed neither.
+  // (T49 B1)
+  {
+    const ids = items.map((i: any) => String(i.productId)).filter(Boolean)
+    const byId = new Map(items.filter((i: any) => i.product).map((i: any) => [String(i.productId), i.product]))
+    const stock = await resolveSellableStock(db, companyId, ids, byId)
+    for (const item of items) {
+      const blocked = stock.blockedProducts.get(String(item.productId))
+      if (blocked) {
+        return c.json({
+          error: blocked === 'recalled'
+            ? `${item.productName} has been recalled and cannot be sold. Please ask a member of staff.`
+            : `${item.productName} is out of stock. Please ask a member of staff.`,
+          code: 'batch_not_sellable', productId: item.productId,
+        }, 400)
+      }
+      const spare = stock.untrackedUnits.get(String(item.productId))
+      if (spare !== undefined && Number(item.quantity) > spare) {
+        return c.json({
+          error: `Only ${spare} of ${item.productName} ${spare === 1 ? 'is' : 'are'} available.`,
+          code: 'batch_not_sellable', productId: item.productId,
+        }, 400)
+      }
+    }
+  }
 
   const subtotal = items.reduce((sum: number, item: any) => sum + Number(item.total || 0), 0)
 

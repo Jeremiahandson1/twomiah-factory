@@ -7,6 +7,8 @@ import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, gramsText, cartCa
 import { matchZoneForAddress, zoneTerms } from '../utils/delivery.ts'
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { zodRefusal } from '../utils/errors.ts'
+// The same batch rule the register runs — one implementation, every door. (T49 B1)
+import { resolveSellableStock, recalledProductIds } from '../services/sellableStock.ts'
 
 // Cannabis purchase limit: the company's configured/state limit (utils/cannabis.ts) — was a hardcoded 2.5 oz.
 const CANNABIS_TAX_RATE = 0.15 // 15% cannabis excise tax
@@ -86,9 +88,17 @@ app.get('/', async (c) => {
     ))
     .orderBy(asc(product.menuOrder), asc(product.name))
 
+  // A recalled product is not on the menu. (T49 B1)
+  //
+  // Listing it and refusing it at checkout is a worse experience than not listing it, and it is
+  // not what a buyer coming from a Metrc-integrated POS expects: a recalled package disappears
+  // from every channel. The order route refuses it too — this is so nobody is offered it.
+  const recalled = await recalledProductIds(db, foundCompany.id, products.map((p) => p.id))
+
   // Group by category
   const categories: Record<string, any[]> = {}
   for (const prod of products) {
+    if (recalled.has(prod.id)) continue
     const cat = (prod as any).category || 'other'
     if (!categories[cat]) categories[cat] = []
     categories[cat].push({
@@ -195,6 +205,12 @@ app.get('/:slug', async (c) => {
 
   if (!found) return c.json({ error: 'Product not found' }, 404)
 
+  // …and the product PAGE goes with the listing. A recalled product that is gone from the menu but
+  // still reachable by its own URL is still being offered. (T49 B1)
+  if ((await recalledProductIds(db, foundCompany.id, [found.id])).has(found.id)) {
+    return c.json({ error: 'Product not found' }, 404)
+  }
+
   return c.json({
     id: found.id,
     name: found.name,
@@ -273,6 +289,14 @@ app.post('/order', async (c) => {
 
   const productMap = new Map(products.filter(p => productIds.includes(p.id)).map(p => [p.id, p]))
 
+  // The SAME batch rule the register runs. (T49 B1)
+  //
+  // This route accepted an order for a recalled product, the till then completed it, and stock
+  // came off a product whose only batch with units was recalled. The rule was written out inline
+  // in POST /api/orders and nowhere else, so it guarded one of the four doors a sale comes in
+  // through. A customer ordering ahead is not a lesser sale than one at the counter.
+  const stock = await resolveSellableStock(db, foundCompany.id, productIds, productMap as any)
+
   // Validate products and calculate totals
   let totalWeightGrams = 0
   let subtotal = 0
@@ -283,6 +307,26 @@ app.post('/order', async (c) => {
     if (!prod) return c.json({ error: `Product not found: ${item.productId}` }, 400)
     if (!prod.active) return c.json({ error: `Product is not available: ${prod.name}` }, 400)
     if (!prod.visible) return c.json({ error: `Product is not available: ${prod.name}` }, 400)
+
+    // Worded for a customer rather than a budtender — they cannot "remove it from the order" on
+    // somebody else's till — but the same refusal, with the same code.
+    const blocked = stock.blockedProducts.get(prod.id)
+    if (blocked) {
+      return c.json({
+        error: blocked === 'recalled'
+          ? `${prod.name} has been recalled and is no longer available. Please remove it from your basket.`
+          : `${prod.name} is out of stock. Please remove it from your basket.`,
+        code: 'batch_not_sellable', productId: prod.id,
+      }, 400)
+    }
+    // …and no more than a held batch leaves outside itself.
+    const spare = stock.untrackedUnits.get(prod.id)
+    if (spare !== undefined && item.quantity > spare) {
+      return c.json({
+        error: `Only ${spare} of ${prod.name} ${spare === 1 ? 'is' : 'are'} available.`,
+        code: 'batch_not_sellable', productId: prod.id,
+      }, 400)
+    }
 
     // Check stock
     if (prod.trackInventory && Number(prod.stockQuantity) < item.quantity) {

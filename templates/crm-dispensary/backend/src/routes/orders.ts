@@ -17,6 +17,8 @@ import { recomputeTier } from '../utils/loyaltyTier.ts'
 import { taxRatesFor, assessTax, cannabisSubtotalOf } from '../utils/tax.ts'
 import { isFeatureEnabled } from '../middleware/enabledFeature.ts'
 import { checkFilter } from '../shared/index.ts'
+// One implementation of "can this be sold", called by every door a sale comes in through. (T49 B1)
+import { resolveSellableStock, refusalFor } from '../services/sellableStock.ts'
 
 /** Does this shop have loyalty switched on? The award below is the thing the switch has to reach. */
 const loyaltyEnabled = (companyId: string) => isFeatureEnabled(companyId, 'loyalty_rewards')
@@ -357,65 +359,13 @@ app.post('/', requireRole('budtender'), async (c) => {
   // A recall or a hold is about the units IN that batch. Units that were never in it are no more
   // affected than units of a different product. So the question is not "is any batch sellable" but
   // "are there units to sell" — and untracked units count.
-  const sellableBatch = new Map<string, any>()
-  const blockedProducts = new Map<string, string>()
-  /** Units on hand that belong to no batch — sellable, but with no batch to record against. */
-  const untrackedUnits = new Map<string, number>()
-  {
-    const ids = [...new Set(data.items.map((i: any) => i.productId))]
-    if (ids.length) {
-      // sql.join, not ANY(${ids}) — a JS array reaches Postgres as one parameter and comes back
-      // "malformed array literal", which in this position would 500 every sale in the shop.
-      const idList = sql.join(ids.map((i) => sql`${i}`), sql`, `)
-      const rows: any = await db.execute(sql`
-        SELECT id, product_id, batch_number, metrc_tag, status, current_quantity, received_date
-        FROM batches
-        WHERE company_id = ${currentUser.companyId} AND product_id IN (${idList})
-        ORDER BY received_date ASC NULLS LAST, created_at ASC
-      `)
-      const byProduct = new Map<string, any[]>()
-      for (const b of ((rows as any).rows || rows)) {
-        byProduct.set(b.product_id, [...(byProduct.get(b.product_id) || []), b])
-      }
-      for (const [productId, list] of byProduct) {
-        // Oldest sellable batch first — the shop sells what came in first, and a recall then bites on
-        // exactly the stock a recall is about.
-        // An active batch holding NOTHING is not what this sale is coming out of. It used to be
-        // picked anyway as a fallback, so a sale was stamped with a batch that had already been
-        // depleted to zero (T47 P9 watched exactly that happen). An empty batch falls through to the
-        // untracked-stock question below, which answers it honestly instead.
-        const usable = list.find((b) => b.status === 'active' && Number(b.current_quantity) > 0)
-        if (usable) { sellableBatch.set(productId, usable); continue }
-
-        const worst = list.find((b) => b.status === 'recalled') || list[0]
-
-        // A RECALL stops the product, not the batch — and this is the one place untracked stock
-        // does NOT get the benefit of the doubt.
-        //
-        // The difference is what the shop can prove. A quarantine is the shop holding a lot it knows
-        // the bounds of; units outside it are a different lot and are fine. A recall says product
-        // matching this description is unsafe, and untracked units have no provenance at all — the
-        // shop cannot show they are not from the recalled lot, because that is what untracked means.
-        // Selling them and being wrong is a regulatory event, so the till stops the product and a
-        // person sorts out what is what. (T45 BL4 is this rule, and it is a blocker for a reason.)
-        if (worst?.status === 'recalled' || list.some((b) => b.status === 'recalled')) {
-          blockedProducts.set(productId, 'recalled')
-          continue
-        }
-
-        // Otherwise: no sellable batch, but ask whether the shop is holding units no batch ever
-        // claimed. Every batch's quantity added together is what IS tracked; anything the product
-        // still has on hand beyond that never entered one, and a hold on a lot is not a hold on it.
-        const prod = productMap.get(productId) as any
-        const tracked = list.reduce((sum, b) => sum + Math.max(0, Number(b.current_quantity) || 0), 0)
-        const onHand = Number(prod?.stockQuantity) || 0
-        const spare = Math.max(0, onHand - tracked)
-        if (spare > 0) { untrackedUnits.set(productId, spare); continue }
-
-        blockedProducts.set(productId, String(worst?.status || 'unavailable'))
-      }
-    }
-  }
+  // T49 B1: this used to be sixty lines of batch arithmetic written out HERE, and only here — so
+  // it stopped a sale at the till and at none of the other three doors a sale comes in through.
+  // The rule now lives in services/sellableStock.ts and every door calls it. The comments that
+  // explain each clause moved with it.
+  const { sellableBatch, blockedProducts, untrackedUnits } = await resolveSellableStock(
+    db, currentUser.companyId, data.items.map((i: any) => i.productId), productMap as any,
+  )
 
   for (const item of data.items) {
     const prod = productMap.get(item.productId)
@@ -1018,6 +968,45 @@ app.post('/:id/complete', requireRole('budtender'), async (c) => {
       .from(product).where(eq(product.id, item.productId)).limit(1)
     if (prodRow?.track && Number(prodRow.stock) < Number(item.quantity)) {
       return c.json({ error: `Insufficient stock to complete: ${prodRow.name} has ${prodRow.stock}, order needs ${item.quantity}` }, 400)
+    }
+  }
+
+  // …and the batch rule AGAIN, here, at the moment the money and the stock actually move.
+  //
+  // T49 B1: this was the step that let a recalled product out of the building. An order-ahead was
+  // accepted before the check existed on that route, and completing it here returned 200 and took
+  // the stock down — because complete() re-checked the QUANTITY and never re-asked whether the
+  // product could be sold at all.
+  //
+  // It has to be re-asked whatever the create path does, because time passes between the two: an
+  // order taken this morning and collected this afternoon can be an order for a lot recalled at
+  // lunchtime. That is the ordinary case for order-ahead, not an edge one.
+  {
+    const ids = items.map((i: any) => String(i.productId)).filter(Boolean)
+    const prodRows = ids.length
+      ? await db.select({ id: product.id, name: product.name, stockQuantity: product.stockQuantity })
+          .from(product).where(and(eq(product.companyId, currentUser.companyId), inArray(product.id, ids)))
+      : []
+    const byId = new Map(prodRows.map((p: any) => [String(p.id), p]))
+    const stock = await resolveSellableStock(db, currentUser.companyId, ids, byId)
+    for (const item of items) {
+      const blocked = stock.blockedProducts.get(String(item.productId))
+      const refusal = refusalFor(byId.get(String(item.productId)), blocked)
+      if (refusal) {
+        return c.json({
+          ...refusal,
+          error: blocked === 'recalled'
+            ? `${byId.get(String(item.productId))?.name || 'A product on this order'} has been RECALLED since this order was taken. It cannot be handed over — void the order and tell the customer.`
+            : refusal.error,
+        }, 400)
+      }
+      const spare = stock.untrackedUnits.get(String(item.productId))
+      if (spare !== undefined && Number(item.quantity) > spare) {
+        return c.json({
+          error: `${byId.get(String(item.productId))?.name || 'A product on this order'} only has ${spare} sellable outside a held batch, and this order needs ${item.quantity}.`,
+          code: 'batch_not_sellable', productId: item.productId,
+        }, 400)
+      }
     }
   }
 
