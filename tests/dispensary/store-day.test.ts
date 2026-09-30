@@ -109,6 +109,37 @@ const NY = 'America/New_York'
   check('…and is 23 hours long, not 24', (dst.end.getTime() - dst.start.getTime()) / 3600000 === 23, (dst.end.getTime() - dst.start.getTime()) / 3600000)
 }
 
+// ══════════ 1b · the clock the tests use and the clock the server uses agree at EVERY hour ══════
+//
+// This is the property that was actually broken, and it is why three suites went red for four hours
+// every night rather than failing honestly. A test that computes "today" one way while the server
+// computes it another passes for twenty hours a day, and the four hours it fails look like
+// flakiness — so everyone learns to ignore a red build.
+//
+// Sampled across a full 24 hours rather than asserted at "now", which would prove nothing about the
+// window it breaks in.
+{
+  const asTheSuitesDoIt = (at: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: NY }).format(at)
+  let agree = 0
+  const disagreements: string[] = []
+  for (let h = 0; h < 24; h++) {
+    for (const m of [0, 30, 59]) {
+      const at = new Date(Date.UTC(2026, 8, 29, h, m, 0))
+      if (asTheSuitesDoIt(at) === storeDateString(at, NY)) agree++
+      else disagreements.push(`${at.toISOString()}: suite=${asTheSuitesDoIt(at)} server=${storeDateString(at, NY)}`)
+    }
+  }
+  check(`the suite's clock and the server's agree at all ${agree} sampled instants`, disagreements.length === 0, disagreements.slice(0, 3))
+
+  // …and both differ from the UTC date during exactly the hours that used to break: 00:00–03:59Z.
+  const utcDiffers = Array.from({ length: 24 }, (_, h) => new Date(Date.UTC(2026, 8, 29, h, 0, 0)))
+    .filter((at) => at.toISOString().slice(0, 10) !== storeDateString(at, NY))
+    .map((at) => at.getUTCHours())
+  check('the UTC date is wrong for this shop for exactly four hours a day', utcDiffers.length === 4, utcDiffers)
+  check('…and they are 00:00Z to 03:59Z — the window those suites went red in',
+    utcDiffers.join(',') === '0,1,2,3', utcDiffers)
+}
+
 // ══════════ 2 · a sale after 8pm is taxed in the day it was rung up ═════════════════════════════
 {
   const created = await asOwner('POST', '/api/orders', {

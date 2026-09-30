@@ -253,7 +253,13 @@ const rows = async (q: any) => { const r: any = await db.execute(q); return (r.r
   // Left pending, the way an offline cash sale with no drawer open is left standing.
   await db.execute(sql`UPDATE orders SET status = 'pending', payment_method = 'cash' WHERE id = ${id}`)
 
-  const today = new Date().toISOString().slice(0, 10)
+  // The SHOP's today — this company is `state: 'OH'`, so America/New_York. This line used to read
+  // `new Date().toISOString().slice(0, 10)`, the UTC date, and End of Day quite correctly refused
+  // it with "2026-09-30 has not happened yet" for the four hours each night when UTC has rolled
+  // over and New York has not. The test was asking for tomorrow. It went red every night between
+  // 00:00 and 04:00 UTC, which is the worst kind of failing test: it looks like flakiness, so
+  // everyone learns to ignore a red build.
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date())
   const eod = await api('POST', '/api/eod/generate', { date: today })
   check('P: End of Day generates', eod.status === 200 || eod.status === 201, eod.json?.error)
   check('N1: …and counts the sale nobody has been paid for', eod.json?.unsettledSales === 1, eod.json?.unsettledSales)
