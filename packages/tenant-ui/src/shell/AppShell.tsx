@@ -153,6 +153,33 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
     return blocked ? { ...blocked, reason: 'feature' as const } : null
   }, [location.pathname, company, hasFeature, can, config.nav, config.routeGates, config.routeRoles, config.routePermissions, user?.role])
 
+  /**
+   * Is the blocked module one this product OFFERS and the shop has simply switched off? (Salon RR6)
+   *
+   * The page said "This module is not included for your business type or plan" for both cases, and
+   * for Time Tracking on a salon that was plainly untrue: the owner had turned it off two minutes
+   * earlier and could turn it back on from Settings → Features. Blaming the plan for a switch the
+   * reader controls sends them to support for something they can fix in a click.
+   *
+   * hasFeature() is false either way, so the catalogue is what tells them apart — the registry's
+   * answer to "what does this template offer". Fetched only when this page actually renders, which
+   * is rare, and a failure leaves the original wording rather than inventing a switch.
+   */
+  const [offeredHere, setOfferedHere] = useState<Set<string> | null>(null)
+  useEffect(() => {
+    if (!gatedItem || gatedItem.reason !== 'feature' || offeredHere) return
+    let cancelled = false
+    api.get('/api/company/features/catalog')
+      .then((res: any) => { if (!cancelled) setOfferedHere(new Set((res?.features || []).map((f: any) => String(f.id)))) })
+      .catch(() => { if (!cancelled) setOfferedHere(new Set()) })
+    return () => { cancelled = true }
+  }, [gatedItem, offeredHere, api])
+  const switchable = !!gatedItem && gatedItem.reason === 'feature' && !!offeredHere
+    && ((gatedItem as any).features || []).some((f: string) => offeredHere.has(f))
+  // Only an admin or owner can change the feature list (PUT /company/features is requireAdmin), so
+  // everyone else is told who to ask rather than sent to a page that will refuse them.
+  const canSwitch = ['owner', 'admin'].includes(String(user?.role || ''))
+
   useEffect(() => { if (isMobile) setSidebarOpen(false) }, [location, isMobile])
   useEffect(() => {
     const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') { setSidebarOpen(false); setUserMenuOpen(false) } }
@@ -310,14 +337,24 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
             {gatedItem ? (
               <div className="max-w-xl mx-auto mt-16 text-center bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700 p-8">
                 <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100 mb-2">
-                  {gatedItem.reason === 'feature' ? `${gatedItem.label} isn't part of this CRM` : `You don't have access to ${gatedItem.label}`}
+                  {gatedItem.reason !== 'feature'
+                    ? `You don't have access to ${gatedItem.label}`
+                    : switchable
+                      ? `${gatedItem.label} is switched off`
+                      : `${gatedItem.label} isn't part of this CRM`}
                 </h1>
                 <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
-                  {gatedItem.reason === 'feature'
-                    ? 'This module is not included for your business type or plan. Everything you can use is in the left menu.'
-                    : `${WHO_CAN_OPEN[String((gatedItem as any).needs || '')] || 'This page is limited to a higher access level'}. Ask them if you need something from it — everything you can use is in the left menu.`}
+                  {gatedItem.reason !== 'feature'
+                    ? `${WHO_CAN_OPEN[String((gatedItem as any).needs || '')] || 'This page is limited to a higher access level'}. Ask them if you need something from it — everything you can use is in the left menu.`
+                    : switchable
+                      ? (canSwitch
+                        ? 'It is part of this CRM and can be turned on whenever you want it — Settings → Features.'
+                        : 'It is part of this CRM but is currently switched off. An owner or admin can turn it on in Settings → Features.')
+                      : 'This module is not included for your business type or plan. Everything you can use is in the left menu.'}
                 </p>
-                <RouterLink to="/crm" className="inline-block px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold dark:bg-slate-100 dark:text-slate-900">Back to dashboard</RouterLink>
+                {switchable && canSwitch
+                  ? <RouterLink to="/crm/settings" className="inline-block px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold dark:bg-slate-100 dark:text-slate-900">Open Settings</RouterLink>
+                  : <RouterLink to="/crm" className="inline-block px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold dark:bg-slate-100 dark:text-slate-900">Back to dashboard</RouterLink>}
               </div>
             ) : (
               outlet
