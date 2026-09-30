@@ -78,7 +78,6 @@ import photosRoutes from './routes/photos.ts'
 import portalRoutes from './routes/portal.ts'
 // portal-selections and portal-messages are handled inline in portal.ts under /p/:token/
 import pricebookRoutes from './routes/pricebook.ts'
-import pushRoutes from './routes/push.ts'
 import quickbooksRoutes from './routes/quickbooks.ts'
 import recurringRoutes from './routes/recurring.ts'
 import reportingRoutes from './routes/reporting.ts'
@@ -368,7 +367,6 @@ app.route('/api/portal', portalRoutes)
 app.route('/api/pricebook', pricebookRoutes)
 try { app.route('/api/financing', (await import('./routes/financing.ts')).default) } catch {}
 try { app.route('/api/pricebook-present', (await import('./routes/pricebookPresent.ts')).default) } catch {}
-app.route('/api/push', pushRoutes)
 app.route('/api/quickbooks', quickbooksRoutes)
 app.route('/api/recurring', recurringRoutes)
 app.route('/api/reports', reportingRoutes)

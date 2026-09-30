@@ -60,7 +60,6 @@ import payrollRoutes from './routes/payroll.ts'
 import photosRoutes from './routes/photos.ts'
 import portalRoutes from './routes/portal.ts'
 // portal-selections and portal-messages are handled inline in portal.ts under /p/:token/
-import pushRoutes from './routes/push.ts'
 import quickbooksRoutes from './routes/quickbooks.ts'
 import reportingRoutes from './routes/reporting.ts'
 import reviewsRoutes from './routes/reviews.ts'
@@ -274,7 +273,6 @@ app.route('/api/portal', portalRoutes)
 try { app.route('/api/financing', (await import('./routes/financing.ts')).default) } catch {}
 try { app.route('/api/valuation', (await import('./routes/valuation.ts')).default) } catch {}
 try { app.route('/api/pricebook-present', (await import('./routes/pricebookPresent.ts')).default) } catch {}
-app.route('/api/push', pushRoutes)
 app.route('/api/quickbooks', quickbooksRoutes)
 app.route('/api/reports', reportingRoutes)
 app.route('/api/reviews', reviewsRoutes)
