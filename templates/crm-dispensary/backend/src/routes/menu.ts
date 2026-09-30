@@ -230,7 +230,14 @@ app.get('/:slug', async (c) => {
     .from(company).where(eq(company.slug, companySlug)).limit(1)
   if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
 
-  // Match by slug-ified name
+  // Match by id OR by slug-ified name.
+  //
+  // It was slug-only, and the listing this page is reached from returns `id` and `slug` side by
+  // side — so a caller holding the id got "Product not found" for every product in the shop. A
+  // tester reported exactly that ("every /api/public/menu/:id returns Product not found, even for
+  // active products") and could not check the recall exclusion below, because they could never load
+  // a product page at all. The id is the stable handle; the slug is a nicety that changes the moment
+  // anyone renames the product. Both work. (T50)
   const products = await db.select().from(product)
     .where(and(
       eq(product.companyId, foundCompany.id),
@@ -238,9 +245,8 @@ app.get('/:slug', async (c) => {
       eq(product.visible, true),
     ))
 
-  const found = products.find(p =>
-    p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === productSlug
-  )
+  const found = products.find(p => p.id === productSlug)
+    || products.find(p => p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === productSlug)
 
   if (!found) return c.json({ error: 'Product not found' }, 404)
 

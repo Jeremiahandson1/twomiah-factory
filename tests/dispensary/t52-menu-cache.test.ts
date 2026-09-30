@@ -155,6 +155,44 @@ const menu = async () => {
     backOn.names.includes('Second Shelf'), backOn.names)
 }
 
+// ══════════ T50: the product PAGE opens with the id the listing hands you ═══════════════════════
+//
+// The page matched a slug-ified name only, and the listing returns `id` and `slug` side by side, so
+// a caller holding the id got "Product not found" for every product in the shop. A tester reported
+// exactly that and could not check the page's recall exclusion at all, because they could never
+// load a product page to check it on.
+{
+  const listed = await menu()
+  const shelf = (listed.json?.menu || []).flatMap((cat: any) => cat.products || [])
+  const one = shelf[0]
+  check('the menu gives each product an id and a slug', !!one?.id && !!one?.slug, one)
+
+  const get = async (handle: string) => {
+    const res = await app.request(`/api/menu/${handle}?slug=${co.slug}`)
+    const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+    return { status: res.status, json: j }
+  }
+
+  const byId = await get(String(one?.id))
+  check('…and the page opens by ID — every id used to answer "Product not found"',
+    byId.status === 200 && byId.json?.id === one?.id, { status: byId.status, body: byId.json })
+
+  const bySlug = await get(String(one?.slug))
+  check('…and still by slug, which is what it always took',
+    bySlug.status === 200 && bySlug.json?.id === one?.id, { status: bySlug.status, body: bySlug.json })
+
+  const nonsense = await get('no-such-product')
+  check('…and something that is neither is still a 404', nonsense.status === 404, nonsense.status)
+
+  // …and now the recall exclusion on the page is reachable to check, which was the point of the
+  // tester's note. 'Doomed Kush' was recalled above and is off the listing; its page has to go too,
+  // or the product is still being offered at its own URL.
+  const [doomed] = await rows(sql`SELECT id, name FROM products WHERE company_id = ${co.id} AND name = 'Doomed Kush'`)
+  const recalledPage = await get(String(doomed?.id))
+  check('a recalled product\'s own page is a 404 as well — not just its listing',
+    recalledPage.status === 404, { status: recalledPage.status, body: recalledPage.json })
+}
+
 // ══════════ the cache is still a cache ══════════════════════════════════════════════════════════
 //
 // It would be easy to "fix" staleness by never caching, and every assertion above would still pass
