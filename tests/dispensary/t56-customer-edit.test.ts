@@ -154,6 +154,40 @@ const num = (v: unknown) => Math.round((Number(v) || 0) * 100) / 100
     num(end?.refunded_tax) === num(end?.tax_amount), end)
 }
 
+{
+  // …and the other order of events, because a shop does them both ways round: money back first,
+  // then the item comes back. The itemised path assesses the RETURNED LINE's own tax, which here is
+  // more excise than the order has left to give — so something has to stop it, and that something is
+  // the only thing keeping the order's record honest.
+  const made = await api('POST', '/api/orders', {
+    items: [{ productId: flower.id, quantity: 1 }, { productId: tshirt.id, quantity: 1 }],
+    orderType: 'walk_in', contactId: adult.id,
+  })
+  const id = (made.json?.data || made.json)?.id
+  await db.execute(sql`UPDATE orders SET status = 'completed', completed_at = NOW() WHERE id = ${id}`)
+  const [charged] = await rows(sql`SELECT excise_tax, sales_tax, tax_amount, total FROM orders WHERE id = ${id}`)
+
+  const byAmount = await api('POST', `/api/orders/${id}/refund`, { amount: num(charged?.total) / 2, reason: 'T56 half back in cash' })
+  check('S2: half the order refunds by amount', byAmount.status === 200, { status: byAmount.status, body: byAmount.json })
+  const [half] = await rows(sql`SELECT refunded_excise_tax, refunded_sales_tax, refunded_tax FROM orders WHERE id = ${id}`)
+  check('S2: …taking half of each tax with it',
+    num(half?.refunded_excise_tax) === 3.75 && num(half?.refunded_sales_tax) === 5, half)
+
+  const items = await rows(sql`SELECT id, product_id FROM order_items WHERE order_id = ${id}`)
+  const cannabisLine = items.find((i: any) => String(i.product_id) === String(flower.id))
+  const back = await api('POST', `/api/orders/${id}/refund`, {
+    partialItems: [{ orderItemId: cannabisLine.id, quantity: 1 }], reason: 'T56 and now the flower comes back',
+  })
+  check('S2: …and then the cannabis line comes back', back.status === 200, { status: back.status, body: back.json })
+
+  const [end] = await rows(sql`SELECT excise_tax, sales_tax, tax_amount, refunded_excise_tax, refunded_sales_tax, refunded_tax FROM orders WHERE id = ${id}`)
+  check('S2: the excise returned STILL never exceeds the excise charged, whichever way round',
+    num(end?.refunded_excise_tax) <= num(end?.excise_tax) + 0.005, end)
+  check('S2: …nor the sales tax', num(end?.refunded_sales_tax) <= num(end?.sales_tax) + 0.005, end)
+  check('S2: …and the parts still add up to the whole',
+    Math.abs(num(end?.refunded_excise_tax) + num(end?.refunded_sales_tax) - num(end?.refunded_tax)) < 0.011, end)
+}
+
 // ══════════ S4 · a refused attempt is described as one ═══════════════════════════════════════════
 {
   const { describeLog } = await import('./src/services/audit.ts')
@@ -216,8 +250,11 @@ const num = (v: unknown) => Math.round((Number(v) || 0) * 100) / 100
   for (const f of files) {
     const src = strip(read(f))
     const name = f.split('templates/')[1].split('/frontend')[0]
-    check(`R1: ${name}'s table filters row actions on show`,
-      /\.filter\(\((?:a|action)\) => !(?:a|action)\.show \|\| (?:a|action)\.show\(row\)\)|visibleActions\(row\)/.test(src), null)
+    // Anchored at the MENU, not just anywhere in the file: the first version of this check passed a
+    // mutation that changed the menu's own map back to the unfiltered list, because `visibleActions`
+    // still appeared elsewhere in the component. What matters is what the menu renders.
+    check(`R1: ${name}'s table renders the FILTERED actions in the menu`,
+      /role="menu"[\s\S]{0,700}?\{(?:visibleActions\(row\)|actions\.filter\([\s\S]{1,120}?\.show\(row\)\))\.map\(/.test(src), null)
     check(`R1: …and does not close its menu with a backdrop that opens the row`,
       !/fixed inset-0[^>]*onClick=\{\(\) => setOpenMenu\(null\)\}/.test(src), null)
     check(`R1: …closing on a document listener instead`,
