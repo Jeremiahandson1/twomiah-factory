@@ -123,6 +123,22 @@ const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
     check(`${t}: …including its sub-paths`,
       /app\.use\('\/api\/expenses\/\*', *authenticate, *requireEnabledFeature\('expense_tracking'\)\)/.test(src), null)
 
+    // ── and the gate is registered BEFORE its route, which is the whole of the rule ─────────────
+    //
+    // Hono runs handlers in registration order, so a gate declared below its route never executes:
+    // the route has already answered. The first version of this fix left app.route('/api/expenses')
+    // above the app.use lines in crm-salon, every assertion above passed, and the LIVE tenant went
+    // on serving the expense sheet with the feature off. The sandbox could not see it either,
+    // because the block higher up mounts the middleware itself rather than using index.ts.
+    //
+    // Presence was never the property. Order is.
+    for (const [mount, feature] of [['time', 'time_tracking'], ['expenses', 'expense_tracking']] as Array<[string, string]>) {
+      const gateAt = src.indexOf(`app.use('/api/${mount}', authenticate, requireEnabledFeature('${feature}')`)
+      const routeAt = src.indexOf(`app.route('/api/${mount}', `)
+      check(`${t}: the /api/${mount} gate is registered BEFORE the route, or it never runs`,
+        gateAt !== -1 && routeAt !== -1 && gateAt < routeAt, { gateAt, routeAt })
+    }
+
     // Both sides of the switch. A gated API with an ungated nav entry still shows the link.
     const nav = readFileSync(`${root}templates/${t}/frontend/src/shellConfig.ts`, 'utf8').replace(/\r\n/g, '\n')
     const timeItem = nav.match(/\{[^}]*to: '\/crm\/time'[^}]*\}/)?.[0] || ''

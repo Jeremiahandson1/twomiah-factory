@@ -318,15 +318,21 @@ app.route('/api/migration', migrationRoutes)
 app.route('/api/maps', mapsRoutes)
 app.route('/api/marketing', marketingRoutes)
 app.route('/api/payroll', payrollRoutes)
-app.route('/api/expenses', expensesRoutes)
 // Both sides of the switch, the way every other optional module is done. These two were mounted
 // with no feature gate at all, so a tenant whose feature list contained neither still answered 200
 // on /api/time and /api/expenses while every other switched-off module answered 403. (RR4 M1)
+//
+// ORDER MATTERS, and it is the whole of the rule. Hono runs handlers in the order they were
+// registered, so a gate declared BELOW its route never executes — the route has already answered.
+// The first version of this fix left app.route('/api/expenses') above these lines, and the live
+// tenant duly kept serving the expense sheet with the feature off while /api/time refused. The
+// sandbox test could not see it, because the test mounts the middleware itself.
 app.use('/api/time', authenticate, requireEnabledFeature('time_tracking'))
 app.use('/api/time/*', authenticate, requireEnabledFeature('time_tracking'))
 app.use('/api/expenses', authenticate, requireEnabledFeature('expense_tracking'))
 app.use('/api/expenses/*', authenticate, requireEnabledFeature('expense_tracking'))
 app.route('/api/time', timeRoutes)
+app.route('/api/expenses', expensesRoutes)
 app.route('/api/photos', photosRoutes)
 app.route('/api/portal', portalRoutes)
 try { app.route('/api/financing', (await import('./routes/financing.ts')).default) } catch {}
