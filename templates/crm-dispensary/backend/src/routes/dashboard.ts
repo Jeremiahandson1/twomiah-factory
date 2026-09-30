@@ -5,7 +5,7 @@ import { product, contact, company } from '../../db/schema.ts'
 import { eq, and, gte, lt, lte, count, desc, sql } from 'drizzle-orm'
 import { settledSale, taxCollected, netExprBare, refundedExprBare, taxNetExprBare } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
-import { storeTimeZone, storeDayRange, storeDateString } from '../utils/isoTime.ts'
+import { storeTimeZone, storeDayRange, storeDateString, zoneFor } from '../utils/isoTime.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -31,9 +31,9 @@ app.get('/stats', async (c) => {
   // window on UTC midnight: an Ohio shop's Today tile reset at 8pm, mid-shift, and the last four hours
   // of Saturday's trade showed up under Sunday. Every US zone loses the tail of the evening this way —
   // two hours for Central, three for Mountain, four for Pacific. (T24 N1)
-  const [coRow] = await db.select({ settings: company.settings, state: company.state })
-    .from(company).where(eq(company.id, companyId)).limit(1)
-  const tz = storeTimeZone(coRow)
+  // One resolver, in utils/isoTime.ts. This file used to run the company→zone query itself;
+  // so did three others, and a fifth route never asked at all.
+  const tz = await zoneFor(companyId)
   const { start: today, end: tomorrow } = storeDayRange(tz)
   const thirtyDaysAgo = storeDayRange(tz, storeDateString(new Date(today.getTime() - 29 * 86400000), tz)).start
 

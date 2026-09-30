@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { storeDay, storeDayRange, storeDateString, storeToday, zoneFor } from '../utils/isoTime.ts'
 
 const app = new Hono()
 
@@ -715,11 +716,19 @@ app.get('/analytics/stats', async (c) => {
   const currentUser = c.get('user') as any
   const cid = currentUser.companyId
 
+  // Today, this week and this month all belong to the STORE's calendar. `CURRENT_DATE` and
+  // `date_trunc('week'|'month', now())` are UTC, so the Today tile reset at 8pm in Ohio and the
+  // week and month tiles each rolled over a few hours early on their boundary day.
+  const tz = await zoneFor(cid)
+  const today = storeDayRange(tz)
+  const todayStr = storeToday(tz)
+  const weekStart = storeDayRange(tz, storeDateString(new Date(Date.parse(`${todayStr}T12:00:00.000Z`) - new Date(`${todayStr}T12:00:00.000Z`).getUTCDay() * 86400000), tz)).start
+  const monthStart = storeDayRange(tz, `${todayStr.slice(0, 7)}-01`).start
   const totalsResult = await db.execute(sql`
     SELECT
-      COUNT(*) FILTER (WHERE created_at::date = CURRENT_DATE)::int as today,
-      COUNT(*) FILTER (WHERE created_at >= date_trunc('week', now()))::int as this_week,
-      COUNT(*) FILTER (WHERE created_at >= date_trunc('month', now()))::int as this_month,
+      COUNT(*) FILTER (WHERE created_at >= ${today.start} AND created_at < ${today.end})::int as today,
+      COUNT(*) FILTER (WHERE created_at >= ${weekStart})::int as this_week,
+      COUNT(*) FILTER (WHERE created_at >= ${monthStart})::int as this_month,
       COUNT(*)::int as all_time
     FROM qr_scan_events
     WHERE company_id = ${cid}
@@ -779,6 +788,8 @@ app.get('/analytics/top-scanned', async (c) => {
 // QR scan analytics (manager+)
 app.get('/analytics', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
+  // Its own zone lookup: the `tz` a few handlers up belongs to /analytics/stats.
+  const tz = await zoneFor(currentUser.companyId)
 
   // Total scans by entity type
   const byTypeResult = await db.execute(sql`
@@ -801,12 +812,14 @@ app.get('/analytics', requireRole('manager'), async (c) => {
   const scansByContext = (byContextResult as any).rows || byContextResult
 
   // Scans by day (last 30 days)
+  // …and the daily series is bucketed on the store's day too, or the chart's bars disagree with the
+  // Today tile above them by the last four hours of each day.
   const byDayResult = await db.execute(sql`
-    SELECT DATE(created_at) as date, COUNT(*)::int as count
+    SELECT ${storeDay(sql`created_at`, tz)} as date, COUNT(*)::int as count
     FROM qr_scan_events
     WHERE company_id = ${currentUser.companyId}
       AND created_at >= NOW() - INTERVAL '30 days'
-    GROUP BY DATE(created_at)
+    GROUP BY ${storeDay(sql`created_at`, tz)}
     ORDER BY date DESC
   `)
   const scansByDay = (byDayResult as any).rows || byDayResult

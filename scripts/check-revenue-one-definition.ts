@@ -172,7 +172,19 @@ if (!/COUNT\(CASE WHEN status IN \$\{settledSale\} THEN 1 END\)::int as complete
     ['routes/eod.ts', 'the cash reconciliation'],
   ] as Array<[string, string]>) {
     const src = read(R + file)
-    if (!/AT TIME ZONE 'UTC' AT TIME ZONE \$\{(tzDay|dayTz|tz)\}/.test(src)) fail(`${what} (${file}) must bucket by the STORE's day, not UTC`)
+    // Either the expression written out, or storeDay()/inStoreZone(), which GENERATE exactly that
+    // expression. eod.ts used to hand-write it seven times and miss four other queries entirely —
+    // the four that decided which day a cash drawer, a shrinkage adjustment, a compliance count and
+    // a budtender's sales belonged to. It now calls storeDay() in all eleven, so the thing to pin is
+    // that the day is decided in the store's zone, not the spelling of how.
+    if (!/AT TIME ZONE 'UTC' AT TIME ZONE \$\{(tzDay|dayTz|tz)\}|storeDay\(|inStoreZone\(/.test(src))
+      fail(`${what} (${file}) must bucket by the STORE's day, not UTC`)
+    // …and the stronger half, which is what actually went wrong: no timestamp may still be cut with
+    // a bare DATE()/::date against a supplied date, anywhere in the file.
+    const bare = src
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+      .match(/DATE\(\s*\w+(?:\.\w+)?\s*\)\s*=\s*\$\{|\b\w+(?:\.\w+)?_at\s*::\s*date/)
+    if (bare) fail(`${what} (${file}) still cuts a naive-UTC timestamp in UTC — \`${bare[0]}\`. Use storeDay(col, tz) or storeDayRange.`)
     // Either resolver counts: storeTimeZone when the route already holds the company row, zoneFor
     // when it only holds the id. Both live in utils/isoTime.ts and zoneFor answers through
     // storeTimeZone, so "the one resolver" is satisfied by either — what is refused is a route

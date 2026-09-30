@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { storeToday, zoneFor } from '../utils/isoTime.ts'
 
 // The Rooms form offers vegetative / flowering / drying / curing; this route knew veg / flower /
 // dry / cure. Four room types the form offered could not be created at all — the server refused
@@ -122,6 +123,8 @@ app.get('/plants', async (c) => {
 // Add plant(s)
 app.post('/plants', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
+  // The shop's today, not the server's: a plant logged at 9pm in Ohio must be dated today.
+  const growToday = storeToday(await zoneFor(currentUser.companyId))
 
   const plantSchema = z.object({
     strainName: z.string().min(1),
@@ -141,7 +144,7 @@ app.post('/plants', requireRole('manager'), async (c) => {
   for (let i = 0; i < data.quantity; i++) {
     const result = await db.execute(sql`
       INSERT INTO plants(id, company_id, strain_name, strain_type, phase, plant_date, room_id, location_id, mother_plant_id, metrc_tag, notes, created_at, updated_at)
-      VALUES (gen_random_uuid(), ${currentUser.companyId}, ${data.strainName}, ${data.strainType || null}, ${data.phase}, ${data.plantDate || new Date().toISOString().split('T')[0]}, ${data.roomId || null}, ${data.locationId || null}, ${data.motherPlantId || null}, ${data.metrcTag && data.quantity === 1 ? data.metrcTag : null}, ${data.notes || null}, NOW(), NOW())
+      VALUES (gen_random_uuid(), ${currentUser.companyId}, ${data.strainName}, ${data.strainType || null}, ${data.phase}, ${data.plantDate || growToday}, ${data.roomId || null}, ${data.locationId || null}, ${data.motherPlantId || null}, ${data.metrcTag && data.quantity === 1 ? data.metrcTag : null}, ${data.notes || null}, NOW(), NOW())
       RETURNING *
     `)
     const plant = ((result as any).rows || result)?.[0]
@@ -537,6 +540,8 @@ const harvestStatus = z.string().transform((v, ctx) => {
 
 app.post('/harvests', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
+  // The shop's today, not the server's — see /plants.
+  const growToday = storeToday(await zoneFor(currentUser.companyId))
 
   const harvestSchema = z.object({
     // `name` is what this route called it; harvestName is what the column is. Either will do.
@@ -566,7 +571,7 @@ app.post('/harvests', requireRole('manager'), async (c) => {
                          total_wet_weight, total_dry_weight, total_waste, status, room_id, notes, metrc_tag,
                          created_at, updated_at)
     VALUES (gen_random_uuid(), ${currentUser.companyId}, ${data.harvestName}, ${data.strainName || null},
-            ${data.harvestDate || new Date().toISOString().split('T')[0]}, ${data.plantCount ?? null},
+            ${data.harvestDate || growToday}, ${data.plantCount ?? null},
             ${data.wetWeight != null ? String(data.wetWeight) : null},
             ${data.dryWeight != null ? String(data.dryWeight) : null},
             ${data.wasteWeight != null ? String(data.wasteWeight) : null},

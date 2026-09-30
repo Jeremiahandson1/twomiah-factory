@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { sql, eq } from 'drizzle-orm'
 import { company } from '../../db/schema.ts'
-import { storeTimeZone, storeDayRange, storeDateString, isNaiveTimestamp, toIsoUtc } from '../utils/isoTime.ts'
+import { storeTimeZone, storeDayRange, storeDateString, isNaiveTimestamp, toIsoUtc, zoneFor } from '../utils/isoTime.ts'
 import { settledSale, taxCollected, taxNetExpr, exciseNetExpr, salesNetExpr, netExpr } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
@@ -192,10 +192,11 @@ const daysUntil = (value: any, today: string): number | null => {
 }
 
 // The shop's clock, for a route that has a user but has not already loaded the company row.
+// This used to run the company→zone query itself — the fourth file in the template to do so, which
+// is how a fifth came to skip the question entirely. Both halves are in utils/isoTime.ts now, so
+// this is only the pairing of them, kept because callers here pass a company id rather than a zone.
 async function storeToday(companyId: string): Promise<string> {
-  const [coRow] = await db.select({ settings: company.settings, state: company.state })
-    .from(company).where(eq(company.id, companyId)).limit(1)
-  return storeDateString(new Date(), storeTimeZone(coRow))
+  return storeDateString(new Date(), await zoneFor(companyId))
 }
 
 // A licence that lapses closes the shop, so "it expires in three weeks" is the single most useful
@@ -494,9 +495,9 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
   // timestamp, so ::date cut the report at UTC midnight and filed the last hours of each evening's trade
   // under the next day — on a state sales report, which is the one figure a regulator reads. Label it
   // UTC, read it in the store's zone. (T24 N1)
-  const [coRow] = await db.select({ settings: company.settings, state: company.state })
-    .from(company).where(eq(company.id, currentUser.companyId)).limit(1)
-  const tzDay = storeTimeZone(coRow)
+  // One resolver, in utils/isoTime.ts. This file used to run the company→zone query itself;
+  // so did three others, and a fifth route never asked at all.
+  const tzDay = await zoneFor(currentUser.companyId)
 
   // …and the RANGE has to be read on that same clock, or the filter and the grouping disagree inside
   // one query. See reportRange above. (T20 B3, T27 H2)

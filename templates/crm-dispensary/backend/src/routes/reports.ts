@@ -6,7 +6,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { zodRefusal } from '../utils/errors.ts'
-import { storeTimeZone } from '../utils/isoTime.ts'
+import { storeTimeZone, storeDateString, storeDayRange, storeToday, zoneFor } from '../utils/isoTime.ts'
 
 /**
  * A stored instant, read on the shop's clock.
@@ -272,25 +272,40 @@ app.post('/saved/:id/run', requireRole('manager'), async (c) => {
     : (rangeRaw || {})
   let dateStart = range.start || null
   let dateEnd = range.end || null
+  // Every preset is resolved on the STORE's calendar, not the server's.
+  //
+  // `now.toISOString().split('T')[0]` is the UTC date, so after 8pm in Ohio "Today" meant a day
+  // that had barely begun — a manager checking the day's takings at closing time got tomorrow's
+  // empty report. `now.getFullYear()` and `getMonth()` are the SERVER's year and month, so on the
+  // 1st of a month "This Month" started a day early for the same reason, and "This Year" did it
+  // once a year at a point nobody would ever be looking.
   if (range.preset) {
     const now = new Date()
-    const daysAgo = (n: number) => { const d = new Date(now); d.setDate(d.getDate() - n); return d.toISOString().split('T')[0] }
-    const today = now.toISOString().split('T')[0]
+    const today = storeToday(reportZone)
+    const daysAgo = (n: number) => storeDateString(new Date(now.getTime() - n * 86400000), reportZone)
+    // The weekday of the store's own date. Noon avoids the DST edges, where a date + 00:00 can
+    // land on the previous day.
+    const dowOfToday = new Date(`${today}T12:00:00.000Z`).getUTCDay()
     switch (range.preset) {
       case 'today': dateStart = today; dateEnd = today; break
-      case 'this_week': { const d = new Date(now); d.setDate(d.getDate() - d.getDay()); dateStart = d.toISOString().split('T')[0]; dateEnd = today; break }
-      case 'this_month': dateStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`; dateEnd = today; break
+      case 'this_week': dateStart = daysAgo(dowOfToday); dateEnd = today; break
+      case 'this_month': dateStart = `${today.slice(0, 7)}-01`; dateEnd = today; break
       case 'last_7': dateStart = daysAgo(7); dateEnd = today; break
       case 'last_30': dateStart = daysAgo(30); dateEnd = today; break
       case 'last_90': dateStart = daysAgo(90); dateEnd = today; break
-      case 'this_year': dateStart = `${now.getFullYear()}-01-01`; dateEnd = today; break
+      case 'this_year': dateStart = `${today.slice(0, 4)}-01-01`; dateEnd = today; break
       case 'all': dateStart = null; dateEnd = null; break
     }
   }
 
+  // …and the filter is the store's day too. This report GROUPS by the store's day (see
+  // storeLocal below) and used to FILTER on the UTC one, so the two disagreed inside a single
+  // query: asked for one Saturday it lost that evening's trade and grew a phantom row for a
+  // Friday nobody asked about. That is the exact fault check-store-day-ranges was written for,
+  // and it was still here.
   let dateFilter = sql``
-  if (dateStart) dateFilter = sql`AND o.created_at >= ${dateStart}::date`
-  if (dateEnd) dateFilter = sql`${dateFilter} AND o.created_at <= (${dateEnd}::date + interval '1 day')`
+  if (dateStart) dateFilter = sql`AND o.created_at >= ${storeDayRange(reportZone, dateStart).start}`
+  if (dateEnd) dateFilter = sql`${dateFilter} AND o.created_at < ${storeDayRange(reportZone, dateEnd).end}`
 
   // Run report based on type. Reports saved under the dialog's old names ('sales', 'inventory')
   // are read through the same alias map, so an existing saved report still runs.
@@ -519,9 +534,13 @@ app.post('/widgets/:id/data', requireRole('manager'), async (c) => {
     case 'this_year': daysBack = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / 86400000); break
   }
 
-  const startDate = new Date(now)
-  startDate.setDate(startDate.getDate() - daysBack)
-  const startDateStr = startDate.toISOString().split('T')[0]
+  // A widget's window starts at the beginning of a STORE day, not a UTC one. `toISOString()` gave
+  // the UTC date and `${widgetStart}` then cut at UTC midnight, so every dashboard widget
+  // disagreed with the dashboard's own Today tile — which T24 N1 had already moved onto the
+  // store's clock — by the last four hours of each day.
+  const widgetZone = await zoneFor(currentUser.companyId)
+  const startDateStr = storeDateString(new Date(now.getTime() - daysBack * 86400000), widgetZone)
+  const widgetStart = storeDayRange(widgetZone, startDateStr).start
 
   let data: any = null
 
@@ -534,7 +553,7 @@ app.post('/widgets/:id/data', requireRole('manager'), async (c) => {
         FROM orders
         WHERE company_id = ${currentUser.companyId}
           AND status != 'cancelled'
-          AND created_at >= ${startDateStr}::date
+          AND created_at >= ${widgetStart}
         GROUP BY period
         ORDER BY period ASC
       `)
@@ -546,7 +565,7 @@ app.post('/widgets/:id/data', requireRole('manager'), async (c) => {
         SELECT status, COUNT(*)::int as count, SUM(total)::numeric as total
         FROM orders
         WHERE company_id = ${currentUser.companyId}
-          AND created_at >= ${startDateStr}::date
+          AND created_at >= ${widgetStart}
         GROUP BY status
       `)
       data = (r as any).rows || r
@@ -572,7 +591,7 @@ app.post('/widgets/:id/data', requireRole('manager'), async (c) => {
       const r = await db.execute(sql`
         SELECT
           COUNT(*)::int as total_members,
-          COUNT(*) FILTER (WHERE created_at >= ${startDateStr}::date)::int as new_members,
+          COUNT(*) FILTER (WHERE created_at >= ${widgetStart})::int as new_members,
           SUM(points_earned)::int as total_points_earned,
           SUM(points_redeemed)::int as total_points_redeemed,
           AVG(lifetime_spend)::numeric as avg_lifetime_spend
@@ -590,7 +609,7 @@ app.post('/widgets/:id/data', requireRole('manager'), async (c) => {
                AVG(o.total)::numeric as avg_order_value
         FROM "user" u
         LEFT JOIN orders o ON o.budtender_id = u.id
-          AND o.created_at >= ${startDateStr}::date
+          AND o.created_at >= ${widgetStart}
           AND o.status != 'cancelled'
         WHERE u.company_id = ${currentUser.companyId}
           AND u.role IN ('budtender', 'manager', 'admin')
@@ -603,9 +622,9 @@ app.post('/widgets/:id/data', requireRole('manager'), async (c) => {
     case 'compliance': {
       const r = await db.execute(sql`
         SELECT
-          (SELECT COUNT(*)::int FROM metrc_sync_log WHERE company_id = ${currentUser.companyId} AND created_at >= ${startDateStr}::date) as total_syncs,
-          (SELECT COUNT(*)::int FROM metrc_sync_log WHERE company_id = ${currentUser.companyId} AND created_at >= ${startDateStr}::date AND status = 'success') as successful_syncs,
-          (SELECT COUNT(*)::int FROM metrc_sync_log WHERE company_id = ${currentUser.companyId} AND created_at >= ${startDateStr}::date AND status = 'error') as failed_syncs,
+          (SELECT COUNT(*)::int FROM metrc_sync_log WHERE company_id = ${currentUser.companyId} AND created_at >= ${widgetStart}) as total_syncs,
+          (SELECT COUNT(*)::int FROM metrc_sync_log WHERE company_id = ${currentUser.companyId} AND created_at >= ${widgetStart} AND status = 'success') as successful_syncs,
+          (SELECT COUNT(*)::int FROM metrc_sync_log WHERE company_id = ${currentUser.companyId} AND created_at >= ${widgetStart} AND status = 'error') as failed_syncs,
           (SELECT COUNT(*)::int FROM inventory_batch WHERE company_id = ${currentUser.companyId} AND metrc_tag IS NOT NULL AND status = 'active') as tagged_batches,
           (SELECT COUNT(*)::int FROM inventory_batch WHERE company_id = ${currentUser.companyId} AND metrc_tag IS NULL AND status = 'active') as untagged_batches
       `)
@@ -627,9 +646,12 @@ app.get('/budtender-performance', requireRole('manager'), async (c) => {
   const startDate = c.req.query('startDate')
   const endDate = c.req.query('endDate')
 
+  // Whole store days, half-open. A budtender's evening sales used to count towards the next day's
+  // performance, so the figures a manager reviews for a shift never matched the shift.
+  const perfZone = await zoneFor(currentUser.companyId)
   let dateFilter = sql``
-  if (startDate) dateFilter = sql`AND o.created_at >= ${startDate}::date`
-  if (endDate) dateFilter = sql`${dateFilter} AND o.created_at <= (${endDate}::date + interval '1 day')`
+  if (startDate) dateFilter = sql`AND o.created_at >= ${storeDayRange(perfZone, startDate).start}`
+  if (endDate) dateFilter = sql`${dateFilter} AND o.created_at < ${storeDayRange(perfZone, endDate).end}`
 
   const result = await db.execute(sql`
     SELECT

@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { storeDayRange, zoneFor } from '../utils/isoTime.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -61,6 +62,11 @@ app.get('/for-customer/:contactId', async (c) => {
   }
 
   // 3. Find candidate products (same categories/strains, not already purchased)
+  //
+  // Built as IN (…) rather than `= ANY(${array}::text[])`. A bound JS array is fine on real
+  // Postgres and is rejected outright by the PGlite the behaviour suites run on — "malformed array
+  // literal" — so an endpoint written that way cannot be tested at all, and this one had two real
+  // defects sitting behind exactly that blind spot. Same expansion the rest of the template uses.
   const purchasedArray = Array.from(purchasedProductIds)
   const candidatesResult = await db.execute(sql`
     SELECT p.*,
@@ -72,10 +78,10 @@ app.get('/for-customer/:contactId', async (c) => {
       AND p.active = true
       AND p.in_stock = true
       AND (
-        p.category = ANY(${topCategories}::text[])
-        OR p.strain_name = ANY(${topStrains}::text[])
+        ${topCategories.length ? sql`p.category IN (${sql.join(topCategories.map((v) => sql`${v}`), sql`, `)})` : sql`false`}
+        OR ${topStrains.length ? sql`p.strain_name IN (${sql.join(topStrains.map((v) => sql`${v}`), sql`, `)})` : sql`false`}
       )
-      ${purchasedArray.length > 0 ? sql`AND p.id != ALL(${purchasedArray}::text[])` : sql``}
+      ${purchasedArray.length > 0 ? sql`AND p.id NOT IN (${sql.join(purchasedArray.map((v) => sql`${v}`), sql`, `)})` : sql``}
     LIMIT 100
   `)
   const candidates = (candidatesResult as any).rows || candidatesResult
@@ -112,15 +118,37 @@ app.get('/for-customer/:contactId', async (c) => {
   scored.sort((a: any, b: any) => b.score - a.score)
   const top10 = scored.slice(0, 10)
 
-  // 5. Store recommendations
+  // 5. Store recommendations — one set per customer per STORE day.
+  //
+  // This used to be an upsert and it could not run. It asked for
+  //
+  //     ON CONFLICT (contact_id, product_id) WHERE created_at::date = CURRENT_DATE
+  //     DO UPDATE SET score = …, updated_at = NOW()
+  //
+  // and product_recommendations has no unique constraint on (contact_id, product_id) — only two
+  // plain indexes, on company_id and contact_id — and no partial index carrying that predicate
+  // either. Postgres answers "there is no unique or exclusion constraint matching the ON CONFLICT
+  // specification", so every call to this endpoint threw. It also has no `updated_at` column, which
+  // would have been a second error had the first been fixed alone. Nothing has a screen for this,
+  // which is the only reason it was never reported.
+  //
+  // Rather than add a migration for a constraint nobody has needed, the intent — one set of
+  // recommendations per customer per day — is expressed directly: clear today's and write today's.
+  // And "today" is the store's day, which is what the predicate was reaching for and getting wrong;
+  // in UTC a customer served at 8pm in Ohio counted as a new day and got a second set.
+  const recToday = storeDayRange(await zoneFor(currentUser.companyId))
+  await db.execute(sql`
+    DELETE FROM product_recommendations
+    WHERE company_id = ${currentUser.companyId}
+      AND contact_id = ${contactId}
+      AND created_at >= ${recToday.start} AND created_at < ${recToday.end}
+  `)
   for (const rec of top10) {
     await db.execute(sql`
       INSERT INTO product_recommendations(id, contact_id, product_id, score, reason, company_id, created_at)
       VALUES (gen_random_uuid(), ${contactId}, ${rec.id}, ${rec.score}, ${
         rec.on_sale ? 'on_sale' : rec.new_arrival ? 'new_arrival' : topStrains.includes(rec.strain_name) ? 'strain_match' : 'category_match'
       }, ${currentUser.companyId}, NOW())
-      ON CONFLICT (contact_id, product_id) WHERE created_at::date = CURRENT_DATE
-      DO UPDATE SET score = ${rec.score}, updated_at = NOW()
     `)
   }
 

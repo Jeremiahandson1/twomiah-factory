@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { zodRefusal } from '../utils/errors.ts'
+import { storeDay, storeDayRange, zoneFor } from '../utils/isoTime.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -338,8 +339,15 @@ app.get('/scans', requireRole('manager'), async (c) => {
   let locationFilter = sql``
   if (locationId) locationFilter = sql`AND location_id = ${locationId}`
 
+  // A scan belongs to the day the shop was open, not the UTC day. `DATE(created_at) = ${date}` put
+  // every scan after 8pm in Ohio on the next day, so asking the compliance log for a particular
+  // evening returned nothing and the evening's scans appeared under a day the shop was shut.
+  const scanZone = await zoneFor(currentUser.companyId)
   let dateFilter = sql``
-  if (date) dateFilter = sql`AND DATE(created_at) = ${date}::date`
+  if (date) {
+    const d = storeDayRange(scanZone, date)
+    dateFilter = sql`AND created_at >= ${d.start} AND created_at < ${d.end}`
+  }
 
   let flaggedFilter = sql``
   if (flagged === 'true') flaggedFilter = sql`AND is_flagged = true`
@@ -497,6 +505,12 @@ app.get('/stats', async (c) => {
   let locationFilter = sql``
   if (locationId) locationFilter = sql`AND location_id = ${locationId}`
 
+  // "Today" is the store's today. In UTC these four compliance tiles — total scans, underage
+  // attempts, expired IDs, flagged scans — reset to zero at 8pm in Ohio, mid-evening, so the shop's
+  // own record of how many IDs it had checked that day went back to nothing while it was still
+  // checking them.
+  const today = storeDayRange(await zoneFor(currentUser.companyId))
+
   const result = await db.execute(sql`
     SELECT
       COUNT(*)::int as total_scans,
@@ -505,7 +519,7 @@ app.get('/stats', async (c) => {
       COUNT(*) FILTER (WHERE is_flagged = true)::int as flagged_scans
     FROM id_scans
     WHERE company_id = ${currentUser.companyId}
-      AND DATE(created_at) = CURRENT_DATE
+      AND created_at >= ${today.start} AND created_at < ${today.end}
       ${locationFilter}
   `)
 

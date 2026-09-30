@@ -60,6 +60,8 @@ const app = new Hono()
 app.route('/api/orders', (await import('./src/routes/orders.ts')).default)
 app.route('/api/tax-filing', (await import('./src/routes/tax-filing.ts')).default)
 app.route('/api/scheduling', (await import('./src/routes/scheduling.ts')).default)
+app.route('/api/id-scanner', (await import('./src/routes/id-scanner.ts')).default)
+app.route('/api/recommendations', (await import('./src/routes/recommendations.ts')).default)
 app.onError((await import('./src/utils/errors.ts')).errorHandler)
 
 const as = (who: any) => async (method: string, path: string, body?: unknown) => {
@@ -201,6 +203,64 @@ const NY = 'America/New_York'
   const ids = ((week.json?.data || []) as any[]).map((x) => x.id)
   check('a two-day range holds both shifts and nothing else',
     ids.includes('sd-te-evening') && ids.includes('sd-te-morning') && ids.length === 2, ids)
+}
+
+// ══════════ 4 · a "today" counter does not reset at 8pm ════════════════════════════════════════
+//
+// The compliance tiles, the curbside queue, the kiosk tiles and the ID-scan counters all read
+// `DATE(created_at) = CURRENT_DATE`, which is the UTC day. For an Ohio shop that means every one of
+// them went back to zero at 8pm — mid-evening, while the shop was still trading and still scanning
+// IDs. A budtender looking at the screen at 8:05pm saw a shop that had checked nobody all day.
+//
+// Asserted on the ID-scan tiles because they are the shop's own record of a legal obligation.
+{
+  const scan = async (id: string, at: string, flags: { underage?: boolean; expired?: boolean; flagged?: boolean } = {}) => {
+    await db.execute(sql`
+      INSERT INTO id_scans (id, company_id, scan_method, is_underage, is_expired, is_flagged, created_at)
+      VALUES (${id}, ${co.id}, 'barcode', ${!!flags.underage}, ${!!flags.expired}, ${!!flags.flagged}, ${at}::timestamp)
+    `)
+  }
+  // Three scans on the store's 28th: one at lunchtime, and two in the evening AFTER UTC has rolled
+  // over into the 29th. All three belong to the same trading day.
+  await scan('sd-scan-noon', '2026-09-28T16:00:00.000Z')
+  await scan('sd-scan-evening', EVENING_28, { underage: true })
+  await scan('sd-scan-late', '2026-09-29T03:45:00.000Z', { flagged: true })
+  // …and one the next morning, which must NOT be counted with them.
+  await scan('sd-scan-tomorrow', '2026-09-29T14:00:00.000Z')
+
+  const dayScans = async (d: string) => {
+    const r = await asOwner('GET', `/api/id-scanner/scans?date=${d}&limit=50`)
+    return { status: r.status, ids: ((r.json?.data || []) as any[]).map((x) => x.id), body: r.json }
+  }
+  const s28 = await dayScans('2026-09-28')
+  check('the ID-scan log answers for a named day', s28.status === 200, s28.body)
+  check('…and a day holds its own evening scans, including the ones after UTC midnight',
+    ['sd-scan-noon', 'sd-scan-evening', 'sd-scan-late'].every((i) => s28.ids.includes(i)), s28.ids)
+  check('…and not the next morning\'s', !s28.ids.includes('sd-scan-tomorrow'), s28.ids)
+
+  const s29 = await dayScans('2026-09-29')
+  check('the next day holds only its own', s29.ids.length === 1 && s29.ids.includes('sd-scan-tomorrow'), s29.ids)
+}
+
+// ══════════ 5 · the recommendations endpoint runs at all ═══════════════════════════════════════
+//
+// Not a day-boundary finding, but found by one: its upsert asked for
+//     ON CONFLICT (contact_id, product_id) WHERE created_at::date = CURRENT_DATE
+// and product_recommendations has no unique constraint on those columns and no partial index with
+// that predicate — so Postgres answered "there is no unique or exclusion constraint matching the
+// ON CONFLICT specification" and this threw on EVERY call it has ever received. It also set an
+// `updated_at` column the table does not have. Nothing has a screen for it, which is the only
+// reason nobody reported it.
+{
+  const r = await asOwner('GET', `/api/recommendations/for-customer/${ada.id}`)
+  check('recommendations generate at all — this used to throw every time', r.status === 200, { status: r.status, body: r.json })
+  check('…and return a list', Array.isArray(r.json?.recommendations), Object.keys(r.json || {}))
+
+  // One set per customer per STORE day: asking twice must not double the rows.
+  const again = await asOwner('GET', `/api/recommendations/for-customer/${ada.id}`)
+  check('…asking again still answers', again.status === 200, again.status)
+  const [{ n }] = await rows(sql`SELECT COUNT(*)::int AS n FROM product_recommendations WHERE company_id = ${co.id} AND contact_id = ${ada.id}`)
+  check('…and does not accumulate a second set for the same day', Number(n) <= 10, { rows: Number(n) })
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed`)

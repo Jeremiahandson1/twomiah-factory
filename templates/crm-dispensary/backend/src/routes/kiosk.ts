@@ -13,6 +13,7 @@ import { deviceForToken, claimPairingCode, kioskEnforcement, newPairingCode, PAI
 import { isFeatureEnabled, requireEnabledFeature } from '../middleware/enabledFeature.ts'
 // The same batch rule the register runs — one implementation, every door. (T49 B1)
 import { resolveSellableStock, recalledProductIds } from '../services/sellableStock.ts'
+import { storeDayRange, zoneFor } from '../utils/isoTime.ts'
 
 // Typed context: the signed-in user on the manager routes, and the paired tablet on the customer ones.
 // Untyped, every c.get(...) in this file was a TS2769 — two of them before this change, six after it.
@@ -920,13 +921,17 @@ app.get('/stats', authenticate, requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const cid = currentUser.companyId
 
+  // "Today" is the STORE's today. `started_at::date = current_date` is the UTC day, so all four of
+  // these tiles reset to zero at 8pm in Ohio — mid-shift, while the kiosk is still being used.
+  const today = storeDayRange(await zoneFor(cid))
+  const isToday = sql`started_at >= ${today.start} AND started_at < ${today.end}`
   const result = await db.execute(sql`
     SELECT
-      COUNT(*) FILTER (WHERE started_at::date = current_date)::int as total_today,
-      COUNT(*) FILTER (WHERE started_at::date = current_date AND status = 'completed')::int as completed_today,
-      COUNT(*) FILTER (WHERE started_at::date = current_date AND status = 'abandoned')::int as abandoned_today,
+      COUNT(*) FILTER (WHERE ${isToday})::int as total_today,
+      COUNT(*) FILTER (WHERE ${isToday} AND status = 'completed')::int as completed_today,
+      COUNT(*) FILTER (WHERE ${isToday} AND status = 'abandoned')::int as abandoned_today,
       AVG(EXTRACT(EPOCH FROM (completed_at - started_at)))
-        FILTER (WHERE started_at::date = current_date AND status = 'completed' AND completed_at IS NOT NULL) as avg_secs
+        FILTER (WHERE ${isToday} AND status = 'completed' AND completed_at IS NOT NULL) as avg_secs
     FROM kiosk_sessions
     WHERE company_id = ${cid}
   `)

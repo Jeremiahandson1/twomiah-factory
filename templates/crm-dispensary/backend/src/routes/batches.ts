@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { zodRefusal } from '../utils/errors.ts'
+import { storeToday, zoneFor } from '../utils/isoTime.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -45,7 +46,13 @@ const toDateOnly = (v: unknown): string | null => {
   const s = String(v).slice(0, 10)
   return /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(new Date(s).getTime()) ? s : null
 }
-const todayIso = () => new Date().toISOString().slice(0, 10)
+/**
+ * Today, on the SHOP's calendar — which is the only calendar a batch expiry can sensibly be read
+ * against. `new Date().toISOString().slice(0, 10)` is the UTC date, so from 8pm in Ohio it already
+ * said tomorrow: a batch dated to expire today flipped to 'expired' four hours before the day it
+ * expires is over, and staff were refused a lot that was still legal to sell.
+ */
+const todayIso = async (companyId: string) => storeToday(await zoneFor(companyId))
 
 // List batches
 app.get('/', async (c) => {
@@ -64,10 +71,16 @@ app.get('/', async (c) => {
 
   // Auto-expire: a batch whose expiration date has passed is no longer 'active' — flag it so
   // the list, EOD and compliance views never show expired product as sellable. (M-6)
+  //
+  // Against the SHOP's today. CURRENT_DATE is the database's today, which is UTC, so from 8pm in
+  // Ohio this swept away lots that expire today while the shop was still open and still entitled to
+  // sell them — and it ran on every page load, so a budtender refreshing the Batches page at 8:01pm
+  // is what took the product off sale.
+  const sweepToday = await todayIso(currentUser.companyId)
   await db.execute(sql`
     UPDATE batches SET status = 'expired', updated_at = NOW()
     WHERE company_id = ${currentUser.companyId} AND status = 'active'
-      AND expiration_date IS NOT NULL AND expiration_date < CURRENT_DATE
+      AND expiration_date IS NOT NULL AND expiration_date < ${sweepToday}::date
   `)
 
   const dataResult = await db.execute(sql`
@@ -155,7 +168,8 @@ app.post('/', requireRole('manager'), async (c) => {
   }
 
   // A batch that is already past its expiration is recorded as 'expired', never 'active'.
-  const status = expiration && expiration < todayIso() ? 'expired' : 'active'
+  const shopToday = await todayIso(currentUser.companyId)
+  const status = expiration && expiration < shopToday ? 'expired' : 'active'
 
   const result = await db.execute(sql`
     INSERT INTO batches(id, batch_number, product_id, metrc_tag, initial_quantity, current_quantity, unit_of_measure, received_date, expiration_date, manufacturing_date, supplier, supplier_license, cost, location_id, notes, thc_percent, cbd_percent, status, company_id, created_at, updated_at)
@@ -264,8 +278,9 @@ app.put('/:id', requireRole('manager'), async (c) => {
   if (data.thcPercent !== undefined) sets.push(sql`thc_percent = ${data.thcPercent != null ? String(data.thcPercent) : null}`)
   if (data.cbdPercent !== undefined) sets.push(sql`cbd_percent = ${data.cbdPercent != null ? String(data.cbdPercent) : null}`)
   // Keep status honest against the (possibly new) expiration date.
-  if (expiration && expiration < todayIso() && current.status === 'active') sets.push(sql`status = 'expired'`)
-  else if (expiration && expiration >= todayIso() && current.status === 'expired') sets.push(sql`status = 'active'`)
+  const shopToday = await todayIso(currentUser.companyId)
+  if (expiration && expiration < shopToday && current.status === 'active') sets.push(sql`status = 'expired'`)
+  else if (expiration && expiration >= shopToday && current.status === 'expired') sets.push(sql`status = 'active'`)
 
   const setClause = sets.reduce((acc, s, i) => i === 0 ? s : sql`${acc}, ${s}`)
 

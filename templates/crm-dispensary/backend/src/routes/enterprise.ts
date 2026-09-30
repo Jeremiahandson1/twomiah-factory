@@ -5,6 +5,7 @@ import { db } from '../../db/index.ts'
 import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
+import { storeRange, zoneFor } from '../utils/isoTime.ts'
 import audit from '../services/audit.ts'
 import { zodRefusal } from '../utils/errors.ts'
 
@@ -307,8 +308,13 @@ app.get('/store-groups/:id/dashboard', requireRole('manager'), async (c) => {
 // GET /multi-store/sales — Sales comparison across locations
 app.get('/multi-store/sales', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
-  const startDate = c.req.query('startDate') || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
-  const endDate = c.req.query('endDate') || new Date().toISOString().split('T')[0]
+  // The window is whole STORE days, defaults included. Both bounds used to be `${x}::date`, which
+  // is UTC midnight, and the defaults were `toISOString().split('T')[0]`, which is the UTC date —
+  // so after 8pm in Ohio the default "last 30 days" already reached into tomorrow, and a
+  // multi-store comparison silently attributed the evening's trade to the wrong day at every
+  // location at once. storeRange gives the half-open range and the defaults together.
+  const tz = await zoneFor(currentUser.companyId)
+  const { start, end, from: startDate, to: endDate } = storeRange(tz, c.req.query('startDate'), c.req.query('endDate'))
 
   // orders.total is a TEXT column; SUM()/AVG() on text throws. Cast per-row to numeric
   // (NULLIF guards empty strings). location_id is a real orders column (schema.ts). (schema fix)
@@ -320,8 +326,8 @@ app.get('/multi-store/sales', requireRole('manager'), async (c) => {
     FROM orders o
     WHERE o.company_id = ${currentUser.companyId}
       AND o.status != 'cancelled'
-      AND o.created_at >= ${startDate}::date
-      AND o.created_at < (${endDate}::date + INTERVAL '1 day')
+      AND o.created_at >= ${start}
+      AND o.created_at < ${end}
     GROUP BY o.location_id
     ORDER BY revenue DESC
   `)
@@ -337,8 +343,8 @@ app.get('/multi-store/sales', requireRole('manager'), async (c) => {
     JOIN products p ON p.id = oi.product_id
     WHERE o.company_id = ${currentUser.companyId}
       AND o.status != 'cancelled'
-      AND o.created_at >= ${startDate}::date
-      AND o.created_at < (${endDate}::date + INTERVAL '1 day')
+      AND o.created_at >= ${start}
+      AND o.created_at < ${end}
     GROUP BY o.location_id, p.name
     ORDER BY total_revenue DESC
   `)

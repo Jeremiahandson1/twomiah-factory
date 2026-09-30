@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { sql, eq } from 'drizzle-orm'
 import { company } from '../../db/schema.ts'
-import { storeTimeZone, storeDateString } from '../utils/isoTime.ts'
+import { storeTimeZone, storeDateString, storeDay, zoneFor } from '../utils/isoTime.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
@@ -43,9 +43,9 @@ app.post('/generate', requireRole('manager'), async (c) => {
   // cut the report at UTC midnight: the last hours of the evening — four of them in Ohio — were counted
   // on the next day's reconciliation, which is precisely the report a manager uses to square the drawer
   // against the till. Label it UTC, read it in the store's zone. (T24 N1)
-  const [coRow] = await db.select({ settings: company.settings, state: company.state })
-    .from(company).where(eq(company.id, currentUser.companyId)).limit(1)
-  const tzDay = storeTimeZone(coRow)
+  // One resolver, in utils/isoTime.ts. This file used to run the company→zone query itself;
+  // so did three others, and a fifth route never asked at all.
+  const tzDay = await zoneFor(currentUser.companyId)
 
   // A day that has not happened has nothing to reconcile. T45 M18 generated one for a future date
   // and got a report of zeros that then sits in the history looking like a day with no trade.
@@ -83,7 +83,7 @@ app.post('/generate', requireRole('manager'), async (c) => {
       COUNT(*) FILTER (WHERE status = 'cancelled')::int as void_count
     FROM orders
     WHERE company_id = ${currentUser.companyId}
-      AND DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay}) = ${reportDate}::date
+      AND ${storeDay(sql`created_at`, tzDay)} = ${reportDate}::date
   `)
   const orderStats = ((ordersResult as any).rows || ordersResult)?.[0] || {}
 
@@ -95,7 +95,7 @@ app.post('/generate', requireRole('manager'), async (c) => {
       COALESCE(SUM(total::numeric), 0) as total
     FROM orders
     WHERE company_id = ${currentUser.companyId}
-      AND DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay}) = ${reportDate}::date
+      AND ${storeDay(sql`created_at`, tzDay)} = ${reportDate}::date
       AND status = 'completed'
     GROUP BY payment_method
     ORDER BY total DESC
@@ -134,7 +134,7 @@ app.post('/generate', requireRole('manager'), async (c) => {
     LEFT JOIN "user" opener ON opener.id = cs.opened_by_id
     LEFT JOIN "user" closer ON closer.id = cs.closed_by_id
     WHERE cs.company_id = ${currentUser.companyId}
-      AND DATE(cs.opened_at) = ${reportDate}::date
+      AND ${storeDay(sql`cs.opened_at`, tzDay)} = ${reportDate}::date
     -- EVERY drawer opened today, newest first. This used to be LIMIT 1, so on a day with five
     -- drawers End of Day reported one of them: $103.75 expected against $103.75 counted and a
     -- variance of zero, while the day was actually $1,191.25 expected, $1,181.25 counted and $10
@@ -189,7 +189,7 @@ app.post('/generate', requireRole('manager'), async (c) => {
       COUNT(*) FILTER (WHERE quantity_change < 0)::int as shrinkage_count
     FROM inventory_adjustments
     WHERE company_id = ${currentUser.companyId}
-      AND DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay}) = ${reportDate}::date
+      AND ${storeDay(sql`created_at`, tzDay)} = ${reportDate}::date
   `)
   const inventoryStats = ((inventoryResult as any).rows || inventoryResult)?.[0] || {}
 
@@ -199,7 +199,7 @@ app.post('/generate', requireRole('manager'), async (c) => {
     FROM inventory_adjustments ia
     JOIN products p ON p.id = ia.product_id
     WHERE ia.company_id = ${currentUser.companyId}
-      AND DATE(ia.created_at) = ${reportDate}::date
+      AND ${storeDay(sql`ia.created_at`, tzDay)} = ${reportDate}::date
       AND ia.quantity_change < 0
   `)
   const shrinkageValue = Number(((shrinkageValueResult as any).rows || shrinkageValueResult)?.[0]?.shrinkage_value || 0)
@@ -214,7 +214,7 @@ app.post('/generate', requireRole('manager'), async (c) => {
     FROM orders o
     JOIN company co ON co.id = o.company_id
     WHERE o.company_id = ${currentUser.companyId}
-      AND DATE(o.created_at) = ${reportDate}::date
+      AND ${storeDay(sql`o.created_at`, tzDay)} = ${reportDate}::date
       AND o.status = 'completed'
   `)
   const complianceStats = ((complianceResult as any).rows || complianceResult)?.[0] || {}
@@ -229,7 +229,7 @@ app.post('/generate', requireRole('manager'), async (c) => {
     FROM "user" u
     JOIN orders o ON o.budtender_id = u.id
     WHERE o.company_id = ${currentUser.companyId}
-      AND DATE(o.created_at) = ${reportDate}::date
+      AND ${storeDay(sql`o.created_at`, tzDay)} = ${reportDate}::date
       AND o.status = 'completed'
     GROUP BY u.id, u.first_name, u.last_name
     ORDER BY revenue_generated DESC
@@ -241,7 +241,7 @@ app.post('/generate', requireRole('manager'), async (c) => {
     SELECT COALESCE(SUM(tip_amount::numeric), 0) as total_tips
     FROM orders
     WHERE company_id = ${currentUser.companyId}
-      AND DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay}) = ${reportDate}::date
+      AND ${storeDay(sql`created_at`, tzDay)} = ${reportDate}::date
       AND status = 'completed'
   `)
   const totalTips = Number(((tipsResult as any).rows || tipsResult)?.[0]?.total_tips || 0)
@@ -254,7 +254,7 @@ app.post('/generate', requireRole('manager'), async (c) => {
       COUNT(DISTINCT member_id) FILTER (WHERE type = 'earn')::int as active_members
     FROM loyalty_transactions
     WHERE company_id = ${currentUser.companyId}
-      AND DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay}) = ${reportDate}::date
+      AND ${storeDay(sql`created_at`, tzDay)} = ${reportDate}::date
   `)
   const loyaltyStats = ((loyaltyResult as any).rows || loyaltyResult)?.[0] || {}
 
@@ -262,7 +262,7 @@ app.post('/generate', requireRole('manager'), async (c) => {
     SELECT COUNT(*)::int as new_members
     FROM loyalty_members
     WHERE company_id = ${currentUser.companyId}
-      AND DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay}) = ${reportDate}::date
+      AND ${storeDay(sql`created_at`, tzDay)} = ${reportDate}::date
   `)
   const newMembers = Number(((newMembersResult as any).rows || newMembersResult)?.[0]?.new_members || 0)
 
@@ -395,7 +395,7 @@ app.post('/generate', requireRole('manager'), async (c) => {
     FROM orders
     WHERE company_id = ${currentUser.companyId}
       AND status = 'pending'
-      AND DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay}) = ${reportDate}::date
+      AND ${storeDay(sql`created_at`, tzDay)} = ${reportDate}::date
     ORDER BY created_at ASC
   `)
   const pendingRows = ((pendingResult as any).rows || pendingResult) as any[]

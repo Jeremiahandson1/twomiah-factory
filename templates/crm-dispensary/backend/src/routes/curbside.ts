@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { zodRefusal } from '../utils/errors.ts'
+import { storeDayRange, zoneFor } from '../utils/isoTime.ts'
 
 const app = new Hono()
 
@@ -76,6 +77,8 @@ app.use('*', authenticate)
 app.get('/queue', async (c) => {
   const currentUser = c.get('user') as any
   const locationId = c.req.query('locationId')
+  // "Today" is the store's today. In UTC this counter reset to zero at 8pm, mid-shift.
+  const today = storeDayRange(await zoneFor(currentUser.companyId))
   const status = c.req.query('status')
 
   let locationFilter = sql``
@@ -97,7 +100,7 @@ app.get('/queue', async (c) => {
     LEFT JOIN contact c ON c.id = o.contact_id
     LEFT JOIN "user" u ON u.id = cc.assigned_staff_id
     WHERE cc.company_id = ${currentUser.companyId}
-      AND DATE(cc.created_at) = CURRENT_DATE
+      AND cc.created_at >= ${today.start} AND cc.created_at < ${today.end}
       ${locationFilter}
       ${statusFilter}
     ORDER BY cc.created_at ASC
@@ -113,6 +116,8 @@ app.get('/queue', async (c) => {
 app.get('/pickups', async (c) => {
   const currentUser = c.get('user') as any
   const locationId = c.req.query('locationId')
+  // "Today" is the store's today. In UTC this counter reset to zero at 8pm, mid-shift.
+  const today = storeDayRange(await zoneFor(currentUser.companyId))
   const status = c.req.query('status')
 
   let locationFilter = sql``
@@ -134,7 +139,7 @@ app.get('/pickups', async (c) => {
     LEFT JOIN contact c ON c.id = o.contact_id
     LEFT JOIN "user" u ON u.id = cc.assigned_staff_id
     WHERE cc.company_id = ${currentUser.companyId}
-      AND DATE(cc.created_at) = CURRENT_DATE
+      AND cc.created_at >= ${today.start} AND cc.created_at < ${today.end}
       ${locationFilter}
       ${statusFilter}
     ORDER BY cc.created_at ASC
@@ -265,6 +270,8 @@ app.put('/:id/complete', requireRole('budtender'), async (c) => {
 app.get('/stats', async (c) => {
   const currentUser = c.get('user') as any
   const locationId = c.req.query('locationId')
+  // "Today" is the store's today. In UTC this counter reset to zero at 8pm, mid-shift.
+  const today = storeDayRange(await zoneFor(currentUser.companyId))
 
   let locationFilter = sql``
   if (locationId) locationFilter = sql`AND location_id = ${locationId}`
@@ -277,7 +284,7 @@ app.get('/stats', async (c) => {
       ROUND(AVG(EXTRACT(EPOCH FROM (completed_at - created_at)) / 60) FILTER (WHERE status = 'completed'), 1) as avg_completion_minutes
     FROM curbside_checkins
     WHERE company_id = ${currentUser.companyId}
-      AND DATE(created_at) = CURRENT_DATE
+      AND created_at >= ${today.start} AND created_at < ${today.end}
       ${locationFilter}
   `)
 

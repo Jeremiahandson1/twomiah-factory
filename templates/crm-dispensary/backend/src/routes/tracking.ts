@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { zodRefusal } from '../utils/errors.ts'
+import { storeDay, zoneFor } from '../utils/isoTime.ts'
 
 const app = new Hono()
 
@@ -265,8 +266,11 @@ app.get('/routes', async (c) => {
   let driverFilter = sql``
   if (driverId) driverFilter = sql`AND r.driver_id = ${driverId}`
 
+  // A delivery route belongs to the day the drivers worked it. `r.created_at::date` is the UTC day,
+  // so an evening route was filed under the next day and asking for that evening returned nothing.
+  const routeZone = await zoneFor(currentUser.companyId)
   let dateFilter = sql``
-  if (date) dateFilter = sql`AND r.created_at::date = ${date}::date`
+  if (date) dateFilter = sql`AND ${storeDay(sql`r.created_at`, routeZone)} = ${date}::date`
 
   const dataResult = await db.execute(sql`
     SELECT r.*, u.first_name || ' ' || u.last_name as driver_name

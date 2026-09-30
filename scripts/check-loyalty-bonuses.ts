@@ -43,7 +43,16 @@ if (!/const loyalty = loyaltyConfig\(coRow\)/.test(ord)) fail('the award engine 
 if (!/RETURNING id/.test(ord)) fail('the auto-enrol INSERT must report whether it created the member, or the welcome bonus cannot be paid exactly once')
 if (!/const welcomeBonus = loyalty\.enabled && justEnrolled \? loyalty\.welcomePoints : 0/.test(ord)) fail('the welcome bonus must be paid on joining, and only on joining')
 if (!/if \(inBirthdayMonth\(ct\?\.dob\)\)/.test(ord)) fail('the birthday bonus must be paid in the birthday month')
-if (!/AND lt\.created_at >= date_trunc\('year', NOW\(\)\)/.test(ord)) fail('…at most once per calendar year')
+// …at most once per calendar year, and it is the SHOP's year. This used to pin
+// `date_trunc('year', NOW())`, which is the UTC year — so for the last hours of 31 December a
+// customer who had already had the bonus could be given it a second time, the new year having
+// started in the database but not in the shop. The rule is unchanged; the clock it is read on is.
+if (!/AND lt\.created_at >= \$\{storeDayRange\(completeZone, `\$\{storeToday\(completeZone\)\.slice\(0, 4\)\}-01-01`\)\.start\}/.test(ord))
+  fail('…at most once per calendar year, on the store\'s calendar')
+// The zone must be resolved BEFORE the transaction opens: a helper querying the outer pool from
+// inside db.transaction deadlocks a single-connection database. (same reason as loyaltyEnabled)
+if (!/const completeZone = await zoneFor\(currentUser\.companyId\)\r?\n\r?\n?\s*try \{\r?\n\s*await db\.transaction/.test(ord))
+  fail('the store zone must be read before the completion transaction opens, not from inside it')
 if (!/type = 'bonus' AND lt\.description LIKE 'Birthday bonus%'/.test(ord)) fail('…found by its own ledger line')
 // the bonuses must NOT ride on the order's earned-points figure, which is what a refund reverses
 if (!/UPDATE orders SET loyalty_points_earned = \$\{pointsEarned\}/.test(ord)) fail("the order must record only what the PURCHASE earned — a refund reverses that figure, and a welcome bonus is not something the customer bought")

@@ -10,7 +10,7 @@ import { getApprovalConfig, requireApproval, linkApprovalToOrder, ApprovalRequir
 import { escapeHtml } from '../utils/sanitize.ts'
 import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, ageFromDob, minimumAgeFor, ADULT_USE_MIN_AGE, unitGramsOf, overPurchaseLimit, lineFlowerEquivalentGrams, uncountableCannabisLines, unweighedCannabisRefusal, gramsText } from '../utils/cannabis.ts'
 import { matchZoneForAddress, zoneTerms } from '../utils/delivery.ts'
-import { storeTimeZone } from '../utils/isoTime.ts'
+import { storeTimeZone, storeDayRange, storeToday, zoneFor } from '../utils/isoTime.ts'
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { loyaltyConfig, inBirthdayMonth } from '../utils/loyaltyConfig.ts'
 import { recomputeTier } from '../utils/loyaltyTier.ts'
@@ -530,7 +530,11 @@ app.post('/', requireRole('budtender'), async (c) => {
       return c.json({ error: `"${reward.name}" requires ${reward.min_tier} tier (customer is ${mem.tier || 'bronze'})`, code: 'tier_required' }, 400)
     }
     if (reward.max_redemptions_per_day) {
-      const used = await db.execute(sql`SELECT COUNT(*)::int as n FROM orders WHERE company_id = ${currentUser.companyId} AND loyalty_reward_id = ${reward.id} AND created_at >= date_trunc('day', NOW()) AND status <> 'cancelled'`)
+      // "Per day" is per STORE day. `date_trunc('day', NOW())` is the UTC day, so the counter reset
+      // at 8pm in Ohio: a reward capped at one redemption a day could be taken twice in the same
+      // evening, once before 8 and once after. Half-open range on the store's own day.
+      const rewardDay = storeDayRange(await zoneFor(currentUser.companyId))
+      const used = await db.execute(sql`SELECT COUNT(*)::int as n FROM orders WHERE company_id = ${currentUser.companyId} AND loyalty_reward_id = ${reward.id} AND created_at >= ${rewardDay.start} AND created_at < ${rewardDay.end} AND status <> 'cancelled'`)
       if (Number(((used as any).rows || used)?.[0]?.n || 0) >= Number(reward.max_redemptions_per_day)) {
         return c.json({ error: `"${reward.name}" has reached its daily redemption limit`, code: 'reward_daily_limit' }, 400)
       }
@@ -1074,6 +1078,10 @@ app.post('/:id/complete', requireRole('budtender'), async (c) => {
   // a deadlock, and on a pooled one it is a read that is not part of the transaction deciding on it.
   // It is also one lookup per sale either way, and this one is cached. (Dispensary T31)
   const loyaltyOn = await loyaltyEnabled(currentUser.companyId)
+  // The store's zone, read out here for the same reason and the same way: the birthday-bonus check
+  // inside the transaction needs to know when the shop's YEAR began, and asking for the company row
+  // from inside would be a query on the outer pool while the transaction holds a connection.
+  const completeZone = await zoneFor(currentUser.companyId)
 
   try {
   await db.transaction(async (tx) => {
@@ -1229,7 +1237,10 @@ app.post('/:id/complete', requireRole('budtender'), async (c) => {
             JOIN loyalty_members lm ON lm.id = lt.member_id
             WHERE lm.contact_id = ${existing.contactId} AND lt.company_id = ${currentUser.companyId}
               AND lt.type = 'bonus' AND lt.description LIKE 'Birthday bonus%'
-              AND lt.created_at >= date_trunc('year', NOW())
+              -- "this year" is the STORE's year. date_trunc('year', NOW()) is the UTC year, so for
+              -- the last hours of 31 December a customer who had already had the bonus could be
+              -- given it again — the new year had started in UTC but not in the shop.
+              AND lt.created_at >= ${storeDayRange(completeZone, `${storeToday(completeZone).slice(0, 4)}-01-01`).start}
             LIMIT 1
           `)
           if (!((already as any).rows || already)?.length) birthdayBonus = loyalty.birthdayBonus

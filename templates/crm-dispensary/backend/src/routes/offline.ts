@@ -7,6 +7,7 @@ import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import ordersApp from './orders.ts'
 import { zodRefusal } from '../utils/errors.ts'
+import { storeDayRange, zoneFor } from '../utils/isoTime.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -249,12 +250,16 @@ app.post('/sync', requireRole('budtender'), async (c) => {
       } else if (txn.transactionType === 'checkin') {
         // Replay queue entry
         const p = txn.payload
+        // The queue is today's queue, on the STORE's clock. In UTC this rolled over at 8pm in Ohio,
+        // so a customer checked in at 8:05pm was given position 1 while people who had been waiting
+        // since 7:30pm still held 1, 2 and 3 — two customers with the same number in the same queue.
+        const queueToday = storeDayRange(await zoneFor(currentUser.companyId))
         const posResult = await db.execute(sql`
           SELECT COALESCE(MAX(position), 0) + 1 as next_position
           FROM checkin_queue
           WHERE location_id = ${txn.locationId}
             AND status IN ('waiting', 'called')
-            AND DATE(created_at) = CURRENT_DATE
+            AND created_at >= ${queueToday.start} AND created_at < ${queueToday.end}
         `)
         const nextPosition = ((posResult as any).rows || posResult)?.[0]?.next_position || 1
 

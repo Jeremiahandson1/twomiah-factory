@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { storeRange, zoneFor } from '../utils/isoTime.ts'
 
 const app = new Hono()
 
@@ -97,16 +98,21 @@ app.use('/*', authenticate)
 // GET /overview — Analytics overview (manager+)
 app.get('/overview', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
-  const startDate = c.req.query('startDate') || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
-  const endDate = c.req.query('endDate') || new Date().toISOString().split('T')[0]
+  // Whole STORE days, defaults included. Every query in this file bounded on `${startDate}::date`
+  // — UTC midnight — and defaulted to `toISOString().split('T')[0]`, the UTC date. So the website
+  // figures were bucketed on a different day from the till figures they sit beside, and the default
+  // "last 30 days" already reached into tomorrow whenever a manager looked after 8pm. Five handlers
+  // each carried their own copy of this window; they now share one helper.
+  const tz = await zoneFor(currentUser.companyId)
+  const { start, end, from: startDate, to: endDate } = storeRange(tz, c.req.query('startDate'), c.req.query('endDate'))
 
   const totalResult = await db.execute(sql`
     SELECT COUNT(*)::int as total_page_views,
            COUNT(DISTINCT session_id)::int as unique_sessions
     FROM page_views
     WHERE company_id = ${currentUser.companyId}
-      AND created_at >= ${startDate}::date
-      AND created_at < (${endDate}::date + INTERVAL '1 day')
+      AND created_at >= ${start}
+      AND created_at < ${end}
   `)
   const totals = ((totalResult as any).rows || totalResult)?.[0]
 
@@ -114,8 +120,8 @@ app.get('/overview', requireRole('manager'), async (c) => {
     SELECT page, COUNT(*)::int as views, COUNT(DISTINCT session_id)::int as unique_sessions
     FROM page_views
     WHERE company_id = ${currentUser.companyId}
-      AND created_at >= ${startDate}::date
-      AND created_at < (${endDate}::date + INTERVAL '1 day')
+      AND created_at >= ${start}
+      AND created_at < ${end}
     GROUP BY page
     ORDER BY views DESC
     LIMIT 20
@@ -126,8 +132,8 @@ app.get('/overview', requireRole('manager'), async (c) => {
     FROM page_views
     WHERE company_id = ${currentUser.companyId}
       AND referrer IS NOT NULL AND referrer != ''
-      AND created_at >= ${startDate}::date
-      AND created_at < (${endDate}::date + INTERVAL '1 day')
+      AND created_at >= ${start}
+      AND created_at < ${end}
     GROUP BY referrer
     ORDER BY views DESC
     LIMIT 20
@@ -137,8 +143,8 @@ app.get('/overview', requireRole('manager'), async (c) => {
     SELECT device, COUNT(*)::int as count
     FROM page_views
     WHERE company_id = ${currentUser.companyId}
-      AND created_at >= ${startDate}::date
-      AND created_at < (${endDate}::date + INTERVAL '1 day')
+      AND created_at >= ${start}
+      AND created_at < ${end}
     GROUP BY device
   `)
   const deviceRows = (deviceResult as any).rows || deviceResult
@@ -152,8 +158,8 @@ app.get('/overview', requireRole('manager'), async (c) => {
     SELECT browser, COUNT(*)::int as count
     FROM page_views
     WHERE company_id = ${currentUser.companyId}
-      AND created_at >= ${startDate}::date
-      AND created_at < (${endDate}::date + INTERVAL '1 day')
+      AND created_at >= ${start}
+      AND created_at < ${end}
     GROUP BY browser
     ORDER BY count DESC
   `)
@@ -163,8 +169,8 @@ app.get('/overview', requireRole('manager'), async (c) => {
     FROM page_views
     WHERE company_id = ${currentUser.companyId}
       AND (utm_source IS NOT NULL OR utm_medium IS NOT NULL OR utm_campaign IS NOT NULL)
-      AND created_at >= ${startDate}::date
-      AND created_at < (${endDate}::date + INTERVAL '1 day')
+      AND created_at >= ${start}
+      AND created_at < ${end}
     GROUP BY utm_source, utm_medium, utm_campaign
     ORDER BY views DESC
     LIMIT 20
@@ -185,15 +191,20 @@ app.get('/overview', requireRole('manager'), async (c) => {
 // GET /devices — device type / browser / OS breakdown for the Devices tab.
 app.get('/devices', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
-  const startDate = c.req.query('startDate') || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
-  const endDate = c.req.query('endDate') || new Date().toISOString().split('T')[0]
+  // Whole STORE days, defaults included. Every query in this file bounded on `${startDate}::date`
+  // — UTC midnight — and defaulted to `toISOString().split('T')[0]`, the UTC date. So the website
+  // figures were bucketed on a different day from the till figures they sit beside, and the default
+  // "last 30 days" already reached into tomorrow whenever a manager looked after 8pm. Five handlers
+  // each carried their own copy of this window; they now share one helper.
+  const tz = await zoneFor(currentUser.companyId)
+  const { start, end, from: startDate, to: endDate } = storeRange(tz, c.req.query('startDate'), c.req.query('endDate'))
 
   const q = (col: 'device' | 'browser' | 'os') => db.execute(sql`
     SELECT COALESCE(NULLIF(${sql.raw(col)}, ''), 'Unknown') as name, COUNT(*)::int as count
     FROM page_views
     WHERE company_id = ${currentUser.companyId}
-      AND created_at >= ${startDate}::date
-      AND created_at < (${endDate}::date + INTERVAL '1 day')
+      AND created_at >= ${start}
+      AND created_at < ${end}
     GROUP BY 1
     ORDER BY count DESC
   `)
@@ -210,8 +221,13 @@ app.get('/devices', requireRole('manager'), async (c) => {
 
 app.get('/pages', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
-  const startDate = c.req.query('startDate') || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
-  const endDate = c.req.query('endDate') || new Date().toISOString().split('T')[0]
+  // Whole STORE days, defaults included. Every query in this file bounded on `${startDate}::date`
+  // — UTC midnight — and defaulted to `toISOString().split('T')[0]`, the UTC date. So the website
+  // figures were bucketed on a different day from the till figures they sit beside, and the default
+  // "last 30 days" already reached into tomorrow whenever a manager looked after 8pm. Five handlers
+  // each carried their own copy of this window; they now share one helper.
+  const tz = await zoneFor(currentUser.companyId)
+  const { start, end, from: startDate, to: endDate } = storeRange(tz, c.req.query('startDate'), c.req.query('endDate'))
   const page = +(c.req.query('page') || '1')
   const limit = +(c.req.query('limit') || '25')
   const offset = (page - 1) * limit
@@ -221,8 +237,8 @@ app.get('/pages', requireRole('manager'), async (c) => {
            0 as avg_time_on_page
     FROM page_views
     WHERE company_id = ${currentUser.companyId}
-      AND created_at >= ${startDate}::date
-      AND created_at < (${endDate}::date + INTERVAL '1 day')
+      AND created_at >= ${start}
+      AND created_at < ${end}
     GROUP BY page
     ORDER BY views DESC
     LIMIT ${limit} OFFSET ${offset}
@@ -232,8 +248,8 @@ app.get('/pages', requireRole('manager'), async (c) => {
     SELECT COUNT(DISTINCT page)::int as total
     FROM page_views
     WHERE company_id = ${currentUser.companyId}
-      AND created_at >= ${startDate}::date
-      AND created_at < (${endDate}::date + INTERVAL '1 day')
+      AND created_at >= ${start}
+      AND created_at < ${end}
   `)
 
   const data = (dataResult as any).rows || dataResult
@@ -245,8 +261,13 @@ app.get('/pages', requireRole('manager'), async (c) => {
 // GET /referrers — Referrer analytics
 app.get('/referrers', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
-  const startDate = c.req.query('startDate') || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
-  const endDate = c.req.query('endDate') || new Date().toISOString().split('T')[0]
+  // Whole STORE days, defaults included. Every query in this file bounded on `${startDate}::date`
+  // — UTC midnight — and defaulted to `toISOString().split('T')[0]`, the UTC date. So the website
+  // figures were bucketed on a different day from the till figures they sit beside, and the default
+  // "last 30 days" already reached into tomorrow whenever a manager looked after 8pm. Five handlers
+  // each carried their own copy of this window; they now share one helper.
+  const tz = await zoneFor(currentUser.companyId)
+  const { start, end, from: startDate, to: endDate } = storeRange(tz, c.req.query('startDate'), c.req.query('endDate'))
   const page = +(c.req.query('page') || '1')
   const limit = +(c.req.query('limit') || '25')
   const offset = (page - 1) * limit
@@ -256,8 +277,8 @@ app.get('/referrers', requireRole('manager'), async (c) => {
     FROM page_views
     WHERE company_id = ${currentUser.companyId}
       AND referrer IS NOT NULL AND referrer != ''
-      AND created_at >= ${startDate}::date
-      AND created_at < (${endDate}::date + INTERVAL '1 day')
+      AND created_at >= ${start}
+      AND created_at < ${end}
     GROUP BY referrer
     ORDER BY views DESC
     LIMIT ${limit} OFFSET ${offset}
@@ -268,8 +289,8 @@ app.get('/referrers', requireRole('manager'), async (c) => {
     FROM page_views
     WHERE company_id = ${currentUser.companyId}
       AND referrer IS NOT NULL AND referrer != ''
-      AND created_at >= ${startDate}::date
-      AND created_at < (${endDate}::date + INTERVAL '1 day')
+      AND created_at >= ${start}
+      AND created_at < ${end}
   `)
 
   const data = (dataResult as any).rows || dataResult
@@ -281,8 +302,13 @@ app.get('/referrers', requireRole('manager'), async (c) => {
 // GET /campaigns — UTM campaign performance
 app.get('/campaigns', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
-  const startDate = c.req.query('startDate') || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
-  const endDate = c.req.query('endDate') || new Date().toISOString().split('T')[0]
+  // Whole STORE days, defaults included. Every query in this file bounded on `${startDate}::date`
+  // — UTC midnight — and defaulted to `toISOString().split('T')[0]`, the UTC date. So the website
+  // figures were bucketed on a different day from the till figures they sit beside, and the default
+  // "last 30 days" already reached into tomorrow whenever a manager looked after 8pm. Five handlers
+  // each carried their own copy of this window; they now share one helper.
+  const tz = await zoneFor(currentUser.companyId)
+  const { start, end, from: startDate, to: endDate } = storeRange(tz, c.req.query('startDate'), c.req.query('endDate'))
   const page = +(c.req.query('page') || '1')
   const limit = +(c.req.query('limit') || '25')
   const offset = (page - 1) * limit
@@ -294,8 +320,8 @@ app.get('/campaigns', requireRole('manager'), async (c) => {
     FROM page_views
     WHERE company_id = ${currentUser.companyId}
       AND (utm_source IS NOT NULL OR utm_medium IS NOT NULL OR utm_campaign IS NOT NULL)
-      AND created_at >= ${startDate}::date
-      AND created_at < (${endDate}::date + INTERVAL '1 day')
+      AND created_at >= ${start}
+      AND created_at < ${end}
     GROUP BY utm_source, utm_medium, utm_campaign
     ORDER BY views DESC
     LIMIT ${limit} OFFSET ${offset}
@@ -307,8 +333,8 @@ app.get('/campaigns', requireRole('manager'), async (c) => {
       FROM page_views
       WHERE company_id = ${currentUser.companyId}
         AND (utm_source IS NOT NULL OR utm_medium IS NOT NULL OR utm_campaign IS NOT NULL)
-        AND created_at >= ${startDate}::date
-        AND created_at < (${endDate}::date + INTERVAL '1 day')
+        AND created_at >= ${start}
+        AND created_at < ${end}
     ) sub
   `)
 

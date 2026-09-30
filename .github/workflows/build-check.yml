@@ -1430,6 +1430,17 @@ jobs:
       - name: "A capability an owner is meant to use is reachable from a screen"
         run: bun run scripts/check-server-features-have-screens.ts
 
+  calendar-day-is-the-stores:
+    name: "a calendar day is the store's day"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "No route cuts a naive-UTC timestamp on the server's clock"
+        run: bun run scripts/check-calendar-day-is-the-stores.ts
+
   dashboard-panels-load:
     name: "dashboard panels load"
     runs-on: ubuntu-latest
