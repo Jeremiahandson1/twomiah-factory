@@ -1474,6 +1474,17 @@ jobs:
       - name: "The signed-in user carries userId; .id is undefined and fails silently"
         run: bun run scripts/check-signed-in-user-is-userid.ts
 
+  service-worker-never-caches-data:
+    name: "a service worker keeps the shell, never the shop's data"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "No service worker caches /api/ responses"
+        run: bun run scripts/check-service-worker-never-caches-data.ts
+
   dashboard-panels-load:
     name: "dashboard panels load"
     runs-on: ubuntu-latest
