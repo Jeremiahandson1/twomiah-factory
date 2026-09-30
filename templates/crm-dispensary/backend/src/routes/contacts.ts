@@ -215,6 +215,63 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
   return c.json({ ...safeContact, orders, loyalty: loyaltyMembers[0] || null })
 })
 
+/**
+ * What a date of birth has to satisfy — on CREATE and on EDIT, because it is the same fact.
+ *
+ * T51/T52 M6: every one of these rules lived inside POST / only, so a customer created with DOB
+ * 1990 could be EDITED to 2010-06-01 and the record answered 200, turning an adult into a
+ * 16-year-old on a system whose whole job is to know which it is. The sale is still refused at the
+ * till — the age check there reads the date, not this validation — so it is not a route to selling
+ * to a minor. It is worse in a quieter way: the shop's own record of who it served becomes wrong,
+ * and that record is what a regulator asks for.
+ *
+ * This is rule 2 of the three that were asked for by name — "any rule applied when a record is
+ * created also applies when it's edited" — and it is the rule that had no guard. It has one now:
+ * scripts/check-create-rules-apply-on-edit.ts.
+ *
+ * Returns a refusal to send, or null. Warnings are pushed onto the caller's list.
+ */
+function checkDateOfBirth(data: { dateOfBirth?: string; type?: string; medicalCardNumber?: string }, warnings: string[]):
+  { status: number; body: any } | null {
+  if (!data.dateOfBirth || data.type === 'vendor') return null
+
+  // "1990-02-30" is not a real day, and `new Date` does not say so — it rolls quietly to 2 March and
+  // the record is stored a couple of days off the card it was copied from. On a date of birth that
+  // decides whether someone may be sold cannabis, a silent adjustment is the wrong answer. Check the
+  // calendar before trusting the parse: the round-trip only survives if the day exists. The tester
+  // got the generic "One of the values is not in a valid format" for this. (Dispensary T29 L8)
+  const asDay = String(data.dateOfBirth).slice(0, 10)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(asDay)) {
+    const [y, m, d] = asDay.split('-').map(Number)
+    const probe = new Date(Date.UTC(y, m - 1, d))
+    if (probe.getUTCFullYear() !== y || probe.getUTCMonth() !== m - 1 || probe.getUTCDate() !== d) {
+      return { status: 400, body: { error: `${asDay} is not a real calendar date — check the day and month.`, code: 'BAD_DATE' } }
+    }
+  }
+  const dob = new Date(data.dateOfBirth)
+  if (Number.isNaN(dob.getTime())) return { status: 400, body: { error: 'dateOfBirth is not a valid date' } }
+  const today = new Date()
+  let age = today.getFullYear() - dob.getFullYear()
+  const mm = today.getMonth() - dob.getMonth()
+  if (mm < 0 || (mm === 0 && today.getDate() < dob.getDate())) age--
+  if (dob > today) return { status: 400, body: { error: 'dateOfBirth cannot be in the future' } }
+  // "at least 18 (medical) or 21 (adult use)" read as though 18 were enough on its own, so an
+  // 18-to-20-year-old with no card was saved against a rule that appeared to admit them and then
+  // refused at every sale. 18 is the medical floor and only with a card. (T42 L5)
+  if (age < 18) {
+    return { status: 400, body: { error: `Customer would be ${age} years old — cannabis customers must be 21+, or 18+ with a valid medical card`, code: 'underage', age } }
+  }
+  // Saved either way: a shop records people before their card arrives, and the record is also used
+  // for merchandise. But the warning has to say which of the two situations this is, because only
+  // one of them can buy today.
+  if (age < 21) {
+    warnings.push(data.medicalCardNumber
+      ? `Customer is ${age} — medical sales only. Adult-use sales require 21+.`
+      : `Customer is ${age} and has no medical card recorded, so no cannabis sale to them can be completed. Add a valid card number and expiry, or they must be 21+.`)
+  }
+  return null
+}
+
 app.post('/', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
   const cBody = await c.req.json()
@@ -239,40 +296,9 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
       warnings.push(`The ${label} ${verb} saved as "${stored}" — formatting or markup was removed.`)
     }
   }
-  if (data.dateOfBirth && data.type !== 'vendor') {
-    // "1990-02-30" is not a real day, and `new Date` does not say so — it rolls quietly to 2 March and
-    // the record is stored a couple of days off the card it was copied from. On a date of birth that
-    // decides whether someone may be sold cannabis, a silent adjustment is the wrong answer. Check the
-    // calendar before trusting the parse: the round-trip only survives if the day exists. The tester
-    // got the generic "One of the values is not in a valid format" for this. (Dispensary T29 L8)
-    const asDay = String(data.dateOfBirth).slice(0, 10)
-    if (/^\d{4}-\d{2}-\d{2}$/.test(asDay)) {
-      const [y, m, d] = asDay.split('-').map(Number)
-      const probe = new Date(Date.UTC(y, m - 1, d))
-      if (probe.getUTCFullYear() !== y || probe.getUTCMonth() !== m - 1 || probe.getUTCDate() !== d) {
-        return c.json({ error: `${asDay} is not a real calendar date — check the day and month.`, code: 'BAD_DATE' }, 400)
-      }
-    }
-    const dob = new Date(data.dateOfBirth)
-    if (Number.isNaN(dob.getTime())) return c.json({ error: 'dateOfBirth is not a valid date' }, 400)
-    const today = new Date()
-    let age = today.getFullYear() - dob.getFullYear()
-    const m = today.getMonth() - dob.getMonth()
-    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--
-    if (dob > today) return c.json({ error: 'dateOfBirth cannot be in the future' }, 400)
-    // "at least 18 (medical) or 21 (adult use)" read as though 18 were enough on its own, so an
-    // 18-to-20-year-old with no card was saved against a rule that appeared to admit them and then
-    // refused at every sale. 18 is the medical floor and only with a card. (T42 L5)
-    if (age < 18) return c.json({ error: `Customer would be ${age} years old — cannabis customers must be 21+, or 18+ with a valid medical card`, code: 'underage', age }, 400)
-    // Saved either way: a shop records people before their card arrives, and the record is also used
-    // for merchandise. But the warning has to say which of the two situations this is, because only
-    // one of them can buy today.
-    if (age < 21) {
-      const hasCard = !!(data as any).medicalCardNumber
-      warnings.push(hasCard
-        ? `Customer is ${age} — medical sales only. Adult-use sales require 21+.`
-        : `Customer is ${age} and has no medical card recorded, so no cannabis sale to them can be completed. Add a valid card number and expiry, or they must be 21+.`)
-    }
+  {
+    const refusal = checkDateOfBirth(data as any, warnings)
+    if (refusal) return c.json(refusal.body, refusal.status as any)
   }
 
   // Duplicate guard (S22, now the same rule as the shared contacts module): a create that matches an
@@ -330,6 +356,16 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
     if (typeof sent === 'string' && typeof stored === 'string' && sent.trim() !== stored.trim()) {
       warnings.push(`The ${label} ${verb} saved as "${stored}" — formatting or markup was removed.`)
     }
+  }
+
+  // The same date-of-birth rules the create path applies. They lived only on POST, so a customer
+  // created with DOB 1990 could be edited to 2010 and the record answered 200. (T51/T52 M6, rule 2)
+  //
+  // `type` comes from the EXISTING record when the edit does not mention it — a vendor stays a
+  // vendor, and an edit that only changes the date must be judged on what the record actually is.
+  {
+    const refusal = checkDateOfBirth({ ...data, type: data.type ?? (existing as any).type, medicalCardNumber: (data as any).medicalCardNumber ?? (existing as any).medicalCardNumber }, warnings)
+    if (refusal) return c.json(refusal.body, refusal.status as any)
   }
 
   const [updated] = await db.update(contact).set({ ...data, updatedAt: new Date() }).where(eq(contact.id, id)).returning()
