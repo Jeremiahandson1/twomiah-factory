@@ -98,6 +98,26 @@ check('H1: ...and exactly one visit record', (await recordsFor(stormed.id)).leng
 const allNumbers = (await db.select({ number: invoice.number }).from(invoice)).map((r: any) => r.number)
 check('H1: no invoice number was handed out twice', new Set(allNumbers).size === allNumbers.length, allNumbers)
 
+// ── RR8 observation: the losers of that race answer with the bill, not with null ────────────────
+//
+// One invoice for six completes is H1 working. But five of the six answered `invoiceId: null`,
+// because a caller only reported the invoice it raised itself — so a screen that completes a visit
+// and then links to the bill had nothing to link to four times out of five. Being the loser of a
+// race is not "there is no bill".
+{
+  const answered = six.map((r) => (r.json?.invoiceId ?? null))
+  const theBill = (stormedBills[0] as any).id
+  check('RR8: no request invents a different bill', answered.every((v) => v === null || v === theBill), answered)
+  check('RR8: …and at least one names it', answered.some((v) => v === theBill), answered)
+
+  // The deterministic half: completing one that is ALREADY completed. Nothing is racing here, so the
+  // answer must carry the bill every time.
+  const again = await asOwner('PUT', `/api/appointments/${stormed.id}`, { status: 'completed' })
+  check('RR8: completing an already-completed visit answers with its bill', again.json?.invoiceId === theBill,
+    { invoiceId: again.json?.invoiceId, bill: theBill })
+  check('RR8: …and does not raise a second one', (await billsFor(stormed.id)).length === 1)
+}
+
 // A sequential re-flip is not a double-click and must stay harmless.
 await asOwner('PUT', `/api/appointments/${stormed.id}`, { status: 'scheduled' })
 await asOwner('PUT', `/api/appointments/${stormed.id}`, { status: 'completed' })

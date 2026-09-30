@@ -533,7 +533,11 @@ export function createTimeRoutes(deps: TimeDeps) {
       approved: rows.length,
       ...(mine.length ? {
         skipped: mine.length,
-        warnings: [`${mine.length} of your own ${mine.length === 1 ? 'entry was' : 'entries were'} left for someone else to approve.`],
+        // "1 of your own entry was left…" — the count reads as a partitive and then takes a
+        // singular noun. One entry is "your own entry", not "1 of your own entry". (Salon RR8)
+        warnings: [mine.length === 1
+          ? 'Your own entry was left for someone else to approve.'
+          : `${mine.length} of your own entries were left for someone else to approve.`],
       } : {}),
     })
   })

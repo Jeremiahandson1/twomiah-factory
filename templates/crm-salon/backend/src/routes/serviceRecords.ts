@@ -7,7 +7,7 @@ import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
-import { ensureInvoiceForVisit } from '../services/salonCheckout.ts'
+import { ensureInvoiceForVisit, invoiceIdForVisit } from '../services/salonCheckout.ts'
 import { resolveStylist, unknownStylist, stylistIdOf } from '../utils/stylist.ts'
 import { hasHappened } from '../shared/index.ts'
 import { scheduleReviewRequestForVisit } from '../services/reviews.ts'
@@ -393,7 +393,11 @@ app.post('/', requirePermission('schedule:create'), async (c) => {
       if (body.performedAt) upd.performedAt = /^\d{4}-\d{2}-\d{2}$/.test(String(body.performedAt)) ? new Date(`${body.performedAt}T12:00:00.000Z`) : new Date(body.performedAt)
       const [merged] = await db.update(serviceRecord).set(upd).where(eq(serviceRecord.id, auto.id)).returning()
       emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'service_record' })
-      return c.json({ ...merged, stylistId: stylistIdOf(merged), invoiceId: null, merged: true }, 200)
+      // The bill this visit already has, not null. Logging a service against an appointment that
+      // Complete already closed merges into that record — and the visit IS billed, so a screen that
+      // links to the invoice afterwards must be told which one. (Salon RR8 observation)
+      const billed = (merged as any).invoiceId || await invoiceIdForVisit(currentUser.companyId, body.appointmentId)
+      return c.json({ ...merged, stylistId: stylistIdOf(merged), invoiceId: billed, merged: true }, 200)
     }
   }
   const [created] = await db.insert(serviceRecord).values({

@@ -46,6 +46,22 @@ export interface VisitSale {
 }
 
 /**
+ * The bill this visit already has, without raising one. (Salon RR8, the tester's observation)
+ *
+ * Six simultaneous completes produce one invoice — that is the LY0928 H1 guard working — but five of
+ * the six answered `invoiceId: null`, because the callers only report the invoice they raised
+ * themselves. A screen that completes a visit and then links to the bill has nothing to link to,
+ * and the visit did get billed. "I was not the one who raised it" is not "there is no bill".
+ */
+export async function invoiceIdForVisit(companyId: string, appointmentId?: string | null): Promise<string | null> {
+  if (!appointmentId) return null
+  const [linked] = await db.select({ id: invoice.id }).from(invoice)
+    .where(and(eq(invoice.companyId, companyId), eq(invoice.appointmentId, appointmentId)))
+    .limit(1)
+  return linked?.id || null
+}
+
+/**
  * Returns the invoice for this visit, creating it if none exists yet. Returns null when there is
  * nothing to bill (no price) so callers can treat it as "no sale".
  */

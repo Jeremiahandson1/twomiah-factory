@@ -1507,6 +1507,17 @@ jobs:
       - name: "A row-action table must filter on `show` and dismiss without bubbling into the row"
         run: bun run scripts/check-row-action-show.ts
 
+  expense-categories-mirror:
+    name: "the expense form's fallback categories are the server's"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "peopleConfig's expense categories must match the route's options.categories"
+        run: bun run scripts/check-expense-categories-mirror.ts
+
   dashboard-panels-load:
     name: "dashboard panels load"
     runs-on: ubuntu-latest

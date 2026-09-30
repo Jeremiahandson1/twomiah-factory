@@ -290,8 +290,17 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
     // scroll container ABOVE the anchor scrolls. Scroll events from unrelated elements (a search input
     // scrolling its own text back on blur, another panel) must not close it.
     const onScroll = (e: Event) => { const t = e.target as Node | Document; if (t !== document && !(t as Node).contains?.(menu.anchor)) return; setMenu(null) }
-    document.addEventListener('mousedown', close); window.addEventListener('scroll', onScroll, true)
-    return () => { document.removeEventListener('mousedown', close); window.removeEventListener('scroll', onScroll, true) }
+    /**
+     * Escape closes it. (Salon RR8, reported as an observation and it cost the tester a mistake.)
+     *
+     * With no way to dismiss it from the keyboard, an open menu sat over the rows beneath it — so a
+     * click aimed at the NEXT row landed on the open menu instead and approved an expense nobody
+     * meant to approve. The menu is a popover over live controls; Escape is how a person cancels one.
+     * (The dispensary's fork got this in T56; the shared table five CRMs actually use did not.)
+     */
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(null) }
+    document.addEventListener('mousedown', close); document.addEventListener('keydown', onKey); window.addEventListener('scroll', onScroll, true)
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', onKey); window.removeEventListener('scroll', onScroll, true) }
   }, [menu])
   const menuRow = menu ? data.find(r => r.id === menu.id) : undefined
   const visible = menuRow ? actions.filter(a => !a.show || a.show(menuRow)) : []

@@ -7,7 +7,7 @@ import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
-import { ensureInvoiceForVisit, VOIDED_ON_CANCEL } from '../services/salonCheckout.ts'
+import { ensureInvoiceForVisit, invoiceIdForVisit, VOIDED_ON_CANCEL } from '../services/salonCheckout.ts'
 import { keepFromRecord, AUTO_VISIT_NOTE, CANCELLED_VISIT_LABEL, REPAIR_MARK } from '../services/clientFormulas.ts'
 import { scheduleReviewRequestForVisit } from '../services/reviews.ts'
 import { resolveStylist, unknownStylist, stylistIdOf, type StylistRef } from '../utils/stylist.ts'
@@ -522,7 +522,12 @@ app.put('/:id', requirePermission('schedule:update'), async (c) => {
   await audit.log({ action: 'update', entity: 'appointment', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'appointment' })
   if (nextStatus !== existing.status) await syncOnlineBooking(id, nextStatus)
-  const invoiceId = nextStatus === 'completed' && existing.status !== 'completed' ? await onVisitCompleted(updated) : null
+  // Completing it raises the sale. NOT completing it — because it was already completed, which is
+  // what five of six simultaneous requests see — still answers with the bill this visit has, so a
+  // screen that links to the invoice afterwards has something to link to. (Salon RR8 observation)
+  const invoiceId = nextStatus === 'completed'
+    ? (existing.status !== 'completed' ? await onVisitCompleted(updated) : await invoiceIdForVisit(currentUser.companyId, id))
+    : null
   // …and the other direction. A visit that is cancelled or marked a no-show after it was completed
   // gives its points and its punch back, or a salon could fill a card by completing and cancelling
   // the same appointment over and over. (LY0928 M1)

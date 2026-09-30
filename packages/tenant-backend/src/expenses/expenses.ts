@@ -229,7 +229,13 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     // already follows. Before this a stylist was offered Edit on their own row and got a 403,
     // so someone who typed $95 for $9.50 could not fix it. (Salon RR6 E7)
     if (!MANAGER_ROLES.has(currentUser.role)) {
-      if (!isMine(currentUser, existing)) return c.json({ error: 'You can only change expenses you entered' }, 403)
+      // Not found, not "you may not" — the same answer a made-up id gets. (Salon RR8 Y3)
+      //
+      // RR7 X5 made GET and DELETE answer 404 for a colleague's expense so the refusal could not be
+      // used to confirm that a row exists. This door kept saying "You can only change expenses you
+      // entered", which confirms exactly that: 403 means real, 404 means imaginary. One door left
+      // open is not a closed door.
+      if (!isMine(currentUser, existing)) return c.json({ error: 'Expense not found' }, 404)
       if (existing.approved) return c.json({ error: 'This expense has been approved. Ask a manager to change it.' }, 403)
     }
     const refErr = await checkRefs(currentUser.companyId, data)
@@ -266,10 +272,43 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
       if (!a || !b) return !a && !b
       return new Date(a).toISOString().slice(0, 10) === new Date(b).toISOString().slice(0, 10)
     }
+    /**
+     * Turning "Reimburse me" ON after approval ends the approval. (Salon RR8 Y1)
+     *
+     * A claim entered without it is a cost the salon has already paid — a card payment for stock.
+     * Approving it says "yes, that was a proper expense". Flipping the flag on afterwards turns the
+     * same approved row into MONEY OWED TO A PERSON, and the old approval now covers a payout
+     * nobody approved. That changes who gets paid as much as changing the figure does, which is the
+     * rule I already wrote for the amount, the tax and the date; I simply did not carry it to the
+     * one field that decides whether money leaves the building at all.
+     *
+     * Off is not the same as on. Turning it OFF pays out less than was approved and cannot surprise
+     * anybody, so it keeps the approval — the tester's suggestion, and right: making that end the
+     * approval would punish someone for withdrawing a claim.
+     */
+    const claimBecamePayable =
+      data.reimbursable !== undefined && !!data.reimbursable && !existing.reimbursable
     const moneyChanged =
       (data.amount !== undefined && !sameNumber(data.amount, existing.amount))
       || (data.taxAmount !== undefined && !sameNumber(data.taxAmount, existing.taxAmount))
       || (data.date !== undefined && !sameDay(data.date, existing.date))
+      || claimBecamePayable
+    /**
+     * A paid row cannot be marked "not a claim". (Salon RR8 Y4)
+     *
+     * PUT { reimbursable: false } on a reimbursed expense answered 200 and left it `reimbursed:
+     * true, reimbursable: false` — paid, and recorded as something nobody ever claimed. The amount
+     * and the deletion are both locked once money has gone out; this flag is part of the same
+     * record and was the one way left to contradict it.
+     *
+     * Its own message, because "the amount cannot be rewritten" is not what happened here.
+     */
+    if (existing.reimbursed && data.reimbursable !== undefined && !!data.reimbursable !== !!existing.reimbursable) {
+      return c.json({
+        error: `${existing.description ? `"${existing.description}" ` : 'This expense '}has already been reimbursed for ${existing.amount}. It cannot be marked as something nobody claimed — ${CORRECTION_ADVICE}`,
+        code: 'already_reimbursed',
+      }, 409)
+    }
     if (existing.reimbursed && moneyChanged) {
       return c.json({
         // No "or reverse this one" — RR6 E5: there is no reverse action on the screen and
@@ -291,8 +330,18 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
 
     const [row] = await db.update(t.expense).set(updates).where(and(eq(t.expense.id, id), eq(t.expense.companyId, currentUser.companyId))).returning()
     if (approvalCleared) {
-      audit?.log({ action: 'status_change', entity: 'expense', entityId: id, metadata: { approved: false, reason: 'the amount or the date changed after approval' }, req: { user: currentUser } })
-      return c.json({ ...row, warnings: ['This expense was approved. The amount changed, so the approval has been removed and it needs approving again.'] })
+      // Say which thing ended it. "The amount changed" on a row whose amount nobody touched is the
+      // kind of message that teaches people to ignore messages. (Salon RR8 Y1)
+      const why = claimBecamePayable
+        ? 'it was marked reimbursable after approval, so the approval would have covered a payment to a person'
+        : 'the amount, the tax or the date changed after approval'
+      audit?.log({ action: 'status_change', entity: 'expense', entityId: id, metadata: { approved: false, reason: why }, req: { user: currentUser } })
+      return c.json({
+        ...row,
+        warnings: [claimBecamePayable
+          ? 'This expense was approved as a cost the business had already paid. Asking to be reimbursed for it is a payment to a person, so the approval has been removed and it needs approving again.'
+          : 'This expense was approved. The amount, the tax or the date changed, so the approval has been removed and it needs approving again.'],
+      })
     }
     return c.json(row)
   })

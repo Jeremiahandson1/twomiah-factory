@@ -74,20 +74,29 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
   useEffect(() => { load() }, [load])
   // Asked once, not per page. A backend without the route (or a network blip) leaves
   // `serverCategories` null and the configured list stands — the form still works. (Salon RR7 X1)
+  //
+  // …and asked AGAIN when a form is about to be opened, if that first attempt came back with
+  // nothing. One failed request — a cold start is enough — used to leave the fallback list in place
+  // for the whole visit. (Salon RR8 Y2)
+  const fetchCategories = useCallback(async () => {
+    try {
+      const res: any = await api.get('/api/expenses/categories')
+      if (!Array.isArray(res?.categories) || !res.categories.length) return null
+      setServerCategories(res.categories)
+      return res.categories as Array<{ value: string; label: string }>
+    } catch { return null }
+  }, [api])
   useEffect(() => {
     let cancelled = false
-    api.get('/api/expenses/categories')
-      .then((res: any) => {
-        if (cancelled || !Array.isArray(res?.categories) || !res.categories.length) return
-        setServerCategories(res.categories)
-        // This runs at mount, with no dialog open: the blank form was built from the fallback list,
-        // so if the server does not know that first value, correct it rather than letting the very
-        // first Save answer 400.
-        setForm((f) => (res.categories.some((c: any) => c.value === f.category) ? f : { ...f, category: res.categories[0].value }))
-      })
-      .catch(() => {})
+    fetchCategories().then((list) => {
+      // This runs at mount, with no dialog open: the blank form was built from the fallback list, so
+      // if the server does not know that first value, correct it rather than letting the very first
+      // Save answer 400.
+      if (cancelled || !list) return
+      setForm((f) => (list.some((c) => c.value === f.category) ? f : { ...f, category: list[0].value }))
+    })
     return () => { cancelled = true }
-  }, [api])
+  }, [fetchCategories])
 
   const handleSave = async () => {
     if (!form.description.trim()) { setFormError('Description is required'); return }
@@ -125,8 +134,21 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
     try { await api.post(`/api/expenses/${row.id}/reimburse`); toast.success('Marked reimbursed'); load() }
     catch (e) { toast.error(errMsg(e, 'Failed to mark reimbursed')) }
   }
-  const openCreate = () => { setEditing(null); setForm(empty()); setFormError(''); setModalOpen(true) }
-  const openEdit = (item: Expense) => { setEditing(item); setForm({ date: String(item.date || '').slice(0, 10) || today(), category: item.category, vendor: item.vendor || '', description: item.description || '', amount: String(item.amount ?? ''), billable: !!item.billable, reimbursable: !!item.reimbursable, projectId: item.projectId || '', jobId: item.jobId || '' }); setFormError(''); setModalOpen(true) }
+  // Opening a form is the moment the list matters, so a first attempt that failed is retried here.
+  // It does not block the dialog: the fallback list opens now and the picker corrects itself the
+  // moment the answer arrives. (Salon RR8 Y2)
+  // `correctValue` is false when a row is being EDITED: the dialog must keep showing the category
+  // that is on the record, even one the server no longer lists. Correcting it there would be the X1
+  // relabelling bug wearing a different hat.
+  const refreshCategories = (correctValue: boolean) => {
+    if (serverCategories) return
+    fetchCategories().then((list) => {
+      if (!list || !correctValue) return
+      setForm((f) => (list.some((c) => c.value === f.category) ? f : { ...f, category: list[0].value }))
+    })
+  }
+  const openCreate = () => { setEditing(null); setForm(empty()); setFormError(''); setModalOpen(true); refreshCategories(true) }
+  const openEdit = (item: Expense) => { setEditing(item); setForm({ date: String(item.date || '').slice(0, 10) || today(), category: item.category, vendor: item.vendor || '', description: item.description || '', amount: String(item.amount ?? ''), billable: !!item.billable, reimbursable: !!item.reimbursable, projectId: item.projectId || '', jobId: item.jobId || '' }); setFormError(''); setModalOpen(true); refreshCategories(false) }
   // A value with no label is title-cased the way the server does it, so `dispensary_fee` reads
   // "Dispensary Fee" in the table instead of showing the raw id. (Salon RR7 X1)
   const catLabel = (v: string) => categories.find((c) => c.value === v)?.label || String(v || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
