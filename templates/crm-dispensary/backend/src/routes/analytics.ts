@@ -3,7 +3,7 @@ import { db } from '../../db/index.ts'
 import { company } from '../../db/schema.ts'
 import { sql, eq } from 'drizzle-orm'
 import { settledSale, taxCollected, netExprBare, refundedExprBare, taxNetExprBare } from '../utils/revenue.ts'
-import { storeTimeZone, storeDayRange, storeDateString } from '../utils/isoTime.ts'
+import { storeDayRange, storeDateString, zoneFor, storeRange } from '../utils/isoTime.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 
@@ -13,12 +13,11 @@ app.use('*', authenticate)
 // All analytics endpoints require manager+
 app.use('*', requireRole('manager'))
 
-/** The store's zone — from its configured timezone, else its state. */
-const tzFor = async (companyId: string): Promise<string> => {
-  const [row] = await db.select({ settings: company.settings, state: company.state })
-    .from(company).where(eq(company.id, companyId)).limit(1)
-  return storeTimeZone(row)
-}
+// `tzFor` and `storeRange` used to be defined right here, privately. They were the only correct
+// implementation of the store's day in the whole product, and because they were private, twelve
+// other route files built the same bound by hand and every one of them cut it in UTC. Both now live
+// in utils/isoTime.ts as zoneFor and storeRange — see the comment on storeRange there, which is the
+// one that used to be in this file.
 
 /**
  * The half-open UTC range [start, end) covering the requested dates on the STORE's clock.
@@ -37,11 +36,6 @@ const tzFor = async (companyId: string): Promise<string> => {
  * Half-open to match the dashboard exactly (`>= start AND < end`). The old inclusive
  * `<= 23:59:59.999` also dropped anything in the final millisecond of the day. (T27 H2)
  */
-const storeRange = (tz: string, startDate?: string, endDate?: string, backDays = 30) => {
-  const from = startDate || storeDateString(new Date(Date.now() - backDays * 86400000), tz)
-  const to = endDate || storeDateString(new Date(), tz)
-  return { start: storeDayRange(tz, from).start, end: storeDayRange(tz, to).end, from, to }
-}
 
 // Sales by period
 app.get('/sales', async (c) => {
@@ -51,7 +45,7 @@ app.get('/sales', async (c) => {
   const endDate = c.req.query('endDate')
 
   // The range covers whole STORE days — see storeRange above. (retest#8, T27 H2)
-  const dayTz = await tzFor(currentUser.companyId)
+  const dayTz = await zoneFor(currentUser.companyId)
   const { start, end } = storeRange(dayTz, startDate, endDate)
 
   let dateTrunc: string
@@ -114,7 +108,7 @@ app.get('/products', async (c) => {
   const limit = +(c.req.query('limit') || '20')
 
   // The range covers whole STORE days — see storeRange above. (retest#8, T27 H2)
-  const { start, end } = storeRange(await tzFor(currentUser.companyId), startDate, endDate)
+  const { start, end } = storeRange(await zoneFor(currentUser.companyId), startDate, endDate)
 
   const result = await db.execute(sql`
     -- One row per PRODUCT. An order line keeps a snapshot of the name and category as they were at the time
@@ -168,7 +162,7 @@ app.get('/summary', async (c) => {
   // "Today" is the STORE's today. toISOString() names the UTC date, so after 8pm in Ohio this asked
   // for TOMORROW — an evening manager opened the page to a day that had barely begun while the
   // dashboard beside it still showed the shift they were working. (T27 H2)
-  const tz = await tzFor(currentUser.companyId)
+  const tz = await zoneFor(currentUser.companyId)
   const date = c.req.query('date') || storeDateString(new Date(), tz)
 
   const { start: dayStart, end: dayEnd } = storeRange(tz, startDate || date, endDate || date)
@@ -325,7 +319,7 @@ app.get('/peak-hours', async (c) => {
   // 7pm Friday rush was charted in the small hours of Saturday and "peak hour" named a time the shop
   // was shut. created_at is a naive UTC timestamp: label it UTC, then convert to the store's zone.
   // (T21 M3) — and the range is whole STORE days for the same reason. (retest#8, T27 H2)
-  const tz = await tzFor(currentUser.companyId)
+  const tz = await zoneFor(currentUser.companyId)
   const { start, end } = storeRange(tz, startDate, endDate)
 
   const result = await db.execute(sql`
@@ -362,7 +356,7 @@ app.get('/customers', async (c) => {
 
   // Match /summary + /sales bounds so the panel lines up with the KPI row and charts — whole STORE
   // days, see storeRange above. (retest#8, T27 H2)
-  const { start, end, from, to } = storeRange(await tzFor(currentUser.companyId), startDate, endDate)
+  const { start, end, from, to } = storeRange(await zoneFor(currentUser.companyId), startDate, endDate)
 
   const [rangeResult, newResult, ltvResult] = await Promise.all([
     // In-range cohort: unique/returning customers, avg visits, retention.

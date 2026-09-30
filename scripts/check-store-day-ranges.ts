@@ -100,7 +100,9 @@ const read = (rel: string) => {
   // wrong — eod.ts does this, and is right to. The precondition below exempts it.
   const GROUPS_BY_STORE_DAY = /AT TIME ZONE 'UTC' AT TIME ZONE \$\{/
   const HAS_TIMESTAMP_RANGE = /\b(?:created_at|completed_at|transferred_at|refunded_at|updated_at)\b[^\n]*?(?:>=|<=?)\s*\$\{\s*(?:start|startDate|dayStart|today|end|endDate|dayEnd|tomorrow)\s*\}/
-  const USES_STORE_RANGE = /storeDayRange\s*\(/
+  // storeRange is the from..to form and is built FROM storeDayRange, so a route using either is
+  // reading the same clock. analytics.ts uses storeRange now that it is shared rather than private.
+  const USES_STORE_RANGE = /storeDayRange\s*\(|storeRange\s*\(|sharedStoreRange/
   for (const rel of REPORTING) {
     const src = code(read(rel))
     if (GROUPS_BY_STORE_DAY.test(src) && HAS_TIMESTAMP_RANGE.test(src) && !USES_STORE_RANGE.test(src))
@@ -123,8 +125,20 @@ const read = (rel: string) => {
 // ── 6. the two routes that were fixed still route through their local helper ──────────────────────
 {
   const analytics = code(read(`${BACKEND}/routes/analytics.ts`))
-  if (!/const storeRange = \(tz: string/.test(analytics))
-    fail('analytics.ts must keep its storeRange helper — five endpoints share it, and the defect was five copies of the same bad range')
+  // storeRange was private to analytics.ts, and that was the problem: it was the only correct
+  // from..to range in the product, so twelve other route files built the bound by hand and every
+  // one of them cut the day in UTC. It now lives in utils/isoTime.ts. The rule the original check
+  // was protecting — ONE range helper, shared by every endpoint that reports by day — is stronger
+  // for the move, so what is pinned is that there is exactly one definition and analytics uses it.
+  const iso2 = code(read(`${BACKEND}/utils/isoTime.ts`))
+  if (!/export function storeRange\(/.test(iso2))
+    fail('utils/isoTime.ts must export storeRange — it is the single definition of a from..to reporting window')
+  if (!/start: storeDayRange\(tz, from\)\.start, end: storeDayRange\(tz, to\)\.end/.test(iso2))
+    fail('…and storeRange must be built from storeDayRange, so the from..to window and a single day agree')
+  if (/const storeRange = \(tz: string/.test(analytics))
+    fail('analytics.ts must not define its own storeRange again — that private copy is why twelve other files hand-rolled the bound')
+  if (!/storeRange\b/.test(analytics))
+    fail('analytics.ts must use the shared storeRange — five endpoints report by day and share one window')
   // Every endpoint must use it; counting is how a newly-added sixth endpoint gets caught. The
   // definition reads `const storeRange = (tz` and so is not itself a call site.
   const endpoints = (analytics.match(/^app\.get\(/gm) || []).length

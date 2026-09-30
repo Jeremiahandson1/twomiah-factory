@@ -173,7 +173,11 @@ if (!/COUNT\(CASE WHEN status IN \$\{settledSale\} THEN 1 END\)::int as complete
   ] as Array<[string, string]>) {
     const src = read(R + file)
     if (!/AT TIME ZONE 'UTC' AT TIME ZONE \$\{(tzDay|dayTz|tz)\}/.test(src)) fail(`${what} (${file}) must bucket by the STORE's day, not UTC`)
-    if (!/storeTimeZone\(/.test(src)) fail(`…${file} must resolve that zone through the one resolver`)
+    // Either resolver counts: storeTimeZone when the route already holds the company row, zoneFor
+    // when it only holds the id. Both live in utils/isoTime.ts and zoneFor answers through
+    // storeTimeZone, so "the one resolver" is satisfied by either — what is refused is a route
+    // deciding the zone for itself.
+    if (!/storeTimeZone\(|\bzoneFor\(/.test(src)) fail(`…${file} must resolve that zone through the one resolver`)
   }
   // the specific shapes that cut a day at UTC midnight
   if (/\bo\.completed_at::date\b/.test(read(R + 'routes/compliance.ts'))) fail('compliance still has a bare completed_at::date — that is a UTC day')

@@ -10,7 +10,9 @@
 //
 // The values are already UTC; only the marker is missing. Stamping the Z is not a conversion.
 
-import { sql } from 'drizzle-orm'
+import { sql, eq } from 'drizzle-orm'
+import { db } from '../../db/index.ts'
+import { company } from '../../db/schema.ts'
 
 // "2026-09-19 06:14:42.188302" or "2026-09-19T06:14:42" — no Z, no ±hh:mm offset.
 const NAIVE_TIMESTAMP = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(\.\d{1,6})?$/
@@ -138,4 +140,56 @@ export function storeDayRange(tz: string, on?: Date | string): { start: Date; en
   const next = new Date(`${date}T00:00:00.000Z`); next.setUTCDate(next.getUTCDate() + 1)
   const end = storeDayStart(next.toISOString().slice(0, 10), tz)
   return { start, end, date }
+}
+
+/**
+ * The store's zone for one company — its configured timezone, else its state, else UTC.
+ *
+ * Every route that needed this wrote the same two-line company lookup itself: analytics had
+ * `tzFor`, end-of-day inlined it, the sales report used raw SQL for it, compliance had its own.
+ * Four copies of one question is how a fifth route ends up not asking it at all.
+ */
+export async function zoneFor(companyId: string): Promise<string> {
+  const [row] = await db.select({ settings: company.settings, state: company.state })
+    .from(company).where(eq(company.id, companyId)).limit(1)
+  return storeTimeZone(row)
+}
+
+/**
+ * The half-open UTC range [start, end) covering the STORE's days from `startDate` through
+ * `endDate` INCLUSIVE, for the `?startDate=&endDate=` pair that reports take.
+ *
+ * This is the shape almost every date-filtered query in this product wants, and until now the only
+ * correct implementation of it lived privately inside routes/analytics.ts. Everywhere else built
+ * the bound by hand, and every hand-built version cut the day in UTC:
+ *
+ *     AND o.created_at >= ${startDate}::date                      -- UTC midnight
+ *     AND o.created_at <  (${endDate}::date + INTERVAL '1 day')   -- UTC midnight
+ *     AND DATE(o.created_at) = ${reportDate}::date                -- UTC day, and unindexable
+ *     AND DATE(created_at) = CURRENT_DATE                         -- UTC today
+ *
+ * For an Ohio shop that is 8pm to midnight filed under tomorrow — the last four hours of trade,
+ * every single day. Central loses two, Mountain three, Pacific four. It moves money between
+ * reporting periods, which is worse than moving a bar on a chart.
+ *
+ * Two properties worth keeping in mind when using it:
+ *   · HALF-OPEN. `>= start AND < end`, never `<= end` — an inclusive end drops whatever lands in
+ *     the final millisecond of the day, which T27 H2 was.
+ *   · The COLUMN IS NOT CAST. `created_at >= $1` keeps the index; `DATE(created_at) = $1` throws
+ *     it away and makes every daily report a full scan.
+ */
+export function storeRange(
+  tz: string,
+  startDate?: string | null,
+  endDate?: string | null,
+  backDays = 30,
+): { start: Date; end: Date; from: string; to: string } {
+  const from = startDate || storeDateString(new Date(Date.now() - backDays * 86400000), tz)
+  const to = endDate || storeDateString(new Date(), tz)
+  return { start: storeDayRange(tz, from).start, end: storeDayRange(tz, to).end, from, to }
+}
+
+/** What the store's wall clock calls today. The only correct answer to "today" in this product. */
+export function storeToday(tz: string): string {
+  return storeDateString(new Date(), tz)
 }

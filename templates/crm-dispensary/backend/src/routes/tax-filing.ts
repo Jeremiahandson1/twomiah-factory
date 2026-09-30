@@ -7,6 +7,7 @@ import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { settledSale, taxCollected, taxNetExprBare, exciseNetExprBare, salesNetExprBare } from '../utils/revenue.ts'
 import { medicalExciseExempt } from '../utils/tax.ts'
+import { storeDayRange, zoneFor } from '../utils/isoTime.ts'
 
 const app = new Hono()
 // Manager and up. Every route in this file is the shop's position with the state — what it owes,
@@ -126,9 +127,23 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
   // and a single-day filing counted nothing at all. A period named by two dates means the whole of
   // both days, which is what the start bound already assumes. Only a bare date is extended; a caller
   // that sends a timestamp means that instant. (Dispensary T31, found proving L4)
-  const periodEndBound = /^\d{4}-\d{2}-\d{2}$/.test(String(endStr))
-    ? new Date(periodEnd.getTime() + 86_400_000 - 1)
-    : periodEnd
+  //
+  // …and WHOSE day. `new Date('2026-09-30')` is UTC midnight, so both bounds were UTC: the period
+  // ran from 8pm on the 29th to 7:59:59pm on the 30th for an Ohio shop. Every sale rung up after
+  // 8pm local fell into the NEXT filing period, and the period before it lent this one an evening
+  // that belonged to the month before. On a sales-tax return that is money declared in the wrong
+  // period, in both directions, every single day — the worst version of this bug in the product,
+  // and the reason the whole family was finally swept rather than patched here.
+  //
+  // A bare date now means the STORE's day, half-open, via the same helper the rest of the product
+  // uses. A caller that sends a full timestamp still means that exact instant.
+  const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+  const tz = await zoneFor(currentUser.companyId)
+  const rangeStart = DATE_ONLY.test(String(startStr)) ? storeDayRange(tz, String(startStr)).start : periodStart
+  // Half-open: `< end`, so the final millisecond of the last day cannot be dropped.
+  const rangeEnd = DATE_ONLY.test(String(endStr))
+    ? storeDayRange(tz, String(endStr)).end
+    : new Date(periodEnd.getTime() + 1)
   // The filing screen has no state box, so `state` arrived undefined and every filing was stamped
   // "NA" — on a return whose whole purpose is to name the state it is filed with, for a shop whose
   // record says OH. Fall back to the company's own state. (T45 H16)
@@ -178,8 +193,8 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
     FROM orders
     WHERE company_id = ${currentUser.companyId}
       AND status IN ${settledSale}
-      AND completed_at >= ${periodStart}
-      AND completed_at <= ${periodEndBound}
+      AND completed_at >= ${rangeStart}
+      AND completed_at < ${rangeEnd}
   `)
   const orderStats = ((ordersResult as any).rows || ordersResult)?.[0] || {}
 
@@ -194,8 +209,8 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
     JOIN orders o ON o.id = oi.order_id
     WHERE o.company_id = ${currentUser.companyId}
       AND o.status = 'completed'
-      AND o.completed_at >= ${periodStart}
-      AND o.completed_at <= ${periodEndBound}
+      AND o.completed_at >= ${rangeStart}
+      AND o.completed_at < ${rangeEnd}
     GROUP BY oi.category
     ORDER BY category_revenue DESC
   `)
@@ -243,8 +258,8 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
       LEFT JOIN order_items oi ON oi.order_id = o.id
       WHERE o.company_id = ${currentUser.companyId}
         AND o.status IN ${taxCollected}
-        AND o.completed_at >= ${periodStart}
-        AND o.completed_at <= ${periodEndBound}
+        AND o.completed_at >= ${rangeStart}
+        AND o.completed_at < ${rangeEnd}
       GROUP BY o.id, o.discount_amount, o.loyalty_discount, o.is_medical
     ), apportioned AS (
       SELECT
@@ -348,8 +363,8 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
         LEFT JOIN order_items oi ON oi.order_id = o.id
         WHERE o.company_id = ${currentUser.companyId}
           AND o.status IN ${taxCollected}
-          AND o.completed_at >= ${periodStart}
-          AND o.completed_at <= ${periodEndBound}
+          AND o.completed_at >= ${rangeStart}
+          AND o.completed_at < ${rangeEnd}
         GROUP BY o.id, o.number, o.completed_at, o.excise_tax, o.refunded_excise_tax,
                  o.discount_amount, o.loyalty_discount, o.is_medical
       ), based AS (

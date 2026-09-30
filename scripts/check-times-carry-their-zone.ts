@@ -47,9 +47,16 @@ const an = read(B + 'routes/analytics.ts')
 if (/EXTRACT\(HOUR FROM created_at\)/.test(codeOnly(an))) fail('Peak Hours must not bucket on UTC — that charts a 7pm rush in the small hours of the next day')
 if (!/EXTRACT\(HOUR FROM \(created_at AT TIME ZONE 'UTC' AT TIME ZONE \$\{tz\}\)\)::int as hour/.test(an)) fail('…it must label the stored time UTC and convert it to the store zone')
 // The lookup moved into a local `tzFor` helper when all five analytics endpoints came to need it
-// (T27 H2). The rule is that analytics takes its zone from the SHARED definition rather than a
-// private guess — so pin the delegation, which is the part that actually carries the rule.
-if (!/const tzFor = async \(companyId: string\): Promise<string> => \{[\s\S]{0,300}?return storeTimeZone\(row\)/.test(an)) fail('…using the shared store-zone rule')
+// (T27 H2), and then out of this file entirely: the company→zone query was written four times over
+// (here, eod.ts, reports.ts, compliance.ts) and a fifth route simply never asked, so it is now
+// `zoneFor` in utils/isoTime.ts. The rule is unchanged and is what is pinned — analytics takes its
+// zone from the SHARED definition rather than a private guess. What is no longer pinned is WHERE
+// that definition lives, because that was never the point.
+if (!/export async function zoneFor\(companyId: string\): Promise<string>/.test(iso)) fail('the company→zone lookup needs one home')
+if (!/return storeTimeZone\(row\)/.test(iso)) fail('…and it must answer through the store-zone rule, not its own guess')
+if (!/\bzoneFor\b/.test(an)) fail('…and analytics must take its zone from it')
+// …and must not go back to asking the question itself.
+if (/from\(company\)[\s\S]{0,120}?storeTimeZone/.test(codeOnly(an))) fail('analytics must not re-implement the company→zone lookup — call zoneFor')
 // Scoped to the peak-hours handler: /summary carries the same line, so an unscoped match would go on
 // passing while peak-hours itself was switched to a hardcoded zone.
 {
@@ -57,7 +64,8 @@ if (!/const tzFor = async \(companyId: string\): Promise<string> => \{[\s\S]{0,3
   const rest = an.slice(from + 1)
   const peakHours = from < 0 ? '' : an.slice(from, from + 1 + (rest.indexOf('\napp.get(') + 1 || rest.length))
   if (!peakHours) fail('the peak-hours endpoint is missing')
-  else if (!/const tz = await tzFor\(currentUser\.companyId\)/.test(peakHours)) fail('…and peak-hours must resolve its zone through it')
+  // `tzFor` was the local alias; the shared resolver it delegated to is now called directly.
+  else if (!/const tz = await zoneFor\(currentUser\.companyId\)/.test(peakHours)) fail('…and peak-hours must resolve its zone through it')
 }
 if (!/timeZone: tz/.test(an)) fail('…and the response must name the clock it used')
 

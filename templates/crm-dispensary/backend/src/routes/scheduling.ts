@@ -5,7 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole, requireOwnership } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
-import { storeTimeZone, storeDateString } from '../utils/isoTime.ts'
+import { storeTimeZone, storeDateString, storeDay, storeDayRange, zoneFor } from '../utils/isoTime.ts'
 import { zodRefusal } from '../utils/errors.ts'
 
 const app = new Hono()
@@ -660,14 +660,26 @@ app.get('/time-entries', async (c) => {
   // time_entries has no `date` or boolean `approved` column; the work date is derived
   // from clock_in and approval is represented by approved_at being set. (schema.ts is truth)
   if (userId) userFilter = sql`AND te.user_id = ${userId}`
-  if (startDate) startFilter = sql`AND te.clock_in::date >= ${startDate}::date`
-  if (endDate) endFilter = sql`AND te.clock_in::date <= ${endDate}::date`
+
+  // WHICH DAY a shift was worked.
+  //
+  // clock_in is a naive UTC timestamp, so `te.clock_in::date` is the UTC day. An evening shift
+  // clocked in at 9pm in Ohio is stored 01:00Z and was filed under TOMORROW — so asking for one
+  // day's time entries missed the evening shift, and the payroll screen for a week ending Friday
+  // dropped Friday night's hours and gained the previous Sunday's. That is wages.
+  //
+  // Half-open range on the raw column: the store's day, and the index still applies. The same
+  // helper the sales report, end-of-day and the analytics series use. (T24 N1, and this route
+  // never adopted it)
+  const tz = await zoneFor(currentUser.companyId)
+  if (startDate) startFilter = sql`AND te.clock_in >= ${storeDayRange(tz, startDate).start}`
+  if (endDate) endFilter = sql`AND te.clock_in < ${storeDayRange(tz, endDate).end}`
   if (approved !== undefined) approvedFilter = approved === 'true' ? sql`AND te.approved_at IS NOT NULL` : sql`AND te.approved_at IS NULL`
 
   const dataResult = await db.execute(sql`
     SELECT te.*,
            u.first_name || ' ' || u.last_name as employee_name,
-           te.clock_in::date as date,
+           ${storeDay(sql`te.clock_in`, tz)} as date,
            ROUND(COALESCE(te.total_minutes, 0) / 60.0, 2) as hours,
            (te.approved_at IS NOT NULL) as approved
     FROM time_entries te
