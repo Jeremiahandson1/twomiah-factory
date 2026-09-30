@@ -107,8 +107,14 @@ const rowsOf = (r: any) => (r.json?.data || []) as any[]
   // Asserted on the limit the server REPORTS, not on the row count. This fixture holds 143
   // appointments and the cap is 500, so "did it return at most 500 rows" is true whether the cap
   // exists or not — the first version of this line passed with the cap deleted.
+  //
+  // In the deployed app an over-cap limit never reaches this handler: index.ts carries an
+  // app-wide pagination validator that refuses it with 400 invalid_pagination, which is the
+  // stronger form of the rule. The harness mounts routes directly and not index.ts, so what this
+  // asserts is the handler's own clamp — the second line of defence, and the only one the sandbox
+  // can see.
   const silly = await api('/api/appointments?limit=99999')
-  check('…but not an unbounded one — the cap holds at 500', silly.json?.pagination?.limit === 500, silly.json?.pagination)
+  check('…but not an unbounded one — the handler clamps to 500', silly.json?.pagination?.limit === 500, silly.json?.pagination)
   const zero = await api('/api/appointments?limit=0&page=0')
   check('nonsense paging does not divide by zero or return everything',
     zero.status === 200 && rowsOf(zero).length >= 1 && rowsOf(zero).length <= 500, { status: zero.status, n: rowsOf(zero).length })
