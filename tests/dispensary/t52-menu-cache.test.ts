@@ -118,15 +118,41 @@ const menu = async () => {
   check('…and the menu is now empty rather than stale', Number(hidden.json?.totalProducts) === 0, hidden.json?.totalProducts)
 }
 {
-  // A brand-new product is an INSERT: updated_at cannot have moved backwards, so the row COUNT is
-  // what catches it. Same for a delete.
   const fresh = await mkProduct('Late Arrival')
   const withNew = await menu()
   check('a product added after the cache was filled appears at once', withNew.names.includes('Late Arrival'), withNew.names)
 
+  // A DELETE has to be caught by the row COUNT, and only the delete of a row that is NOT the newest
+  // proves it. Deleting the most recently touched product also moves MAX(updated_at) — backwards,
+  // but still a change — so that case stays green with the counts taken out of the stamp entirely.
+  // A mutation run said exactly that: dropping the product count left the whole suite passing.
+  // So age this row first, take a menu on the settled state, and only then delete it.
+  await rows(sql`UPDATE products SET updated_at = NOW() - interval '1 hour' WHERE id = ${fresh.id}`)
+  const aged = await menu()
+  check('…and is still listed once it is no longer the most recently touched row', aged.names.includes('Late Arrival'), aged.names)
+
   await rows(sql`DELETE FROM products WHERE id = ${fresh.id}`)
   const withoutNew = await menu()
-  check('…and a deleted one disappears at once', !withoutNew.names.includes('Late Arrival'), withoutNew.names)
+  check('…and deleting it — with MAX(updated_at) unmoved — still takes it off at once; the COUNT is what sees that',
+    !withoutNew.names.includes('Late Arrival'), withoutNew.names)
+}
+{
+  // The same hole on the batches side. Removing a batch row from under a product is not a recall,
+  // and it moves no product's updated_at at all.
+  const other = await mkProduct('Second Shelf')
+  await rows(sql`
+    INSERT INTO batches (id, batch_number, product_id, initial_quantity, current_quantity, status, company_id, created_at, updated_at)
+    VALUES (gen_random_uuid(), 'N8-C', ${other.id}, 10, 10, 'recalled', ${co.id}, NOW(), NOW())
+  `)
+  const recalledOff = await menu()
+  check('a product recalled through a brand-new batch row is off the menu at once', !recalledOff.names.includes('Second Shelf'), recalledOff.names)
+
+  await rows(sql`UPDATE batches SET updated_at = NOW() - interval '1 hour' WHERE batch_number = 'N8-C' AND company_id = ${co.id}`)
+  await menu()
+  await rows(sql`DELETE FROM batches WHERE batch_number = 'N8-C' AND company_id = ${co.id}`)
+  const backOn = await menu()
+  check('…and deleting that batch — again with MAX(updated_at) unmoved — puts the product back at once',
+    backOn.names.includes('Second Shelf'), backOn.names)
 }
 
 // ══════════ the cache is still a cache ══════════════════════════════════════════════════════════
