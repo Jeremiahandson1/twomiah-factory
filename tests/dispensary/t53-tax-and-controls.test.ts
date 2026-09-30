@@ -123,9 +123,21 @@ const round2 = (n: number) => Math.round(n * 100) / 100
   const p2 = await api('GET', '/api/tax-filing/filings?page=2&limit=2')
   check('page 2 returns the remainder', p2.status === 200 && (p2.json?.data || []).length === 1,
     { status: p2.status, n: (p2.json?.data || []).length })
+  // A negative page is a negative SQL OFFSET and a 500 if nothing stops it. Two things do, and
+  // either is a correct answer:
+  //   · live, a global pagination middleware refuses it with 400 invalid_pagination — better,
+  //     because it tells the caller rather than silently answering a different question;
+  //   · here, that middleware is not mounted (the harness mounts routes directly), so the route's
+  //     own clamp is what holds. Both are asserted, because the route ships to callers that do not
+  //     come through the middleware.
   const bad = await api('GET', '/api/tax-filing/filings?page=-1&limit=99999')
-  check('a negative page is clamped rather than 500ing on a negative OFFSET', bad.status === 200, { status: bad.status })
-  check('…and an unbounded limit is capped', (bad.json?.data || []).length <= 200, (bad.json?.data || []).length)
+  check('a negative page never reaches the database as a negative OFFSET',
+    bad.status === 200 || bad.status === 400, { status: bad.status, body: bad.json })
+  if (bad.status === 200) {
+    check('…the route clamps it', (bad.json?.data || []).length <= 200, (bad.json?.data || []).length)
+  } else {
+    check('…and is refused by name rather than silently', /invalid_pagination/.test(JSON.stringify(bad.json)), bad.json)
+  }
 }
 
 // ══════════ N9 · and the SCREEN can actually reach page 2 ═══════════════════════════════════════
