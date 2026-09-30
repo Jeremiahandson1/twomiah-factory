@@ -1,8 +1,9 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { timeEntry, user, expense } from '../../db/schema.ts'
-import { eq, and, gte, lte, desc, sql } from 'drizzle-orm'
+import { eq, and, gte, lte, lt, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { companyTimeZone, storeDayRange } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -13,6 +14,10 @@ app.get('/summary', async (c) => {
   const startDate = c.req.query('startDate')
   const endDate = c.req.query('endDate')
   if (!startDate || !endDate) return c.json({ error: 'startDate and endDate required' }, 400)
+
+  // The shop's own days, from the shared definition every vertical uses.
+  const payTz = await companyTimeZone(db, currentUser.companyId)
+  const payPeriod = { start: storeDayRange(payTz, startDate).start, end: storeDayRange(payTz, endDate).end }
 
   // `user` in this schema has first_name and last_name and NO `name` column, so `user.name` was
   // undefined and drizzle threw building the select — both handlers in this file answered 500
@@ -28,8 +33,14 @@ app.get('/summary', async (c) => {
     .leftJoin(user, eq(timeEntry.userId, user.id))
     .where(and(
       eq(timeEntry.companyId, currentUser.companyId),
-      gte(timeEntry.date, new Date(startDate)),
-      lte(timeEntry.date, new Date(endDate)),
+      // Whole SHOP days, half-open. This used to be
+      //     gte(timeEntry.date, new Date(startDate)), lte(timeEntry.date, new Date(endDate))
+      // and timeEntry.date is a timestamp while startDate/endDate are 'YYYY-MM-DD'. So the start
+      // cut at UTC midnight — an evening shift was paid on the next day — and the END cut there
+      // too, which excluded almost the whole of the last day of every pay period: a week ending
+      // Friday counted only the instant Friday began. Same defect the dispensary carried.
+      gte(timeEntry.date, payPeriod.start),
+      lt(timeEntry.date, payPeriod.end),
     ))
 
   // Group by user
