@@ -73,6 +73,24 @@ const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
   const [after] = await rows(sql`SELECT approved FROM time_entry WHERE id = ${id}`)
   check('…and the entry is still unapproved', after?.approved === false, after)
 
+  // THE THIRD DOOR. PUT /:id {approved:true} approves an entry just as POST /:id/approve does, and
+  // a mutation run found this hole: disabling the check in the PUT handler left the whole suite
+  // green, because every assertion above goes through the other route. Three doors onto one rule and
+  // the test only knocked on two — which is the exact shape of finding this file exists to close.
+  const viaPut = await asMgr('PUT', `/api/time/${id}`, { approved: true })
+  check('…and approving it through PUT {approved:true} is refused as well',
+    viaPut.status === 403 && String(viaPut.json?.code) === 'self_approval', { status: viaPut.status, body: viaPut.json })
+
+  const [afterPut] = await rows(sql`SELECT approved FROM time_entry WHERE id = ${id}`)
+  check('…leaving it unapproved', afterPut?.approved === false, afterPut)
+
+  // …and the same door works normally for somebody else's entry, so the rule is not just "PUT is broken".
+  const theirs = await asStaff('POST', '/api/time', { hours: 1.5, date: yesterday, description: 'RR4 put probe' })
+  const theirId = (theirs.json?.data || theirs.json)?.id
+  const putOther = await asMgr('PUT', `/api/time/${theirId}`, { approved: true })
+  check('…while PUT {approved:true} on a stylist\'s entry still works', putOther.status === 200
+    && (putOther.json?.data || putOther.json)?.approved === true, { status: putOther.status, body: putOther.json })
+
   // …by another manager, which is the whole point of the rule, and by the owner.
   const byPeer = await asMgr2('POST', `/api/time/${id}/approve`)
   check('a DIFFERENT manager can approve it', byPeer.status === 200, { status: byPeer.status, body: byPeer.json })
