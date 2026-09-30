@@ -164,6 +164,38 @@ const rows = async (q: any) => { const r: any = await db.execute(q); return (r.r
   const body = await unsub.text()
   check('unsub: the unsubscribe link answers', unsub.status === 200 && /unsubscribed/i.test(body), unsub.status)
 
+  // ── a link whose CONTACT has since been deleted ─────────────────────────────────────────────
+  //
+  // The recipient row outlives the contact, so every email already in that person's inbox carries a
+  // link pointing at a record that is gone. Proved on a live send: the reader got a bare
+  // "<h1>Error</h1>" page returned with HTTP 200. A 200 on a failure is a lie to every cache and
+  // crawler in between, and "Error" tells someone who wants to be left alone that something broke,
+  // with nothing they can do — when the truth is the reassuring part: there is no record left to
+  // send to.
+  {
+    // The real shape: a recipient row and a link that still AGREE on the contact id, and the
+    // contact row itself deleted underneath them. (Passing a different id would be a mismatch —
+    // a different case entirely, answered differently, and asserted below.)
+    const [victim] = await db.insert(contact).values({
+      type: 'client', name: 'T46 Deleted Reader', email: 'deleted-reader@test.local', companyId: co.id,
+    } as any).returning()
+    const [ghost] = await rows(sql`
+      INSERT INTO marketing_recipients (id, company_id, campaign_id, contact_id, channel, address, status, created_at)
+      VALUES (gen_random_uuid(), ${co.id}, ${created.json?.id}, ${victim.id}, 'email', 'deleted-reader@test.local', 'sent', NOW())
+      RETURNING id
+    `)
+    await rows(sql`DELETE FROM contact WHERE id = ${victim.id}`)
+
+    const gone = await app.request(`/api/marketing/unsubscribe/${ghost.id}/${victim.id}`)
+    const goneBody = await gone.text()
+    check('unsub: a link whose contact is gone does NOT answer 200 — it used to', gone.status !== 200, gone.status)
+    check('unsub: …it answers 410, because the thing it pointed at is gone', gone.status === 410, gone.status)
+    check('unsub: …and tells the reader no more email is coming, rather than "Error"',
+      /will not receive any more email/i.test(goneBody) && !/<h1>Error<\/h1>/.test(goneBody), goneBody.slice(0, 220))
+    check('unsub: …on a page that is legible on a phone with no stylesheet to fetch',
+      /viewport/.test(goneBody) && /<!doctype html>/i.test(goneBody), goneBody.slice(0, 120))
+  }
+
   const [c] = await rows(sql`SELECT custom_fields FROM contact WHERE id = ${notOpted.id}`)
   const fields = typeof c?.custom_fields === 'string' ? JSON.parse(c.custom_fields) : (c?.custom_fields || {})
   check('unsub: …and the customer is ACTUALLY opted out — it used to do nothing at all', fields.emailOptOut === true, fields)
@@ -179,7 +211,12 @@ const rows = async (q: any) => { const r: any = await db.execute(q); return (r.r
   // A link naming a different customer than the message went to cannot unsubscribe them.
   const forged = await app.request(`/api/marketing/unsubscribe/${rec.id}/${emailOnly.id}`)
   const forgedBody = await forged.text()
-  check('unsub: a link that does not match its message is refused', /Error|could not/i.test(forgedBody), forgedBody.slice(0, 80))
+  check('unsub: a link that does not match its message is refused', /could not be used/i.test(forgedBody), forgedBody.slice(0, 120))
+  check('unsub: …with a 400, not a 200', forged.status === 400, forged.status)
+  // It must NOT say "you will not receive any more email": that customer is still subscribed, so it
+  // would be false — and it would tell whoever forged the link that the forgery worked.
+  check('unsub: …and does not claim the other customer was unsubscribed',
+    !/will not receive any more email/i.test(forgedBody), forgedBody.slice(0, 160))
   const [safe] = await rows(sql`SELECT custom_fields FROM contact WHERE id = ${emailOnly.id}`)
   const safeFields = typeof safe?.custom_fields === 'string' ? JSON.parse(safe.custom_fields) : (safe?.custom_fields || {})
   check('unsub: …and that customer is untouched', safeFields.emailOptOut !== true, safeFields)

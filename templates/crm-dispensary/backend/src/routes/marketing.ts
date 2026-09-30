@@ -6,6 +6,23 @@ import marketing from '../services/marketing.ts'
 
 const app = new Hono()
 
+/**
+ * The page a reader lands on after following an unsubscribe link from their inbox.
+ *
+ * It is the only page in this product a member of the public sees, it is reached from a mail client
+ * with no session and no stylesheet, and it was a bare `<h1>Error</h1>` on a white page. Someone who
+ * has just asked to be left alone deserves a plain sentence telling them it worked. Self-contained
+ * on purpose: no bundle, no fonts, nothing to fetch.
+ */
+const page = (heading: string, body: string) => `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${heading}</title></head>
+<body style="margin:0;background:#f8fafc;color:#0f172a;font:16px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+<div style="max-width:32rem;margin:15vh auto;padding:2rem;background:#fff;border:1px solid #e2e8f0;border-radius:12px">
+<h1 style="margin:0 0 .75rem;font-size:1.35rem">${heading}</h1>
+<p style="margin:0;color:#475569">${body}</p>
+</div></body></html>`
+
 // ============================================
 // TRACKING (No auth - called by email pixels/links)
 // Must be BEFORE authenticate middleware
@@ -40,9 +57,33 @@ app.get('/unsubscribe/:recipientId/:contactId', async (c) => {
   const contactId = c.req.param('contactId')
   try {
     await marketing.handleUnsubscribe(recipientId, contactId)
-    return c.html('<html><body><h1>You have been unsubscribed</h1><p>You will no longer receive marketing emails from us.</p></body></html>')
-  } catch (error) {
-    return c.html('<html><body><h1>Error</h1><p>Could not process unsubscribe request.</p></body></html>')
+    return c.html(page('You have been unsubscribed', 'You will no longer receive marketing emails from us.'))
+  } catch (error: any) {
+    // TWO different failures, and they must not be given the same page.
+    //
+    // 1. The link's CONTACT has been deleted. The recipient row outlives it, so every email already
+    //    in that person's inbox points at a record that is gone. Proved on a live send: the reader
+    //    got a bare "<h1>Error</h1>" returned with HTTP 200. A 200 on a failure is a lie to every
+    //    cache and crawler in between, and "Error" tells someone who wants to be left alone that
+    //    something broke, with nothing to do about it — when the truth is the reassuring part:
+    //    there is no record left to send to, so nothing more is coming. 410, because the thing the
+    //    link pointed at is genuinely gone.
+    //
+    // 2. The link NAMES A DIFFERENT CUSTOMER than the message went to. Someone is trying to
+    //    unsubscribe a person who never asked. Telling them "you will not receive any more email"
+    //    would be false — that customer is still subscribed — and it would tell whoever forged it
+    //    that the forgery worked. It gets a refusal that reveals nothing about the other record.
+    const mismatch = /does not match/i.test(String(error?.message || ''))
+    if (mismatch) {
+      return c.html(page(
+        'This link could not be used',
+        'It does not match the message it came from, so nothing has been changed. If you want to stop receiving email from us, please use the unsubscribe link in your own copy.',
+      ), 400)
+    }
+    return c.html(page(
+      'You will not receive any more email',
+      'This link is no longer active, which means we no longer hold a record to send to. Nothing further will be sent to you.',
+    ), 410)
   }
 })
 
