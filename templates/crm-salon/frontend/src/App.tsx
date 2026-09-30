@@ -31,6 +31,8 @@ import QuotesPage from './pages/QuotesPage';
 import InvoicesPage from './pages/InvoicesPage';
 import SchedulePage from './pages/SchedulePage';
 import TeamPage from './pages/TeamPage';
+import ExpensesPage from './pages/ExpensesPage';
+import TimePage from './pages/TimePage';
 import SettingsPage from './pages/SettingsPage';
 import PaywallPage from './pages/PaywallPage';
 import DocumentsPage from './pages/DocumentsPage';
@@ -135,6 +137,8 @@ function App() {
                     <Route path="schedule" element={<SchedulePage />} />
                     <Route path="documents" element={<DocumentsPage />} />
                     <Route path="team" element={<TeamPage />} />
+                    <Route path="expenses" element={<ExpensesPage />} />
+                    <Route path="time" element={<TimePage />} />
                     <Route path="settings" element={<SettingsPage />} />
                     <Route path="contact-support" element={<ContactSupportPage />} />
                     <Route path="paywall" element={<PaywallPage />} />

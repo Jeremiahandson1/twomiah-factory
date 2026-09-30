@@ -289,6 +289,80 @@ export default function EODReportPage() {
                 </div>
               </div>
 
+              {/* Money the day has not accounted for, and product the day has not handed over.
+                  Both figures have been on the End of Day response since T47/T48 and neither was
+                  on the report a manager actually closes the day with — "a day that balances
+                  perfectly while three sales sit unsettled has not balanced" was the reason for
+                  building them, and it needs a screen to be true. (T49 M1) */}
+              {((report.unsettledSales || 0) > 0 || (report.awaitingCollection || 0) > 0) && (
+                <div>
+                  <h4 className="font-semibold flex items-center gap-2 mb-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-600" />Still outstanding at close
+                  </h4>
+                  <div className="bg-white border rounded-lg p-5 space-y-5 dark:bg-slate-900 dark:border-slate-700">
+                    {(report.unsettledSales || 0) > 0 && (
+                      <div>
+                        <div className="flex items-baseline justify-between gap-4">
+                          <div>
+                            <div className="text-sm text-gray-500 dark:text-slate-400">Sold, not paid for</div>
+                            <div className="text-xs text-gray-500 dark:text-slate-400">
+                              Handed over and still owed — usually a cash sale rung up with no drawer open.
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xl font-bold text-red-600 dark:text-red-400">
+                              ${Number(report.unsettledTotal || 0).toFixed(2)}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-slate-400">
+                              {report.unsettledSales} {Number(report.unsettledSales) === 1 ? 'sale' : 'sales'}
+                            </div>
+                          </div>
+                        </div>
+                        {Array.isArray(report.unsettledOrders) && report.unsettledOrders.length > 0 && (
+                          <ul className="mt-2 flex flex-wrap gap-2">
+                            {report.unsettledOrders.map((o: any, i: number) => (
+                              <li key={o.id || o.number || i} className="rounded-md bg-red-50 px-2 py-1 text-xs text-red-800 dark:bg-red-900/30 dark:text-red-200">
+                                {o.number || o.id}{o.total != null ? ` · $${Number(o.total).toFixed(2)}` : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+
+                    {(report.awaitingCollection || 0) > 0 && (
+                      <div className={((report.unsettledSales || 0) > 0 ? 'border-t pt-5 dark:border-slate-700' : '')}>
+                        <div className="flex items-baseline justify-between gap-4">
+                          <div>
+                            <div className="text-sm text-gray-500 dark:text-slate-400">Waiting to be collected</div>
+                            <div className="text-xs text-gray-500 dark:text-slate-400">
+                              Ordered and not picked up. Deliberately NOT counted as missing money — it is product, not a shortfall.
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xl font-bold text-amber-600 dark:text-amber-400">
+                              ${Number(report.awaitingCollectionTotal || 0).toFixed(2)}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-slate-400">
+                              {report.awaitingCollection} {Number(report.awaitingCollection) === 1 ? 'order' : 'orders'}
+                            </div>
+                          </div>
+                        </div>
+                        {Array.isArray(report.awaitingCollectionOrders) && report.awaitingCollectionOrders.length > 0 && (
+                          <ul className="mt-2 flex flex-wrap gap-2">
+                            {report.awaitingCollectionOrders.map((o: any, i: number) => (
+                              <li key={o.id || o.number || i} className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+                                {o.number || o.id}{o.total != null ? ` · $${Number(o.total).toFixed(2)}` : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Inventory */}
               <div>
                 <h4 className="font-semibold flex items-center gap-2 mb-3"><Package className="w-5 h-5 text-blue-600" />Inventory</h4>

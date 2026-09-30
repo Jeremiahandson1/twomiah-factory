@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { timeEntry, user, expense } from '../../db/schema.ts'
-import { eq, and, gte, lte, lt, desc, sql } from 'drizzle-orm'
+import { timeEntry, user } from '../../db/schema.ts'
+import { eq, and, gte, lt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { companyTimeZone, storeDayRange } from '../shared/index.ts'
 
@@ -68,44 +68,13 @@ app.get('/summary', async (c) => {
   return c.json({ payPeriodStart: startDate, payPeriodEnd: endDate, users: Object.values(byUser) })
 })
 
-// GET expenses
+// Expenses are NOT here.
 //
-// This route answered 500 on every call it has ever received, and nothing noticed because it has
-// no screen. It was written against a DIFFERENT template's expense table: the salon's `expense`
-// has no `user_id` and no `status` column, so
-//     .leftJoin(user, eq(expense.userId, user.id))
-// built `eq(undefined, ...)` and Postgres answered "syntax error at or near =", on the plain
-// unfiltered call, every time. `eq(expense.status as any, status)` was the same mistake with a
-// cast hiding it — and the `as any` is exactly why the compiler never said so.
+// This file used to carry a read-only GET /expenses that had answered 500 on every call it ever
+// received — it was written against a different template's expense table (no user_id, no status
+// column here) — and there was no way to create, edit or approve one, and no screen at all.
 //
-// A salon expense is not attached to a person in this schema, so there is no name to report; it
-// is approved or not. Filtering on `approved` is the column that exists. There is no contract to
-// break here because there was never a successful response.
-app.get('/expenses', async (c) => {
-  const currentUser = c.get('user') as any
-  const approved = c.req.query('approved')
-
-  const conditions = [eq(expense.companyId, currentUser.companyId)]
-  if (approved === 'true' || approved === 'false') conditions.push(eq(expense.approved, approved === 'true'))
-
-  // Bounded: expenses only accumulate, so a list with no LIMIT answers with every one a salon has
-  // ever filed.
-  const page = Math.max(1, Number(c.req.query('page') || '1') || 1)
-  const limit = Math.min(500, Math.max(1, Number(c.req.query('limit') || '100') || 100))
-
-  const rows = await db.select()
-    .from(expense)
-    .where(and(...conditions))
-    .orderBy(desc(expense.createdAt))
-    .limit(limit)
-    .offset((page - 1) * limit)
-
-  const [{ total }] = await db.select({ total: sql<number>`COUNT(*)::int` })
-    .from(expense).where(and(...conditions)) as any
-  return c.json({
-    data: rows,
-    pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) },
-  })
-})
-
+// The real implementation is the shared expenses module, mounted at /api/expenses, with the
+// shared Expenses screen. Two endpoints over one table is how the hourly-rate defect happened in
+// this very file: two places held the rate and the export read the empty one. (T46 N24)
 export default app

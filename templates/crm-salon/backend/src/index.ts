@@ -57,6 +57,8 @@ import migrationRoutes from './routes/migration.ts'
 import mapsRoutes from './routes/maps.ts'
 import marketingRoutes from './routes/marketing.ts'
 import payrollRoutes from './routes/payroll.ts'
+import expensesRoutes from './routes/expenses.ts'
+import timeRoutes from './routes/time.ts'
 import photosRoutes from './routes/photos.ts'
 import portalRoutes from './routes/portal.ts'
 // portal-selections and portal-messages are handled inline in portal.ts under /p/:token/
@@ -316,6 +318,8 @@ app.route('/api/migration', migrationRoutes)
 app.route('/api/maps', mapsRoutes)
 app.route('/api/marketing', marketingRoutes)
 app.route('/api/payroll', payrollRoutes)
+app.route('/api/expenses', expensesRoutes)
+app.route('/api/time', timeRoutes)
 app.route('/api/photos', photosRoutes)
 app.route('/api/portal', portalRoutes)
 try { app.route('/api/financing', (await import('./routes/financing.ts')).default) } catch {}

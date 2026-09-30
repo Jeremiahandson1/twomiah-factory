@@ -1,7 +1,7 @@
 // This vertical's sidebar + URL gates for the shared app shell (see ./shared). Items without `features`
 // are core; items with `features` show when ANY listed feature is enabled. routeGates cover routes
 // that exist without a sidebar entry, so a module the tenant doesn't have is not reachable by URL.
-import { BarChart3, BellRing, BookOpen, Bot, Calendar, CalendarCheck, CheckSquare, ClipboardCheck, ClipboardList, CreditCard, DollarSign, ExternalLink, FileQuestion, FileText, FolderKanban, FolderOpen, Gift, Home, Inbox, LifeBuoy, ListTodo, Mail, Megaphone, MessageSquare, Phone, Receipt, Repeat, Scissors, ShieldCheck, Star, Target, Truck, Users, Warehouse, Wrench } from 'lucide-react';
+import { BarChart3, BellRing, BookOpen, Bot, Calendar, CalendarCheck, CheckSquare, ClipboardCheck, ClipboardList, Clock, CreditCard, DollarSign, ExternalLink, FileQuestion, FileText, FolderKanban, FolderOpen, Gift, Home, Inbox, LifeBuoy, ListTodo, Mail, Megaphone, MessageSquare, Phone, Receipt, Repeat, Scissors, ShieldCheck, Star, Target, Truck, Users, Warehouse, Wrench } from 'lucide-react';
 import type { NavItem, ShellConfig } from './shared';
 
 const NAV: NavItem[] = [
@@ -16,6 +16,14 @@ const NAV: NavItem[] = [
   { to: '/crm/invoices', icon: Receipt, label: 'Invoices', features: ['invoices'], permission: 'invoices:read' },
   { to: '/crm/documents', icon: FolderOpen, label: 'Documents', features: ['documents'] },
   { to: '/crm/team', icon: Users, label: 'Team', permission: 'team:read' },
+  // The salon had the expense TABLE and no way to reach it — no create, no screen, and a read
+  // endpoint that answered 500 on every call. Gated on the permission the API itself requires, so
+  // a role that would be refused does not see the link. (rule 3)
+  { to: '/crm/expenses', icon: DollarSign, label: 'Expenses', permission: 'expenses:read' },
+  // …and the hours. /api/payroll/summary has always reported on time_entry, and nothing in the
+  // product could write one — no clock-in, no entry form, no screen — so the report was of an
+  // empty table and a salon could not pay anybody from it. (rule 3)
+  { to: '/crm/time', icon: Clock, label: 'Time', permission: 'time:read' },
   { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['google_reviews'], minRole: 'manager' },
   { to: '/crm/bookings', icon: CalendarCheck, label: 'Online Booking', features: ['online_booking'] },
   // The Marketing page is email marketing (campaigns, templates, drips); Reviews has its own item above. (T15 M5)

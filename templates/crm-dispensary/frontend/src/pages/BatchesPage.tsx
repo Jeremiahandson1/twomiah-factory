@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { formatDate } from '../utils/date';
-import { Layers, Plus, Search, AlertTriangle, ArrowLeft, Shield, Trash2, Clock, FlaskConical, ChevronDown } from 'lucide-react';
+import { Layers, Plus, Search, AlertTriangle, ArrowLeft, Shield, ShieldCheck, Trash2, Clock, FlaskConical, ChevronDown } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -67,6 +67,11 @@ export default function BatchesPage() {
   const [actionConfirmOpen, setActionConfirmOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ batchId: string; action: string; label: string } | null>(null);
   const [performingAction, setPerformingAction] = useState(false);
+
+  // Lifting a recall — its own modal, because it takes a written reason rather than a yes/no.
+  const [liftFor, setLiftFor] = useState<any>(null);
+  const [liftReason, setLiftReason] = useState('');
+  const [lifting, setLifting] = useState(false);
 
   useEffect(() => {
     loadBatches();
@@ -215,6 +220,28 @@ export default function BatchesPage() {
     setActionConfirmOpen(true);
   };
 
+  // Lifting a recall. The server requires a reason and records it against the batch — a recall is
+  // usually the supplier's or the state's decision, so "someone clicked Activate" is not an answer
+  // a regulator accepts. (T49 M1)
+  const doLiftRecall = async () => {
+    const reason = liftReason.trim();
+    if (!reason) { toast.error('Say why the recall is being lifted'); return; }
+    setLifting(true);
+    try {
+      await api.post(`/api/batches/${liftFor.id}/activate`, { reason });
+      toast.success(`Recall lifted on ${liftFor.batchNumber || 'the batch'}`);
+      setLiftFor(null);
+      setLiftReason('');
+      loadBatches();
+      loadExpiringBatches();
+      if (viewingBatch?.id === liftFor.id) viewBatchDetail(viewingBatch);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to lift the recall');
+    } finally {
+      setLifting(false);
+    }
+  };
+
   const executeAction = async () => {
     if (!pendingAction) return;
     setPerformingAction(true);
@@ -355,7 +382,17 @@ export default function BatchesPage() {
                         </Button>
                       </>
                     )}
-                    {(detail.status === 'depleted' || detail.status === 'expired' || detail.status === 'recalled') && (
+                    {/* A recall is the one status this page could set and never clear.
+                        The server has accepted a lift — with a reason, recorded against the batch —
+                        since T48 Q6, and this page said "No actions available", so a recall that
+                        the supplier withdrew or the state closed could only be cleared by someone
+                        with API access. (T49 M1) */}
+                    {detail.status === 'recalled' && (
+                      <Button variant="secondary" size="sm" onClick={() => { setLiftFor(detail); setLiftReason(''); }}>
+                        <ShieldCheck className="w-4 h-4 mr-1 inline" /> Lift recall…
+                      </Button>
+                    )}
+                    {(detail.status === 'depleted' || detail.status === 'expired') && (
                       <p className="text-sm text-gray-500 dark:text-slate-400">No actions available for {detail.status} batches.</p>
                     )}
                   </div>
@@ -797,6 +834,34 @@ export default function BatchesPage() {
         message={`Are you sure you want to ${pendingAction?.label.toLowerCase()} this batch?`}
         confirmText={pendingAction?.label || 'Confirm'}
       />
+
+      {/* Lift a recall — a written reason, recorded against the batch. (T49 M1) */}
+      <Modal isOpen={!!liftFor} onClose={() => setLiftFor(null)} title={`Lift the recall on ${liftFor?.batchNumber || 'this batch'}`}>
+        <div className="space-y-3">
+          <p className="flex gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-900/30 dark:text-amber-100">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>This puts the lot back on sale. A recall is usually the supplier's or the state's decision, so the reason is recorded against the batch and in the audit log.</span>
+          </p>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-slate-200">Why is the recall being lifted?</label>
+            <textarea
+              value={liftReason}
+              onChange={(e) => setLiftReason(e.target.value)}
+              rows={3}
+              maxLength={500}
+              autoFocus
+              placeholder="The supplier withdrew it, the affected lots were destroyed, the state closed it…"
+              className="w-full rounded-lg border px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            />
+          </div>
+        </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <button onClick={() => setLiftFor(null)} className="rounded-lg px-4 py-2 font-medium text-gray-700 hover:bg-gray-100 dark:text-slate-200">Cancel</button>
+          <Button onClick={doLiftRecall} disabled={lifting || !liftReason.trim()}>
+            {lifting ? 'Lifting…' : 'Lift recall'}
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

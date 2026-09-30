@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Truck, MapPin, Clock, CheckCircle, User, Phone, Package, RefreshCw, Plus } from 'lucide-react';
+import { Truck, MapPin, Clock, CheckCircle, User, Phone, Package, RefreshCw, Plus, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -275,6 +275,17 @@ export default function DeliveryPage() {
                   <p>Delivery fee: ${Number(zone.deliveryFee || 0).toFixed(2)}</p>
                   <p>Min order: ${Number(zone.minimumOrder || 0).toFixed(2)}</p>
                 </div>
+                {/* Zones that were already overlapping when the rule arrived are still overlapping.
+                    The server has reported this on every zone since T48 Q13 and nothing displayed
+                    it, so the shop's checkout quoted whichever fee the matcher reached first and
+                    nobody could see why. Which zone keeps a postcode is the shop's decision and
+                    worth real money, so this says what clashes and leaves the choice to them. (T49 M1) */}
+                {zone.overlapWarning && (
+                  <p className="mt-3 flex gap-2 rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-900/30 dark:text-amber-100">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{zone.overlapWarning}</span>
+                  </p>
+                )}
               </div>
             ))}
             {zones.length === 0 && !loading && (

@@ -117,5 +117,50 @@ const last = rowsOf(lastDay).find((u: any) => u?.user?.id === stylist.id)
 check('…and a period that is only the closing day is not empty', Number(last?.totalHours) === 6,
   { totalHours: last?.totalHours, want: 6 })
 
+// ══════════ …and the hours can actually be RECORDED ═════════════════════════════════════════════
+//
+// The point of the report above is that somebody gets paid, and until now nothing in the salon
+// could write a time entry: no clock-in, no entry form, no screen. /api/payroll/summary was a
+// report on a table that was always empty. The shared time module — mounted by crm, crm-basic,
+// crm-fieldservice and crm-landscaping for a long time — is now mounted here too, so the entries
+// the summary reads have a way to exist. (rule 3: a server feature an owner is meant to use has a
+// screen)
+{
+  const timeApi = new Hono()
+  timeApi.route('/api/time', (await import('./src/routes/time.ts')).default)
+  timeApi.route('/api/payroll', (await import('./src/routes/payroll.ts')).default)
+  timeApi.onError((await import('./src/utils/errors.ts')).errorHandler)
+  const call = async (method: string, path: string, body?: unknown) => {
+    const res = await timeApi.request(path, {
+      method,
+      headers: { 'content-type': 'application/json', 'x-test-user': owner.id },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+    const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+    return { status: res.status, json: j }
+  }
+
+  const listed = await call('GET', '/api/time')
+  check('the time module answers at all — there was no /api/time on this vertical', listed.status === 200, { status: listed.status, body: listed.json })
+
+  // An evening hour in Ohio: 2026-09-11 21:00 local is 2026-09-12T01:00Z — a day that has happened,
+  // which the module rightly insists on, and well clear of the pay period asserted above.
+  const made = await call('POST', '/api/time', {
+    userId: stylist.id, date: '2026-09-12T01:00:00.000Z', hours: 2, description: 'Late colour correction',
+  })
+  check('an hour can be RECORDED — nothing in this product could write one before',
+    made.status === 200 || made.status === 201, { status: made.status, body: made.json })
+
+  const future = await call('POST', '/api/time', {
+    userId: stylist.id, date: '2027-01-01T12:00:00.000Z', hours: 2,
+  })
+  check('…and an hour cannot be logged for a day that has not happened', future.status === 400, future.status)
+
+  const after = await call('GET', '/api/payroll/summary?startDate=2026-09-11&endDate=2026-09-11')
+  const row = (after.json?.users || []).find((u: any) => u?.user?.id === stylist.id)
+  check('…and the payroll summary now reports it, so the report is of something real',
+    Number(row?.totalHours) === 2, { totalHours: row?.totalHours, want: 2 })
+}
+
 console.log(`\n  ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

@@ -9,6 +9,8 @@ export default function AnalyticsPage() {
   const { company } = useAuth();
   const [period, setPeriod] = useState('7d');
   const [metrics, setMetrics] = useState<any>(null);
+  // The order mix from /analytics/summary — sales, plus the orders still in the queue.
+  const [orderMix, setOrderMix] = useState<any>(null);
   const [revenueData, setRevenueData] = useState<any[]>([]);
   const [productMix, setProductMix] = useState<any[]>([]);
   const [peakHours, setPeakHours] = useState<any[]>([]);
@@ -54,6 +56,8 @@ export default function AnalyticsPage() {
 
       // Build metrics from summary response
       const orders = summaryRes?.orders || {};
+      // …and keep the mix, which carries the order queue alongside the sales figures.
+      setOrderMix(orders);
       setMetrics({
         totalRevenue: Number(orders.revenue || 0),
         // Use completed_orders (matches the completed-only revenue). `||` treated a
@@ -215,6 +219,35 @@ export default function AnalyticsPage() {
           )}
         </div>
       </div>
+
+      {/* The order queue, next to the sales figures rather than mixed into them.
+          The server added online_awaiting_count for exactly this, because "Online: 0" beside a list
+          of online orders reads as broken and had been filed twice (T46 N21). The figure shipped and
+          the panel did not, so it read as broken a third time. A sale is a sale; an order waiting to
+          be collected has not been sold yet, and is reported here as what it is. (T49 M1) */}
+      {(Number(orderMix?.online_awaiting_count ?? orderMix?.onlineAwaitingCount ?? 0) > 0
+        || Number(orderMix?.medical_count ?? 0) > 0) && (
+        <div className="rounded-lg bg-white p-5 shadow-sm dark:bg-slate-900">
+          <h2 className="mb-3 font-semibold text-gray-900 dark:text-slate-100">Of these orders</h2>
+          <div className="flex flex-wrap gap-6 text-sm">
+            {Number(orderMix?.online_awaiting_count ?? orderMix?.onlineAwaitingCount ?? 0) > 0 && (
+              <div>
+                <p className="text-2xl font-bold tabular-nums text-gray-900 dark:text-slate-100">
+                  {Number(orderMix?.online_awaiting_count ?? orderMix?.onlineAwaitingCount ?? 0)}
+                </p>
+                <p className="text-gray-500 dark:text-slate-400">online, waiting to be collected</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Not counted in the sales above — they have not been sold yet.</p>
+              </div>
+            )}
+            {Number(orderMix?.medical_count ?? 0) > 0 && (
+              <div>
+                <p className="text-2xl font-bold tabular-nums text-gray-900 dark:text-slate-100">{Number(orderMix.medical_count)}</p>
+                <p className="text-gray-500 dark:text-slate-400">medical sales</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Revenue Chart */}

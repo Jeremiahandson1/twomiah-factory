@@ -46,9 +46,19 @@ for (let i = 0; i < N; i++) {
 const app = new Hono()
 app.route('/api/memberships', (await import('./src/routes/memberships.ts')).default)
 app.route('/api/payroll', (await import('./src/routes/payroll.ts')).default)
+app.route('/api/expenses', (await import('./src/routes/expenses.ts')).default)
 app.onError((await import('./src/utils/errors.ts')).errorHandler)
 const api = async (path: string) => {
   const res = await app.request(path, { headers: { 'x-test-user': owner.id } })
+  const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+  return { status: res.status, json: j }
+}
+const apiPost = async (path: string, body: unknown) => {
+  const res = await app.request(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-test-user': owner.id },
+    body: JSON.stringify(body),
+  })
   const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
   return { status: res.status, json: j }
 }
@@ -81,57 +91,71 @@ const rowsOf = (r: any) => (r.json?.data || []) as any[]
   check('status still narrows', rowsOf(cancelled).length === 0 && cancelled.json?.pagination?.total === 0, cancelled.json?.pagination)
 }
 
-// ══════════ payroll /expenses ═══════════════════════════════════════════════════════════════════
+// ══════════ expenses ════════════════════════════════════════════════════════════════════════════
 //
-// This route answered 500 on EVERY call it had ever received, and nothing noticed because it has no
-// screen and no caller anywhere in the template. It was written against a different template's
-// expense table: the salon's has no user_id and no status column, so the unconditional
+// There used to be a GET /api/payroll/expenses here, and it answered 500 on EVERY call it had ever
+// received: written against a different template's expense table, so the unconditional
 // `leftJoin(user, eq(expense.userId, user.id))` built `eq(undefined, ...)` and Postgres answered
-// "syntax error at or near =". The `as any` on the status filter is why the compiler stayed quiet.
+// "syntax error at or near =". The `as any` on its status filter is why the compiler stayed quiet.
 //
-// So the first thing pinned here is simply that it answers at all.
+// It is GONE. The salon now mounts the shared expenses module at /api/expenses — the one crm,
+// crm-basic, crm-fieldservice and crm-landscaping have had for a long time — with create, edit,
+// approve, reimburse and the shared Expenses screen. Keeping the old read-only route beside it
+// would be two implementations over one table, which is exactly how the hourly-rate defect in that
+// same file happened (T46 N24). So these assertions moved to the real endpoint.
 {
   const EXP = 118
   for (let i = 0; i < EXP; i++) {
     await db.insert(expense).values({
-      companyId: co.id, category: i % 2 ? 'Colour stock' : 'Retail stock', amount: '25.00',
+      companyId: co.id, category: i % 2 ? 'stock' : 'retail', amount: '25.00',
       vendor: 'Wella', description: `Order ${i}`, approved: i < 40,
+      date: new Date(2026, 5, 1 + (i % 28)),
     } as any)
   }
 
-  const r = await api('/api/payroll/expenses')
-  check('expenses answer 200 at all — they used to answer 500 every time', r.status === 200, { status: r.status, body: r.json })
-  check('…in the { data, pagination } shape the rest of the template uses',
-    Array.isArray(r.json?.data) && !!r.json?.pagination, Object.keys(r.json || {}))
-  check(`…bounded to one page, not all ${EXP}`, rowsOf(r).length === 100, rowsOf(r).length)
+  const r = await api('/api/expenses')
+  check('expenses answer 200 at all — the old route answered 500 every time', r.status === 200, { status: r.status, body: r.json })
+  check('…in the { data, pagination } shape', Array.isArray(r.json?.data) && !!r.json?.pagination, Object.keys(r.json || {}))
+  check(`…bounded to one page of 50, not all ${EXP}`, rowsOf(r).length === 50, rowsOf(r).length)
   check('…and the total is reported', r.json?.pagination?.total === EXP, r.json?.pagination)
   check('…and the rows are real expenses', typeof rowsOf(r)[0]?.amount !== 'undefined' && !!rowsOf(r)[0]?.category, rowsOf(r)[0])
 
-  const p2 = await api('/api/payroll/expenses?page=2')
-  check('page 2 is the remainder', rowsOf(p2).length === EXP - 100, rowsOf(p2).length)
-  const silly = await api('/api/payroll/expenses?limit=99999')
-  check('…and a cap that holds at 500', silly.json?.pagination?.limit === 500, silly.json?.pagination)
+  const p3 = await api('/api/expenses?page=3')
+  check('page 3 is the remainder', rowsOf(p3).length === EXP - 100, rowsOf(p3).length)
+  const silly = await api('/api/expenses?limit=99999')
+  check('…and the cap holds at 200', silly.json?.pagination?.limit === 200, silly.json?.pagination)
 
-  // `approved` is the column this table actually has; `status` never existed here.
-  const yes = await api('/api/payroll/expenses?approved=true&limit=500')
-  check('approved=true narrows to the approved ones', rowsOf(yes).length === 40 && yes.json?.pagination?.total === 40, yes.json?.pagination)
-  check('…and every row really is approved', rowsOf(yes).every((e) => e.approved === true), true)
-  const no = await api('/api/payroll/expenses?approved=false&limit=500')
-  check('approved=false narrows to the rest', rowsOf(no).length === EXP - 40, rowsOf(no).length)
-  const junk = await api('/api/payroll/expenses?approved=banana&limit=500')
-  check('an unusable value for it is ignored rather than turned into broken SQL',
-    junk.status === 200 && rowsOf(junk).length === EXP, { status: junk.status, n: rowsOf(junk).length })
+  // The salon's own vocabulary, not the contractor default — and the same list that refuses an
+  // unknown category on the way IN refuses it as a filter, rather than answering with an empty sheet.
+  const stock = await api('/api/expenses?category=stock&limit=200')
+  check('category=stock narrows to the salon\'s own category', rowsOf(stock).length === EXP / 2, rowsOf(stock).length)
+  check('…and every row really is that category', rowsOf(stock).every((e) => e.category === 'stock'), true)
+  const bogus = await api('/api/expenses?category=labor&limit=200')
+  check('a contractor category is refused rather than silently answering nothing',
+    bogus.status === 400, { status: bogus.status, body: bogus.json })
 
   // One salon cannot read another's expenses.
   const [other] = await db.insert(company).values({
     name: 'Other Bounds', slug: 'otherbounds', email: 'ob@test.local', enabledFeatures: [],
   } as any).returning()
   await db.insert(expense).values({
-    companyId: other.id, category: 'Theirs', amount: '999.00', approved: true,
+    companyId: other.id, category: 'stock', amount: '999.00', approved: true, date: new Date(2026, 5, 2),
   } as any)
-  const mine = await api('/api/payroll/expenses?limit=500')
+  const mine = await api('/api/expenses?limit=200')
   check("another salon's expense is not in the list", rowsOf(mine).every((e) => e.companyId === co.id), true)
   check('…and the total does not count it', mine.json?.pagination?.total === EXP, mine.json?.pagination?.total)
+
+  // …and the capability the old route never had: recording one, and approving it.
+  const made = await apiPost('/api/expenses', { category: 'tools', amount: 48.5, vendor: 'Shears Co', description: 'Thinning shears' });
+  check('an expense can be RECORDED — there was no create at all before', made.status === 200 || made.status === 201, { status: made.status, body: made.json })
+  const newId = (made.json?.data || made.json)?.id
+  check('…and comes back with an id', !!newId, made.json)
+  if (newId) {
+    const approved = await apiPost(`/api/expenses/${newId}/approve`, {})
+    check('…and approved', approved.status === 200, { status: approved.status, body: approved.json })
+  }
+  const badCat = await apiPost('/api/expenses', { category: 'materials', amount: 10 });
+  check('a category outside the salon\'s list is refused on the way in', badCat.status === 400, badCat.status)
 }
 
 // ══════════ the ones deliberately left unbounded ════════════════════════════════════════════════
