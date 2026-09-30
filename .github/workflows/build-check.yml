@@ -1419,6 +1419,17 @@ jobs:
       - name: "A recall reaches every door a sale comes in through"
         run: bun run scripts/check-every-sale-path-checks-batches.ts
 
+  server-features-have-screens:
+    name: "server features have screens"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "A capability an owner is meant to use is reachable from a screen"
+        run: bun run scripts/check-server-features-have-screens.ts
+
   dashboard-panels-load:
     name: "dashboard panels load"
     runs-on: ubuntu-latest

@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import crypto from 'crypto'
+import { base32Encode, base32Decode, generateTOTPCode, verifyTOTP } from '../utils/totp.ts'
 import { db } from '../../db/index.ts'
 import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
@@ -23,73 +24,9 @@ const camel = (row: any): any => {
 // TOTP Helpers
 // ==========================================
 
-const BASE32_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
-
-function generateTOTPSecret(): string {
-  const bytes = crypto.randomBytes(20)
-  let result = ''
-  let bits = 0
-  let value = 0
-  for (const byte of bytes) {
-    value = (value << 8) | byte
-    bits += 8
-    while (bits >= 5) {
-      bits -= 5
-      result += BASE32_CHARS[(value >>> bits) & 0x1f]
-    }
-  }
-  if (bits > 0) {
-    result += BASE32_CHARS[(value << (5 - bits)) & 0x1f]
-  }
-  return result
-}
-
-function base32Decode(encoded: string): Buffer {
-  let bits = 0
-  let value = 0
-  const output: number[] = []
-  for (const char of encoded.toUpperCase()) {
-    const idx = BASE32_CHARS.indexOf(char)
-    if (idx === -1) continue
-    value = (value << 5) | idx
-    bits += 5
-    if (bits >= 8) {
-      bits -= 8
-      output.push((value >>> bits) & 0xff)
-    }
-  }
-  return Buffer.from(output)
-}
-
-function generateTOTPCode(secret: string, timeStep: number): string {
-  const key = base32Decode(secret)
-  const timeBuffer = Buffer.alloc(8)
-  timeBuffer.writeUInt32BE(0, 0)
-  timeBuffer.writeUInt32BE(timeStep, 4)
-
-  const hmac = crypto.createHmac('sha1', key)
-  hmac.update(timeBuffer)
-  const hash = hmac.digest()
-
-  const offset = hash[hash.length - 1] & 0x0f
-  const code =
-    ((hash[offset] & 0x7f) << 24) |
-    ((hash[offset + 1] & 0xff) << 16) |
-    ((hash[offset + 2] & 0xff) << 8) |
-    (hash[offset + 3] & 0xff)
-
-  return String(code % 1000000).padStart(6, '0')
-}
-
-function verifyTOTP(secret: string, code: string): boolean {
-  const now = Math.floor(Date.now() / 1000)
-  const timeStep = Math.floor(now / 30)
-  // Check current window ±1
-  for (let i = -1; i <= 1; i++) {
-    if (generateTOTPCode(secret, timeStep + i) === code) return true
-  }
-  return false
-}
+// TOTP and base32 live in utils/totp.ts. They were private to this file until sign-in had to
+// verify a code as well (T49 H4) — and two code verifiers that can disagree about whether a code
+// is valid is one verifier too many.
 
 // ==========================================
 // Zod Schemas

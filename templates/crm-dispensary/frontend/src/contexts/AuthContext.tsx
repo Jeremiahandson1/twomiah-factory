@@ -50,12 +50,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     try {
       const data = await api.login(email, password);
+      // Not signed in yet: the account has a second factor and the password was only the first
+      // half. Nothing about the session is set until a code is accepted. (T49 H4)
+      if (data?.mfaRequired) return data;
       setUser(data.user);
       setCompany(data.company);
       if (Array.isArray(data.permissions)) setPermissions(data.permissions);
       return data;
     } catch (err) {
       setError(err.message || 'Login failed');
+      throw err;
+    }
+  };
+
+  /** The second half of a sign-in: an authenticator code, or one of the recovery codes. (T49 H4) */
+  const completeMfa = async (challengeId, code) => {
+    setError(null);
+    try {
+      const data = await api.completeMfa(challengeId, code);
+      setUser(data.user);
+      setCompany(data.company);
+      if (Array.isArray(data.permissions)) setPermissions(data.permissions);
+      return data;
+    } catch (err) {
+      setError(err.message || 'That code was not accepted');
       throw err;
     }
   };
@@ -124,6 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       can,
       token: localStorage.getItem('accessToken'),
       login,
+      completeMfa,
       register,
       logout,
       checkAuth,

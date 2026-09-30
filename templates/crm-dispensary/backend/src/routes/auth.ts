@@ -12,6 +12,10 @@ import { storeTimeZone, storeDateString } from '../utils/isoTime.ts'
 import emailService from '../services/email.ts'
 import logger from '../services/logger.ts'
 import { passwordSchema } from '../shared/index.ts'
+import { sql } from 'drizzle-orm'  // for the security_events row the code step writes
+// Two-factor at sign-in. The gate answers "is there a factor to ask for", which is not the same
+// question as "is MFA configured" — see services/loginMfa.ts. (T49 H4)
+import { mfaGateFor, openLoginChallenge, verifyLoginChallenge } from '../services/loginMfa.ts'
 
 const app = new Hono()
 
@@ -103,16 +107,103 @@ app.post('/login', async (c) => {
   const [foundCompany] = await db.select().from(company).where(eq(company.id, foundUser.companyId)).limit(1)
   if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
 
-  const tokens = generateTokens(foundUser.id, foundUser.companyId, foundUser.email, foundUser.role)
-  await storeRefreshToken(foundUser.id, tokens.refreshToken, { lastLogin: new Date() })
+  // ── the password was right; is there a second factor to ask for? ─────────────────────────────
+  //
+  // T49 H4: there never was a question here. The product had enrolment screens, an authenticator
+  // secret, SMS codes, recovery codes and a "Require MFA for all users" switch, and this route
+  // handed out tokens for an email and a password every time. An owner who turned two-factor on
+  // believed the account holding the tax filings, the payroll rates and the compliance records was
+  // protected by it; it was protected by the password alone.
+  //
+  // mfaGateFor() asks whether a factor can actually be PRESENTED, not whether MFA is configured —
+  // see services/loginMfa.ts for why that distinction is the difference between a working shop and
+  // a locked-out one.
+  const gate = await mfaGateFor(db, foundUser.companyId, foundUser.id)
+  if (gate.required) {
+    const { challengeId, expiresAt } = await openLoginChallenge(db, foundUser.companyId, foundUser.id)
+    // No tokens. Nothing about the account beyond what is needed to finish signing in.
+    return c.json({
+      mfaRequired: true,
+      challengeId,
+      expiresAt,
+      methods: gate.methods,
+      recoveryCodesAvailable: gate.hasRecoveryCodes,
+      message: 'Enter the code from your authenticator app to finish signing in.',
+    }, 200)
+  }
 
+  // The tokens are minted inside signedInPayload, which both this step and the code step call —
+  // issuing them here as well would store two refresh tokens for one sign-in.
+
+  return c.json(await signedInPayload(foundUser, foundCompany, gate))
+})
+
+/**
+ * Finish a sign-in that stopped for a code.
+ *
+ * PUBLIC on purpose: the caller has no token yet — that is the whole point of being here. What
+ * stands in for authentication is the challenge id, which is single-use, expires in ten minutes,
+ * and was created only after a correct password. (T49 H4)
+ *
+ * Recovery codes are accepted here and burned on use. The brief asked for "an old code refused, a
+ * new code accepted once, the same code refused the second time" and there was nowhere to type one;
+ * this is that place.
+ */
+app.post('/mfa', async (c) => {
+  const schema = z.object({ challengeId: z.string().min(1), code: z.string().min(1) })
+  const parsed = schema.safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) {
+    return c.json({ error: 'Send the challenge id and the code from your authenticator or a recovery code.', code: 'code_required' }, 400)
+  }
+
+  const outcome = await verifyLoginChallenge(db, parsed.data.challengeId, parsed.data.code)
+  if (!outcome.ok) {
+    // 401 for a wrong code, 400 for a request that can no longer be completed — a screen shows the
+    // first in the code field and sends the reader back to the start for the second.
+    return c.json({ error: outcome.error, code: outcome.code }, outcome.code === 'bad_code' ? 401 : 400)
+  }
+
+  const [mfaUser] = await db.select().from(user).where(eq(user.id, outcome.userId)).limit(1)
+  if (!mfaUser || !mfaUser.isActive) return c.json({ error: 'Account is disabled' }, 401)
+  const [mfaCompany] = await db.select().from(company).where(eq(company.id, mfaUser.companyId)).limit(1)
+  if (!mfaCompany) return c.json({ error: 'Company not found' }, 404)
+
+  // A recovery code being spent is a security event: it means the authenticator was not to hand,
+  // and it is the thing an owner wants to see if it happens and they did not do it.
+  try {
+    await db.execute(sql`
+      INSERT INTO security_events (id, company_id, event_type, severity, description, user_id, ip_address, created_at)
+      VALUES (gen_random_uuid(), ${mfaUser.companyId},
+        ${outcome.usedRecoveryCode ? 'mfa_recovery_code_used' : 'mfa_login_verified'},
+        ${outcome.usedRecoveryCode ? 'warning' : 'info'},
+        ${outcome.usedRecoveryCode ? 'Signed in with a recovery code' : 'Signed in with two-factor'},
+        ${mfaUser.id}, ${c.req.header('x-forwarded-for') || 'unknown'}, NOW())
+    `)
+  } catch { /* never fail a sign-in for want of an event row */ }
+
+  const gate = await mfaGateFor(db, mfaUser.companyId, mfaUser.id)
+  return c.json({ ...(await signedInPayload(mfaUser, mfaCompany, gate)), usedRecoveryCode: outcome.usedRecoveryCode })
+})
+
+/**
+ * Everything a client needs on a successful sign-in — built in ONE place so the password step and
+ * the code step cannot answer with two different shapes. A second-step response that is subtly
+ * different from the first is how a login flow half-works.
+ */
+async function signedInPayload(foundUser: any, foundCompany: any, gate?: { enrolmentRequired: boolean }) {
   // Same list /me returns, so a screen can ask "may this person do X" from the moment they sign in
   // rather than rendering editable fields and a Save button that the API will refuse. (T42 L1-L3)
   const { getPermissions: getPerms, getExtraPermissions: getExtra } = await import('../middleware/permissions.ts')
   const permissions = await effectivePermissions(getPerms, getExtra, foundUser.id, foundUser.role)
+  const tokens = generateTokens(foundUser.id, foundUser.companyId, foundUser.email, foundUser.role)
+  await storeRefreshToken(foundUser.id, tokens.refreshToken, { lastLogin: new Date() })
 
-  return c.json({
+  return {
     permissions,
+    // The policy wants a second factor and this person has enrolled none. Reported so a screen can
+    // insist; it does NOT bar the door, because switching a policy on must not lock out the people
+    // it applies to before they have had a chance to enrol. (T49 H4)
+    ...(gate?.enrolmentRequired ? { mfaEnrolmentRequired: true } : {}),
     user: { id: foundUser.id, email: foundUser.email, firstName: foundUser.firstName, lastName: foundUser.lastName, role: foundUser.role, avatar: foundUser.avatar },
     company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, taxRate: (foundCompany as any).taxRate, localTaxRate: (foundCompany as any).localTaxRate, exciseTaxRate: (foundCompany as any).exciseTaxRate, purchaseLimitOz: (foundCompany as any).purchaseLimitOz, visionUrl: process.env.VISION_URL || null, vertical: 'dispensary',
       // The store's own clock, so no screen has to guess the shop's date from the viewer's laptop.
@@ -122,8 +213,8 @@ app.post('/login', async (c) => {
       timeZone: storeTimeZone(foundCompany),
       today: storeDateString(new Date(), storeTimeZone(foundCompany)) },
     ...tokens,
-  })
-})
+  }
+}
 
 // PIN Login (for POS quick-login — budtenders switch fast without full email/password)
 app.post('/pin-login', async (c) => {

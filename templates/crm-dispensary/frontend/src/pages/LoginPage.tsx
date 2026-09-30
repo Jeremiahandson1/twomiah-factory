@@ -4,10 +4,16 @@ import { useAuth } from '../contexts/AuthContext';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, error } = useAuth();
+  const { login, completeMfa, error } = useAuth();
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState('');
+
+  // The second step, when the account has two-factor on. Null until the password is accepted and
+  // the server asks for a code. (T49 H4 — there was no step here at all, so the recovery codes the
+  // product generates had nowhere to be typed.)
+  const [challenge, setChallenge] = useState(null);
+  const [code, setCode] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -15,10 +21,30 @@ export default function LoginPage() {
     setLocalError('');
 
     try {
-      await login(formData.email.toLowerCase().trim(), formData.password);
+      const result = await login(formData.email.toLowerCase().trim(), formData.password);
+      // The password was right and it is not enough. Ask for the code instead of going in.
+      if (result?.mfaRequired) { setChallenge(result); return; }
       navigate('/');
     } catch (err) {
       setLocalError(err.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCode = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setLocalError('');
+    try {
+      await completeMfa(challenge.challengeId, code.trim());
+      navigate('/');
+    } catch (err) {
+      // The code field keeps its place: a mistyped code should not send anyone back to the
+      // password, and a challenge that has genuinely expired says so and does.
+      setLocalError(err.message || 'That code was not accepted');
+      setCode('');
+      if (/expired|no longer valid/i.test(String(err.message || ''))) setChallenge(null);
     } finally {
       setLoading(false);
     }
@@ -39,6 +65,51 @@ export default function LoginPage() {
             </div>
           )}
 
+          {/* Two-factor: the code step. Shown only once the server has asked for one. (T49 H4) */}
+          {challenge ? (
+            <form onSubmit={handleCode} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
+                  {challenge.methods?.includes('totp') ? 'Authenticator code' : 'Verification code'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  inputMode="text"
+                  autoComplete="one-time-code"
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 tracking-widest dark:border-slate-700 dark:text-slate-100"
+                  placeholder="123456"
+                />
+                <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+                  {challenge.recoveryCodesAvailable
+                    ? 'Enter the 6-digit code from your authenticator app, or one of your recovery codes.'
+                    : 'Enter the 6-digit code from your authenticator app.'}
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-orange-600 text-white py-2 px-4 rounded-lg hover:bg-orange-700 disabled:opacity-50"
+              >
+                {loading ? 'Checking…' : 'Sign in'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setChallenge(null); setCode(''); setLocalError(''); }}
+                className="w-full text-sm text-gray-600 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-100"
+              >
+                Use a different account
+              </button>
+            </form>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Email</label>
@@ -77,12 +148,16 @@ export default function LoginPage() {
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
+          )}
 
+          {/* Nothing to forget yet at the code step — the password is already behind them. */}
+          {!challenge && (
           <div className="mt-6 text-center text-sm">
             <Link to="/forgot-password" className="text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 font-medium dark:text-slate-400">
               Forgot password?
             </Link>
           </div>
+          )}
         </div>
       </div>
     </div>

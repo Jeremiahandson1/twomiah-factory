@@ -160,6 +160,15 @@ class ApiClient {
 
   async login(email: string, password: string) {
     const result = await this.request('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+    // A sign-in that still needs a second factor comes back WITHOUT tokens. Storing undefined here
+    // would leave the client believing it was signed in. (T49 H4)
+    if (result?.accessToken) this.setTokens(result.accessToken, result.refreshToken);
+    return result;
+  }
+
+  /** Finish a sign-in that stopped for a code — an authenticator code or a recovery code. (T49 H4) */
+  async completeMfa(challengeId: string, code: string) {
+    const result = await this.request('/api/auth/mfa', { method: 'POST', body: JSON.stringify({ challengeId, code }) });
     this.setTokens(result.accessToken, result.refreshToken);
     return result;
   }
