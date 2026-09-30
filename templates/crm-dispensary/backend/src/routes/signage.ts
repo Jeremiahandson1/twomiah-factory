@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { withoutRecalled } from '../services/sellableStock.ts'
 
 const app = new Hono()
 
@@ -74,7 +75,8 @@ app.get('/screens/:id/content', async (c) => {
         WHERE company_id = ${companyId} AND active = true AND visible = true
         ORDER BY category ASC, menu_order ASC, name ASC
       `)
-      const products = (productsResult as any).rows || productsResult
+      // A menu board is a customer surface. (T51/T52 N2, swept)
+      const products = await withoutRecalled(db, companyId, (productsResult as any).rows || productsResult)
 
       // Group by category
       const categories: Record<string, any[]> = {}
@@ -343,12 +345,12 @@ app.get('/screens/:id/preview', async (c) => {
 
   if (type === 'menu_board' || type === 'product' || type === 'menu') {
     const productsResult = await db.execute(sql`
-      SELECT name, price FROM products
+      SELECT id, name, price FROM products
       WHERE company_id = ${currentUser.companyId} AND active = true AND visible = true
       ORDER BY category ASC, menu_order ASC, name ASC
       LIMIT 30
     `)
-    const items = ((productsResult as any).rows || productsResult).map((r: any) => ({ name: r.name, price: r.price }))
+    const items = (await withoutRecalled(db, currentUser.companyId, (productsResult as any).rows || productsResult)).map((r: any) => ({ name: r.name, price: r.price }))
     return c.json({ screenId: id, type, items })
   }
 
@@ -402,7 +404,7 @@ app.get('/screens/:id/menu-data', async (c) => {
     WHERE company_id = ${currentUser.companyId} AND active = true AND visible = true
     ORDER BY category ASC, menu_order ASC, name ASC
   `)
-  const products = (productsResult as any).rows || productsResult
+  const products = await withoutRecalled(db, currentUser.companyId, (productsResult as any).rows || productsResult)
 
   // Group by category with stock status
   const categoryOrder = ['flower', 'pre_roll', 'edible', 'concentrate', 'vape', 'tincture', 'topical', 'accessory', 'apparel', 'other']

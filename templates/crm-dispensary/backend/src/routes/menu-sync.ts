@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { zodRefusal } from '../utils/errors.ts'
+import { withoutRecalled } from '../services/sellableStock.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -134,7 +135,10 @@ async function performSync(config: any, currentUser: any, req: any) {
     WHERE company_id = ${currentUser.companyId} AND active = true
     ORDER BY category, name
   `)
-  const products = (productsResult as any).rows || productsResult
+  // Recalled stock must not be pushed to a marketplace. A recall clears every screen the shop
+  // owns; without this it stays listed on Weedmaps or Dutchie, where a customer can still order it,
+  // until the next sync. (T51/T52 N2, swept)
+  const products = await withoutRecalled(db, currentUser.companyId, (productsResult as any).rows || productsResult)
 
   const formatter = PLATFORM_FORMATTERS[config.platform]
   if (!formatter) {
@@ -555,7 +559,7 @@ app.get('/:platformId/preview', async (c) => {
     ORDER BY category, name
     LIMIT 200
   `)
-  const rows = (result as any).rows || result
+  const rows = await withoutRecalled(db, currentUser.companyId, (result as any).rows || result)
 
   const data = rows.map((r: any) => ({
     id: r.id,

@@ -141,3 +141,23 @@ export async function recalledProductIds(db: any, companyId: string, productIds:
   for (const r of ((rows as any).rows || rows)) blocked.add(r.product_id)
   return blocked
 }
+
+/**
+ * Drop recalled products from a list that is about to be shown to, or synced on behalf of, a CUSTOMER.
+ *
+ * The sale doors were swept in T49 B1. The OFFER surfaces were swept only where a hand-written list
+ * in guard #171 happened to name them, and a tester then found the AI Recs page suggesting recalled
+ * stock to 8 of 8 customers (T51/T52 N2). Inverting that guard — every route serving product rows
+ * must exclude recalled or be a named staff surface — turned up three more nobody had looked at:
+ * the public SEO product pages, the in-store signage menu boards, and the menu SYNC that pushes the
+ * catalogue to Weedmaps and Dutchie, where customers order from it.
+ *
+ * One helper so a fifth surface cannot invent its own answer. Staff screens do NOT use this: a
+ * recall is managed from the Products and Batches pages, which have to show recalled stock.
+ */
+export async function withoutRecalled<T>(db: any, companyId: string, rows: T[], idOf: (r: T) => any = (r: any) => r?.id): Promise<T[]> {
+  if (!Array.isArray(rows) || rows.length === 0) return rows
+  const recalled = await recalledProductIds(db, companyId, rows.map((r) => String(idOf(r) ?? '')).filter(Boolean))
+  if (!recalled.size) return rows
+  return rows.filter((r) => !recalled.has(String(idOf(r) ?? '')))
+}

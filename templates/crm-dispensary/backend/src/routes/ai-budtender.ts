@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { resolveSellableStock, refusalFor } from '../services/sellableStock.ts'
 import crypto from 'crypto'
 
 const app = new Hono()
@@ -1222,6 +1223,16 @@ app.post('/chat/:sessionToken/add-to-cart', requireRole('budtender'), async (c) 
   const product = ((productResult as any).rows || productResult)?.[0]
   if (!product) return c.json({ error: 'Product not found' }, 404)
   if (!product.in_stock) return c.json({ error: 'Product is out of stock' }, 400)
+
+  // The batch rule, at the basket. This door asked `active` and `in_stock` and never asked whether
+  // the LOT had been recalled, so the AI budtender would put a recalled product into a customer's
+  // cart — refused later at completion, which is the "offered then refused at the till" shape the
+  // whole B1 sweep exists to prevent. It was missed because guard #171 counted pools matching
+  // `FROM products p` and this one reads `FROM products`; a rule that depends on an alias is not a
+  // rule. (T49 B1, found chasing T51/T52 N2)
+  const cartStock = await resolveSellableStock(db, currentUser.companyId, [data.productId], new Map([[data.productId, product]]))
+  const cartRefusal = refusalFor(product, cartStock.blockedProducts.get(data.productId))
+  if (cartRefusal) return c.json(cartRefusal, 400)
 
   const unitPrice = product.sale_price && Number(product.sale_price) < Number(product.price)
     ? Number(product.sale_price)

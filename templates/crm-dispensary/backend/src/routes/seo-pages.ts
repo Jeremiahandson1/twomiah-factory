@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { withoutRecalled } from '../services/sellableStock.ts'
 
 const app = new Hono()
 
@@ -98,7 +99,8 @@ app.get('/product/:slug', async (c) => {
     ORDER BY RANDOM()
     LIMIT 6
   `)
-  const related = (relatedResult as any).rows || relatedResult
+  // A recalled lot must not be advertised on a public page. (T51/T52 N2, swept)
+  const related = await withoutRecalled(db, company.id, (relatedResult as any).rows || relatedResult)
 
   return c.json({
     product: {

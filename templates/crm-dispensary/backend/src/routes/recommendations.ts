@@ -6,8 +6,15 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { storeDayRange, zoneFor } from '../utils/isoTime.ts'
+import { withoutRecalled as dropRecalled } from '../services/sellableStock.ts'
 
 const app = new Hono()
+
+// The four product pools in this file — the popular fallback, the scored candidates, trending and
+// "similar to this" — all go through the SHARED dropRecalled (services/sellableStock.ts). This file
+// briefly had its own copy of that helper, which is the mistake in miniature: one definition of
+// "recalled", or a fifth surface invents a sixth answer. (T51/T52 N2)
+
 app.use('*', authenticate)
 
 // GET /for-customer/:contactId — AI-powered recommendations for a customer
@@ -58,7 +65,8 @@ app.get('/for-customer/:contactId', async (c) => {
       ORDER BY p.total_sold DESC NULLS LAST
       LIMIT 10
     `)
-    return c.json({ recommendations: (popularResult as any).rows || popularResult, source: 'popular' })
+    const popular = (popularResult as any).rows || popularResult
+    return c.json({ recommendations: await dropRecalled(db, currentUser.companyId, popular), source: 'popular' })
   }
 
   // 3. Find candidate products (same categories/strains, not already purchased)
@@ -84,7 +92,7 @@ app.get('/for-customer/:contactId', async (c) => {
       ${purchasedArray.length > 0 ? sql`AND p.id NOT IN (${sql.join(purchasedArray.map((v) => sql`${v}`), sql`, `)})` : sql``}
     LIMIT 100
   `)
-  const candidates = (candidatesResult as any).rows || candidatesResult
+  const candidates = await dropRecalled(db, currentUser.companyId, (candidatesResult as any).rows || candidatesResult)
 
   if (!candidates.length) {
     return c.json({ recommendations: [], source: 'none' })
@@ -210,7 +218,7 @@ app.get('/trending', async (c) => {
     for (const k of Object.keys(r)) out[k.includes('_') ? k.replace(/_([a-z])/g, (_m: string, ch: string) => ch.toUpperCase()) : k] = r[k]
     return { ...r, ...out }
   })
-  return c.json(rows)
+  return c.json(await dropRecalled(db, currentUser.companyId, rows))
 })
 
 // GET /similar/:productId — Products similar to a given product
@@ -254,7 +262,7 @@ app.get('/similar/:productId', async (c) => {
     LIMIT 10
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(await dropRecalled(db, currentUser.companyId, (result as any).rows || result))
 })
 
 // POST /track — Track recommendation interaction

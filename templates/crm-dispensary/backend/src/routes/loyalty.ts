@@ -228,15 +228,29 @@ app.put('/members/:id/consent', requireRole('budtender'), async (c) => {
   // customFields — so a customer who unsubscribed in March and asked to be put back on the list in
   // April showed a ticked Email box and received nothing, for ever. The newer decision is the
   // customer's current one, and the person standing in front of them is recording it.
+  //
+  // Read-modify-write in JS, exactly as handleUnsubscribe writes it. The first version of this did
+  // the same work in SQL with `- 'emailOptOut' || jsonb_build_object(...)`, and contact.custom_fields
+  // is a `json` column, not `jsonb` — those operators do not exist for `json`, so the statement threw
+  // and the whole request answered 500. The member UPDATE above had already committed, so the consent
+  // WAS saved while the screen showed an error and put the tick back; and because the throw happened
+  // before audit.log, an opt-in was the one consent change in the product that went unrecorded —
+  // which is the exact gap T49 H1 was written to close. (T51/T52 N1)
+  //
+  // The unsubscribe path has always used this shape. Matching it means one way of writing this field,
+  // and the type of the column stops being something each caller has to remember.
   if (data.optedInEmail === true) {
-    await db.execute(sql`
-      UPDATE contact
-      SET custom_fields = COALESCE(custom_fields, '{}'::jsonb)
-            - 'emailOptOut' - 'emailOptOutDate'
-          || jsonb_build_object('emailOptInAt', ${new Date().toISOString()}::text, 'emailOptInSource', ${data.source}::text),
-          updated_at = NOW()
-      WHERE id = ${member.contact_id} AND company_id = ${currentUser.companyId}
-    `)
+    const [row] = await db.select({ customFields: contact.customFields }).from(contact)
+      .where(and(eq(contact.id, member.contact_id), eq(contact.companyId, currentUser.companyId))).limit(1)
+    if (row) {
+      const customFields: any = { ...((row.customFields as any) || {}) }
+      delete customFields.emailOptOut
+      delete customFields.emailOptOutDate
+      customFields.emailOptInAt = new Date().toISOString()
+      customFields.emailOptInSource = data.source
+      await db.update(contact).set({ customFields, updatedAt: new Date() } as any)
+        .where(and(eq(contact.id, member.contact_id), eq(contact.companyId, currentUser.companyId)))
+    }
   }
 
   audit.log({
