@@ -1,12 +1,16 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { timeEntry, user } from '../../db/schema.ts'
+import { timeEntry, user, staffAccountEntry } from '../../db/schema.ts'
 import { eq, and, gte, lt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { companyTimeZone, storeDayRange } from '../shared/index.ts'
+import { companyTimeZone, storeDayRange, createStaffBalanceStore } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+// The same ledger the expense sheet writes to — read here, never written. A pay run reports what was
+// recovered; the decision to recover it was made on the Expenses screen. (Salon RR9)
+const staffBalance = createStaffBalanceStore(staffAccountEntry)
 
 // GET payroll summary for a pay period
 app.get('/summary', async (c) => {
@@ -60,12 +64,38 @@ app.get('/summary', async (c) => {
     byUser[id].entryCount++
   })
 
-  Object.values(byUser).forEach((u: any) => {
+  /**
+   * What came off pay in this period, and what is left to pay. (Salon RR9)
+   *
+   * A deduction recorded against someone's staff balance is money the shop is recovering from their
+   * pay — so the pay run is the one place it has to appear. Without this the balance went down and
+   * the figure the shop pays out stayed the same, which would mean recovering the money twice or
+   * not at all depending on which number somebody typed into their bank.
+   *
+   * `totalPay` stays exactly what it was — hours × rate, what was earned. `deductions` and `netPay`
+   * are new lines beside it, never a quiet adjustment of the first: a pay figure that has already
+   * had something taken off it without saying so is how disputes start.
+   */
+  const deductions = await staffBalance.deductionsBetween(db, currentUser.companyId, payPeriod.start, payPeriod.end)
+  Object.entries(byUser).forEach(([id, u]: [string, any]) => {
     u.totalHours = Number(u.totalHours.toFixed(2))
     u.totalPay = Number(u.totalPay.toFixed(2))
+    u.deductions = Number((deductions[id] || 0).toFixed(2))
+    u.netPay = Number((u.totalPay - u.deductions).toFixed(2))
+    // What they still owe after this period, so the shop can see whether to keep recovering.
+    u.stillOwed = 0
   })
+  for (const u of Object.values(byUser) as any[]) {
+    u.stillOwed = await staffBalance.owed(db, currentUser.companyId, u.user.id)
+  }
 
-  return c.json({ payPeriodStart: startDate, payPeriodEnd: endDate, users: Object.values(byUser) })
+  const totals = Object.values(byUser).reduce((acc: any, u: any) => ({
+    pay: Number((acc.pay + u.totalPay).toFixed(2)),
+    deductions: Number((acc.deductions + u.deductions).toFixed(2)),
+    net: Number((acc.net + u.netPay).toFixed(2)),
+  }), { pay: 0, deductions: 0, net: 0 })
+
+  return c.json({ payPeriodStart: startDate, payPeriodEnd: endDate, users: Object.values(byUser), totals })
 })
 
 // Expenses are NOT here.

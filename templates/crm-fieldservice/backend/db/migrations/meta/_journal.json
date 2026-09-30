@@ -155,6 +155,13 @@
       "when": 1791401000000,
       "tag": "0021_expense_repayment",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791401100000,
+      "tag": "0022_staff_account_entry",
+      "breakpoints": true
     }
   ]
 }

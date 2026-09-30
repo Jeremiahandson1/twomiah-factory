@@ -1,12 +1,17 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { timeEntry, user, expense } from '../../db/schema.ts'
+import { timeEntry, user, expense, staffAccountEntry } from '../../db/schema.ts'
 import { eq, and, gte, lte, lt, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { createStaffBalanceStore } from '../shared/index.ts'
 import { companyTimeZone, storeDayRange } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+// The same ledger the expense sheet writes to — read here, never written. A pay run reports what
+// was recovered; the decision to recover it was made on the Expenses screen. (Salon RR9)
+const staffBalance = createStaffBalanceStore(staffAccountEntry)
 
 // GET payroll summary for a pay period
 app.get('/summary', async (c) => {
@@ -60,7 +65,30 @@ app.get('/summary', async (c) => {
     u.totalPay = Number(u.totalPay.toFixed(2))
   })
 
-  return c.json({ payPeriodStart: startDate, payPeriodEnd: endDate, users: Object.values(byUser) })
+  /**
+   * What came off pay in this period, and what is left to pay. (Salon RR9)
+   *
+   * A deduction recorded against someone's staff balance is money the business is recovering from
+   * their pay, so the pay run is the one place it has to appear: otherwise the balance goes down and
+   * the figure somebody types into the bank stays the same, and the money is recovered twice or not
+   * at all depending on which number they trusted.
+   *
+   * `totalPay` stays exactly what it was — hours × rate, what was earned. `deductions` and
+   * `netPay` are new lines beside it, never a quiet adjustment of the first.
+   */
+  const deductions = await staffBalance.deductionsBetween(db, currentUser.companyId, new Date(startDate), new Date(`${endDate}T23:59:59.999Z`))
+  for (const [id, u] of Object.entries(byUser) as Array<[string, any]>) {
+    u.deductions = Number((deductions[id] || 0).toFixed(2))
+    u.netPay = Number((u.totalPay - u.deductions).toFixed(2))
+    u.stillOwed = await staffBalance.owed(db, currentUser.companyId, id)
+  }
+  const totals = Object.values(byUser).reduce((acc: any, u: any) => ({
+    pay: Number((acc.pay + u.totalPay).toFixed(2)),
+    deductions: Number((acc.deductions + u.deductions).toFixed(2)),
+    net: Number((acc.net + u.netPay).toFixed(2)),
+  }), { pay: 0, deductions: 0, net: 0 })
+
+  return c.json({ payPeriodStart: startDate, payPeriodEnd: endDate, users: Object.values(byUser), totals })
 })
 
 // GET expenses

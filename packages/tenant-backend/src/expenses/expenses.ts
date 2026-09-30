@@ -7,8 +7,23 @@ import { z } from 'zod'
 import { eq, and, gte, lte, count, desc, sql, inArray } from 'drizzle-orm'
 import { checkFilter } from '../listFilter'
 import { hasHappened } from '../dateInput'
+import { createStaffBalanceStore, SETTLE_ROUTES, payrollDeductionsAllowed, PAYROLL_DEDUCTION_SETTING, type SettleRoute } from '../team/staffBalance'
 
-export interface ExpenseTables { expense: any; project?: any; job?: any }
+export interface ExpenseTables {
+  expense: any
+  project?: any
+  job?: any
+  /**
+   * What staff owe the business, and the two tables that go with it. (Salon RR9)
+   *
+   * Optional so a template that has not wired them keeps working: the balance routes refuse with a
+   * sentence saying so rather than the module failing to mount. A 500 on a feature a vertical never
+   * asked for is worse than an honest "not available here".
+   */
+  staffAccountEntry?: any
+  user?: any
+  company?: any
+}
 export interface ExpenseDeps {
   db: any
   tables: ExpenseTables
@@ -111,6 +126,27 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
   // Rows written before the column exists have no submitter. They stay visible and editable by a
   // manager rather than becoming nobody's problem; the self-approval rule only bites where a
   // submitter is actually recorded.
+  // ── what staff owe (Salon RR9) ────────────────────────────────────────────────────────────────
+  //
+  // The ledger is the same implementation the client account balance uses, anchored on the user row
+  // instead of the contact row. A template that has not wired the table gets an honest refusal.
+  const NO_BALANCE_HERE = 'Staff balances are not set up in this product yet.'
+  const staffStore = () => (t.staffAccountEntry && t.user ? createStaffBalanceStore(t.staffAccountEntry) : null)
+  const companySettings = async (companyId: string) => {
+    if (!t.company) return {}
+    const [row] = await db.select({ settings: t.company.settings }).from(t.company).where(eq(t.company.id, companyId)).limit(1)
+    return (row?.settings as any) || {}
+  }
+  /** Names for the owed list, so a screen does not show a column of ids. */
+  const namesFor = async (companyId: string, ids: string[]) => {
+    const out: Record<string, string> = {}
+    if (!t.user || !ids.length) return out
+    const rows = await db.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName })
+      .from(t.user).where(and(eq(t.user.companyId, companyId), inArray(t.user.id, [...new Set(ids)])))
+    for (const r of rows as any[]) out[String(r.id)] = [r.firstName, r.lastName].filter(Boolean).join(' ') || ''
+    return out
+  }
+
   const OWN_APPROVAL_OK = new Set(['owner', 'admin'])
   const isMine = (u: any, row: any) => !!row?.submittedById && String(row.submittedById) === String(u?.userId)
   const selfApprovalRefusal = (u: any, row: any) =>
@@ -211,6 +247,44 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
         repaid: Number(g.repaid || 0),
         count: Number(g.cnt),
       }])),
+    })
+  })
+
+  /**
+   * What staff owe the business. (Salon RR9)
+   *
+   * Registered ABOVE /:id, or Hono hands "owed" to the by-id route and the answer is "Expense not
+   * found" for a word that is not an id. That mistake has its own guard (#175) because it has
+   * happened twice.
+   *
+   * A manager sees everyone; anybody else sees only their own, and always their own — a stylist is
+   * entitled to know what the shop says they owe, and in fact needs to.
+   */
+  app.get('/owed', requirePermission('expenses:read'), async (c) => {
+    const currentUser = (c as any).get('user')
+    const store = staffStore()
+    if (!store) return c.json({ error: NO_BALANCE_HERE, code: 'not_available' }, 501)
+    const manager = MANAGER_ROLES.has(currentUser.role)
+    if (!manager) {
+      const owed = await store.owed(db, currentUser.companyId, currentUser.userId)
+      return c.json({
+        total: owed,
+        people: owed > 0.005 ? [{ userId: currentUser.userId, owed, history: await store.historyFor(db, currentUser.companyId, currentUser.userId, 20) }] : [],
+        payrollDeductionsAllowed: false,
+      })
+    }
+    const balances = await store.allOwed(db, currentUser.companyId)
+    const names = await namesFor(currentUser.companyId, balances.map((b) => b.userId))
+    return c.json({
+      total: Math.round(balances.reduce((s, b) => s + b.owed, 0) * 100) / 100,
+      people: await Promise.all(balances.map(async (b) => ({
+        ...b,
+        name: names[b.userId] || null,
+        history: await store.historyFor(db, currentUser.companyId, b.userId, 20),
+      }))),
+      // So the screen can offer the payroll route, or explain why it cannot.
+      payrollDeductionsAllowed: payrollDeductionsAllowed(await companySettings(currentUser.companyId)),
+      payrollDeductionSetting: PAYROLL_DEDUCTION_SETTING,
     })
   })
 
@@ -506,23 +580,236 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     }
 
     const total = Math.round((already + parsed.data.amount) * 100) / 100
-    const [row] = await db.update(t.expense).set({
-      repaidAmount: String(total),
-      repaidAt: parsed.data.date ? new Date(parsed.data.date) : new Date(),
-      repaidById: currentUser.userId,
-      // The latest reason, with the ones before it kept in the audit log rather than overwritten.
-      repaidReason: parsed.data.reason,
-      updatedAt: new Date(),
-    }).where(and(eq(t.expense.id, id), eq(t.expense.companyId, currentUser.companyId))).returning()
+    const store = staffStore()
+    /**
+     * Money arriving also clears the debt, when there is one. (Salon RR9)
+     *
+     * Once a balance exists, these two facts have to move together: an expense that says $10 came
+     * back while the person's balance still says they owe $10 is the product disagreeing with itself,
+     * and whichever screen you looked at last would be the one you believed. Same transaction, so
+     * one cannot land without the other.
+     *
+     * It settles at most what is owed — a repayment can be larger than the debt that was raised, or
+     * there may be no debt at all, which is the ordinary case this endpoint was built for first.
+     */
+    const { row, clearedOwed } = await db.transaction(async (tx: any) => {
+      const [updated] = await tx.update(t.expense).set({
+        repaidAmount: String(total),
+        repaidAt: parsed.data.date ? new Date(parsed.data.date) : new Date(),
+        repaidById: currentUser.userId,
+        // The latest reason, with the ones before it kept in the audit log rather than overwritten.
+        repaidReason: parsed.data.reason,
+        updatedAt: new Date(),
+      }).where(and(eq(t.expense.id, id), eq(t.expense.companyId, currentUser.companyId))).returning()
+
+      let cleared = 0
+      if (store && existing.submittedById) {
+        const owedNow = await store.owed(tx, currentUser.companyId, existing.submittedById, true)
+        const settleNow = Math.min(owedNow, parsed.data.amount)
+        if (settleNow > 0.005) {
+          const res = await store.settle(tx, {
+            companyId: currentUser.companyId, userId: existing.submittedById, amount: settleNow, route: 'cash',
+            reason: `Repaid against "${existing.description || 'an expense'}" — ${parsed.data.reason}`,
+            expenseId: id, createdBy: currentUser.userId,
+          })
+          if (res.ok) cleared = res.settled
+        }
+      }
+      return { row: updated, clearedOwed: cleared }
+    })
     audit?.log({
       action: 'payment', entity: 'expense', entityId: id,
-      metadata: { repayment: parsed.data.amount, repaidTotal: total, of: paid, reason: parsed.data.reason },
+      metadata: { repayment: parsed.data.amount, repaidTotal: total, of: paid, reason: parsed.data.reason, ...(clearedOwed ? { clearedOwed } : {}) },
       req: { user: currentUser },
     })
     return c.json({
       ...row,
       netAmount: Math.round((paid - total) * 100) / 100,
       fullyRepaid: total + 0.005 >= paid,
+      ...(clearedOwed ? { clearedOwed } : {}),
+    })
+  })
+
+  /**
+   * "This paid claim was over-paid by X, and the person still owes it." (Salon RR9)
+   *
+   * The repayment endpoint above records money ARRIVING. This records the debt, which is the state
+   * the business is actually in from the moment the error is found until the money comes back — days
+   * or weeks, during which nobody could see it, chase it, or take it off a pay run.
+   *
+   * Same authority and same evidence as paying a claim out: manager+, a written reason, audited. The
+   * claim itself is not touched — it was paid what it was paid.
+   */
+  app.post('/:id/overpayment', requirePermission('expenses:update'), async (c) => {
+    const currentUser = (c as any).get('user')
+    if (!MANAGER_ROLES.has(currentUser.role)) return c.json({ error: 'Only owners, admins and managers can record an over-payment' }, 403)
+    const store = staffStore()
+    if (!store) return c.json({ error: NO_BALANCE_HERE, code: 'not_available' }, 501)
+    const id = c.req.param('id')
+    const existing = await ownExpense(id, currentUser.companyId)
+    if (!existing) return c.json({ error: 'Expense not found' }, 404)
+    const parsed = repaymentSchema.safeParse(await c.req.json().catch(() => ({})))
+    if (!parsed.success) return invalid(c, parsed.error)
+    if (!existing.reimbursed) {
+      return c.json({
+        error: `${existing.description ? `"${existing.description}" ` : 'This expense '}has not been reimbursed, so nobody has been over-paid. Correct the amount instead.`,
+        code: 'not_reimbursed',
+      }, 409)
+    }
+    if (!existing.submittedById) {
+      return c.json({
+        error: 'This claim has no submitter recorded, so there is nobody to owe the money. It was entered before the sheet kept track of who claimed what.',
+        code: 'no_submitter',
+      }, 409)
+    }
+    // What is left of this payment that could have been over-paid: the amount, less anything already
+    // returned and anything already raised against it.
+    const paid = Number(existing.amount) || 0
+    const already = Number(existing.repaidAmount) || 0
+    const raisedHere = await store.historyFor(db, currentUser.companyId, existing.submittedById, 200)
+    const outstandingOnThis = Math.round((raisedHere
+      .filter((e) => e.expenseId === id && e.source === 'over_reimbursement')
+      .reduce((s, e) => s + Math.abs(e.amount), 0)) * 100) / 100
+    const room = Math.round((paid - already - outstandingOnThis) * 100) / 100
+    if (parsed.data.amount > room + 0.005) {
+      return c.json({
+        error: room <= 0
+          ? `The whole ${paid.toFixed(2)} paid on this claim is already accounted for — ${already.toFixed(2)} returned and ${outstandingOnThis.toFixed(2)} owed.`
+          : `Only ${room.toFixed(2)} of the ${paid.toFixed(2)} paid on this claim is unaccounted for, so ${parsed.data.amount.toFixed(2)} cannot be owed against it.`,
+        code: 'exceeds_paid', paid, alreadyRepaid: already, alreadyOwed: outstandingOnThis, room,
+      }, 400)
+    }
+
+    const owedAfter = await db.transaction(async (tx: any) => {
+      await store.raise(tx, {
+        companyId: currentUser.companyId, userId: existing.submittedById,
+        amount: parsed.data.amount, reason: parsed.data.reason, expenseId: id, createdBy: currentUser.userId,
+      })
+      return store.owed(tx, currentUser.companyId, existing.submittedById)
+    })
+    audit?.log({
+      action: 'status_change', entity: 'expense', entityId: id,
+      metadata: { overPaidBy: parsed.data.amount, owedBy: existing.submittedById, reason: parsed.data.reason },
+      req: { user: currentUser },
+    })
+    return c.json({ expenseId: id, userId: existing.submittedById, raised: parsed.data.amount, owed: owedAfter })
+  })
+
+  /**
+   * Clear what somebody owes, by one of four routes. (Salon RR9)
+   *
+   *   cash       they handed it back. Nothing else needed.
+   *   offset     it comes off a claim of theirs that is approved and not yet paid. That claim is then
+   *              settled in full on the record, with the held-back part named on it, because "paid
+   *              $60, $10 of which went against what you owed" is the truth and "paid $50" is not.
+   *   payroll    it comes off a pay run. OFF unless the business switches it on, and refused without
+   *              a recorded authorisation — in most US states taking money from wages needs the
+   *              employee's written consent, and this product is not going to do it silently.
+   *   write_off  the business stops chasing it. Still a decision somebody made, with a reason.
+   */
+  const settleSchema = z.object({
+    amount: z.coerce.number({ invalid_type_error: 'Amount must be a number, for example 10.00' }).positive('A settlement has to be more than 0').max(100_000_000),
+    reason: z.string({ required_error: 'Say how this was settled — the balance has to explain itself later' })
+      .trim().min(1, 'Say how this was settled — the balance has to explain itself later').max(500).transform(stripTags),
+    via: z.enum(SETTLE_ROUTES as unknown as [SettleRoute, ...SettleRoute[]], {
+      errorMap: () => ({ message: `How it was settled has to be one of ${SETTLE_ROUTES.join(', ')}` }),
+    }),
+    /** offset only: the claim of theirs it comes off. */
+    againstExpenseId: z.string().optional().nullable(),
+    /** payroll only: who authorised the deduction, and where that authorisation is recorded. */
+    authorisation: z.string().trim().max(500).optional().nullable(),
+  })
+  app.post('/owed/:userId/settle', requirePermission('expenses:update'), async (c) => {
+    const currentUser = (c as any).get('user')
+    if (!MANAGER_ROLES.has(currentUser.role)) return c.json({ error: 'Only owners, admins and managers can settle what staff owe' }, 403)
+    const store = staffStore()
+    if (!store) return c.json({ error: NO_BALANCE_HERE, code: 'not_available' }, 501)
+    const userId = c.req.param('userId')
+    const parsed = settleSchema.safeParse(await c.req.json().catch(() => ({})))
+    if (!parsed.success) return invalid(c, parsed.error)
+    const { amount, reason, via } = parsed.data
+
+    // The person has to be one of ours — settling against an id from another tenant would write a
+    // balance nobody in this company can see.
+    const [person] = t.user
+      ? await db.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName })
+        .from(t.user).where(and(eq(t.user.id, userId), eq(t.user.companyId, currentUser.companyId))).limit(1)
+      : [null]
+    if (!person) return c.json({ error: 'That person could not be found' }, 404)
+
+    if (via === 'payroll') {
+      const settings = await companySettings(currentUser.companyId)
+      if (!payrollDeductionsAllowed(settings)) {
+        return c.json({
+          error: 'Taking money off a pay run is switched off for this business. An owner can turn it on in Settings, and in most places it also needs the employee\'s written authorisation.',
+          code: 'payroll_deductions_off', setting: PAYROLL_DEDUCTION_SETTING,
+        }, 409)
+      }
+      if (!parsed.data.authorisation || !String(parsed.data.authorisation).trim()) {
+        return c.json({
+          error: 'Record who authorised this deduction and where that authorisation is kept. Money does not come off someone\'s pay on a verbal say-so.',
+          code: 'authorisation_required',
+        }, 400)
+      }
+    }
+
+    let offsetClaim: any = null
+    if (via === 'offset') {
+      if (!parsed.data.againstExpenseId) {
+        return c.json({ error: 'Say which claim of theirs this comes off.', code: 'claim_required' }, 400)
+      }
+      offsetClaim = await ownExpense(String(parsed.data.againstExpenseId), currentUser.companyId)
+      if (!offsetClaim) return c.json({ error: 'That claim could not be found' }, 404)
+      if (String(offsetClaim.submittedById || '') !== String(userId)) {
+        return c.json({ error: 'That claim belongs to somebody else, so it cannot settle this balance.', code: 'wrong_claimant' }, 400)
+      }
+      if (!offsetClaim.reimbursable) return c.json({ error: 'That claim is not a reimbursement, so there is nothing to hold back from it.', code: 'not_a_claim' }, 409)
+      if (offsetClaim.reimbursed) return c.json({ error: 'That claim has already been paid, so nothing can be held back from it.', code: 'already_reimbursed' }, 409)
+      if (!offsetClaim.approved) return c.json({ error: 'Approve that claim first. Holding money back from a claim nobody has approved settles a debt against a figure nobody has checked.', code: 'approval_required' }, 409)
+      if (amount > (Number(offsetClaim.amount) || 0) + 0.005) {
+        return c.json({
+          error: `That claim is for ${Number(offsetClaim.amount).toFixed(2)}, so ${amount.toFixed(2)} cannot come off it.`,
+          code: 'exceeds_claim', claim: Number(offsetClaim.amount) || 0,
+        }, 400)
+      }
+    }
+
+    const result = await db.transaction(async (tx: any) => {
+      const settled = await store.settle(tx, {
+        companyId: currentUser.companyId, userId, amount, route: via,
+        reason: via === 'payroll' ? `${reason} — authorised: ${String(parsed.data.authorisation).trim()}` : reason,
+        expenseId: via === 'offset' ? offsetClaim.id : null,
+        createdBy: currentUser.userId,
+      })
+      if (!settled.ok) return { settled }
+      // The offset claim is paid in full on the record, with the held-back part named on it.
+      if (via === 'offset') {
+        await tx.update(t.expense).set({
+          reimbursed: true, reimbursedAt: new Date(), reimbursedById: currentUser.userId,
+          appliedToOwed: String(amount), updatedAt: new Date(),
+        }).where(and(eq(t.expense.id, offsetClaim.id), eq(t.expense.companyId, currentUser.companyId)))
+      }
+      return { settled }
+    })
+    if (!result.settled.ok) return c.json({ error: result.settled.error, owed: result.settled.owed }, 409)
+
+    audit?.log({
+      action: 'payment', entity: 'expense', entityId: via === 'offset' ? offsetClaim.id : userId,
+      metadata: {
+        settledOwed: amount, via, userId, reason,
+        ...(via === 'payroll' ? { authorisation: String(parsed.data.authorisation).trim() } : {}),
+        ...(via === 'offset' ? { againstClaim: offsetClaim.id, claimPaid: Number(offsetClaim.amount) || 0, cashPaid: Math.round(((Number(offsetClaim.amount) || 0) - amount) * 100) / 100 } : {}),
+      },
+      req: { user: currentUser },
+    })
+    return c.json({
+      userId, settled: amount, via,
+      owed: result.settled.ok ? result.settled.owedAfter : undefined,
+      ...(via === 'offset' ? {
+        againstExpenseId: offsetClaim.id,
+        claimAmount: Number(offsetClaim.amount) || 0,
+        paidInCash: Math.round(((Number(offsetClaim.amount) || 0) - amount) * 100) / 100,
+      } : {}),
     })
   })
 

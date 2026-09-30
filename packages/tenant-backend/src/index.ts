@@ -44,6 +44,12 @@ export type { RebookInterval, IntervalBasis } from './retention/rebooking'
 // Money a client has ON ACCOUNT with the business — a ledger, spendable at checkout, never expiring.
 export { createAccountBalanceStore, balanceFrom, describeBalance, ACCOUNT_BALANCE_METHOD } from './clients/accountBalance'
 export type { AccountEntry, AccountEntrySource, AddEntryInput, SpendOutcome, AccountBalanceStore } from './clients/accountBalance'
+// The same ledger, anchored on the user row: what a member of staff owes the business. (Salon RR9)
+export {
+  createStaffBalanceStore, owedFrom, describeOwed, SETTLE_ROUTES, SOURCE_FOR_ROUTE,
+  PAYROLL_DEDUCTION_SETTING, payrollDeductionsAllowed,
+} from './team/staffBalance'
+export type { StaffEntrySource, SettleRoute, StaffBalanceStore } from './team/staffBalance'
 export { createQuoteRoutes } from './invoicing/quotes'
 export type { QuoteDeps, QuoteOptions, QuoteTables } from './invoicing/quotes'
 export { round2, calcTotals, isOverdue, deriveStatus, startOfUtcDay, overdueCutoff, DEFAULT_OPEN_STATUSES, defaultTaxRateFrom, paymentTermsDaysFrom, dueDateFromTerms, quoteValidityDaysFrom, quoteExpiryFromTerms, normalizeDateInput, isRealCalendarDay, businessToday, nextNumber, invoiceBalance, recomputeStatus } from './invoicing/money'

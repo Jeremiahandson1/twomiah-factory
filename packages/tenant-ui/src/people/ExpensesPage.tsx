@@ -146,29 +146,83 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
    * what came back beside it.
    */
   const [repayFor, setRepayFor] = useState<Expense | null>(null)
-  const [repayForm, setRepayForm] = useState({ amount: '', reason: '' })
+  // `settled` is the whole question the dialog exists to ask: has the money come back, or does the
+  // person still owe it? One control, because from the manager's side it is one event — "this claim
+  // was paid too much" — and two outcomes. Offering "Record repayment" and "Record over-payment" as
+  // separate menu items made the reader choose between two things that sound the same. (Salon RR9)
+  const [repayForm, setRepayForm] = useState({ amount: '', reason: '', settled: true })
   const [repayError, setRepayError] = useState('')
   const [repaying, setRepaying] = useState(false)
   const repaid = (r: Expense) => Number(r.repaidAmount || 0)
   const outstanding = (r: Expense) => Math.round((Number(r.amount || 0) - repaid(r)) * 100) / 100
   const openRepayment = (row: Expense) => {
     setRepayFor(row)
-    // Pre-filled with everything still outstanding, because paying the whole thing back is the
-    // common case and typing it again is just a chance to typo it.
-    setRepayForm({ amount: String(outstanding(row) || ''), reason: '' })
+    // Pre-filled with everything still outstanding, because correcting the whole thing is the common
+    // case and typing it again is just a chance to typo it.
+    setRepayForm({ amount: String(outstanding(row) || ''), reason: '', settled: true })
     setRepayError('')
   }
   const saveRepayment = async () => {
     if (!repayFor) return
-    if (repayForm.amount === '' || Number(repayForm.amount) <= 0) { setRepayError('A repayment has to be more than 0'); return }
-    if (!repayForm.reason.trim()) { setRepayError('Say why the money came back — the sheet has to explain itself later'); return }
+    if (repayForm.amount === '' || Number(repayForm.amount) <= 0) { setRepayError('The over-payment has to be more than 0'); return }
+    if (!repayForm.reason.trim()) { setRepayError('Say what happened — the sheet has to explain itself later'); return }
     setRepaying(true); setRepayError('')
     try {
-      await api.post(`/api/expenses/${repayFor.id}/repayment`, { amount: Number(repayForm.amount), reason: repayForm.reason.trim() })
-      toast.success('Repayment recorded')
-      setRepayFor(null); load()
-    } catch (e) { setRepayError(errMsg(e, 'Failed to record the repayment')) }
+      // Money in hand records the repayment; money still owed raises it against the person, which
+      // is the balance the salon can then chase, offset or take off a pay run.
+      const path = repayForm.settled ? 'repayment' : 'overpayment'
+      await api.post(`/api/expenses/${repayFor.id}/${path}`, { amount: Number(repayForm.amount), reason: repayForm.reason.trim() })
+      toast.success(repayForm.settled ? 'Repayment recorded' : 'Recorded as owed')
+      setRepayFor(null); load(); loadOwed()
+    } catch (e) { setRepayError(errMsg(e, 'Failed to record the correction')) }
     finally { setRepaying(false) }
+  }
+
+  /**
+   * What staff owe the business, and settling it. (Salon RR9)
+   *
+   * The panel below the sheet is the answer to "who owes us anything?", which nothing in the product
+   * could answer before: an over-payment could only be recorded at the moment the money arrived, so
+   * the weeks in between existed nowhere.
+   */
+  const [owed, setOwed] = useState<{ total: number; people: any[]; payrollDeductionsAllowed?: boolean } | null>(null)
+  const loadOwed = useCallback(async () => {
+    try {
+      const res: any = await api.get('/api/expenses/owed')
+      setOwed(res && Array.isArray(res.people) ? res : null)
+    } catch { setOwed(null) } // an older backend has no such route; the panel simply does not appear
+  }, [api])
+  useEffect(() => { loadOwed() }, [loadOwed])
+
+  const [settleFor, setSettleFor] = useState<any>(null)
+  const [settleForm, setSettleForm] = useState({ amount: '', reason: '', via: 'cash', againstExpenseId: '', authorisation: '' })
+  const [settleError, setSettleError] = useState('')
+  const [settling, setSettling] = useState(false)
+  const openSettle = (person: any) => {
+    setSettleFor(person)
+    setSettleForm({ amount: String(person.owed || ''), reason: '', via: 'cash', againstExpenseId: '', authorisation: '' })
+    setSettleError('')
+  }
+  /** Their approved, unpaid claims — the only ones an offset can come off. */
+  const offsettable = (person: any) => data.filter((r) => String(r.submittedById || '') === String(person?.userId)
+    && !!r.approved && !!r.reimbursable && !r.reimbursed)
+  const saveSettle = async () => {
+    if (!settleFor) return
+    if (settleForm.amount === '' || Number(settleForm.amount) <= 0) { setSettleError('A settlement has to be more than 0'); return }
+    if (!settleForm.reason.trim()) { setSettleError('Say how this was settled — the balance has to explain itself later'); return }
+    if (settleForm.via === 'offset' && !settleForm.againstExpenseId) { setSettleError('Choose which claim of theirs it comes off'); return }
+    if (settleForm.via === 'payroll' && !settleForm.authorisation.trim()) { setSettleError('Record who authorised the deduction and where that authorisation is kept'); return }
+    setSettling(true); setSettleError('')
+    try {
+      await api.post(`/api/expenses/owed/${settleFor.userId}/settle`, {
+        amount: Number(settleForm.amount), reason: settleForm.reason.trim(), via: settleForm.via,
+        ...(settleForm.via === 'offset' ? { againstExpenseId: settleForm.againstExpenseId } : {}),
+        ...(settleForm.via === 'payroll' ? { authorisation: settleForm.authorisation.trim() } : {}),
+      })
+      toast.success('Settled')
+      setSettleFor(null); loadOwed(); load()
+    } catch (e) { setSettleError(errMsg(e, 'Failed to settle')) }
+    finally { setSettling(false) }
   }
   // Opening a form is the moment the list matters, so a first attempt that failed is retried here.
   // It does not block the dialog: the fallback list opens now and the picker corrects itself the
@@ -243,8 +297,8 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
           // …and Mark reimbursed only once it IS approved, so the 409 is unreachable from here.
           { label: 'Mark reimbursed', icon: CheckCircle, onClick: reimburse, show: (r) => canApprove(r) && !!r.approved && !!r.reimbursable && !r.reimbursed },
           // The door the "too much was paid" refusal points at. Only on a row where money actually
-          // went out, and only while some of it is still outstanding. (Salon RR8/X6)
-          { label: 'Record repayment', icon: Undo2, onClick: openRepayment, show: (r) => manager && !!r.reimbursed && outstanding(r) > 0 },
+          // went out, and only while some of it is still unaccounted for. (Salon RR8/X6, RR9)
+          { label: 'Correct an over-payment', icon: Undo2, onClick: openRepayment, show: (r) => manager && !!r.reimbursed && outstanding(r) > 0 },
           // Your own claim is yours to correct until somebody approves it; after that it is a
           // manager's. That is the server's rule, so it is this menu's rule.
           { label: 'Edit', icon: Edit, onClick: openEdit, show: (r) => manager || !r.approved },
@@ -271,8 +325,40 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
         </div>
         <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
       </Modal>
-      {/* Money handed back on a claim that was paid too much. (Salon RR8/X6) */}
-      <Modal isOpen={!!repayFor} onClose={() => setRepayFor(null)} title="Record a repayment" size="sm">
+      {/* Who owes the business anything, and settling it. (Salon RR9)
+          Hidden entirely when nobody owes anything, which is the normal state of a shop — a panel
+          that is always there saying "nothing owed" trains people to stop reading it. */}
+      {owed && owed.people.length > 0 && (
+        <div className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-500/40 dark:bg-amber-500/10">
+          <div className="flex items-baseline justify-between">
+            <h2 className="font-semibold text-amber-900 dark:text-amber-200">
+              {manager ? 'Owed to the business' : 'What you owe'}
+            </h2>
+            <p className="text-sm text-amber-900 dark:text-amber-200">{money(owed.total)} in total</p>
+          </div>
+          <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
+            An over-payment on a claim that has been paid out. The claim keeps the figure it was paid at; this is what is still to come back.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {owed.people.map((p: any) => (
+              <li key={p.userId} className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 dark:bg-slate-900">
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-900 dark:text-slate-100">{p.name || (manager ? 'A team member' : 'You')}</p>
+                  {/* The balance explaining itself — the newest movement, in words. */}
+                  {p.history?.[0]?.reason && <p className="truncate text-xs text-gray-500 dark:text-slate-400">{p.history[0].reason}</p>}
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="font-medium tabular-nums text-gray-900 dark:text-slate-100">{money(p.owed)}</span>
+                  {manager && <Button variant="secondary" onClick={() => openSettle(p)}>Settle</Button>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* A claim that was paid too much: the money is either back, or owed. (Salon RR8/X6, RR9) */}
+      <Modal isOpen={!!repayFor} onClose={() => setRepayFor(null)} title="Correct an over-payment" size="sm">
         <div className="space-y-4">
           {repayError && <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{repayError}</div>}
           {repayFor && (
@@ -280,21 +366,86 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
               {repayFor.description ? `"${repayFor.description}" was` : 'This expense was'} reimbursed for{' '}
               <span className="font-medium text-gray-900 dark:text-slate-100">{money(repayFor.amount)}</span>
               {repaid(repayFor) > 0 && <> , with {money(repaid(repayFor))} already back</>}.
-              {' '}The payment stays on the record; this is what came back against it.
+              {' '}The payment stays on the record; this is the correction against it.
             </p>
           )}
-          <Field label="Amount returned *">
+          <Field label="Amount over-paid *">
             <input type="number" min="0.01" step="0.01" max={repayFor ? outstanding(repayFor) : undefined}
               value={repayForm.amount} onChange={(e) => setRepayForm({ ...repayForm, amount: e.target.value })} className={inputCls} />
           </Field>
-          <Field label="Why *">
+          {/* The whole question: is the money back, or owed? */}
+          <div className="space-y-2">
+            <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-slate-200">
+              <input type="radio" name="repay-settled" checked={repayForm.settled} onChange={() => setRepayForm({ ...repayForm, settled: true })} className="mt-1" />
+              <span><span className="font-medium">They have paid it back</span><br /><span className="text-xs text-gray-500 dark:text-slate-400">Records the money as returned against this claim.</span></span>
+            </label>
+            <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-slate-200">
+              <input type="radio" name="repay-settled" checked={!repayForm.settled} onChange={() => setRepayForm({ ...repayForm, settled: false })} className="mt-1" />
+              <span><span className="font-medium">They still owe it</span><br /><span className="text-xs text-gray-500 dark:text-slate-400">Puts it on their balance, to settle in cash, off their next claim, or off their pay.</span></span>
+            </label>
+          </div>
+          <Field label="What happened *">
             <input value={repayForm.reason} onChange={(e) => setRepayForm({ ...repayForm, reason: e.target.value })}
-              placeholder="e.g. overpaid by $10, returned in cash" className={inputCls} />
+              placeholder="e.g. overpaid by $10 — wrong figure on the receipt" className={inputCls} />
           </Field>
         </div>
         <div className="flex justify-end gap-3 mt-6">
           <Button variant="secondary" onClick={() => setRepayFor(null)}>Cancel</Button>
-          <Button onClick={saveRepayment} disabled={repaying}>{repaying ? 'Saving...' : 'Record repayment'}</Button>
+          <Button onClick={saveRepayment} disabled={repaying}>{repaying ? 'Saving...' : repayForm.settled ? 'Record repayment' : 'Record as owed'}</Button>
+        </div>
+      </Modal>
+
+      {/* Settling what somebody owes: cash, off a claim, off their pay, or written off. (Salon RR9) */}
+      <Modal isOpen={!!settleFor} onClose={() => setSettleFor(null)} title="Settle what they owe" size="sm">
+        <div className="space-y-4">
+          {settleError && <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{settleError}</div>}
+          {settleFor && (
+            <p className="text-sm text-gray-600 dark:text-slate-300">
+              <span className="font-medium text-gray-900 dark:text-slate-100">{settleFor.name || 'This person'}</span> owes{' '}
+              <span className="font-medium text-gray-900 dark:text-slate-100">{money(settleFor.owed)}</span>.
+            </p>
+          )}
+          <Field label="Amount *">
+            <input type="number" min="0.01" step="0.01" max={settleFor?.owed} value={settleForm.amount}
+              onChange={(e) => setSettleForm({ ...settleForm, amount: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="How *">
+            <select value={settleForm.via} onChange={(e) => setSettleForm({ ...settleForm, via: e.target.value })} className={inputCls}>
+              <option value="cash">They paid it back</option>
+              <option value="offset">Take it off one of their claims</option>
+              <option value="payroll" disabled={!owed?.payrollDeductionsAllowed}>
+                Take it off their pay{owed?.payrollDeductionsAllowed ? '' : ' — switched off in Settings'}
+              </option>
+              <option value="write_off">Write it off</option>
+            </select>
+          </Field>
+          {settleForm.via === 'offset' && (
+            <Field label="Which claim *">
+              <select value={settleForm.againstExpenseId} onChange={(e) => setSettleForm({ ...settleForm, againstExpenseId: e.target.value })} className={inputCls}>
+                <option value="">Choose a claim</option>
+                {offsettable(settleFor).map((r) => <option key={r.id} value={r.id}>{money(r.amount)} — {r.description}</option>)}
+              </select>
+              {/* An offset needs an approved, unpaid claim of theirs. If there is none, say so rather
+                  than showing an empty picker. */}
+              {offsettable(settleFor).length === 0 && (
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">They have no approved, unpaid claim to take it off.</p>
+              )}
+            </Field>
+          )}
+          {settleForm.via === 'payroll' && (
+            <Field label="Authorised by *">
+              <input value={settleForm.authorisation} onChange={(e) => setSettleForm({ ...settleForm, authorisation: e.target.value })}
+                placeholder="who agreed it, and where the signed authorisation is kept" className={inputCls} />
+            </Field>
+          )}
+          <Field label="Note *">
+            <input value={settleForm.reason} onChange={(e) => setSettleForm({ ...settleForm, reason: e.target.value })}
+              placeholder="e.g. returned in cash at close" className={inputCls} />
+          </Field>
+        </div>
+        <div className="flex justify-end gap-3 mt-6">
+          <Button variant="secondary" onClick={() => setSettleFor(null)}>Cancel</Button>
+          <Button onClick={saveSettle} disabled={settling}>{settling ? 'Saving...' : 'Settle'}</Button>
         </div>
       </Modal>
       <ConfirmModal isOpen={!!toDelete} onClose={() => setToDelete(null)} onConfirm={handleDelete} title="Delete Expense" message="Delete this expense?" confirmText="Delete" />

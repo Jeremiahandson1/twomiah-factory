@@ -77,14 +77,18 @@ export function describeBalance(balance: number, clientWord = 'client'): string 
 
 export interface AddEntryInput {
   companyId: string
-  contactId: string
+  /** Whose balance this moves. `contactId` for a client ledger, `subjectId` for any other. */
+  contactId?: string
+  subjectId?: string
   /** Signed: positive adds to the balance, negative takes from it. */
   amount: number
-  source: AccountEntrySource
+  source: AccountEntrySource | string
   /** Why, in words a person will read back months later. Required — an unexplained movement is a bug. */
   reason: string
   /** The sale this movement is about, when there is one. */
   invoiceId?: string | null
+  /** The expense this movement is about, on a ledger that hangs off expenses. */
+  expenseId?: string | null
   createdBy?: string | null
 }
 
@@ -104,6 +108,17 @@ export function createAccountBalanceStore(
    * The table holding one row per client. Spending locks THAT row, not the ledger — see lockClient.
    */
   anchorTableName = 'contact',
+  /**
+   * Whose ledger this is: the column on the ledger table, and the drizzle field that writes it.
+   *
+   * There is a second ledger in the product now — what a STAFF member owes the business after an
+   * over-reimbursement — and it is the same object with a different anchor: a signed ledger, a
+   * balance that is the sum of its movements, and a lock on the subject's own row. Copying these
+   * forty lines to get `user_id` instead of `contact_id` would have made a second implementation of
+   * money, and this session has already shown what a forked component costs: five copies of one
+   * table, four of them wrong in the same two ways. One implementation, two anchors.
+   */
+  subject: { column: string; field: string } = { column: 'contact_id', field: 'contactId' },
 ) {
   // FOR UPDATE has no drizzle builder here, so the locking read is raw and the table name is NAMED
   // rather than dug out of drizzle's internals, which are not API and have moved between versions.
@@ -112,8 +127,20 @@ export function createAccountBalanceStore(
   // interpolated normally, so they are still bound parameters.
   if (!/^[a-z_][a-z0-9_]*$/.test(tableName)) throw new Error(`accountBalance: bad table name ${tableName}`)
   if (!/^[a-z_][a-z0-9_]*$/.test(anchorTableName)) throw new Error(`accountBalance: bad anchor table ${anchorTableName}`)
-  const from = sql.raw(tableName)
-  const anchor = sql.raw(anchorTableName)
+  if (!/^[a-z_][a-z0-9_]*$/.test(subject.column)) throw new Error(`accountBalance: bad subject column ${subject.column}`)
+  /**
+   * QUOTED, because one of the anchors is `user`.
+   *
+   * `SELECT id FROM user … FOR UPDATE` does not read the user TABLE: `user` is reserved in Postgres
+   * and parses as the current-user function, so the lock came back "column id does not exist" — a
+   * 500 on every staff-balance write, and the sort of thing that only shows up the first time the
+   * second anchor is used. The names are validated above, so quoting them is safe and changes
+   * nothing for `contact`.
+   */
+  const quoted = (n: string) => sql.raw(`"${n}"`)
+  const from = quoted(tableName)
+  const anchor = quoted(anchorTableName)
+  const subjectCol = quoted(subject.column)
 
   /**
    * Take the lock that makes a spend safe: ONE row, the client's own.
@@ -148,20 +175,23 @@ export function createAccountBalanceStore(
   async function balance(tx: any, companyId: string, contactId: string, forUpdate = false): Promise<number> {
     if (forUpdate) await lockClient(tx, companyId, contactId)
     const rows: any = await tx.execute(
-      sql`SELECT amount FROM ${from} WHERE company_id = ${companyId} AND contact_id = ${contactId}`,
+      sql`SELECT amount FROM ${from} WHERE company_id = ${companyId} AND ${subjectCol} = ${contactId}`,
     )
     return balanceFrom(((rows as any).rows || rows) as AccountEntry[])
   }
 
   /** Write one movement. No rules here beyond "it is written down" — the rules live in the callers. */
   async function add(tx: any, input: AddEntryInput) {
+    const who = input.subjectId ?? input.contactId
+    if (!who) throw new Error('accountBalance.add: no subject')
     const [row] = await tx.insert(table).values({
       companyId: input.companyId,
-      contactId: input.contactId,
+      [subject.field]: who,
       amount: round2(input.amount).toString(),
       source: input.source,
       reason: input.reason,
-      invoiceId: input.invoiceId ?? null,
+      ...(input.invoiceId !== undefined ? { invoiceId: input.invoiceId } : {}),
+      ...(input.expenseId !== undefined ? { expenseId: input.expenseId } : {}),
       createdBy: input.createdBy ?? null,
     } as any).returning()
     return row

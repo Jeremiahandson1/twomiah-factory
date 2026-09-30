@@ -405,6 +405,9 @@ export const expense = pgTable('expense', {
   repaidAt: timestamp('repaid_at'),
   repaidById: text('repaid_by_id'),
   repaidReason: text('repaid_reason'),
+  // What was held back from this claim to clear what the person owed, so a reimbursement that paid
+  // 50 in cash and put 10 against a debt does not read as a short payment. (Salon RR9)
+  appliedToOwed: decimal('applied_to_owed', { precision: 12, scale: 2 }).default('0').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
@@ -3836,3 +3839,28 @@ export const gbpConnection = pgTable('gbp_connection', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
+
+/**
+ * What a member of staff owes the business — the mirror of client_account_entry. (Salon RR9)
+ *
+ * Signed: positive is money the business holds for them, negative is money they owe it. The balance
+ * is the SUM of these rows and is never stored anywhere; packages/tenant-backend/src/team/staffBalance.ts
+ * is the only thing that reads or writes it, and it locks the USER row before any read-then-write.
+ */
+export const staffAccountEntry = pgTable('staff_account_entry', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  /** Positive = held for them, negative = owed by them. */
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  source: text('source').notNull(),
+  /** Why, in words somebody will read back months later. Never optional — an unexplained movement is a bug. */
+  reason: text('reason').notNull(),
+  /** The claim this movement is about, when there is one. */
+  expenseId: text('expense_id').references(() => expense.id, { onDelete: 'set null' }),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('staff_account_entry_company_id_idx').on(t.companyId),
+  index('staff_account_entry_user_id_idx').on(t.userId),
+])

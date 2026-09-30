@@ -186,12 +186,23 @@ if (builtSince.length) {
    */
   const shared = frontendSource('packages/tenant-ui/src')
   for (const [what, needle, why] of [
-    ['recording a repayment', /expenses\/\$\{[^}]+\}\/repayment`/,
+    ['recording a repayment', /expenses\/\$\{[^}]+\}\/\$\{path\}`/,
       'the 409 on a reimbursed expense tells the reader to use it'],
-    ['…its control', /label: 'Record repayment'/,
+    ['…its control', /label: 'Correct an over-payment'/,
       'a POST with nothing that opens it is an API, not a feature'],
+    ['…and the choice that decides whether the money is back or owed', /repayForm\.settled \? 'repayment' : 'overpayment'/,
+      'RR9: one control, two outcomes. Without the choice, half the feature is unreachable'],
     ['…and what came back is visible on the row', /money\(repaid\(row\)\)/,
       'a repayment nobody can see on the sheet leaves the total unexplained'],
+    // ── the staff balance (RR9) ───────────────────────────────────────────────────────────────
+    ['the owed-by-staff panel', /api\.get\('\/api\/expenses\/owed'\)/,
+      'a receivable nobody can see is a receivable nobody chases'],
+    ['…and settling it', /expenses\/owed\/\$\{settleFor\.userId\}\/settle`/,
+      'four routes on the server and no control is an API, not a feature'],
+    ['the pay run', /api\.get\('\/api\/payroll\/summary'/,
+      'RR9: /api/payroll/summary had existed in five CRMs with no screen anywhere, and a deduction recovered from pay MUST be visible on the pay run or the money is recovered twice'],
+    ['…showing what was recovered', /money\(u\.deductions\)/,
+      'the deduction is the reason the pay run had to be built'],
   ] as Array<[string, RegExp, string]>) {
     if (!needle.test(shared)) fail(`${what} has no screen in packages/tenant-ui — ${why}`)
   }

@@ -179,10 +179,16 @@ const paidClaim = async (desc: string, amount: number) => {
 // ══════════ it is on the screen, because a rule with no screen is not a feature ═════════════════
 {
   const page = strip((await Bun.file(`${ROOT}packages/tenant-ui/src/people/ExpensesPage.tsx`).text()).replace(/\r\n/g, '\n'))
-  check('the Expenses screen can record one', /expenses\/\$\{repayFor\.id\}\/repayment`/.test(page), null)
+  // RR9 merged the two controls. "Record repayment" and "Record over-payment" as separate menu
+  // items made the reader choose between two things that sound the same, so there is now ONE action
+  // that asks the question that actually distinguishes them — has the money come back yet? — and
+  // sends the answer to this endpoint or to /overpayment. tests/salon/staff-balance.test.ts proves
+  // the other branch.
+  check('the Expenses screen can record one', /expenses\/\$\{repayFor\.id\}\/\$\{path\}`/.test(page)
+    && /const path = repayForm\.settled \? 'repayment' : 'overpayment'/.test(page), null)
   check('…from an action offered only where money actually went out',
-    /label: 'Record repayment'[^\n]*show: \(r\) => manager && !!r\.reimbursed && outstanding\(r\) > 0/.test(page), null)
-  check('…with a reason box, because the server insists on one', /Why \*/.test(page) && /repayForm\.reason/.test(page), null)
+    /label: 'Correct an over-payment'[^\n]*show: \(r\) => manager && !!r\.reimbursed && outstanding\(r\) > 0/.test(page), null)
+  check('…with a reason box, because the server insists on one', /What happened \*/.test(page) && /repayForm\.reason/.test(page), null)
   check('…and the row shows what came back and what it cost in the end',
     /money\(repaid\(row\)\)/.test(page) && /money\(outstanding\(row\)\)/.test(page), null)
   check('…while the claim keeps the figure it was paid at', /<span>\{money\(v\)\}<\/span>/.test(page), null)

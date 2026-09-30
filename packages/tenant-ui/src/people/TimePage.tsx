@@ -4,7 +4,7 @@
 // unrouted TimesheetPage/TimeClock pair that called endpoints under a different mount.
 import React, { useState, useEffect, useCallback } from 'react'
 import { Plus, Edit, Trash2, Check, Play, Square, Clock } from 'lucide-react'
-import { DataTable, PageHeader, Button, Modal, ConfirmModal, Field, inputCls, errMsg, dateOnly } from '../invoicing/ui'
+import { DataTable, PageHeader, Button, Modal, ConfirmModal, Field, inputCls, errMsg, dateOnly, money } from '../invoicing/ui'
 import type { Pagination } from '../invoicing/ui'
 import { useAuth } from '../auth/AuthContext'
 import type { PeopleApi, PeopleToast, TimeConfig } from './types'
@@ -53,6 +53,27 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
     finally { setLoading(false) }
   }, [api, page, showJobs, showProjects])
   useEffect(() => { load() }, [load])
+  /**
+   * The pay run, for the panel below the sheet. (Salon RR9)
+   *
+   * Not loaded until asked: a pay period is a question with two dates in it, and guessing which
+   * fortnight somebody means is worse than an empty panel with a Show button. Defaults to the last
+   * two weeks up to today, which is the commonest answer.
+   */
+  const dayString = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]
+  const [payFrom, setPayFrom] = useState(dayString(new Date(Date.now() - 13 * 86400000)))
+  const [payTo, setPayTo] = useState(dayString(new Date()))
+  const [payRun, setPayRun] = useState<any>(null)
+  const [payLoading, setPayLoading] = useState(false)
+  const [payError, setPayError] = useState('')
+  const loadPayRun = async () => {
+    setPayLoading(true); setPayError('')
+    try {
+      const res: any = await api.get('/api/payroll/summary', { startDate: payFrom, endDate: payTo })
+      setPayRun(res && Array.isArray(res.users) ? res : { users: [] })
+    } catch (e) { setPayError(errMsg(e, 'Could not work out the pay run')); setPayRun(null) }
+    finally { setPayLoading(false) }
+  }
   useEffect(() => { if (!active) return; const id = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(id) }, [active])
 
   const clockIn = async () => { setClockBusy(true); try { await api.post('/api/time/clock-in', {}); toast.success('Clocked in'); await load() } catch (e) { toast.error(errMsg(e, 'Failed to clock in')) } finally { setClockBusy(false) } }
@@ -130,6 +151,74 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
           { label: 'Approve', icon: Check, onClick: approve, show: (r) => manager && !r.approved && !(r.clockIn && !r.clockOut) && (ownApprovalOk || r.userId !== auth.user?.id) },
           { label: 'Delete', icon: Trash2, onClick: (r) => setToDelete(r), className: 'text-red-600', show: canEdit },
         ]} />
+      {/**
+        * The pay run. (Salon RR9)
+        *
+        * /api/payroll/summary has existed in all five of these CRMs for a long time with NO SCREEN
+        * anywhere — the guard's own note says the Time page was built so time entries could be
+        * WRITTEN, and the report of them was never rendered. A shop could log hours and not see what
+        * it owed anybody.
+        *
+        * It has to exist now regardless, because a deduction recovered from someone's pay has to be
+        * visible on the pay run or the money gets recovered twice. `Earned` is hours × rate and is
+        * never quietly adjusted; `Recovered` and `To pay` sit beside it.
+        */}
+      {manager && (
+        <div className="mt-6 rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-gray-900 dark:text-slate-100">Pay run</h2>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Approved and unapproved hours in the period, and anything being recovered from pay.</p>
+            </div>
+            <div className="flex items-end gap-2">
+              <Field label="From"><input type="date" value={payFrom} onChange={(e) => setPayFrom(e.target.value)} className={inputCls} /></Field>
+              <Field label="To"><input type="date" value={payTo} onChange={(e) => setPayTo(e.target.value)} className={inputCls} /></Field>
+              <Button variant="secondary" onClick={loadPayRun} disabled={payLoading}>{payLoading ? 'Working…' : 'Show'}</Button>
+            </div>
+          </div>
+          {payError && <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{payError}</p>}
+          {payRun && (
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-slate-800/60">
+                  <tr>
+                    {['Person', 'Hours', 'Earned', 'Recovered', 'To pay', 'Still owed'].map((h, i) => (
+                      <th key={h} className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-slate-300 ${i === 0 ? 'text-left' : 'text-right'}`}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
+                  {(payRun.users || []).map((u: any) => (
+                    <tr key={u.user?.id || u.user?.name}>
+                      <td className="px-3 py-2 text-gray-900 dark:text-slate-100">{u.user?.name || 'Unnamed'}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-slate-200">{Number(u.totalHours || 0).toFixed(2)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-slate-200">{money(u.totalPay)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{Number(u.deductions || 0) > 0 ? <span className="text-amber-700 dark:text-amber-300">−{money(u.deductions)}</span> : '-'}</td>
+                      <td className="px-3 py-2 text-right font-medium tabular-nums text-gray-900 dark:text-slate-100">{money(u.netPay ?? u.totalPay)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{Number(u.stillOwed || 0) > 0 ? <span className="text-amber-700 dark:text-amber-300">{money(u.stillOwed)}</span> : '-'}</td>
+                    </tr>
+                  ))}
+                  {(payRun.users || []).length === 0 && (
+                    <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500 dark:text-slate-400">No hours logged in that period.</td></tr>
+                  )}
+                </tbody>
+                {payRun.totals && (payRun.users || []).length > 0 && (
+                  <tfoot>
+                    <tr className="border-t border-gray-200 dark:border-slate-700">
+                      <td className="px-3 py-2 font-medium text-gray-900 dark:text-slate-100">Total</td>
+                      <td />
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-slate-200">{money(payRun.totals.pay)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{Number(payRun.totals.deductions || 0) > 0 ? <span className="text-amber-700 dark:text-amber-300">−{money(payRun.totals.deductions)}</span> : '-'}</td>
+                      <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900 dark:text-slate-100">{money(payRun.totals.net)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          )}
+        </div>
+      )}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Time Entry' : 'Log Time'} size="md">
         <div className="space-y-4">
           {formError && <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{formError}</div>}

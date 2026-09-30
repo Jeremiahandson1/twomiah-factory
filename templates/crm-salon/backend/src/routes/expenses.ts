@@ -7,7 +7,7 @@
 // crm-landscaping have all mounted this same module for a long time; the salon simply never did.
 import { createExpenseRoutes } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
-import { expense, project, job } from '../../db/schema.ts'
+import { expense, project, job, staffAccountEntry, user, company } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
@@ -17,7 +17,9 @@ import audit from '../services/audit.ts'
 // colour and retail stock, pays rent on a chair, sends people on training. Same rule, its own words.
 export default createExpenseRoutes({
   db,
-  tables: { expense, project, job },
+  // staffAccountEntry / user / company carry the staff balance: what a stylist owes the salon
+  // after an over-reimbursement, and the setting that decides whether it may come off their pay.
+  tables: { expense, project, job, staffAccountEntry, user, company },
   authenticate,
   requirePermission,
   audit,
