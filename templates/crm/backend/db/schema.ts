@@ -391,6 +391,13 @@ export const expense = pgTable('expense', {
   reimbursed: boolean('reimbursed').default(false).notNull(),
   reimbursedAt: timestamp('reimbursed_at'),
   approved: boolean('approved').default(false).notNull(),
+  // Who submitted it, who approved it, who paid it. Without a submitter the server cannot tell
+  // whose expense this is — so a manager could approve and reimburse their own, a stylist saw
+  // everyone's, and the Edit/Delete offered on their own row always answered 403. (Salon RR6 E1/E7)
+  submittedById: text('submitted_by_id'),
+  approvedById: text('approved_by_id'),
+  approvedAt: timestamp('approved_at'),
+  reimbursedById: text('reimbursed_by_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 

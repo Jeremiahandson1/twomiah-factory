@@ -89,6 +89,10 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     const badCategory = checkFilter(c, 'category', q.category, categories)
     if (badCategory) return badCategory
     const conditions: any[] = [eq(t.expense.companyId, currentUser.companyId)]
+    // A stylist sees their OWN claims, the way the timesheet already works. They saw the whole
+    // company's — the owner's and the manager's included. Rows with no submitter (written before
+    // the column existed) stay visible to managers only. (Salon RR6 E7)
+    if (!MANAGER_ROLES.has(currentUser.role)) conditions.push(eq(t.expense.submittedById, currentUser.userId))
     if (q.category) conditions.push(eq(t.expense.category, String(q.category).slice(0, 40)))
     if (q.projectId) conditions.push(eq(t.expense.projectId, q.projectId))
     if (q.jobId) conditions.push(eq(t.expense.jobId, q.jobId))
@@ -132,6 +136,9 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
       amount: String(data.amount),
       taxAmount: data.taxAmount === undefined ? undefined : String(data.taxAmount),
       date: data.date ? new Date(data.date) : new Date(),
+      // Who is claiming it. Everything about whose expense this is hangs off this one field.
+      // (Salon RR6 E1/E7)
+      submittedById: currentUser.userId,
       companyId: currentUser.companyId,
     }).returning()
     audit?.log({ action: 'create', entity: 'expense', entityId: row.id, metadata: { amount: row.amount, category: row.category }, req: { user: currentUser } })
@@ -146,6 +153,13 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     const data = parsed.data
     const existing = await ownExpense(id, currentUser.companyId)
     if (!existing) return c.json({ error: 'Expense not found' }, 404)
+    // Your own claim is yours to correct until somebody approves it — the rule the timesheet
+    // already follows. Before this a stylist was offered Edit on their own row and got a 403,
+    // so someone who typed $95 for $9.50 could not fix it. (Salon RR6 E7)
+    if (!MANAGER_ROLES.has(currentUser.role)) {
+      if (!isMine(currentUser, existing)) return c.json({ error: 'You can only change expenses you entered' }, 403)
+      if (existing.approved) return c.json({ error: 'This expense has been approved. Ask a manager to change it.' }, 403)
+    }
     const refErr = await checkRefs(currentUser.companyId, data)
     if (refErr) return c.json({ error: refErr }, 400)
 
@@ -166,7 +180,10 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     const moneyChanged = data.amount !== undefined || data.taxAmount !== undefined || data.date !== undefined
     if (existing.reimbursed && moneyChanged) {
       return c.json({
-        error: `${existing.description ? `"${existing.description}" ` : 'This expense '}has already been reimbursed for ${existing.amount}. What was paid cannot be rewritten — add a new expense for the difference, or reverse this one.`,
+        // No "or reverse this one" — RR6 E5: there is no reverse action on the screen and
+        // POST /:id/reverse is a 404. A refusal must not send someone after something that does
+        // not exist; adding a correcting entry is the whole of the advice.
+        error: `${existing.description ? `"${existing.description}" ` : 'This expense '}has already been reimbursed for ${existing.amount}. What was paid cannot be rewritten — add a new expense for the difference.`,
         code: 'already_reimbursed',
       }, 409)
     }
@@ -193,10 +210,40 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     const id = c.req.param('id')
     const existing = await ownExpense(id, currentUser.companyId)
     if (!existing) return c.json({ error: 'Expense not found' }, 404)
+    // The stronger version of the edit rule. Refusing to REWRITE a reimbursed amount while allowing
+    // the row to be deleted outright protects nothing: deleting removes the record of the payment
+    // altogether, which is worse than changing it. Same money, same answer. (Salon RR6 E4)
+    if (existing.reimbursed) {
+      return c.json({
+        error: `${existing.description ? `"${existing.description}" ` : 'This expense '}has already been reimbursed for ${existing.amount}. The record of a payment cannot be deleted — add a new expense for the difference.`,
+        code: 'already_reimbursed',
+      }, 409)
+    }
+    if (!MANAGER_ROLES.has(currentUser.role)) {
+      if (!isMine(currentUser, existing)) return c.json({ error: 'You can only delete expenses you entered' }, 403)
+      if (existing.approved) return c.json({ error: 'This expense has been approved. Ask a manager to remove it.' }, 403)
+    }
     await db.delete(t.expense).where(and(eq(t.expense.id, id), eq(t.expense.companyId, currentUser.companyId)))
     audit?.log({ action: 'delete', entity: 'expense', entityId: id, metadata: { amount: existing.amount, description: existing.description }, req: { user: currentUser } })
     return c.body(null, 204)
   })
+
+  // ── whose expense is this? (Salon RR6 E1 / E7) ────────────────────────────────────────────────
+  //
+  // The table had no submitter, so the server could not tell. Three findings came out of that one
+  // gap: a manager approved and reimbursed their own $45 expense (the whole chain the time module
+  // closes, wide open here), a stylist saw every expense in the company, and the Edit and Delete
+  // offered on their own row answered 403 — so someone who typed $95 for $9.50 could not fix it.
+  //
+  // Rows written before the column exists have no submitter. They stay visible and editable by a
+  // manager rather than becoming nobody's problem; the self-approval rule only bites where a
+  // submitter is actually recorded.
+  const OWN_APPROVAL_OK = new Set(['owner', 'admin'])
+  const isMine = (u: any, row: any) => !!row?.submittedById && String(row.submittedById) === String(u?.userId)
+  const selfApprovalRefusal = (u: any, row: any) =>
+    isMine(u, row) && !OWN_APPROVAL_OK.has(u.role)
+      ? 'You cannot approve or reimburse your own expense. Approval is a second person checking the claim before the money goes out — ask an owner or admin.'
+      : null
 
   // Reimburse / approve: managers only, scoped to the company.
   //
@@ -212,6 +259,9 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     const id = c.req.param('id')
     const existing = await ownExpense(id, currentUser.companyId)
     if (!existing) return c.json({ error: 'Expense not found' }, 404)
+    // Same rule as time, at both doors: you are not the second person for your own claim. (RR6 E1)
+    const selfRefusal = selfApprovalRefusal(currentUser, existing)
+    if (selfRefusal) return c.json({ error: selfRefusal, code: 'self_approval' }, 403)
     if (field === 'reimbursed' && !existing.approved) {
       return c.json({
         error: 'Approve this expense before reimbursing it. Reimbursing pays the money out, and approval is the check that happens first.',
@@ -220,7 +270,8 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
       }, 409)
     }
     const updates: any = { [field]: true, updatedAt: new Date() }
-    if (field === 'reimbursed') updates.reimbursedAt = new Date()
+    if (field === 'reimbursed') { updates.reimbursedAt = new Date(); updates.reimbursedById = currentUser.userId }
+    if (field === 'approved') { updates.approvedAt = new Date(); updates.approvedById = currentUser.userId }
     const [row] = await db.update(t.expense).set(updates).where(and(eq(t.expense.id, id), eq(t.expense.companyId, currentUser.companyId))).returning()
     audit?.log({ action: 'status_change', entity: 'expense', entityId: id, metadata: { [field]: true }, req: { user: currentUser } })
     return c.json(row)

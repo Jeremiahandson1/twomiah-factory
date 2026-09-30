@@ -108,7 +108,13 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   field: [
     'contacts:read', 'projects:read', 'jobs:read', 'jobs:update', 'time:read',
-    'time:create', 'time:update', 'expenses:read', 'expenses:create', 'documents:read',
+    // expenses mirrors time. The pair above already lets someone correct their own timesheet line;
+    // expenses had create and read only, so a stylist who typed $95 for $9.50 was offered Edit on
+    // their own row and got a 403, with no way to fix it. Both update and delete are narrowed in
+    // the route to YOUR OWN claim, and only until somebody approves it — the same rule the
+    // timesheet follows. (Salon RR6 E7)
+    'time:create', 'time:update', 'expenses:read', 'expenses:create', 'expenses:update',
+    'expenses:delete', 'documents:read',
     'documents:create', 'rfis:read', 'rfis:create', 'punch-lists:read',
     'punch-lists:update', 'daily-logs:read', 'daily-logs:create', 'inspections:read',
     'company:read', 'dashboard:read', 'schedule:read',

@@ -89,8 +89,36 @@ export function createTimeRoutes(deps: TimeDeps) {
     isOwnEntry(u, entry) && !OWN_APPROVAL_OK.has(u.role)
       ? 'You cannot approve your own time. Approval is a second person checking the hours before they are paid — ask an owner or admin to approve this one.'
       : null
-  /** Changing what the approval vouches for: the hours themselves, or the day they were worked. */
-  const figureChanged = (updates: any) => updates.hours !== undefined || updates.date !== undefined
+  /**
+   * Did the edit actually change what the approval vouches for?
+   *
+   * Two corrections from Salon RR6, and they pull in opposite directions:
+   *
+   *   E2  "hours were sent" is not "hours changed". The Time screen's Edit dialog PUTs the whole
+   *       entry back on every save, so adding a word to the description arrived carrying
+   *       hours: 2.5 on a 2.50-hour entry — and the approval ended. Every edit from the screen
+   *       cost a re-approval, which is exactly the obstacle this rule was written to avoid. The
+   *       comparison is now numeric against the STORED value, so 2.5 and "2.50" are both no-ops.
+   *
+   *   E3  the hourly RATE was not part of the figure, and rate × hours is the pay. An approved
+   *       2.5 hours at $40 could be PUT to $80 and stay approved — an approval standing over a
+   *       pay figure nobody approved. It counts now.
+   */
+  const num = (v: any) => (v === null || v === undefined || v === '' ? null : Number(v))
+  const sameNumber = (a: any, b: any) => {
+    const x = num(a), y = num(b)
+    if (x === null && y === null) return true
+    if (x === null || y === null) return false
+    return Math.abs(x - y) < 0.0001
+  }
+  const sameDay = (a: any, b: any) => {
+    if (!a || !b) return !a && !b
+    return new Date(a).toISOString().slice(0, 10) === new Date(b).toISOString().slice(0, 10)
+  }
+  const figureChanged = (updates: any, existing: any) =>
+    (updates.hours !== undefined && !sameNumber(updates.hours, existing?.hours))
+    || (updates.date !== undefined && !sameDay(updates.date, existing?.date))
+    || (updates.hourlyRate !== undefined && !sameNumber(updates.hourlyRate, existing?.hourlyRate))
   const invalid = (c: any, err: z.ZodError) => c.json({ error: err.errors[0]?.message || 'Invalid time entry', details: err.flatten().fieldErrors }, 400)
 
   const entrySchema = z.object({
@@ -438,13 +466,13 @@ export function createTimeRoutes(deps: TimeDeps) {
     }
     // The approval vouched for a figure. Change the figure and it no longer vouches for anything, so
     // it goes back for re-approval — unless this same request is deliberately re-approving. (RR4 M2)
-    const approvalCleared = existing.approved && figureChanged(updates) && updates.approved !== true
+    const approvalCleared = existing.approved && figureChanged(updates, existing) && updates.approved !== true
     if (approvalCleared) { updates.approved = false; updates.approvedAt = null }
 
     const [row] = await db.update(t.timeEntry).set(updates).where(and(eq(t.timeEntry.id, id), eq(t.timeEntry.companyId, currentUser.companyId))).returning()
     if (approvalCleared) {
       audit?.log({ action: 'status_change', entity: 'time_entry', entityId: id, metadata: { approved: false, reason: 'the hours or the date changed after approval' }, req: { user: currentUser } })
-      return c.json({ ...row, warnings: ['This entry was approved. The hours changed, so the approval has been removed and it needs approving again.'] })
+      return c.json({ ...row, warnings: ['This entry was approved. The hours, the date or the rate changed, so the approval has been removed and it needs approving again.'] })
     }
     return c.json(row)
   })

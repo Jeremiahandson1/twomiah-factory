@@ -86,6 +86,8 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
   const approve = async (row: Entry) => { try { await api.post(`/api/time/${row.id}/approve`); toast.success('Approved'); load() } catch (e) { toast.error(errMsg(e, 'Failed to approve')) } }
   const openCreate = () => { setEditing(null); setForm(empty()); setFormError(''); setModalOpen(true) }
   const openEdit = (item: Entry) => { setEditing(item); setForm({ ...empty(), date: String(item.date || '').slice(0, 10) || today(), hours: String(item.hours ?? ''), description: item.description || '', billable: !!item.billable, projectId: item.projectId || '', jobId: item.jobId || '' }); setFormError(''); setModalOpen(true) }
+  // The top of the tree may approve their own time — the server's carve-out, mirrored here. (RR6 N2)
+  const ownApprovalOk = ['owner', 'admin'].includes(String(auth.user?.role || ''))
   const canEdit = (row: Entry) => manager || (row.userId === auth.user?.id && !row.approved)
 
   const columns = [
@@ -93,7 +95,7 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
     { key: 'user', label: 'User', render: (v: any) => (v ? `${v.firstName || ''} ${v.lastName || ''}`.trim() || '-' : '-') },
     ...(showJobs ? [{ key: 'job', label: jobLabel, render: (v: any) => v?.title || '-' }] : []),
     ...(showProjects ? [{ key: 'project', label: 'Project', render: (v: any) => v?.name || '-' }] : []),
-    { key: 'hours', label: 'Hours', render: (v: any, row: Entry) => (row.clockIn && !row.clockOut ? <span className="text-orange-700 dark:text-orange-400">running</span> : Number(v || 0).toFixed(2)) },
+    { key: 'hours', label: 'Hours', render: (v: any, row: Entry) => (row.clockIn && !row.clockOut ? <span className="text-amber-700 dark:text-amber-300">running</span> : Number(v || 0).toFixed(2)) },
     { key: 'description', label: 'Description', render: (v: any) => v || '-' },
     { key: 'billable', label: 'Billable', render: (v: any) => (v ? <span className="text-green-700 dark:text-green-400">Yes</span> : <span className="text-gray-500 dark:text-slate-400">No</span>) },
     { key: 'approved', label: 'Approved', render: (v: any) => (v ? <span className="text-green-700 dark:text-green-400 inline-flex items-center gap-1"><Check className="w-3 h-3" /> Yes</span> : <span className="text-gray-500 dark:text-slate-400">No</span>) },
@@ -121,7 +123,11 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
       <DataTable<Entry> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} emptyMessage="No time entries yet."
         actions={[
           { label: 'Edit', icon: Edit, onClick: openEdit, show: canEdit },
-          { label: 'Approve', icon: Check, onClick: approve, show: (r) => manager && !r.approved && !(r.clockIn && !r.clockOut) },
+          // Not on your OWN entry, unless you are the owner or admin — the server refuses that
+          // ("approval is a second person checking the hours") and an action that can only ever
+          // 403 is an item that never works. Owner and admin keep it: they have nobody above them
+          // to ask, which is the same carve-out the server makes. (Salon RR6 N2)
+          { label: 'Approve', icon: Check, onClick: approve, show: (r) => manager && !r.approved && !(r.clockIn && !r.clockOut) && (ownApprovalOk || r.userId !== auth.user?.id) },
           { label: 'Delete', icon: Trash2, onClick: (r) => setToDelete(r), className: 'text-red-600', show: canEdit },
         ]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Time Entry' : 'Log Time'} size="md">

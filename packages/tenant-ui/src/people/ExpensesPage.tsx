@@ -9,7 +9,7 @@ import { useAuth } from '../auth/AuthContext'
 import type { PeopleApi, PeopleToast, ExpensesConfig } from './types'
 import { DEFAULT_EXPENSE_CATEGORIES, isManagerRole } from './types'
 
-interface Expense { id: string; date: string; category: string; vendor?: string | null; description: string; amount: string | number; billable: boolean; reimbursable?: boolean; reimbursed?: boolean; projectId?: string | null; jobId?: string | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
+interface Expense { id: string; date: string; category: string; vendor?: string | null; description: string; amount: string | number; billable: boolean; reimbursable?: boolean; reimbursed?: boolean; approved?: boolean; submittedById?: string | null; projectId?: string | null; jobId?: string | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
 // The person's own day, not UTC's: toISOString() rolls over at UTC midnight, so west of Greenwich this
 // pre-filled TOMORROW all evening. It is also the ceiling the date box is given — an expense is money already
 // spent. (Contractor T30 L1, the same fix the timesheet got)
@@ -22,6 +22,10 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
   const showJobs = auth.hasFeature(config?.jobsFeature || 'jobs')
   const showProjects = auth.hasFeature(config?.projectsFeature || 'projects')
   const manager = isManagerRole(auth.user?.role)
+  // Your own claim: the server refuses you approving or reimbursing it, so the action is not
+  // offered. Rows written before the submitter column existed have none and stay open to a
+  // manager. (Salon RR6 E1)
+  const isMine = (r: Expense) => !!r.submittedById && String(r.submittedById) === String((auth.user as any)?.id ?? (auth.user as any)?.userId)
   const empty = () => ({ date: today(), category: categories[0]?.value || 'other', vendor: '', description: '', amount: '', billable: false, reimbursable: false, projectId: '', jobId: '' })
   const [data, setData] = useState<Expense[]>([])
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([])
@@ -68,6 +72,20 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
     try { await api.delete('/api/expenses', toDelete.id); toast.success('Expense deleted'); setToDelete(null); load() }
     catch (e) { toast.error(errMsg(e, 'Failed to delete expense')) }
   }
+  /**
+   * Approve a claim. (Salon RR6 N1 — a HIGH, and one I created.)
+   *
+   * The server was given the rule that an expense must be approved before it can be reimbursed,
+   * and this screen was never given a way to approve. So Mark reimbursed answered 409 "Approve
+   * this expense before reimbursing it" and there was no approve anywhere in the product — the
+   * only route was POST /api/expenses/:id/approve by hand, which no salon owner is going to do.
+   * A server rule with no screen to satisfy it is a module that cannot be used.
+   */
+  const approve = async (row: Expense) => {
+    try { await api.post(`/api/expenses/${row.id}/approve`); toast.success('Expense approved'); load() }
+    catch (e) { toast.error(errMsg(e, 'Failed to approve expense')) }
+  }
+
   const reimburse = async (row: Expense) => {
     try { await api.post(`/api/expenses/${row.id}/reimburse`); toast.success('Marked reimbursed'); load() }
     catch (e) { toast.error(errMsg(e, 'Failed to mark reimbursed')) }
@@ -88,6 +106,9 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
     // one column it did not have. The form has always asked it and the row has always carried it; only the
     // table was silent, so you had to open every row to find out. (Evergreen T12 L8)
     { key: 'billable', label: 'Billable', render: (v: any) => (v ? <span className="text-blue-700 dark:text-blue-300">Yes</span> : '-') },
+    // Approval is now the step reimbursing depends on, so it has to be visible. Without this the
+    // Approve action appears and disappears with no column explaining why. (Salon RR6 N1)
+    { key: 'approved', label: 'Approved', render: (v: any) => (v ? <span className="text-green-700 dark:text-green-400 inline-flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Yes</span> : <span className="text-gray-500 dark:text-slate-400">No</span>) },
     { key: 'reimbursable', label: 'Reimburse', render: (v: any, row: Expense) => (row.reimbursed ? <span className="text-green-700 dark:text-green-400 inline-flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Done</span> : v ? <span className="text-amber-700 dark:text-amber-300">Pending</span> : '-') },
   ]
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm({ ...form, [k]: e.target.value })
@@ -98,7 +119,12 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
       <DataTable<Expense> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} emptyMessage="No expenses yet."
         actions={[
           { label: 'Edit', icon: Edit, onClick: openEdit },
-          { label: 'Mark reimbursed', icon: CheckCircle, onClick: reimburse, show: (r) => manager && !!r.reimbursable && !r.reimbursed },
+          // Approve comes FIRST, because it is the step reimbursing depends on. Hidden on your own
+          // claim: the server refuses that (a second person does the checking) and offering an
+          // action that always 403s is the L11 mistake in a new place. (Salon RR6 N1 / E1)
+          { label: 'Approve', icon: CheckCircle, onClick: approve, show: (r) => manager && !r.approved && !isMine(r) },
+          // …and Mark reimbursed only once it IS approved, so the 409 is unreachable from here.
+          { label: 'Mark reimbursed', icon: CheckCircle, onClick: reimburse, show: (r) => manager && !!r.approved && !!r.reimbursable && !r.reimbursed && !isMine(r) },
           { label: 'Delete', icon: Trash2, onClick: (r) => setToDelete(r), className: 'text-red-600' },
         ]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Expense' : 'Add Expense'} size="md">

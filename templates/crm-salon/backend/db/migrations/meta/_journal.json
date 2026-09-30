@@ -183,6 +183,13 @@
       "when": 1791400800000,
       "tag": "0025_client_kept_formulas",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791400900000,
+      "tag": "0026_expense_submitter",
+      "breakpoints": true
     }
   ]
 }
