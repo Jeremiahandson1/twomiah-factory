@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { timeEntry, user, expense } from '../../db/schema.ts'
-import { eq, and, gte, lte, desc } from 'drizzle-orm'
+import { eq, and, gte, lte, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 
 const app = new Hono()
@@ -14,10 +14,15 @@ app.get('/summary', async (c) => {
   const endDate = c.req.query('endDate')
   if (!startDate || !endDate) return c.json({ error: 'startDate and endDate required' }, 400)
 
+  // `user` in this schema has first_name and last_name and NO `name` column, so `user.name` was
+  // undefined and drizzle threw building the select — both handlers in this file answered 500
+  // every single time they were called. Nothing has a screen for either, which is the only
+  // reason it was never reported. Same two-column join the appointment book uses.
   const entries = await db.select({
     entry: timeEntry,
     userId: user.id,
-    userName: user.name,
+    userFirstName: user.firstName,
+    userLastName: user.lastName,
   })
     .from(timeEntry)
     .leftJoin(user, eq(timeEntry.userId, user.id))
@@ -33,7 +38,7 @@ app.get('/summary', async (c) => {
     const id = e.entry.userId
     if (!byUser[id]) {
       byUser[id] = {
-        user: { id: e.userId, name: e.userName },
+        user: { id: e.userId, name: [e.userFirstName, e.userLastName].filter(Boolean).join(' ') || null },
         totalHours: 0,
         totalPay: 0,
         entryCount: 0,
@@ -53,23 +58,43 @@ app.get('/summary', async (c) => {
 })
 
 // GET expenses
+//
+// This route answered 500 on every call it has ever received, and nothing noticed because it has
+// no screen. It was written against a DIFFERENT template's expense table: the salon's `expense`
+// has no `user_id` and no `status` column, so
+//     .leftJoin(user, eq(expense.userId, user.id))
+// built `eq(undefined, ...)` and Postgres answered "syntax error at or near =", on the plain
+// unfiltered call, every time. `eq(expense.status as any, status)` was the same mistake with a
+// cast hiding it — and the `as any` is exactly why the compiler never said so.
+//
+// A salon expense is not attached to a person in this schema, so there is no name to report; it
+// is approved or not. Filtering on `approved` is the column that exists. There is no contract to
+// break here because there was never a successful response.
 app.get('/expenses', async (c) => {
   const currentUser = c.get('user') as any
-  const status = c.req.query('status')
+  const approved = c.req.query('approved')
 
   const conditions = [eq(expense.companyId, currentUser.companyId)]
-  if (status) conditions.push(eq(expense.status as any, status))
+  if (approved === 'true' || approved === 'false') conditions.push(eq(expense.approved, approved === 'true'))
 
-  const rows = await db.select({
-    expense,
-    userName: user.name,
-  })
+  // Bounded: expenses only accumulate, so a list with no LIMIT answers with every one a salon has
+  // ever filed.
+  const page = Math.max(1, Number(c.req.query('page') || '1') || 1)
+  const limit = Math.min(500, Math.max(1, Number(c.req.query('limit') || '100') || 100))
+
+  const rows = await db.select()
     .from(expense)
-    .leftJoin(user, eq(expense.userId, user.id))
     .where(and(...conditions))
     .orderBy(desc(expense.createdAt))
+    .limit(limit)
+    .offset((page - 1) * limit)
 
-  return c.json(rows.map(r => ({ ...r.expense, user: { name: r.userName } })))
+  const [{ total }] = await db.select({ total: sql<number>`COUNT(*)::int` })
+    .from(expense).where(and(...conditions)) as any
+  return c.json({
+    data: rows,
+    pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) },
+  })
 })
 
 export default app

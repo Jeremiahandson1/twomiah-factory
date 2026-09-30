@@ -38,6 +38,12 @@ app.get('/enrollments', requirePermission('contacts:read'), async (c) => {
   if (contactId) conditions.push(eq(membershipEnrollment.contactId, contactId))
   if (status) conditions.push(eq(membershipEnrollment.status, status))
 
+  // Bounded, for the same reason the appointment book is: enrolments only ever accumulate, and a
+  // list with no LIMIT answers with every one a salon has ever sold. The page asks with no
+  // parameters and reads `data`, so it keeps working unchanged and now gets told the total.
+  const page = Math.max(1, Number(c.req.query('page') || '1') || 1)
+  const limit = Math.min(500, Math.max(1, Number(c.req.query('limit') || '100') || 100))
+
   const data = await db.select({
     enrollment: membershipEnrollment,
     planName: membershipPlan.name,
@@ -51,6 +57,8 @@ app.get('/enrollments', requirePermission('contacts:read'), async (c) => {
     .leftJoin(contact, eq(membershipEnrollment.contactId, contact.id))
     .where(and(...conditions))
     .orderBy(desc(membershipEnrollment.createdAt))
+    .limit(limit)
+    .offset((page - 1) * limit)
 
   // Flatten so the page can read `row.clientName` / `row.planName` / `row.startDate` directly.
   const rows = data.map((r: any) => ({
@@ -58,7 +66,9 @@ app.get('/enrollments', requirePermission('contacts:read'), async (c) => {
     planName: r.planName, planPrice: r.planPrice, billingCycle: r.billingCycle,
     clientName: r.clientName, clientPhone: r.clientPhone,
   }))
-  return c.json({ data: rows })
+  const [{ total }] = await db.select({ total: sql<number>`COUNT(*)::int` })
+    .from(membershipEnrollment).where(and(...conditions)) as any
+  return c.json({ data: rows, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
 })
 
 // POST /memberships/enrollments — credits seed from the plan unless overridden.
