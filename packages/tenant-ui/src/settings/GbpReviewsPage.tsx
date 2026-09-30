@@ -118,7 +118,7 @@ export function GbpReviewsPage(): React.ReactElement {
 
       {status?.connected && status?.locationName && (
         <>
-          <div className="bg-white border rounded-lg p-5 mb-4 flex items-center gap-6">
+          <div className="bg-white dark:bg-slate-900 border rounded-lg p-5 mb-4 flex items-center gap-6">
             <div>
               <div className="text-3xl font-bold">{summary?.averageRating != null ? summary.averageRating.toFixed(1) : '—'}</div>
               {summary?.averageRating != null && <Stars rating={summary.averageRating} />}

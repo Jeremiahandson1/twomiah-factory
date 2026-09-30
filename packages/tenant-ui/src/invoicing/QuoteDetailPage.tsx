@@ -93,7 +93,7 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6">
               <h2 className="font-semibold mb-3 text-gray-900 dark:text-white">Signed Acceptance</h2>
               <div className="border border-green-200 dark:border-green-800 rounded-lg bg-green-50 dark:bg-green-900/20 p-4">
-                <img src={quote.signature} alt="Customer signature" className="max-h-24 bg-white rounded" />
+                <img src={quote.signature} alt="Customer signature" className="max-h-24 bg-white dark:bg-slate-900 rounded" />
                 <div className="mt-3 grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm text-gray-700 dark:text-slate-200">
                   <div><span className="text-gray-500 dark:text-slate-400">Signed by</span><p className="font-medium">{quote.signedBy || '-'}</p></div>
                   <div><span className="text-gray-500 dark:text-slate-400">Signed at</span><p className="font-medium">{dateTime(quote.signedAt)}</p></div>

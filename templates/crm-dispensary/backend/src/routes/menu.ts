@@ -554,7 +554,12 @@ app.post('/order', async (c) => {
       phone: data.customerPhone,
       email: data.customerEmail || null,
       dateOfBirth: orderDob,
-      type: 'customer',
+      // 'client', not 'customer'. This insert bypasses contactSchema, which has normalised the two
+      // since T21 L3 — so this door wrote a value the enum does not declare, and the tenant ended up
+      // holding 45 clients and 11 customers for one idea. Marketing's Customer segment then matched
+      // only the rows THIS route had written: 11 of 56, and none added on the Customers screen.
+      // (T49 / T53 / T55 M3)
+      type: 'client',
       source: 'online_order',
       companyId: foundCompany.id,
       // When a record with this phone number already existed but did not identify, say so on the

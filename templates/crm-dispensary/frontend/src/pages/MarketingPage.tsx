@@ -26,7 +26,15 @@ const AUDIENCES = [
   { value: 'segment', label: 'Customers of one type' },
 ];
 
-const CONTACT_TYPES = ['customer', 'lead', 'vendor'];
+// The word on screen, and the value the column actually stores. They are not the same, and sending
+// the screen's word straight to the filter is how Segment → Customer reached 11 of 56 people: the
+// column stores `client`, and only order-ahead was writing the literal 'customer'. The server
+// matches either now, for campaigns already saved with the old word. (T49 / T53 / T55 M3)
+const CONTACT_TYPES: Array<{ value: string; label: string }> = [
+  { value: 'client', label: 'Customer' },
+  { value: 'lead', label: 'Lead' },
+  { value: 'vendor', label: 'Vendor' },
+];
 
 const statusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
@@ -42,7 +50,7 @@ const emptyForm = {
   subject: '',
   content: '',
   audienceType: 'all',
-  contactType: 'customer',
+  contactType: 'client',
 };
 
 export default function MarketingPage() {
@@ -275,7 +283,7 @@ export default function MarketingPage() {
                 value={form.contactType} onChange={(e) => setForm({ ...form, contactType: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-green-500"
               >
-                {CONTACT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                {CONTACT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
           )}

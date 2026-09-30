@@ -217,7 +217,7 @@ export default function PricingPage() {
           {WEBSITE_TIERS.map((tier) => {
             const monthlyDisplay = isAnnual ? Math.round(tier.annual / 12) : tier.monthly;
             return (
-              <div key={tier.id} className={`bg-white rounded-2xl p-8 border-2 ${tier.popular ? 'border-orange-500 shadow-xl' : 'border-gray-200'}`}>
+              <div key={tier.id} className={`bg-white dark:bg-slate-900 rounded-2xl p-8 border-2 ${tier.popular ? 'border-orange-500 shadow-xl' : 'border-gray-200'}`}>
                 {tier.popular && (
                   <div className="inline-block px-3 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full mb-3">MOST POPULAR</div>
                 )}

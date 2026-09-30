@@ -175,12 +175,15 @@ export default function SEOPagesPage() {
                         {page.lastIndexed ? formatDate(page.lastIndexed) : '—'}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => openEdit(page)}
-                          className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1 ml-auto"
-                        >
-                          <Edit className="w-3 h-3" /> Edit
-                        </button>
+                        {/* PUT /api/seo-pages/:id is requireRole('manager'). (T55 L11 leftover) */}
+                        {isManager && (
+                          <button
+                            onClick={() => openEdit(page)}
+                            className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1 ml-auto"
+                          >
+                            <Edit className="w-3 h-3" /> Edit
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

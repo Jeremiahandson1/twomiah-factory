@@ -216,9 +216,12 @@ export default function SignagePage() {
                     )}
                   </div>
                   <div className="flex gap-2 mt-4 pt-3 border-t">
-                    <button onClick={() => openEditScreen(screen)} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 flex items-center gap-1 dark:text-slate-400">
-                      <Edit className="w-3 h-3" /> Edit
-                    </button>
+                    {/* PUT /screens/:id is requireRole('manager'). (T55 L11 leftover) */}
+                    {isManager && (
+                      <button onClick={() => openEditScreen(screen)} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 flex items-center gap-1 dark:text-slate-400">
+                        <Edit className="w-3 h-3" /> Edit
+                      </button>
+                    )}
                     <button
                       onClick={() => { setSelectedScreen(screen); loadContent(screen.id); setTab('content'); }}
                       className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1"

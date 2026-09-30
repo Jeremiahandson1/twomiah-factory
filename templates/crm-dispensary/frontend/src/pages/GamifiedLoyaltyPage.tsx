@@ -304,12 +304,15 @@ export default function GamifiedLoyaltyPage() {
                           {typeInfo.label}
                         </span>
                       </div>
-                      <button
-                        onClick={() => openChallengeModal(challenge)}
-                        className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300"
-                      >
-                        Edit
-                      </button>
+                      {/* PUT /challenges/:id is requireRole('manager'). (T55 L11 leftover) */}
+                      {isManager && (
+                        <button
+                          onClick={() => openChallengeModal(challenge)}
+                          className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300"
+                        >
+                          Edit
+                        </button>
+                      )}
                     </div>
 
                     {challenge.description && (
@@ -599,7 +602,7 @@ export default function GamifiedLoyaltyPage() {
                 // browser is parsing in its own zone. (T45 M14)
                 const isActive = event.running === true;
                 return (
-                  <div key={event.id} className={`bg-white rounded-lg shadow-sm p-5 border-2 ${isActive ? 'border-yellow-300' : 'border-gray-100'}`}>
+                  <div key={event.id} className={`bg-white dark:bg-slate-900 rounded-lg shadow-sm p-5 border-2 ${isActive ? 'border-yellow-300' : 'border-gray-100'}`}>
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
                         <Zap className={`w-4 h-4 ${isActive ? 'text-yellow-500' : 'text-gray-400'}`} />
@@ -631,14 +634,17 @@ export default function GamifiedLoyaltyPage() {
                       </p>
                     </div>
                     {/* An event that cannot be removed is an event a shop is stuck with. (T45 M14) */}
-                    <div className="mt-4 pt-3 border-t flex justify-end dark:border-slate-700">
-                      <button
-                        onClick={() => deleteEvent(event)}
-                        className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1 dark:hover:text-red-300"
-                      >
-                        <Trash2 className="w-3 h-3" /> Delete
-                      </button>
-                    </div>
+                    {/* DELETE /multiplier-events/:id is requireRole('manager'). (T55 L11 leftover) */}
+                    {isManager && (
+                      <div className="mt-4 pt-3 border-t flex justify-end dark:border-slate-700">
+                        <button
+                          onClick={() => deleteEvent(event)}
+                          className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1 dark:hover:text-red-300"
+                        >
+                          <Trash2 className="w-3 h-3" /> Delete
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}

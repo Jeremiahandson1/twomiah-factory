@@ -827,7 +827,7 @@ export default function CanvassingView() {
                           prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
                         )}
                         className={`text-xs px-3 py-1.5 rounded-full border font-medium ${
-                          logDamageTags.includes(tag) ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-white border-gray-300 text-gray-600'
+                          logDamageTags.includes(tag) ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-white dark:bg-slate-900 border-gray-300 text-gray-600'
                         }`}>
                         {tag}
                       </button>
@@ -897,7 +897,7 @@ export default function CanvassingView() {
                   <span className="text-sm font-medium">Left door hanger</span>
                   <button onClick={() => setLogDoorHanger(!logDoorHanger)}
                     className={`w-12 h-6 rounded-full transition ${logDoorHanger ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                    <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${logDoorHanger ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                    <div className={`w-5 h-5 bg-white dark:bg-slate-900 rounded-full shadow transition-transform ${logDoorHanger ? 'translate-x-6' : 'translate-x-0.5'}`} />
                   </button>
                 </div>
 

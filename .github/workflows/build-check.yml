@@ -1485,6 +1485,17 @@ jobs:
       - name: "No service worker caches /api/ responses"
         run: bun run scripts/check-service-worker-never-caches-data.ts
 
+  light-card-dark-text:
+    name: "no white card holding white text in dark mode"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "A bg-white surface with dark-mode text inside needs a dark:bg-* partner"
+        run: bun run scripts/check-light-card-dark-text.ts
+
   dashboard-panels-load:
     name: "dashboard panels load"
     runs-on: ubuntu-latest

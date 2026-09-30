@@ -143,7 +143,8 @@ app.post('/sale', requireIntegrationKey, async (c) => {
       const [newContact] = await db.insert(contact).values({
         name: data.customerName || 'POS Customer',
         phone: data.customerPhone,
-        type: 'customer',
+        // 'client' — the value contactSchema normalises to. See routes/menu.ts. (T55 M3)
+        type: 'client',
         source: `pos_${data.posSystem}`,
         companyId: comp.id,
       } as any).returning()
@@ -440,7 +441,8 @@ app.post('/customer', requireIntegrationKey, async (c) => {
       name: data.name || 'POS Customer',
       phone: data.phone,
       email: data.email || null,
-      type: 'customer',
+      // 'client' — the value contactSchema normalises to. See routes/menu.ts. (T55 M3)
+      type: 'client',
       source: 'pos_integration',
       companyId: comp.id,
     } as any).returning()

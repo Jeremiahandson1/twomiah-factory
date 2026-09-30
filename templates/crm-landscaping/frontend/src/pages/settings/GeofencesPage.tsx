@@ -151,7 +151,7 @@ export default function GeofencesPage() {
 
 function GeofenceCard({ geofence, onEdit, onDelete, onToggle }) {
   return (
-    <div className={`bg-white rounded-xl border p-4 ${!geofence.active ? 'opacity-60' : ''}`}>
+    <div className={`bg-white dark:bg-slate-900 rounded-xl border p-4 ${!geofence.active ? 'opacity-60' : ''}`}>
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center ${

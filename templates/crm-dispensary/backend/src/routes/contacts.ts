@@ -371,11 +371,29 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
     const sent = (data as any).dateOfBirth
     const before = existing.dateOfBirth ? String(existing.dateOfBirth).slice(0, 10) : null
     const after = sent ? String(sent).slice(0, 10) : null
-    if (after && after !== before) {
+    // FIRST entry is intake, not amendment. (T55 S3)
+    //
+    // The rule refused a budtender adding a date of birth to a record that had none — an
+    // order-ahead contact, a walk-in taken by name — and the refusal even said "recorded as having
+    // no date of birth", which gives the game away. There is no evidence to amend when the field is
+    // empty: the budtender has the ID in their hand, exactly as they do at create, where this has
+    // always been allowed. Refusing it made the customer wait for a manager to type a date nobody
+    // had ever recorded.
+    //
+    // Changing one that IS on file stays a manager's decision. That is the finding.
+    if (after && before && after !== before) {
       const extra = await getExtraPermissions(currentUser.userId)
       if (!hasPermission(currentUser.role, 'contacts:change-dob', extra)) {
+        // Recorded even though it is refused. An owner asking "has anyone tried to move a date of
+        // birth?" got nothing back, because the refusal returned before the audit line. The attempt
+        // is the thing worth seeing. (T55 S4)
+        audit.log({
+          action: audit.ACTIONS.UPDATE, entity: 'contact', entityId: id, entityName: existing.name,
+          metadata: { refused: 'dob_change_needs_manager', recorded: before, attempted: after },
+          req: c,
+        })
         return c.json({
-          error: `A date of birth already on file can only be changed by a manager. ${existing.name || 'This customer'} is recorded as ${before || 'having no date of birth'} — if that is wrong, ask a manager to correct it with the ID in front of them.`,
+          error: `A date of birth already on file can only be changed by a manager. ${existing.name || 'This customer'} is recorded as ${before} — if that is wrong, ask a manager to correct it with the ID in front of them.`,
           code: 'dob_change_needs_manager',
           recorded: before,
         }, 403)

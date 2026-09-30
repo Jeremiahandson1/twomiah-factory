@@ -1,0 +1,11 @@
+-- One word for one idea. (T49 / T53 / T55 M3)
+--
+-- contactSchema declares ['lead','client','patient','vendor'] and normalises the product's own word
+-- "customer" onto `client` (T21 L3). Two writers bypassed that schema and inserted straight into the
+-- table — the public order-ahead page and the external-POS import — so they stored the literal
+-- 'customer', a value the enum does not allow. A tenant ended up holding both words for one idea,
+-- and Marketing's Customer segment matched whichever the campaign happened to be saved with:
+-- 11 people of 56, and none of the ones added on the Customers screen.
+--
+-- Both writers now write 'client'. This is the rows they already wrote.
+UPDATE "contact" SET "type" = 'client' WHERE "type" = 'customer';

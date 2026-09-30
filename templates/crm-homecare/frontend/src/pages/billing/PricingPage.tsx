@@ -204,7 +204,7 @@ export default function PricingPage() {
               const isYearly = billingCycle === 'yearly';
               const monthlyDisplay = isYearly ? Math.round(tier.annual / 12 / 100) : tier.monthly / 100;
               return (
-                <div key={id} className={`bg-white rounded-2xl p-6 border-2 ${id === 'showcase' ? 'border-orange-500 shadow-xl' : 'border-gray-200'}`}>
+                <div key={id} className={`bg-white dark:bg-slate-900 rounded-2xl p-6 border-2 ${id === 'showcase' ? 'border-orange-500 shadow-xl' : 'border-gray-200'}`}>
                   {id === 'showcase' && (
                     <div className="inline-block px-3 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full mb-2">
                       MOST POPULAR

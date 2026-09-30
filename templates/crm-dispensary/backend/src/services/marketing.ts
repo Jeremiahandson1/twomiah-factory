@@ -17,7 +17,7 @@ import {
   marketingSequenceEnrollment,
   marketingRecipient,
 } from '../../db/schema.ts'
-import { eq, and, gte, sql, desc } from 'drizzle-orm'
+import { eq, and, gte, sql, desc, inArray } from 'drizzle-orm'
 import { sendSMS } from './sms.ts'
 // The tenant's ONE email sender. The SendGrid client that used to be wired up here is gone: it was
 // a second implementation of something this file already had, and it was the one that did not
@@ -153,7 +153,22 @@ async function getAudienceContacts(companyId: string, audienceType: string, filt
     const parsed = typeof filter === 'string' ? JSON.parse(filter) : filter
 
     if (parsed.type) {
-      conditions.push(eq(contact.type, parsed.type))
+      // "customer" and "client" are the SAME segment. (T49/T53/T55 M3)
+      //
+      // The product says customer everywhere a person can read it, and the column stores `client` —
+      // contactSchema has normalised the two since T21 L3. But order-ahead and the external-POS
+      // import insert straight into the table, bypassing that schema, so they wrote the literal
+      // 'customer'. The tenant ended up holding 45 clients and 11 customers for one idea, and this
+      // filter matched whichever word the campaign happened to be saved with: Segment → Customer
+      // reached 11 of 56 people, and none of the ones added on the Customers screen.
+      //
+      // Both writers are corrected below, but campaigns already saved carry the old word in their
+      // audienceFilter, and so do the rows written before today. Matching either is what makes an
+      // existing campaign mean what its author meant.
+      const wanted = String(parsed.type) === 'customer' ? ['client', 'customer']
+        : String(parsed.type) === 'client' ? ['client', 'customer']
+        : [String(parsed.type)]
+      conditions.push(wanted.length > 1 ? inArray(contact.type, wanted) : eq(contact.type, wanted[0]))
     }
     if (parsed.createdAfter) {
       conditions.push(gte(contact.createdAt, new Date(parsed.createdAfter)))

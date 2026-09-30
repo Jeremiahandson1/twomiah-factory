@@ -3,6 +3,7 @@ import { formatDate } from '../utils/date';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Edit, Trash2, Search, Star } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
@@ -27,7 +28,8 @@ const initialFormData = {
   // No picker: on a screen titled Customers, "is this a customer?" is not a question worth asking.
   // The other four creators already say what they make — order-ahead and the external-POS import
   // both write 'customer', the leads route writes a lead, the CSV importer maps the column — so
-  // this was the one door that stayed silent. The API normalises 'customer' to the stored 'client'.
+  // this was the one door that stayed silent. The API normalises 'customer' onto the stored 'client',
+  // which is the single value every writer now uses. (T55 M3)
   type: 'customer',
   name: '',
   email: '',
@@ -44,6 +46,8 @@ const initialFormData = {
 };
 
 export default function CustomersPage() {
+  // Manager+ actions are hidden rather than shown-and-refused. (T53 L11, T55 leftovers)
+  const { isManager } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
   const [customers, setCustomers] = useState<any[]>([]);
@@ -265,7 +269,8 @@ export default function CustomersPage() {
 
   const actions = [
     { label: 'Edit', icon: Edit, onClick: openEditModal },
-    { label: 'Delete', icon: Trash2, onClick: (row: any) => { setCustomerToDelete(row); setDeleteModalOpen(true); }, className: 'text-red-600' },
+    // contacts:delete is manager+; a budtender was offered this and always got a 403. (T55 L11)
+    { label: 'Delete', icon: Trash2, onClick: (row: any) => { setCustomerToDelete(row); setDeleteModalOpen(true); }, className: 'text-red-600', show: () => isManager },
   ];
 
   return (

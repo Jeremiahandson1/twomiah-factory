@@ -112,7 +112,7 @@ export function AccessibleModal({
         aria-labelledby={title ? 'modal-title' : undefined}
         aria-describedby={description ? 'modal-description' : undefined}
         className={`
-          relative bg-white rounded-xl shadow-xl w-full
+          relative bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full
           transform transition-all duration-200
           animate-in fade-in zoom-in-95
           ${sizes[size]}

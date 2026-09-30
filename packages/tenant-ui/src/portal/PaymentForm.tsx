@@ -93,7 +93,7 @@ function CheckoutForm({ amount, onSuccess, onCancel }: { amount: number; onSucce
         <p className="text-sm text-gray-500 dark:text-slate-400">Payment Amount</p>
         <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
       </div>
-      <div className="bg-white rounded-lg border p-4"><PaymentElement options={{ layout: 'tabs' }} /></div>
+      <div className="bg-white dark:bg-slate-900 rounded-lg border p-4"><PaymentElement options={{ layout: 'tabs' }} /></div>
       {error && <div role="alert" className="bg-red-50 text-red-700 p-3 rounded-lg flex items-center gap-2 text-sm dark:bg-red-950/40 dark:text-red-300"><AlertCircle className="w-4 h-4 shrink-0" />{error}</div>}
       <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400"><Lock className="w-3 h-3" /><span>Your payment info is encrypted and secure</span></div>
       <div className="flex gap-3">

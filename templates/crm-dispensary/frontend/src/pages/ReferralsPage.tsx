@@ -214,7 +214,7 @@ export default function ReferralsPage() {
                       className="sr-only"
                     />
                     <div className={`w-11 h-6 rounded-full transition-colors ${config.enabled ? 'bg-green-500' : 'bg-gray-300'}`}>
-                      <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mt-0.5 ${config.enabled ? 'translate-x-5.5 ml-[22px]' : 'translate-x-0.5 ml-[2px]'}`} />
+                      <div className={`w-5 h-5 bg-white dark:bg-slate-900 rounded-full shadow transition-transform mt-0.5 ${config.enabled ? 'translate-x-5.5 ml-[22px]' : 'translate-x-0.5 ml-[2px]'}`} />
                     </div>
                   </div>
                 </label>
