@@ -270,12 +270,15 @@ export default function GamifiedLoyaltyPage() {
       {/* Challenges Tab */}
       {tab === 'challenges' && (
         <div>
-          <div className="flex justify-end mb-4">
-            <Button onClick={() => openChallengeModal()}>
-              <Plus className="w-4 h-4 mr-2 inline" />
-              Create Challenge
-            </Button>
-          </div>
+          {/* Manager+ only: the server refuses this for a budtender, so showing it invites a 403. (T53 L11) */}
+          {isManager && (
+            <div className="flex justify-end mb-4">
+              <Button onClick={() => openChallengeModal()}>
+                <Plus className="w-4 h-4 mr-2 inline" />
+                Create Challenge
+              </Button>
+            </div>
+          )}
 
           {loadingChallenges ? (
             <div className="flex items-center justify-center h-32">

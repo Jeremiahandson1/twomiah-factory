@@ -278,9 +278,12 @@ export default function AIBudtenderPage() {
             </div>
           </div>
 
-          <Button onClick={saveConfig} disabled={savingConfig}>
-            {savingConfig ? 'Saving...' : 'Save Configuration'}
-          </Button>
+          {/* Manager+ only: the server refuses this for a budtender, so showing it invites a 403. (T53 L11) */}
+          {isManager && (
+            <Button onClick={saveConfig} disabled={savingConfig}>
+              {savingConfig ? 'Saving...' : 'Save Configuration'}
+            </Button>
+          )}
         </div>
       )}
 

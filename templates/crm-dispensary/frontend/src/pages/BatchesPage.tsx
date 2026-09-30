@@ -503,10 +503,13 @@ export default function BatchesPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Batches</h1>
           <p className="text-gray-600 dark:text-slate-400">Batch and lot lifecycle management</p>
         </div>
-        <Button onClick={openCreateBatch}>
-          <Plus className="w-4 h-4 mr-2 inline" />
-          New Batch
-        </Button>
+        {/* Manager+ only: the server refuses this for a budtender, so showing it is an invitation to a 403. (T53 L11) */}
+        {isManager && (
+          <Button onClick={openCreateBatch}>
+            <Plus className="w-4 h-4 mr-2 inline" />
+            New Batch
+          </Button>
+        )}
       </div>
 
       {/* Expiring Alert */}

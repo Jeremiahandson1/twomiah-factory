@@ -37,6 +37,12 @@ export default function TaxFilingPage() {
 
   // Filings
   const [filings, setFilings] = useState<any[]>([]);
+  // Paging. Without it the screen showed page 1 and nothing else, so a shop with more than 25
+  // returns had filings on the API it could not open � including ones it had just generated.
+  // For a compliance screen a return the owner cannot see is worse than a cosmetic paging bug. (T53 N9)
+  const [filingsPage, setFilingsPage] = useState(1);
+  const [filingsPages, setFilingsPages] = useState(1);
+  const [filingsTotal, setFilingsTotal] = useState(0);
   const [loadingFilings, setLoadingFilings] = useState(true);
   const [generateModal, setGenerateModal] = useState(false);
   const [generateForm, setGenerateForm] = useState({ type: 'state_excise', period: 'monthly', startDate: '', endDate: '' });
@@ -65,13 +71,15 @@ export default function TaxFilingPage() {
     if (tab === 'filings') loadFilings();
     if (tab === 'upcoming') loadDeadlines();
     if (tab === 'summary') loadSummary();
-  }, [tab]);
+  }, [tab, filingsPage]);
 
   const loadFilings = async () => {
     setLoadingFilings(true);
     try {
-      const data = await api.get('/api/tax-filing/filings');
+      const data = await api.get('/api/tax-filing/filings', { page: filingsPage, limit: 25 });
       setFilings(Array.isArray(data) ? data : data?.data || []);
+      setFilingsPages(data?.pagination?.pages || 1);
+      setFilingsTotal(data?.pagination?.total ?? (Array.isArray(data) ? data.length : (data?.data || []).length));
     } catch (err) {
       toast.error('Failed to load filings');
     } finally {
@@ -252,6 +260,32 @@ export default function TaxFilingPage() {
                   )}
                 </tbody>
               </table>
+              {/* The pager. A return the owner cannot open is worse than a cosmetic paging bug, and
+                  before this the screen stopped at 25 with nothing to say there were more. (T53 N9) */}
+              {filingsPages > 1 && (
+                <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3 text-sm dark:border-slate-700">
+                  <span className="text-gray-600 dark:text-slate-300">
+                    Showing {(filingsPage - 1) * 25 + 1}–{Math.min(filingsPage * 25, filingsTotal)} of {filingsTotal} filings
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setFilingsPage((p) => Math.max(1, p - 1))}
+                      disabled={filingsPage <= 1 || loadingFilings}
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 disabled:opacity-40 dark:border-slate-700 dark:text-slate-200"
+                    >
+                      Previous
+                    </button>
+                    <span className="text-gray-600 dark:text-slate-300">Page {filingsPage} of {filingsPages}</span>
+                    <button
+                      onClick={() => setFilingsPage((p) => Math.min(filingsPages, p + 1))}
+                      disabled={filingsPage >= filingsPages || loadingFilings}
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 disabled:opacity-40 dark:border-slate-700 dark:text-slate-200"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

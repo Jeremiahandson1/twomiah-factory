@@ -4,6 +4,7 @@ import { formatDate } from '../utils/date';
 import { useNavigate } from 'react-router-dom';
 import { ShoppingBag, Search, Package, Eye, Plus } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
@@ -12,6 +13,8 @@ import { Modal } from '../components/ui/Modal';
 const MERCH_CATEGORY = 'accessory';
 
 export default function MerchStorePage() {
+  // Manager+ actions are hidden rather than shown-and-refused. (T53 L11)
+  const { isManager } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
   const [tab, setTab] = useState('products');
@@ -183,12 +186,12 @@ export default function MerchStorePage() {
       <PageHeader
         title="Merch Store"
         subtitle="Branded merchandise management"
-        action={
+        action={isManager ? (
           <Button onClick={openCreate}>
             <Plus className="w-4 h-4 mr-2 inline" />
             Add Product
           </Button>
-        }
+        ) : undefined}
       />
 
       {/* Tabs */}

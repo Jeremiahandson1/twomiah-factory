@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Monitor, Plus, Edit, Eye, RefreshCw, Wifi, WifiOff, Image, List, Clock } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
@@ -20,6 +21,8 @@ const screenTypeLabels: Record<string, string> = {
 };
 
 export default function SignagePage() {
+  // Manager+ actions are hidden rather than shown-and-refused. (T53 L11)
+  const { isManager } = useAuth();
   const toast = useToast();
   const [tab, setTab] = useState('screens');
   const [screens, setScreens] = useState<any[]>([]);
@@ -159,12 +162,15 @@ export default function SignagePage() {
       {/* Screens Tab */}
       {tab === 'screens' && (
         <div>
-          <div className="flex justify-end mb-4">
-            <Button onClick={openCreateScreen}>
-              <Plus className="w-4 h-4 mr-2 inline" />
-              Add Screen
-            </Button>
-          </div>
+          {/* Manager+ only: the server refuses this for a budtender, so showing it invites a 403. (T53 L11) */}
+          {isManager && (
+            <div className="flex justify-end mb-4">
+              <Button onClick={openCreateScreen}>
+                <Plus className="w-4 h-4 mr-2 inline" />
+                Add Screen
+              </Button>
+            </div>
+          )}
 
           {loading ? (
             <div className="flex items-center justify-center h-32">

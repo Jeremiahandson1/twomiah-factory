@@ -39,8 +39,10 @@ app.get('/filings', async (c) => {
   const filingType = c.req.query('type')
   const period = c.req.query('period')
   const status = c.req.query('status')
-  const page = +(c.req.query('page') || '1')
-  const limit = +(c.req.query('limit') || '25')
+  // Clamped: a negative page becomes a negative SQL OFFSET and a 500, and an unbounded limit pulls
+  // every return a shop has ever filed.
+  const page = Math.max(1, Math.floor(+(c.req.query('page') || '1') || 1))
+  const limit = Math.min(200, Math.max(1, Math.floor(+(c.req.query('limit') || '25') || 25)))
   const offset = (page - 1) * limit
 
   let typeFilter = sql``
@@ -63,7 +65,13 @@ app.get('/filings', async (c) => {
       ${typeFilter}
       ${periodFilter}
       ${statusFilter}
-    ORDER BY period_end DESC
+    -- Newest FIRST, by when it was generated. (T53 N9)
+    --
+    -- This was period_end DESC, so a return generated today for the 28th sorted below one generated
+    -- last week for the 29th, and the filing you had just made could land on a page the screen had
+    -- no way to reach. On a compliance screen the row you need is almost always the one you just
+    -- created — to check it, set it aside, or supersede it. Period order breaks the tie.
+    ORDER BY created_at DESC, period_end DESC
     LIMIT ${limit} OFFSET ${offset}
   `)
 
@@ -699,18 +707,44 @@ app.get('/filings/summary', async (c) => {
   const yearStart = new Date(new Date().getFullYear(), 0, 1)
 
   // orders.excise_tax/sales_tax/total_tax are TEXT; NULLIF guards empty strings before cast.
+  // The three lines and the total are computed so that the lines ADD UP to it. (T51–T54 N4)
+  //
+  // They did not, by $5.68, on every run since T51. Each figure carried its own
+  // GREATEST(0, charged − refunded) clamp, which is right per column — no component collects a
+  // negative amount — and breaks additivity: on an order whose refund returned more of one tax than
+  // that tax was charged, the component floors at zero while total_tax keeps the whole deduction,
+  // so the parts come out larger than the whole.
+  //
+  // Reporting the variance — which is what the first pass at this did — is better than hiding it
+  // and is still the wrong answer: an owner filing a return should not be handed three numbers and
+  // an explanation of why they do not add up. So the split is made per ORDER, against what that
+  // order actually kept:
+  //
+  //   tot  = GREATEST(0, total_tax − refunded_tax)   ← the money, unchanged; H2 still agrees
+  //   exc  = LEAST(net excise, tot)                  ← a component cannot exceed what was kept
+  //   sal  = LEAST(net sales, tot − exc)
+  //   loc  = tot − exc − sal                         ← the residual, ≥ 0 by construction
+  //
+  // Per order the three sum to exactly `tot`, so their sums do too. No component can be negative
+  // and none can exceed the total — the two things that made the old figures unfilable.
   const collectedResult = await db.execute(sql`
     SELECT
-      -- NET of tax handed back with returns, like every other tax surface in this product. Summing
-      -- the gross here is what made Tax Filing read $1,056.00 against $1,031.68 everywhere else, and
-      -- the gap grew with every amount refund. (Dispensary T31 M3)
-      COALESCE(SUM(${exciseNetExprBare}), 0) as excise_collected,
-      COALESCE(SUM(${salesNetExprBare}), 0) as sales_collected,
-      COALESCE(SUM(${taxNetExprBare}), 0) as total_collected
-    FROM orders
-    WHERE company_id = ${currentUser.companyId}
-      AND status IN ${taxCollected}
-      AND completed_at >= ${yearStart}
+      COALESCE(SUM(LEAST(exc_raw, tot)), 0) AS excise_collected,
+      COALESCE(SUM(LEAST(sal_raw, GREATEST(0, tot - LEAST(exc_raw, tot)))), 0) AS sales_collected,
+      COALESCE(SUM(tot), 0) AS total_collected
+    FROM (
+      SELECT
+        -- NET of tax handed back with returns, like every other tax surface in this product.
+        -- Summing the gross here is what made Tax Filing read $1,056.00 against $1,031.68
+        -- everywhere else, and the gap grew with every amount refund. (Dispensary T31 M3)
+        ${taxNetExprBare} AS tot,
+        ${exciseNetExprBare} AS exc_raw,
+        ${salesNetExprBare} AS sal_raw
+      FROM orders
+      WHERE company_id = ${currentUser.companyId}
+        AND status IN ${taxCollected}
+        AND completed_at >= ${yearStart}
+    ) per_order
   `)
   const collected = ((collectedResult as any).rows || collectedResult)?.[0] || {}
 
@@ -817,18 +851,44 @@ app.get('/summary', async (c) => {
   const yearStart = new Date(new Date().getFullYear(), 0, 1)
 
   // orders.excise_tax/sales_tax/total_tax/total are TEXT; NULLIF guards empty strings.
+  // The three lines and the total are computed so that the lines ADD UP to it. (T51–T54 N4)
+  //
+  // They did not, by $5.68, on every run since T51. Each figure carried its own
+  // GREATEST(0, charged − refunded) clamp, which is right per column — no component collects a
+  // negative amount — and breaks additivity: on an order whose refund returned more of one tax than
+  // that tax was charged, the component floors at zero while total_tax keeps the whole deduction,
+  // so the parts come out larger than the whole.
+  //
+  // Reporting the variance — which is what the first pass at this did — is better than hiding it
+  // and is still the wrong answer: an owner filing a return should not be handed three numbers and
+  // an explanation of why they do not add up. So the split is made per ORDER, against what that
+  // order actually kept:
+  //
+  //   tot  = GREATEST(0, total_tax − refunded_tax)   ← the money, unchanged; H2 still agrees
+  //   exc  = LEAST(net excise, tot)                  ← a component cannot exceed what was kept
+  //   sal  = LEAST(net sales, tot − exc)
+  //   loc  = tot − exc − sal                         ← the residual, ≥ 0 by construction
+  //
+  // Per order the three sum to exactly `tot`, so their sums do too. No component can be negative
+  // and none can exceed the total — the two things that made the old figures unfilable.
   const collectedResult = await db.execute(sql`
     SELECT
-      -- NET of tax handed back with returns, like every other tax surface in this product. Summing
-      -- the gross here is what made Tax Filing read $1,056.00 against $1,031.68 everywhere else, and
-      -- the gap grew with every amount refund. (Dispensary T31 M3)
-      COALESCE(SUM(${exciseNetExprBare}), 0) as excise_collected,
-      COALESCE(SUM(${salesNetExprBare}), 0) as sales_collected,
-      COALESCE(SUM(${taxNetExprBare}), 0) as total_collected
-    FROM orders
-    WHERE company_id = ${currentUser.companyId}
-      AND status IN ${taxCollected}
-      AND completed_at >= ${yearStart}
+      COALESCE(SUM(LEAST(exc_raw, tot)), 0) AS excise_collected,
+      COALESCE(SUM(LEAST(sal_raw, GREATEST(0, tot - LEAST(exc_raw, tot)))), 0) AS sales_collected,
+      COALESCE(SUM(tot), 0) AS total_collected
+    FROM (
+      SELECT
+        -- NET of tax handed back with returns, like every other tax surface in this product.
+        -- Summing the gross here is what made Tax Filing read $1,056.00 against $1,031.68
+        -- everywhere else, and the gap grew with every amount refund. (Dispensary T31 M3)
+        ${taxNetExprBare} AS tot,
+        ${exciseNetExprBare} AS exc_raw,
+        ${salesNetExprBare} AS sal_raw
+      FROM orders
+      WHERE company_id = ${currentUser.companyId}
+        AND status IN ${taxCollected}
+        AND completed_at >= ${yearStart}
+    ) per_order
   `)
   const collected = ((collectedResult as any).rows || collectedResult)?.[0] || {}
 
@@ -859,28 +919,23 @@ app.get('/summary', async (c) => {
   const salesCollected = Number(collected.sales_collected) || 0
   const totalCollected = Number(collected.total_collected) || 0
 
-  // Local tax is the residual: whatever the till took that was not excise and not sales.
-  //
-  // T51/T52 N4: the breakdown did not add up to its own total — Excise $1,003.65 + Sales $786.27 +
-  // Local $0.00 against a total of $1,784.24, a $5.68 gap, and the shop had no way to see where it
-  // came from. `Math.max(0, …)` was quietly absorbing it.
-  //
-  // The cause is that each of the three figures carries its OWN GREATEST(0, charged − refunded)
-  // clamp. That is right per column — a component cannot collect a negative amount — but it breaks
-  // additivity: when one column's refund exceeds its charge, that component floors at zero while
-  // total_tax keeps the whole deduction, and the parts then exceed the whole.
-  //
-  // Local still cannot be shown as negative, so the clamp stays. What changes is that the
-  // difference is REPORTED rather than swallowed — the same decision the filing itself already
-  // makes about its effective rate (T47 P5): a set of figures that does not add up is the first
-  // thing an auditor asks about, and the shop should hear it from us first.
+  // Local tax is the residual: whatever the till took that was not excise and not sales. The query
+  // above caps excise and sales at what each order actually kept, so this cannot go negative and
+  // the three lines sum to the total by construction. `reconciles` is kept — as an assertion now
+  // rather than an excuse, so that if the invariant is ever broken again the screen says so instead
+  // of the arithmetic quietly drifting. (T51–T54 N4)
   const residual = round2(totalCollected - exciseCollected - salesCollected)
   const localCollected = Math.max(0, residual)
   const breakdownTotal = round2(exciseCollected + salesCollected + localCollected)
   const breakdownVariance = round2(breakdownTotal - totalCollected)
   const reconciles = Math.abs(breakdownVariance) < 0.005
 
-  const row = (type: string, label: string, coll: number, filed: number) => ({
+  // `type` carries the human label because that is what the screen renders, and changing it would
+  // change the screen. But the machine id was being thrown away — the first argument was accepted
+  // and then dropped — so nothing could key off a breakdown row: not an export, not a sync, not a
+  // test. `id` is added alongside rather than instead, so the screen is untouched.
+  const row = (id: string, label: string, coll: number, filed: number) => ({
+    id,
     type: label,
     collected: coll,
     filed,
@@ -902,8 +957,11 @@ app.get('/summary', async (c) => {
     breakdownTotal,
     breakdownVariance,
     reconciles,
+    // The lines now add to the total by construction, so this should never fire. It stays as the
+    // alarm rather than the excuse it used to be: if the invariant ever breaks again, the shop is
+    // told plainly instead of the arithmetic drifting in silence for four test rounds.
     breakdownNote: reconciles ? null
-      : `The three lines add to $${breakdownTotal.toFixed(2)} against a total of $${totalCollected.toFixed(2)} — a difference of $${Math.abs(breakdownVariance).toFixed(2)}. This happens when a refund returned more of one tax than that tax was charged on the sale, so the component floors at zero while the order's total tax keeps the full deduction. The total is the figure to file; the lines are for reading.`,
+      : `The three lines add to $${breakdownTotal.toFixed(2)} against a total of $${totalCollected.toFixed(2)} — a difference of $${Math.abs(breakdownVariance).toFixed(2)}. They are meant to add up exactly, so this is a fault in the figures rather than something to work around: file nothing from this screen and tell us.`,
   })
 })
 

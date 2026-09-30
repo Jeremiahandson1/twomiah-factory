@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '../utils/date';
 import { Plus, Search, Sprout, Warehouse, Scissors, Thermometer, Droplets, Leaf, Trash2 } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
@@ -124,6 +125,8 @@ export default function CultivationPage() {
 
 /* ─── Plants Tab ─── */
 function PlantsTab() {
+  // Manager+ actions are hidden rather than shown-and-refused. (T53 L11)
+  const { isManager } = useAuth();
   const toast = useToast();
   const [plants, setPlants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -235,9 +238,12 @@ function PlantsTab() {
         </select>
         <input type="text" placeholder="Filter by strain..." value={strainFilter} onChange={(e) => setStrainFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200" />
         <input type="text" placeholder="Filter by room..." value={roomFilter} onChange={(e) => setRoomFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200" />
-        <Button onClick={() => { setFormData({ metrcTag: '', strainName: '', plantType: 'clone', phase: 'clone', room: '', plantDate: '', notes: '' }); setModalOpen(true); }} className="ml-auto">
-          <Plus className="w-4 h-4 mr-2 inline" />Add Plant
-        </Button>
+        {/* Manager+ only: the server refuses this for a budtender, so showing it invites a 403. (T53 L11) */}
+        {isManager && (
+          <Button onClick={() => { setFormData({ metrcTag: '', strainName: '', plantType: 'clone', phase: 'clone', room: '', plantDate: '', notes: '' }); setModalOpen(true); }} className="ml-auto">
+            <Plus className="w-4 h-4 mr-2 inline" />Add Plant
+          </Button>
+        )}
       </div>
 
       <DataTable data={plants} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[{ label: 'Delete', icon: Trash2, onClick: (row: any) => handleDelete(row.id), className: 'text-red-600' }]} emptyMessage="No plants found" />

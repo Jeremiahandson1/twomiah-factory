@@ -7,6 +7,7 @@ import {
   Edit, Trash2, Minus, ArrowDownUp, FileText, QrCode, ExternalLink
 } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
@@ -200,6 +201,8 @@ export default function GrowInputsPage() {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 function InventoryTab() {
+  // Manager+ actions are hidden rather than shown-and-refused. (T53 L11)
+  const { isManager } = useAuth();
   const toast = useToast();
   const [inputs, setInputs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -503,9 +506,12 @@ function InventoryTab() {
           <Leaf className="w-4 h-4" />
           Organic Only
         </button>
-        <Button onClick={openCreate} className="ml-auto">
-          <Plus className="w-4 h-4 mr-2 inline" />Add Input
-        </Button>
+        {/* Manager+ only: the server refuses this for a budtender, so showing it invites a 403. (T53 L11) */}
+        {isManager && (
+          <Button onClick={openCreate} className="ml-auto">
+            <Plus className="w-4 h-4 mr-2 inline" />Add Input
+          </Button>
+        )}
       </div>
 
       <DataTable

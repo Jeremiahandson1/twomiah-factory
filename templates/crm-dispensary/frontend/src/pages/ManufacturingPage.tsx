@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '../utils/date';
 import { Plus, Search, Factory, Play, CheckCircle, XCircle, Clock, FlaskConical, BarChart3, Trash2 } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
@@ -43,6 +44,8 @@ const statusColors: Record<string, string> = {
 };
 
 export default function ManufacturingPage() {
+  // Manager+ actions are hidden rather than shown-and-refused. (T53 L11)
+  const { isManager } = useAuth();
   const toast = useToast();
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -232,14 +235,16 @@ export default function ManufacturingPage() {
 
   return (
     <div>
+      {/* Create Job is manager+ only: the server refuses it for a budtender, so showing it invites
+          a 403. (T53 L11) */}
       <PageHeader
         title="Manufacturing"
         subtitle="Processing and extraction jobs"
-        action={
+        action={isManager ? (
           <Button onClick={() => { setFormData({ type: 'extraction', method: '', equipment: '', operator: '', notes: '', inputWeight: '' }); setBatchRows([{ batchId: '', quantity: '' }]); setCreateModalOpen(true); }}>
             <Plus className="w-4 h-4 mr-2 inline" />Create Job
           </Button>
-        }
+        ) : undefined}
       />
 
       {/* Stats */}

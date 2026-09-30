@@ -2,11 +2,14 @@ import { useState, useEffect } from 'react';
 import { formatDate } from '../utils/date';
 import { Search, Globe, Eye, RefreshCw, Edit, CheckCircle, XCircle, ExternalLink, FileText } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
 
 export default function SEOPagesPage() {
+  // Manager+ actions are hidden rather than shown-and-refused. (T53 L11)
+  const { isManager } = useAuth();
   const toast = useToast();
   const [tab, setTab] = useState('pages');
   const [pages, setPages] = useState<any[]>([]);
@@ -128,12 +131,15 @@ export default function SEOPagesPage() {
       {/* Pages Tab */}
       {tab === 'pages' && (
         <div>
-          <div className="flex justify-end mb-4">
-            <Button onClick={handleGenerateAll} disabled={generating}>
-              <RefreshCw className={`w-4 h-4 mr-2 inline ${generating ? 'animate-spin' : ''}`} />
-              {generating ? 'Generating...' : 'Generate All'}
-            </Button>
-          </div>
+          {/* Manager+ only: the server refuses this for a budtender, so showing it invites a 403. (T53 L11) */}
+          {isManager && (
+            <div className="flex justify-end mb-4">
+              <Button onClick={handleGenerateAll} disabled={generating}>
+                <RefreshCw className={`w-4 h-4 mr-2 inline ${generating ? 'animate-spin' : ''}`} />
+                {generating ? 'Generating...' : 'Generate All'}
+              </Button>
+            </div>
+          )}
 
           {loading ? (
             <div className="flex items-center justify-center h-32">

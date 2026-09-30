@@ -295,10 +295,13 @@ export default function LabelsPage() {
       {tab === 'templates' && (
         <div>
           <div className="flex justify-end mb-4">
-            <Button onClick={openCreateTemplate}>
-              <Plus className="w-4 h-4 mr-2 inline" />
-              New Template
-            </Button>
+{/* Manager+ only: the server refuses this for a budtender, so showing it is an invitation to a 403. (T53 L11) */}
+            {isManager && (
+              <Button onClick={openCreateTemplate}>
+                <Plus className="w-4 h-4 mr-2 inline" />
+                New Template
+              </Button>
+            )}
           </div>
           {loadingTemplates ? (
             <div className="flex items-center justify-center h-64">

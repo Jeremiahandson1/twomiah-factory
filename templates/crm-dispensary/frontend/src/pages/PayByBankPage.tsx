@@ -259,11 +259,15 @@ export default function PayByBankPage() {
             </select>
           </div>
 
-          <div className="flex gap-3">
-            <Button onClick={saveConfig} disabled={savingConfig}>
-              {savingConfig ? 'Saving...' : 'Save Configuration'}
-            </Button>
-          </div>
+          {/* Manager+ only: the server refuses this for a budtender, so showing it invites a 403 —
+              and on this screen the config itself also fails to load for them. (T53 L11) */}
+          {isManager && (
+            <div className="flex gap-3">
+              <Button onClick={saveConfig} disabled={savingConfig}>
+                {savingConfig ? 'Saving...' : 'Save Configuration'}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

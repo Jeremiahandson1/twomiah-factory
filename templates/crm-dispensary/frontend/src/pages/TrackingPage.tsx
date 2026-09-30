@@ -5,6 +5,7 @@ import {
   RefreshCw, Plus, ChevronRight, Circle, ArrowRight, Route, X
 } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { Button, PageHeader, StatusBadge } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
@@ -17,6 +18,8 @@ const stopStatusColors: Record<string, string> = {
 };
 
 export default function TrackingPage() {
+  // Manager+ actions are hidden rather than shown-and-refused. (T53 L11)
+  const { isManager } = useAuth();
   const toast = useToast();
   const [tab, setTab] = useState('routes');
   const [routes, setRoutes] = useState<any[]>([]);
@@ -140,10 +143,13 @@ export default function TrackingPage() {
           <p className="text-gray-600 dark:text-slate-400">Monitor routes and driver locations in real time</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={openCreateModal}>
-            <Plus className="w-4 h-4 mr-2 inline" />
-            Create Route
-          </Button>
+{/* Manager+ only: the server refuses this for a budtender, so showing it is an invitation to a 403. (T53 L11) */}
+          {isManager && (
+            <Button onClick={openCreateModal}>
+              <Plus className="w-4 h-4 mr-2 inline" />
+              Create Route
+            </Button>
+          )}
           <button
             onClick={() => tab === 'routes' ? loadRoutes() : loadDrivers()}
             className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 dark:text-slate-400"
