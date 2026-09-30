@@ -23,5 +23,14 @@ export default createExpenseRoutes({
   audit,
   options: {
     categories: ['stock', 'retail', 'tools', 'rent', 'utilities', 'training', 'marketing', 'travel', 'other'],
+    // The screen asks this module for its list now (RR7 X1), and title-casing the id is good enough
+    // for most of them. These four are the ones where it is not: a salon's "stock" is what goes on
+    // the client's hair, "retail" is what the client takes home, and rent is usually a chair.
+    categoryLabels: {
+      stock: 'Stock & colour',
+      retail: 'Retail products',
+      tools: 'Tools & equipment',
+      rent: 'Rent & chair rental',
+    },
   },
 })

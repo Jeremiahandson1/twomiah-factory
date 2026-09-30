@@ -18,7 +18,21 @@ const today = () => { const d = new Date(); return new Date(d.getTime() - d.getT
 export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: PeopleToast; config?: ExpensesConfig }) {
   const auth = useAuth()
   const jobLabel = config?.jobLabel || 'Job'
-  const categories = config?.categories || DEFAULT_EXPENSE_CATEGORIES
+  /**
+   * The category list comes from the server that validates it. (Salon RR7 X1 — a HIGH.)
+   *
+   * This form used to offer whatever the template passed in `config.categories`, or the shared
+   * contractor default when it passed nothing. The salon's backend accepts stock / retail / colour /
+   * tools / rent and the form offered Materials / Equipment / Labor / Travel / Other, so pressing
+   * Save on the form exactly as it opened answered 400 — and an expense stored as `tools` opened in
+   * the Edit dialog reading "Materials", one Save away from being silently relabelled.
+   *
+   * GET /api/expenses/categories is the same list the create and update schemas check against, so
+   * there is only one list and a vertical that customises it gets the screen for free. The
+   * configured list stays as the fallback for a backend deployed before that route existed.
+   */
+  const [serverCategories, setServerCategories] = useState<Array<{ value: string; label: string }> | null>(null)
+  const categories = serverCategories || config?.categories || DEFAULT_EXPENSE_CATEGORIES
   const showJobs = auth.hasFeature(config?.jobsFeature || 'jobs')
   const showProjects = auth.hasFeature(config?.projectsFeature || 'projects')
   const manager = isManagerRole(auth.user?.role)
@@ -26,6 +40,11 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
   // offered. Rows written before the submitter column existed have none and stay open to a
   // manager. (Salon RR6 E1)
   const isMine = (r: Expense) => !!r.submittedById && String(r.submittedById) === String((auth.user as any)?.id ?? (auth.user as any)?.userId)
+  // …but an owner or admin MAY approve their own, which is what the server says: OWN_APPROVAL_OK.
+  // Hiding it from them too left a one-person salon — the owner is the only person there — with an
+  // expense it could approve and no way to. (Salon RR7 X3)
+  const ownApprovalOk = ['owner', 'admin'].includes(String(auth.user?.role || ''))
+  const canApprove = (r: Expense) => manager && (ownApprovalOk || !isMine(r))
   const empty = () => ({ date: today(), category: categories[0]?.value || 'other', vendor: '', description: '', amount: '', billable: false, reimbursable: false, projectId: '', jobId: '' })
   const [data, setData] = useState<Expense[]>([])
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([])
@@ -53,6 +72,22 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
     finally { setLoading(false) }
   }, [api, page, showJobs, showProjects])
   useEffect(() => { load() }, [load])
+  // Asked once, not per page. A backend without the route (or a network blip) leaves
+  // `serverCategories` null and the configured list stands — the form still works. (Salon RR7 X1)
+  useEffect(() => {
+    let cancelled = false
+    api.get('/api/expenses/categories')
+      .then((res: any) => {
+        if (cancelled || !Array.isArray(res?.categories) || !res.categories.length) return
+        setServerCategories(res.categories)
+        // This runs at mount, with no dialog open: the blank form was built from the fallback list,
+        // so if the server does not know that first value, correct it rather than letting the very
+        // first Save answer 400.
+        setForm((f) => (res.categories.some((c: any) => c.value === f.category) ? f : { ...f, category: res.categories[0].value }))
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [api])
 
   const handleSave = async () => {
     if (!form.description.trim()) { setFormError('Description is required'); return }
@@ -92,7 +127,15 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
   }
   const openCreate = () => { setEditing(null); setForm(empty()); setFormError(''); setModalOpen(true) }
   const openEdit = (item: Expense) => { setEditing(item); setForm({ date: String(item.date || '').slice(0, 10) || today(), category: item.category, vendor: item.vendor || '', description: item.description || '', amount: String(item.amount ?? ''), billable: !!item.billable, reimbursable: !!item.reimbursable, projectId: item.projectId || '', jobId: item.jobId || '' }); setFormError(''); setModalOpen(true) }
-  const catLabel = (v: string) => categories.find((c) => c.value === v)?.label || v
+  // A value with no label is title-cased the way the server does it, so `dispensary_fee` reads
+  // "Dispensary Fee" in the table instead of showing the raw id. (Salon RR7 X1)
+  const catLabel = (v: string) => categories.find((c) => c.value === v)?.label || String(v || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
+  // What the picker offers. A stored value the server no longer lists — a category renamed after the
+  // expense was recorded — is kept as an option while that row is open, so the dialog shows what is
+  // actually on the record instead of reading as a neighbouring category. (Salon RR7 X1)
+  const formCategories = editing && form.category && !categories.some((c) => c.value === form.category)
+    ? [{ value: form.category, label: catLabel(form.category) }, ...categories]
+    : categories
 
   const columns = [
     { key: 'date', label: 'Date', render: (v: any) => dateOnly(v) || '-' },
@@ -118,21 +161,30 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
       <PageHeader title="Expenses" action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add Expense</Button>} />
       <DataTable<Expense> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} emptyMessage="No expenses yet."
         actions={[
-          { label: 'Edit', icon: Edit, onClick: openEdit },
-          // Approve comes FIRST, because it is the step reimbursing depends on. Hidden on your own
-          // claim: the server refuses that (a second person does the checking) and offering an
-          // action that always 403s is the L11 mistake in a new place. (Salon RR6 N1 / E1)
-          { label: 'Approve', icon: CheckCircle, onClick: approve, show: (r) => manager && !r.approved && !isMine(r) },
+          // Approve really is FIRST now — it is the step reimbursing depends on, so it is what a
+          // manager opening this menu is usually after. It sat below Edit while the comment said
+          // otherwise. (Salon RR7 X4)
+          //
+          // Hidden on your own claim for a manager, because the server refuses that — a second
+          // person does the checking — and offering an action that always 403s is the L11 mistake
+          // in a new place. An owner or admin may approve their own, and is offered it. (RR6 N1/E1,
+          // RR7 X3)
+          { label: 'Approve', icon: CheckCircle, onClick: approve, show: (r) => canApprove(r) && !r.approved },
           // …and Mark reimbursed only once it IS approved, so the 409 is unreachable from here.
-          { label: 'Mark reimbursed', icon: CheckCircle, onClick: reimburse, show: (r) => manager && !!r.approved && !!r.reimbursable && !r.reimbursed && !isMine(r) },
-          { label: 'Delete', icon: Trash2, onClick: (r) => setToDelete(r), className: 'text-red-600' },
+          { label: 'Mark reimbursed', icon: CheckCircle, onClick: reimburse, show: (r) => canApprove(r) && !!r.approved && !!r.reimbursable && !r.reimbursed },
+          // Your own claim is yours to correct until somebody approves it; after that it is a
+          // manager's. That is the server's rule, so it is this menu's rule.
+          { label: 'Edit', icon: Edit, onClick: openEdit, show: (r) => manager || !r.approved },
+          // Deleting a reimbursed expense is always 409 — the record of a payment stays put — so the
+          // action is not offered at all. (Salon RR7 X4)
+          { label: 'Delete', icon: Trash2, onClick: (r) => setToDelete(r), className: 'text-red-600', show: (r) => !r.reimbursed && (manager || !r.approved) },
         ]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Expense' : 'Add Expense'} size="md">
         <div className="space-y-4">
           {formError && <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{formError}</div>}
           <div className="grid grid-cols-2 gap-4">
             <Field label="Date"><input type="date" max={today()} value={form.date} onChange={set('date')} className={inputCls} /></Field>
-            <Field label="Category"><select value={form.category} onChange={set('category')} className={inputCls}>{categories.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></Field>
+            <Field label="Category"><select value={form.category} onChange={set('category')} className={inputCls}>{formCategories.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></Field>
           </div>
           <Field label="Vendor"><input value={form.vendor} onChange={set('vendor')} className={inputCls} /></Field>
           <Field label="Description *"><input value={form.description} onChange={set('description')} className={inputCls} /></Field>

@@ -18,6 +18,8 @@ export interface ExpenseDeps {
   options?: {
     /** Allowed category ids. Default materials / equipment / labor / travel / other. */
     categories?: string[]
+    /** Nicer names for those ids, where title-casing the id is not good enough. */
+    categoryLabels?: Record<string, string>
     maxLimit?: number
   }
 }
@@ -34,6 +36,21 @@ const dateField = z.string().optional().nullable()
   .refine(hasHappened, { message: 'An expense can only be dated to a day that has happened' })
 /** '' from an unselected <select> → not set (an empty string is a FK violation → 409/500). */
 const fk = z.string().optional().nullable().transform((v) => (v ? v : null))
+
+/**
+ * What to do when a reimbursed figure turns out to be wrong. (Salon RR7 X6)
+ *
+ * The refusal used to say "add a new expense for the difference" and stop there, which only works
+ * in one direction: if too little was paid you add the shortfall, but if too MUCH was paid the
+ * difference is negative and `amount` refuses it — "Amount must be greater than 0" — so the advice
+ * sent the reader round in a circle.
+ *
+ * Rather than weaken that rule (a negative expense is a credit note, and this module has no concept
+ * of one), the message now says the true thing in both directions and admits the gap instead of
+ * pretending. A refusal that recommends something impossible is worse than one that says so.
+ */
+const CORRECTION_ADVICE =
+  'if too little was paid, add a new expense for the shortfall. If too much was paid, this sheet cannot record a repayment yet — settle it outside the expense sheet and note it here.'
 
 export function createExpenseRoutes(deps: ExpenseDeps) {
   const { db, tables: t, authenticate, requirePermission, audit } = deps
@@ -79,6 +96,23 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     return rows.map((e) => ({ ...e, project: e.projectId ? pm[e.projectId] || null : null, job: e.jobId ? jm[e.jobId] || null : null }))
   }
 
+  // ── whose expense is this? (Salon RR6 E1 / E7) ────────────────────────────────────────────────
+  //
+  // The table had no submitter, so the server could not tell. Three findings came out of that one
+  // gap: a manager approved and reimbursed their own $45 expense (the whole chain the time module
+  // closes, wide open here), a stylist saw every expense in the company, and the Edit and Delete
+  // offered on their own row answered 403 — so someone who typed $95 for $9.50 could not fix it.
+  //
+  // Rows written before the column exists have no submitter. They stay visible and editable by a
+  // manager rather than becoming nobody's problem; the self-approval rule only bites where a
+  // submitter is actually recorded.
+  const OWN_APPROVAL_OK = new Set(['owner', 'admin'])
+  const isMine = (u: any, row: any) => !!row?.submittedById && String(row.submittedById) === String(u?.userId)
+  const selfApprovalRefusal = (u: any, row: any) =>
+    isMine(u, row) && !OWN_APPROVAL_OK.has(u.role)
+      ? 'You cannot approve or reimburse your own expense. Approval is a second person checking the claim before the money goes out — ask an owner or admin.'
+      : null
+
   app.get('/', requirePermission('expenses:read'), async (c) => {
     const currentUser = (c as any).get('user')
     const q = c.req.query()
@@ -106,10 +140,42 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     return c.json({ data: await withRelations(currentUser.companyId, rows), pagination: { page, limit, total: Number(total), pages: Math.max(1, Math.ceil(Number(total) / limit)) } })
   })
 
+  /**
+   * The categories this tenant accepts. (Salon RR7 X1)
+   *
+   * Registered BEFORE /:id, or the id route swallows it — the same ordering rule that bit the
+   * feature gate this morning.
+   *
+   * X1 was a HIGH and it was a vocabulary split: this module refuses a category outside its list,
+   * the salon passes ['stock','retail','tools','rent',…] here, and the SCREEN fell back to the
+   * shared contractor default ['materials','equipment','labor','travel','other']. Only travel and
+   * other existed on both sides, so pressing Save on the form as it opened answered 400 and a salon
+   * could not record stock, colour or tools at all — the things it actually buys.
+   *
+   * Adding the list to the salon's UI config would have fixed the salon and left the next vertical
+   * to make the same mistake. The server is the thing that validates, so the server is what the form
+   * should ask. One list, and a vertical that customises it gets the screen for free.
+   */
+  app.get('/categories', requirePermission('expenses:read'), async (c) => {
+    const labels = deps.options?.categoryLabels || {}
+    return c.json({
+      categories: categories.map((value) => ({
+        value,
+        label: labels[value] || value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase()),
+      })),
+    })
+  })
+
   app.get('/summary', requirePermission('expenses:read'), async (c) => {
     const currentUser = (c as any).get('user')
     const q = c.req.query()
     const conditions: any[] = [eq(t.expense.companyId, currentUser.companyId)]
+    // The same scope as the list. (Salon RR7 X5)
+    //
+    // E7 narrowed the LIST to your own claims and left this alone, so a stylist who could see one
+    // expense on screen could still read the salon's whole spend — $234.34 across 8 expenses, broken
+    // down by category — from the summary. Scoping one door and not the other is not scoping.
+    if (!MANAGER_ROLES.has(currentUser.role)) conditions.push(eq(t.expense.submittedById, currentUser.userId))
     if (q.startDate && !isNaN(new Date(q.startDate).getTime())) conditions.push(gte(t.expense.date, new Date(q.startDate)))
     if (q.endDate && !isNaN(new Date(q.endDate).getTime())) { const end = new Date(q.endDate); end.setHours(23, 59, 59, 999); conditions.push(lte(t.expense.date, end)) }
     const groups = await db.select({ category: t.expense.category, totalAmount: sql<string>`sum(${t.expense.amount})`, cnt: count() }).from(t.expense).where(and(...conditions)).groupBy(t.expense.category)
@@ -121,6 +187,12 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     const currentUser = (c as any).get('user')
     const row = await ownExpense(c.req.param('id'), currentUser.companyId)
     if (!row) return c.json({ error: 'Expense not found' }, 404)
+    // …and reading ONE by id is the third door. A stylist could fetch a colleague's claim in full
+    // by id even though the list hid it. 404, not 403: whether an expense they may not see exists
+    // is itself not their business. (Salon RR7 X5)
+    if (!MANAGER_ROLES.has(currentUser.role) && !isMine(currentUser, row)) {
+      return c.json({ error: 'Expense not found' }, 404)
+    }
     return c.json((await withRelations(currentUser.companyId, [row]))[0])
   })
 
@@ -177,13 +249,33 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     //
     // Only the figure matters. Fixing a typo in the description or attaching the receipt is left
     // alone, on both — refusing those would make the rule an obstacle rather than a control.
-    const moneyChanged = data.amount !== undefined || data.taxAmount !== undefined || data.date !== undefined
+    // "The amount was SENT" is not "the amount CHANGED". (Salon RR7 X2)
+    //
+    // E2 fixed this for hours on a time entry and I did not carry it across. The Edit dialog PUTs
+    // the whole expense back, so pressing Save on an approved $80 claim without touching anything
+    // arrived carrying amount: 80 and ended the approval — and "80" and "80.00" both did it. The
+    // comparison is numeric against the stored value, and the date by day, exactly as time does.
+    const sameNumber = (a: any, b: any) => {
+      const x = a === null || a === undefined || a === '' ? null : Number(a)
+      const y = b === null || b === undefined || b === '' ? null : Number(b)
+      if (x === null && y === null) return true
+      if (x === null || y === null) return false
+      return Math.abs(x - y) < 0.0001
+    }
+    const sameDay = (a: any, b: any) => {
+      if (!a || !b) return !a && !b
+      return new Date(a).toISOString().slice(0, 10) === new Date(b).toISOString().slice(0, 10)
+    }
+    const moneyChanged =
+      (data.amount !== undefined && !sameNumber(data.amount, existing.amount))
+      || (data.taxAmount !== undefined && !sameNumber(data.taxAmount, existing.taxAmount))
+      || (data.date !== undefined && !sameDay(data.date, existing.date))
     if (existing.reimbursed && moneyChanged) {
       return c.json({
         // No "or reverse this one" — RR6 E5: there is no reverse action on the screen and
         // POST /:id/reverse is a 404. A refusal must not send someone after something that does
         // not exist; adding a correcting entry is the whole of the advice.
-        error: `${existing.description ? `"${existing.description}" ` : 'This expense '}has already been reimbursed for ${existing.amount}. What was paid cannot be rewritten — add a new expense for the difference.`,
+        error: `${existing.description ? `"${existing.description}" ` : 'This expense '}has already been reimbursed for ${existing.amount}. What was paid cannot be rewritten — ${CORRECTION_ADVICE}`,
         code: 'already_reimbursed',
       }, 409)
     }
@@ -210,40 +302,28 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     const id = c.req.param('id')
     const existing = await ownExpense(id, currentUser.companyId)
     if (!existing) return c.json({ error: 'Expense not found' }, 404)
+    // OWNERSHIP FIRST. (Salon RR7 X5)
+    //
+    // The payment check used to run before this, so a stylist trying to delete a colleague's claim
+    // was told it had already been reimbursed — which answers a question about a record they are
+    // not allowed to see. What they may touch is decided before anything about it is revealed.
+    if (!MANAGER_ROLES.has(currentUser.role)) {
+      if (!isMine(currentUser, existing)) return c.json({ error: 'Expense not found' }, 404)
+      if (existing.approved) return c.json({ error: 'This expense has been approved. Ask a manager to remove it.' }, 403)
+    }
     // The stronger version of the edit rule. Refusing to REWRITE a reimbursed amount while allowing
     // the row to be deleted outright protects nothing: deleting removes the record of the payment
     // altogether, which is worse than changing it. Same money, same answer. (Salon RR6 E4)
     if (existing.reimbursed) {
       return c.json({
-        error: `${existing.description ? `"${existing.description}" ` : 'This expense '}has already been reimbursed for ${existing.amount}. The record of a payment cannot be deleted — add a new expense for the difference.`,
+        error: `${existing.description ? `"${existing.description}" ` : 'This expense '}has already been reimbursed for ${existing.amount}. The record of a payment cannot be deleted — ${CORRECTION_ADVICE}`,
         code: 'already_reimbursed',
       }, 409)
-    }
-    if (!MANAGER_ROLES.has(currentUser.role)) {
-      if (!isMine(currentUser, existing)) return c.json({ error: 'You can only delete expenses you entered' }, 403)
-      if (existing.approved) return c.json({ error: 'This expense has been approved. Ask a manager to remove it.' }, 403)
     }
     await db.delete(t.expense).where(and(eq(t.expense.id, id), eq(t.expense.companyId, currentUser.companyId)))
     audit?.log({ action: 'delete', entity: 'expense', entityId: id, metadata: { amount: existing.amount, description: existing.description }, req: { user: currentUser } })
     return c.body(null, 204)
   })
-
-  // ── whose expense is this? (Salon RR6 E1 / E7) ────────────────────────────────────────────────
-  //
-  // The table had no submitter, so the server could not tell. Three findings came out of that one
-  // gap: a manager approved and reimbursed their own $45 expense (the whole chain the time module
-  // closes, wide open here), a stylist saw every expense in the company, and the Edit and Delete
-  // offered on their own row answered 403 — so someone who typed $95 for $9.50 could not fix it.
-  //
-  // Rows written before the column exists have no submitter. They stay visible and editable by a
-  // manager rather than becoming nobody's problem; the self-approval rule only bites where a
-  // submitter is actually recorded.
-  const OWN_APPROVAL_OK = new Set(['owner', 'admin'])
-  const isMine = (u: any, row: any) => !!row?.submittedById && String(row.submittedById) === String(u?.userId)
-  const selfApprovalRefusal = (u: any, row: any) =>
-    isMine(u, row) && !OWN_APPROVAL_OK.has(u.role)
-      ? 'You cannot approve or reimburse your own expense. Approval is a second person checking the claim before the money goes out — ask an owner or admin.'
-      : null
 
   // Reimburse / approve: managers only, scoped to the company.
   //

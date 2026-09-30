@@ -117,8 +117,11 @@ const addExpense = (who: any, desc: string, amount = 20) =>
   const page = (await Bun.file(`${root}packages/tenant-ui/src/people/ExpensesPage.tsx`).text()).replace(/\r\n/g, '\n')
   check('N1: the Expenses screen has an Approve action at all', /label: 'Approve'/.test(page), null)
   check('N1: …that calls the approve endpoint', /\/approve`\)/.test(page), null)
-  check('N1: …shown only to a manager, on an unapproved claim that is not their own',
-    /label: 'Approve'[^\n]*show: \(r\) => manager && !r\.approved && !isMine\(r\)/.test(page), null)
+  // RR7 X3 corrected this: the rule moved into canApprove() so the owner/admin carve-out the server
+  // makes is honoured on the screen too. rr7-expenses.test.ts holds the detail of that condition.
+  check('N1: …shown only to a manager, on an unapproved claim they are allowed to approve',
+    /label: 'Approve'[^\n]*show: \(r\) => canApprove\(r\) && !r\.approved/.test(page)
+    && /const canApprove = \(r: Expense\) => manager && \(ownApprovalOk \|\| !isMine\(r\)\)/.test(page), null)
   check('N1: Mark reimbursed is hidden until the claim is APPROVED, so the 409 is unreachable',
     /label: 'Mark reimbursed'[^\n]*!!r\.approved/.test(page), null)
   check('N1: …and the list shows whether it is approved', /key: 'approved', label: 'Approved'/.test(page), null)
