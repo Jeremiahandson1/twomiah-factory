@@ -209,19 +209,63 @@ export function requestedGrams(message: string): number | null {
  * browse. `reason` is returned to the caller so a screen can style it and a manager reviewing the
  * transcript can see the rule that fired rather than guessing.
  */
+/** A word that agrees and says nothing else. Stripped from the front, as many as there are. */
+const ACKNOWLEDGEMENT = /^(?:yes|yeah|yep|yup|ok|okay|sure|please|go on|go ahead|sounds good|that'?d be great|why not|alright|absolutely|definitely|of course|thanks|thank you|cool|great)\b[\s,.!;:-]*/i
+
+/**
+ * A turn that points BACK at what was just said instead of asking for something. "Those", "them",
+ * "that one", "the indica ones", "more" — none of them mean anything without the turn before.
+ */
+const REFERS_BACK = /\b(?:those|them|that|these|more|the (?:indica|sativa|hybrid)s? ones?|that one|what (?:are|were) they|the same)\b/i
+
 /**
  * Is this message only accepting what was just offered?
  *
  * "Yes please", "sure, go on", "tell me about those" — a turn that carries no request of its own and
  * inherits every word of its meaning from the one before it.
+ *
+ * ── T52 M2: an acknowledgement in front of a real request is still a real request ───────────────
+ *
+ * This used to answer yes to anything that STARTED with an agreeing word, so "Ok, show me indicas"
+ * was read as accepting the refused medical turn and declined with "saying yes doesn't change what
+ * I'd have to answer" — while the refusal it was inheriting ends "if you tell me a product type, a
+ * strain type or a price, I'll happily show you what's on the shelf". The product asked for a strain
+ * type and then refused the strain type. A customer who does the one thing they are told to do gets
+ * told off for it, which is worse than the refusal itself.
+ *
+ * "Ok" is a discourse marker, not a request. What decides is what is left once the agreeing words
+ * are taken off the front: nothing at all, or a phrase that only points back at the previous turn,
+ * means this turn carries no request of its own and inherits the one before it. Anything else is a
+ * request, and is answered on its own terms.
+ *
+ * T47 P3 stays closed by exactly the same rule, because the bypass it found was anaphoric: the
+ * decline offers "shall I tell you about indica strains folks enjoy at night?", and "yes please",
+ * "go on" and "tell me about those" all still carry the medical framing of the question they answer.
+ * "Show me indicas" carries none of it — it is a browse of the shelf by strain type, which is a thing
+ * any customer may ask cold.
  */
 export function isContinuation(message: string): boolean {
   const m = String(message || '').trim().toLowerCase().replace(/[.!]+$/, '')
   if (!m) return false
   // A long message is making its own request, whatever it opens with.
   if (m.split(/\s+/).length > 12) return false
-  return /^(?:yes|yeah|yep|yup|ok|okay|sure|please|go on|go ahead|sounds good|that'?d be great|why not|alright|absolutely|definitely|of course)\b/i.test(m)
-    || /\b(?:tell me (?:about )?(?:those|them|that|more)|those ones?|that one|the (?:indica|sativa|hybrid)s? ones?|show me (?:those|them)|what (?:are|were) they)\b/i.test(m)
+
+  // Peel the agreeing words off the front — as many as there are, so "sure, go on" reduces to
+  // nothing rather than leaving "go on" looking like a request.
+  let rest = m
+  for (;;) {
+    const shorter = rest.replace(ACKNOWLEDGEMENT, '')
+    if (shorter === rest) break
+    rest = shorter.trim()
+  }
+  const agreed = rest !== m
+
+  // Agreement and nothing else: this is the previous turn, again.
+  if (agreed && !rest) return true
+
+  // Whatever is left decides. A back-reference has no meaning of its own; anything else is a
+  // request, and a request is answered on its own terms.
+  return REFERS_BACK.test(rest)
 }
 
 /**
