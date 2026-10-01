@@ -281,7 +281,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                     <p className="text-sm text-gray-500 dark:text-slate-400">Address</p>
                     <p className="text-gray-900 dark:text-slate-100">
                       {contact.address && <span>{contact.address}<br /></span>}
-                      {contact.city && `${contact.city}, `}{contact.state} {contact.zip}
+                      {[[contact.city, contact.state].filter(Boolean).join(', '), contact.zip].filter(Boolean).join(' ')}
                     </p>
                   </div>
                 </div>

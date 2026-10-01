@@ -157,7 +157,7 @@ export default function PurchaseOrdersPage() {
           ))}
         </div>
       )}
-      <DataTable data={data} columns={columns} loading={loading} pagination={pagination as never} onPageChange={setPage} actions={rowActions} />
+      <DataTable data={data} emptyMessage="No purchase orders yet. Raise one to commit spend with a vendor against a job." columns={columns} loading={loading} pagination={pagination as never} onPageChange={setPage} actions={rowActions} />
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Edit ${editing.number}` : 'New Purchase Order'} size="lg">
         <div className="space-y-4">

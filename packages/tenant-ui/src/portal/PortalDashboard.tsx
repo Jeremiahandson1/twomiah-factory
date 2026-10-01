@@ -40,7 +40,18 @@ export function PortalDashboard() {
     const style = CARD_STYLE[s]
     let value: string | number = style.value
     let label = config.labels[s]
-    if (s === 'projects') { value = summary?.activeProjects ?? 0; label = 'Active Projects' }
+    /**
+     * "OPEN", not "ACTIVE". (T32 L10)
+     *
+     * The figure behind this counts every project that is not completed or cancelled — which
+     * includes `planning` and `on_hold`. That is the right SET to show a client: work you are doing
+     * for them that is not finished. The word was the lie: a project in Planning was reported to the
+     * client as Active, and a tester reasonably filed it as a bug in the count.
+     *
+     * The label changed rather than the query, because narrowing it to status = 'active' would tell a
+     * client with one project in planning that they have none.
+     */
+    if (s === 'projects') { value = summary?.activeProjects ?? 0; label = 'Open Projects' }
     if (s === 'quotes') { value = summary?.pendingQuotes ?? 0; label = 'Pending Quotes' }
     if (s === 'invoices') { value = summary?.totalInvoices ?? 0; label = 'Total Invoices' }
     // vet: how many animals are on the account, and whether anything is overdue (T12 H6)

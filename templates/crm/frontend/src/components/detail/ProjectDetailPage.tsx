@@ -222,7 +222,7 @@ export default function ProjectDetailPage() {
                     <p className="text-sm text-gray-500 dark:text-slate-400">Location</p>
                     <p className="text-gray-900 dark:text-slate-100">
                       {project.address && <span>{project.address}<br /></span>}
-                      {project.city && `${project.city}, `}{project.state} {project.zip}
+                      {[[project.city, project.state].filter(Boolean).join(', '), project.zip].filter(Boolean).join(' ')}
                     </p>
                   </div>
                 </div>

@@ -129,7 +129,7 @@ export default function ProjectsPage() {
           {statuses.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
         </select>
       </div>
-      <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage}
+      <DataTable data={data} emptyMessage="No projects yet. Create one to group the jobs, change orders and RFIs for a piece of work." columns={columns} loading={loading} pagination={pagination} onPageChange={setPage}
         onRowClick={(row: Record<string, unknown>) => navigate(`/crm/projects/${row.id}`)}
         actions={[{ label: 'Edit', icon: Edit, onClick: openEdit }, { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' }]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Project' : 'New Project'} size="lg">

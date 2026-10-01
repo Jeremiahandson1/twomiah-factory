@@ -132,7 +132,7 @@ export default function BidsPage() {
         </div>
       )}
 
-      <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[
+      <DataTable data={data} emptyMessage="No bids yet. Log one to track what you quoted and what you won — a won bid becomes a project." columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[
         // Each action is offered only where the state machine allows it — a menu item that can
         // only ever answer 400 is an item that never works. (T32 H6)
         { label: 'Edit', icon: Edit, onClick: openEdit, show: (r: Record<string, unknown>) => LIVE.includes(r.status as string) },

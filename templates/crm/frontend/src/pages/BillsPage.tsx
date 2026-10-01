@@ -162,7 +162,7 @@ export default function BillsPage() {
           <div className={`border rounded-lg px-4 py-2 ${Number(summary.overdueCount) > 0 ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white'}`}>Overdue: <span className="font-semibold">{Number(summary.overdueCount || 0)}</span></div>
         </div>
       )}
-      <DataTable data={data} columns={columns} loading={loading} pagination={pagination as never} onPageChange={setPage} actions={rowActions} />
+      <DataTable data={data} emptyMessage="No vendor bills yet. Record one to see what you owe, and against which job." columns={columns} loading={loading} pagination={pagination as never} onPageChange={setPage} actions={rowActions} />
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Bill' : 'Record Bill'} size="md">
         <div className="space-y-4">

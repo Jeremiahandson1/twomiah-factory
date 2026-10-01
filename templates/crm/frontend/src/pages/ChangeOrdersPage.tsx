@@ -141,7 +141,7 @@ export default function ChangeOrdersPage() {
   return (
     <div>
       <PageHeader title="Change Orders" action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>New CO</Button>} />
-      <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[
+      <DataTable data={data} emptyMessage="No change orders yet. Raise one when the scope changes — including a credit, if work is coming out." columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[
         { label: 'Edit', icon: Edit, onClick: openEdit },
         { label: 'Submit', icon: Send, onClick: handleSubmit },
         { label: 'Approve', icon: Check, onClick: handleApprove },
