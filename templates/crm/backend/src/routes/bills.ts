@@ -26,9 +26,17 @@ app.use('*', authenticate)
  */
 app.use('*', requirePermission('bills:read'))
 
+/**
+ * Which bill statuses are SPEND. One list, used by the job rollup, the PO commitment relief and the
+ * over-billing check, so a void bill cannot count in one place and not another. (T32 M3)
+ */
+const BILL_IS_SPEND = ['open', 'partial', 'paid']
+
 const billSchema = z.object({
   vendorId: z.string().min(1),
   number: z.string().optional(),
+  /** Bill more than the purchase order allows, deliberately. See POST / below. (T32 M3) */
+  allowOverage: z.boolean().optional(),
   jobId: z.string().optional(),
   projectId: z.string().optional(),
   purchaseOrderId: z.string().optional(),
@@ -107,13 +115,35 @@ app.get('/summary', async (c) => {
 app.get('/summary/job/:jobId', async (c) => {
   const currentUser = c.get('user') as any
   const jobId = c.req.param('jobId')
-  const [poRow] = await db.select({
-    committed: sql<string>`coalesce(sum(${purchaseOrder.total}), 0)`,
-  }).from(purchaseOrder).where(and(
-    eq(purchaseOrder.companyId, currentUser.companyId),
-    eq(purchaseOrder.jobId, jobId),
-    inArray(purchaseOrder.status, ['sent', 'acknowledged', 'received', 'billed']),
-  ))
+  /**
+   * COMMITTED is what is still OUTSTANDING on the purchase orders, not their face value. (T32 M3)
+   *
+   * This summed every live PO's total, with `billed` in the list — so a PO that had been fully
+   * billed counted as a commitment AND its bill counted as billed: the same money twice. The report
+   * saw Open committed stay at $723.72 after billing $723.72.
+   *
+   * A commitment is a promise still to be honoured. As bills land against a PO it falls, and reaches
+   * zero when the PO is fully billed. Clamped at zero per PO, so one over-billed order cannot net
+   * off another order's genuine commitment.
+   */
+  const billedPerPo = db.$with('billed_per_po').as(
+    db.select({
+      poId: vendorBill.purchaseOrderId,
+      billed: sql<string>`coalesce(sum(${vendorBill.amount}), 0)`.as('billed'),
+    }).from(vendorBill).where(and(
+      eq(vendorBill.companyId, currentUser.companyId),
+      inArray(vendorBill.status, BILL_IS_SPEND),
+    )).groupBy(vendorBill.purchaseOrderId),
+  )
+  const [poRow] = await db.with(billedPerPo).select({
+    committed: sql<string>`coalesce(sum(greatest(${purchaseOrder.total}::numeric - coalesce(${billedPerPo.billed}::numeric, 0), 0)), 0)`,
+  }).from(purchaseOrder)
+    .leftJoin(billedPerPo, eq(billedPerPo.poId, purchaseOrder.id))
+    .where(and(
+      eq(purchaseOrder.companyId, currentUser.companyId),
+      eq(purchaseOrder.jobId, jobId),
+      inArray(purchaseOrder.status, ['sent', 'acknowledged', 'received', 'billed']),
+    ))
   const [billRow] = await db.select({
     billed: sql<string>`coalesce(sum(${vendorBill.amount}), 0)`,
     paid: sql<string>`coalesce(sum(${vendorBill.amountPaid}), 0)`,
@@ -140,11 +170,50 @@ app.post('/', requirePermission('bills:create'), async (c) => {
   if (!vendor) return c.json({ error: 'Vendor not found' }, 400)
 
   let poJobId: string | null = null
+  let po: any = null
   if (data.purchaseOrderId) {
-    const [po] = await db.select().from(purchaseOrder)
+    ;[po] = await db.select().from(purchaseOrder)
       .where(and(eq(purchaseOrder.id, data.purchaseOrderId), eq(purchaseOrder.companyId, currentUser.companyId))).limit(1)
     if (!po) return c.json({ error: 'Purchase order not found' }, 400)
     poJobId = po.jobId
+
+    /**
+     * OVER-BILLING A PURCHASE ORDER WENT THROUGH SILENTLY. (T32 M3)
+     *
+     * PO-00001 for $723.72 was billed $723.72 and then a further $5,000 against the SAME PO, with no
+     * warning. A purchase order is the figure a vendor agreed to; a bill that exceeds it is either a
+     * price change nobody approved or a duplicate invoice, and both are things somebody has to look
+     * at before it is paid.
+     *
+     * Refused by default rather than warned, because a warning in a response body is something
+     * nobody reads — and `allowOverage: true` is the way through, so a genuine extra takes one
+     * deliberate act and the figures still say what happened.
+     */
+    const [billedAgg] = await db.select({
+      billed: sql<string>`coalesce(sum(${vendorBill.amount}), 0)`,
+    }).from(vendorBill).where(and(
+      eq(vendorBill.companyId, currentUser.companyId),
+      eq(vendorBill.purchaseOrderId, po.id),
+      inArray(vendorBill.status, BILL_IS_SPEND),
+    ))
+    const already = Number(billedAgg?.billed || 0)
+    const poTotal = Number(po.total || 0)
+    const headroom = Math.round((poTotal - already) * 100) / 100
+    if (data.amount > headroom + 0.005 && !data.allowOverage) {
+      return c.json({
+        error: already > 0.005
+          ? `${po.number} is for ${poTotal.toFixed(2)} and ${already.toFixed(2)} has already been billed against it, so only ${Math.max(0, headroom).toFixed(2)} is left. This bill is ${data.amount.toFixed(2)}.`
+          : `${po.number} is for ${poTotal.toFixed(2)} and this bill is ${data.amount.toFixed(2)}.`,
+        code: 'exceeds_purchase_order',
+        purchaseOrder: po.number,
+        orderTotal: poTotal,
+        alreadyBilled: already,
+        remaining: Math.max(0, headroom),
+        overBy: Math.round((data.amount - Math.max(0, headroom)) * 100) / 100,
+        // Named so the screen can offer it rather than leaving the user stuck.
+        override: 'Send allowOverage: true to bill it anyway — the overage will be on the record.',
+      }, 409)
+    }
   }
 
   const [bill] = await db.insert(vendorBill).values({
@@ -160,6 +229,33 @@ app.post('/', requirePermission('bills:create'), async (c) => {
     fileUrl: data.fileUrl || null,
     notes: data.notes || null,
   }).returning()
+
+  /**
+   * …and the commitment is relieved. (T32 M3)
+   *
+   * `billed` was in the list of statuses that count as committed, and NOTHING ever set it — there is
+   * no transition to it in purchaseOrders.ts. So a fully-billed PO stayed `received`, kept counting
+   * as an open commitment, and the bill counted as well: the same money twice, which is what the
+   * report saw when Open committed stayed at $723.72.
+   *
+   * A PO becomes `billed` the moment bills against it reach its total. It is derived from the bills
+   * rather than being a button somebody has to remember to press — a commitment that has to be
+   * closed by hand is a commitment that stays open.
+   */
+  if (po && ['sent', 'acknowledged', 'received'].includes(po.status)) {
+    const [agg] = await db.select({
+      billed: sql<string>`coalesce(sum(${vendorBill.amount}), 0)`,
+    }).from(vendorBill).where(and(
+      eq(vendorBill.companyId, currentUser.companyId),
+      eq(vendorBill.purchaseOrderId, po.id),
+      inArray(vendorBill.status, BILL_IS_SPEND),
+    ))
+    if (Number(agg?.billed || 0) >= Number(po.total || 0) - 0.005) {
+      await db.update(purchaseOrder).set({ status: 'billed', updatedAt: new Date() })
+        .where(and(eq(purchaseOrder.id, po.id), eq(purchaseOrder.companyId, currentUser.companyId)))
+    }
+  }
+
   return c.json(bill, 201)
 })
 

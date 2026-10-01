@@ -713,14 +713,24 @@ export const inspection = pgTable('inspection', {
   result: text('result'),
   notes: text('notes'),
   deficiencies: text('deficiencies'),
+  /** Who recorded pass/fail, and when — not the same thing as when it was scheduled. (T32 M1) */
+  resultedAt: timestamp('resulted_at'),
+  resultedBy: text('resulted_by'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  /**
+   * The inspection this one re-does. A pass after a fail used to overwrite the failure in place, so
+   * an inspection a building inspector had failed read as if it passed first time. (T32 M1,
+   * migration 0031)
+   */
+  reinspectionOfId: text('reinspection_of_id'),
 }, (t) => [
   index('inspection_company_id_idx').on(t.companyId),
   index('inspection_project_id_idx').on(t.projectId),
+  index('inspection_reinspection_of_id_idx').on(t.reinspectionOfId),
 ])
 
 // ==================== BIDDING ====================

@@ -8,7 +8,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { jobPurchaseOrder as purchaseOrder, jobPurchaseOrderLine as purchaseOrderLine, vendorBill, contact, job, project } from '../../db/schema.ts'
-import { eq, and, count, desc, sql, inArray } from 'drizzle-orm'
+import { eq, and, count, desc, sql, inArray, notInArray } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 
@@ -97,11 +97,41 @@ app.get('/summary', async (c) => {
     cnt: count(),
   }).from(purchaseOrder).where(eq(purchaseOrder.companyId, currentUser.companyId)).groupBy(purchaseOrder.status)
   const byStatus = Object.fromEntries(rows.map(r => [r.status, { amount: Number(r.totalAmount || 0), count: r.cnt }]))
-  // A draft PO is not yet committed — exclude it (and terminal statuses) from
-  // the "open committed" total, which was counting drafts as commitments.
-  const open = rows.filter(r => !['draft', 'billed', 'cancelled', 'declined'].includes(r.status))
-    .reduce((s, r) => s + Number(r.totalAmount || 0), 0)
-  return c.json({ byStatus, openCommitted: open })
+  /**
+   * OPEN COMMITTED is what is still OUTSTANDING, not the face value of live orders. (T32 M3)
+   *
+   * A draft PO is not a commitment, which this already handled. What it did not handle is a PO that
+   * has been partly or fully BILLED: its face value stayed in the total while the bill counted
+   * separately, so the same money appeared as both a commitment and a payable. Excluding `billed`
+   * was no help, because nothing ever set that status — bills.ts does now, and this figure no longer
+   * depends on it either way.
+   *
+   * Clamped per order, so one over-billed PO cannot net off another's genuine commitment.
+   */
+  const billedPerPo = db.$with('billed_per_po').as(
+    db.select({
+      poId: vendorBill.purchaseOrderId,
+      billed: sql<string>`coalesce(sum(${vendorBill.amount}), 0)`.as('billed'),
+    }).from(vendorBill).where(and(
+      eq(vendorBill.companyId, currentUser.companyId),
+      inArray(vendorBill.status, ['open', 'partial', 'paid']),
+    )).groupBy(vendorBill.purchaseOrderId),
+  )
+  const [openRow] = await db.with(billedPerPo).select({
+    outstanding: sql<string>`coalesce(sum(greatest(${purchaseOrder.total}::numeric - coalesce(${billedPerPo.billed}::numeric, 0), 0)), 0)`,
+  }).from(purchaseOrder)
+    .leftJoin(billedPerPo, eq(billedPerPo.poId, purchaseOrder.id))
+    .where(and(
+      eq(purchaseOrder.companyId, currentUser.companyId),
+      notInArray(purchaseOrder.status, ['draft', 'cancelled', 'declined']),
+    ))
+  return c.json({
+    byStatus,
+    openCommitted: Math.round(Number(openRow?.outstanding || 0) * 100) / 100,
+    /** The face value of live orders, kept beside it so the two can be reconciled. */
+    orderedValue: rows.filter(r => !['draft', 'cancelled', 'declined'].includes(r.status))
+      .reduce((s, r) => s + Number(r.totalAmount || 0), 0),
+  })
 })
 
 app.get('/:id', async (c) => {

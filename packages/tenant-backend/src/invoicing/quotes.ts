@@ -427,8 +427,27 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       if (src) { address = src.address || ''; city = src.city || ''; state = src.state || ''; zip = src.zip || '' }
       const result = await db.transaction(async (tx: any) => {
         const number = await nextNumber(tx, t.job, t.job.number, t.job.companyId, cid, numJob)
+        /**
+         * UNSCHEDULED, AND WORTH THE WORK — NOT THE WORK PLUS TAX. (T32 M15)
+         *
+         * The job came out `status: 'scheduled'` with `scheduledDate: null`, which is a contradiction
+         * the dispatch board cannot draw: it sat on a schedule with no day. "Scheduled" is a promise
+         * to a customer about a date, and converting a quote does not make one — somebody still has
+         * to book it. `pending` is the honest status, and it is already in OPEN_JOB_STATUSES, so the
+         * job still counts as open work everywhere that matters.
+         *
+         * And `estimatedValue: found.total` carried the sales tax: the report's QTE-00036 was $10,600
+         * of work plus $583 tax, and JOB-00119 was created at $11,183. Tax is the state's money, it is
+         * not what the job is worth, and that figure is what job costing reads for revenue and
+         * variance (T32 B3) — so the tax was landing in the margin on every converted job.
+         *
+         * `total - taxAmount` rather than `subtotal`, because `total` has the discount already taken
+         * off and `subtotal` does not: a quote discounted $250 is worth $250 less, and that IS the
+         * job's value.
+         */
+        const exTax = Math.round((Number(found.total || 0) - Number(found.taxAmount || 0)) * 100) / 100
         const values: any = {
-          number, title: found.name, description, status: 'scheduled', priority: 'normal', estimatedValue: found.total,
+          number, title: found.name, description, status: 'pending', priority: 'normal', estimatedValue: exTax.toFixed(2),
           address, city, state, zip, notes: `Converted from Quote ${found.number}`,
           contactId: found.contactId, projectId: found.projectId, quoteId: found.id, createdById: currentUser.userId, companyId: cid,
         }

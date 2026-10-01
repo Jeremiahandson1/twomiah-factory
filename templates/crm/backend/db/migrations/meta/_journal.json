@@ -218,6 +218,13 @@
       "when": 1791700000000,
       "tag": "0030_bid_contact_project",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1791800000000,
+      "tag": "0031_inspection_reinspection",
+      "breakpoints": true
     }
   ]
 }

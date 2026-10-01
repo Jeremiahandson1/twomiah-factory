@@ -379,6 +379,8 @@ export class ApiClient {
     update: (id: string, data: unknown) => this.update('/api/inspections', id, data),
     delete: (id: string) => this.delete('/api/inspections', id),
     pass: (id: string) => this.action('/api/inspections', id, 'pass'),
+    // A failed inspection is re-booked as a NEW record rather than overwritten. (T32 M1)
+    reinspect: (id: string, data?: unknown) => this.action('/api/inspections', id, 'reinspect', data),
     fail: (id: string, data: unknown) => this.action('/api/inspections', id, 'fail', data),
   }
 
