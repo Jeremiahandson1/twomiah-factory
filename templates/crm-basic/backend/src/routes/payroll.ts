@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { timeEntry, user, expense, staffAccountEntry } from '../../db/schema.ts'
-import { eq, and, gte, lte, desc } from 'drizzle-orm'
+import { timeEntry, user, staffAccountEntry } from '../../db/schema.ts'
+import { eq, and, gte, lte } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { createStaffBalanceStore } from '../shared/index.ts'
 
@@ -92,25 +92,17 @@ app.get('/summary', async (c) => {
   return c.json({ payPeriodStart: startDate, payPeriodEnd: endDate, users: Object.values(byUser), totals })
 })
 
-// GET expenses
-app.get('/expenses', async (c) => {
-  const currentUser = c.get('user') as any
-  const status = c.req.query('status')
-
-  const conditions = [eq(expense.companyId, currentUser.companyId)]
-  if (status) conditions.push(eq(expense.status as any, status))
-
-  const rows = await db.select({
-    expense,
-    userFirstName: user.firstName,
-    userLastName: user.lastName,
-  })
-    .from(expense)
-    .leftJoin(user, eq(expense.userId, user.id))
-    .where(and(...conditions))
-    .orderBy(desc(expense.createdAt))
-
-  return c.json(rows.map(r => ({ ...r.expense, user: { name: [r.userFirstName, r.userLastName].filter(Boolean).join(' ') || null } })))
-})
+// There is deliberately no GET /payroll/expenses here.
+//
+// There used to be, and it answered 500 on EVERY call it ever received: the expense table has
+// `submittedById`, not `userId`, so `leftJoin(user, eq(expense.userId, user.id))` built
+// `eq(undefined, …)`. Its `?status=` filter was dead too, cast `as any`, which is why nothing
+// complained. Nothing has ever called it — no screen, no test, no script.
+//
+// Expenses are served by the shared module at /api/expenses (routes/expenses.ts) — create, edit,
+// approve, reimburse, the submitter column and per-person scoping.
+// Repairing it would have put a second, UNSCOPED list over the same table, and non-managers are
+// meant to see only their own claims (RR7 X5). Two implementations over one table is how T46 N24
+// happened. scripts/check-selected-columns-exist.ts now fails the build on the column fault itself.
 
 export default app

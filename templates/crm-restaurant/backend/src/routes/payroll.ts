@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { timeEntry, user, expense } from '../../db/schema.ts'
-import { eq, and, gte, lte, desc } from 'drizzle-orm'
+import { timeEntry, user } from '../../db/schema.ts'
+import { eq, and, gte, lte } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 
 const app = new Hono()
@@ -14,10 +14,15 @@ app.get('/summary', async (c) => {
   const endDate = c.req.query('endDate')
   if (!startDate || !endDate) return c.json({ error: 'startDate and endDate required' }, 400)
 
+  // first_name + last_name, because this schema's user table has no `name` column.
+  // `user.name` was undefined, so drizzle threw while BUILDING the select and this route answered 500
+  // on every call it ever received — silently, because nothing in this template has a screen for it.
+  // (Same defect as crm/crm-basic/crm-fieldservice/crm-landscaping, and the salon's T46 N24.)
   const entries = await db.select({
     entry: timeEntry,
     userId: user.id,
-    userName: user.name,
+    userFirstName: user.firstName,
+    userLastName: user.lastName,
   })
     .from(timeEntry)
     .leftJoin(user, eq(timeEntry.userId, user.id))
@@ -33,7 +38,7 @@ app.get('/summary', async (c) => {
     const id = e.entry.userId
     if (!byUser[id]) {
       byUser[id] = {
-        user: { id: e.userId, name: e.userName },
+        user: { id: e.userId, name: [e.userFirstName, e.userLastName].filter(Boolean).join(' ') || null },
         totalHours: 0,
         totalPay: 0,
         entryCount: 0,
@@ -52,24 +57,17 @@ app.get('/summary', async (c) => {
   return c.json({ payPeriodStart: startDate, payPeriodEnd: endDate, users: Object.values(byUser) })
 })
 
-// GET expenses
-app.get('/expenses', async (c) => {
-  const currentUser = c.get('user') as any
-  const status = c.req.query('status')
-
-  const conditions = [eq(expense.companyId, currentUser.companyId)]
-  if (status) conditions.push(eq(expense.status as any, status))
-
-  const rows = await db.select({
-    expense,
-    userName: user.name,
-  })
-    .from(expense)
-    .leftJoin(user, eq(expense.userId, user.id))
-    .where(and(...conditions))
-    .orderBy(desc(expense.createdAt))
-
-  return c.json(rows.map(r => ({ ...r.expense, user: { name: r.userName } })))
-})
+// There is deliberately no GET /payroll/expenses here.
+//
+// There used to be, and it answered 500 on EVERY call it ever received: the expense table has
+// `submittedById`, not `userId`, so `leftJoin(user, eq(expense.userId, user.id))` built
+// `eq(undefined, …)`. Its `?status=` filter was dead too, cast `as any`, which is why nothing
+// complained. Nothing has ever called it — no screen, no test, no script.
+//
+// This template has no expenses module: no screen, no nav entry and no expense_tracking in its
+// registry. The expense table here is clone residue, and so was this route.
+// Repairing it would have put a second, UNSCOPED list over the same table, and non-managers are
+// meant to see only their own claims (RR7 X5). Two implementations over one table is how T46 N24
+// happened. scripts/check-selected-columns-exist.ts now fails the build on the column fault itself.
 
 export default app

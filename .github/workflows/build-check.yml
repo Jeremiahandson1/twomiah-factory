@@ -1529,6 +1529,17 @@ jobs:
       - name: "mounting the shared expenses module obliges the payroll summary to report deductions"
         run: bun run scripts/check-payroll-reports-deductions.ts
 
+  selected-columns-exist:
+    name: "a route does not select a column its table does not have"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "every <table>.<column> a route reads must exist in the schema"
+        run: bun run scripts/check-selected-columns-exist.ts
+
   dashboard-panels-load:
     name: "dashboard panels load"
     runs-on: ubuntu-latest

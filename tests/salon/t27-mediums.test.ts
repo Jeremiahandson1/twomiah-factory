@@ -89,6 +89,22 @@ console.log('\n── N5: a roster stylist is a stylist on every read ──')
   const made = await call('POST', '/api/appointments', { contactId: client.id, stylistId: roster.id, serviceId: svc.id, startTime: hoursAgo(3) })
   await call('PUT', `/api/appointments/${made.json?.id}`, { status: 'completed' })
 
+  /**
+   * A second visit, seconds old, for the Chair Productivity half.
+   *
+   * Chair Productivity is MONTH-TO-DATE on the shop's clock (salonDayWindows startOfMonth). The one
+   * visit above is three hours old, and for the first three hours of every month in the shop's zone
+   * that lands in the PREVIOUS month — so these two assertions went red at 00:24 Chicago on 1 October
+   * with nothing changed in the product. The month tile was right; the seed was in the wrong month.
+   * Recent Services passed throughout, because recency is not a period.
+   *
+   * Dated seconds ago rather than hours, so it is inside the shop's current month whenever the month
+   * has started, and still on a day that has happened (which Log Service requires).
+   * See feedback: a test that fails only overnight — this is the same fault at a month boundary.
+   */
+  const justNow = await call('POST', '/api/appointments', { contactId: client.id, stylistId: roster.id, serviceId: svc.id, startTime: new Date(Date.now() - 5_000).toISOString() })
+  await call('PUT', `/api/appointments/${justNow.json?.id}`, { status: 'completed' })
+
   const act = await call('GET', '/api/dashboard/recent-activity')
   const services: any[] = (act.json?.recentServices || act.json?.recentVisits || [])
   const mine = services.find(s => s.stylistMemberName === 'T27 Roster Probe' || s.stylistFirstName)
