@@ -1518,6 +1518,17 @@ jobs:
       - name: "peopleConfig's expense categories must match the route's options.categories"
         run: bun run scripts/check-expense-categories-mirror.ts
 
+  payroll-reports-deductions:
+    name: "a template that can recover from pay reports it on the pay run"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "mounting the shared expenses module obliges the payroll summary to report deductions"
+        run: bun run scripts/check-payroll-reports-deductions.ts
+
   dashboard-panels-load:
     name: "dashboard panels load"
     runs-on: ubuntu-latest
