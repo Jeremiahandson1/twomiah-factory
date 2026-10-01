@@ -104,12 +104,14 @@ const code = (src: string) => src
   //                   allowed to be the plain ISO date, and it is what the file's own metadata says.
   //   seo-pages.ts  — <lastmod> in the sitemap. The sitemap protocol specifies W3C datetime, which
   //                   is UTC-based; a search engine is not in the shop's timezone.
-  //   tax-filing.ts — the "Superseded <date>:" stamp prefixed to a note, and the due dates computed
-  //                   by month arithmetic. Neither decides which sales fall in a period.
+  // tax-filing.ts used to be the third. Its "Superseded <date>:" stamp was excused here as "not a
+  // query bound, so UTC is fine" — and that was wrong on its own terms: the stamp is the audit trail
+  // for WHEN a filing stopped being current, read by a person in the shop, and an Ohio shop setting
+  // one aside at 8pm got a note dated tomorrow. It runs on storeDateString(now, tz) now, so the
+  // exemption is gone. This guard failing when an exemption stops matching is what made me look.
   const UTC_DATE_IS_INTENDED: Record<string, RegExp> = {
     'audit.ts': /filename="audit-log-\$\{new Date\(\)\.toISOString\(\)\.slice\(0, 10\)\}\.csv"/,
     'seo-pages.ts': /const lastmod = [^\n]*/,
-    'tax-filing.ts': /const stamp = `Superseded \$\{new Date\(\)\.toISOString\(\)\.slice\(0, 10\)\}/,
   }
 
   for (const f of files) {

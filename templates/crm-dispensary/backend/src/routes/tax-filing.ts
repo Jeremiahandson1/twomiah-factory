@@ -7,7 +7,7 @@ import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { settledSale, taxCollected, taxNetExprBare, exciseNetExprBare, salesNetExprBare } from '../utils/revenue.ts'
 import { medicalExciseExempt } from '../utils/tax.ts'
-import { storeDayRange, zoneFor } from '../utils/isoTime.ts'
+import { storeDayRange, zoneFor, storeDateString } from '../utils/isoTime.ts'
 
 const app = new Hono()
 
@@ -400,7 +400,11 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
     `)
     varianceOrders = ((varianceResult as any).rows || varianceResult).map((r: any) => ({
       orderNumber: r.number,
-      date: r.completed_at ? String(r.completed_at).slice(0, 10) : null,
+      // The SHOP's date. Sliced from the UTC timestamp, an 8pm Ohio sale was listed as TOMORROW —
+      // inside a filing for today, next to an order number, in the one list whose whole job is "go
+      // and look at these orders". Every other date in this module runs on the store's clock since
+      // the tax-day fix (T52); this one was still raw UTC.
+      date: r.completed_at ? storeDateString(new Date(r.completed_at), tz) : null,
       taxableBase: round2(Number(r.base) || 0),
       exciseTaken: round2(Number(r.excise_collected) || 0),
       exciseExpected: round2(Number(r.expected) || 0),
@@ -492,6 +496,51 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
     lineItems,
   }
 
+  /**
+   * A new return for a period SUPERSEDES the one it replaces. (T57 observation)
+   *
+   * Generating a filing for a period that already had one left both in the list, each looking
+   * exactly as authoritative as the other — "your verification left six on 30 Sep, not two", and the
+   * tester had to set them all aside by hand. Six returns for one day is not a tidiness problem on a
+   * tax record; it is six answers to a question with one answer, and the list is where somebody
+   * looks to find out what was filed.
+   *
+   * T48 Q8 built superseding for exactly this and left it manual. It should not be manual: an
+   * amended return replacing an earlier one is the normal course of business, and the product knows
+   * it is doing it — it is generating the replacement right now.
+   *
+   * What it will NOT touch is a filing that has actually been FILED or confirmed. That one went to
+   * the state; the new one is an amendment and both have to stand. Same line the manual supersede
+   * draws, and the same reason.
+   *
+   * Matched on the DATES the return covers, not on the `period` label. Keying on the label was wrong
+   * twice over and the test caught it on the first run: the label is optional — every caller that
+   * sends only periodStart/periodEnd stores NULL — so all of those would have collided with each
+   * other, while two returns genuinely covering the same days under different labels would not have
+   * matched at all. A return is defined by the days it reports on.
+   *
+   * The explanation lives HERE and not in a `--` comment inside the statement. A SQL comment inside
+   * a sql template is a trap in this codebase: a backtick in one ended the template literal and
+   * killed a whole route (kiosk.ts), and this handler's own order-sum query sits a few lines away.
+   * Prose belongs in JS comments; the template holds SQL.
+   */
+  const supersededResult = await db.execute(sql`
+    UPDATE tax_filings
+    SET status = 'superseded',
+        notes = COALESCE(NULLIF(notes, ''), '') ||
+                CASE WHEN COALESCE(notes, '') = '' THEN '' ELSE E'\n' END ||
+                ${`Superseded ${storeDateString(new Date(), tz)}: replaced by a new ${filingType.replace(/_/g, ' ')} return generated for the same period.`},
+        updated_at = NOW()
+    WHERE company_id = ${currentUser.companyId}
+      AND filing_type = ${filingType}
+      AND period_start = ${periodStart}
+      AND period_end = ${periodEnd}
+      AND COALESCE(state, '') = COALESCE(${state}, '')
+      AND status NOT IN ('filed', 'confirmed', 'superseded')
+    RETURNING id
+  `)
+  const superseded = (((supersededResult as any).rows || supersededResult) as any[]).map((r) => String(r.id))
+
   // Store filing using the real tax_filings columns.
   const result = await db.execute(sql`
     INSERT INTO tax_filings (
@@ -517,11 +566,27 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
     entity: 'tax_filing',
     entityId: filing?.id,
     entityName: filingNumber,
-    metadata: { filingType, period: data.period, state, totalTaxDue },
+    metadata: { filingType, period: data.period, state, totalTaxDue, ...(superseded.length ? { superseded } : {}) },
     req: c,
   })
+  // Each replaced return gets its own audit row, so "why is this one not current" is answerable from
+  // the filing itself rather than only from the one that replaced it.
+  for (const oldId of superseded) {
+    audit.log({
+      action: audit.ACTIONS.STATUS_CHANGE,
+      entity: 'tax_filing',
+      entityId: oldId,
+      metadata: { status: 'superseded', reason: `replaced by ${filingNumber}`, replacedBy: filing?.id },
+      req: c,
+    })
+  }
 
-  return c.json(filing, 201)
+  return c.json({
+    ...filing,
+    // So the screen can say "this replaced 2 earlier returns" rather than leaving the reader to
+    // notice the list got shorter.
+    ...(superseded.length ? { supersededFilings: superseded.length, supersededIds: superseded } : {}),
+  }, 201)
 })
 
 // PUT /filings/:id/review — Mark as reviewed (manager+)
@@ -601,7 +666,18 @@ app.put('/filings/:id/supersede', requireRole('manager'), async (c) => {
     return c.json({ error: 'This filing is already superseded.', code: 'already_superseded' }, 400)
   }
 
-  const stamp = `Superseded ${new Date().toISOString().slice(0, 10)}: ${why}`
+  /**
+   * The SHOP's date on the stamp, not UTC's.
+   *
+   * This read `new Date().toISOString()`, so an Ohio shop setting a filing aside at 8pm got a note
+   * dated TOMORROW — "Superseded 2026-10-01" on the evening of 30 Sep. Every other date in this
+   * module runs on the store's clock since the tax-day fix (T52); this one human-readable stamp,
+   * which is the whole audit trail for "when did this stop being current", did not.
+   *
+   * Found because a test asked for the shop's day and the stamp disagreed with it.
+   */
+  const stampZone = await zoneFor(currentUser.companyId)
+  const stamp = `Superseded ${storeDateString(new Date(), stampZone)}: ${why}`
   const result = await db.execute(sql`
     UPDATE tax_filings
     SET status = 'superseded',

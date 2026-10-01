@@ -18,6 +18,14 @@ import { company, user, contact, product } from './db/schema.ts'
 import { zodRefusal } from './src/utils/errors.ts'
 import { z } from 'zod'
 
+// The SHOP's day, not UTC's. These companies are in Ohio, so the tax day runs on
+// America/New_York (T52): between UTC midnight and the shop's midnight, `new Date().toISOString()`
+// names TOMORROW in shop terms, the filing covers a window holding none of the orders completed a
+// moment earlier, and every figure comes back 0. Red for four hours a night, green the rest of the
+// time — which is how this class of failure gets dismissed as flakiness.
+const shopDay = (offsetDays = 0) =>
+  new Date(Date.now() + offsetDays * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+
 let failed = 0, passed = 0
 const check = (name: string, ok: boolean, detail?: unknown) => {
   if (ok) { passed++; console.log(`  ok   ${name}`) }
@@ -78,7 +86,7 @@ const rows = async (q: any) => { const r: any = await db.execute(q); return (r.r
   check('P5: …and was charged no excise, which is the whole reason the figures stopped dividing',
     Math.round(Number(medRow?.excise_tax || 0) * 100) === 0, medRow?.excise_tax)
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = shopDay()
   const filing = await api('POST', '/api/tax-filing/filings/generate', {
     filingType: 'excise_tax', periodStart: today, periodEnd: today,
   })
@@ -137,7 +145,7 @@ const rows = async (q: any) => { const r: any = await db.execute(q); return (r.r
   // …and then the thing a real shop does by accident: a sale recorded with no excise on it.
   await db.execute(sql`UPDATE orders SET status = 'completed', completed_at = NOW(), excise_tax = '0' WHERE id = ${oid}`)
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = shopDay()
   const res = await app.request('/api/tax-filing/filings/generate', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-test-user': owner3.id, 'x-test-company': odd.id, 'x-test-role': 'owner' },
@@ -165,7 +173,7 @@ const rows = async (q: any) => { const r: any = await db.execute(q); return (r.r
   const owner2 = (await db.insert(user).values({
     email: 'owner-t47tx2@test.local', passwordHash: 'x', firstName: 'O', lastName: 'U', role: 'owner', companyId: taxing.id,
   } as any).returning())[0]
-  const today = new Date().toISOString().slice(0, 10)
+  const today = shopDay()
   const res = await app.request('/api/tax-filing/filings/generate', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-test-user': owner2.id, 'x-test-company': taxing.id, 'x-test-role': 'owner' },

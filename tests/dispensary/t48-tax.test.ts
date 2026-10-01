@@ -16,6 +16,14 @@ import { setupSchema } from './setup.ts'
 import { db } from './db/index.ts'
 import { company, user, contact, product } from './db/schema.ts'
 
+// The SHOP's day, not UTC's. These companies are in Ohio, so the tax day runs on
+// America/New_York (T52): between UTC midnight and the shop's midnight, `new Date().toISOString()`
+// names TOMORROW in shop terms, the filing covers a window holding none of the orders completed a
+// moment earlier, and every figure comes back 0. Red for four hours a night, green the rest of the
+// time — which is how this class of failure gets dismissed as flakiness.
+const shopDay = (offsetDays = 0) =>
+  new Date(Date.now() + offsetDays * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+
 let failed = 0, passed = 0
 const check = (name: string, ok: boolean, detail?: unknown) => {
   if (ok) { passed++; console.log(`  ok   ${name}`) }
@@ -53,7 +61,7 @@ const api = async (method: string, path: string, body?: unknown) => {
   return { status: res.status, json: j }
 }
 const rows = async (q: any) => { const r: any = await db.execute(q); return (r.rows || r) as any[] }
-const today = new Date().toISOString().slice(0, 10)
+const today = shopDay()
 const sell = async () => {
   const r = await api('POST', '/api/orders', { items: [{ productId: flower.id, quantity: 1 }], orderType: 'walk_in', contactId: adult.id })
   const id = (r.json?.data || r.json)?.id
