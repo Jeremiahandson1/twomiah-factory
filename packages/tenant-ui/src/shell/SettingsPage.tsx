@@ -36,7 +36,7 @@ const emptyUser = (): NewUserForm => ({ firstName: '', lastName: '', email: '', 
 export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
   const confirm = useConfirm()
   const navigate = useNavigate()
-  const { user, company, updateCompany } = auth
+  const { user, company, updateCompany, updateUser } = auth
   // May this person change the company? The server answers company:update (requireAdmin on PUT
   // /api/company), and until now the screen never asked — so a manager filled the form in and learned
   // the answer from Save. A template that has not been rewired hands us no `can`, and keeps today's
@@ -167,6 +167,40 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
     catch (err) { toast.error(errMsg(err, 'Could not change access')) }
   }
   // Owner-only grant: who may see the login-user list besides the owner. (Wrench QA decision)
+  /**
+   * HAND THE COMPANY OVER — and recover one that has lost its owner. (T32 B6)
+   *
+   * POST /api/company/transfer-ownership has existed since B6 with no screen, so the endpoint that
+   * stops ownership becoming permanent was itself only reachable with a curl. The case that made it
+   * urgent is worse: ctrtest finished the T32 round with NO owner, and the report's conclusion was
+   * "it cannot be restored through the app; it needs a direct database update". A product whose
+   * recovery path is somebody with database access has not recovered from the fault.
+   *
+   * Offered in two situations, worded differently for each: an owner moving the company on, and an
+   * ADMIN recovering a company that has no owner at all.
+   */
+  const ownerExists = users.some((u: any) => u.role === 'owner')
+  const mayTransfer = isOwner || (canManageUsers && !ownerExists)
+  const [transferTo, setTransferTo] = useState<any>(null)
+  const [transferring, setTransferring] = useState(false)
+  const transferOwnership = async (u: any) => {
+    setTransferring(true)
+    try {
+      const res: any = await api.post('/api/company/transfer-ownership', { userId: u.id })
+      toast.success(`${u.firstName} ${u.lastName} is now the owner`)
+      setTransferTo(null)
+      await loadUsers()
+      // The signed-in person's OWN role has very likely just changed — owner → admin on a handover,
+      // admin → owner on a recovery — and every gate on this page reads it. The server returns the
+      // rows it touched, so the new role is already in hand; `updateUser` is how this page refreshes
+      // the session without a reload (and is optional, hence the prompt when it is absent).
+      const mine = (res?.users || []).find((r: any) => r.id === myId)
+      if (mine?.role && updateUser) updateUser({ role: mine.role })
+      else if (mine?.role) toast.success('Your own role changed — reload the page to pick it up')
+    } catch (e) { toast.error(e instanceof Error && e.message ? e.message : 'Could not transfer ownership') }
+    finally { setTransferring(false) }
+  }
+
   const toggleUserListGrant = async (u: any) => {
     const has = ((u.extraPermissions as string[]) || []).includes('users:read')
     try { await api.put(`/api/company/users/${u.id}`, { extraPermissions: has ? [] : ['users:read'] }); toast.success(has ? 'User list access removed' : 'User list access granted'); loadUsers() }
@@ -323,6 +357,12 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Users</h2>
                 {canManageUsers && <Button onClick={() => { setNewUser(emptyUser()); setAddUserOpen(true) }}>Add User</Button>}
               </div>
+              {!ownerExists && users.length > 0 && canManageUsers && (
+                <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                  <p className="font-medium">This company has no owner.</p>
+                  <p className="mt-1">Some settings are owner-only and cannot be reached until somebody holds the role. An administrator can claim it, or hand it to a colleague, from the table below.</p>
+                </div>
+              )}
               <div className="border dark:border-slate-800 rounded-lg overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-slate-800/60"><tr>
@@ -340,12 +380,25 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                         <td className="px-4 py-3">{roleWord(u.role)}</td>
                         <td className="px-4 py-3">{u.isActive ? <span className="text-green-600">Active</span> : <span className="text-gray-500 dark:text-slate-400">Inactive</span>}</td>
                         <td className="px-4 py-3 text-right">
-                          {u.id === myId ? <span className="text-xs text-gray-500 dark:text-slate-400">You</span> : canManageUsers ? (
+                          {u.id === myId ? (
+                            <>
+                              {/* An admin recovering an ownerless company is usually claiming it for
+                                  themselves, and their own row is the one place the normal actions
+                                  are hidden. */}
+                              {!ownerExists && canManageUsers && (
+                                <button type="button" onClick={() => setTransferTo(u)} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 mr-3 dark:text-indigo-300 dark:hover:text-indigo-200">Claim ownership</button>
+                              )}
+                              <span className="text-xs text-gray-500 dark:text-slate-400">You</span>
+                            </>
+                          ) : canManageUsers ? (
                             <>
                               {isOwner && u.role !== 'owner' && (
                                 <label className="inline-flex items-center gap-1 text-xs text-gray-500 mr-3 dark:text-slate-400" title="Lets this person see the list of logins under Settings › Users">
                                   <input type="checkbox" checked={((u.extraPermissions as string[]) || []).includes('users:read')} onChange={() => toggleUserListGrant(u)} /> can view user list
                                 </label>
+                              )}
+                              {mayTransfer && u.role !== 'owner' && u.isActive && (
+                                <button type="button" onClick={() => setTransferTo(u)} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 mr-3 dark:text-indigo-300 dark:hover:text-indigo-200">Make owner</button>
                               )}
                               <button type="button" onClick={() => toggleAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700 dark:hover:text-red-300' : 'text-green-600 hover:text-green-700 dark:hover:text-green-300'}`}>{u.isActive ? 'Revoke access' : 'Restore access'}</button>
                             </>
@@ -357,6 +410,33 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                   </tbody>
                 </table>
               </div>
+
+              {transferTo && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setTransferTo(null)}>
+                  <div role="dialog" aria-modal="true" aria-label="Transfer ownership" className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+                    <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
+                      {transferTo.id === myId ? 'Claim ownership' : 'Transfer ownership'}
+                    </h3>
+                    {transferTo.id === myId ? (
+                      <p className="text-sm text-gray-600 dark:text-slate-300">You will become the owner of this company. Nobody holds the role at the moment, which is why this is offered.</p>
+                    ) : (
+                      <p className="text-sm text-gray-600 dark:text-slate-300">
+                        <strong>{transferTo.firstName} {transferTo.lastName}</strong> will become the owner of this company.
+                        {isOwner ? ' You will become an administrator.' : ''}
+                      </p>
+                    )}
+                    <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">
+                      There is only ever one owner. {isOwner ? 'They can hand it back to you the same way.' : 'They will be able to hand it on the same way.'}
+                    </p>
+                    <div className="mt-5 flex justify-end gap-2">
+                      <Button variant="secondary" onClick={() => setTransferTo(null)}>Cancel</Button>
+                      <Button onClick={() => transferOwnership(transferTo)} disabled={transferring}>
+                        {transferring ? 'Transferring…' : transferTo.id === myId ? 'Claim ownership' : 'Transfer ownership'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {addUserOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setAddUserOpen(false)}>

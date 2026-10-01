@@ -385,13 +385,37 @@ export function createCompanyRoutes(deps: CompanyDeps) {
   // the owner check below narrows it further, because requireAdmin admits admins and this must not.
   app.post('/transfer-ownership', requireAdmin, async (c) => {
     const currentUser = c.get('user') as any
+    /**
+     * …UNLESS THERE IS NO OWNER. (T32 B6, the aftermath)
+     *
+     * B6's guards stop a company LOSING its owner. They do nothing for a company that has already
+     * lost one — and ctrtest had, during the round that found the bug: the report's closing note says
+     * "twomiah14@gmail.com is currently role admin, not owner. It cannot be restored through the app;
+     * it needs a direct database update."
+     *
+     * A product whose recovery path is "someone with database access fixes it by hand" has not
+     * recovered from the fault, it has just moved it. So: when the company has NO owner, an admin may
+     * claim it. There is no owner to protect, the only people who can reach this already hold
+     * `requireAdmin`, and the alternative is a tenant that is permanently broken.
+     *
+     * The check is inside the transaction as well as here — two admins clicking at once must not both
+     * become owner.
+     */
     if (currentUser.role !== 'owner') {
-      return c.json({ error: 'Only the owner can transfer ownership.' }, 403)
+      const [existingOwner] = await db.select({ id: t.user.id }).from(t.user)
+        .where(and(eq(t.user.companyId, currentUser.companyId), eq(t.user.role, 'owner'))).limit(1)
+      if (existingOwner) {
+        return c.json({ error: 'Only the owner can transfer ownership.' }, 403)
+      }
+      // No owner: this admin may take it, for themselves or hand it to somebody else.
     }
     const parsed = z.object({ userId: z.string().min(1) }).safeParse(await readBody(c))
     if (!parsed.success) return c.json({ error: 'Say which user should become the owner.', code: 'user_required' }, 400)
     const { userId } = parsed.data
-    if (userId === currentUser.userId) return c.json({ error: 'You are already the owner.' }, 400)
+    const claimingItself = userId === currentUser.userId
+    // Only meaningful when there IS an owner — an admin recovering a company with none is very often
+    // claiming it for themselves, which is the whole point of the carve-out above.
+    if (claimingItself && currentUser.role === 'owner') return c.json({ error: 'You are already the owner.' }, 400)
 
     const target = await findTarget(userId, currentUser.companyId)
     if (!target) return c.json({ error: 'User not found' }, 404)
@@ -401,17 +425,32 @@ export function createCompanyRoutes(deps: CompanyDeps) {
 
     const result = await db.transaction(async (tx: any) => {
       // Lock both rows first so two transfers cannot interleave and leave two owners or none.
+      const ids = claimingItself ? [userId] : [userId, currentUser.userId]
       await tx.select({ id: t.user.id }).from(t.user)
-        .where(and(eq(t.user.companyId, currentUser.companyId), inArray(t.user.id, [userId, currentUser.userId])))
+        .where(and(eq(t.user.companyId, currentUser.companyId), inArray(t.user.id, ids)))
         .for('update')
+      // Re-checked under the lock: two admins recovering an ownerless company at the same moment must
+      // not both become owner.
+      if (currentUser.role !== 'owner') {
+        const [owner] = await tx.select({ id: t.user.id }).from(t.user)
+          .where(and(eq(t.user.companyId, currentUser.companyId), eq(t.user.role, 'owner'))).limit(1)
+        if (owner) return { conflict: true as const }
+      }
       await tx.update(t.user).set({ role: 'owner', updatedAt: new Date() })
         .where(and(eq(t.user.id, userId), eq(t.user.companyId, currentUser.companyId)))
-      await tx.update(t.user).set({ role: 'admin', updatedAt: new Date() })
-        .where(and(eq(t.user.id, currentUser.userId), eq(t.user.companyId, currentUser.companyId)))
+      // Step DOWN only if the caller was the owner. An admin handing the company to a colleague stays
+      // an admin, and an admin claiming it for themselves must not be demoted a line after promotion.
+      if (currentUser.role === 'owner' && !claimingItself) {
+        await tx.update(t.user).set({ role: 'admin', updatedAt: new Date() })
+          .where(and(eq(t.user.id, currentUser.userId), eq(t.user.companyId, currentUser.companyId)))
+      }
       const rows = await tx.select(USER_COLUMNS(t.user)).from(t.user)
-        .where(and(eq(t.user.companyId, currentUser.companyId), inArray(t.user.id, [userId, currentUser.userId])))
+        .where(and(eq(t.user.companyId, currentUser.companyId), inArray(t.user.id, ids)))
       return rows
     })
+    if ((result as any)?.conflict) {
+      return c.json({ error: 'Somebody else has just taken ownership of this company. Reload and ask them to transfer it.', code: 'owner_already_set' }, 409)
+    }
     invalidateExtraPermissions?.(userId)
     invalidateExtraPermissions?.(currentUser.userId)
     return c.json({ success: true, users: result })

@@ -105,5 +105,63 @@ const roleOf = async (id: string) => (await db.select().from(user).where((await 
   check('…and a manager still cannot', mgr.status === 403, mgr)
 }
 
+// ══════════ 5. a company that has ALREADY lost its owner can be recovered ═══════════════════════
+{
+  /**
+   * The guards above stop a company losing its owner. They do nothing for one that already has —
+   * and ctrtest had, during the very round that found B6. The report's closing line: "twomiah14
+   * @gmail.com is currently role admin, not owner. It cannot be restored through the app; it needs a
+   * direct database update."
+   *
+   * A product whose recovery path is "somebody with database access fixes it by hand" has not
+   * recovered from the fault; it has moved it off the product and onto a person. So when a company
+   * has NO owner, an admin may claim it — there is no owner to protect, and the only people who can
+   * reach the endpoint already hold requireAdmin.
+   *
+   * A separate company, because the one above has an owner and the whole point here is a company
+   * that does not.
+   */
+  const [orphan] = await db.insert(company).values({
+    name: 'Ownerless', slug: 'ownerless', email: 'orphan@test.local', state: 'OH', settings: {},
+    enabledFeatures: ['team'],
+  } as any).returning()
+  const mkIn = async (role: string, tag: string) => (await db.insert(user).values({
+    email: `${tag}-orphan@test.local`, passwordHash: 'x', firstName: tag, lastName: 'U',
+    role, companyId: orphan.id, isActive: true,
+  } as any).returning())[0]
+  const strandedAdmin = await mkIn('admin', 'admin')
+  const strandedMgr = await mkIn('manager', 'mgr')
+  const colleague = await mkIn('admin', 'admin2')
+
+  const owners = async () => (await db.select().from(user)).filter((u: any) => u.companyId === orphan.id && u.role === 'owner')
+  check('the company genuinely has no owner', (await owners()).length === 0, await owners())
+
+  const nope = await as(strandedMgr)('POST', '/api/company/transfer-ownership', { userId: strandedMgr.id })
+  check('a MANAGER cannot claim an ownerless company — requireAdmin still applies', nope.status === 403, nope)
+  check('…and it is still ownerless', (await owners()).length === 0, await owners())
+
+  const claim = await as(strandedAdmin)('POST', '/api/company/transfer-ownership', { userId: strandedAdmin.id })
+  check('an ADMIN can claim an ownerless company, for themselves', claim.status === 200, claim)
+  check('…and is now the owner', (await roleOf(strandedAdmin.id)) === 'owner', await roleOf(strandedAdmin.id))
+  check('…exactly one of them', (await owners()).length === 1, (await owners()).map((u: any) => u.email))
+
+  // And once there IS an owner, the carve-out closes again — this is the part that would otherwise
+  // be a permanent hole rather than a recovery.
+  const grab = await as(colleague)('POST', '/api/company/transfer-ownership', { userId: colleague.id })
+  check('a second admin cannot then take it off them', grab.status === 403, grab)
+  check('…ownership did not move', (await roleOf(strandedAdmin.id)) === 'owner' && (await roleOf(colleague.id)) === 'admin',
+    { first: await roleOf(strandedAdmin.id), second: await roleOf(colleague.id) })
+
+  // The other shape of recovery: an admin handing an ownerless company to somebody else, and staying
+  // an admin themselves rather than being demoted out of a role they already had.
+  await db.update(user).set({ role: 'admin' }).where((await import('drizzle-orm')).eq(user.id, strandedAdmin.id))
+  check('…(the company is ownerless again for the next case)', (await owners()).length === 0, null)
+  const handOver = await as(strandedAdmin)('POST', '/api/company/transfer-ownership', { userId: colleague.id })
+  check('an admin can hand an ownerless company to a colleague', handOver.status === 200, handOver)
+  check('…the colleague is the owner', (await roleOf(colleague.id)) === 'owner', await roleOf(colleague.id))
+  check('…and the admin who did it is still an admin, not demoted out of nothing',
+    (await roleOf(strandedAdmin.id)) === 'admin', await roleOf(strandedAdmin.id))
+}
+
 console.log(`\n  ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)
