@@ -27,7 +27,7 @@
 // utils/isoTime.ts and this file refuses any route that decides a day for itself.
 //
 //   bun scripts/check-calendar-day-is-the-stores.ts
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
@@ -173,6 +173,48 @@ const code = (src: string) => src
   const ends = (tax.match(/completed_at < \$\{rangeEnd\}/g) || []).length
   if (starts !== 4 || ends !== 4)
     fail(`tax-filing.ts must bound all FOUR of its period queries on the store day — found ${starts} start(s) and ${ends} end(s), expected 4 and 4`)
+}
+
+/**
+ * …and a store-day expression must never be written twice, with one of the copies in a GROUP BY.
+ *
+ * storeDay()/shopDay() carry the timezone as a BOUND PARAMETER. Repeating the expression in the
+ * GROUP BY emits `AT TIME ZONE $1` in the select list and `$2` below it; Postgres does not consider
+ * those the same expression and rejects the query outright — "column <x>.created_at must appear in
+ * the GROUP BY clause". It is not a wrong number, it is a 500 on every call, and it is invisible in
+ * review because the two lines look identical. GET /api/qr-scanner/analytics shipped that way and
+ * was still answering 500 on the live dispensary tenant after T57 was called clear; its two sibling
+ * handlers in the same file were fine because neither grouped by a store day.
+ *
+ * Group by the select item's ordinal (GROUP BY 1) so there is one expression, parameter included.
+ */
+{
+  const walkTs = (dir: string, out: string[] = []): string[] => {
+    let entries: string[]
+    try { entries = readdirSync(dir) } catch { return out }
+    for (const e of entries) {
+      if (e === 'node_modules' || e === 'dist' || e === 'build') continue
+      const p = join(dir, e)
+      let st; try { st = statSync(p) } catch { continue }
+      if (st.isDirectory()) walkTs(p, out)
+      else if (e.endsWith('.ts')) out.push(p)
+    }
+    return out
+  }
+  const offenders: string[] = []
+  for (const t of readdirSync(join(ROOT, 'templates'))) {
+    const dir = join(ROOT, 'templates', t, 'backend/src')
+    if (!existsSync(dir)) continue
+    for (const f of walkTs(dir)) {
+      const src = readFileSync(f, 'utf8')
+      // A GROUP BY whose expression is interpolated from one of the day helpers.
+      for (const m of src.matchAll(/GROUP BY\s*\$\{\s*(storeDay|shopDay|salonDay|businessDay)\b/g)) {
+        const line = src.slice(0, m.index).split('\n').length
+        offenders.push(`${f.slice(f.indexOf('templates'))}:${line} — GROUP BY \${${m[1]}(…)} repeats a parameterised expression; use GROUP BY <ordinal>`)
+      }
+    }
+  }
+  for (const o of offenders) fail(o)
 }
 
 console.log(failed ? `\n${failed} failure(s)` : 'ok: a calendar day is the store\'s day')

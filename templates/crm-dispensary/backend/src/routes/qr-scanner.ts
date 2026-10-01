@@ -814,12 +814,21 @@ app.get('/analytics', requireRole('manager'), async (c) => {
   // Scans by day (last 30 days)
   // …and the daily series is bucketed on the store's day too, or the chart's bars disagree with the
   // Today tile above them by the last four hours of each day.
+  // GROUP BY 1, not a second copy of the expression.
+  //
+  // storeDay() carries the timezone as a BOUND PARAMETER, so writing the expression out twice emits
+  // `AT TIME ZONE $1` in the select list and `$2` in the GROUP BY. Postgres does not treat those as
+  // the same expression and rejects the whole query with "column qr_scan_events.created_at must
+  // appear in the GROUP BY clause" — so this endpoint answered 500 on every call. Grouping by the
+  // select item's ordinal refers to the one expression that is already there, parameter included.
+  // Its two siblings, /analytics/stats and /analytics/top-scanned, never grouped by a store day and
+  // were unaffected.
   const byDayResult = await db.execute(sql`
     SELECT ${storeDay(sql`created_at`, tz)} as date, COUNT(*)::int as count
     FROM qr_scan_events
     WHERE company_id = ${currentUser.companyId}
       AND created_at >= NOW() - INTERVAL '30 days'
-    GROUP BY ${storeDay(sql`created_at`, tz)}
+    GROUP BY 1
     ORDER BY date DESC
   `)
   const scansByDay = (byDayResult as any).rows || byDayResult
