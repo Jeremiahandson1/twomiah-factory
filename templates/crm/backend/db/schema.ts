@@ -494,8 +494,35 @@ export const vendorBill = pgTable('vendor_bill', {
   purchaseOrderId: text('purchase_order_id').references(() => jobPurchaseOrder.id, { onDelete: 'set null' }),
 }, (t) => [
   index('vendor_bill_company_id_idx').on(t.companyId),
+  // see vendorBillPayment below — the ledger that makes amount_paid reconcilable
   index('vendor_bill_vendor_id_idx').on(t.vendorId),
   index('vendor_bill_job_id_idx').on(t.jobId),
+])
+
+/**
+ * Every payment made against a vendor bill. (T32 B4)
+ *
+ * vendor_bill kept a running `amount_paid` and nothing else — no date, no method, no reference, no
+ * row. So when five concurrent $150 payments raced and three were lost to a read-then-write, there
+ * was no trace of them: the only record was a total that disagreed with what had been acknowledged.
+ * A total with no ledger behind it cannot be reconciled and cannot be audited.
+ *
+ * Same shape as `payment` on the invoice side, so both halves of the money read the same way.
+ */
+export const vendorBillPayment = pgTable('vendor_bill_payment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  vendorBillId: text('vendor_bill_id').notNull().references(() => vendorBill.id, { onDelete: 'cascade' }),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  method: text('method'),
+  reference: text('reference'),
+  notes: text('notes'),
+  paidAt: timestamp('paid_at').defaultNow().notNull(),
+  recordedById: text('recorded_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('vendor_bill_payment_bill_idx').on(t.vendorBillId),
+  index('vendor_bill_payment_company_idx').on(t.companyId),
 ])
 
 // ==================== DOCUMENT VERSIONS & PLAN MARKUP ====================

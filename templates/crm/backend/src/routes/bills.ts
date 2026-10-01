@@ -7,7 +7,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { vendorBill, jobPurchaseOrder as purchaseOrder, contact, job } from '../../db/schema.ts'
+import { vendorBill, vendorBillPayment, jobPurchaseOrder as purchaseOrder, contact, job } from '../../db/schema.ts'
 import { eq, and, count, desc, sql, inArray, lt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -172,7 +172,25 @@ app.put('/:id', requirePermission('bills:update'), async (c) => {
   if (data.purchaseOrderId !== undefined) update.purchaseOrderId = data.purchaseOrderId || null
   if (data.billDate) update.billDate = new Date(data.billDate)
   if (data.dueDate !== undefined) update.dueDate = data.dueDate ? new Date(data.dueDate) : null
-  if (data.amount !== undefined) update.amount = data.amount.toFixed(2)
+  if (data.amount !== undefined) {
+    // A bill cannot be worth less than has already been paid on it. (T32 H8)
+    //
+    // A $1,000 bill with $300 paid was edited to $100: it saved, went to status "partial" with a
+    // balance of −$200, and that −$200 netted into Bills Outstanding — so the company's AP total was
+    // understated by money it had actually spent. Invoices already refuse this; bills did not.
+    const paid = Number(existing.amountPaid)
+    if (data.amount + 0.005 < paid) {
+      return c.json({
+        error: `${paid.toFixed(2)} has already been paid on this bill, so it cannot be changed to ${data.amount.toFixed(2)}. Record a credit from the vendor instead.`,
+        code: 'below_amount_paid',
+        amountPaid: paid,
+      }, 400)
+    }
+    update.amount = data.amount.toFixed(2)
+    // Lowering the amount to exactly what was paid settles it; raising it reopens a settled bill.
+    update.status = data.amount <= paid + 0.005 && paid > 0 ? 'paid' : (paid > 0 ? 'partial' : existing.status)
+    update.paidAt = update.status === 'paid' ? (existing.paidAt ?? new Date()) : null
+  }
   if (data.fileUrl !== undefined) update.fileUrl = data.fileUrl || null
   if (data.notes !== undefined) update.notes = data.notes || null
 
@@ -183,32 +201,73 @@ app.put('/:id', requirePermission('bills:update'), async (c) => {
 app.post('/:id/record-payment', requirePermission('bills:pay'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const body = z.object({ amount: z.number().positive() }).safeParse(((await c.req.json().catch(() => null)) ?? {}))
+  // method / reference / notes are accepted now, because the ledger exists to record them — a payment
+  // row with no cheque number or card reference is only half an answer when AP is reconciled.
+  const body = z.object({
+    amount: z.number().positive(),
+    method: z.string().max(40).optional(),
+    reference: z.string().max(120).optional(),
+    notes: z.string().max(1000).optional(),
+  }).safeParse(((await c.req.json().catch(() => null)) ?? {}))
   if (!body.success) return c.json({ error: 'A positive payment amount is required' }, 400)
 
-  const [existing] = await db.select().from(vendorBill)
-    .where(and(eq(vendorBill.id, id), eq(vendorBill.companyId, currentUser.companyId))).limit(1)
-  if (!existing) return c.json({ error: 'Bill not found' }, 404)
-  if (existing.status === 'void') return c.json({ error: 'This bill is void' }, 400)
+  /**
+   * Under a row lock, with a ledger row. (T32 B4)
+   *
+   * This read `amountPaid`, added to it in JavaScript and wrote the sum back — outside any
+   * transaction. Five concurrent $150 payments on a $1,000 bill all read the same starting figure
+   * and the last write won: all 15 requests across three bills answered 200, so $2,250 was
+   * acknowledged, and $1,350 was recorded. $900 of acknowledged payments simply vanished, and
+   * because there was no payment ledger they left no trace at all — the only record was a total
+   * that disagreed with what the user had been told.
+   *
+   * Same shape the invoice side already uses (recordInvoicePayment): SELECT … FOR UPDATE inside a
+   * transaction, then read-modify-write under that lock, and the ledger row written in the SAME
+   * transaction so a payment can never exist without its total moving, or the reverse.
+   */
+  const outcome = await db.transaction(async (tx: any) => {
+    const locked: any = await tx.execute(sql`
+      SELECT * FROM vendor_bill WHERE id = ${id} AND company_id = ${currentUser.companyId} FOR UPDATE
+    `)
+    const existing = (locked.rows || locked)[0]
+    if (!existing) return { status: 404 as const, body: { error: 'Bill not found' } }
+    if (existing.status === 'void') return { status: 400 as const, body: { error: 'This bill is void' } }
 
-  const newPaid = Number(existing.amountPaid) + body.data.amount
-  if (newPaid > Number(existing.amount) + 0.005) {
-    return c.json({ error: `Payment exceeds the bill balance (${(Number(existing.amount) - Number(existing.amountPaid)).toFixed(2)} remaining)` }, 400)
-  }
-  const fullyPaid = newPaid >= Number(existing.amount) - 0.005
-  const [updated] = await db.update(vendorBill).set({
-    amountPaid: newPaid.toFixed(2),
-    status: fullyPaid ? 'paid' : 'partial',
-    paidAt: fullyPaid ? new Date() : null,
-    updatedAt: new Date(),
-  }).where(eq(vendorBill.id, id)).returning()
+    const amount = body.data.amount
+    const alreadyPaid = Number(existing.amount_paid)
+    const total = Number(existing.amount)
+    const newPaid = Math.round((alreadyPaid + amount) * 100) / 100
+    if (newPaid > total + 0.005) {
+      return { status: 400 as const, body: { error: `Payment exceeds the bill balance (${(total - alreadyPaid).toFixed(2)} remaining)` } }
+    }
+    const fullyPaid = newPaid >= total - 0.005
 
-  // A PO whose linked bill is fully paid is done: mark it billed.
-  if (fullyPaid && existing.purchaseOrderId) {
-    await db.update(purchaseOrder).set({ status: 'billed', updatedAt: new Date() })
-      .where(and(eq(purchaseOrder.id, existing.purchaseOrderId), eq(purchaseOrder.companyId, currentUser.companyId)))
-  }
-  return c.json(updated)
+    // The ledger first, so a row can never be missing for money that moved.
+    const [recorded] = await tx.insert(vendorBillPayment).values({
+      companyId: currentUser.companyId,
+      vendorBillId: id,
+      amount: amount.toFixed(2),
+      method: body.data.method ?? null,
+      reference: body.data.reference ?? null,
+      notes: body.data.notes ?? null,
+      recordedById: currentUser.userId,
+    }).returning()
+
+    const [updated] = await tx.update(vendorBill).set({
+      amountPaid: newPaid.toFixed(2),
+      status: fullyPaid ? 'paid' : 'partial',
+      paidAt: fullyPaid ? new Date() : null,
+      updatedAt: new Date(),
+    }).where(eq(vendorBill.id, id)).returning()
+
+    // A PO whose linked bill is fully paid is done: mark it billed.
+    if (fullyPaid && existing.purchase_order_id) {
+      await tx.update(purchaseOrder).set({ status: 'billed', updatedAt: new Date() })
+        .where(and(eq(purchaseOrder.id, existing.purchase_order_id), eq(purchaseOrder.companyId, currentUser.companyId)))
+    }
+    return { status: 200 as const, body: { ...updated, payment: recorded } }
+  })
+  return c.json(outcome.body, outcome.status)
 })
 
 app.post('/:id/void', requirePermission('bills:pay'), async (c) => {
