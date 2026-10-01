@@ -111,6 +111,16 @@ interface ImportResults {
   imported: number
   skipped: number
   errors: Array<{ line: number; error: string }>
+  /**
+   * A row that WAS imported, with something changed or dropped on the way in. (T32 M10)
+   *
+   * Separate from `errors`, which means "not imported". The report's four rows came back with
+   * `errors: []` while "still-not-an-email" had been stored in the email column and the type
+   * "banana" had been stored as "other" — a value the contacts API's own enum refuses. Both were
+   * decisions the import made silently, and silently is the problem: the person who ran it has no
+   * way to know which 40 of their 400 rows need looking at.
+   */
+  warnings: Array<{ line: number; warning: string }>
   records: Array<any>
 }
 
@@ -118,7 +128,7 @@ export async function importContacts(csvContent: string, companyId: string, opti
   const { dryRun = false, skipDuplicates = true } = options
 
   const records = parseCSV(csvContent)
-  const results: ImportResults = { imported: 0, skipped: 0, errors: [], records: [] }
+  const results: ImportResults = { imported: 0, skipped: 0, errors: [], warnings: [], records: [] }
 
   for (let i = 0; i < records.length; i++) {
     const row = normalizeColumns(records[i])
@@ -183,14 +193,26 @@ export async function importContacts(csvContent: string, companyId: string, opti
         externalId ? `Imported ID: ${externalId}` : null,
       ].filter(Boolean).join('\n') || null
 
+      // Validated the way the form validates, and anything changed on the way in is reported.
+      const rawType = getValue(row, ...CONTACT_COLUMN_MAP.type)
+      const mapped = mapContactType(rawType)
+      if (mapped.unrecognised) {
+        results.warnings.push({ line: lineNum, warning: `Type "${mapped.unrecognised}" is not one of ${CONTACT_TYPES.join(', ')} — imported as a lead.` })
+      }
+      let cleanEmail: string | null = email || null
+      if (cleanEmail && !looksLikeEmail(cleanEmail)) {
+        results.warnings.push({ line: lineNum, warning: `"${cleanEmail}" is not an email address — the contact was imported without one.` })
+        cleanEmail = null
+      }
+
       const contactData = {
         companyId,
         name,
-        email: email || null,
+        email: cleanEmail,
         phone: getValue(row, ...CONTACT_COLUMN_MAP.phone),
         mobile: getValue(row, ...CONTACT_COLUMN_MAP.mobile),
         company: getValue(row, ...CONTACT_COLUMN_MAP.company),
-        type: mapContactType(getValue(row, ...CONTACT_COLUMN_MAP.type)),
+        type: mapped.type,
         address: fullAddress || null,
         city: primaryCity,
         state: primaryState,
@@ -237,15 +259,36 @@ export async function importContacts(csvContent: string, companyId: string, opti
   return results
 }
 
-function mapContactType(type: string | null): string {
-  if (!type) return 'lead'
+/**
+ * THE IMPORT HAS TO OBEY THE SAME RULES AS THE FORM. (T32 M10)
+ *
+ * This returned 'other' for anything it did not recognise — and 'other' is NOT one of
+ * DEFAULT_CONTACT_TYPES (lead, client, subcontractor, vendor), so the import wrote a value
+ * POST /api/contacts would have refused. The report proved it with the type "banana".
+ *
+ * Unknown now falls back to 'lead' — the same default the API uses for a missing type — and SAYS SO.
+ * A row is not rejected for it: an import of 400 contacts should not fail because one of them says
+ * "Customer (ret.)", and a lead that should have been a client is a two-click fix with a note
+ * telling you which row to look at.
+ */
+const CONTACT_TYPES = ['lead', 'client', 'subcontractor', 'vendor']
+function mapContactType(type: string | null): { type: string; unrecognised: string | null } {
+  if (!type) return { type: 'lead', unrecognised: null }
   const t = type.toLowerCase()
-  if (t.includes('client') || t.includes('customer')) return 'client'
-  if (t.includes('vendor') || t.includes('supplier')) return 'vendor'
-  if (t.includes('sub')) return 'subcontractor'
-  if (t.includes('lead') || t.includes('prospect')) return 'lead'
-  return 'other'
+  if (CONTACT_TYPES.includes(t)) return { type: t, unrecognised: null }
+  if (t.includes('client') || t.includes('customer')) return { type: 'client', unrecognised: null }
+  if (t.includes('vendor') || t.includes('supplier')) return { type: 'vendor', unrecognised: null }
+  if (t.includes('sub')) return { type: 'subcontractor', unrecognised: null }
+  if (t.includes('lead') || t.includes('prospect')) return { type: 'lead', unrecognised: null }
+  return { type: 'lead', unrecognised: type }
 }
+
+/**
+ * The same shape POST /api/contacts requires (`z.string().email()`). An address that is not one
+ * breaks every send that will ever be attempted to it, so it is not stored — and the row still
+ * imports, with the address reported so somebody can put it right.
+ */
+const looksLikeEmail = (v: string) => /^[^s@]+@[^s@]+.[^s@]{2,}$/.test(v)
 
 // ============================================
 // PROJECT IMPORT
@@ -271,7 +314,7 @@ export async function importProjects(csvContent: string, companyId: string, opti
   const { dryRun = false, createContacts = true } = options
 
   const records = parseCSV(csvContent)
-  const results: ImportResults = { imported: 0, skipped: 0, errors: [], records: [] }
+  const results: ImportResults = { imported: 0, skipped: 0, errors: [], warnings: [], records: [] }
 
   let nextNumber = await getNextProjectNumber(companyId)
 
@@ -385,7 +428,7 @@ export async function importJobs(csvContent: string, companyId: string, options:
   const { dryRun = false } = options
 
   const records = parseCSV(csvContent)
-  const results: ImportResults = { imported: 0, skipped: 0, errors: [], records: [] }
+  const results: ImportResults = { imported: 0, skipped: 0, errors: [], warnings: [], records: [] }
 
   let nextNumber = await getNextJobNumber(companyId)
 
@@ -515,7 +558,7 @@ export async function importProducts(csvContent: string, companyId: string, opti
   const { dryRun = false } = options
 
   const records = parseCSV(csvContent)
-  const results: ImportResults = { imported: 0, skipped: 0, errors: [], records: [] }
+  const results: ImportResults = { imported: 0, skipped: 0, errors: [], warnings: [], records: [] }
 
   for (let i = 0; i < records.length; i++) {
     const row = normalizeColumns(records[i])
@@ -677,7 +720,7 @@ export async function importInvoices(
   const { dryRun = false, skipDuplicates = true, createMissingContacts = true } = options
 
   const records = parseCSV(csvContent)
-  const results: ImportResults = { imported: 0, skipped: 0, errors: [], records: [] }
+  const results: ImportResults = { imported: 0, skipped: 0, errors: [], warnings: [], records: [] }
 
   // ── group rows into invoices ───────────────────────────────────────────────
   type Grouped = { rows: Record<string, string>[]; firstLine: number }

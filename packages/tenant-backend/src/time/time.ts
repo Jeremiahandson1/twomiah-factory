@@ -11,7 +11,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, gte, lte, lt, count, desc, asc, sum, isNull, isNotNull, inArray, sql } from 'drizzle-orm'
-import { companyTimeZone, storeDateString, dayMarker } from './businessDay'
+import { companyTimeZone, storeDateString, storeDayStart, dayMarker } from './businessDay'
 import { hasHappened } from '../dateInput'
 
 export interface TimeTables { timeEntry: any; user: any; job?: any; project?: any
@@ -53,7 +53,9 @@ export function getWeekStart(date: Date): string {
   d.setHours(0, 0, 0, 0)
   return d.toISOString().split('T')[0]
 }
-const parseTimeToDate = (date: Date, hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); const r = new Date(date); r.setHours(h, m, 0, 0); return r }
+// parseTimeToDate is GONE. It did `setHours(h, m)` on a UTC-midnight day marker, which on a server
+// running UTC stores the shop's wall time as if it were UTC — every clock_in in the table out by the
+// offset. deriveHours resolves the instant through the company's zone instead. (T32 M5)
 
 export function createTimeRoutes(deps: TimeDeps) {
   const { db, tables: t, authenticate, requirePermission, audit } = deps
@@ -145,14 +147,64 @@ export function createTimeRoutes(deps: TimeDeps) {
     if (data.userId) { const [u] = await db.select({ id: t.user.id }).from(t.user).where(and(eq(t.user.id, data.userId), eq(t.user.companyId, companyId))).limit(1); if (!u) return 'Unknown user' }
     return null
   }
-  /** {hours} or {startTime,endTime,breakMinutes} → { hours, clockIn?, clockOut? }; null with an error message when neither is usable. */
-  const deriveHours = (data: z.infer<typeof entrySchema>, entryDate: Date) => {
+  /**
+   * {hours} or {startTime,endTime,breakMinutes} → { hours, clockIn?, clockOut? }.
+   *
+   * TRUE INSTANTS, AND OVERNIGHT SHIFTS. (T32 M5)
+   *
+   * Two faults, one cause: the times were read as if the shop were in UTC.
+   *
+   *  · `parseTimeToDate` did `setHours(19, 0)` on a UTC-midnight day marker, so 19:00 in Eau Claire
+   *    was stored as 19:00Z — five hours early, and the real instant was 00:00Z the next day. The
+   *    DAY was right (the entry landed on 30 Sep and the pay run for 30 Sep picked it up, which the
+   *    report confirmed), so nothing visible was wrong and every clock_in in the table was out by
+   *    the offset. Anything that ever reasons about the instant — an overlap check, an hours-worked
+   *    report across a boundary, an export to a payroll provider — reads those wrong.
+   *
+   *  · A 22:00–02:00 shift was refused with "End time must be after start time". 02:00 IS after
+   *    22:00; it is on the next day. Night shifts are ordinary in this trade and could not be
+   *    entered at all.
+   *
+   * The day the entry is FILED against does not move: a shift starting at 22:00 on the 30th belongs
+   * to the 30th, which is the rule the evening-shift check in this suite already pins.
+   */
+  const deriveHours = (data: z.infer<typeof entrySchema>, entryDate: Date, tz: string) => {
     if (data.startTime && data.endTime) {
-      const start = parseTimeToDate(entryDate, data.startTime), end = parseTimeToDate(entryDate, data.endTime)
-      if (end <= start) return { error: 'End time must be after start time' }
-      const worked = Math.round((end.getTime() - start.getTime()) / 60000) - (data.breakMinutes || 0)
+      const minutes = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m }
+      // Local midnight on the entry's day, as a real instant. `entryDate` is a UTC day marker, so
+      // its ISO date is the calendar day the person means.
+      const base = storeDayStart(entryDate.toISOString().slice(0, 10), tz).getTime()
+      const startMin = minutes(data.startTime)
+      let endMin = minutes(data.endTime)
+      // End at or before start means it finished on the next day. 22:00 → 02:00 is four hours.
+      const overnight = endMin <= startMin
+      if (overnight) endMin += 24 * 60
+      const start = new Date(base + startMin * 60_000)
+      const end = new Date(base + endMin * 60_000)
+      const worked = (endMin - startMin) - (data.breakMinutes || 0)
       if (worked <= 0) return { error: 'Break is longer than the time worked' }
-      return { hours: round2(worked / 60), clockIn: start, clockOut: end }
+      const hours = round2(worked / 60)
+      /**
+       * A plausibility ceiling, TIGHTER for an overnight reading than for a declared figure.
+       *
+       * Reading end-before-start as "the next day" is right for 22:00 → 02:00 and wrong for
+       * 09:00 → 08:00, which is a mistyped 09:00 → 18:00. Both are the same shape, so the only thing
+       * that separates them is how long the result is — and 23 hours sailed under the 24-hour ceiling
+       * the `hours` field uses, which my own test caught.
+       *
+       * 16 hours: longer than any real night shift, shorter than any reversed pair worth worrying
+       * about (a reversed pair is at least 24 minus the real shift, so anything mistyped by more than
+       * 8 hours is caught). A genuine 20-hour stint is two entries, which the message says. The
+       * declared-`hours` path keeps the configured ceiling, because a number somebody typed on
+       * purpose is not a typo of this kind.
+       */
+      const ceiling = overnight ? Math.min(16, maxHours) : maxHours
+      if (hours > ceiling) {
+        return { error: overnight
+          ? `${data.startTime} to ${data.endTime} reads as ${hours} hours across midnight, which is longer than a shift. If the times are the right way round, split it across two days.`
+          : `That is ${hours} hours, which is more than the ${maxHours} allowed on one entry.` }
+      }
+      return { hours, clockIn: start, clockOut: end }
     }
     if (data.hours !== undefined) return { hours: round2(data.hours) }
     return { error: 'Enter hours, or a start and end time' }
@@ -408,7 +460,7 @@ export function createTimeRoutes(deps: TimeDeps) {
     // tomorrow in UTC — so logging time at the end of a shift filed it on the next day. (T24 N1)
     const tz = await companyTimeZone(db, currentUser.companyId)
     const entryDate = data.date ? dayMarker(String(data.date)) : dayMarker(storeDateString(new Date(), tz))
-    const derived = deriveHours(data, entryDate)
+    const derived = deriveHours(data, entryDate, tz)
     if ('error' in derived) return c.json({ error: derived.error }, 400)
     // Stamp the person's rate onto the entry when the caller did not name one. The screens do not ask for a
     // rate and never have, so without this every entry stores null and is worth nothing for ever after. Taking
@@ -445,7 +497,10 @@ export function createTimeRoutes(deps: TimeDeps) {
     if (data.date !== undefined && data.date) updates.date = new Date(data.date)
     const entryDate = updates.date || existing.date
     if (data.hours !== undefined || (data.startTime && data.endTime)) {
-      const derived = deriveHours(data, new Date(entryDate))
+      // The company's zone, for the same reason as on create: a start/end pair is wall time in the
+      // shop, not UTC. Fetched only when the edit actually touches the times. (T32 M5)
+      const tz = await companyTimeZone(db, currentUser.companyId)
+      const derived = deriveHours(data, new Date(entryDate), tz)
       if ('error' in derived) return c.json({ error: derived.error }, 400)
       updates.hours = String(derived.hours)
       if (derived.clockIn) { updates.clockIn = derived.clockIn; updates.clockOut = derived.clockOut }
