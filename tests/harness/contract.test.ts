@@ -168,8 +168,68 @@ const AUTH: Record<string, string> = {
   ...(co?.id ? { 'x-test-company': String(co.id), 'x-test-agency': String(co.id) } : {}),
 }
 
+/**
+ * Real ids where the template has the table, a ghost everywhere else.
+ *
+ * Until now every `/:id` route was probed with a made-up id, so each one answered 404 and the handler
+ * below the lookup never ran. That is why a contract test could pass over
+ * `GET /api/projects/:id` leaking the client's portal credential (T32 B2) — it had never reached the
+ * line that builds the response. It is also, almost certainly, why `PUT /api/takeoffs/items/:id`
+ * answering 500 on every real call (T32 500-1) went unnoticed: a ghost id answers 404 first.
+ *
+ * The contact is given a PORTAL TOKEN deliberately, so the credential check below has something to
+ * find if a route serialises the whole row.
+ */
 const GHOST = 'zzzzzzzzzzzzzzzzzzzzzzzz'
-const fill = (p: string) => p.replace(/:\w+/g, GHOST)
+const realIds = new Map<string, string>()
+{
+  const seed = async (table: any, values: Record<string, unknown>, params: string[]) => {
+    if (!table) return null
+    try {
+      const [row] = await db.insert(table).values(fitTo(table, values) as any).returning()
+      if (row?.id) for (const p of params) realIds.set(p, String(row.id))
+      return row
+    } catch (e: any) {
+      note(`could not seed ${params[0]}: ${String(e?.message).split('\n')[0].slice(0, 90)}`)
+      return null
+    }
+  }
+
+  const contactRow = await seed(schema.contact || schema.contacts, {
+    companyId: co?.id, name: 'Contract Client', type: 'client', email: 'client-contract@test.local',
+    // The thing a leak would expose: whoever holds this opens the customer portal AS this client.
+    portalEnabled: true, portalToken: 'contract-portal-token-do-not-leak',
+    portalTokenExp: new Date(Date.now() + 90 * 86400000),
+  }, ['id', 'contactId', 'clientId', 'customerId'])
+
+  // `number` is NOT NULL with no database default — the create ROUTE generates PRJ-0001 — so a direct
+  // insert has to supply it. Without this the project never seeded, /api/projects/:id kept getting a
+  // ghost id, and the credential check below passed over a leak that is definitely there.
+  const projectRow = await seed(schema.project || schema.projects, {
+    companyId: co?.id, number: 'PRJ-CONTRACT', name: 'Contract Project', status: 'planning',
+    contactId: contactRow?.id,
+  }, ['projectId'])
+  if (projectRow?.id && !realIds.has('id')) realIds.set('id', String(projectRow.id))
+  note(`real ids seeded for: ${[...realIds.keys()].join(', ') || 'none'}`)
+}
+/**
+ * A path with its params filled: a real id where one is known, a ghost otherwise.
+ *
+ * `:id` is resolved PER MOUNT, because it means a different entity on each one — putting the project
+ * id into `/api/invoices/:id` would just 404 and prove nothing, and could read as a finding. Named
+ * params (`:projectId`, `:contactId`) are unambiguous and resolve by name.
+ */
+const idForMount = new Map<string, string>()
+if (realIds.has('projectId')) idForMount.set('/api/projects', realIds.get('projectId')!)
+if (realIds.has('contactId')) {
+  idForMount.set('/api/contacts', realIds.get('contactId')!)
+  idForMount.set('/api/customers', realIds.get('contactId')!)
+  idForMount.set('/api/clients', realIds.get('contactId')!)
+}
+const fill = (p: string, mount?: string) => p.replace(/:(\w+)/g, (_m, name) => {
+  if (name === 'id') return (mount && idForMount.get(mount)) || GHOST
+  return realIds.get(name) || GHOST
+})
 const WRITE = new Set(['POST', 'PUT', 'PATCH'])
 const req = async (method: string, path: string, headers: Record<string, string> = {}) => {
   try {
@@ -275,7 +335,7 @@ const KNOWN_HOLE = [
   const guarded = routes.filter((r) => !OPEN_DOOR.test(r.path) && !MACHINE.test(r.path))
   let holes = 0, crashes = 0
   for (const r of guarded) {
-    const { status, body } = await req(r.method, fill(r.path))
+    const { status, body } = await req(r.method, fill(r.path, r.mount))
     if (status === 200 || status === 201) {
       holes++; check(`${r.method} ${r.path} refuses an unauthenticated request`, false, { status, body })
     } else if (status >= 500 && !declared(status, body) && !KNOWN_HOLE.includes(r.path)) {
@@ -294,7 +354,7 @@ const KNOWN_HOLE = [
   const probe = routes.filter((r) => r.method === 'GET' || MACHINE.test(r.path))
   let broken = 0, gaps = 0
   for (const r of probe) {
-    const { status, body } = await req(r.method, fill(r.path), auth)
+    const { status, body } = await req(r.method, fill(r.path, r.mount), auth)
     if (status >= 500 && !declared(status, body)) {
       if (SANDBOX_GAP.includes(r.path) || KNOWN_HOLE.includes(r.path)) { gaps++; continue }
       broken++; check(`${r.method} ${r.path} answers without a 5xx`, false, { status, body })
@@ -326,7 +386,7 @@ const KNOWN_HOLE = [
   const crashes: Array<{ method: string; path: string; status: number; body: string }> = []
   let created = 0, slow = 0
   for (const r of writes) {
-    const { status, body } = await req(r.method, fill(r.path), auth)
+    const { status, body } = await req(r.method, fill(r.path, r.mount), auth)
     if (status === -1) { slow++; continue }
     if (status >= 500 && !declared(status, body)) {
       if (SANDBOX_GAP.includes(r.path) || KNOWN_HOLE.includes(r.path)) continue
@@ -402,6 +462,49 @@ const KNOWN_HOLE = [
     // number. These are the routes to fix next.
     for (const c of crashes) note(`    ${c.method} ${c.path} — ${c.body.replace(/\s+/g, ' ').slice(0, 90)}`)
   }
+}
+
+// ══════════ 4. no response may carry a credential ══════════════════════════════════════════════
+//
+// T32 B2: GET /api/projects/:id embedded the client's contact with EVERY column, including
+// `portalToken` — the credential that opens the customer portal as that client: their quotes,
+// invoices, saved payment method, change-order approvals. Any role with projects:read received it,
+// field and viewer included.
+//
+// Static analysis was the wrong instrument. I wrote a detector for `db.select().from(contact)`
+// reaching a c.json and it MISSED this very route (the variable is bound by a Promise.all destructure)
+// while flagging twenty /login and /me handlers that build explicit responses. So this looks at what
+// the server actually SENDS, which has no false positives: if a credential column name appears in a
+// response body, it was sent.
+{
+  const auth = { 'x-test-user': String(owner.id), ...(co?.id ? { 'x-test-company': String(co.id) } : {}) }
+  // Column names that must never reach a client. `token` alone is too broad — an access token is
+  // meant to be in the login response — so these are the stored-secret columns by name.
+  const CREDENTIALS = ['portalToken', 'portal_token', 'passwordHash', 'password_hash', 'refreshToken', 'refresh_token', 'resetToken', 'reset_token', 'ivrPin', 'ivr_pin']
+  // The credential doors legitimately mint and return a session token.
+  const MINTS_A_TOKEN = /\/api\/auth\/(login|register|refresh|verify|accept-invite)/
+  const probe = routes.filter((r) => r.method === 'GET' && !MINTS_A_TOKEN.test(r.path))
+  const leaking: Array<{ path: string; found: string[] }> = []
+  for (const r of probe) {
+    // The WHOLE body, not req()'s 220-character excerpt. req() truncates for readable failure
+    // messages, and scanning that excerpt found nothing while the leak sat deeper in the response —
+    // this check passed over a confirmed defect until I noticed it was reading the first 220 bytes.
+    let body = ''
+    let status = 0
+    try {
+      const res = await fetch(`${BASE}${fill(r.path, r.mount)}`, { headers: { 'content-type': 'application/json', ...auth }, signal: AbortSignal.timeout(20000) })
+      status = res.status
+      body = await res.text()
+    } catch { continue }
+    if (status !== 200) continue
+    const found = CREDENTIALS.filter((k) => body.includes(`"${k}"`))
+    if (found.length) leaking.push({ path: r.path, found })
+  }
+  for (const l of leaking) {
+    check(`GET ${l.path} does not send a stored credential`, false, { sends: l.found })
+  }
+  note(`credentials: ${probe.length} reads inspected — ${leaking.length} sent one`)
+  check(`no read sends a stored credential (${probe.length} routes)`, leaking.length === 0, { leaking: leaking.length })
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed`)

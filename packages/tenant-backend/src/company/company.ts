@@ -6,7 +6,7 @@
 // this route share). User writes are company-scoped and guard against locking the tenant out.
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import { getFeaturesForTemplate } from '../featureRegistry'
 
 export interface CompanyDeps {
@@ -79,6 +79,17 @@ const safeUrl = z.string().trim()
 // 'field' and carries jobs:update, time:create/update, expenses:create, documents:create and
 // tasks:create/update. An accountant or a silent partner had to be made able to write.
 // Additive — no existing role changes, and 'user'/'field' stay for rows already written.
+/**
+ * Assignable roles. `owner` is deliberately NOT here — see the guards on PUT /users/:id.
+ *
+ * T32 B6: an admin set the owner's role to 'admin' (which this enum allows), and then nobody could
+ * set it back, because 'owner' is not an assignable value. The tenant was left with no owner at all
+ * and no way, through any API, to make one. Recovering it needed the Factory's bootstrap endpoint.
+ *
+ * Two things were wrong and both are fixed below rather than here: the owner's record was editable by
+ * an admin, and there was no transfer. The enum stays as it is so that `owner` can never be handed
+ * out as an ordinary role — it is moved, not granted.
+ */
 const DEFAULT_ROLES = ['admin', 'manager', 'user', 'field', 'viewer']
 const USER_COLUMNS = (user: any) => ({ id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role, isActive: user.isActive })
 
@@ -320,6 +331,31 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     if (data.extraPermissions !== undefined && currentUser.role !== 'owner') return c.json({ error: 'Only the owner can grant or revoke permissions.' }, 403)
     const target = await findTarget(id, currentUser.companyId)
     if (!target) return c.json({ error: 'User not found' }, 404)
+
+    /**
+     * The OWNER's record is the owner's alone. (T32 B6)
+     *
+     * An admin demoted the owner to 'admin' — allowed, because the enum accepts it and the
+     * last-administrator check was satisfied by the admin who was doing the demoting. `owner` is not
+     * an assignable role, so nothing could put it back: the tenant had no owner, and no API could make
+     * one. Recovery took the Factory's bootstrap endpoint.
+     *
+     * So an admin may not touch the owner's row at all — not the role, not the access. Only the owner
+     * may change the owner's record, and even then not into another role, because a company with no
+     * owner is the state this whole guard exists to prevent. Ownership MOVES (below); it is never
+     * dropped.
+     */
+    if (target.role === 'owner' && currentUser.role !== 'owner') {
+      return c.json({ error: 'Only the owner can change the owner\'s account.' }, 403)
+    }
+    if (target.role === 'owner' && data.role !== undefined && data.role !== 'owner') {
+      return c.json({
+        error: 'The owner cannot be given a lesser role — a company with no owner cannot be recovered from inside the product. Transfer ownership to somebody else instead.',
+        code: 'owner_cannot_be_demoted',
+        transfer: 'POST /api/company/transfer-ownership { userId }',
+      }, 400)
+    }
+
     // Never lock the company out of its own CRM: losing the last administrator is unrecoverable from inside the product.
     const losingAccess = data.isActive === false
     const losingAdmin = losingAccess || (data.role !== undefined && data.role !== 'admin' && (target.role === 'admin' || target.role === 'owner'))
@@ -330,6 +366,57 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     return c.json(row)
   })
 
+  /**
+   * Hand the company over. (T32 B6)
+   *
+   * Protecting the owner's record without this would make ownership permanent, which is its own trap:
+   * a business that sells, or an owner who leaves, would have no way to move it and would be back to
+   * needing a database fix.
+   *
+   * Ownership MOVES rather than being granted, so there is always exactly one owner: the named user
+   * becomes owner and the current owner becomes admin, in ONE transaction. Only the owner can do it —
+   * an admin cannot take the company, which is what B6 effectively allowed.
+   */
+  // `requireAdmin` as MIDDLEWARE, plus the owner check inside.
+  //
+  // check-write-routes-authorise.ts failed this route when I first wrote it with the role check only
+  // in the handler, and the guard was right: an in-handler check is invisible to anything that reads
+  // the route table, and it is the kind of line an edit loses. The middleware is the declared gate;
+  // the owner check below narrows it further, because requireAdmin admits admins and this must not.
+  app.post('/transfer-ownership', requireAdmin, async (c) => {
+    const currentUser = c.get('user') as any
+    if (currentUser.role !== 'owner') {
+      return c.json({ error: 'Only the owner can transfer ownership.' }, 403)
+    }
+    const parsed = z.object({ userId: z.string().min(1) }).safeParse(await readBody(c))
+    if (!parsed.success) return c.json({ error: 'Say which user should become the owner.', code: 'user_required' }, 400)
+    const { userId } = parsed.data
+    if (userId === currentUser.userId) return c.json({ error: 'You are already the owner.' }, 400)
+
+    const target = await findTarget(userId, currentUser.companyId)
+    if (!target) return c.json({ error: 'User not found' }, 404)
+    if (target.isActive === false) {
+      return c.json({ error: 'That account is deactivated — reactivate it before handing the company over.', code: 'target_inactive' }, 400)
+    }
+
+    const result = await db.transaction(async (tx: any) => {
+      // Lock both rows first so two transfers cannot interleave and leave two owners or none.
+      await tx.select({ id: t.user.id }).from(t.user)
+        .where(and(eq(t.user.companyId, currentUser.companyId), inArray(t.user.id, [userId, currentUser.userId])))
+        .for('update')
+      await tx.update(t.user).set({ role: 'owner', updatedAt: new Date() })
+        .where(and(eq(t.user.id, userId), eq(t.user.companyId, currentUser.companyId)))
+      await tx.update(t.user).set({ role: 'admin', updatedAt: new Date() })
+        .where(and(eq(t.user.id, currentUser.userId), eq(t.user.companyId, currentUser.companyId)))
+      const rows = await tx.select(USER_COLUMNS(t.user)).from(t.user)
+        .where(and(eq(t.user.companyId, currentUser.companyId), inArray(t.user.id, [userId, currentUser.userId])))
+      return rows
+    })
+    invalidateExtraPermissions?.(userId)
+    invalidateExtraPermissions?.(currentUser.userId)
+    return c.json({ success: true, users: result })
+  })
+
   // Hard delete. Company-scoped (the old route deleted by id alone, so an admin could reach another
   // tenant's row), 404 when the row isn't ours, and the same self / last-admin guards as revoke.
   app.delete('/users/:id', requireAdmin, async (c) => {
@@ -338,6 +425,17 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     if (id === currentUser.userId) return c.json({ error: 'Cannot delete yourself' }, 400)
     const target = await findTarget(id, currentUser.companyId)
     if (!target) return c.json({ error: 'User not found' }, 404)
+    // The same hole as PUT, and worse: an admin could DELETE the owner's row outright, which leaves a
+    // company with no owner and nothing to promote. Found while fixing T32 B6 — the report only
+    // reached the demotion. (The self-delete guard above means the owner cannot delete themselves
+    // either, so this closes the door from both sides.)
+    if (target.role === 'owner') {
+      return c.json({
+        error: 'The owner\'s account cannot be deleted. Transfer ownership first, then remove the account.',
+        code: 'owner_cannot_be_deleted',
+        transfer: 'POST /api/company/transfer-ownership { userId }',
+      }, 403)
+    }
     if (target.isActive && (await isLastAdmin(target, currentUser.companyId))) return c.json({ error: 'This is the only administrator left — promote someone else first.' }, 400)
     await db.delete(t.user).where(and(eq(t.user.id, id), eq(t.user.companyId, currentUser.companyId)))
     return c.body(null, 204)

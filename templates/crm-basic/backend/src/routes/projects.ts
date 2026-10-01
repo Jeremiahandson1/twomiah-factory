@@ -77,7 +77,12 @@ app.get('/:id', async (c) => {
 
   // Fetch related data separately
   const [projectContact, jobs, rfis, changeOrders, punchListItems] = await Promise.all([
-    foundProject.contactId ? db.select().from(contact).where(eq(contact.id, foundProject.contactId)).limit(1) : Promise.resolve([]),
+    foundProject.contactId ? // NAMED columns, never select(). (T32 B2) The whole contact row was serialised here, including
+    // `portalToken` — the credential that opens the customer portal AS that client. Anyone with
+    // projects:read received it, field and viewer included. Confirmed live on the base CRM.
+    db.select({
+      id: contact.id, name: contact.name, type: contact.type, email: contact.email, phone: contact.phone, mobile: contact.mobile, address: contact.address, city: contact.city, state: contact.state, zip: contact.zip, company: contact.company, portalEnabled: contact.portalEnabled,
+    }).from(contact).where(and(eq(contact.id, foundProject.contactId), eq(contact.companyId, currentUser.companyId))).limit(1) : Promise.resolve([]),
     db.select().from(job).where(eq(job.projectId, id)).orderBy(desc(job.createdAt)).limit(10),
     db.select().from(rfi).where(eq(rfi.projectId, id)).limit(10),
     db.select().from(changeOrder).where(eq(changeOrder.projectId, id)).limit(10),

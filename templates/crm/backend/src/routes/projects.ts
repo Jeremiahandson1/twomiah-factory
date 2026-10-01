@@ -88,7 +88,22 @@ app.get('/:id', async (c) => {
 
   // Fetch related data separately
   const [projectContact, jobs, rfis, changeOrders, punchListItems] = await Promise.all([
-    foundProject.contactId ? db.select().from(contact).where(eq(contact.id, foundProject.contactId)).limit(1) : Promise.resolve([]),
+    // NAMED columns, never select(). (T32 B2)
+    //
+    // This was `db.select().from(contact)`, so the response carried every column the contact row has
+    // — including `portalToken`, the credential that opens the customer portal AS that client: their
+    // quotes, invoices, saved payment method, change-order approvals. Verified on the live tenant: a
+    // 64-character token in the body of GET /api/projects/:id, handed to anyone with projects:read,
+    // which includes field and viewer.
+    //
+    // The project LIST was already safe because it selects id and name explicitly. A projection makes
+    // "what a client may see about a client" a decision in one visible place rather than whatever the
+    // table happens to hold.
+    foundProject.contactId ? db.select({
+      id: contact.id, name: contact.name, type: contact.type, email: contact.email, phone: contact.phone,
+      mobile: contact.mobile, address: contact.address, city: contact.city, state: contact.state,
+      zip: contact.zip, company: contact.company, portalEnabled: contact.portalEnabled,
+    }).from(contact).where(and(eq(contact.id, foundProject.contactId), eq(contact.companyId, currentUser.companyId))).limit(1) : Promise.resolve([]),
     db.select().from(job).where(eq(job.projectId, id)).orderBy(desc(job.createdAt)).limit(10),
     db.select().from(rfi).where(eq(rfi.projectId, id)).limit(10),
     db.select().from(changeOrder).where(eq(changeOrder.projectId, id)).limit(10),

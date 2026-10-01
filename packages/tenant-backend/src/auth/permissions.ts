@@ -19,6 +19,22 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'submittals:*', 'aia-forms:*', 'draw-schedules:*', 'lien-waivers:*',
     'company:update', 'dashboard:*', 'schedule:*', 'pricebook:*', 'marketing:*',
     'tasks:*',
+    /**
+     * Seeing the login list, because an admin can already CHANGE it. (T32 B6)
+     *
+     * `requireAdmin` guards POST, PUT and DELETE on /api/company/users, so an admin could create,
+     * re-role and delete logins — while GET was gated on `users:read`, which no role held and only the
+     * owner could grant. An admin was therefore managing accounts it could not see, and the Settings
+     * Users tab answered 403 for it.
+     *
+     * A judgement call, and the direction matters: the alternative reading is that logins are the
+     * owner's domain and the WRITES should be owner-only. That would be the tighter fix, and it would
+     * also stop an admin adding a member of staff — a workflow people rely on. So visibility is
+     * aligned with the authority that already exists rather than authority being taken away. It is a
+     * small widening (emails and roles; the team roster an admin already reads carries hourly rates),
+     * and it is easy to reverse if the intent was the other way.
+     */
+    'users:read',
     // operational modules (writes gated in their routes; reads are open)
     'equipment:*', 'fleet:*', 'warranties:*', 'inventory:*', 'agreements:*',
     'selections:*', 'takeoffs:*', 'calltracking:*', 'reports:*',
