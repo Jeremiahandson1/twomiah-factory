@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Edit, Trash2, Send, DollarSign, Ban, RotateCcw } from 'lucide-react'
 import type { InvoicingPageProps, LineItemInput } from './types'
 import { resolveConfig } from './types'
+import { useMayWrite } from '../auth/PermissionsContext'
 import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PAYMENT_METHODS, PageHeader, StatusBadge, TotalsBox, calcTotals, dateOnly, errMsg, inputCls, money, moneyInputError, refundEffectNote, selectCls } from './ui'
 
 type Row = Record<string, any> & { id: string }
@@ -25,6 +26,23 @@ const balanceOf = (r: Row) => {
 }
 
 export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProps) {
+  const mayCreate = useMayWrite('invoices:create')
+  const mayUpdate = useMayWrite('invoices:update')
+  const mayDelete = useMayWrite('invoices:delete')
+  /**
+   * Each one is the permission the ROUTE behind it asks for, read off invoices.ts — not a plausible
+   * guess:
+   *
+   *   POST /:id/payments  invoices:update   ← recording a payment is invoice work
+   *   POST /:id/refund    payments:delete   ← giving money back is not; manager does not hold it
+   *
+   * `payments:refund` would have been the natural name and does not exist. It would have RESOLVED
+   * for every role whose list carries `payments:*`, so it would have behaved correctly today and
+   * been wrong the first time somebody granted a narrower `payments:` right. The screen asks the
+   * server's question.
+   */
+  const mayTakeMoney = useMayWrite('invoices:update')
+  const mayRefund = useMayWrite('payments:delete')
   const cfg = resolveConfig(config)
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -149,7 +167,16 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
 
   return (
     <div>
-      <PageHeader title="Invoices" action={<Button onClick={openCreate}><Plus className="w-4 h-4" /> New Invoice</Button>} />
+      {/**
+        * A read-only viewer was offered New Invoice, and every row action. The server refuses all of
+        * it (17 writes tried as viewer, 17 × 403), so the buttons only ever wasted a click. Each one
+        * now asks the permission its own endpoint asks. (T32 M17)
+        *
+        * `useMayWrite` offers a control unless we KNOW the person would be refused — two verticals
+        * do not mount PermissionsProvider, and hiding buttons from everybody there would be a worse
+        * bug than the one being fixed.
+        */}
+      <PageHeader title="Invoices" action={mayCreate ? <Button onClick={openCreate}><Plus className="w-4 h-4" /> New Invoice</Button> : undefined} />
       <div className="mb-4">
         <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }} className={selectCls}>
           <option value="">All statuses</option>
@@ -157,12 +184,12 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
         </select>
       </div>
       <DataTable<Row> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={row => navigate(`/crm/invoices/${row.id}`)} emptyMessage="No invoices yet." actions={[
-        { label: 'Edit', icon: Edit, onClick: openEdit, show: r => !['void', 'refunded'].includes(r.status) },
-        { label: 'Send', icon: Send, onClick: handleSend, show: r => !['void', 'refunded'].includes(r.status) },
-        { label: 'Record Payment', icon: DollarSign, onClick: openPayment, show: r => !['void', 'refunded'].includes(r.status) && balanceOf(r) > 0.005 },
-        { label: 'Refund', icon: RotateCcw, onClick: openRefund, show: r => r.status !== 'void' && netPaid(r) > 0.005 },
-        { label: 'Void', icon: Ban, onClick: r => setVoidTarget(r), show: r => r.status !== 'void' && netPaid(r) <= 0.005 },
-        { label: 'Delete', icon: Trash2, onClick: r => setDeleteTarget(r), className: 'text-red-600', show: r => Number(r.amountPaid || 0) <= 0 && r.status !== 'paid' },
+        { label: 'Edit', icon: Edit, onClick: openEdit, show: r => mayUpdate && !['void', 'refunded'].includes(r.status) },
+        { label: 'Send', icon: Send, onClick: handleSend, show: r => mayUpdate && !['void', 'refunded'].includes(r.status) },
+        { label: 'Record Payment', icon: DollarSign, onClick: openPayment, show: r => mayTakeMoney && !['void', 'refunded'].includes(r.status) && balanceOf(r) > 0.005 },
+        { label: 'Refund', icon: RotateCcw, onClick: openRefund, show: r => mayRefund && r.status !== 'void' && netPaid(r) > 0.005 },
+        { label: 'Void', icon: Ban, onClick: r => setVoidTarget(r), show: r => mayUpdate && r.status !== 'void' && netPaid(r) <= 0.005 },
+        { label: 'Delete', icon: Trash2, onClick: r => setDeleteTarget(r), className: 'text-red-600', show: r => mayDelete && Number(r.amountPaid || 0) <= 0 && r.status !== 'paid' },
       ]} />
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Edit ${editing.number}` : 'New Invoice'} size="xl">

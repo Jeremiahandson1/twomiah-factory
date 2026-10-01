@@ -11,6 +11,7 @@ import { SkeletonDetail } from '../common/Skeleton';
 import { EmptyState } from '../common/EmptyState';
 import { StatusBadge } from '../ui/DataTable';
 import { ConfirmModal } from '../ui/Modal';
+import { usePermissions } from '../../contexts/PermissionsContext';
 
 interface RelatedItem {
   id: string;
@@ -103,6 +104,19 @@ export default function ProjectDetailPage() {
     }
   };
 
+  /**
+   * EVERY WRITE CONTROL ASKS THE PERMISSION ITS OWN ENDPOINT ASKS. (T32 M17 / M8)
+   *
+   * A read-only viewer was offered Edit, Delete, Add Job, Create RFI, Create Change Order, Add Punch
+   * List Item and Add Daily Log; a field technician was offered Edit and Delete. The server refuses
+   * all of it — the report tried 17 writes as viewer and got 403 every time — so the only thing
+   * these buttons did was waste somebody's click and make the product look broken.
+   *
+   * `can()` reads the same matrix the server does, so a button is offered exactly when the request
+   * behind it would be served.
+   */
+  const { can } = usePermissions();
+
   const handleDelete = async () => {
     setDeleting(true);
     try {
@@ -156,20 +170,24 @@ export default function ProjectDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            to={`/crm/projects?edit=${id}`}
-            className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2"
-          >
-            <Edit className="w-4 h-4" />
-            Edit
-          </Link>
-          <button
-            onClick={() => setDeleteOpen(true)}
-            className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 flex items-center gap-2"
-          >
-            <Trash2 className="w-4 h-4" />
-            Delete
-          </button>
+          {can('projects:update') && (
+            <Link
+              to={`/crm/projects?edit=${id}`}
+              className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2"
+            >
+              <Edit className="w-4 h-4" />
+              Edit
+            </Link>
+          )}
+          {can('projects:delete') && (
+            <button
+              onClick={() => setDeleteOpen(true)}
+              className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 flex items-center gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete
+            </button>
+          )}
         </div>
       </div>
 
@@ -420,47 +438,60 @@ export default function ProjectDetailPage() {
             </div>
           </div>
 
-          {/* Quick actions */}
+          {/* Quick actions — the whole panel goes when a role is offered none of them, rather than
+              leaving an empty card headed "Quick Actions". */}
+          {(can('jobs:create') || can('rfis:create') || can('change-orders:create') || can('punch-lists:create') || can('daily-logs:create')) && (
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Quick Actions</h2>
             <div className="space-y-2">
-              <Link
-                to={`/crm/jobs?projectId=${id}&new=true`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
-              >
-                <Briefcase className="w-4 h-4 text-gray-500 dark:text-slate-400" />
-                Add Job
-              </Link>
-              <Link
-                to={`/crm/rfis?projectId=${id}&new=true`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
-              >
-                <FileQuestion className="w-4 h-4 text-gray-500 dark:text-slate-400" />
-                Create RFI
-              </Link>
-              <Link
-                to={`/crm/change-orders?projectId=${id}&new=true`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
-              >
-                <FileDiff className="w-4 h-4 text-gray-500 dark:text-slate-400" />
-                Create Change Order
-              </Link>
-              <Link
-                to={`/crm/punch-lists?projectId=${id}&new=true`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
-              >
-                <ClipboardList className="w-4 h-4 text-gray-500 dark:text-slate-400" />
-                Add Punch List Item
-              </Link>
-              <Link
-                to={`/crm/daily-logs?projectId=${id}&new=true`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
-              >
-                <FileText className="w-4 h-4 text-gray-500 dark:text-slate-400" />
-                Add Daily Log
-              </Link>
+              {can('jobs:create') && (
+                <Link
+                  to={`/crm/jobs?projectId=${id}&new=true`}
+                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
+                >
+                  <Briefcase className="w-4 h-4 text-gray-500 dark:text-slate-400" />
+                  Add Job
+                </Link>
+              )}
+              {can('rfis:create') && (
+                <Link
+                  to={`/crm/rfis?projectId=${id}&new=true`}
+                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
+                >
+                  <FileQuestion className="w-4 h-4 text-gray-500 dark:text-slate-400" />
+                  Create RFI
+                </Link>
+              )}
+              {can('change-orders:create') && (
+                <Link
+                  to={`/crm/change-orders?projectId=${id}&new=true`}
+                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
+                >
+                  <FileDiff className="w-4 h-4 text-gray-500 dark:text-slate-400" />
+                  Create Change Order
+                </Link>
+              )}
+              {can('punch-lists:create') && (
+                <Link
+                  to={`/crm/punch-lists?projectId=${id}&new=true`}
+                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
+                >
+                  <ClipboardList className="w-4 h-4 text-gray-500 dark:text-slate-400" />
+                  Add Punch List Item
+                </Link>
+              )}
+              {can('daily-logs:create') && (
+                <Link
+                  to={`/crm/daily-logs?projectId=${id}&new=true`}
+                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
+                >
+                  <FileText className="w-4 h-4 text-gray-500 dark:text-slate-400" />
+                  Add Daily Log
+                </Link>
+              )}
             </div>
           </div>
+          )}
 
           {/* Timeline */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">

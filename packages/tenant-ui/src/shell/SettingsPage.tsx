@@ -211,7 +211,10 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
     { id: 'company', label: 'Company', icon: Building2 },
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'security', label: 'Security', icon: Lock },
-    { id: 'users', label: 'Users', icon: Users },
+    // The Users tab answered 403 for a field technician and for a manager — offered, then refused.
+    // `canManageUsers` is admin|owner, which mirrors requireAdmin on the routes behind it; a
+    // per-user `users:read` grant also opens it, which is what that grant is for. (T32 M8)
+    ...(canManageUsers || (user?.extraPermissions || []).includes('users:read') ? [{ id: 'users', label: 'Users', icon: Users }] : []),
   ]
   const set = (k: keyof CompanyForm) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value })
   const sideBtn = 'w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800'

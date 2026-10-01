@@ -67,11 +67,25 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   return <PermissionsContext.Provider value={value}>{children}</PermissionsContext.Provider>
 }
 
-/** Safe defaults outside the provider: nothing is allowed, and nothing throws. */
+/**
+ * Safe defaults outside the provider: nothing is allowed, and nothing throws.
+ *
+ * `known` is the important part, and it is false here. (T32 M17)
+ *
+ * Two verticals — crm-roof and crm-store — do not mount PermissionsProvider at all, and both use
+ * shared pages. So a shared page that hides a button on `!can(…)` would hide it from EVERYBODY
+ * there, including the owner: a read-only screen with no way to do anything, delivered as a fix for
+ * showing too many buttons.
+ *
+ * `known` says whether the answer means anything. A page gates on `!known || can(…)` — hide only
+ * when we actually know the person cannot — which fails in the direction the server already covers:
+ * the write is still refused with a 403, so the worst case is the old behaviour, not a dead screen.
+ */
 export function usePermissions() {
   const context = useContext(PermissionsContext)
   if (!context) {
     return {
+      known: false,
       role: 'viewer', roleLevel: 0, permissions: [] as string[],
       can: () => false, canAny: () => false, canAll: () => false,
       isAtLeast: () => false,
@@ -80,7 +94,19 @@ export function usePermissions() {
       canCreateQuotes: false, canDeleteAnything: false,
     }
   }
-  return context
+  // Inside the provider, but the list may not have arrived yet — same rule, for the same reason.
+  return { known: (context as any).permissions?.length > 0, ...context }
+}
+
+/**
+ * "Offer this control unless we KNOW the person would be refused."
+ *
+ * The shape every shared page should use for a write control, so none of them has to re-derive the
+ * rule above. `useMayWrite('invoices:create')`.
+ */
+export function useMayWrite(permission: string): boolean {
+  const { known, can } = usePermissions()
+  return !known || can(permission)
 }
 
 /** Renders its children only if the person holds the permission (or any/all of a list). */
