@@ -225,6 +225,13 @@
       "when": 1791800000000,
       "tag": "0031_inspection_reinspection",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791900000000,
+      "tag": "0032_takeoff_item_legacy_columns",
+      "breakpoints": true
     }
   ]
 }

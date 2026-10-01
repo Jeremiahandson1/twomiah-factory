@@ -34,6 +34,15 @@ const BILL_IS_SPEND = ['open', 'partial', 'paid']
 /** Money, to the cent. A float sum is not a money figure. (T32 L4) */
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
+const fieldError = (err: any, fallback: string) => {
+  const first = err?.issues?.[0]
+  if (!first) return fallback
+  // The PATH, the way the app's error handler already reports a thrown ZodError. Without it zod's
+  // own "Required" is the whole message, on a form with fifteen fields. (T32 L3)
+  const where = Array.isArray(first.path) && first.path.length ? `${first.path.join('.')}: ` : ''
+  return where + (first.message || fallback)
+}
+
 const billSchema = z.object({
   vendorId: z.string().min(1),
   number: z.string().optional(),
@@ -166,7 +175,7 @@ app.get('/summary/job/:jobId', async (c) => {
 app.post('/', requirePermission('bills:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = billSchema.safeParse(((await c.req.json().catch(() => null)) ?? {}))
-  if (!body.success) return c.json({ error: body.error.issues[0]?.message || 'Invalid bill' }, 400)
+  if (!body.success) return c.json({ error: fieldError(body.error, 'Invalid bill') }, 400)
   const data = body.data
 
   const [vendor] = await db.select({ id: contact.id }).from(contact)
@@ -267,7 +276,7 @@ app.put('/:id', requirePermission('bills:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const body = billSchema.partial().safeParse(((await c.req.json().catch(() => null)) ?? {}))
-  if (!body.success) return c.json({ error: body.error.issues[0]?.message || 'Invalid bill' }, 400)
+  if (!body.success) return c.json({ error: fieldError(body.error, 'Invalid bill') }, 400)
   const data = body.data
 
   const [existing] = await db.select().from(vendorBill)

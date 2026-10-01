@@ -26,6 +26,15 @@ app.use('*', authenticate)
  */
 app.use('*', requirePermission('purchase-orders:read'))
 
+const fieldError = (err: any, fallback: string) => {
+  const first = err?.issues?.[0]
+  if (!first) return fallback
+  // The PATH, the way the app's error handler already reports a thrown ZodError. Without it zod's
+  // own "Required" is the whole message, on a form with fifteen fields. (T32 L3)
+  const where = Array.isArray(first.path) && first.path.length ? `${first.path.join('.')}: ` : ''
+  return where + (first.message || fallback)
+}
+
 const lineSchema = z.object({
   description: z.string().min(1),
   quantity: z.number().positive().default(1),
@@ -148,7 +157,7 @@ app.get('/:id', async (c) => {
 app.post('/', requirePermission('purchase-orders:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = poSchema.safeParse(((await c.req.json().catch(() => null)) ?? {}))
-  if (!body.success) return c.json({ error: body.error.issues[0]?.message || 'Invalid purchase order' }, 400)
+  if (!body.success) return c.json({ error: fieldError(body.error, 'Invalid purchase order') }, 400)
   const data = body.data
 
   // verify the vendor belongs to this company
@@ -194,7 +203,7 @@ app.put('/:id', requirePermission('purchase-orders:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const body = poSchema.partial().safeParse(((await c.req.json().catch(() => null)) ?? {}))
-  if (!body.success) return c.json({ error: body.error.issues[0]?.message || 'Invalid purchase order' }, 400)
+  if (!body.success) return c.json({ error: fieldError(body.error, 'Invalid purchase order') }, 400)
   const data = body.data
 
   const [existing] = await db.select().from(purchaseOrder)

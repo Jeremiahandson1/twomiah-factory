@@ -19,7 +19,15 @@ export const errorHandler = (err: Error, c: Context) => {
   const pgCode = (err as any).code || (err as any)?.cause?.code
   if (typeof pgCode === 'string') {
     switch (pgCode) {
-      case '23502': return c.json({ error: 'A required field is missing.' }, 400)                 // not_null_violation
+      // not_null_violation. Postgres tells us WHICH column and this was throwing it away, so a
+      // module with no schema of its own — equipment, which has none — could only ever answer "A
+      // required field is missing." on a form with a dozen boxes. snake_case becomes words, because
+      // "serial_number" is a column name and "serial number" is what the person is looking at.
+      // (T32 L3)
+      case '23502': {
+        const col = (err as any).column || (err as any)?.cause?.column
+        return c.json({ error: col ? `${String(col).replace(/_/g, ' ')} is required.` : 'A required field is missing.' }, 400)
+      }
       case '23503': return c.json({ error: 'A related record does not exist, or is still in use.' }, 409) // foreign_key_violation
       case '23505': return c.json({ error: 'That record already exists.' }, 409)                   // unique_violation
       case '23514': return c.json({ error: 'A value did not pass a validation rule.' }, 400)       // check_violation

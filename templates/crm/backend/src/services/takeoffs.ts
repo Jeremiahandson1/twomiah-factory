@@ -9,8 +9,10 @@
  */
 
 import { db } from '../../db/index.ts'
-import { purchaseOrder, purchaseOrderItem } from '../../db/schema.ts'
-import { eq, sql } from 'drizzle-orm'
+// The JOB purchase order — the one the Purchase Orders screen, the vendor portal and the commitment
+// total all read. The inventory `purchase_order` this used to write to is a different module. (T32 L8)
+import { jobPurchaseOrder as purchaseOrder, jobPurchaseOrderLine as purchaseOrderLine } from '../../db/schema.ts'
+import { eq, sql, count } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { notFound } from '../utils/errors.ts'
 
@@ -309,14 +311,24 @@ async function calculateItemMaterials(itemId: string, companyId: string) {
   for (const mat of materials) {
     const baseQuantity = item.measurement_value * mat.quantity_per
     const quantityWithWaste = baseQuantity * wasteFactor
-    const roundedQuantity = Math.ceil(quantityWithWaste * 100) / 100
+    /**
+     * STORE THE MEASUREMENT, NOT THE ORDER. (T32 L8)
+     *
+     * This rounded to `Math.ceil(q * 100) / 100` on the way IN, so 11.9625 studs were stored as
+     * 11.97 and the real figure was gone before anything could use it. Rounding belongs at the point
+     * where a decision is made — whole units when somebody orders — not at the point where a
+     * measurement is recorded. The column is numeric(12,4) and was always able to hold it.
+     *
+     * aggregateMaterials does the rounding now, and reports both figures.
+     */
+    const measured = Math.round(quantityWithWaste * 10000) / 10000
 
-    const totalCost = roundedQuantity * Number(mat.unit_cost || 0)
-    const totalPrice = roundedQuantity * Number(mat.unit_price || 0)
+    const totalCost = measured * Number(mat.unit_cost || 0)
+    const totalPrice = measured * Number(mat.unit_price || 0)
 
     await db.execute(sql`
       INSERT INTO takeoff_calculated_material (id, item_id, material_name, unit, base_quantity, waste_quantity, total_quantity, unit_cost, unit_price, total_cost, total_price, inventory_item_id)
-      VALUES (${createId()}, ${itemId}, ${mat.name}, ${mat.unit}, ${baseQuantity}, ${quantityWithWaste - baseQuantity}, ${roundedQuantity}, ${mat.unit_cost}, ${mat.unit_price}, ${totalCost}, ${totalPrice}, ${mat.inventory_item_id})
+      VALUES (${createId()}, ${itemId}, ${mat.name}, ${mat.unit}, ${baseQuantity}, ${quantityWithWaste - baseQuantity}, ${measured}, ${mat.unit_cost}, ${mat.unit_price}, ${totalCost}, ${totalPrice}, ${mat.inventory_item_id})
     `)
   }
 }
@@ -446,6 +458,21 @@ export async function getProjectMaterialTotals(projectId: string, companyId: str
   return aggregateMaterials(allMaterials)
 }
 
+/**
+ * Is this unit a THING you buy one of, or a MEASURE you buy some of? (T32 L8)
+ *
+ * A stud, a sheet, a bag and a box come in whole units; linear feet, square feet, cubic yards and
+ * gallons do not. Anything unrecognised keeps its decimals — rounding a unit we do not understand up
+ * to a whole would invent material, and that is the more expensive mistake.
+ */
+const DISCRETE_UNITS = new Set([
+  'each', 'ea', 'pc', 'pcs', 'piece', 'pieces', 'unit', 'units',
+  'sheet', 'sheets', 'board', 'boards', 'stud', 'studs', 'panel', 'panels',
+  'bag', 'bags', 'box', 'boxes', 'roll', 'rolls', 'tube', 'tubes', 'bundle', 'bundles',
+  'can', 'cans', 'bucket', 'buckets', 'pail', 'pails',
+])
+const isDiscreteUnit = (unit: unknown) => DISCRETE_UNITS.has(String(unit || '').trim().toLowerCase())
+
 function aggregateMaterials(allMaterials: any[]) {
   const materialTotals: Record<string, any> = {}
 
@@ -466,12 +493,32 @@ function aggregateMaterials(allMaterials: any[]) {
     materialTotals[key].totalPrice += Number(mat.total_price)
   }
 
-  const materials = Object.values(materialTotals).map((m: any) => ({
-    ...m,
-    totalQuantity: Math.ceil(m.totalQuantity * 100) / 100,
-    totalCost: Math.round(m.totalCost * 100) / 100,
-    totalPrice: Math.round(m.totalPrice * 100) / 100,
-  }))
+  const materials = Object.values(materialTotals).map((m: any) => {
+    const exact = m.totalQuantity
+    return {
+      ...m,
+      /**
+       * YOU CANNOT BUY 11.97 STUDS. (T32 L8)
+       *
+       * This was `Math.ceil(q * 100) / 100` — rounded UP, but to the CENT, so 11.9625 studs became
+       * "11.97 studs" and 7.98 sheets. Rounding up was the right instinct (a takeoff with waste
+       * tells you what to order, and ordering 11 studs leaves the wall short) applied to the wrong
+       * place: the unit, not two decimals.
+       *
+       * Whole units for anything sold as a thing — a stud, a sheet, a bag, a box. Decimals stay for
+       * anything sold by measure: 11.96 linear feet of trim is a real quantity, and rounding that to
+       * 12 would be inventing material.
+       *
+       * `exactQuantity` is kept beside it, because the measured figure is what the next calculation
+       * should use and the ordered figure is what goes on the purchase order. Reporting only one of
+       * them is how a rounding decision becomes invisible.
+       */
+      totalQuantity: isDiscreteUnit(m.unit) ? Math.ceil(exact) : Math.ceil(exact * 100) / 100,
+      exactQuantity: Math.round(exact * 10000) / 10000,
+      totalCost: Math.round(m.totalCost * 100) / 100,
+      totalPrice: Math.round(m.totalPrice * 100) / 100,
+    }
+  })
 
   return {
     materials: materials.sort((a: any, b: any) => a.name.localeCompare(b.name)),
@@ -493,33 +540,61 @@ export async function exportToPurchaseOrder(sheetId: string, companyId: string, 
     SELECT ts.*, p.name as project_name FROM takeoff_sheet ts LEFT JOIN project p ON p.id = ts.project_id WHERE ts.id = ${sheetId} AND ts.company_id = ${companyId}
   `))
 
-  // Create purchase order - schema requires locationId and vendor as string
-  const [po] = await db
-    .insert(purchaseOrder)
-    .values({
-      companyId,
-      number: `PO-TK-${Date.now()}`,
-      vendor: vendorId,
-      status: 'draft',
-      notes: `Generated from takeoff: ${sheet.name}`,
-      total: String(totals.totalCost),
-      locationId: vendorId, // placeholder - should be a location ID
-    })
-    .returning()
-
-  for (const mat of materials) {
-    if (mat.inventoryItemId) {
-      await db.insert(purchaseOrderItem).values({
-        purchaseOrderId: po.id,
-        itemId: mat.inventoryItemId,
-        quantity: Math.ceil(mat.totalQuantity),
-        unitCost: String(mat.totalCost / mat.totalQuantity),
-        totalCost: String(mat.totalCost),
-      })
+  /**
+   * THE WRONG PURCHASE ORDER TABLE. (found while wiring T32 M4's Export to PO button)
+   *
+   * This wrote to `purchase_order` — the INVENTORY restock order, with a free-text vendor and a
+   * `locationId` this code was filling with the vendor id as an admitted "placeholder". The Purchase
+   * Orders screen, the vendor portal, the commitment total and the AP work in T32 M3 all read
+   * `job_purchase_order`. So a takeoff exported to a purchase order the user could never see, on any
+   * screen, and which counted towards nothing.
+   *
+   * The report only got as far as "Export to PO has no click handler" — it never fired, so this was
+   * behind it. Wiring the button without this would have produced an invisible record and a
+   * redirect to a page that does not list it.
+   *
+   * It now raises a real job purchase order: numbered in the same PO-00001 sequence, addressed to a
+   * contact, attached to the sheet's project, as a DRAFT — nobody has sent it to a vendor yet, and a
+   * draft is deliberately not a commitment (T32 M3).
+   */
+  const [{ value: existing }] = await db.select({ value: count() }).from(purchaseOrder)
+    .where(eq(purchaseOrder.companyId, companyId))
+  // Lines priced at the ORDER quantity, so quantity × unitCost is the line total and the PO adds up.
+  // The old code put the ceil'd quantity beside the un-ceil'd cost, so the line contradicted itself.
+  const lines = materials.map((m: any, i: number) => {
+    // The unit cost is ROUNDED FIRST and the total computed from the rounded figure, so
+    // quantity × unitCost is exactly the line total. Multiplying by the unrounded rate gave
+    // 12.00 × 4.50 = 54.01 on the order — a line that does not add up is a line a vendor queries.
+    const unitCost = Math.round((m.exactQuantity > 0 ? m.totalCost / m.exactQuantity : 0) * 100) / 100
+    const quantity = m.totalQuantity
+    return {
+      description: `${m.name}${m.unit ? ` (${m.unit})` : ''}`,
+      quantity: String(quantity),
+      unitCost: unitCost.toFixed(2),
+      total: (quantity * unitCost).toFixed(2),
+      sortOrder: i,
     }
+  })
+  const subtotal = lines.reduce((s, l) => s + Number(l.total), 0)
+
+  const [po] = await db.insert(purchaseOrder).values({
+    companyId,
+    number: `PO-${String(Number(existing) + 1).padStart(5, '0')}`,
+    vendorId,
+    projectId: sheet.project_id || null,
+    status: 'draft',
+    notes: `Generated from takeoff: ${sheet.name}`,
+    subtotal: subtotal.toFixed(2),
+    taxRate: '0',
+    taxAmount: '0.00',
+    total: subtotal.toFixed(2),
+  }).returning()
+
+  if (lines.length) {
+    await db.insert(purchaseOrderLine).values(lines.map((l) => ({ ...l, purchaseOrderId: po.id })))
   }
 
-  return po
+  return { ...po, lines }
 }
 
 export default {
