@@ -1,10 +1,14 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { rfi, project } from '../../db/schema.ts'
+import { rfi, project, user } from '../../db/schema.ts'
 import { eq, and, count, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
+import { createActorName } from '../shared/index.ts'
+
+/** Who answered this, by name, for the record. Never the request body. (shared: auth/actorName) */
+const actorName = createActorName({ db, tables: { user } })
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -98,21 +102,107 @@ app.delete('/:id', requirePermission('rfis:delete'), async (c) => {
   return c.body(null, 204)
 })
 
+/**
+ * AN RFI IS A QUESTION AND THE ANSWER SOMEBODY GAVE. (T32 H11)
+ *
+ * The report closed RFI-001 while it was unanswered (allowed, and that is fine — a question can be
+ * withdrawn), answered it, closed it, then answered it AGAIN. The second answer replaced the first
+ * with no history, the status went back to Answered and `closedAt` was cleared. `respondedBy` was
+ * taken from the request body and was always null.
+ *
+ * On a construction job an RFI answer is the instruction the work was done to. Being able to replace
+ * it afterwards, with nothing recording that it changed, is the same class of fault as rewriting a
+ * daily log (T32 H10) or editing an approved change order (T32 H2): a record that can be quietly
+ * changed is not a record.
+ *
+ * Three rules:
+ *   1. A CLOSED RFI TAKES NO NEW ANSWER. Reopen it first — which is a visible act with its own
+ *      endpoint, so the change is in the history rather than hidden inside an answer.
+ *   2. AN ANSWER IS NOT OVERWRITTEN. Replacing one needs `?replace=true`, and the previous answer is
+ *      kept — appended under a dated heading, so the thread reads in order. There is no revision
+ *      table: the answer column holds the whole thread, which is what `response` already is on a
+ *      printed RFI, and a new table for this one field is not worth a migration.
+ *   3. THE RESPONDER IS THE SIGNED-IN PERSON, never the body.
+ */
+const CLOSED = 'closed'
+
 app.post('/:id/respond', requirePermission('rfis:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const { response, respondedBy } = await c.req.json()
+  const body = await c.req.json().catch(() => ({}))
+  const response = typeof body?.response === 'string' ? body.response.trim() : ''
+  if (!response) return c.json({ error: 'An answer is required.' }, 400)
 
-  const [updated] = await db.update(rfi).set({ response, respondedBy, respondedAt: new Date(), status: 'answered', updatedAt: new Date() }).where(and(eq(rfi.id, id), eq(rfi.companyId, currentUser.companyId))).returning()
-  if (!updated) return c.json({ error: 'RFI not found' }, 404)
+  const [existing] = await db.select().from(rfi)
+    .where(and(eq(rfi.id, id), eq(rfi.companyId, currentUser.companyId))).limit(1)
+  if (!existing) return c.json({ error: 'RFI not found' }, 404)
+
+  if (existing.status === CLOSED) {
+    return c.json({
+      error: `${existing.number} is closed. Reopen it before answering, so that the change is on the record rather than inside it.`,
+      code: 'rfi_closed',
+      reopen: `POST /api/rfis/${id}/reopen`,
+    }, 400)
+  }
+
+  const replacing = existing.response && existing.response.trim().length > 0
+  const wantsReplace = c.req.query('replace') === 'true' || body?.replace === true
+  if (replacing && !wantsReplace) {
+    return c.json({
+      error: `${existing.number} has already been answered${existing.respondedBy ? ` by ${existing.respondedBy}` : ''}${existing.respondedAt ? ` on ${new Date(existing.respondedAt).toISOString().slice(0, 10)}` : ''}. Send replace=true to add a revised answer — the original is kept.`,
+      code: 'rfi_already_answered',
+      answeredBy: existing.respondedBy,
+      answeredAt: existing.respondedAt,
+    }, 409)
+  }
+
+  const responder = await actorName(currentUser)
+  // The thread, not a replacement. The old answer stays above the new one, each with who and when.
+  const text = replacing
+    ? `${existing.response}\n\n--- Revised ${new Date().toISOString().slice(0, 10)} by ${responder} ---\n${response}`
+    : response
+
+  const [updated] = await db.update(rfi).set({
+    response: text,
+    respondedBy: responder,
+    respondedAt: new Date(),
+    status: 'answered',
+    updatedAt: new Date(),
+  }).where(and(eq(rfi.id, id), eq(rfi.companyId, currentUser.companyId))).returning()
   return c.json(updated)
 })
 
 app.post('/:id/close', requirePermission('rfis:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const [updated] = await db.update(rfi).set({ status: 'closed', updatedAt: new Date() }).where(and(eq(rfi.id, id), eq(rfi.companyId, currentUser.companyId))).returning()
+  // `closedAt` was never written, so a closed RFI could not say when it closed — and the report saw
+  // it "cleared" on re-answer, which it could not have been, because nothing ever set it.
+  const [updated] = await db.update(rfi).set({ status: CLOSED, closedAt: new Date(), updatedAt: new Date() }).where(and(eq(rfi.id, id), eq(rfi.companyId, currentUser.companyId))).returning()
   if (!updated) return c.json({ error: 'RFI not found' }, 404)
+  return c.json(updated)
+})
+
+/**
+ * Reopen — the visible act that rule 1 above requires.
+ *
+ * Without it, "a closed RFI takes no new answer" is a dead end rather than a rule: closing an RFI by
+ * mistake would strand it. The status goes back to where the answer left it, so reopening an
+ * unanswered one returns it to open and an answered one to answered.
+ */
+app.post('/:id/reopen', requirePermission('rfis:update'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+  const [existing] = await db.select().from(rfi)
+    .where(and(eq(rfi.id, id), eq(rfi.companyId, currentUser.companyId))).limit(1)
+  if (!existing) return c.json({ error: 'RFI not found' }, 404)
+  if (existing.status !== CLOSED) {
+    return c.json({ error: `${existing.number} is ${existing.status}, not closed.`, code: 'rfi_not_closed' }, 400)
+  }
+  const [updated] = await db.update(rfi).set({
+    status: existing.response ? 'answered' : 'open',
+    closedAt: null,
+    updatedAt: new Date(),
+  }).where(and(eq(rfi.id, id), eq(rfi.companyId, currentUser.companyId))).returning()
   return c.json(updated)
 })
 

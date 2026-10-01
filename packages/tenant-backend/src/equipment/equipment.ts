@@ -36,6 +36,16 @@ export interface EquipmentRoutesDeps {
   requirePermission: (permission: string) => any
 }
 
+/**
+ * How near is "expiring"? ONE answer. (T32 H9)
+ *
+ * getEquipmentStats counted a 30-day window and getWarrantyExpiring listed a 60-day one, so the
+ * tile and the list it opened disagreed by construction — the same fault as the two labour rates in
+ * job costing (T32 B3). 60 days is the one kept: it is what the dedicated endpoint and the screen's
+ * filter already used, and it is long enough to be worth acting on.
+ */
+export const WARRANTY_WINDOW_DAYS = 60
+
 export function createEquipmentService(deps: EquipmentServiceDeps) {
   const { db, tables } = deps
   const { equipment, equipmentCategory, equipmentMaintenance, contact, job, user } = tables
@@ -51,7 +61,77 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
   }
 
   // ---- equipment ----
+  /**
+   * THE SCREEN AND THE SERVICE SPOKE DIFFERENT LANGUAGES. (T32 H9)
+   *
+   * The Equipment form asks for an "Install date" and a "Warranty (months)" — which is the right way
+   * to ask about a customer's furnace — and posts `installDate` and `warrantyMonths`. This service
+   * read `purchaseDate` and `warrantyExpiry`. Nothing matched, nothing threw, and the record saved
+   * with its name and nothing else: the report entered 20 Oct 2024 and 24 months and got
+   * purchaseDate null, warrantyExpiry null.
+   *
+   * Four templates ship this module. All four dropped both fields.
+   *
+   * The translation lives HERE, in one function, rather than in the form, because the column names
+   * (`purchase_date`, `warranty_expiry`) are what the filters and the stats tiles query, and the
+   * form's words are what a person should see. Both directions: `shape()` below gives every read
+   * back `installDate` and `warrantyMonths`, so the edit form round-trips instead of showing blanks
+   * over stored values.
+   */
+  const asDate = (v: any): Date | null => {
+    if (!v) return null
+    const d = new Date(v)
+    return Number.isNaN(d.getTime()) ? null : d
+  }
+  const monthsLater = (from: Date, months: number) => {
+    const d = new Date(from)
+    const day = d.getUTCDate()
+    d.setUTCDate(1)
+    d.setUTCMonth(d.getUTCMonth() + months)
+    // Clamp, so 24 months from 31 Jan is the 28th/29th and not 2 March. Same rule as the recurring
+    // invoice schedule (T32 H7).
+    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
+    d.setUTCDate(Math.min(day, last))
+    return d
+  }
+  /** The form's vocabulary and the column's, resolved to the columns. */
+  const equipmentDates = (data: any, current?: { purchaseDate?: any; warrantyExpiry?: any }) => {
+    const purchaseDate = data.purchaseDate !== undefined || data.installDate !== undefined
+      ? asDate(data.purchaseDate ?? data.installDate)
+      : (current ? asDate(current.purchaseDate) : null)
+
+    let warrantyExpiry = data.warrantyExpiry !== undefined
+      ? asDate(data.warrantyExpiry)
+      : (current ? asDate(current.warrantyExpiry) : null)
+
+    // Months are relative to the install date, so they can only be resolved once that is known.
+    const months = Number(data.warrantyMonths)
+    if (data.warrantyMonths !== undefined && data.warrantyMonths !== '' && Number.isFinite(months) && months > 0 && purchaseDate) {
+      warrantyExpiry = monthsLater(purchaseDate, Math.round(months))
+    }
+    return { purchaseDate, warrantyExpiry }
+  }
+  /** What a read gives back: the columns, plus the words the form asks in. */
+  const shape = (row: any) => {
+    if (!row) return row
+    const purchase = row.purchaseDate ? new Date(row.purchaseDate) : null
+    const expiry = row.warrantyExpiry ? new Date(row.warrantyExpiry) : null
+    let warrantyMonths: number | null = null
+    if (purchase && expiry) {
+      warrantyMonths = Math.max(0, Math.round(
+        (expiry.getUTCFullYear() - purchase.getUTCFullYear()) * 12 + (expiry.getUTCMonth() - purchase.getUTCMonth()),
+      ))
+    }
+    return {
+      ...row,
+      installDate: purchase ? purchase.toISOString() : null,
+      warrantyMonths,
+      warrantyActive: expiry ? expiry > new Date() : false,
+    }
+  }
+
   async function createEquipment(companyId: string, data: any) {
+    const { purchaseDate, warrantyExpiry } = equipmentDates(data)
     const values: Record<string, any> = {
       companyId,
       name: data.name,
@@ -59,8 +139,8 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
       model: data.model || null,
       manufacturer: data.manufacturer || null,
       location: data.location || null,
-      purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : null,
-      warrantyExpiry: data.warrantyExpiry ? new Date(data.warrantyExpiry) : null,
+      purchaseDate,
+      warrantyExpiry,
       notes: data.notes || null,
       categoryId: data.categoryId || null,
       status: 'active',
@@ -68,15 +148,47 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
     if (opt.contacts) values.contactId = data.contactId || null
     if (opt.sites) { values.locationId = data.locationId || null; values.siteId = data.siteId || null }
     const [result] = await db.insert(equipment).values(values).returning()
-    return result
+    return shape(result)
   }
 
+  /**
+   * THE FILTERS THE ROUTE WAS SENDING AND THIS FUNCTION NEVER TOOK. (T32 H9)
+   *
+   * `GET /api/equipment` destructured `warrantyExpiring`, `needsMaintenance` and `category` out of
+   * the query string and then called this function with status / search / contactId only. So
+   * `?warrantyExpiring=true` returned the WHOLE list — the report saw it return a record with no
+   * warranty date at all, while the "Warranty Expiring" tile beside it said 0. The tile was right;
+   * the filter was a no-op that looked like a filter.
+   *
+   * Worse, the tile and the dedicated /warranty-expiring endpoint used two different windows for the
+   * same word: 30 days in getEquipmentStats and 60 in getWarrantyExpiring. One constant now, so the
+   * tile, the filter and the endpoint cannot disagree.
+   */
   async function getEquipment(companyId: string, {
-    status, search, contactId, page = 1, limit = 50,
-  }: { status?: string; search?: string; contactId?: string; page?: number; limit?: number } = {}) {
+    status, search, contactId, categoryId, needsMaintenance, warrantyExpiring, page = 1, limit = 50,
+  }: {
+    status?: string; search?: string; contactId?: string; categoryId?: string
+    needsMaintenance?: boolean; warrantyExpiring?: boolean; page?: number; limit?: number
+  } = {}) {
     const conditions = [eq(equipment.companyId, companyId)]
     if (status) conditions.push(eq(equipment.status, status))
     if (opt.contacts && contactId) conditions.push(eq(equipment.contactId, contactId))
+    if (categoryId) conditions.push(eq(equipment.categoryId, categoryId))
+    if (warrantyExpiring) {
+      const until = new Date(); until.setDate(until.getDate() + WARRANTY_WINDOW_DAYS)
+      conditions.push(gte(equipment.warrantyExpiry, new Date()))
+      conditions.push(lte(equipment.warrantyExpiry, until))
+    }
+    if (needsMaintenance) {
+      // Maintenance due = the next due date on its service history has passed. A piece of equipment
+      // with no history has nothing due, which is why this is an EXISTS and not a left join.
+      conditions.push(sql`EXISTS (
+        SELECT 1 FROM ${equipmentMaintenance}
+        WHERE ${equipmentMaintenance.equipmentId} = ${equipment.id}
+          AND ${equipmentMaintenance.nextDueDate} IS NOT NULL
+          AND ${equipmentMaintenance.nextDueDate} <= NOW()
+      )` as any)
+    }
     if (search) {
       conditions.push(or(
         ilike(equipment.name, `%${search}%`),
@@ -102,8 +214,9 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
     }
 
     const enriched = (data as any[]).map((eq_item) => ({
-      ...eq_item,
-      warrantyActive: eq_item.warrantyExpiry ? new Date(eq_item.warrantyExpiry) > new Date() : false,
+      // `shape` adds installDate / warrantyMonths / warrantyActive — the words the form asks in, so
+      // opening Edit shows the stored values instead of blanks over them.
+      ...shape(eq_item),
       age: eq_item.purchaseDate
         ? Math.floor((Date.now() - new Date(eq_item.purchaseDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
         : null,
@@ -145,7 +258,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
     }
 
     return {
-      ...result,
+      ...shape(result),
       category: (categoryResult as any[])[0] || null,
       maintenanceHistory,
       ...(opt.contacts ? { contact: (contactResult as any[])[0] || null } : {}),
@@ -153,9 +266,30 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
     }
   }
 
+  /**
+   * The same translation as createEquipment, for the same reason — and this one is worse, because it
+   * spread the raw request body straight onto the row. `installDate` and `warrantyMonths` are not
+   * columns, so an edit either dropped them (silently) or, on a Postgres that rejects unknown keys,
+   * would have thrown. Either way the dates never changed.
+   */
   async function updateEquipment(equipmentId: string, companyId: string, data: Record<string, unknown>) {
-    return db.update(equipment).set({ ...data, updatedAt: new Date() })
+    const [current] = await db.select({ purchaseDate: equipment.purchaseDate, warrantyExpiry: equipment.warrantyExpiry })
+      .from(equipment).where(and(eq(equipment.id, equipmentId), eq(equipment.companyId, companyId))).limit(1)
+    if (!current) return []
+    const { purchaseDate, warrantyExpiry } = equipmentDates(data, current)
+    const set: Record<string, any> = { updatedAt: new Date(), purchaseDate, warrantyExpiry }
+    // Only real columns, named — never a spread of whatever arrived.
+    for (const k of ['name', 'serialNumber', 'model', 'manufacturer', 'location', 'notes', 'categoryId', 'status'] as const) {
+      if (data[k] !== undefined) set[k] = data[k] === '' ? null : data[k]
+    }
+    if (opt.contacts && data.contactId !== undefined) set.contactId = data.contactId || null
+    if (opt.sites) {
+      if (data.locationId !== undefined) set.locationId = data.locationId || null
+      if (data.siteId !== undefined) set.siteId = data.siteId || null
+    }
+    const rows = await db.update(equipment).set(set)
       .where(and(eq(equipment.id, equipmentId), eq(equipment.companyId, companyId))).returning()
+    return rows.map(shape)
   }
 
   async function markNeedsRepair(equipmentId: string, companyId: string, notes?: string) {
@@ -220,7 +354,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
     return (result as any).rows || result
   }
 
-  async function getWarrantyExpiring(companyId: string, { days = 60 }: { days?: number } = {}) {
+  async function getWarrantyExpiring(companyId: string, { days = WARRANTY_WINDOW_DAYS }: { days?: number } = {}) {
     const expiryDate = new Date(); expiryDate.setDate(expiryDate.getDate() + days)
     return db.select().from(equipment).where(and(
       eq(equipment.companyId, companyId),
@@ -241,7 +375,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
 
   async function getEquipmentStats(companyId: string) {
     const now = new Date()
-    const thirtyDays = new Date(now); thirtyDays.setDate(thirtyDays.getDate() + 30)
+    const window = new Date(now); window.setDate(window.getDate() + WARRANTY_WINDOW_DAYS)
     const [[{ value: total }], [{ value: needsRepair }], [{ value: warrantyExpiring }]] = await Promise.all([
       db.select({ value: count() }).from(equipment).where(and(eq(equipment.companyId, companyId), eq(equipment.status, 'active'))),
       db.select({ value: count() }).from(equipment).where(and(eq(equipment.companyId, companyId), eq(equipment.status, 'needs_repair'))),
@@ -249,7 +383,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
         eq(equipment.companyId, companyId),
         eq(equipment.status, 'active'),
         gte(equipment.warrantyExpiry, now),
-        lte(equipment.warrantyExpiry, thirtyDays),
+        lte(equipment.warrantyExpiry, window),
       )),
     ])
     return { total, needsRepair, warrantyExpiring }
@@ -291,9 +425,14 @@ export function createEquipmentRoutes(deps: EquipmentRoutesDeps) {
   // ---- equipment ----
   app.get('/', async (c: any) => {
     const user = c.get('user')
-    const { contactId, category, status, needsMaintenance, warrantyExpiring, search, page, limit } = c.req.query()
+    const { contactId, category, categoryId, status, needsMaintenance, warrantyExpiring, search, page, limit } = c.req.query()
+    // These four were parsed out of the query string and then NOT passed, so every one of them was a
+    // filter that did nothing. `category` is the screen's older name for the same thing. (T32 H9)
     const data = await service.getEquipment(user.companyId, {
       contactId, status, search,
+      categoryId: categoryId || category,
+      needsMaintenance: needsMaintenance === 'true',
+      warrantyExpiring: warrantyExpiring === 'true',
       page: parseInt(page) || 1, limit: parseInt(limit) || 50,
     })
     return c.json(data)

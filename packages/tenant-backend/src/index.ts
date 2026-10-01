@@ -113,6 +113,8 @@ export type { AuthMiddlewareDeps, AuthUserContext } from './auth/middleware'
 export { createPermissions, ROLE_HIERARCHY, BASE_ROLE_PERMISSIONS } from './auth/permissions'
 export type { PermissionsDeps, Permissions } from './auth/permissions'
 export { createAuthRoutes, passwordSchema, PASSWORD_RULE_TEXT, generateTokens } from './auth/auth'
+export { createActorName } from './auth/actorName'
+export type { ActorNameDeps, ActorContext, ActorName } from './auth/actorName'
 export type { AuthDeps, AuthOptions, AuthTables } from './auth/auth'
 
 // Customer portal — token-link routes for customers / collaborators / service customers, one implementation for every CRM.

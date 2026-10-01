@@ -1,0 +1,167 @@
+// T32 H9 — "Equipment saves the name and drops everything else."
+//
+// The report added a piece of equipment with customer "T32 Client Rivera", install date 20 Oct 2024
+// and a 24-month warranty. The saved record had no customer link, purchaseDate null, warrantyExpiry
+// null and no category. And then `?warrantyExpiring=true` returned that record anyway, while the
+// Warranty Expiring tile next to it said 0.
+//
+// Three separate causes, none of them obvious from the symptom:
+//
+//  1. VOCABULARY. The shared form asks for an "Install date" and "Warranty (months)" and posts
+//     `installDate` / `warrantyMonths`. The service read `purchaseDate` / `warrantyExpiry`. Nothing
+//     matched and nothing threw. All FOUR templates that ship this module dropped both fields.
+//  2. NO COLUMN. crm-basic, crm-fieldservice and crm-landscaping all have `equipment.contact_id` and
+//     all three pass `options: { contacts: true }`. The base contractor CRM had neither, so the
+//     Customer field was offered, posted, and discarded.
+//  3. A FILTER THAT WAS NOT A FILTER. GET /api/equipment destructured `warrantyExpiring`,
+//     `needsMaintenance` and `category` out of the query string and never passed them on, so each
+//     returned the unfiltered list. The tile ran a real query and was right; the filter was decoration.
+//     On top of that the tile counted a 30-day window and the dedicated endpoint listed a 60-day one.
+import { Hono } from 'hono'
+import { eq } from 'drizzle-orm'
+
+let failed = 0, passed = 0
+const check = (name: string, ok: boolean, detail?: unknown) => {
+  if (ok) { passed++; console.log(`  ok   ${name}`) }
+  else { failed++; console.log(`  FAIL ${name}`, detail === undefined ? '' : JSON.stringify(detail)?.slice(0, 300)) }
+}
+const day = (iso: string) => iso.slice(0, 10)
+
+const { setupSchema } = await import('./setup.ts')
+await setupSchema()
+const { db } = await import('./db/index.ts')
+const { company, user, contact, equipment, equipmentCategory, equipmentMaintenance } = await import('./db/schema.ts')
+
+const [co] = await db.insert(company).values({
+  name: 'Kit Co', slug: 'kit-co', email: 'k@test.local', state: 'OH', settings: {},
+  enabledFeatures: ['equipment_tracking'],
+} as any).returning()
+const [owner] = await db.insert(user).values({
+  email: 'owner-kit@test.local', passwordHash: 'x', firstName: 'Ida', lastName: 'Shaw',
+  role: 'owner', companyId: co.id, isActive: true,
+} as any).returning()
+const [rivera] = await db.insert(contact).values({ companyId: co.id, name: 'T32 Client Rivera', type: 'customer' } as any).returning()
+const [other] = await db.insert(contact).values({ companyId: co.id, name: 'Someone Else', type: 'customer' } as any).returning()
+const [cat] = await db.insert(equipmentCategory).values({ companyId: co.id, name: 'Furnaces' } as any).returning()
+
+const app = new Hono()
+app.route('/api/equipment', (await import('./src/routes/equipment.ts')).default)
+app.onError((await import('./src/utils/errors.ts')).errorHandler)
+const api = async (method: string, path: string, body?: unknown) => {
+  const res = await app.request(path, {
+    method, headers: { 'content-type': 'application/json', 'x-test-user': owner.id },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+  return { status: res.status, json: j, text: t }
+}
+
+// ══════════ the record the report tried to create ══════════════════════════════════════════════
+{
+  const made = await api('POST', '/api/equipment', {
+    name: 'Carrier 59SC5A', model: '59SC5A', manufacturer: 'Carrier', serialNumber: 'SN-11821',
+    contactId: rivera.id, categoryId: cat.id, installDate: '2024-10-20', warrantyMonths: 24,
+    location: 'Basement', notes: 'Second floor zone',
+  })
+  check('equipment is created', made.status === 201, { status: made.status, body: made.text?.slice(0, 220) })
+  const id = made.json?.id
+  const [row] = await db.select().from(equipment).where(eq(equipment.id, id))
+
+  check('the CUSTOMER is linked', row?.contactId === rivera.id, { contactId: row?.contactId, expected: rivera.id })
+  check('the install date is stored', row?.purchaseDate && day(new Date(row.purchaseDate).toISOString()) === '2024-10-20',
+    { purchaseDate: row?.purchaseDate })
+  check('24 months becomes a warranty expiry of 20 Oct 2026',
+    row?.warrantyExpiry && day(new Date(row.warrantyExpiry).toISOString()) === '2026-10-20',
+    { warrantyExpiry: row?.warrantyExpiry })
+  check('the category is stored', row?.categoryId === cat.id, { categoryId: row?.categoryId })
+  check('…and so is everything else that was typed',
+    row?.model === '59SC5A' && row?.manufacturer === 'Carrier' && row?.serialNumber === 'SN-11821' && row?.location === 'Basement',
+    { model: row?.model, manufacturer: row?.manufacturer, serial: row?.serialNumber, location: row?.location })
+
+  // The form reads these keys back when you open Edit. Returning only the column names showed blanks
+  // over stored values, and saving the blank form would then have cleared them.
+  check('the response speaks the form\'s language back (installDate)', day(String(made.json?.installDate)) === '2024-10-20', made.json?.installDate)
+  check('…and warrantyMonths round-trips as 24', made.json?.warrantyMonths === 24, made.json?.warrantyMonths)
+
+  const detail = await api('GET', `/api/equipment/${id}`)
+  check('the detail read carries them too', day(String(detail.json?.installDate)) === '2024-10-20' && detail.json?.warrantyMonths === 24,
+    { installDate: detail.json?.installDate, warrantyMonths: detail.json?.warrantyMonths })
+  check('…and the customer', detail.json?.contact?.name === 'T32 Client Rivera', detail.json?.contact)
+
+  // Editing must not drop them either — PUT used to spread the raw body onto the row.
+  const edited = await api('PUT', `/api/equipment/${id}`, { installDate: '2024-11-01', warrantyMonths: 12, location: 'Attic' })
+  check('an edit keeps the translation', edited.status === 200, { status: edited.status, body: edited.text?.slice(0, 200) })
+  const [after] = await db.select().from(equipment).where(eq(equipment.id, id))
+  check('…the install date moved', day(new Date(after!.purchaseDate!).toISOString()) === '2024-11-01', after?.purchaseDate)
+  check('…the warranty recomputed from it', day(new Date(after!.warrantyExpiry!).toISOString()) === '2025-11-01', after?.warrantyExpiry)
+  check('…and the other field saved', after?.location === 'Attic', after?.location)
+  check('…while the customer was left alone, not nulled by an edit that did not mention it',
+    after?.contactId === rivera.id, after?.contactId)
+}
+
+// ══════════ a month-end install date does not roll into the next month ═════════════════════════
+{
+  const made = await api('POST', '/api/equipment', { name: 'Month end', installDate: '2024-01-31', warrantyMonths: 25 })
+  const [row] = await db.select().from(equipment).where(eq(equipment.id, made.json.id))
+  // 25 months from 31 Jan 2024 is Feb 2026, which has 28 days. Rolling to 3 March would be wrong.
+  check('25 months from 31 Jan clamps to the end of February, it does not roll into March',
+    day(new Date(row!.warrantyExpiry!).toISOString()) === '2026-02-28', row?.warrantyExpiry)
+}
+
+// ══════════ the filters that were not filters ══════════════════════════════════════════════════
+{
+  const soon = new Date(Date.now() + 20 * 86_400_000)
+  const far = new Date(Date.now() + 400 * 86_400_000)
+  const [expiring] = await db.insert(equipment).values({
+    companyId: co.id, name: 'Warranty soon', status: 'active', contactId: other.id,
+    purchaseDate: new Date('2023-01-01'), warrantyExpiry: soon,
+  } as any).returning()
+  await db.insert(equipment).values({
+    companyId: co.id, name: 'Warranty years away', status: 'active',
+    purchaseDate: new Date('2024-01-01'), warrantyExpiry: far,
+  } as any)
+  const [noWarranty] = await db.insert(equipment).values({
+    companyId: co.id, name: 'No warranty recorded', status: 'active',
+  } as any).returning()
+
+  const all = await api('GET', '/api/equipment?limit=100')
+  const filtered = await api('GET', '/api/equipment?warrantyExpiring=true&limit=100')
+  const names = (r: any) => (r.json?.data || []).map((x: any) => x.name)
+
+  check('the unfiltered list has everything', names(all).length >= 4, names(all))
+  check('?warrantyExpiring=true now actually filters', names(filtered).length === 1 && names(filtered)[0] === 'Warranty soon',
+    { got: names(filtered) })
+  check('…so the record with NO warranty date is no longer returned by it',
+    !names(filtered).includes('No warranty recorded'), names(filtered))
+
+  const stats = await api('GET', '/api/equipment/stats')
+  check('…and the tile agrees with the filter, to the row', stats.json?.warrantyExpiring === names(filtered).length,
+    { tile: stats.json?.warrantyExpiring, filtered: names(filtered).length })
+
+  const dedicated = await api('GET', '/api/equipment/warranty-expiring')
+  check('…as does the dedicated endpoint, which used a different window', (dedicated.json || []).length === names(filtered).length,
+    { endpoint: (dedicated.json || []).length, filtered: names(filtered).length })
+
+  // needsMaintenance was the same no-op.
+  await db.insert(equipmentMaintenance).values({
+    equipmentId: noWarranty.id, type: 'service', performedAt: new Date(Date.now() - 400 * 86_400_000),
+    nextDueDate: new Date(Date.now() - 10 * 86_400_000),
+  } as any)
+  const due = await api('GET', '/api/equipment?needsMaintenance=true&limit=100')
+  check('?needsMaintenance=true filters to the one that is overdue',
+    names(due).length === 1 && names(due)[0] === 'No warranty recorded', { got: names(due) })
+
+  const byCategory = await api(`GET`, `/api/equipment?categoryId=${cat.id}&limit=100`)
+  check('?categoryId filters', names(byCategory).length === 1 && names(byCategory)[0] === 'Carrier 59SC5A', { got: names(byCategory) })
+
+  // And the Jobs screen's picker, which asks by customer — on this template that returned the whole
+  // company's equipment, because there was no contact_id to filter on.
+  const theirs = await api('GET', `/api/equipment?contactId=${rivera.id}&limit=100`)
+  check('?contactId returns only that customer\'s assets', names(theirs).length === 1 && names(theirs)[0] === 'Carrier 59SC5A',
+    { got: names(theirs) })
+  check('…and not another customer\'s', !names(theirs).includes('Warranty soon'), names(theirs))
+  void expiring
+}
+
+console.log(`\n  ${passed} passed, ${failed} failed`)
+process.exit(failed ? 1 : 0)

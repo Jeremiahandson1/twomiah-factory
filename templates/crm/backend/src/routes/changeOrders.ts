@@ -5,6 +5,7 @@ import { changeOrder, changeOrderLineItem, project, user } from '../../db/schema
 import { eq, and, count, desc, asc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
+import { createActorName } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -57,20 +58,8 @@ const refuse = (c: any, co: { number: string; status: string }, verb: string, al
     allowedFrom: allowed,
   }, 400)
 
-/**
- * Who the signed-in person is, for the record. Never the request body.
- *
- * Looked up here rather than taken from the auth context, which carries userId / companyId / email /
- * role and no name. `approved_by` is text that a human reads off a printed change order, so it wants
- * the name — and widening the shared auth context would add two columns to EVERY authenticated
- * request in the fleet to serve one rare action. The email is the fallback: ugly on a document, but
- * unambiguous, which is the property that matters.
- */
-const actorName = async (u: any) => {
-  const [row] = await db.select({ firstName: user.firstName, lastName: user.lastName, email: user.email })
-    .from(user).where(and(eq(user.id, u.userId), eq(user.companyId, u.companyId))).limit(1)
-  return [row?.firstName, row?.lastName].filter(Boolean).join(' ') || row?.email || u?.email || 'Unknown'
-}
+/** Who approved this, by name, for the record. Never the request body. (shared: auth/actorName) */
+const actorName = createActorName({ db, tables: { user } })
 
 /**
  * `unitPrice` takes either sign: a deductive change order is a negative line, and that is routine

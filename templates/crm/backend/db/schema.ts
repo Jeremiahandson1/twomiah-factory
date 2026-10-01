@@ -1360,11 +1360,15 @@ export const equipment = pgTable('equipment', {
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   categoryId: text('category_id').references(() => equipmentCategory.id),
+  // Whose asset this is. The form has always offered a Customer and posted contactId; this template
+  // had no column for it, so the link was dropped on every save. (T32 H9, migration 0029)
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('equipment_company_id_idx').on(t.companyId),
+  index('equipment_contact_id_idx').on(t.contactId),
 ])
 
 export const equipmentMaintenance = pgTable('equipment_maintenance', {
