@@ -610,6 +610,37 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }: AddItemModalProp
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">Add Measurement</h2>
 
+          {/*
+            A fresh tenant has no assemblies, and no screen creates one — so the dropdown below was
+            empty and a measurement could not be added at all. The product already knows how to seed
+            a standard set (POST /api/takeoffs/assemblies/seed); nothing ever offered it. (T32 B5)
+
+            Shown only when the list is empty, so it is a way out of a dead end rather than a button
+            that invites duplicate assemblies.
+          */}
+          {assemblies.length === 0 && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/40">
+              <p className="text-amber-900 dark:text-amber-200">
+                No assemblies yet. An assembly is the recipe — what a square foot of drywall or a linear
+                foot of wall framing costs in materials.
+              </p>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await api.post('/api/takeoffs/assemblies/seed', {});
+                    onSave();
+                  } catch {
+                    alert('Could not add the standard assemblies');
+                  }
+                }}
+                className="mt-2 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700"
+              >
+                Add the standard assemblies
+              </button>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Assembly Type</label>

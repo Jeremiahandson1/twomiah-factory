@@ -76,6 +76,12 @@ export default function SelectionsPage({ projectId: propProjectId }: SelectionsP
   const [showOptionPicker, setShowOptionPicker] = useState<SelectionItem | null>(null);
   const [showAddSelection, setShowAddSelection] = useState<boolean>(false);
 
+  // Whether the project list has come back yet. Without it the empty state below announced
+  // "No projects found. Create a project first." during the fetch — on a tenant that has projects.
+  // Telling somebody their work is missing while you are still looking for it is worse than a
+  // spinner. (T32 L1)
+  const [projectsLoaded, setProjectsLoaded] = useState<boolean>(!!propProjectId);
+
   // Load projects for standalone route (no projectId prop)
   useEffect(() => {
     if (!propProjectId) {
@@ -83,7 +89,7 @@ export default function SelectionsPage({ projectId: propProjectId }: SelectionsP
         const data = (res?.data || res || []) as ProjectItem[];
         setProjects(data);
         if (data.length > 0 && !projectId) setProjectId(data[0].id);
-      }).catch(() => {});
+      }).catch(() => {}).finally(() => setProjectsLoaded(true));
     }
   }, [propProjectId]);
 
@@ -135,8 +141,10 @@ export default function SelectionsPage({ projectId: propProjectId }: SelectionsP
       <div className="flex items-center justify-center h-full">
         <div className="text-center p-8">
           <Palette className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-          <p className="text-gray-500 mb-4 dark:text-slate-400">Select a project to view selections</p>
-          {projects.length > 0 ? (
+          <p className="text-gray-500 mb-4 dark:text-slate-400">
+            {projectsLoaded ? 'Select a project to view selections' : 'Loading projects…'}
+          </p>
+          {!projectsLoaded ? null : projects.length > 0 ? (
             <select
               value={projectId}
               onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setProjectId(e.target.value)}
@@ -626,7 +634,13 @@ function AddSelectionModal({ projectId, categories, onSave, onClose }: AddSelect
     setSaving(true);
     try {
       // quantity holds text while it is typed; it becomes a number here, once
-      await api.post(`/api/selections/project/`, { ...form, quantity: Number(form.quantity) || 0 });
+      // The project id goes IN THE PATH. (T32 B1)
+      //
+      // This posted to the literal `/api/selections/project/` with the id left out, so every attempt
+      // answered 404 and the screen said "Failed to create selection" — a module that could not be
+      // used at all from the UI, while the same body posted to /api/selections/project/<id> worked.
+      // The id was already here as a prop; it just never reached the URL.
+      await api.post(`/api/selections/project/${projectId}`, { ...form, quantity: Number(form.quantity) || 0 });
       onSave();
     } catch (error: unknown) {
       alert('Failed to create selection');

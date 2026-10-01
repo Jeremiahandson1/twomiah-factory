@@ -19,6 +19,24 @@ function rows(result: any): any[] {
   return Array.isArray(result) ? result : (result?.rows || [])
 }
 
+/**
+ * Raw-SQL rows come back snake_case; the rest of this API is camelCase. (T32 B5)
+ *
+ * `SELECT * FROM takeoff_calculated_material` returned material_name, base_quantity, total_cost …
+ * while the screen reads materialName, baseQuantity, totalCost. Every one was undefined, so the
+ * breakdown showed a blank material name, NaN quantities and $NaN costs — a module that looked broken
+ * while the arithmetic underneath it was right (the sheet totals reconciled by hand).
+ *
+ * Mapped here rather than renamed in the UI: every other endpoint in this product speaks camelCase,
+ * and the odd one out is this file's raw SQL.
+ */
+const toCamel = (row: Record<string, any>): Record<string, any> => {
+  const out: Record<string, any> = {}
+  for (const [k, v] of Object.entries(row)) out[k.replace(/_([a-z0-9])/g, (_m, ch) => ch.toUpperCase())] = v
+  return out
+}
+const camelRows = (result: any): any[] => rows(result).map(toCamel)
+
 // Measurement types
 export const MEASUREMENT_TYPES = {
   AREA: 'area',
@@ -205,7 +223,7 @@ export async function getTakeoffSheet(sheetId: string, companyId: string) {
   `))
 
   for (const item of sheet.items) {
-    item.calculatedMaterials = rows(await db.execute(sql`
+    item.calculatedMaterials = camelRows(await db.execute(sql`
       SELECT * FROM takeoff_calculated_material WHERE item_id = ${item.id}
     `))
   }
@@ -240,16 +258,28 @@ export async function addTakeoffItem(sheetId: string, companyId: string, data: a
 /**
  * Calculate measurement value based on type
  */
+/**
+ * The measured amount for one line, INCLUDING how many of it there are. (T32 B5)
+ *
+ * `quantity` was ignored for area, linear and volume, so "14.5 lf of wall, ×2" was costed as 14.5 lf
+ * — the tester got 11.97 studs where 23.93 were needed. A measurement line exists precisely so that
+ * somebody can say "this wall, twice" instead of entering it twice, and under-ordering framing is the
+ * kind of error that is found on site.
+ *
+ * `count` is the exception: there the quantity IS the measurement, so it must not be squared.
+ * Quantity defaults to 1, so every existing single-item line is unchanged.
+ */
 function calculateMeasurement(data: any, measurementType: string): number {
+  const qty = Number(data.quantity) > 0 ? Number(data.quantity) : 1
   switch (measurementType) {
     case 'area':
-      return (data.length || 0) * (data.width || 0)
+      return (data.length || 0) * (data.width || 0) * qty
     case 'linear':
-      return data.length || 0
+      return (data.length || 0) * qty
     case 'count':
       return data.quantity || 1
     case 'volume':
-      return (data.length || 0) * (data.width || 0) * (data.height || 0)
+      return (data.length || 0) * (data.width || 0) * (data.height || 0) * qty
     default:
       return data.quantity || 0
   }
@@ -303,7 +333,7 @@ async function getTakeoffItem(itemId: string) {
   `))
   if (!item) return null
 
-  item.calculatedMaterials = rows(await db.execute(sql`
+  item.calculatedMaterials = camelRows(await db.execute(sql`
     SELECT * FROM takeoff_calculated_material WHERE item_id = ${itemId}
   `))
 
@@ -340,7 +370,20 @@ export async function updateTakeoffItem(itemId: string, companyId: string, data:
   if (data.notes !== undefined) sets.push(sql`notes = ${data.notes}`)
   if (data.wasteFactor !== undefined) sets.push(sql`waste_factor = ${num(data.wasteFactor)}`)
 
-  await db.execute(sql`UPDATE takeoff_item SET ${sql.join(sets, sql`, `)} WHERE id = ${itemId} AND company_id = ${companyId}`)
+  // Scoped through the SHEET, because takeoff_item has no company_id. (T32 500-1)
+  //
+  // This said `AND company_id = ${companyId}` on takeoff_item, which has no such column — the row's
+  // company comes from its sheet, which is exactly how the SELECT above gets it (ts.company_id). So
+  // every real call answered 500, and a made-up id answered 404 first, which is why nothing caught it:
+  // the contract test probed this route with a ghost id and never reached the UPDATE.
+  //
+  // Ownership is already proven above; keeping the scope in the statement means a future edit that
+  // drops that check cannot turn this into a cross-tenant write.
+  await db.execute(sql`
+    UPDATE takeoff_item SET ${sql.join(sets, sql`, `)}
+    WHERE id = ${itemId}
+      AND sheet_id IN (SELECT id FROM takeoff_sheet WHERE company_id = ${companyId})
+  `)
   await calculateItemMaterials(itemId, companyId)
 
   return getTakeoffItem(itemId)

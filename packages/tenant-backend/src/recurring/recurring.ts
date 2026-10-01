@@ -37,18 +37,41 @@ function rows(result: any): any[] {
   return Array.isArray(result) ? result : (result?.rows || [])
 }
 
+/**
+ * Add months and CLAMP to the end of the target month. (T32 H7)
+ *
+ * `date.setMonth(date.getMonth() + 1)` on 31 October asks for 31 November, which JavaScript rolls
+ * forward to 1 December. So a monthly invoice dated the 31st never billed November at all, and the
+ * schedule drifted permanently to the 1st — the tester watched it go 31 Oct → 1 Dec → 1 Jan. The same
+ * rollover hits quarterly and semiannual from any 29th, 30th or 31st, and annual from 29 February.
+ *
+ * A business that invoices on the last day of the month means the LAST DAY, so 31 Oct → 30 Nov and
+ * 31 Jan → 28 (or 29) Feb. Setting the day to 1 before changing the month is what stops the rollover
+ * happening before there is a chance to clamp.
+ */
+function addMonthsClamped(from: Date, months: number): Date {
+  const date = new Date(from)
+  const wantedDay = date.getDate()
+  date.setDate(1)
+  date.setMonth(date.getMonth() + months)
+  // day 0 of the following month is the last day of this one
+  const lastDayOfTarget = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+  date.setDate(Math.min(wantedDay, lastDayOfTarget))
+  return date
+}
+
 export function calculateNextDate(fromDate: Date | string, frequency: string): Date {
   const date = new Date(fromDate)
   switch (frequency) {
-    case FREQUENCIES.WEEKLY: date.setDate(date.getDate() + 7); break
-    case FREQUENCIES.BIWEEKLY: date.setDate(date.getDate() + 14); break
-    case FREQUENCIES.MONTHLY: date.setMonth(date.getMonth() + 1); break
-    case FREQUENCIES.QUARTERLY: date.setMonth(date.getMonth() + 3); break
-    case FREQUENCIES.SEMIANNUAL: date.setMonth(date.getMonth() + 6); break
-    case FREQUENCIES.ANNUAL: date.setFullYear(date.getFullYear() + 1); break
-    default: date.setMonth(date.getMonth() + 1)
+    case FREQUENCIES.WEEKLY: date.setDate(date.getDate() + 7); return date
+    case FREQUENCIES.BIWEEKLY: date.setDate(date.getDate() + 14); return date
+    case FREQUENCIES.MONTHLY: return addMonthsClamped(date, 1)
+    case FREQUENCIES.QUARTERLY: return addMonthsClamped(date, 3)
+    case FREQUENCIES.SEMIANNUAL: return addMonthsClamped(date, 6)
+    // 29 February + a year is 1 March by the same rollover; clamp it to 28 February.
+    case FREQUENCIES.ANNUAL: return addMonthsClamped(date, 12)
+    default: return addMonthsClamped(date, 1)
   }
-  return date
 }
 
 function calculateDueDate(invoiceDate: Date, terms: string): Date {
@@ -441,7 +464,24 @@ export function createRecurringRoutes(deps: RecurringRoutesDeps) {
     const user = c.get('user'); const id = c.req.param('id')
     const recurring = await service.getRecurringById(id, user.companyId)
     if (!recurring) return c.json({ error: 'Recurring invoice not found' }, 404)
-    const { invoice } = await service.generateInvoice(id) as any
+    /**
+     * The service returns the invoice ITSELF, not { invoice }. (T32 500-2)
+     *
+     * This destructured `{ invoice }`, so `invoice` was undefined and `invoice.id` threw — AFTER the
+     * invoice had been written and the schedule advanced a month. The caller saw a 500 on a charge
+     * that had actually happened, so retrying double-billed the client: the tester got INV-00097 and
+     * INV-00098 for one $158.25 run.
+     *
+     * Tolerating both shapes rather than only the right one, because the same service is called by the
+     * cron path (processDueRecurring) and by any template that wires its own: a route that throws on an
+     * unexpected shape turns a successful charge into an error, which is how this became a billing bug
+     * rather than a cosmetic one.
+     */
+    const result = await service.generateInvoice(id) as any
+    const invoice = result?.invoice ?? result
+    if (!invoice?.id) {
+      return c.json({ error: 'The invoice could not be generated.', code: 'generate_failed' }, 500)
+    }
     audit.log({ action: audit.ACTIONS.CREATE, entity: 'invoice', entityId: invoice.id, entityName: invoice.number, metadata: { source: 'recurring', recurringId: recurring.id }, userId: user.userId, companyId: user.companyId })
     return c.json(invoice, 201)
   })
