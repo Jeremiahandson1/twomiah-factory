@@ -1,7 +1,20 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { authenticate } from '../middleware/auth.ts';
 import { requirePermission } from '../middleware/permissions.ts';
 import takeoffs from '../services/takeoffs.ts';
+
+/**
+ * What the INSERTs actually require.
+ *
+ * The services build raw SQL from the body with no default for these fields, and drizzle
+ * interpolating `undefined` produces a malformed statement — so an empty body answered 500 "syntax
+ * error at or near ','" instead of a 400. Only the fields the SQL has no fallback for are required;
+ * the rest the services already default.
+ */
+const assemblyBody = z.object({ name: z.string().min(1, 'Name is required') }).passthrough();
+const sheetBody = z.object({ name: z.string().min(1, 'Name is required') }).passthrough();
+const itemBody = z.object({ assemblyId: z.string().min(1, 'Pick an assembly') }).passthrough();
 
 const app = new Hono();
 app.use('*', authenticate);
@@ -30,7 +43,7 @@ app.get('/assemblies/:id', async (c) => {
 
 app.post('/assemblies', requirePermission('takeoffs:create'), async (c) => {
   const user = c.get('user') as any;
-  const body = await c.req.json();
+  const body = assemblyBody.parse(await c.req.json().catch(() => ({})));
   const assembly = await takeoffs.createAssembly(user.companyId, body);
   return c.json(assembly, 201);
 });
@@ -67,7 +80,7 @@ app.get('/sheets/:id', async (c) => {
 
 app.post('/project/:projectId', requirePermission('takeoffs:create'), async (c) => {
   const user = c.get('user') as any;
-  const body = await c.req.json();
+  const body = sheetBody.parse(await c.req.json().catch(() => ({})));
   const sheet = await takeoffs.createTakeoffSheet(user.companyId, {
     ...body,
     projectId: c.req.param('projectId'),
@@ -81,7 +94,7 @@ app.post('/project/:projectId', requirePermission('takeoffs:create'), async (c) 
 
 app.post('/sheets/:sheetId/items', requirePermission('takeoffs:create'), async (c) => {
   const user = c.get('user') as any;
-  const body = await c.req.json();
+  const body = itemBody.parse(await c.req.json().catch(() => ({})));
   const item = await takeoffs.addTakeoffItem(c.req.param('sheetId'), user.companyId, body);
   return c.json(item, 201);
 });

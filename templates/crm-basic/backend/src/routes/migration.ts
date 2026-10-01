@@ -4,6 +4,7 @@ import { requireRole } from '../middleware/permissions.ts'
 import migration from '../services/migration.ts'
 import importService from '../services/import.ts'
 import audit from '../services/audit.ts'
+import { uploadedForm } from '../utils/upload.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -72,7 +73,7 @@ app.post('/csv/:provider/:entityType', async (c) => {
   const provider = c.req.param('provider')
   const entityType = c.req.param('entityType')
 
-  const formData = await c.req.formData()
+  const formData = await uploadedForm(c)
   const file = formData.get('file') as File | null
   if (!file) return c.json({ error: 'No file uploaded' }, 400)
 

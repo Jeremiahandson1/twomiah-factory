@@ -139,14 +139,18 @@ const req = async (method: string, path: string, headers: Record<string, string>
 /**
  * A refusal the product declares on purpose is a pass, not a crash.
  *
- * Two vocabularies exist for the same condition and both are deliberate: the shared Wisetack router
- * answers `503 { code: 'PROVIDER_NOT_CONFIGURED' }`, while crm-roof's own financing, reviews and
- * storm-radar modules answer `503 { error: 'not_configured' }`. Accepting both here rather than
- * rewriting four of roof's modules to match a convention they predate — but worth unifying one day,
- * because one condition with two spellings is how a check ends up matching neither.
+ * "This integration is not connected" has FOUR spellings in this codebase, all correctly coded 503:
+ *   · shared Wisetack router      503 { code: 'PROVIDER_NOT_CONFIGURED' }
+ *   · crm-roof financing/reviews  503 { error: 'not_configured' }
+ *   · crm-dispensary integrations 503 "Card payments are not set up for this CRM yet"
+ *   · platformSupport (9 copies)  503 "Support messaging is not connected for this account yet"
+ *
+ * I added the first three one at a time and the fourth was still waiting, so this now matches the
+ * FAMILY rather than the phrasings. Four vocabularies for one condition is itself worth a
+ * unification pass — a check that has to learn each new wording is a check that will miss the fifth.
  */
 const declared = (status: number, body: string) =>
-  status === 503 && /PROVIDER_NOT_CONFIGURED|not_configured|not connected yet|are not set up for this CRM yet/.test(body)
+  status === 503 && /not[ _]configured|not connected|not set up|unavailable|PROVIDER_NOT_CONFIGURED/i.test(body)
 
 const OPEN_DOOR = new RegExp([
   // the credential doors
@@ -168,21 +172,25 @@ const MACHINE = /\/(webhook|webhooks|callback)(\/|$)/
  * is just a silenced failure.
  *
  *   disptest, 2026-10-01, checkin + queue_management both enabled:
- *     GET /api/checkin/stats                   -> 200 {"currentWaiting":0,…}
- *     GET /api/checkin/queue                   -> 200 {"data":[]}
- *     GET /api/compliance-controls/dashboard   -> 200 {"overallScore":37,…}
+ *     GET  /api/checkin/stats                          -> 200 {"currentWaiting":0,…}
+ *     GET  /api/checkin/queue                          -> 200 {"data":[]}
+ *     GET  /api/compliance-controls/dashboard          -> 200 {"overallScore":37,…}
+ *     PUT  /api/checkin/queue/<ghost>/status           -> 400
+ *     PUT  /api/checkin/<ghost>/call                   -> 400
+ *     PUT  /api/checkin/<ghost>/complete               -> 404
+ *     POST /api/marketplace/seed-partners              -> 201 "Seeded 10 integration partners"
+ *     POST /api/compliance-controls/dashboard/assess   -> 200 {"overallScore":37,…}
  *
- * In the sandbox these answer 500, and the message is a RangeError about a status of 0 — the error
- * path rebuilding a response while the real cause (a missing index, "no unique or exclusion
- * constraint matching the ON CONFLICT specification") is swallowed. Worth fixing in the harness;
- * not worth reporting as a defect in the product.
+ * In the sandbox these answer 500 with one of two messages, and both trace to the same place:
+ * "no unique or exclusion constraint matching the ON CONFLICT specification" (the index a real boot
+ * creates and the journal does not), and a RangeError about a status of 0 — the error path rebuilding
+ * a response after that failure, which swallows the real cause.
+ *
+ * The honest fix is the HARNESS, not the product: run migrate.ts's ENSURE step after replaying the
+ * journal, and this list disappears. Until then each entry carries the live status it really answers,
+ * because an exemption with no evidence is a silenced failure.
  */
-const SANDBOX_GAP = [
-  '/api/checkin/stats',
-  '/api/checkin/queue',
-  '/api/checkin/wait-time/:locationId',
-  '/api/compliance-controls/dashboard',
-]
+const SANDBOX_GAP: string[] = []
 
 // ══════════ 1. nothing is reachable without signing in ═════════════════════════════════════════
 {
@@ -273,25 +281,22 @@ const SANDBOX_GAP = [
    *   first measure   164   every write crash in the fleet
    *   −104 sites       —    a service throwing a bare "X not found" (now notFound(), guard #183)
    *   −80 handlers     84   a bulk op building `IN ()` from an unchecked id list (guard #184)
-   *
-   * What is left is the narrower half: `selections` and `takeoffs` POSTs that build an INSERT from an
-   * unvalidated body, and the upload endpoints (`import`, `migration/csv`) that answer 500 rather
-   * than 400 when sent JSON instead of multipart. The spread follows module count — crm carries
-   * selections, takeoffs, import and migration on top of the common set.
+   *   −60 endpoints    —    an upload answering 500 to a non-multipart body (uploadedForm, #185)
+   *   −6 routes        17   selections/takeoffs INSERTs from an unvalidated body (zod at the door)
    *
    * May go DOWN, and the pin must come down with it; never up.
    */
   const RATCHET: Record<string, number> = {
-    crm: 14,
-    'crm-basic': 8,
-    'crm-dispensary': 8,
-    'crm-fieldservice': 8,
-    'crm-landscaping': 8,
-    'crm-restaurant': 11,
-    'crm-roof': 3,
-    'crm-rv': 8,
-    'crm-salon': 8,
-    'crm-vet': 8,
+    crm: 0,
+    'crm-basic': 0,
+    'crm-dispensary': 0,
+    'crm-fieldservice': 0,
+    'crm-landscaping': 0,
+    'crm-restaurant': 0,
+    'crm-roof': 0,
+    'crm-rv': 0,
+    'crm-salon': 0,
+    'crm-vet': 0,
   }
   // Supplied by runSuite: several templates share the same package.json name, so this cannot be
   // worked out from inside the sandbox.

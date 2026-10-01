@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import importService, { type FileUpload } from '../services/import.ts'
+import { uploadedForm } from '../utils/upload.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -8,7 +9,7 @@ app.use('*', requireAdmin)
 
 // Preview a single CSV (detect type, show columns + sample rows)
 app.post('/preview', async (c) => {
-  const formData = await c.req.formData()
+  const formData = await uploadedForm(c)
   const file = formData.get('file') as File | null
   if (!file) return c.json({ error: 'No file uploaded' }, 400)
 
@@ -21,7 +22,7 @@ app.post('/preview', async (c) => {
 // Run full multi-file import with cross-referencing
 app.post('/run', async (c) => {
   const currentUser = c.get('user') as any
-  const formData = await c.req.formData()
+  const formData = await uploadedForm(c)
 
   const dryRun = formData.get('dryRun') === 'true'
   const createMissingContacts = formData.get('createMissingContacts') !== 'false'

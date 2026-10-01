@@ -9,6 +9,7 @@ import { parseBody, nameSchema } from '../utils/validation';
 import { NotFoundError } from '../utils/errors';
 import { uploadFile, deleteFile } from '../services/r2';
 import { logger } from '../services/logger';
+import { uploadedForm } from '../utils/upload.ts'
 
 const app = new Hono();
 
@@ -37,7 +38,7 @@ app.get('/', async (c) => {
 app.post('/', requireManager, async (c) => {
   const authUser = c.get('user');
 
-  const formData = await c.req.formData();
+  const formData = await uploadedForm(c);
   const file = formData.get('file') as File | null;
   const name = (formData.get('name') as string) || '';
   const description = (formData.get('description') as string) || '';

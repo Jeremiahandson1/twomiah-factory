@@ -1,7 +1,25 @@
 import { Hono } from 'hono'
+import { z } from 'zod'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import selections from '../services/selections.ts'
+
+/**
+ * What the INSERTs actually require.
+ *
+ * The services build raw SQL straight from the body — `${data.name}` with no default — and drizzle
+ * interpolating `undefined` produces a malformed statement, so Postgres answered "syntax error at or
+ * near ','" and the route 500'd. An empty body is a 400; it was never a server fault.
+ *
+ * Only the fields with no fallback in the SQL are required here. Everything else the services already
+ * default (`|| null`, `|| 0`, `|| 'each'`), and re-declaring those would mean two places to change.
+ */
+const categoryBody = z.object({ name: z.string().min(1, 'Name is required') }).passthrough()
+const optionBody = z.object({
+  categoryId: z.string().min(1, 'Pick a category'),
+  name: z.string().min(1, 'Name is required'),
+}).passthrough()
+const projectSelectionBody = z.object({ name: z.string().min(1, 'Name is required') }).passthrough()
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -23,7 +41,7 @@ app.get('/categories', async (c) => {
 
 app.post('/categories', requirePermission('selections:create'), async (c) => {
   const user = c.get('user') as any
-  const body = await c.req.json()
+  const body = categoryBody.parse(await c.req.json().catch(() => ({})))
   const category = await selections.createCategory(user.companyId, body)
   return c.json(category, 201)
 })
@@ -53,7 +71,7 @@ app.get('/options', async (c) => {
 
 app.post('/options', requirePermission('selections:create'), async (c) => {
   const user = c.get('user') as any
-  const body = await c.req.json()
+  const body = optionBody.parse(await c.req.json().catch(() => ({})))
   const option = await selections.createOption(user.companyId, body)
   return c.json(option, 201)
 })
@@ -82,7 +100,7 @@ app.get('/project/:projectId/summary', async (c) => {
 app.post('/project/:projectId', requirePermission('selections:create'), async (c) => {
   const user = c.get('user') as any
   const projectId = c.req.param('projectId')
-  const body = await c.req.json()
+  const body = projectSelectionBody.parse(await c.req.json().catch(() => ({})))
   const selection = await selections.createProjectSelection(user.companyId, {
     ...body,
     projectId,

@@ -1562,6 +1562,17 @@ jobs:
       - name: "an empty id list is a 400, never IN () and never a silent no-op"
         run: bun run scripts/check-bulk-checks-its-ids.ts
 
+  uploads-refuse-non-multipart:
+    name: "an upload refuses a non-multipart body with 400"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "c.req.formData() belongs only in utils/upload.ts"
+        run: bun run scripts/check-uploads-refuse-non-multipart.ts
+
   dashboard-panels-load:
     name: "dashboard panels load"
     runs-on: ubuntu-latest

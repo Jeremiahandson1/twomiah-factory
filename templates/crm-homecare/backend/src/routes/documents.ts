@@ -5,6 +5,7 @@ import { db } from '../../db/index.ts'
 import { clientDocuments, clients } from '../../db/schema.ts'
 import { eq, desc } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { uploadedForm } from '../utils/upload.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -47,7 +48,7 @@ app.post('/:entityType/:entityId/upload', requireAdmin, async (c) => {
   const dir = path.join(uploadsDir, entityType || 'misc')
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
 
-  const formData = await c.req.formData()
+  const formData = await uploadedForm(c)
   const file = formData.get('file') as File | null
   if (!file) return c.json({ error: 'No file uploaded' }, 400)
 

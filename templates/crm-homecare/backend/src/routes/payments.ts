@@ -7,6 +7,7 @@ import { db } from '../../db/index.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { createId } from '@paralleldrive/cuid2'
 import fs from 'fs'
+import { uploadedForm } from '../utils/upload.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -16,7 +17,7 @@ app.use('*', requireAdmin)
 // Uses Claude AI vision to extract check/remittance data from an image
 app.post('/scan-check', async (c) => {
   try {
-    const formData = await c.req.formData()
+    const formData = await uploadedForm(c)
     const file = formData.get('check') as File | null
     if (!file) return c.json({ error: 'No image uploaded' }, 400)
 

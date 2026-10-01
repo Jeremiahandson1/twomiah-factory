@@ -10,6 +10,7 @@ import { requirePermission } from '../middleware/permissions.ts'
 import { uploadFile, deleteFile, keyFromMediaUrl } from '../services/storage.ts'
 import { createId } from '@paralleldrive/cuid2'
 import { normalizeDateInput } from '../shared/index.ts'
+import { uploadedForm } from '../utils/upload.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -424,7 +425,7 @@ app.post('/:id/photos', requirePermission('jobs:update'), async (c) => {
   const [existing] = await db.select().from(job).where(and(eq(job.id, id), eq(job.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Job not found' }, 404)
 
-  const formData = await c.req.formData()
+  const formData = await uploadedForm(c)
   const file = formData.get('photo') as File
   if (!file) return c.json({ error: 'No photo provided' }, 400)
   if (file.size > 10 * 1024 * 1024) return c.json({ error: 'Photo exceeds 10MB limit' }, 400)

@@ -3,6 +3,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import importService from '../services/import.ts'
 import audit from '../services/audit.ts'
+import { uploadedForm } from '../utils/upload.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -30,7 +31,7 @@ app.post('/preview/:type', async (c) => {
   const user = c.get('user') as any
   const type = c.req.param('type')
 
-  const formData = await c.req.formData()
+  const formData = await uploadedForm(c)
   const file = formData.get('file') as File | null
 
   if (!file) {
@@ -47,7 +48,7 @@ app.post('/preview/:type', async (c) => {
 app.post('/contacts', async (c) => {
   const user = c.get('user') as any
 
-  const formData = await c.req.formData()
+  const formData = await uploadedForm(c)
   const file = formData.get('file') as File | null
 
   if (!file) {
@@ -86,7 +87,7 @@ app.post('/contacts', async (c) => {
 app.post('/projects', async (c) => {
   const user = c.get('user') as any
 
-  const formData = await c.req.formData()
+  const formData = await uploadedForm(c)
   const file = formData.get('file') as File | null
 
   if (!file) {
@@ -117,7 +118,7 @@ app.post('/projects', async (c) => {
 app.post('/jobs', async (c) => {
   const user = c.get('user') as any
 
-  const formData = await c.req.formData()
+  const formData = await uploadedForm(c)
   const file = formData.get('file') as File | null
 
   if (!file) {
@@ -142,7 +143,7 @@ app.post('/jobs', async (c) => {
 app.post('/products', async (c) => {
   const user = c.get('user') as any
 
-  const formData = await c.req.formData()
+  const formData = await uploadedForm(c)
   const file = formData.get('file') as File | null
 
   if (!file) {
@@ -166,7 +167,7 @@ app.post('/products', async (c) => {
 // Import invoices (open balances are what a switching business cannot re-key)
 app.post('/invoices', async (c) => {
   const user = c.get('user') as any
-  const formData = await c.req.formData()
+  const formData = await uploadedForm(c)
   const file = formData.get('file') as File | null
 
   if (!file) {

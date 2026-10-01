@@ -1,6 +1,7 @@
 import './config/publicUrl.ts'
 import { Hono } from 'hono'
 import type { Context, Next } from 'hono'
+import { every } from 'hono/combine'
 import { cors } from 'hono/cors'
 import { createRateLimiter, isWrite } from './middleware/rateLimit.ts'
 import { secureHeaders } from 'hono/secure-headers'
@@ -250,8 +251,19 @@ const familyGate = (feature: string | string[], ...publicPaths: string[]) => {
     const seg = path.split('/')
     return patterns.some((pat) => pat.length === seg.length && pat.every((s, i) => s === '*' || s === seg[i]))
   }
+  // `every(authenticate, gate)` rather than `authenticate(c, () => gate(c, next))`.
+  //
+  // Hand-rolling the composition made the inner middleware's RETURN VALUE the outer one's, so Hono's
+  // compose assigned `context.res` a second time for a response it had already set. The res setter
+  // then rebuilds the response — and through @hono/node-server that produced
+  // `RangeError: The status provided (0) must be 101 or in the range of [200, 599]`, which replaced
+  // the real answer. Every /api/checkin route answered 500 in the test sandbox because of it.
+  //
+  // `every` is Hono's own composer and chains middleware the way app.use(path, a, b) does, which is
+  // exactly what the non-exempt branch is trying to say.
+  const chained = every(authenticate, gate)
   return async (c: Context, next: Next) =>
-    isPublic(c.req.path) ? next() : authenticate(c, () => gate(c, next))
+    isPublic(c.req.path) ? next() : chained(c, next)
 }
 
 app.use('/api/cash', authenticate, requireEnabledFeature('cash_management'))

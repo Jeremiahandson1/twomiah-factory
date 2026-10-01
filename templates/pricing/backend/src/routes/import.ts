@@ -9,6 +9,7 @@ import {
   generateEstimatorTemplate,
 } from '../services/importService'
 import { db } from '../../db/index'
+import { uploadedForm } from '../utils/upload.ts'
 
 const app = new Hono()
 
@@ -19,7 +20,7 @@ app.use('*', requireAdmin)
 
 app.post('/parse', async (c) => {
   try {
-    const formData = await c.req.formData()
+    const formData = await uploadedForm(c)
     const file = formData.get('file') as File
     const importType = (formData.get('importType') as string) || 'pricebook'
 
