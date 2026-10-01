@@ -1,10 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { formatDate } from '../utils/date';
-import { Plus, Edit, Trash2, Send, Trophy, XCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, Send, Trophy, XCircle, FolderPlus } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
+
+/**
+ * The lifecycle, kept in step with routes/bids.ts. (T32 H6)
+ *
+ * Before this, every action was offered on every row: the report walked Won → Lost → Submitted
+ * because the menu offered all three and the server accepted all three. The server now refuses the
+ * wrong ones, so the menu has to stop offering them — a button that can only answer 400 is a button
+ * that never works.
+ */
+const LIVE = ['draft', 'submitted', 'under_review'];
+const DECIDABLE = ['submitted', 'under_review'];
 
 interface BidForm {
   projectName: string;
@@ -44,6 +56,7 @@ export default function BidsPage() {
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const navigate = useNavigate();
   const [form, setForm] = useState<BidForm>({ projectName: '', client: '', bidType: 'lump_sum', dueDate: '', estimatedValue: '', bidAmount: '', bondRequired: false, scope: '', notes: '' });
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -77,6 +90,21 @@ export default function BidsPage() {
   const handleSubmit = async (bid: Record<string, unknown>) => { try { await api.bids.submit(bid.id as string); toast.success('Submitted'); load(); } catch (err) { toast.error((err as Error).message); } };
   const handleWon = async (bid: Record<string, unknown>) => { try { await api.bids.won(bid.id as string); toast.success('Marked as won!'); load(); } catch (err) { toast.error((err as Error).message); } };
   const handleLost = async (bid: Record<string, unknown>) => { try { await api.bids.lost(bid.id as string); toast.success('Marked as lost'); load(); } catch (err) { toast.error((err as Error).message); } };
+  /**
+   * Won → project. (T32 H6)
+   *
+   * The server's answer carries the project number and says whether the bid's contact came with it,
+   * so the toast tells the user what to do next instead of just "Converted". Navigating straight to
+   * the new project is the point of the action.
+   */
+  const handleConvert = async (bid: Record<string, unknown>) => {
+    try {
+      const res = await api.bids.convert(bid.id as string) as Record<string, any>;
+      toast.success(res?.message || 'Project created');
+      if (res?.project?.id) navigate(`/crm/projects/${res.project.id}`);
+      else load();
+    } catch (err) { toast.error((err as Error).message); }
+  };
 
   const openCreate = () => { setEditing(null); setForm({ projectName: '', client: '', bidType: 'lump_sum', dueDate: '', estimatedValue: '', bidAmount: '', bondRequired: false, scope: '', notes: '' }); setModalOpen(true); };
   const openEdit = (item: Record<string, unknown>) => { setEditing(item); setForm({ projectName: item.projectName as string, client: (item.client as string) || '', bidType: item.bidType as string, dueDate: (item.dueDate as string)?.split('T')[0] || '', estimatedValue: item.estimatedValue?.toString() || '', bidAmount: item.bidAmount?.toString() || '', bondRequired: item.bondRequired as boolean, scope: (item.scope as string) || '', notes: (item.notes as string) || '' }); setModalOpen(true); };
@@ -105,10 +133,14 @@ export default function BidsPage() {
       )}
 
       <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[
-        { label: 'Edit', icon: Edit, onClick: openEdit },
-        { label: 'Submit', icon: Send, onClick: handleSubmit },
-        { label: 'Won', icon: Trophy, onClick: handleWon },
-        { label: 'Lost', icon: XCircle, onClick: handleLost },
+        // Each action is offered only where the state machine allows it — a menu item that can
+        // only ever answer 400 is an item that never works. (T32 H6)
+        { label: 'Edit', icon: Edit, onClick: openEdit, show: (r: Record<string, unknown>) => LIVE.includes(r.status as string) },
+        { label: 'Submit', icon: Send, onClick: handleSubmit, show: (r: Record<string, unknown>) => r.status === 'draft' },
+        { label: 'Won', icon: Trophy, onClick: handleWon, show: (r: Record<string, unknown>) => DECIDABLE.includes(r.status as string) },
+        { label: 'Lost', icon: XCircle, onClick: handleLost, show: (r: Record<string, unknown>) => DECIDABLE.includes(r.status as string) },
+        { label: 'Create project', icon: FolderPlus, onClick: handleConvert, show: (r: Record<string, unknown>) => r.status === 'won' && !r.projectId },
+        { label: 'Open project', icon: FolderPlus, onClick: (r: Record<string, unknown>) => navigate(`/crm/projects/${r.projectId}`), show: (r: Record<string, unknown>) => !!r.projectId },
         { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },
       ]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Bid' : 'New Bid'} size="lg">

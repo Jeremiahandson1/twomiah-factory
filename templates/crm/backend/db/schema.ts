@@ -747,9 +747,16 @@ export const bid = pgTable('bid', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  // Who it is for, when they are already a contact. `client` above stays as free text: you bid work
+  // for people who are not customers yet. (T32 H6, migration 0030)
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  // What this bid BECAME. Makes winning-then-converting idempotent — one project per bid.
+  projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
 }, (t) => [
   index('bid_company_id_idx').on(t.companyId),
   index('bid_status_idx').on(t.status),
+  index('bid_contact_id_idx').on(t.contactId),
+  index('bid_project_id_idx').on(t.projectId),
 ])
 
 // ==================== MARKETING ====================

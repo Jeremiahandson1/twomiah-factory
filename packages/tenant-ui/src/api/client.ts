@@ -390,6 +390,9 @@ export class ApiClient {
     update: (id: string, data: unknown) => this.update('/api/bids', id, data),
     delete: (id: string) => this.delete('/api/bids', id),
     submit: (id: string) => this.action('/api/bids', id, 'submit'),
+    // Won → a project, with the contact carried over. Winning a bid used to mean retyping the
+    // project name, the client and the value into Projects by hand. (T32 H6)
+    convert: (id: string) => this.action('/api/bids', id, 'convert'),
     won: (id: string) => this.action('/api/bids', id, 'won'),
     lost: (id: string) => this.action('/api/bids', id, 'lost'),
   }
