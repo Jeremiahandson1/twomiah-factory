@@ -53,3 +53,11 @@ export const handleUncaughtExceptions = () => {
     logger.error('Unhandled rejection', { reason: String(reason) })
   })
 }
+/**
+ * A not-found a service can throw and a route can let bubble.
+ *
+ * errorHandler above maps `err.status`, so this comes out as a 404 carrying its own message. Before
+ * this, services threw a bare Error for a missing row and every one of them reached the client as
+ * "Internal server error" — a record that is not there reported as a server fault.
+ */
+export const notFound = (message = 'Not found') => Object.assign(new Error(message), { status: 404 })

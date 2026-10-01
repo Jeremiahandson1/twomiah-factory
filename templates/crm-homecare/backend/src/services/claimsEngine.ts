@@ -15,6 +15,7 @@ import {
 } from '../../db/schema.ts'
 import { routeClaim } from './payerRouter.ts'
 import logger from './logger.ts'
+import { notFound } from '../utils/errors.ts'
 
 /**
  * Generate a claim from a verified EVV visit
@@ -60,7 +61,7 @@ export async function generateClaimFromEVV(evvVisitId: string, userId: string) {
     .where(eq(evvVisits.id, evvVisitId))
 
   if (!visitRows.length) {
-    throw new Error('EVV visit not found')
+    throw notFound('EVV visit not found')
   }
 
   const row = visitRows[0]

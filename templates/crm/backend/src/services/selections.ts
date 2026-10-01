@@ -12,6 +12,7 @@ import { db } from '../../db/index.ts'
 import { project, changeOrder } from '../../db/schema.ts'
 import { eq, and, lte, asc, sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
+import { notFound } from '../utils/errors.ts'
 
 /** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
 function rows(result: any): any[] {
@@ -213,12 +214,12 @@ export async function makeSelection(
   const [selection] = rows(await db.execute(sql`
     SELECT * FROM project_selection WHERE id = ${selectionId} AND company_id = ${companyId}
   `))
-  if (!selection) throw new Error('Selection not found')
+  if (!selection) throw notFound('Selection not found')
 
   const [option] = rows(await db.execute(sql`
     SELECT * FROM selection_option WHERE id = ${optionId}
   `))
-  if (!option) throw new Error('Option not found')
+  if (!option) throw notFound('Option not found')
 
   const totalPrice = option.price * selection.quantity
   const priceDiff = totalPrice - (selection.allowance || 0)
@@ -254,7 +255,7 @@ export async function approveSelection(
     LEFT JOIN selection_category sc ON sc.id = ps.category_id
     WHERE ps.id = ${selectionId} AND ps.company_id = ${companyId}
   `))
-  if (!selection) throw new Error('Selection not found')
+  if (!selection) throw notFound('Selection not found')
   if (!selection.selected_option_id) throw new Error('No option selected')
 
   await db.execute(sql`
@@ -400,7 +401,7 @@ export async function clientMakeSelection(
   const [selection] = rows(await db.execute(sql`
     SELECT * FROM project_selection WHERE id = ${selectionId} AND project_id = ${projectId}
   `))
-  if (!selection) throw new Error('Selection not found')
+  if (!selection) throw notFound('Selection not found')
   if (selection.status !== 'pending' && selection.status !== 'selected') {
     throw new Error('Selection cannot be changed')
   }

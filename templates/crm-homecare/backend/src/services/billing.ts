@@ -27,6 +27,7 @@ import { db } from '../../db/index.ts';
 import { agencies as company } from '../../db/schema.ts';
 import { eq, sql } from 'drizzle-orm';
 import { SAAS_TIERS, SELF_HOSTED_PACKAGES, SELF_HOSTED_ADDONS, FEATURE_BUNDLES, calculateUserPrice } from '../config/pricing.ts';
+import { notFound } from '../utils/errors.ts'
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
@@ -65,7 +66,7 @@ export async function createSubscription(companyId: string, {
     .where(eq(company.id, companyId))
     .limit(1);
 
-  if (!comp) throw new Error('Company not found');
+  if (!comp) throw notFound('Company not found');
 
   // Check existing active subscription via raw query
   const existingSub = await db.execute(sql`
@@ -298,7 +299,7 @@ export async function processOneTimePurchase(companyId: string, {
   paymentMethodId: string;
 }) {
   const [comp] = await db.select().from(company).where(eq(company.id, companyId)).limit(1);
-  if (!comp) throw new Error('Company not found');
+  if (!comp) throw notFound('Company not found');
 
   const pkg = (SELF_HOSTED_PACKAGES as any)[packageId];
   if (!pkg) throw new Error('Package not available for one-time purchase');
@@ -353,7 +354,7 @@ export async function processOneTimePurchase(companyId: string, {
  */
 export async function purchaseAddon(companyId: string, addonId: string, quantity = 1, paymentMethodId: string) {
   const [comp] = await db.select().from(company).where(eq(company.id, companyId)).limit(1);
-  if (!comp) throw new Error('Company not found');
+  if (!comp) throw notFound('Company not found');
 
   const addon = (SELF_HOSTED_ADDONS as any)[addonId];
   if (!addon) throw new Error('Invalid addon');
@@ -497,7 +498,7 @@ export async function calculateUsageCharges(companyId: string, periodStart: Date
  */
 export async function generateInvoice(companyId: string, { periodStart, periodEnd }: { periodStart: Date; periodEnd: Date }) {
   const [comp] = await db.select().from(company).where(eq(company.id, companyId)).limit(1);
-  if (!comp) throw new Error('Company not found');
+  if (!comp) throw notFound('Company not found');
 
   const subResult = await db.execute(sql`
     SELECT * FROM subscription WHERE company_id = ${companyId} AND status = 'active' LIMIT 1

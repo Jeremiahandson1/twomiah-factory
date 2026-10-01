@@ -2,6 +2,7 @@ import { db } from '../../db/index.ts'
 import { qbIntegration, contact, invoice, company } from '../../db/schema.ts'
 import { eq, and } from 'drizzle-orm'
 import logger from './logger.ts'
+import { notFound } from '../utils/errors.ts'
 
 const QB_BASE = 'https://quickbooks.api.intuit.com/v3/company'
 const QB_AUTH_URL = 'https://appcenter.intuit.com/connect/oauth2'
@@ -116,7 +117,7 @@ export async function syncContact(companyId: string, contactId: string) {
   const [c] = await db.select().from(contact)
     .where(and(eq(contact.id, contactId), eq(contact.companyId, companyId)))
     .limit(1)
-  if (!c) throw new Error('Contact not found')
+  if (!c) throw notFound('Contact not found')
 
   const customerData = {
     DisplayName: `${c.firstName} ${c.lastName}`.trim(),
@@ -159,7 +160,7 @@ export async function syncInvoice(companyId: string, invoiceId: string) {
   const [inv] = await db.select().from(invoice)
     .where(and(eq(invoice.id, invoiceId), eq(invoice.companyId, companyId)))
     .limit(1)
-  if (!inv) throw new Error('Invoice not found')
+  if (!inv) throw notFound('Invoice not found')
 
   // Sync contact first
   const qbCustomerId = await syncContact(companyId, inv.contactId)

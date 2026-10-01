@@ -20,6 +20,7 @@ import {
   invoiceLineItem,
 } from '../../db/schema.ts';
 import { eq, and, lte, gte, count, asc, desc, sql } from 'drizzle-orm';
+import { notFound } from '../utils/errors.ts'
 
 // ============================================
 // AGREEMENT PLANS (Templates)
@@ -208,7 +209,7 @@ export async function cancelAgreement(agreementId: string, companyId: string, _r
     .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId)))
     .limit(1);
 
-  if (!agreement) throw new Error('Agreement not found');
+  if (!agreement) throw notFound('Agreement not found');
 
   const metadata = agreement.notes ? JSON.parse(agreement.notes).stripeSubscriptionId : null;
   if (metadata && process.env.STRIPE_SECRET_KEY) {
@@ -235,7 +236,7 @@ export async function cancelAgreement(agreementId: string, companyId: string, _r
  */
 export async function renewAgreement(agreementId: string, companyId: string) {
   const agreement = await getAgreement(agreementId, companyId);
-  if (!agreement) throw new Error('Agreement not found');
+  if (!agreement) throw notFound('Agreement not found');
 
   const startDate = agreement.endDate ? new Date(agreement.endDate) : new Date();
   const endDate = new Date(startDate);
@@ -268,7 +269,7 @@ export async function scheduleVisit(agreementId: string, companyId: string, data
   createJob?: boolean;
 }) {
   const agreement = await getAgreement(agreementId, companyId);
-  if (!agreement) throw new Error('Agreement not found');
+  if (!agreement) throw notFound('Agreement not found');
 
   const [visit] = await db.insert(agreementVisit).values({
     agreementId,
@@ -305,14 +306,14 @@ export async function completeVisit(visitId: string, companyId: string, _data: {
     .where(eq(agreementVisit.id, visitId))
     .limit(1);
 
-  if (!visit) throw new Error('Visit not found');
+  if (!visit) throw notFound('Visit not found');
 
   const [agr] = await db.select()
     .from(serviceAgreement)
     .where(and(eq(serviceAgreement.id, visit.agreementId), eq(serviceAgreement.companyId, companyId)))
     .limit(1);
 
-  if (!agr) throw new Error('Visit not found');
+  if (!agr) throw notFound('Visit not found');
 
   const [updated] = await db.update(agreementVisit)
     .set({
@@ -407,7 +408,7 @@ export async function setAgreementAutopay(
   { enabled, paymentMethodId }: { enabled: boolean; paymentMethodId?: string | null },
 ) {
   const agreement = await getAgreement(agreementId, companyId)
-  if (!agreement) throw new Error('Agreement not found')
+  if (!agreement) throw notFound('Agreement not found')
 
   let methodId = paymentMethodId ?? agreement.paymentMethodId ?? null
   if (enabled && !methodId) {
@@ -501,7 +502,7 @@ export function startAgreementBillingProcessor() {
  */
 export async function processAgreementBilling(agreementId: string, companyId: string) {
   const agreement = await getAgreement(agreementId, companyId);
-  if (!agreement) throw new Error('Agreement not found');
+  if (!agreement) throw notFound('Agreement not found');
 
   // Create invoice
   const [inv] = await db.insert(invoice).values({

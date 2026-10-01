@@ -1,5 +1,6 @@
 // Google Solar API integration for roof measurement reports
 // Docs: https://developers.google.com/maps/documentation/solar
+import { notFound } from '../utils/errors.ts'
 
 const GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json'
 const SOLAR_URL = 'https://solar.googleapis.com/v1/buildingInsights:findClosest'
@@ -84,7 +85,9 @@ export async function geocodeAddress(address: string, city: string, state: strin
   const res = await fetch(`${GEOCODE_URL}?${params}`)
   if (!res.ok) throw new Error(`Geocoding failed: ${res.status}`)
   const data = await res.json()
-  if (!data.results?.length) throw new Error('Address not found')
+  // An address the geocoder cannot place is the caller's input, not a server fault — a 404 rather
+  // than the "Internal server error" a bare throw produced.
+  if (!data.results?.length) throw notFound('Address not found')
   const loc = data.results[0]
   return {
     lat: loc.geometry.location.lat,

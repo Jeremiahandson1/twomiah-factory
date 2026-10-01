@@ -12,6 +12,7 @@ import { db } from '../../db/index.ts'
 import { purchaseOrder, purchaseOrderItem } from '../../db/schema.ts'
 import { eq, sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
+import { notFound } from '../utils/errors.ts'
 
 /** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
 function rows(result: any): any[] {
@@ -221,7 +222,7 @@ export async function getTakeoffSheet(sheetId: string, companyId: string) {
  */
 export async function addTakeoffItem(sheetId: string, companyId: string, data: any) {
   const assembly = await getAssembly(data.assemblyId, companyId)
-  if (!assembly) throw new Error('Assembly not found')
+  if (!assembly) throw notFound('Assembly not found')
 
   const measurementValue = calculateMeasurement(data, assembly.measurement_type)
 
@@ -322,7 +323,7 @@ export async function updateTakeoffItem(itemId: string, companyId: string, data:
   `))
 
   if (!item || item.company_id !== companyId) {
-    throw new Error('Item not found')
+    throw notFound('Item not found')
   }
 
   const merged = { ...item, ...data }
@@ -357,7 +358,7 @@ export async function deleteTakeoffItem(itemId: string, companyId: string) {
   `))
 
   if (!item || item.company_id !== companyId) {
-    throw new Error('Item not found')
+    throw notFound('Item not found')
   }
 
   await db.execute(sql`DELETE FROM takeoff_calculated_material WHERE item_id = ${itemId}`)
@@ -375,7 +376,7 @@ export async function getSheetMaterialTotals(sheetId: string, companyId: string)
   const [sheet] = rows(await db.execute(sql`
     SELECT * FROM takeoff_sheet WHERE id = ${sheetId} AND company_id = ${companyId}
   `))
-  if (!sheet) throw new Error('Sheet not found')
+  if (!sheet) throw notFound('Sheet not found')
 
   const allMaterials = rows(await db.execute(sql`
     SELECT tcm.*

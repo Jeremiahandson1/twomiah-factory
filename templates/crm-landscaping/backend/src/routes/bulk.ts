@@ -100,6 +100,7 @@ app.post('/projects/delete', requirePermission('projects:delete'), async (c) => 
 app.post('/projects/archive', requirePermission('projects:update'), async (c) => {
   const user = c.get('user') as any
   const { ids } = await c.req.json()
+  if (!ids?.length) return c.json({ error: 'No IDs provided' }, 400)
   const count = await bulk.bulkArchiveProjects(user.companyId, ids)
   return c.json({ archived: count })
 })
@@ -134,6 +135,7 @@ app.post('/jobs/update', requirePermission('jobs:update'), async (c) => {
 app.post('/jobs/delete', requirePermission('jobs:delete'), async (c) => {
   const user = c.get('user') as any
   const { ids } = await c.req.json()
+  if (!ids?.length) return c.json({ error: 'No IDs provided' }, 400)
   const count = await bulk.bulkDeleteJobs(user.companyId, ids)
 
   audit.log({
@@ -150,6 +152,7 @@ app.post('/jobs/delete', requirePermission('jobs:delete'), async (c) => {
 app.post('/jobs/assign', requirePermission('jobs:update'), async (c) => {
   const user = c.get('user') as any
   const { ids, assignedToId } = await c.req.json()
+  if (!ids?.length) return c.json({ error: 'No IDs provided' }, 400)
   const count = await bulk.bulkAssignJobs(user.companyId, ids, assignedToId)
   return c.json({ updated: count })
 })
@@ -157,6 +160,7 @@ app.post('/jobs/assign', requirePermission('jobs:update'), async (c) => {
 app.post('/jobs/reschedule', requirePermission('jobs:update'), async (c) => {
   const user = c.get('user') as any
   const { ids, scheduledDate } = await c.req.json()
+  if (!ids?.length) return c.json({ error: 'No IDs provided' }, 400)
   const count = await bulk.bulkRescheduleJobs(user.companyId, ids, scheduledDate)
   return c.json({ updated: count })
 })
@@ -164,6 +168,7 @@ app.post('/jobs/reschedule', requirePermission('jobs:update'), async (c) => {
 app.post('/jobs/status', requirePermission('jobs:update'), async (c) => {
   const user = c.get('user') as any
   const { ids, status } = await c.req.json()
+  if (!ids?.length) return c.json({ error: 'No IDs provided' }, 400)
   const count = await bulk.bulkUpdateJobStatus(user.companyId, ids, status)
   return c.json({ updated: count })
 })
@@ -172,6 +177,7 @@ app.post('/jobs/status', requirePermission('jobs:update'), async (c) => {
 app.post('/invoices/delete', requirePermission('invoices:delete'), async (c) => {
   const user = c.get('user') as any
   const { ids } = await c.req.json()
+  if (!ids?.length) return c.json({ error: 'No IDs provided' }, 400)
   const count = await bulk.bulkDeleteInvoices(user.companyId, ids)
 
   audit.log({
@@ -188,6 +194,7 @@ app.post('/invoices/delete', requirePermission('invoices:delete'), async (c) => 
 app.post('/invoices/mark-paid', requirePermission('invoices:update'), async (c) => {
   const user = c.get('user') as any
   const { ids } = await c.req.json()
+  if (!ids?.length) return c.json({ error: 'No IDs provided' }, 400)
   const count = await bulk.bulkMarkInvoicesPaid(user.companyId, ids)
   return c.json({ updated: count })
 })
@@ -196,6 +203,7 @@ app.post('/invoices/mark-paid', requirePermission('invoices:update'), async (c) 
 app.post('/quotes/delete', requirePermission('quotes:delete'), async (c) => {
   const user = c.get('user') as any
   const { ids } = await c.req.json()
+  if (!ids?.length) return c.json({ error: 'No IDs provided' }, 400)
   const count = await bulk.bulkDeleteQuotes(user.companyId, ids)
   return c.json({ deleted: count })
 })
@@ -204,6 +212,7 @@ app.post('/quotes/delete', requirePermission('quotes:delete'), async (c) => {
 app.post('/time/approve', requirePermission('time:update'), async (c) => {
   const user = c.get('user') as any
   const { ids } = await c.req.json()
+  if (!ids?.length) return c.json({ error: 'No IDs provided' }, 400)
   const count = await bulk.bulkApproveTimeEntries(user.companyId, ids, user.userId)
   return c.json({ approved: count })
 })
@@ -211,6 +220,7 @@ app.post('/time/approve', requirePermission('time:update'), async (c) => {
 app.post('/time/delete', requirePermission('time:delete'), async (c) => {
   const user = c.get('user') as any
   const { ids } = await c.req.json()
+  if (!ids?.length) return c.json({ error: 'No IDs provided' }, 400)
   const count = await bulk.bulkDeleteTimeEntries(user.companyId, ids)
   return c.json({ deleted: count })
 })

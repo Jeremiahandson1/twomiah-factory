@@ -11,6 +11,7 @@
 
 import { db } from '../../db/index.ts';
 import { sql } from 'drizzle-orm';
+import { notFound } from '../utils/errors.ts'
 
 // ============================================
 // COMMENTS
@@ -119,7 +120,7 @@ export async function updateComment(commentId: string, companyId: string, userId
   `);
   const rows = (existing as any).rows || existing;
   if (rows.length === 0) {
-    throw new Error('Comment not found or not authorized');
+    throw notFound('Comment not found or not authorized');
   }
 
   const result = await db.execute(sql`
@@ -152,7 +153,7 @@ export async function deleteComment(commentId: string, companyId: string, userId
   const existing = await db.execute(checkSql);
   const rows = (existing as any).rows || existing;
   if (rows.length === 0) {
-    throw new Error('Comment not found or not authorized');
+    throw notFound('Comment not found or not authorized');
   }
 
   // Delete replies first

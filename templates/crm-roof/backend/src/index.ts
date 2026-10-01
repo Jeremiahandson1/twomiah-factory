@@ -485,6 +485,14 @@ app.onError((err, c) => {
     return c.json({ error: where + (first.message || 'Validation error'), details: issues }, 400)
   }
 
+  // An error that names its own status keeps it. Every other template's handler already did this
+  // (`err.status || err.statusCode || 500`); roof's ended at a hard 500, so a service throwing
+  // "Quote not found" reported a server fault for a record that is simply not there. Only 4xx is
+  // honoured here: a 5xx somebody attached to an error should still read as the generic message
+  // rather than leaking an internal sentence to the client.
+  const named = Number((err as any).status || (err as any).statusCode || 0)
+  if (named >= 400 && named < 500) return c.json({ error: err.message }, named as 400)
+
   return c.json({ error: 'Internal server error' }, 500)
 })
 

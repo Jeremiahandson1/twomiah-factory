@@ -13,6 +13,7 @@ import { reportSmsUsage, walletSufficient } from './messagingUsage.ts'
 import { contact, company } from '../../db/schema.ts'
 import { eq, and, or, ilike, sql } from 'drizzle-orm'
 import twilio from 'twilio'
+import { notFound } from '../utils/errors.ts'
 
 // Initialize Twilio client
 const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
@@ -467,7 +468,7 @@ export async function linkToContact(conversationId: string, companyId: string, c
     SELECT id, name FROM contact WHERE id = ${contactId} AND company_id = ${companyId} LIMIT 1
   `)
   const contactRow = contactResult.rows?.[0] as any
-  if (!contactRow) throw new Error('Contact not found')
+  if (!contactRow) throw notFound('Contact not found')
 
   await db.execute(sql`
     UPDATE sms_conversations

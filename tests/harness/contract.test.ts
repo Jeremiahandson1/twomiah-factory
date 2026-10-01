@@ -127,6 +127,9 @@ const req = async (method: string, path: string, headers: Record<string, string>
       method,
       headers: { 'content-type': 'application/json', ...headers },
       body: WRITE.has(method) ? '{}' : undefined,
+      // A handler that reaches for an external provider can sit there; cap it rather than hang the
+      // suite, and count the timeouts separately so they are visible instead of silently passing.
+      signal: AbortSignal.timeout(20000),
     })
     return { status: res.status, body: (await res.text()).slice(0, 220) }
   } catch (e: any) {
@@ -212,6 +215,102 @@ const SANDBOX_GAP = [
   note(`signed in: ${probe.length} routes probed — ${broken} answered 5xx`)
   if (gaps) note(`${gaps} route(s) skipped as known sandbox schema gaps, each verified answering 200 on the live tenant — see SANDBOX_GAP above`)
   check(`no route answers 5xx for a signed-in owner (${probe.length} routes)`, broken === 0, { broken })
+}
+
+// ══════════ 3. a write given nothing refuses; it does not crash ════════════════════════════════
+//
+// Writes outnumber reads in every template (crm 162 vs 116, dispensary 395 vs 288), and until now
+// invariant 2 only covered the reads. A POST/PUT/PATCH/DELETE with a valid but EMPTY JSON body is the
+// request a half-filled form sends, and the right answer is a refusal a person can act on — 400 from
+// the validator, 403 from a permission, 404 for a parent that is not there. A 5xx means the handler
+// reached the database with nothing and fell over, which is the shape of several findings from
+// earlier rounds (T45's whole "mismatch" class, T48 Q4).
+//
+// Safe to drive: the sandbox is a disposable PGlite created per test process, so rows these writes
+// create die with it, and the ids are ghosts so nothing real is deleted. Run last, so nothing above
+// is reading a database these writes have changed.
+{
+  const auth = { 'x-test-user': owner.id }
+  const writes = routes.filter((r) => (WRITE.has(r.method) || r.method === 'DELETE') && !MACHINE.test(r.path))
+  // Collected, not asserted one by one: the pass/fail decision below is the RATCHET on the total.
+  // Failing each route individually (which the first version did) makes the ratchet unreachable — the
+  // suite is red whatever the count, which is the thing the ratchet exists to avoid.
+  const crashes: Array<{ method: string; path: string; status: number; body: string }> = []
+  let created = 0, slow = 0
+  for (const r of writes) {
+    const { status, body } = await req(r.method, fill(r.path), auth)
+    if (status === -1) { slow++; continue }
+    if (status >= 500 && !declared(status, body)) {
+      if (SANDBOX_GAP.includes(r.path)) continue
+      crashes.push({ method: r.method, path: r.path, status, body })
+    } else {
+      if (status === 200 || status === 201) created++
+      passed++
+    }
+  }
+  const broken = crashes.length
+  note(`writes: ${writes.length} probed with an empty body — ${broken} crashed, ${created} ACCEPTED it, ${slow} did not answer in time`)
+  // Accepting {} is not necessarily wrong (some writes have no required field) but it is worth
+  // seeing the number, because a create that takes nothing is usually a validator that was skipped.
+
+  /**
+   * The write path is a RATCHET, not a pass/fail — for now.
+   *
+   * Switching this invariant on found 30 crashes in the base CRM alone, in three classes:
+   *   · a service throwing "X not found" (FIXED — utils/errors.ts notFound() carries 404)
+   *   · a body reaching RAW SQL unvalidated, so an empty object builds `IN ()` or `INSERT () VALUES ()`
+   *     and Postgres answers "syntax error at or near $1". Needs a schema per route.
+   *   · an endpoint that expects multipart/form-data answering 500 to JSON instead of 400.
+   *
+   * The last two are a real campaign, and failing twelve suites until it is finished would make CI
+   * useless in the meantime. So the count is pinned per template: it may go DOWN (and the pin must be
+   * lowered with it), never up. A number nobody can increase is debt that gets paid; a suite that is
+   * red for a month is debt that gets ignored.
+   */
+  /**
+   * Measured 2026-10-01, and lowered twice in one sitting as the classes were paid off:
+   *
+   *   first measure   164   every write crash in the fleet
+   *   −104 sites       —    a service throwing a bare "X not found" (now notFound(), guard #183)
+   *   −80 handlers     84   a bulk op building `IN ()` from an unchecked id list (guard #184)
+   *
+   * What is left is the narrower half: `selections` and `takeoffs` POSTs that build an INSERT from an
+   * unvalidated body, and the upload endpoints (`import`, `migration/csv`) that answer 500 rather
+   * than 400 when sent JSON instead of multipart. The spread follows module count — crm carries
+   * selections, takeoffs, import and migration on top of the common set.
+   *
+   * May go DOWN, and the pin must come down with it; never up.
+   */
+  const RATCHET: Record<string, number> = {
+    crm: 14,
+    'crm-basic': 8,
+    'crm-dispensary': 8,
+    'crm-fieldservice': 8,
+    'crm-landscaping': 8,
+    'crm-restaurant': 11,
+    'crm-roof': 3,
+    'crm-rv': 8,
+    'crm-salon': 8,
+    'crm-vet': 8,
+  }
+  // Supplied by runSuite: several templates share the same package.json name, so this cannot be
+  // worked out from inside the sandbox.
+  const TEMPLATE = process.env.SUITE_TEMPLATE || 'unknown'
+  const pinned = RATCHET[TEMPLATE]
+  if (pinned === undefined) {
+    check(`the write-crash count for ${TEMPLATE} is pinned — add \`${TEMPLATE}: ${broken},\` to RATCHET in tests/harness/contract.test.ts`, false, { broken })
+  } else if (broken > pinned) {
+    check(`write crashes for ${TEMPLATE} did not grow (pinned ${pinned})`, false,
+      { broken, pinned, added: crashes.map((c) => `${c.method} ${c.path}`).slice(0, 8) })
+  } else if (broken < pinned) {
+    check(`write crashes for ${TEMPLATE} are down to ${broken} from ${pinned} — lower the pin to lock it in`, false, { broken, pinned })
+  } else {
+    passed++
+    note(`${broken} known write crash(es) for ${TEMPLATE}, pinned and not growing:`)
+    // Printed every run, so the debt is in front of whoever reads the output rather than buried in a
+    // number. These are the routes to fix next.
+    for (const c of crashes) note(`    ${c.method} ${c.path} — ${c.body.replace(/\s+/g, ' ').slice(0, 90)}`)
+  }
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed`)

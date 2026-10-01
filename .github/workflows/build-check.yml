@@ -1540,6 +1540,28 @@ jobs:
       - name: "every <table>.<column> a route reads must exist in the schema"
         run: bun run scripts/check-selected-columns-exist.ts
 
+  notfound-carries-404:
+    name: "a missing record is a 404, not a 500"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "no service may throw a bare not-found Error"
+        run: bun run scripts/check-notfound-carries-404.ts
+
+  bulk-checks-its-ids:
+    name: "a bulk operation checks its id list"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "an empty id list is a 400, never IN () and never a silent no-op"
+        run: bun run scripts/check-bulk-checks-its-ids.ts
+
   dashboard-panels-load:
     name: "dashboard panels load"
     runs-on: ubuntu-latest

@@ -11,6 +11,7 @@
 
 import { db } from '../../db/index.ts'
 import { sql } from 'drizzle-orm'
+import { notFound } from '../utils/errors.ts'
 
 // ============================================
 // TYPES
@@ -513,7 +514,10 @@ async function reportSale(companyId: number, orderId: number): Promise<{ receipt
         FROM "order" o WHERE o.id = ${orderId} AND o.company_id = ${companyId} LIMIT 1`
   )
   const orderRow = (orderRows as any).rows?.[0] || (orderRows as any)[0]
-  if (!orderRow) throw new Error(`Order ${orderId} not found for company ${companyId}`)
+  // A 404, not a 500: the order is not there, which is not a server fault. (The company id stays out
+  // of the message — the caller is already scoped to their own company, and echoing it back tells an
+  // attacker which tenant they are talking to.)
+  if (!orderRow) throw notFound(`Order ${orderId} not found`)
 
   // Fetch order items with their linked metrc package labels
   const itemRows = await db.execute(

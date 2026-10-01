@@ -13,6 +13,7 @@
 import { db } from '../../db/index.ts'
 import { pricebookCategory, pricebookItem } from '../../db/schema.ts'
 import { eq, and, or, ilike, asc, desc, count, sql, inArray, max } from 'drizzle-orm'
+import { notFound } from '../utils/errors.ts'
 
 // ============================================
 // PRICEBOOK CATEGORIES
@@ -249,7 +250,7 @@ export async function updateItem(itemId: string, companyId: string, data: any) {
  */
 export async function duplicateItem(itemId: string, companyId: string) {
   const original = await getItem(itemId, companyId)
-  if (!original) throw new Error('Item not found')
+  if (!original) throw notFound('Item not found')
 
   const code = await generateItemCode(companyId)
 
@@ -276,7 +277,7 @@ export async function setGoodBetterBest(itemId: string, companyId: string, optio
     .from(pricebookItem)
     .where(and(eq(pricebookItem.id, itemId), eq(pricebookItem.companyId, companyId)))
 
-  if (!item) throw new Error('Item not found')
+  if (!item) throw notFound('Item not found')
 
   // Delete existing
   await db.execute(sql`DELETE FROM pricebook_good_better_best WHERE pricebook_item_id = ${itemId}`)

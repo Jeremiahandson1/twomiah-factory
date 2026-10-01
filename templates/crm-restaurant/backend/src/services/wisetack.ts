@@ -20,6 +20,7 @@ import {
 } from '../../db/schema.ts';
 import { eq, and, or, desc } from 'drizzle-orm';
 import crypto from 'crypto';
+import { notFound } from '../utils/errors.ts'
 
 const WISETACK_API_URL = process.env.WISETACK_API_URL || 'https://api.wisetack.com/v1';
 const WISETACK_PARTNER_ID = process.env.WISETACK_PARTNER_ID;
@@ -153,7 +154,7 @@ export async function getApplicationStatus(applicationId: string) {
   }
 
   if (!appRow) {
-    throw new Error('Application not found');
+    throw notFound('Application not found');
   }
 
   // Fetch latest status from Wisetack

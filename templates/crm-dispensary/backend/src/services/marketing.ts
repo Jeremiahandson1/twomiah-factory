@@ -25,6 +25,7 @@ import { sendSMS } from './sms.ts'
 import emailService from './email.ts'
 // A customer unsubscribing is a consent change like any other, and is written down like one. (T49 H1)
 import audit from './audit.ts'
+import { notFound } from '../utils/errors.ts'
 
 // ============================================
 // SEND PROMOTIONS
@@ -345,7 +346,7 @@ export async function trackClick(recipientId: string, _url?: string | null) {
 export async function sendCampaign(id: string, companyId: string) {
   const [campaign] = await db.select().from(marketingCampaign)
     .where(and(eq(marketingCampaign.id, id), eq(marketingCampaign.companyId, companyId))).limit(1)
-  if (!campaign) throw new Error('Campaign not found')
+  if (!campaign) throw notFound('Campaign not found')
   if (campaign.status === 'sent') throw new Error('That campaign has already been sent')
 
   const channel = String(campaign.type || 'email').toLowerCase() === 'sms' ? 'sms' : 'email'

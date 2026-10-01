@@ -133,7 +133,10 @@ export async function runSuite(o: SuiteOptions): Promise<number> {
     // because the sandbox is a temp copy.
     const r = spawnSync('bun', [f], {
       cwd: SB, encoding: 'utf8', shell: true,
-      env: { ...process.env, TZ: 'UTC', NODE_ENV: 'test', FACTORY_ROOT: o.root, ANTHROPIC_API_KEY: '' },
+      // SUITE_TEMPLATE: the shared contract test needs to know which template it is running against
+      // (its per-template ratchet). The sandbox's package.json name is the same string in several
+      // templates, so it cannot be inferred from inside — the runner is the only thing that knows.
+      env: { ...process.env, TZ: 'UTC', NODE_ENV: 'test', FACTORY_ROOT: o.root, ANTHROPIC_API_KEY: '', SUITE_TEMPLATE: o.template },
     })
     // Strip ANSI before matching: a coloured "error:" that no longer starts the line is the easiest way
     // for a pattern match on raw output to go quiet exactly when it is needed.

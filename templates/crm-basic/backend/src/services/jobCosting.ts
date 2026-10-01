@@ -23,6 +23,7 @@ import {
   user,
 } from '../../db/schema.ts'
 import { eq, and, gte, lte, desc, sql, sum, count } from 'drizzle-orm'
+import { notFound } from '../utils/errors.ts'
 
 /**
  * Get detailed job cost breakdown
@@ -32,7 +33,7 @@ export async function getJobCostAnalysis(jobId: string, companyId: string) {
     .from(job)
     .where(and(eq(job.id, jobId), eq(job.companyId, companyId)))
 
-  if (!jobRow) throw new Error('Job not found')
+  if (!jobRow) throw notFound('Job not found')
 
   // Get related contact and project
   let contactRow = null
