@@ -19,10 +19,15 @@ app.get('/summary', async (c) => {
   const endDate = c.req.query('endDate')
   if (!startDate || !endDate) return c.json({ error: 'startDate and endDate required' }, 400)
 
+    // first_name + last_name, because this schema's user table has no `name` column.
+    // `user.name` was undefined, drizzle threw building the select, and this handler answered 500
+    // on every call it ever received — silently, because nothing had a screen for it until the Pay
+    // run panel was built. (The salon hit the same thing in T46 N24.)
   const entries = await db.select({
     entry: timeEntry,
     userId: user.id,
-    userName: user.name,
+    userFirstName: user.firstName,
+    userLastName: user.lastName,
   })
     .from(timeEntry)
     .leftJoin(user, eq(timeEntry.userId, user.id))
@@ -38,7 +43,7 @@ app.get('/summary', async (c) => {
     const id = e.entry.userId
     if (!byUser[id]) {
       byUser[id] = {
-        user: { id: e.userId, name: e.userName },
+        user: { id: e.userId, name: [e.userFirstName, e.userLastName].filter(Boolean).join(' ') || null },
         totalHours: 0,
         totalPay: 0,
         entryCount: 0,
@@ -97,14 +102,15 @@ app.get('/expenses', async (c) => {
 
   const rows = await db.select({
     expense,
-    userName: user.name,
+    userFirstName: user.firstName,
+    userLastName: user.lastName,
   })
     .from(expense)
     .leftJoin(user, eq(expense.userId, user.id))
     .where(and(...conditions))
     .orderBy(desc(expense.createdAt))
 
-  return c.json(rows.map(r => ({ ...r.expense, user: { name: r.userName } })))
+  return c.json(rows.map(r => ({ ...r.expense, user: { name: [r.userFirstName, r.userLastName].filter(Boolean).join(' ') || null } })))
 })
 
 export default app
