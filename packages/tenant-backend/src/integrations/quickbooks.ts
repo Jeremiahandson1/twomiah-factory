@@ -305,7 +305,7 @@ export function createQuickBooksRoutes(deps: QuickBooksRoutesDeps) {
   })
   app.post('/disconnect', touchesTheBooks, async (c) => {
     await qb.disconnect(user(c).companyId)
-    audit.log({ action: 'INTEGRATION_DISCONNECT', entity: 'quickbooks', entityId: user(c).companyId, req: c.req })
+    audit.log({ action: 'INTEGRATION_DISCONNECT', entity: 'quickbooks', entityId: user(c).companyId, req: c })
     return c.json({ success: true })
   })
   app.post('/auto-sync', touchesTheBooks, async (c) => {
@@ -330,7 +330,7 @@ export function createQuickBooksRoutes(deps: QuickBooksRoutesDeps) {
     const u = user(c)
     try {
       const results = await qb.syncAllCustomers(u.companyId)
-      audit.log({ action: 'SYNC', entity: 'quickbooks_customers', metadata: { total: results.length, successful: results.filter((r: any) => r.success).length }, req: c.req })
+      audit.log({ action: 'SYNC', entity: 'quickbooks_customers', metadata: { total: results.length, successful: results.filter((r: any) => r.success).length }, req: c })
       return c.json(summary(results))
     } catch (e: any) { return c.json({ error: e?.message }, /not connected/i.test(e?.message || '') ? 400 : 502) }
   })
@@ -351,7 +351,7 @@ export function createQuickBooksRoutes(deps: QuickBooksRoutesDeps) {
     const { startDate, endDate } = await c.req.json().catch(() => ({}))
     try {
       const results = await qb.syncAllInvoices(u.companyId, { startDate, endDate })
-      audit.log({ action: 'SYNC', entity: 'quickbooks_invoices', metadata: { total: results.length, successful: results.filter((r: any) => r.success).length }, req: c.req })
+      audit.log({ action: 'SYNC', entity: 'quickbooks_invoices', metadata: { total: results.length, successful: results.filter((r: any) => r.success).length }, req: c })
       return c.json(summary(results))
     } catch (e: any) { return c.json({ error: e?.message }, /not connected/i.test(e?.message || '') ? 400 : 502) }
   })
@@ -368,7 +368,7 @@ export function createQuickBooksRoutes(deps: QuickBooksRoutesDeps) {
     const u = user(c)
     try {
       const results = await qb.importCustomers(u.companyId)
-      audit.log({ action: 'IMPORT', entity: 'quickbooks_customers', metadata: { count: results.length }, req: c.req })
+      audit.log({ action: 'IMPORT', entity: 'quickbooks_customers', metadata: { count: results.length }, req: c })
       return c.json({ total: results.length, created: results.filter((r) => r.action === 'created').length, updated: results.filter((r) => r.action === 'updated').length, results })
     } catch (e: any) { return c.json({ error: e?.message }, /not connected/i.test(e?.message || '') ? 400 : 502) }
   })

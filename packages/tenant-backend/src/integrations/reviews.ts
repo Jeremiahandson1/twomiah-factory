@@ -438,7 +438,7 @@ export function createReviewsRoutes(deps: ReviewsRoutesDeps) {
     const body = await c.req.json().catch(() => ({}))
     try {
       const settings = await reviews.updateReviewSettings(user(c).companyId, body)
-      audit.log({ action: 'REVIEW_SETTINGS_UPDATED', entity: 'company', entityId: user(c).companyId, req: c.req })
+      audit.log({ action: 'REVIEW_SETTINGS_UPDATED', entity: 'company', entityId: user(c).companyId, req: c })
       return c.json(settings)
     } catch (e: any) { return c.json({ error: e?.message || 'Invalid settings' }, 400) }
   })
@@ -458,7 +458,7 @@ export function createReviewsRoutes(deps: ReviewsRoutesDeps) {
       // Missing Google link / unconfigured SMS are setup problems the caller can act on — 400 (404 for a missing job).
       return c.json({ error: msg }, /not found/i.test(msg) ? 404 : 400)
     }
-    audit.log({ action: 'REVIEW_REQUEST_SENT', entity: 'job', entityId: jobId, metadata: { channel }, req: c.req })
+    audit.log({ action: 'REVIEW_REQUEST_SENT', entity: 'job', entityId: jobId, metadata: { channel }, req: c })
     return c.json(result)
   })
   app.post('/schedule/:jobId', requirePermission('marketing:create'), async (c) => {

@@ -3,6 +3,7 @@ import { formatDate } from '../utils/date';
 import { Plus, Edit, Trash2, Ban, HandCoins } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { DataTable, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
 
@@ -28,6 +29,7 @@ const EMPTY_FORM: BillForm = { vendorId: '', number: '', jobId: '', purchaseOrde
 
 export default function BillsPage() {
   const toast = useToast();
+  const { can } = useAuth();
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);
   const [jobs, setJobs] = useState<Record<string, unknown>[]>([]);
@@ -146,16 +148,22 @@ export default function BillsPage() {
     { key: 'source', label: 'Source', render: (v: unknown) => v === 'vendor_portal' ? <span className="text-xs text-teal-700">vendor portal</span> : <span className="text-xs text-gray-500 dark:text-slate-400">manual</span> },
   ];
 
+  // T32 M9. The tester asked whether AP payments being admin-only is deliberate. It is — the
+  // permission matrix gives a manager bills:read/create/update and withholds bills:pay and
+  // bills:delete on purpose, the same line payments:* already draws. But the SCREEN did not say so:
+  // every action was offered to everyone, so a manager opened "Record payment", typed an amount and
+  // then got a 403. Each action is now shown only to someone the route will actually let through,
+  // mirroring the gates in routes/bills.ts exactly.
   const rowActions = [
-    { label: 'Record payment', icon: HandCoins, onClick: (r: Record<string, unknown>) => { setPayBill(r); setPayAmount(String((Number(r.amount) - Number(r.amountPaid)).toFixed(2))); setPayOpen(true); } },
-    { label: 'Edit', icon: Edit, onClick: openEdit },
-    { label: 'Void', icon: Ban, onClick: async (r: Record<string, unknown>) => { try { await api.bills.void(r.id as string); toast.success('Voided'); load(); } catch (err) { toast.error((err as Error).message); } } },
-    { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },
+    { label: 'Record payment', icon: HandCoins, show: () => can('bills:pay'), onClick: (r: Record<string, unknown>) => { setPayBill(r); setPayAmount(String((Number(r.amount) - Number(r.amountPaid)).toFixed(2))); setPayOpen(true); } },
+    { label: 'Edit', icon: Edit, show: () => can('bills:update'), onClick: openEdit },
+    { label: 'Void', icon: Ban, show: () => can('bills:pay'), onClick: async (r: Record<string, unknown>) => { try { await api.bills.void(r.id as string); toast.success('Voided'); load(); } catch (err) { toast.error((err as Error).message); } } },
+    { label: 'Delete', icon: Trash2, show: () => can('bills:delete'), onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },
   ];
 
   return (
     <div>
-      <PageHeader title="Bills" action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>Record Bill</Button>} />
+      <PageHeader title="Bills" action={can('bills:create') ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>Record Bill</Button> : undefined} />
       {summary && (
         <div className="mb-4 flex gap-4 flex-wrap text-sm">
           <div className="bg-white border rounded-lg px-4 py-2 dark:bg-slate-900">Outstanding: <span className="font-semibold">${Number(summary.outstanding || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>

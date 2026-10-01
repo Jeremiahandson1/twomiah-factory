@@ -3,6 +3,7 @@ import { formatDate } from '../utils/date';
 import { Plus, Edit, Trash2, Send, PackageCheck, Ban, RotateCcw } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { DataTable, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
 
@@ -32,6 +33,7 @@ const EMPTY_FORM: PoForm = { vendorId: '', jobId: '', expectedDate: '', shipTo: 
 
 export default function PurchaseOrdersPage() {
   const toast = useToast();
+  const { can } = useAuth();
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);
   const [jobs, setJobs] = useState<Record<string, unknown>[]>([]);
@@ -137,18 +139,21 @@ export default function PurchaseOrdersPage() {
     { key: 'expectedDate', label: 'Expected', render: (v: unknown) => v ? formatDate(v as string) : '-' },
   ];
 
+  // Mirrors routes/purchaseOrders.ts: every state transition is purchase-orders:update, the delete
+  // is its own verb. Offering an action the route will refuse is how T32 M9 was filed. (T32 M9)
+  const mayUpdate = can('purchase-orders:update');
   const rowActions = [
-    { label: 'Edit', icon: Edit, onClick: openEdit },
-    { label: 'Send to vendor', icon: Send, onClick: (r: Record<string, unknown>) => transition(api.purchaseOrders.send, r.id as string, 'Sent — the vendor can now see it in their portal') },
-    { label: 'Mark received', icon: PackageCheck, onClick: (r: Record<string, unknown>) => transition(api.purchaseOrders.receive, r.id as string, 'Marked received') },
-    { label: 'Cancel', icon: Ban, onClick: (r: Record<string, unknown>) => transition(api.purchaseOrders.cancel, r.id as string, 'Cancelled') },
-    { label: 'Reopen', icon: RotateCcw, onClick: (r: Record<string, unknown>) => transition(api.purchaseOrders.reopen, r.id as string, 'Back to draft') },
-    { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },
+    { label: 'Edit', icon: Edit, show: () => mayUpdate, onClick: openEdit },
+    { label: 'Send to vendor', icon: Send, show: () => mayUpdate, onClick: (r: Record<string, unknown>) => transition(api.purchaseOrders.send, r.id as string, 'Sent — the vendor can now see it in their portal') },
+    { label: 'Mark received', icon: PackageCheck, show: () => mayUpdate, onClick: (r: Record<string, unknown>) => transition(api.purchaseOrders.receive, r.id as string, 'Marked received') },
+    { label: 'Cancel', icon: Ban, show: () => mayUpdate, onClick: (r: Record<string, unknown>) => transition(api.purchaseOrders.cancel, r.id as string, 'Cancelled') },
+    { label: 'Reopen', icon: RotateCcw, show: () => mayUpdate, onClick: (r: Record<string, unknown>) => transition(api.purchaseOrders.reopen, r.id as string, 'Back to draft') },
+    { label: 'Delete', icon: Trash2, show: () => can('purchase-orders:delete'), onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },
   ];
 
   return (
     <div>
-      <PageHeader title="Purchase Orders" action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>New PO</Button>} />
+      <PageHeader title="Purchase Orders" action={can('purchase-orders:create') ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>New PO</Button> : undefined} />
       {summary && (
         <div className="mb-4 flex gap-4 flex-wrap text-sm">
           <div className="bg-white border rounded-lg px-4 py-2 dark:bg-slate-900">Open committed: <span className="font-semibold">${Number(summary.openCommitted || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>

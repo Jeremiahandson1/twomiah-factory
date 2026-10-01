@@ -16,7 +16,11 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { normaliseState, normaliseZip, STATE_ERROR, ZIP_ERROR } from '../address'
 import { checkFilter } from '../listFilter'
-import { eq, ne, and, or, ilike, count, desc, asc, sql } from 'drizzle-orm'
+import { eq, ne, and, or, ilike, count, desc, asc, inArray, sql } from 'drizzle-orm'
+import { repointContactReferences, mergePatch } from './mergeContacts'
+
+/** Thrown inside the merge transaction when a locked row turned out to be gone, to roll it back. */
+class MergeGone extends Error {}
 
 export const DEFAULT_CONTACT_TYPES = ['lead', 'client', 'subcontractor', 'vendor']
 
@@ -319,7 +323,7 @@ export function createContactRoutes(deps: ContactDeps) {
     const [created] = await db.insert(t.contact).values({ ...data, companyId: currentUser.companyId }).returning()
     const safe = stripPortal(created)
     emitToCompany(currentUser.companyId, EVENTS.CONTACT_CREATED, safe)
-    audit.log({ action: audit.ACTIONS.CREATE, entity: 'contact', entityId: created.id, entityName: created.name, req: c.req })
+    audit.log({ action: audit.ACTIONS.CREATE, entity: 'contact', entityId: created.id, entityName: created.name, req: c })
     return c.json(safe, 201)
   })
 
@@ -356,7 +360,7 @@ export function createContactRoutes(deps: ContactDeps) {
     const safe = stripPortal(updated)
     emitToCompany(currentUser.companyId, EVENTS.CONTACT_UPDATED, safe)
     const changes = audit.diff(stripPortal(existing), safe)
-    if (changes) audit.log({ action: audit.ACTIONS.UPDATE, entity: 'contact', entityId: updated.id, entityName: updated.name, changes, req: c.req })
+    if (changes) audit.log({ action: audit.ACTIONS.UPDATE, entity: 'contact', entityId: updated.id, entityName: updated.name, changes, req: c })
     return c.json(safe)
   })
 
@@ -390,8 +394,88 @@ export function createContactRoutes(deps: ContactDeps) {
       throw e
     }
     emitToCompany(currentUser.companyId, EVENTS.CONTACT_DELETED, { id })
-    audit.log({ action: audit.ACTIONS.DELETE, entity: 'contact', entityId: existing.id, entityName: existing.name, req: c.req })
+    audit.log({ action: audit.ACTIONS.DELETE, entity: 'contact', entityId: existing.id, entityName: existing.name, req: c })
     return c.body(null, 204)
+  })
+
+  /**
+   * POST /:id/merge  { duplicateId }
+   *
+   * `:id` is the contact that SURVIVES. The duplicate's records move onto it, the duplicate's
+   * missing details are copied across, and the duplicate is deleted — all in one transaction, so
+   * either every reference moved and the duplicate is gone, or nothing changed at all.
+   *
+   * The create and update routes above already refuse a duplicate email or phone with 409 +
+   * existingId. Until now that was the end of the road: the user was told a duplicate exists and
+   * given no way to resolve one that already did. (T32 M11)
+   *
+   * Gated on contacts:delete rather than contacts:update, because a merge deletes a contact. Anyone
+   * who may not delete a contact may not delete one by calling it something else.
+   */
+  app.post('/:id/merge', requirePermission('contacts:delete'), async (c) => {
+    const currentUser = c.get('user') as any
+    const keepId = c.req.param('id')
+    const body = await c.req.json().catch(() => ({}))
+    const loseId = String(body?.duplicateId || '').trim()
+    if (!loseId) return c.json({ error: 'Tell us which duplicate to merge in (duplicateId).' }, 400)
+    if (loseId === keepId) return c.json({ error: 'A contact cannot be merged into itself.' }, 400)
+
+    // Checked before the transaction so the two "not found" cases can say which one is missing.
+    // Re-read under a lock inside it, because between here and there is where a race lives.
+    if (!(await findOwned(keepId, currentUser.companyId))) return c.json({ error: 'Contact not found' }, 404)
+    if (!(await findOwned(loseId, currentUser.companyId))) return c.json({ error: 'The duplicate contact was not found.' }, 404)
+
+    let merged: any = null
+    let summary: any = null
+    try {
+      await db.transaction(async (tx: any) => {
+        // Both rows locked in one ordered statement. Two users merging the same pair in opposite
+        // directions take the locks in the same sequence and one of them waits, instead of
+        // deadlocking — and neither merge can run against a contact the other is deleting.
+        const locked = await tx.select().from(t.contact)
+          .where(and(inArray(t.contact.id, [keepId, loseId]), eq(t.contact.companyId, currentUser.companyId)))
+          .orderBy(asc(t.contact.id)).for('update')
+        const keeper = locked.find((r: any) => r.id === keepId)
+        const loser = locked.find((r: any) => r.id === loseId)
+        if (!keeper || !loser) throw new MergeGone()
+
+        const repoint = await repointContactReferences(tx, { contactTable: t.contact, keepId, loseId })
+        const patch = mergePatch(keeper, loser)
+        const [updated] = await tx.update(t.contact).set({ ...patch, updatedAt: new Date() }).where(eq(t.contact.id, keepId)).returning()
+        await tx.delete(t.contact).where(eq(t.contact.id, loseId))
+
+        merged = updated
+        summary = {
+          kept: { id: keeper.id, name: keeper.name },
+          absorbed: { id: loser.id, name: loser.name },
+          movedRecords: repoint.moved,
+          discardedRecords: repoint.discarded,
+          moved: repoint.moves.filter((m) => m.moved > 0 || m.discarded > 0),
+          fieldsFilled: Object.keys(patch).filter((k) => k !== 'notes'),
+          // The duplicate's portal token dies with its row, so a client who bookmarked THAT link
+          // loses it. The survivor's own token cannot be given up to keep it alive — that would
+          // break the survivor's link instead — so the honest thing is to say it happened and let
+          // the user re-send an invitation.
+          portalLinkLost: !!loser.portalToken,
+        }
+      })
+    } catch (e: any) {
+      if (e instanceof MergeGone) return c.json({ error: 'One of those contacts was changed or deleted while the merge was running. Reload and try again.' }, 409)
+      const blob = [e?.code, e?.message, e?.cause?.code, e?.cause?.message].filter(Boolean).join(' ')
+      // A reference we could not move is the one outcome that must never be papered over: the
+      // transaction has already rolled back, so say so rather than report a merge that did not happen.
+      if (/23503|foreign key|violates foreign/i.test(blob)) {
+        return c.json({ error: 'Some of the duplicate\'s records could not be moved, so nothing was merged. Please report this.' }, 409)
+      }
+      throw e
+    }
+
+    const safe = stripPortal(merged)
+    emitToCompany(currentUser.companyId, EVENTS.CONTACT_UPDATED, safe)
+    emitToCompany(currentUser.companyId, EVENTS.CONTACT_DELETED, { id: loseId })
+    audit.log({ action: audit.ACTIONS.DELETE, entity: 'contact', entityId: summary.absorbed.id, entityName: `${summary.absorbed.name} (merged into ${summary.kept.name})`, req: c })
+    audit.log({ action: audit.ACTIONS.UPDATE, entity: 'contact', entityId: keepId, entityName: safe.name, changes: { mergedFrom: { old: null, new: `${summary.absorbed.name} — ${summary.movedRecords} record(s) moved` } }, req: c })
+    return c.json({ ...safe, merge: summary })
   })
 
   app.post('/:id/convert', requirePermission('contacts:update'), async (c) => {
@@ -403,7 +487,7 @@ export function createContactRoutes(deps: ContactDeps) {
     const [updated] = await db.update(t.contact).set({ type: convertTo, updatedAt: new Date() }).where(eq(t.contact.id, id)).returning()
     const safe = stripPortal(updated)
     emitToCompany(currentUser.companyId, EVENTS.CONTACT_UPDATED, safe)
-    audit.log({ action: audit.ACTIONS.STATUS_CHANGE, entity: 'contact', entityId: updated.id, entityName: updated.name, changes: { type: { old: 'lead', new: convertTo } }, req: c.req })
+    audit.log({ action: audit.ACTIONS.STATUS_CHANGE, entity: 'contact', entityId: updated.id, entityName: updated.name, changes: { type: { old: 'lead', new: convertTo } }, req: c })
     return c.json(safe)
   })
 

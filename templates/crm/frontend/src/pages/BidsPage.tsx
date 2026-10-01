@@ -4,6 +4,7 @@ import { formatDate } from '../utils/date';
 import { Plus, Edit, Trash2, Send, Trophy, XCircle, FolderPlus } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
 
@@ -49,6 +50,7 @@ const bidTypes = ['lump_sum', 'unit_price', 'cost_plus', 'gmp', 'design_build'];
 
 export default function BidsPage() {
   const toast = useToast();
+  const { can } = useAuth();
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [stats, setStats] = useState<BidStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -120,7 +122,7 @@ export default function BidsPage() {
 
   return (
     <div>
-      <PageHeader title="Bids" action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>New Bid</Button>} />
+      <PageHeader title="Bids" action={can('bids:create') ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>New Bid</Button> : undefined} />
 
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
@@ -135,13 +137,16 @@ export default function BidsPage() {
       <DataTable data={data} emptyMessage="No bids yet. Log one to track what you quoted and what you won — a won bid becomes a project." columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[
         // Each action is offered only where the state machine allows it — a menu item that can
         // only ever answer 400 is an item that never works. (T32 H6)
-        { label: 'Edit', icon: Edit, onClick: openEdit, show: (r: Record<string, unknown>) => LIVE.includes(r.status as string) },
-        { label: 'Submit', icon: Send, onClick: handleSubmit, show: (r: Record<string, unknown>) => r.status === 'draft' },
-        { label: 'Won', icon: Trophy, onClick: handleWon, show: (r: Record<string, unknown>) => DECIDABLE.includes(r.status as string) },
-        { label: 'Lost', icon: XCircle, onClick: handleLost, show: (r: Record<string, unknown>) => DECIDABLE.includes(r.status as string) },
-        { label: 'Create project', icon: FolderPlus, onClick: handleConvert, show: (r: Record<string, unknown>) => r.status === 'won' && !r.projectId },
+        // …and only to someone the route will let through. A manager holds bids:read and nothing
+        // else, which the matrix does on purpose; the screen offered every action anyway. "Open
+        // project" is navigation, not a write, so it stays. (T32 M9)
+        { label: 'Edit', icon: Edit, onClick: openEdit, show: (r: Record<string, unknown>) => LIVE.includes(r.status as string) && can('bids:update') },
+        { label: 'Submit', icon: Send, onClick: handleSubmit, show: (r: Record<string, unknown>) => r.status === 'draft' && can('bids:update') },
+        { label: 'Won', icon: Trophy, onClick: handleWon, show: (r: Record<string, unknown>) => DECIDABLE.includes(r.status as string) && can('bids:update') },
+        { label: 'Lost', icon: XCircle, onClick: handleLost, show: (r: Record<string, unknown>) => DECIDABLE.includes(r.status as string) && can('bids:update') },
+        { label: 'Create project', icon: FolderPlus, onClick: handleConvert, show: (r: Record<string, unknown>) => r.status === 'won' && !r.projectId && can('bids:update') },
         { label: 'Open project', icon: FolderPlus, onClick: (r: Record<string, unknown>) => navigate(`/crm/projects/${r.projectId}`), show: (r: Record<string, unknown>) => !!r.projectId },
-        { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },
+        { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600', show: () => can('bids:delete') },
       ]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Bid' : 'New Bid'} size="lg">
         <div className="space-y-4">

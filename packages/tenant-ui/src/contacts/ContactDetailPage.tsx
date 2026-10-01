@@ -6,9 +6,10 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Edit, Trash2, Mail, Phone, MapPin, Building2, FileText, Briefcase, Receipt, MessageSquare,
   Wrench, Shield, Plus, Globe, Send, Loader2, ToggleLeft, ToggleRight, MapPinned, ChevronRight, X,
-  CalendarDays, PawPrint, Copy, Check,
+  CalendarDays, PawPrint, Copy, Check, Merge, Search, AlertTriangle,
 } from 'lucide-react'
 import { StatusBadge, Modal, ConfirmModal, Button, NavLink, Field, inputCls, dateOnly, instantDay, dateTime, isPastDay, errMsg } from '../invoicing/ui'
+
 import { resolveContactsConfig } from './types'
 import type { ContactsPageProps, ContactRow, QuickActionIcon } from './types'
 
@@ -74,6 +75,18 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
   const [smsLoading, setSmsLoading] = useState(false)
   const [smsInput, setSmsInput] = useState('')
   const [smsSending, setSmsSending] = useState(false)
+
+  // Merge a duplicate into this contact. (T32 M11)
+  const [mergeOpen, setMergeOpen] = useState(false)
+  const [mergeQuery, setMergeQuery] = useState('')
+  const [mergeResults, setMergeResults] = useState<ContactRow[]>([])
+  const [mergeSearching, setMergeSearching] = useState(false)
+  const [mergePick, setMergePick] = useState<ContactRow | null>(null)
+  const [merging, setMerging] = useState(false)
+  // The config's own `can` (default: allow), not the permissions provider — two verticals that render
+  // this page do not mount one, and hiding the button on a `false` they never supplied would hide it
+  // from their owners too. The server gates the route regardless.
+  const mayMerge = cfg.can('contacts:delete')
 
   const showPortal = !!sections.portal && (cfg.portalGate === false || hasFeature(cfg.portalGate))
   const gated = (feature: string) => !cfg.gateByFeature || hasFeature(feature)
@@ -141,6 +154,41 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
   const handleConvert = async () => {
     try { await api.post(`/api/contacts/${id}/convert`); toast.success(`Lead converted to ${cfg.convertLabel.toLowerCase()}`); loadContact() }
     catch (err) { toast.error(errMsg(err, 'Failed to convert lead')) }
+  }
+
+  // ── merge a duplicate into this contact (T32 M11) ──────────────────────────────────────────────
+  //
+  // The contact on screen is the one KEPT. You pick the duplicate, which is absorbed and deleted.
+  // Framed that way round deliberately: the person is looking at the record they want to keep, and
+  // "merge this one away" is the question people get backwards under a confirmation dialog.
+  const searchForDuplicate = async (q: string) => {
+    setMergeQuery(q)
+    setMergePick(null)
+    if (q.trim().length < 2) { setMergeResults([]); return }
+    setMergeSearching(true)
+    try {
+      const list = await api.get('/api/contacts', { search: q.trim(), limit: 8 })
+      setMergeResults((list?.data || []).filter((r: ContactRow) => r.id !== id))
+    } catch { setMergeResults([]) } finally { setMergeSearching(false) }
+  }
+  const closeMerge = () => { setMergeOpen(false); setMergePick(null); setMergeQuery(''); setMergeResults([]) }
+  const runMerge = async () => {
+    if (!mergePick || !contact) return
+    setMerging(true)
+    try {
+      const res = await api.post(`/api/contacts/${id}/merge`, { duplicateId: mergePick.id })
+      const m = res?.merge
+      // Say what actually happened, including the parts the user would otherwise find out the hard
+      // way: a row that had to be dropped, and a portal link that has stopped working.
+      const moved = Number(m?.movedRecords ?? 0)
+      const parts = [`${moved} record${moved === 1 ? '' : 's'} moved onto ${contact.name}`]
+      const dropped = Number(m?.discardedRecords ?? 0)
+      if (dropped) parts.push(`${dropped} duplicate ${dropped === 1 ? 'row was' : 'rows were'} already on this contact and ${dropped === 1 ? 'was' : 'were'} dropped`)
+      if (m?.portalLinkLost) parts.push("the duplicate's portal link no longer works — send a new invite")
+      toast.success(`Merged "${m?.absorbed?.name || mergePick.name}". ${parts.join('; ')}.`)
+      closeMerge()
+      loadContact()
+    } catch (err) { toast.error(errMsg(err, 'Failed to merge the contacts')) } finally { setMerging(false) }
   }
   const createSite = async () => {
     if (!siteForm.name.trim()) return
@@ -246,6 +294,9 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
           <NavLink to={`/crm/contacts?edit=${id}`} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2">
             <Edit className="w-4 h-4" />Edit
           </NavLink>
+          {mayMerge && (
+            <Button variant="secondary" onClick={() => setMergeOpen(true)}><Merge className="w-4 h-4 inline mr-2" />Merge duplicate</Button>
+          )}
           <Button variant="danger" onClick={() => setDeleteOpen(true)}><Trash2 className="w-4 h-4 inline mr-2" />Delete</Button>
         </div>
       </div>
@@ -630,6 +681,81 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
             </div>
           </div>
           <div className="flex justify-end mt-4"><Button variant="secondary" onClick={() => setSiteDetail(null)}><X className="w-4 h-4 inline mr-1" />Close</Button></div>
+        </Modal>
+      )}
+
+      {mergeOpen && (
+        <Modal isOpen onClose={closeMerge} title={`Merge a duplicate into ${contact.name}`}>
+          <div className="space-y-4">
+            <div role="note" className="p-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-sm dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-100">
+              <p className="font-medium flex items-center gap-2"><AlertTriangle className="w-4 h-4" />{contact.name} is the record that is kept.</p>
+              <p className="mt-1">
+                The duplicate's projects, quotes, invoices, jobs, purchase orders and everything else attached
+                to it move onto {contact.name}. Any details {contact.name} is missing — a phone number, an
+                address — are copied across; nothing already filled in is replaced. The duplicate is then
+                deleted. This cannot be undone.
+              </p>
+            </div>
+
+            {!mergePick ? (
+              <>
+                <Field label="Find the duplicate">
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      autoFocus
+                      value={mergeQuery}
+                      onChange={(e) => searchForDuplicate(e.target.value)}
+                      placeholder="Search by name, company, email or phone"
+                      className={`${inputCls} pl-9`}
+                    />
+                  </div>
+                </Field>
+                <div className="max-h-64 overflow-y-auto divide-y dark:divide-slate-800 rounded-lg border dark:border-slate-800">
+                  {mergeSearching && <p className="p-4 text-sm text-gray-500 dark:text-slate-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />Searching…</p>}
+                  {!mergeSearching && mergeQuery.trim().length < 2 && (
+                    <p className="p-4 text-sm text-gray-500 dark:text-slate-400">Type at least two characters to search.</p>
+                  )}
+                  {!mergeSearching && mergeQuery.trim().length >= 2 && mergeResults.length === 0 && (
+                    <p className="p-4 text-sm text-gray-500 dark:text-slate-400">No other contact matches “{mergeQuery.trim()}”.</p>
+                  )}
+                  {mergeResults.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setMergePick(r)}
+                      className="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-slate-800 flex items-center justify-between gap-3"
+                    >
+                      <span className="min-w-0">
+                        <span className="block font-medium text-gray-900 dark:text-slate-100 truncate">{r.name}</span>
+                        <span className="block text-sm text-gray-500 dark:text-slate-400 truncate">
+                          {[r.company, r.email, r.phone || r.mobile].filter(Boolean).join(' · ') || 'No other details'}
+                        </span>
+                      </span>
+                      <StatusBadge status={r.type} label={cfg.types.find((t) => t.value === r.type)?.label} />
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-end"><Button variant="secondary" onClick={closeMerge}>Cancel</Button></div>
+              </>
+            ) : (
+              <>
+                <div className="p-4 rounded-lg border border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-800">
+                  <p className="text-sm text-red-900 dark:text-red-100">This contact will be deleted:</p>
+                  <p className="mt-1 font-medium text-gray-900 dark:text-slate-100">{mergePick.name}</p>
+                  <p className="text-sm text-gray-600 dark:text-slate-400">
+                    {[mergePick.company, mergePick.email, mergePick.phone || mergePick.mobile].filter(Boolean).join(' · ') || 'No other details'}
+                  </p>
+                </div>
+                <div className="flex justify-end gap-3">
+                  <Button variant="secondary" onClick={() => setMergePick(null)} disabled={merging}>Pick a different one</Button>
+                  <Button variant="danger" onClick={runMerge} disabled={merging}>
+                    {merging ? <><Loader2 className="w-4 h-4 inline mr-2 animate-spin" />Merging…</> : <><Merge className="w-4 h-4 inline mr-2" />Merge and delete “{mergePick.name}”</>}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
         </Modal>
       )}
 

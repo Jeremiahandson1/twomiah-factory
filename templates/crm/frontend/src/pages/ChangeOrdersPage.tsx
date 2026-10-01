@@ -3,6 +3,7 @@ import { formatDate } from '../utils/date';
 import { Plus, Edit, Trash2, Send, Check, X as XIcon } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
 
@@ -47,6 +48,7 @@ interface PaginationData {
 
 export default function ChangeOrdersPage() {
   const toast = useToast();
+  const { can } = useAuth();
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [projects, setProjects] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,13 +142,15 @@ export default function ChangeOrdersPage() {
 
   return (
     <div>
-      <PageHeader title="Change Orders" action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>New CO</Button>} />
+      <PageHeader title="Change Orders" action={can('change-orders:create') ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>New CO</Button> : undefined} />
       <DataTable data={data} emptyMessage="No change orders yet. Raise one when the scope changes — including a credit, if work is coming out." columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[
-        { label: 'Edit', icon: Edit, onClick: openEdit },
-        { label: 'Submit', icon: Send, onClick: handleSubmit },
-        { label: 'Approve', icon: Check, onClick: handleApprove },
-        { label: 'Reject', icon: XIcon, onClick: handleReject },
-        { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },
+        // Mirrors routes/changeOrders.ts: edit, submit, approve and reject are all
+        // change-orders:update; the delete is its own verb. (T32 M9)
+        { label: 'Edit', icon: Edit, show: () => can('change-orders:update'), onClick: openEdit },
+        { label: 'Submit', icon: Send, show: () => can('change-orders:update'), onClick: handleSubmit },
+        { label: 'Approve', icon: Check, show: () => can('change-orders:update'), onClick: handleApprove },
+        { label: 'Reject', icon: XIcon, show: () => can('change-orders:update'), onClick: handleReject },
+        { label: 'Delete', icon: Trash2, show: () => can('change-orders:delete'), onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },
       ]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Change Order' : 'New Change Order'} size="lg">
         <div className="space-y-4">

@@ -52,10 +52,38 @@ interface AuditLogInput {
   // and migration pass userId/companyId, and without them company_id (NOT NULL) failed and the entry was lost.
   userId?: string;
   companyId?: string;
-  req?: {
-    user?: { userId?: string; email?: string; companyId?: string };
-    ip?: string;
-    headers?: Record<string, string | string[] | undefined>;
+  /**
+   * The Hono CONTEXT (`c`), which is where the signed-in user lives — `c.get('user')`.
+   *
+   * This used to be typed as `{ user, ip, headers }`, an Express request, and read as `req.user.*`.
+   * A Hono request has no `.user` and neither does a Hono context, so every caller that handed this
+   * `c.req` (or `c`) produced companyId null, the NOT NULL insert threw, and the catch below ate it.
+   * Contact creates, updates, deletes and conversions recorded nothing at all. (T32)
+   *
+   * Still accepts a plain `{ user }` object so the callers that build one by hand keep working.
+   */
+  req?: any;
+}
+
+/**
+ * Work out who is acting from whatever the caller handed us: a Hono context, a Hono request, or a
+ * plain object with a `user` on it. Deliberately duck-typed — the alternative is 50 call sites all
+ * having to know which of the three they hold.
+ */
+function resolveActor(req: any): { userId: string | null; email: string | null; companyId: string | null; ip: string | null; userAgent: string | null } {
+  const user = typeof req?.get === 'function' ? req.get('user') : req?.user;
+  const header = (name: string): string | null => {
+    const h = typeof req?.req?.header === 'function' ? req.req.header(name)
+      : typeof req?.header === 'function' ? req.header(name)
+      : req?.headers?.[name];
+    return (h as string) || null;
+  };
+  return {
+    userId: user?.userId || user?.id || null,
+    email: user?.email || null,
+    companyId: user?.companyId || null,
+    ip: req?.ip || header('x-forwarded-for'),
+    userAgent: header('user-agent'),
   };
 }
 
@@ -64,6 +92,16 @@ interface AuditLogInput {
  */
 export async function log({ action, entity, entityId, entityName, changes, metadata, userId, companyId, req }: AuditLogInput): Promise<void> {
   try {
+    const actor = resolveActor(req);
+    // The explicit userId/companyId arguments stay as the fallback, not the other way round: bulk,
+    // export, import and migration pass them because they act for a user they looked up themselves.
+    const forCompany = actor.companyId || companyId || null;
+    // No company means no row — the column is NOT NULL, so the insert below would throw and be
+    // swallowed. Say so once, loudly, instead of losing the event in silence.
+    if (!forCompany) {
+      console.error(`Audit log skipped (no company on the actor): ${action} ${entity}`);
+      return;
+    }
     await db.insert(auditLog).values({
       action,
       entity,
@@ -71,12 +109,12 @@ export async function log({ action, entity, entityId, entityName, changes, metad
       entityName: entityName || null,
       changes: changes || null,
       metadata: metadata || null,
-      userId: req?.user?.userId || userId || null,
-      userName: req?.user?.email || null,
-      userEmail: req?.user?.email || null,
-      companyId: req?.user?.companyId || companyId || null,
-      ipAddress: (req?.ip || req?.headers?.['x-forwarded-for']) as string || null,
-      userAgent: req?.headers?.['user-agent'] as string || null,
+      userId: actor.userId || userId || null,
+      userName: actor.email,
+      userEmail: actor.email,
+      companyId: forCompany,
+      ipAddress: actor.ip,
+      userAgent: actor.userAgent,
     });
   } catch (error: unknown) {
     console.error('Audit log error:', (error as Error).message);

@@ -998,7 +998,7 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
       entity: 'payment_link',
       entityId: inv.id,
       entityName: inv.number,
-      req: c.req,
+      req: c,
     })
 
     return c.json(result)
@@ -1039,7 +1039,7 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
       entity: 'payment',
       entityId: pay.id,
       metadata: { amount: result.refund.amount / 100, invoiceId: inv.id },
-      req: c.req,
+      req: c,
     })
 
     return c.json({

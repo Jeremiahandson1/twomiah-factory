@@ -59,7 +59,7 @@ app.post('/connect', requireRole('admin', 'owner'), async (c) => {
     action: 'WISETACK_CONNECT_INITIATED',
     entity: 'company',
     entityId: user.companyId,
-    req: c.req,
+    req: c,
   });
 
   return c.json({ authUrl });
@@ -80,7 +80,7 @@ app.post('/callback', async (c) => {
     action: 'WISETACK_CONNECTED',
     entity: 'company',
     entityId: user.companyId,
-    req: c.req,
+    req: c,
   });
 
   return c.json(result);
@@ -95,7 +95,7 @@ app.post('/disconnect', requireRole('admin', 'owner'), async (c) => {
     action: 'WISETACK_DISCONNECTED',
     entity: 'company',
     entityId: user.companyId,
-    req: c.req,
+    req: c,
   });
 
   return c.json(result);
@@ -124,7 +124,7 @@ app.post('/applications', async (c) => {
     entity: 'financing',
     entityId: application.id,
     metadata: { amount, quoteId, invoiceId },
-    req: c.req,
+    req: c,
   });
 
   return c.json(application, 201);
