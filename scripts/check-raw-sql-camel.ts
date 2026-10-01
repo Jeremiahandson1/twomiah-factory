@@ -47,7 +47,13 @@ else {
 
   // A `timestamp` column arrives as "2026-10-15 00:00:00" with no zone, so a browser reads it in
   // the VIEWER's zone and a date set for the 15th shows as the 14th west of the server.
-  if (!/PG_TIMESTAMP/.test(lib)) fail('sqlRows must convert naive timestamp strings to instants')
+  //
+  // Checked on the line that DOES the conversion, not on the name of the pattern: renaming the
+  // regex constant left `asInstant` still referencing the old identifier, so a check for the name
+  // matched a file that no longer compiled. The same weakness as a check for a constant's name
+  // rather than the branch that uses it.
+  if (!/\? asInstant\(v\) : v/.test(lib)) fail('sqlRows must apply the instant conversion to every string value it maps')
+  if (!/new Date\(`\$\{m\[1\]\}T\$\{m\[2\]\}Z`\)/.test(lib)) fail('…reading the stored value as UTC, which is what these columns hold')
   if (!/\[ T\]/.test(lib)) fail("…matching only values WITH a time part, so a `date` column's calendar day is not turned into an instant")
 }
 
