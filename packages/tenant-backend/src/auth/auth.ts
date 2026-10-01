@@ -168,7 +168,25 @@ export function createAuthRoutes(deps: AuthDeps) {
     const tokens = generateTokens(foundUser.id, foundUser.companyId, foundUser.email, foundUser.role)
     await storeRefreshToken(foundUser.id, tokens.refreshToken, { lastLogin: new Date() })
 
-    return c.json({ user: userPayload(foundUser, foundUser.role), company: companyPayload(foundCompany, permissions.normalizeRole(foundUser.role)), ...tokens })
+    /**
+     * `permissions` on the LOGIN response too, not only on /me. (T32, found while closing M16)
+     *
+     * AuthContext says it out loud — "Login does not carry the list in every CRM; checkAuth() fills
+     * it in either way" — and that was true: this route returned user + company + tokens and
+     * nothing else, so `can()` answered false for one round trip after signing in. Every write
+     * control gated on a permission was therefore HIDDEN on the first render, which is exactly the
+     * shape of the bug the T32 M9 gating was added to avoid (a control that lies about what you
+     * may do), just in the other direction.
+     *
+     * The same `effectivePermissions` /me uses, so the two answers cannot disagree. Adding a field
+     * breaks no caller, and the client already reads it when present.
+     */
+    return c.json({
+      user: userPayload(foundUser, foundUser.role),
+      company: companyPayload(foundCompany, permissions.normalizeRole(foundUser.role)),
+      permissions: await effectivePermissions(foundUser.id, foundUser.role),
+      ...tokens,
+    })
   })
 
   app.post('/refresh', async (c) => {
