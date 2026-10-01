@@ -1243,6 +1243,17 @@ jobs:
       - name: "Rows are presented in the shape the page reads"
         run: bun run scripts/check-audit-log-readable.ts
 
+  raw-sql-camel:
+    name: "Raw-SQL modules answer camelCase"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "One shared row reader, no private copies"
+        run: bun run scripts/check-raw-sql-camel.ts
+
   revenue-one-definition:
     name: "Revenue one definition"
     runs-on: ubuntu-latest

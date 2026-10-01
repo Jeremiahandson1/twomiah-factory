@@ -14,10 +14,26 @@ import { eq, and, lte, asc, sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { notFound } from '../utils/errors.ts'
 
-/** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
-function rows(result: any): any[] {
-  return Array.isArray(result) ? result : (result?.rows || [])
-}
+/**
+ * Raw-SQL rows come back snake_case; every screen in this product reads camelCase. (T32 L7)
+ *
+ * This module answered `due_date`, `price_difference` and `selected_option` while SelectionsPage
+ * reads `dueDate`, `priceDifference` and `selectedOption` — so the due date, the chosen product and
+ * the upgrade cost all rendered blank on a screen whose arithmetic underneath was right. Same class
+ * as T32 B5 in takeoffs, and the same fix, but from ONE shared implementation instead of a fourth
+ * private copy of the same four lines (packages/tenant-backend/src/sqlRows.ts).
+ *
+ * `rows` stays for the reads this file consumes ITSELF, which index raw column names. The
+ * camelising happens where a value is RETURNED, so no internal logic changes meaning.
+ */
+import { rowsOf as rows, camelRow, camelRows } from '../shared/index.ts'
+
+/**
+ * The aliases in this file that are table rows — `row_to_json(so.*) AS selected_option` — and so
+ * are safe to camelise INSIDE. Deliberately not every nested object: `available_options` on the
+ * same row is a json column holding the user's own data, and renaming its keys would corrupt it.
+ */
+const NESTED = ['category', 'selected_option', 'project']
 
 // ============================================
 // SELECTION CATEGORIES
@@ -32,14 +48,14 @@ export async function createCategory(companyId: string, data: any) {
     VALUES (${createId()}, ${companyId}, ${data.name}, ${data.description || null}, ${data.sortOrder || 0}, ${data.icon || null}, ${data.defaultAllowance || 0}, true)
     RETURNING *
   `))
-  return row
+  return camelRow(row)
 }
 
 /**
  * Get categories
  */
 export async function getCategories(companyId: string) {
-  return rows(await db.execute(sql`
+  return camelRows(await db.execute(sql`
     SELECT * FROM selection_category WHERE company_id = ${companyId} AND active = true ORDER BY sort_order ASC
   `))
 }
@@ -92,7 +108,7 @@ export async function createOption(companyId: string, data: any) {
     VALUES (${createId()}, ${companyId}, ${data.categoryId}, ${data.name}, ${data.description || null}, ${data.manufacturer || null}, ${data.model || null}, ${data.sku || null}, ${data.price || 0}, ${data.cost || 0}, ${data.unit || 'each'}, ${data.imageUrl || null}, ${JSON.stringify(data.images || [])}, ${data.specSheet || null}, ${data.leadTimeDays || 0}, ${data.inStock ?? true}, true)
     RETURNING *
   `))
-  return row
+  return camelRow(row)
 }
 
 /**
@@ -110,13 +126,13 @@ export async function getOptions(
     conditions.push(sql`(so.name ILIKE ${like} OR so.manufacturer ILIKE ${like} OR so.model ILIKE ${like})`)
   }
 
-  return rows(await db.execute(sql`
+  return camelRows(await db.execute(sql`
     SELECT so.*, json_build_object('name', sc.name) as category
     FROM selection_option so
     LEFT JOIN selection_category sc ON sc.id = so.category_id
     WHERE ${sql.join(conditions, sql` AND `)}
     ORDER BY sc.sort_order ASC, so.name ASC
-  `))
+  `), NESTED)
 }
 
 // ============================================
@@ -145,27 +161,31 @@ export async function createProjectSelection(companyId: string, data: any) {
     VALUES (${createId()}, ${companyId}, ${data.projectId}, ${data.categoryId || null}, ${data.name}, ${data.description || null}, ${data.location || null}, ${data.allowance || 0}, ${data.quantity ?? 1}, ${data.unit || 'each'}, ${data.dueDate ? new Date(data.dueDate) : null}, 'pending', ${data.notes || null})
     RETURNING *
   `))
-  return row
+  return camelRow(row)
 }
 
 /**
  * Get project selections
  */
 export async function getProjectSelections(projectId: string, companyId: string) {
-  const selections = rows(await db.execute(sql`
+  // Camelised here rather than at the return, because the map below reads the joined option and
+  // the summary function consumes this list — one shape from this point on.
+  const selections = camelRows(await db.execute(sql`
     SELECT ps.*, row_to_json(sc.*) as category, row_to_json(so.*) as selected_option
     FROM project_selection ps
     LEFT JOIN selection_category sc ON sc.id = ps.category_id
     LEFT JOIN selection_option so ON so.id = ps.selected_option_id
     WHERE ps.project_id = ${projectId} AND ps.company_id = ${companyId}
     ORDER BY sc.sort_order ASC, ps.location ASC
-  `))
+  `), NESTED)
 
   return selections.map((sel: any) => {
     let priceDiff = 0
-    if (sel.selected_option) {
-      const totalPrice = sel.selected_option.price * sel.quantity
-      priceDiff = totalPrice - (sel.allowance || 0)
+    if (sel.selectedOption) {
+      // Both come back from Postgres as strings on a decimal column; "3180.00" * 24 happens to
+      // work, ("3180.00" - 2500) does not go wrong either, but Number() states the intent.
+      const totalPrice = Number(sel.selectedOption.price) * Number(sel.quantity)
+      priceDiff = totalPrice - (Number(sel.allowance) || 0)
     }
     return {
       ...sel,
@@ -202,13 +222,13 @@ export async function getSelectionsSummary(projectId: string, companyId: string)
     // decimal columns come back as strings; Number() prevents "0" + "450.00" = "0450.00"
     summary.totalAllowance += Number(sel.allowance) || 0
 
-    if (sel.selected_option) {
-      summary.totalSelected += Number(sel.selected_option.price) * Number(sel.quantity)
+    if (sel.selectedOption) {
+      summary.totalSelected += Number(sel.selectedOption.price) * Number(sel.quantity)
     }
 
     summary.netDifference += Number(sel.priceDifference) || 0
 
-    if (sel.due_date && new Date(sel.due_date) < now && sel.status === 'pending') {
+    if (sel.dueDate && new Date(sel.dueDate) < now && sel.status === 'pending') {
       summary.overdue++
     }
   }
@@ -249,7 +269,7 @@ export async function makeSelection(
     RETURNING *
   `))
 
-  return updated
+  return camelRow(updated)
 }
 
 /**
@@ -288,7 +308,9 @@ export async function approveSelection(
   if (!APPROVABLE_FROM.includes(String(selection.status))) {
     throw Object.assign(new Error(
       String(selection.status) === 'approved'
-        ? `"${selection.name}" has already been approved${selection.price_difference ? ' and its change order raised' : ''}. To change it, pick an option again first.`
+        // Number(), for the same reason as the guard below: "0.00" is truthy, so this claimed a
+        // change order had been raised for a selection that moved no money.
+        ? `"${selection.name}" has already been approved${Math.abs(Number(selection.price_difference ?? 0)) >= 0.005 ? ' and its change order raised' : ''}. To change it, pick an option again first.`
         : `"${selection.name}" is ${selection.status}, and only a selection that is awaiting approval can be approved.`,
     ), { status: 400, code: 'selection_wrong_status' })
   }
@@ -298,12 +320,28 @@ export async function approveSelection(
     WHERE id = ${selectionId}
   `)
 
+  /**
+   * A SELECTION THAT LANDS ON ITS ALLOWANCE RAISED A $0.00 CHANGE ORDER. (T32, found while fixing L7)
+   *
+   * `price_difference` is numeric(12,2), and Postgres hands a decimal column back as a STRING. So
+   * the guard `selection.price_difference !== 0` compared "0.00" with 0, which is never equal — and
+   * a client picking the standard option at exactly the allowance price got a change order titled
+   * "Selection Credit", for nothing, which then had to be approved and moved the contract value by
+   * zero. If the column were ever null the same comparison passed too, and `String(null)` would have
+   * put the text "null" in the amount.
+   *
+   * Compared as a NUMBER, once, with a half-cent tolerance so a rounding artefact does not raise
+   * paperwork either. Same fault as T32 M7's string-vs-number money comparison.
+   */
+  const diff = Number(selection.price_difference ?? 0)
+  const movesMoney = Number.isFinite(diff) && Math.abs(diff) >= 0.005
+
   let co = null
-  if (shouldCreate && selection.price_difference !== 0) {
-    const title = selection.price_difference > 0
+  if (shouldCreate && movesMoney) {
+    const title = diff > 0
       ? `Selection Upgrade: ${selection.name}`
       : `Selection Credit: ${selection.name}`
-    const description = selection.price_difference > 0
+    const description = diff > 0
       ? `Upgrade from allowance to ${selection.selected_option?.name}\n\nLocation: ${selection.location || 'N/A'}\nQuantity: ${selection.quantity} ${selection.unit}`
       : `Credit for selecting ${selection.selected_option?.name} under allowance`
 
@@ -330,13 +368,15 @@ export async function approveSelection(
         number: `CO-${String(Number(n || 0) + 1).padStart(3, '0')}`,
         title,
         description,
-        amount: String(selection.price_difference),
+        amount: diff.toFixed(2),
         status: 'submitted',
       })
       .returning()
   }
 
-  return { selection, changeOrder: co }
+  // The row above was read BEFORE the status update, so hand back what the record now is rather
+  // than a copy that still says `selected` — and in the shape every other route answers in.
+  return { selection: { ...camelRow(selection, NESTED), status: 'approved' }, changeOrder: co }
 }
 
 /**
@@ -356,7 +396,7 @@ export async function markOrdered(
     WHERE id = ${selectionId} AND company_id = ${companyId}
     RETURNING *
   `))
-  return row
+  return camelRow(row)
 }
 
 /**
@@ -375,7 +415,7 @@ export async function markReceived(
     WHERE id = ${selectionId} AND company_id = ${companyId}
     RETURNING *
   `))
-  return row
+  return camelRow(row)
 }
 
 // ============================================
@@ -393,27 +433,29 @@ export async function getClientSelections(projectId: string, contactId: string) 
 
   if (!proj) throw new Error('Access denied')
 
-  const selections = rows(await db.execute(sql`
+  const selections = camelRows(await db.execute(sql`
     SELECT ps.*, row_to_json(sc.*) as category, row_to_json(so.*) as selected_option
     FROM project_selection ps
     LEFT JOIN selection_category sc ON sc.id = ps.category_id
     LEFT JOIN selection_option so ON so.id = ps.selected_option_id
     WHERE ps.project_id = ${projectId}
     ORDER BY ps.due_date ASC NULLS LAST, sc.sort_order ASC
-  `))
+  `), NESTED)
 
   const enriched = await Promise.all(
     selections.map(async (sel: any) => {
       let options: any[] = []
       if (sel.status === 'pending' || sel.status === 'selected') {
-        const availableOptions = sel.available_options || []
+        // `availableOptions` is a json column of option IDS the user chose to offer — camelised as a
+        // KEY above, its contents untouched, which is the whole reason nesting is opt-in.
+        const availableOptions = sel.availableOptions || []
         if (availableOptions.length > 0) {
-          options = rows(await db.execute(sql`
+          options = camelRows(await db.execute(sql`
             SELECT * FROM selection_option WHERE id = ANY(${availableOptions}::text[])
           `))
         } else {
-          options = rows(await db.execute(sql`
-            SELECT * FROM selection_option WHERE category_id = ${sel.category_id} AND active = true LIMIT 50
+          options = camelRows(await db.execute(sql`
+            SELECT * FROM selection_option WHERE category_id = ${sel.categoryId} AND active = true LIMIT 50
           `))
         }
       }
@@ -422,8 +464,10 @@ export async function getClientSelections(projectId: string, contactId: string) 
         ...sel,
         availableOptionsList: options.map((opt: any) => ({
           ...opt,
-          totalPrice: opt.price * sel.quantity,
-          priceDiff: opt.price * sel.quantity - (sel.allowance || 0),
+          // decimal columns arrive as strings: "450.00" * 2 is 900 but "450.00" - 2500 inside a
+          // template would not be, so both sides go through Number().
+          totalPrice: Number(opt.price) * Number(sel.quantity),
+          priceDiff: Number(opt.price) * Number(sel.quantity) - (Number(sel.allowance) || 0),
         })),
       }
     })
@@ -470,28 +514,28 @@ export async function getSelectionsDueSoon(companyId: string, { days = 7 }: { da
   const dueDate = new Date()
   dueDate.setDate(dueDate.getDate() + days)
 
-  return rows(await db.execute(sql`
+  return camelRows(await db.execute(sql`
     SELECT ps.*, json_build_object('id', p.id, 'name', p.name) as project, row_to_json(sc.*) as category
     FROM project_selection ps
     LEFT JOIN project p ON p.id = ps.project_id
     LEFT JOIN selection_category sc ON sc.id = ps.category_id
     WHERE ps.company_id = ${companyId} AND ps.status = 'pending' AND ps.due_date <= ${dueDate}
     ORDER BY ps.due_date ASC
-  `))
+  `), NESTED)
 }
 
 /**
  * Get overdue selections
  */
 export async function getOverdueSelections(companyId: string) {
-  return rows(await db.execute(sql`
+  return camelRows(await db.execute(sql`
     SELECT ps.*, json_build_object('id', p.id, 'name', p.name) as project, row_to_json(sc.*) as category
     FROM project_selection ps
     LEFT JOIN project p ON p.id = ps.project_id
     LEFT JOIN selection_category sc ON sc.id = ps.category_id
     WHERE ps.company_id = ${companyId} AND ps.status = 'pending' AND ps.due_date < ${new Date()}
     ORDER BY ps.due_date ASC
-  `))
+  `), NESTED)
 }
 
 export default {

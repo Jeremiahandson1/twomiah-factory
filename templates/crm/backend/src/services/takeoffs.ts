@@ -16,28 +16,28 @@ import { eq, sql, count } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { notFound } from '../utils/errors.ts'
 
-/** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
-function rows(result: any): any[] {
-  return Array.isArray(result) ? result : (result?.rows || [])
-}
-
 /**
- * Raw-SQL rows come back snake_case; the rest of this API is camelCase. (T32 B5)
+ * Raw-SQL rows come back snake_case; the rest of this API is camelCase. (T32 B5, then L7)
  *
- * `SELECT * FROM takeoff_calculated_material` returned material_name, base_quantity, total_cost …
- * while the screen reads materialName, baseQuantity, totalCost. Every one was undefined, so the
- * breakdown showed a blank material name, NaN quantities and $NaN costs — a module that looked broken
- * while the arithmetic underneath it was right (the sheet totals reconciled by hand).
+ * B5: `SELECT * FROM takeoff_calculated_material` returned material_name, base_quantity, total_cost
+ * … while the screen reads materialName, baseQuantity, totalCost. Every one was undefined, so the
+ * breakdown showed a blank material name, NaN quantities and $NaN costs — a module that looked
+ * broken while the arithmetic underneath it was right (the sheet totals reconciled by hand).
  *
  * Mapped here rather than renamed in the UI: every other endpoint in this product speaks camelCase,
  * and the odd one out is this file's raw SQL.
+ *
+ * L7: the mapper itself now comes from ONE shared implementation. tasks, takeoffs and selections had
+ * each grown a private copy of the same four lines, which is why selections never got one at all.
+ *
+ * `rows` keeps its old name on purpose: the arithmetic in this file indexes raw column names
+ * (`item.measurement_type`, `m.waste_factor`), so those reads must stay snake_case. The camelising
+ * happens where a value is RETURNED to a screen.
  */
-const toCamel = (row: Record<string, any>): Record<string, any> => {
-  const out: Record<string, any> = {}
-  for (const [k, v] of Object.entries(row)) out[k.replace(/_([a-z0-9])/g, (_m, ch) => ch.toUpperCase())] = v
-  return out
-}
-const camelRows = (result: any): any[] => rows(result).map(toCamel)
+import { rowsOf as rows, camelRow, camelRows } from '../shared/index.ts'
+
+/** Aliases in this file that are table rows, and so are safe to camelise inside. */
+const NESTED = ['assembly', 'project', 'inventory_item']
 
 // Measurement types
 export const MEASUREMENT_TYPES = {
@@ -83,14 +83,14 @@ export async function getAssembly(assemblyId: string, companyId: string) {
   `))
   if (!assembly) return null
 
-  assembly.materials = rows(await db.execute(sql`
+  assembly.materials = camelRows(await db.execute(sql`
     SELECT am.*, json_build_object('id', ii.id, 'name', ii.name, 'sku', ii.sku, 'unit_cost', ii.unit_cost) as inventory_item
     FROM assembly_material am
     LEFT JOIN inventory_item ii ON ii.id = am.inventory_item_id
     WHERE am.assembly_id = ${assemblyId}
-  `))
+  `), NESTED)
 
-  return assembly
+  return camelRow(assembly, NESTED)
 }
 
 /**
@@ -107,12 +107,12 @@ export async function getAssemblies(companyId: string, { category, active = true
 
   // Load materials for each
   for (const assembly of assemblies) {
-    assembly.materials = rows(await db.execute(sql`
+    assembly.materials = camelRows(await db.execute(sql`
       SELECT * FROM assembly_material WHERE assembly_id = ${assembly.id}
     `))
   }
 
-  return assemblies
+  return assemblies.map((a: any) => camelRow(a, NESTED))
 }
 
 /**
@@ -188,14 +188,14 @@ export async function createTakeoffSheet(companyId: string, data: any) {
     VALUES (${createId()}, ${companyId}, ${data.projectId}, ${data.name}, ${data.description || null}, ${data.planReference || null}, ${data.planUrl || null}, 'draft')
     RETURNING *
   `))
-  return sheet
+  return camelRow(sheet, NESTED)
 }
 
 /**
  * Get takeoff sheets for project
  */
 export async function getProjectTakeoffs(projectId: string, companyId: string) {
-  return rows(await db.execute(sql`
+  return camelRows(await db.execute(sql`
     SELECT ts.*,
       (SELECT count(*) FROM takeoff_item ti WHERE ti.sheet_id = ts.id) as item_count
     FROM takeoff_sheet ts
@@ -216,13 +216,13 @@ export async function getTakeoffSheet(sheetId: string, companyId: string) {
   `))
   if (!sheet) return null
 
-  sheet.items = rows(await db.execute(sql`
+  sheet.items = camelRows(await db.execute(sql`
     SELECT ti.*, row_to_json(ta.*) as assembly
     FROM takeoff_item ti
     LEFT JOIN takeoff_assembly ta ON ta.id = ti.assembly_id
     WHERE ti.sheet_id = ${sheetId}
     ORDER BY ti.sort_order ASC
-  `))
+  `), NESTED)
 
   for (const item of sheet.items) {
     item.calculatedMaterials = camelRows(await db.execute(sql`
@@ -230,7 +230,7 @@ export async function getTakeoffSheet(sheetId: string, companyId: string) {
     `))
   }
 
-  return sheet
+  return camelRow(sheet, NESTED)
 }
 
 // ============================================
@@ -244,11 +244,16 @@ export async function addTakeoffItem(sheetId: string, companyId: string, data: a
   const assembly = await getAssembly(data.assemblyId, companyId)
   if (!assembly) throw notFound('Assembly not found')
 
-  const measurementValue = calculateMeasurement(data, assembly.measurement_type)
+  // getAssembly answers camelCase (it feeds a screen), so these read measurementType / wasteFactor.
+  // They used to read the snake_case names and silently became `undefined` the moment that function
+  // started camelising — which collapsed two sql placeholders and made POST /items answer
+  // "syntax error at or near ,". Caught by the response-shape suite, which measures an AREA; every
+  // existing takeoff test only ever measured a linear length, so nothing else would have noticed.
+  const measurementValue = calculateMeasurement(data, assembly.measurementType)
 
   const [item] = rows(await db.execute(sql`
     INSERT INTO takeoff_item (id, sheet_id, assembly_id, name, location, measurement_type, length, width, height, quantity, measurement_value, waste_factor, notes, sort_order)
-    VALUES (${createId()}, ${sheetId}, ${data.assemblyId}, ${data.name || assembly.name}, ${data.location || null}, ${assembly.measurement_type}, ${data.length || 0}, ${data.width || 0}, ${data.height || 0}, ${data.quantity || 1}, ${measurementValue}, ${data.wasteFactor ?? assembly.waste_factor}, ${data.notes || null}, ${data.sortOrder || 0})
+    VALUES (${createId()}, ${sheetId}, ${data.assemblyId}, ${data.name || assembly.name}, ${data.location || null}, ${assembly.measurementType}, ${data.length || 0}, ${data.width || 0}, ${data.height || 0}, ${data.quantity || 1}, ${measurementValue}, ${data.wasteFactor ?? assembly.wasteFactor}, ${data.notes || null}, ${data.sortOrder || 0})
     RETURNING *
   `))
 
@@ -349,7 +354,9 @@ async function getTakeoffItem(itemId: string) {
     SELECT * FROM takeoff_calculated_material WHERE item_id = ${itemId}
   `))
 
-  return item
+  // `calculatedMaterials` is already camel and is NOT in NESTED, so camelRow passes it through
+  // untouched rather than walking it a second time.
+  return camelRow(item, NESTED)
 }
 
 /**

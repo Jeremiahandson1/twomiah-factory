@@ -32,10 +32,21 @@ export const FREQUENCIES = {
 } as const
 export type Frequency = (typeof FREQUENCIES)[keyof typeof FREQUENCIES]
 
-/** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
-function rows(result: any): any[] {
-  return Array.isArray(result) ? result : (result?.rows || [])
-}
+/**
+ * Raw-SQL rows come back snake_case; RecurringForm and RecurringList read camelCase. (T32 L7)
+ *
+ * The report named four modules and this was the fourth. Every recurring endpoint answered
+ * `next_run_date`, `last_run_date`, `invoice_count`, `auto_send`, `day_of_month` while the shared UI
+ * reads nextRunDate, autoSend, dayOfMonth — and `resumeRecurringInvoice` went further and returned
+ * a literal `next_run_date` key alongside camelCase ones, from the same object.
+ *
+ * `rows` keeps its name because the reads this file makes of its OWN rows index raw column names
+ * (`recurring.company_id`, `existing.next_run_date`). Camelising happens at the return.
+ */
+import { rowsOf as rows, camelRow, camelRows } from '../sqlRows'
+
+/** Aliases in this file that are table rows, and so are safe to camelise inside. */
+const NESTED = ['contact', 'project', 'company']
 
 /**
  * Add months and CLAMP to the end of the target month. (T32 H7)
@@ -127,7 +138,7 @@ export function createRecurringService(deps: RecurringServiceDeps) {
         VALUES (${createId()}, ${recurringId}, ${item.description}, ${item.quantity || 1}, ${item.unitPrice || 0}, ${item.total}, ${item.sortOrder})
       `)
     }
-    return recurring
+    return camelRow(recurring, NESTED)
   }
 
   async function generateInvoiceFromRecurring(recurringId: string) {
@@ -239,7 +250,7 @@ export function createRecurringService(deps: RecurringServiceDeps) {
       LIMIT ${limitN} OFFSET ${offset}
     `))
     const [{ count: total }] = rows(await db.execute(sql`SELECT count(*)::int as count FROM recurring_invoice ri WHERE ${where}`))
-    return { data, pagination: { page: pageN, limit: limitN, total, pages: Math.ceil(total / limitN) } }
+    return { data: camelRows(data, NESTED), pagination: { page: pageN, limit: limitN, total, pages: Math.ceil(total / limitN) } }
   }
 
   async function getRecurringInvoice(id: string, companyId: string) {
@@ -254,8 +265,8 @@ export function createRecurringService(deps: RecurringServiceDeps) {
     const lineItemRows = rows(await db.execute(sql`
       SELECT * FROM recurring_line_item WHERE recurring_invoice_id = ${id} ORDER BY sort_order ASC
     `))
-    result.lineItems = lineItemRows
-    return result
+    result.lineItems = camelRows(lineItemRows)
+    return camelRow(result, NESTED)
   }
 
   async function updateRecurringInvoice(id: string, companyId: string, data: any) {
@@ -308,7 +319,7 @@ export function createRecurringService(deps: RecurringServiceDeps) {
     const [existing] = rows(await db.execute(sql`SELECT * FROM recurring_invoice WHERE id = ${id} AND company_id = ${companyId}`))
     if (!existing) return null
     await db.execute(sql`UPDATE recurring_invoice SET status = 'paused' WHERE id = ${id}`)
-    return { ...existing, status: 'paused' }
+    return { ...camelRow(existing, NESTED), status: 'paused' }
   }
 
   async function resumeRecurringInvoice(id: string, companyId: string) {
@@ -318,14 +329,14 @@ export function createRecurringService(deps: RecurringServiceDeps) {
     const now = new Date()
     while (nextRunDate < now) nextRunDate = calculateNextDate(nextRunDate, existing.frequency)
     await db.execute(sql`UPDATE recurring_invoice SET status = 'active', next_run_date = ${nextRunDate} WHERE id = ${id}`)
-    return { ...existing, status: 'active', next_run_date: nextRunDate }
+    return { ...camelRow(existing, NESTED), status: 'active', nextRunDate }
   }
 
   async function cancelRecurringInvoice(id: string, companyId: string) {
     const [existing] = rows(await db.execute(sql`SELECT * FROM recurring_invoice WHERE id = ${id} AND company_id = ${companyId}`))
     if (!existing) return null
     await db.execute(sql`UPDATE recurring_invoice SET status = 'cancelled' WHERE id = ${id}`)
-    return { ...existing, status: 'cancelled' }
+    return { ...camelRow(existing, NESTED), status: 'cancelled' }
   }
 
   async function deleteRecurringInvoice(id: string, companyId: string): Promise<boolean> {
@@ -364,11 +375,19 @@ export function createRecurringService(deps: RecurringServiceDeps) {
     }
   }
 
+  /**
+   * The pause / resume / cancel path the routes ACTUALLY use.
+   *
+   * `pauseRecurringInvoice`, `resumeRecurringInvoice` and `cancelRecurringInvoice` below are exported
+   * aliases that no route calls — the three endpoints share this one function through `statusChange`.
+   * Worth saying out loud, because camelising the three named ones and stopping there left the real
+   * endpoint still answering snake_case, and only a test that called the ROUTE noticed.
+   */
   async function updateRecurringStatus(id: string, status: string, opts?: { nextRunDate?: Date }) {
     const sets = [sql`status = ${status}`]
     if (opts?.nextRunDate) sets.push(sql`next_run_date = ${opts.nextRunDate}`)
     const [updated] = rows(await db.execute(sql`UPDATE recurring_invoice SET ${sql.join(sets, sql`, `)} WHERE id = ${id} RETURNING *`))
-    return updated
+    return camelRow(updated)
   }
 
   return {

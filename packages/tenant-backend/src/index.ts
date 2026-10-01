@@ -198,6 +198,8 @@ export type { InventoryService, InventoryServiceDeps, InventoryRoutesDeps, Inven
 // Refusing a list filter whose value is outside the vocabulary (invoice/job/quote status, contact type, expense
 // category), instead of answering with an empty list that reads like "nothing here". (Contractor T29 N2)
 export { checkFilter, invalidFilter, filterGiven } from './listFilter'
+// Reading raw-SQL rows without silently changing a module's response shape. (T32 L7)
+export { rowsOf, camelRow, camelRows, camelFirst } from './sqlRows'
 
 // What a date is allowed to be. A thing that HAPPENED cannot be dated into the future; a thing that is
 // PLANNED cannot be centuries out. Used by expenses and time entries here, and re-exported so a

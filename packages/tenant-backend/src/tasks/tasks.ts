@@ -22,10 +22,9 @@ export interface TasksRoutesDeps {
 
 const MANAGER_ROLES = new Set(['owner', 'admin', 'manager'])
 
-/** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
-function rows(result: any): any[] {
-  return Array.isArray(result) ? result : (result?.rows || [])
-}
+// Reading raw-SQL rows, from the one shared implementation. `rows` keeps its local name because the
+// reads below index raw column names. (T32 L7 — see ../sqlRows.ts)
+import { rowsOf as rows, camelRow } from '../sqlRows'
 
 const SORT_COLUMNS: Record<string, string> = {
   due_date: 'due_date', dueDate: 'due_date', created_at: 'created_at', createdAt: 'created_at',
@@ -151,14 +150,11 @@ export function createTasksService(deps: TasksServiceDeps) {
 
     const [{ count: total }] = rows(await db.execute(sql`SELECT count(*)::int as count FROM task t WHERE ${where}`))
 
-    // Raw SQL returns snake_case (due_date, created_at, assigned_to_id, …); the UI
-    // reads camelCase, so a task's date showed blank. Convert top-level keys.
-    const toCamel = (s: string) => s.replace(/_([a-z])/g, (_m: string, ch: string) => ch.toUpperCase())
-    const camelData = (data as any[]).map((row) => {
-      const out: Record<string, any> = {}
-      for (const [k, v] of Object.entries(row)) out[toCamel(k)] = v
-      return out
-    })
+    // Raw SQL returns snake_case (due_date, created_at, assigned_to_id, …); the UI reads camelCase,
+    // so a task's date showed blank. From the one shared implementation now — this was the first of
+    // three private copies of the same four lines, and the module that never got one (selections)
+    // shipped the same bug for a round. (T32 L7)
+    const camelData = (data as any[]).map((row) => camelRow(row))
 
     return {
       data: camelData,
