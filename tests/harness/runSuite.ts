@@ -82,8 +82,26 @@ export async function runSuite(o: SuiteOptions): Promise<number> {
   writeFileSync(`${SB}/package.json`, JSON.stringify(pkg, null, 2))
 
   const tests = readdirSync(o.suiteDir).filter((f) => f.endsWith('.test.ts') && (!filter || f.includes(filter))).sort()
-  if (!tests.length) { console.error(`FAIL: no test files${filter ? ` matching "${filter}"` : ''} in ${o.suiteDir}`); return 1 }
   for (const f of tests) cpSync(`${o.suiteDir}/${f}`, `${SB}/${f}`)
+
+  /**
+   * The shared contract test runs in EVERY suite.
+   *
+   * It is not copied per vertical on purpose: it asserts the two invariants that hold for every
+   * template — nothing readable without signing in, and no 5xx from a well-formed request — over the
+   * routes that template actually mounts. Keeping one copy is what makes a brand-new vertical get the
+   * check the moment it has a suite entry, and what stops the eight-way drift that let the same
+   * column defect sit in eight payroll files.
+   *
+   * It is the check that found /api/payroll/expenses (seven templates) and the whole /api/scheduling
+   * module (eight) answering 500 on every call they had ever received.
+   */
+  const CONTRACT = `${o.root}tests/harness/contract.test.ts`
+  if (existsSync(CONTRACT) && (!filter || 'contract.test.ts'.includes(filter))) {
+    cpSync(CONTRACT, `${SB}/contract.test.ts`)
+    if (!tests.includes('contract.test.ts')) tests.unshift('contract.test.ts')
+  }
+  if (!tests.length) { console.error(`FAIL: no test files${filter ? ` matching "${filter}"` : ''} in ${o.suiteDir}`); return 1 }
 
   console.log('installing dependencies…')
   const install = spawnSync('bun', ['install', '--silent'], { cwd: SB, encoding: 'utf8', shell: true })

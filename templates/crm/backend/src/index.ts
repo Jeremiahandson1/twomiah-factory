@@ -83,7 +83,6 @@ import recurringRoutes from './routes/recurring.ts'
 import reportingRoutes from './routes/reporting.ts'
 import reviewsRoutes from './routes/reviews.ts'
 import routingRoutes from './routes/routing.ts'
-import schedulingRoutes from './routes/scheduling.ts'
 import searchRoutes from './routes/search.ts'
 import selectionsRoutes from './routes/selections.ts'
 import smsRoutes from './routes/sms.ts'
@@ -372,7 +371,6 @@ app.route('/api/recurring', recurringRoutes)
 app.route('/api/reports', reportingRoutes)
 app.route('/api/reviews', reviewsRoutes)
 app.route('/api/routing', routingRoutes)
-app.route('/api/scheduling', schedulingRoutes)
 app.route('/api/search', searchRoutes)
 app.route('/api/selections', selectionsRoutes)
 app.route('/api/sms', smsRoutes)

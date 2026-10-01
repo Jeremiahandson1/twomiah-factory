@@ -105,6 +105,11 @@ app.delete('/items/:id', requirePermission('takeoffs:delete'), async (c) => {
 
 app.get('/sheets/:id/totals', async (c) => {
   const user = c.get('user') as any;
+  // A sheet that is not there is a 404, the same as every other door to a sheet in this file.
+  // getSheetMaterialTotals THROWS 'Sheet not found', and this handler let that become a 500 — so
+  // asking for the totals of a deleted or mistyped sheet reported a server fault.
+  const sheet = await takeoffs.getTakeoffSheet(c.req.param('id'), user.companyId);
+  if (!sheet) return c.json({ error: 'Sheet not found' }, 404);
   const totals = await takeoffs.getSheetMaterialTotals(c.req.param('id'), user.companyId);
   return c.json(totals);
 });

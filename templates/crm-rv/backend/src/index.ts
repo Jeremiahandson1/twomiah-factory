@@ -64,7 +64,6 @@ import quickbooksRoutes from './routes/quickbooks.ts'
 import reportingRoutes from './routes/reporting.ts'
 import reviewsRoutes from './routes/reviews.ts'
 import routingRoutes from './routes/routing.ts'
-import schedulingRoutes from './routes/scheduling.ts'
 import scheduleEventsRoutes from './routes/scheduleEvents.ts'
 import searchRoutes from './routes/search.ts'
 import smsRoutes from './routes/sms.ts'
@@ -277,7 +276,6 @@ app.route('/api/quickbooks', quickbooksRoutes)
 app.route('/api/reports', reportingRoutes)
 app.route('/api/reviews', reviewsRoutes)
 app.route('/api/routing', routingRoutes)
-app.route('/api/scheduling', schedulingRoutes)
 app.route('/api/schedule-events', scheduleEventsRoutes)
 app.route('/api/search', searchRoutes)
 app.route('/api/sms', smsRoutes)

@@ -28,6 +28,10 @@ app.get('/fields/:type', async (c) => {
 app.get('/:type/csv', requirePermission('dashboard:read'), async (c) => {
   const user = c.get('user') as any
   const type = c.req.param('type')
+  // An unknown type is a URL somebody typed, not a server fault: 404, the same answer and the same
+  // wording GET /fields/:type already gives. Without this, exportToCSV throws "Unknown entity type"
+  // and the handler answered 500.
+  if (!exportService.getExportFields(type)) return c.json({ error: 'Unknown export type' }, 404)
   const { status, startDate, endDate, contactId, projectId, limit } = c.req.query() as any
 
   const result = await exportService.exportToCSV(type, user.companyId, {
@@ -61,6 +65,10 @@ app.get('/:type/csv', requirePermission('dashboard:read'), async (c) => {
 app.get('/:type/excel', requirePermission('dashboard:read'), async (c) => {
   const user = c.get('user') as any
   const type = c.req.param('type')
+  // An unknown type is a URL somebody typed, not a server fault: 404, the same answer and the same
+  // wording GET /fields/:type already gives. Without this, exportToCSV throws "Unknown entity type"
+  // and the handler answered 500.
+  if (!exportService.getExportFields(type)) return c.json({ error: 'Unknown export type' }, 404)
   const { status, startDate, endDate, contactId, projectId, limit } = c.req.query() as any
 
   const result = await exportService.exportToExcel(type, user.companyId, {
