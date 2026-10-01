@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, MoreVertical } from 'lucide-react';
 import { useIsMobile } from '../../hooks/useMediaQuery';
 
@@ -14,6 +14,29 @@ export function ResponsiveTable({
   const isMobile = useIsMobile();
   const [expandedRow, setExpandedRow] = useState(null);
   const [openMenu, setOpenMenu] = useState(null);
+  const menuRef = useRef(null);
+  /**
+   * The SECOND row-action table in this template, and nobody knew it was here.
+   *
+   * It was found by removing crm-automotive from check-row-action-show.ts — the moment the parked
+   * template was looked at, a seventh copy of this component appeared with both of the faults the
+   * other six were fixed for: a dismissal backdrop inside a clickable row, and `show` ignored.
+   *
+   * That is the argument for the guard covering parked code: the exclusion was not protecting a
+   * template nobody touches, it was hiding one.
+   */
+  useEffect(() => {
+    if (openMenu === null) return;
+    const onDown = (e) => { if (!menuRef.current?.contains(e.target)) setOpenMenu(null); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpenMenu(null); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [openMenu]);
+  const visibleActions = (row) => (actions || []).filter((a) => !a.show || a.show(row));
 
   if (loading) {
     return (
@@ -66,7 +89,7 @@ export function ResponsiveTable({
                   </div>
 
                   {/* Actions menu */}
-                  {actions.length > 0 && (
+                  {visibleActions(row).length > 0 && (
                     <div className="relative ml-2">
                       <button
                         onClick={(e) => {
@@ -75,20 +98,23 @@ export function ResponsiveTable({
                         }}
                         className="p-2 hover:bg-gray-100 rounded-lg"
                         aria-label="Actions"
+                        aria-haspopup="menu"
+                        aria-expanded={openMenu === idx}
                       >
                         <MoreVertical className="w-5 h-5 text-gray-400" />
                       </button>
 
                       {openMenu === idx && (
-                        <>
                           <div
-                            className="fixed inset-0 z-10"
-                            onClick={() => setOpenMenu(null)}
-                          />
-                          <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border z-20 py-1">
-                            {actions.map((action, i) => (
+                            ref={menuRef}
+                            role="menu"
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border z-20 py-1"
+                          >
+                            {visibleActions(row).map((action, i) => (
                               <button
                                 key={i}
+                                role="menuitem"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   action.onClick(row);
@@ -104,7 +130,6 @@ export function ResponsiveTable({
                               </button>
                             ))}
                           </div>
-                        </>
                       )}
                     </div>
                   )}
@@ -180,10 +205,13 @@ export function ResponsiveTable({
                   {col.render ? col.render(row[col.key], row) : row[col.key]}
                 </td>
               ))}
-              {actions.length > 0 && (
+              {/* The desktop half shows the actions as icons rather than behind a ⋮, so there is no
+                  menu to dismiss here — but `show` still has to be honoured, or a role sees a button
+                  that always answers 403. */}
+              {visibleActions(row).length > 0 && (
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-1">
-                    {actions.map((action, i) => (
+                    {visibleActions(row).map((action, i) => (
                       <button
                         key={i}
                         onClick={(e) => {

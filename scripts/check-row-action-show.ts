@@ -31,7 +31,16 @@ import { join, relative, resolve, dirname } from 'node:path'
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
-const SKIP = new Set(['node_modules', 'dist', 'build', '.git', 'crm-automotive'])
+/**
+ * crm-automotive is NOT skipped here, and it is the only guard where it is not.
+ *
+ * It is parked, so most guards leave it alone. But it renders its own copy of this table on eight
+ * pages with onRowClick set, which made the "closing the menu opens the record" fault live in a
+ * product nobody is maintaining — the worst place for it, because nobody is looking. It was fixed on
+ * an explicit instruction to touch this template, and once fixed it belongs inside the rule: a
+ * parked template is exactly the one that will quietly drift back.
+ */
+const SKIP = new Set(['node_modules', 'dist', 'build', '.git'])
 
 function walk(dir: string, out: string[] = []): string[] {
   let entries: string[]

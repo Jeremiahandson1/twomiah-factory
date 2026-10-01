@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Search, Filter, MoreVertical, Edit, Trash2, Eye } from 'lucide-react';
 
 export function DataTable({
@@ -15,6 +15,31 @@ export function DataTable({
   searchValue = '',
 }) {
   const [openMenu, setOpenMenu] = useState(null);
+  const menuRef = useRef(null);
+  /**
+   * Closing the row menu must not open the row, and Escape must close it. (T56 R1)
+   *
+   * This template is parked, so it kept the fault the other four copies of this table were fixed
+   * for: the menu was dismissed by a full-screen `<div onClick>` rendered INSIDE the row, and that
+   * click bubbled to the row's own onClick — so opening the ⋮ and clicking away navigated into the
+   * record. Eight pages here render this table with onRowClick set, so it was live, not theoretical.
+   *
+   * Fixed on an explicit instruction to touch this template, rather than quietly: the standing rule
+   * is to leave crm-automotive alone.
+   */
+  useEffect(() => {
+    if (openMenu === null) return;
+    const onDown = (e) => { if (!menuRef.current?.contains(e.target)) setOpenMenu(null); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpenMenu(null); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [openMenu]);
+  /** Only the actions this person can use on this row — a control that always 403s is not a control. */
+  const visibleActions = (row) => (actions || []).filter((a) => !a.show || a.show(row));
 
   return (
     <div className="bg-white rounded-lg shadow-sm overflow-hidden">
@@ -78,7 +103,11 @@ export function DataTable({
                   {actions && (
                     <td className="px-4 py-3">
                       <div className="relative">
+                        {visibleActions(row).length > 0 && (
                         <button
+                          aria-label="Row actions"
+                          aria-haspopup="menu"
+                          aria-expanded={openMenu === row.id}
                           onClick={(e) => {
                             e.stopPropagation();
                             setOpenMenu(openMenu === row.id ? null : row.id);
@@ -87,26 +116,30 @@ export function DataTable({
                         >
                           <MoreVertical className="w-4 h-4 text-gray-500" />
                         </button>
+                        )}
                         {openMenu === row.id && (
-                          <>
-                            <div className="fixed inset-0 z-10" onClick={() => setOpenMenu(null)} />
-                            <div className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-lg border z-20 py-1">
-                              {actions.map((action, idx) => (
-                                <button
-                                  key={idx}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setOpenMenu(null);
-                                    action.onClick(row);
-                                  }}
-                                  className={`w-full px-4 py-2 text-sm text-left flex items-center gap-2 hover:bg-gray-50 ${action.className || ''}`}
-                                >
-                                  {action.icon && <action.icon className="w-4 h-4" />}
-                                  {action.label}
-                                </button>
-                              ))}
-                            </div>
-                          </>
+                          <div
+                            ref={menuRef}
+                            role="menu"
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-lg border z-20 py-1"
+                          >
+                            {visibleActions(row).map((action, idx) => (
+                              <button
+                                key={idx}
+                                role="menuitem"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenMenu(null);
+                                  action.onClick(row);
+                                }}
+                                className={`w-full px-4 py-2 text-sm text-left flex items-center gap-2 hover:bg-gray-50 ${action.className || ''}`}
+                              >
+                                {action.icon && <action.icon className="w-4 h-4" />}
+                                {action.label}
+                              </button>
+                            ))}
+                          </div>
                         )}
                       </div>
                     </td>
