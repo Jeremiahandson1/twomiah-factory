@@ -14,6 +14,17 @@ import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+/**
+ * Reads are checked against the matrix too — this is committed spend with vendors. (T32 H1)
+ *
+ * Every write below has always been gated on `purchase-orders:*`; the GETs were on `authenticate`
+ * alone, so any signed-in user of the company could read them. The matrix already draws the line:
+ * `purchase-orders` sits with admin and manager, and `field` and `viewer` hold none of it.
+ *
+ * On the MOUNT rather than per handler, so the next GET added to this file is gated by
+ * construction and cannot repeat the omission.
+ */
+app.use('*', requirePermission('purchase-orders:read'))
 
 const lineSchema = z.object({
   description: z.string().min(1),

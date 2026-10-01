@@ -27,6 +27,19 @@ export interface JobsDashboardDeps {
 const ISSUED = ['void', 'refunded', 'draft']
 /** Money is hidden only when we have been given a way to ask AND the answer is no. */
 const MONEY_PERMISSION = 'invoices:read'
+/**
+ * The quote pipeline is money too, and it was handed to everyone. (T32 H1)
+ *
+ * `invoices` has been gated since Field Service T30; `quotes` sat two lines below it unguarded, so a
+ * technician read the pipeline value and the approved value off the home screen — $26,865.96 and
+ * $24,139.89 on the tenant that was tested — while the Quotes page itself refused them.
+ *
+ * It asks `quotes:read` rather than borrowing the invoice right, because that is the question the
+ * Quotes page asks: `viewer` holds quotes:read and legitimately sees this; `field` holds neither and
+ * sees neither. And only the VALUES go — the quote counts stay, the same line this file already draws
+ * for the job and schedule counts a technician needs.
+ */
+const QUOTE_MONEY_PERMISSION = 'quotes:read'
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0 }
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
@@ -39,11 +52,12 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
    * unchanged; a thrown lookup also answers true, because a dashboard that cannot read the permission
    * list must not start hiding an owner's own figures.
    */
-  const maySeeMoney = async (c: any) => {
+  const maySee = async (c: any, permission: string) => {
     if (!deps.canSee) return true
     const u = c.get('user') as any
-    try { return await deps.canSee(u?.role, MONEY_PERMISSION, u?.userId) } catch { return true }
+    try { return await deps.canSee(u?.role, permission, u?.userId) } catch { return true }
   }
+  const maySeeMoney = (c: any) => maySee(c, MONEY_PERMISSION)
   app.use('*', deps.authenticate)
   const safe = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => { try { return await fn() } catch { return fallback } }
 
@@ -118,7 +132,12 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
         inProgressToday: todayByStatus.in_progress || 0,
         completedToday: Number(completedTodayRows[0]?.value ?? 0),
       },
-      quotes: quoteStats,
+      // The counts always; the pipeline value only for somebody the Quotes page would serve. The
+      // keys are dropped rather than zeroed, so a screen can tell "not allowed" from "nothing yet"
+      // — a tile reading $0.00 is a wrong figure, not a hidden one. (T32 H1 / M8)
+      quotes: (await maySee(c, QUOTE_MONEY_PERMISSION))
+        ? quoteStats
+        : { total: quoteStats.total, pending: quoteStats.pending, approved: quoteStats.approved },
       // Money only for a caller entitled to it. The counts a technician needs (jobs, schedule) stay.
       invoices: (await maySeeMoney(c)) ? invoiceStats : undefined,
     })

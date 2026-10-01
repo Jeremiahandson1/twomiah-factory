@@ -169,7 +169,26 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
   }
 
   // ---- service history ----
-  async function addServiceRecord(equipmentId: string, _companyId: string, data: { type: string; description?: string; cost?: number; nextDueDate?: string }) {
+  /**
+   * SERVICE HISTORY CROSSED THE TENANT BOUNDARY, BOTH WAYS. (found while fixing T32 H1)
+   *
+   * `equipment_maintenance` has no company_id of its own — it belongs to a company only through its
+   * equipment row. Both functions below took the equipment id and filtered on nothing else:
+   * `addServiceRecord` was even handed the companyId and named the parameter `_companyId` to say it
+   * was unused. So with an id from another tenant, GET /:id/history returned their service history
+   * and what they paid for it, and POST /:id/history wrote a record onto their equipment.
+   *
+   * Every other function in this module takes companyId and uses it. These two are now the same: the
+   * equipment row is resolved for THIS company first, and an id that is not theirs is indistinguishable
+   * from one that does not exist — which is the right answer to give.
+   */
+  async function ownsEquipment(equipmentId: string, companyId: string) {
+    const [row] = await db.select({ id: equipment.id }).from(equipment)
+      .where(and(eq(equipment.id, equipmentId), eq(equipment.companyId, companyId))).limit(1)
+    return !!row
+  }
+  async function addServiceRecord(equipmentId: string, companyId: string, data: { type: string; description?: string; cost?: number; nextDueDate?: string }) {
+    if (!(await ownsEquipment(equipmentId, companyId))) return null
     const [record] = await db.insert(equipmentMaintenance).values({
       equipmentId,
       type: data.type,
@@ -180,7 +199,8 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
     }).returning()
     return record
   }
-  async function getServiceHistory(equipmentId: string) {
+  async function getServiceHistory(equipmentId: string, companyId: string) {
+    if (!(await ownsEquipment(equipmentId, companyId))) return null
     return db.select().from(equipmentMaintenance).where(eq(equipmentMaintenance.equipmentId, equipmentId)).orderBy(desc(equipmentMaintenance.performedAt))
   }
 
@@ -316,11 +336,18 @@ export function createEquipmentRoutes(deps: EquipmentRoutesDeps) {
   })
 
   // ---- service history ----
-  app.get('/:id/history', async (c: any) => c.json(await service.getServiceHistory(c.req.param('id'))))
+  // Both of these used to take the equipment id and nothing else, so another tenant's id worked. The
+  // service now resolves the equipment for THIS company and answers null when it is not theirs.
+  app.get('/:id/history', async (c: any) => {
+    const rows = await service.getServiceHistory(c.req.param('id'), c.get('user').companyId)
+    if (rows === null) return c.json({ error: 'Equipment not found' }, 404)
+    return c.json(rows)
+  })
   app.post('/:id/history', requirePermission('equipment:update'), async (c: any) => {
     const user = c.get('user')
     const body = await c.req.json()
     const record = await service.addServiceRecord(c.req.param('id'), user.companyId, { ...body, technicianId: body.technicianId || user.userId })
+    if (record === null) return c.json({ error: 'Equipment not found' }, 404)
     return c.json(record, 201)
   })
 

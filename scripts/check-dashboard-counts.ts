@@ -32,7 +32,10 @@ if (/segments=\{\[\['scheduled', 'Scheduled', 'bg-blue-500'\], \['in_progress'/.
 // this CRM", which is precisely what the sidebar hides on `features: ['projects']`. (Contractor T29 L2)
 const home = read('packages/tenant-ui/src/reporting/JobsDashboardPage.tsx')
 for (const [file, src] of [['JobsDashboardPage', home], ['ReportsPage', reports]] as Array<[string, string]>) {
-  if (!/const \{ hasFeature \} = useAuth\(\)/.test(src)) fail(`${file} must ask what this tenant has, not only what the vertical has`)
+  // `hasFeature` must come out of useAuth — but it is not the only thing these pages take from it any
+  // more (T32 M8 added `can`, to drop the money tiles for a role that may not see money rather than
+  // print $0.00 at it). The name is what matters, not that it is alone in the destructure.
+  if (!/const \{[^}]*\bhasFeature\b[^}]*\} = useAuth\(\)/.test(src)) fail(`${file} must ask what this tenant has, not only what the vertical has`)
   if (!/const showProjects = cfg\.projects && hasFeature\('projects'\)/.test(src)) fail(`${file}: the projects gate must be BOTH the vertical config and the tenant's feature`)
 }
 if (!/\.\.\.\(showProjects \? \[\{ label: 'Active projects'/.test(home)) fail('the Active projects card must sit behind that gate')

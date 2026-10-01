@@ -211,14 +211,36 @@ export async function markReplaced(equipmentId: string, companyId: string, { not
 // ============================================
 
 /**
+ * Does this equipment belong to this company?
+ *
+ * `equipment_maintenance` has no company_id of its own — it belongs to a company only through its
+ * equipment row, and the two functions below took the equipment id and filtered on nothing else. So
+ * an id from another tenant returned their service history and what they paid for it, and accepted a
+ * new maintenance record onto their equipment.
+ *
+ * The route was ALREADY passing user.companyId to both. The service signature took one argument and
+ * dropped it, and `_companyId` on the writer said out loud that it was unused — so the calling code
+ * reads as if it is scoped. (found while fixing T32 H1; same hole in the shared factory and in
+ * crm-restaurant, crm-rv, crm-salon and crm-vet)
+ */
+async function ownsEquipment(equipmentId: string, companyId: string) {
+  const [row] = await db.select({ id: equipment.id })
+    .from(equipment)
+    .where(and(eq(equipment.id, equipmentId), eq(equipment.companyId, companyId)))
+    .limit(1);
+  return !!row;
+}
+
+/**
  * Add service/maintenance record
  */
-export async function addServiceRecord(equipmentId: string, _companyId: string, data: {
+export async function addServiceRecord(equipmentId: string, companyId: string, data: {
   type: string;
   description?: string;
   cost?: number;
   nextDueDate?: string;
 }) {
+  if (!(await ownsEquipment(equipmentId, companyId))) return null;
   const [record] = await db.insert(equipmentMaintenance).values({
     equipmentId,
     type: data.type,
@@ -234,7 +256,8 @@ export async function addServiceRecord(equipmentId: string, _companyId: string, 
 /**
  * Get service history
  */
-export async function getServiceHistory(equipmentId: string) {
+export async function getServiceHistory(equipmentId: string, companyId: string) {
+  if (!(await ownsEquipment(equipmentId, companyId))) return null;
   return db.select()
     .from(equipmentMaintenance)
     .where(eq(equipmentMaintenance.equipmentId, equipmentId))

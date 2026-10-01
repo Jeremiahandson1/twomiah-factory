@@ -23,6 +23,12 @@ export interface PricebookRoutesDeps {
   requirePermission: (permission: string) => any
   /** Any of these enabled opens the API. Default ['pricebook', 'flat_rate_pricebook']. */
   features?: string[]
+  /**
+   * May this caller see what the company PAYS? Not wired → yes, so an un-migrated template is
+   * unchanged, and a thrown lookup also answers yes rather than hiding an owner's own figures —
+   * the same convention the jobs dashboard uses for `canSee`. (T32 H1)
+   */
+  canSee?: (role: string, permission: string, userId?: string) => Promise<boolean> | boolean
 }
 
 export const PRICEBOOK_TIERS = ['good', 'better', 'best'] as const
@@ -276,8 +282,38 @@ export function createPricebookRoutes(deps: PricebookRoutesDeps) {
     if (!features.some((f) => list!.includes(f))) return c.json({ error: 'Pricebook is not enabled for your account.', code: 'FEATURE_NOT_ENABLED', feature: features[0] }, 403)
     await next()
   })
-  const run = (fn: (c: any, u: any) => Promise<any>, status = 200) => async (c: any) => {
-    try { return c.json(await fn(c, c.get('user')), status) } catch (e) { if (e instanceof PricebookError) return c.json({ error: e.message }, e.status); throw e }
+  /**
+   * THE PRICE LIST IS NOT THE COST LIST. (T32 H1)
+   *
+   * A field technician reading the pricebook got `cost` and a computed `margin` on every line — what
+   * the company pays a supplier and what it keeps. The report found it on the base CRM; it was the
+   * same in all four templates that mount this.
+   *
+   * The fix is deliberately NOT a gate on the read. In crm-fieldservice this module IS the
+   * technician's flat-rate book (FlatRatePricebook.tsx) and it is how they price a job on site;
+   * refusing it would stop the work, and a refused real need is worse than the leak. So the PRICE
+   * stays open to anyone who can sign in, and only what the company pays is withheld.
+   */
+  const COST_KEYS = new Set(['cost', 'totalCost', 'margin'])
+  const stripCost = (v: any): any => {
+    if (Array.isArray(v)) return v.map(stripCost)
+    if (v && typeof v === 'object' && !(v instanceof Date)) {
+      const out: Record<string, any> = {}
+      for (const [k, val] of Object.entries(v)) if (!COST_KEYS.has(k)) out[k] = stripCost(val)
+      return out
+    }
+    return v
+  }
+  const maySeeCost = async (c: any) => {
+    if (!deps.canSee) return true
+    const u = c.get('user') as any
+    try { return await deps.canSee(u?.role, 'pricebook:read', u?.userId) } catch { return true }
+  }
+  const run = (fn: (c: any, u: any) => Promise<any>, status = 200, carriesCost = false) => async (c: any) => {
+    try {
+      const data = await fn(c, c.get('user'))
+      return c.json(carriesCost && !(await maySeeCost(c)) ? stripCost(data) : data, status)
+    } catch (e) { if (e instanceof PricebookError) return c.json({ error: e.message }, e.status); throw e }
   }
   const body = async (c: any) => { try { return await c.req.json() } catch { return {} } }
 
@@ -285,9 +321,9 @@ export function createPricebookRoutes(deps: PricebookRoutesDeps) {
   app.post('/categories', requirePermission('pricebook:create'), run(async (c, u) => svc.createCategory(u.companyId, await body(c)), 201))
   app.put('/categories/:id', requirePermission('pricebook:update'), run(async (c, u) => svc.updateCategory(u.companyId, c.req.param('id'), await body(c))))
   app.post('/categories/reorder', requirePermission('pricebook:update'), run(async (c, u) => svc.reorderCategories(u.companyId, (await body(c))?.orderedIds)))
-  app.get('/items', run(async (c, u) => svc.getItems(u.companyId, c.req.query())))
-  app.get('/search', run(async (c, u) => svc.searchForQuoting(u.companyId, c.req.query('q') || '')))
-  app.get('/export', run(async (_c, u) => svc.exportItems(u.companyId)))
+  app.get('/items', run(async (c, u) => svc.getItems(u.companyId, c.req.query()), 200, true))
+  app.get('/search', run(async (c, u) => svc.searchForQuoting(u.companyId, c.req.query('q') || ''), 200, true))
+  app.get('/export', requirePermission('pricebook:read'), run(async (_c, u) => svc.exportItems(u.companyId)))
   app.post('/import', requirePermission('pricebook:create'), run(async (c, u) => svc.importItems(u.companyId, await body(c))))
   app.post('/bulk/adjust-prices', requirePermission('pricebook:update'), run(async (c, u) => svc.bulkAdjust(u.companyId, await body(c))))
   app.get('/calculate-price', run(async (c) => {
@@ -295,12 +331,12 @@ export function createPricebookRoutes(deps: PricebookRoutesDeps) {
     if (!Number.isFinite(cost) || cost < 0 || !Number.isFinite(margin) || margin < 0 || margin >= 100) throw new PricebookError(400, 'cost must be ≥ 0 and targetMargin between 0 and 99.99')
     return { cost, targetMargin: margin, suggestedPrice: Math.round((cost / (1 - margin / 100)) * 100) / 100 }
   }))
-  app.get('/items/:id', run(async (c, u) => svc.getItem(u.companyId, c.req.param('id'))))
+  app.get('/items/:id', run(async (c, u) => svc.getItem(u.companyId, c.req.param('id')), 200, true))
   app.post('/items', requirePermission('pricebook:create'), run(async (c, u) => svc.createItem(u.companyId, await body(c)), 201))
   app.put('/items/:id', requirePermission('pricebook:update'), run(async (c, u) => svc.updateItem(u.companyId, c.req.param('id'), await body(c))))
   app.post('/items/:id/duplicate', requirePermission('pricebook:create'), run(async (c, u) => svc.duplicateItem(u.companyId, c.req.param('id')), 201))
   app.delete('/items/:id', requirePermission('pricebook:delete'), run(async (c, u) => svc.deleteItem(u.companyId, c.req.param('id'))))
-  app.get('/items/:id/options', run(async (c, u) => svc.getOptions(u.companyId, c.req.param('id'))))
+  app.get('/items/:id/options', run(async (c, u) => svc.getOptions(u.companyId, c.req.param('id')), 200, true))
   app.put('/items/:id/options', requirePermission('pricebook:update'), run(async (c, u) => svc.setOptions(u.companyId, c.req.param('id'), await body(c))))
   return app
 }

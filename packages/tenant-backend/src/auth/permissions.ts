@@ -35,7 +35,17 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
      * and it is easy to reverse if the intent was the other way.
      */
     'users:read',
-    // operational modules (writes gated in their routes; reads are open)
+    /**
+     * Operational modules. Writes are gated in their routes; reads are open, because a technician
+     * needs the parts list, the customer's equipment and the service agreement to do the work, and
+     * refusing those costs more than it protects.
+     *
+     * SELECTIONS AND TAKEOFFS ARE NO LONGER IN THAT GROUP. (T32 H1)
+     * Both are money documents in a construction CRM — a selection is an option priced against the
+     * client's allowance, a takeoff is quantities and what the material costs — and `field` has no
+     * quotes, no invoices and no pricebook, so there is no job it does and no screen it opens that
+     * needs either. Their reads are gated on the mount in templates/crm/backend/src/routes.
+     */
     'equipment:*', 'fleet:*', 'warranties:*', 'inventory:*', 'agreements:*',
     'selections:*', 'takeoffs:*', 'calltracking:*', 'reports:*',
     // company config (geofencing, Stripe onboarding) + refunds — admin-tier, like company:update
@@ -68,6 +78,20 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // runs; vendor bills carry two money operations, so paying and voiding get their own verb —
     // `bills:pay` — and stay with payments:* rather than with the document work.
     'purchase-orders:*', 'bills:*',
+    /**
+     * The pay run — what every person is owed. (T32 H1)
+     *
+     * GET /api/payroll/summary returns every employee's hours and pay, including the owner's, and it
+     * had NO resource in this matrix at all, so its route carried `authenticate` and nothing else: a
+     * field technician and a read-only viewer both read the whole company's payroll.
+     *
+     * Its own resource rather than borrowing `team:read` — which `viewer` holds — because the roster
+     * and the pay run are different questions. It is granted to manager below as well as admin,
+     * because the Pay run panel on the Time screen is already shown to manager and up and running a
+     * pay period is that role's job. If the intent is that only an admin sees what people earn,
+     * deleting the manager line is the whole change.
+     */
+    'payroll:*',
     // sms:send (text a customer) / sms:* (the canned messages and auto-responders live on
     // marketing:update). Its own resource rather than borrowing contacts:update, which would hand a
     // technician the right to EDIT customer records along with the right to text them. (T30 L-RB)
@@ -117,6 +141,9 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // and `bills:delete` are withheld here on purpose, the same line payments:* already draws.
     'purchase-orders:*',
     'bills:read', 'bills:create', 'bills:update',
+    // Runs the pay period — the Pay run panel on the Time screen is already shown to this rung. Reads
+    // the figures; does not get the rest of payroll:* (processing and export, where those exist).
+    'payroll:read',
     'sms:*',
     // Runs the programme day to day, including the correction a desk sometimes has to make — but
     // does not set the rate or write the reward list. Same line settings:* and payments:* draw.

@@ -27,6 +27,11 @@ export interface TeamDeps {
   tables: TeamTables
   authenticate: any
   requirePermission: (permission: string) => any
+  /**
+   * May this caller see what people are PAID? Asked with `payroll:read`. Not wired → yes, so an
+   * un-migrated template is unchanged — the same convention the jobs dashboard and the pricebook use.
+   */
+  canSee?: (role: string, permission: string, userId?: string) => Promise<boolean> | boolean
   options?: { maxLimit?: number; assignedWork?: AssignedWork[] }
 }
 
@@ -51,6 +56,28 @@ export const teamMemberSchema = z.object({
 
 export function createTeamRoutes(deps: TeamDeps) {
   const { db, tables: t, authenticate, requirePermission } = deps
+  /**
+   * WHAT SOMEBODY EARNS IS NOT PART OF THE ROSTER. (T32 H1)
+   *
+   * `team:read` answers "may you see who works here" and is held by viewer, a read-only role. The
+   * roster row carries `hourlyRate`, so a viewer read $75 and $45 off the Team page — pay, from a
+   * permission about names and phone numbers.
+   *
+   * The rate is withheld unless the caller may read the pay run (`payroll:read` — admin and
+   * manager), which is the same line the Pay run panel draws. Not wired → shown, so an un-migrated
+   * template is unchanged; a thrown lookup also shows it, rather than hiding an owner's own figures.
+   */
+  const maySeePay = async (c: any) => {
+    if (!deps.canSee) return true
+    const u = (c as any).get('user')
+    try { return await deps.canSee(u?.role, 'payroll:read', u?.userId) } catch { return true }
+  }
+  /** The row as this caller may see it: with the rate, or without the key at all. */
+  const pay = <T extends Record<string, any>>(visible: boolean, row: T): T => {
+    if (visible) return row
+    const { hourlyRate, ...rest } = row as any
+    return rest as T
+  }
   const maxLimit = deps.options?.maxLimit || 200
   // Where this vertical's work lives. Unstated means jobs, which is what every caller meant before salon
   // arrived holding appointments instead and was told it had stranded nothing. Still the COLUMN and not
@@ -135,7 +162,10 @@ export function createTeamRoutes(deps: TeamDeps) {
       for (const u of logins) { const e = String(u.email || '').toLowerCase(); if (e) loginEmails.add(e) }
     }
     const hasLogin = (r: any) => r._source === 'user' || loginEmails.has(String(r.email || '').toLowerCase())
-    const withCounts = rows.map((r: any) => (r._source === 'user' ? { ...r, hasLogin: true } : { ...r, assignedJobs: counts[r.id] || 0, hasLogin: hasLogin(r) }))
+    // The pay decision is made ONCE for the request, not per row — and applied inside this map so the
+    // response below stays `data: withCounts` on one line, which check-team-removal-warning.ts reads.
+    const payVisible = await maySeePay(c)
+    const withCounts = rows.map((r: any) => pay(payVisible, r._source === 'user' ? { ...r, hasLogin: true } : { ...r, assignedJobs: counts[r.id] || 0, hasLogin: hasLogin(r) }))
     // …and what that work is CALLED here, so the confirm dialog warns a salon about appointments rather
     // than about jobs it does not have. (Salon T27 N14)
     return c.json({ data: withCounts, workLabel, pagination: { page, limit, total: totalN, pages } })
@@ -166,7 +196,9 @@ export function createTeamRoutes(deps: TeamDeps) {
     const user = (c as any).get('user')
     const [member] = await db.select().from(t.teamMember).where(and(eq(t.teamMember.id, c.req.param('id')), eq(t.teamMember.companyId, user.companyId))).limit(1)
     if (!member) return c.json({ error: 'Team member not found' }, 404)
-    return c.json(member)
+    // The single-record read carries the rate too — fixing the list and leaving this open would just
+    // move the leak one URL along.
+    return c.json(pay(await maySeePay(c), member))
   })
 
   app.post('/', requirePermission('team:create'), async (c) => {

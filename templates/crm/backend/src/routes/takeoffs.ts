@@ -18,6 +18,17 @@ const itemBody = z.object({ assemblyId: z.string().min(1, 'Pick an assembly') })
 
 const app = new Hono();
 app.use('*', authenticate);
+/**
+ * Reads are checked against the matrix too — this is quantity takeoffs and their material cost. (T32 H1)
+ *
+ * Every write below has always been gated on `takeoffs:*`; the GETs were on `authenticate`
+ * alone, so any signed-in user of the company could read them. The matrix already draws the line:
+ * `takeoffs` sits with admin and manager, and `field` and `viewer` hold none of it.
+ *
+ * On the MOUNT rather than per handler, so the next GET added to this file is gated by
+ * construction and cannot repeat the omission.
+ */
+app.use('*', requirePermission('takeoffs:read'));
 
 // ============================================
 // ASSEMBLIES

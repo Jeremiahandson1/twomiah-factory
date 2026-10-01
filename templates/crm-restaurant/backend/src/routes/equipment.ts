@@ -135,6 +135,9 @@ app.get('/:id/history', async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   const history = await equipment.getServiceHistory(id, user.companyId)
+  // null means "not this company's equipment" — indistinguishable from "does not exist", which is
+  // the right answer to give somebody probing ids.
+  if (history === null) return c.json({ error: 'Equipment not found' }, 404)
   return c.json(history)
 })
 
@@ -146,6 +149,7 @@ app.post('/:id/history', requirePermission('equipment:update'), async (c) => {
     ...body,
     technicianId: body.technicianId || user.userId,
   })
+  if (record === null) return c.json({ error: 'Equipment not found' }, 404)
   return c.json(record, 201)
 })
 

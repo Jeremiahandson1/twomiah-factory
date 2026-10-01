@@ -43,11 +43,31 @@ const PAGE_MODULE: Record<string, string> = {
   '/crm/recurring': 'packages/tenant-backend/src/recurring/recurring.ts',
   '/crm/leads': 'packages/tenant-backend/src/leads/leads.ts',
 }
-/** Modules whose guard is not on `app.get('/')` — the permission is named where the routes are built. */
+/**
+ * Modules whose guard is not on `app.get('/')` — the permission is named where the routes are built.
+ *
+ * `{t}` is substituted with the template being checked, for a module a vertical owns itself rather
+ * than taking from packages/. The construction set below is crm-only, and `read()` answers null for a
+ * template that does not have the file, which the caller treats as "nothing to check".
+ *
+ * The six construction modules gate their reads on the MOUNT — `app.use('*', requirePermission(…))`
+ * — rather than per handler, so that the next GET added to one of them is gated by construction.
+ * Which means this guard has to read that shape too, or the sidebar can keep offering `field` a page
+ * that now refuses them: before T32 H1 the nav offered Bills, Purchase Orders, Bids, Change Orders
+ * and Pricebook to a technician, and the only reason it was not a visible 403 is that the API was
+ * answering 200 when it should not have been.
+ */
 const PAGE_GUARD_DECL: Record<string, [string, RegExp]> = {
   '/crm/reports': ['packages/tenant-backend/src/reporting/reporting.ts', /const guard = deps\.requirePermission\('([^']+)'\)/],
   '/crm/marketing': ['packages/tenant-backend/src/marketing/marketing.ts', /app\.get\('\/campaigns', requirePermission\('([^']+)'\)/],
   '/crm/ads': ['packages/tenant-backend/src/ads/ads.ts', /app\.get\('\/', requirePermission\('([^']+)'\)/],
+  // T32 H1 — read gates on the mount.
+  '/crm/bills': ['templates/{t}/backend/src/routes/bills.ts', /app\.use\('\*', requirePermission\('([^']+)'\)\)/],
+  '/crm/purchase-orders': ['templates/{t}/backend/src/routes/purchaseOrders.ts', /app\.use\('\*', requirePermission\('([^']+)'\)\)/],
+  '/crm/bids': ['templates/{t}/backend/src/routes/bids.ts', /app\.use\('\*', requirePermission\('([^']+)'\)\)/],
+  '/crm/change-orders': ['templates/{t}/backend/src/routes/changeOrders.ts', /app\.use\('\*', requirePermission\('([^']+)'\)\)/],
+  '/crm/selections': ['templates/{t}/backend/src/routes/selections.ts', /app\.use\('\*', requirePermission\('([^']+)'\)\)/],
+  '/crm/takeoffs': ['templates/{t}/backend/src/routes/takeoffs.ts', /app\.use\('\*', requirePermission\('([^']+)'\)\)/],
 }
 
 // ---------------------------------------------------------------- the role matrix, read not copied
@@ -99,15 +119,15 @@ const roleHas = (role: string, permission: string, extras: Record<string, string
 }
 
 // ---------------------------------------------------------------- what each page's API asks for
-const needsOf = (page: string): string | null => {
+const needsOf = (page: string, t: string): string | null => {
   const decl = PAGE_GUARD_DECL[page]
   if (decl) {
-    const src = read(decl[0])
+    const src = read(decl[0].replace('{t}', t))
     return src ? (decl[1].exec(stripComments(src))?.[1] ?? null) : null
   }
   const mod = PAGE_MODULE[page]
   if (!mod) return null
-  const src = read(mod)
+  const src = read(mod.replace('{t}', t))
   if (!src) return null
   const line = stripComments(src).split('\n').find((l) => /^\s*app\.get\('\/'/.test(l))
   return line?.match(/requirePermission\('([^']+)'\)/)?.[1] ?? null
@@ -125,7 +145,7 @@ for (const t of TEMPLATES) {
 
   for (const line of entries) {
     const page = /to: '([^']+)'/.exec(line)![1]
-    const needs = needsOf(page)
+    const needs = needsOf(page, t)
     if (!needs) continue
     checked++
     // Every rung holds it → there is nobody to hide it from, and declaring it would be noise.

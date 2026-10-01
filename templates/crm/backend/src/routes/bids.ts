@@ -8,6 +8,17 @@ import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+/**
+ * Reads are checked against the matrix too — this is what the company bid and what it won. (T32 H1)
+ *
+ * Every write below has always been gated on `bids:*`; the GETs were on `authenticate`
+ * alone, so any signed-in user of the company could read them. The matrix already draws the line:
+ * `bids` sits with admin and manager, and `field` and `viewer` hold none of it.
+ *
+ * On the MOUNT rather than per handler, so the next GET added to this file is gated by
+ * construction and cannot repeat the omission.
+ */
+app.use('*', requirePermission('bids:read'))
 
 const schema = z.object({ projectName: z.string().min(1), client: z.string().optional(), bidType: z.enum(['lump_sum', 'unit_price', 'cost_plus', 'gmp', 'design_build']).default('lump_sum'), dueDate: z.string().optional(), dueTime: z.string().optional(), estimatedValue: z.number().optional(), bidAmount: z.number().optional(), bondRequired: z.boolean().default(false), prebidDate: z.string().optional(), prebidLocation: z.string().optional(), scope: z.string().optional(), notes: z.string().optional() })
 

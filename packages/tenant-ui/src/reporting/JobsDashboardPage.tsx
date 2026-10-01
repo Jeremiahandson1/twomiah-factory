@@ -30,10 +30,30 @@ const COLORS: Record<string, string> = {
 }
 const panel = 'bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800'
 const muted = 'text-gray-500 dark:text-slate-400'
+/** Written out rather than interpolated, because Tailwind only ships a class it can see in the source. */
+const CARD_COLS: Record<number, string> = {
+  2: 'lg:grid-cols-2', 3: 'lg:grid-cols-3', 4: 'lg:grid-cols-4', 5: 'lg:grid-cols-5', 6: 'lg:grid-cols-6',
+}
+const PANEL_COLS: Record<number, string> = { 1: 'lg:grid-cols-1', 2: 'lg:grid-cols-2', 3: 'lg:grid-cols-3' }
 
 export function JobsDashboardPage({ api, user, company, config }: JobsDashboardPageProps) {
   const cfg = resolveJobsDashboardConfig(config)
-  const { hasFeature } = useAuth()
+  const { hasFeature, can } = useAuth()
+  /**
+   * WHAT THIS PERSON MAY SEE, not what the company has. (T32 M8 / H1)
+   *
+   * /api/dashboard/stats withholds `invoices` entirely from a caller without invoices:read, and
+   * withholds the quote pipeline VALUES from one without quotes:read. This screen read them with
+   * `|| 0` and printed "Open invoices 0" and "Outstanding $0.00" — which is not a hidden figure, it
+   * is a WRONG one, and a technician had no way to tell the difference between "none owed" and "not
+   * your business". The tile is dropped instead.
+   *
+   * The two recent-activity panels go the same way: both link to pages the person is refused, which
+   * is the fault check-nav-permission-gates.ts exists to stop in the sidebar — the dashboard is just
+   * another menu.
+   */
+  const maySeeInvoices = can('invoices:read')
+  const maySeeQuotes = can('quotes:read')
   // Two different questions, and only the first was being asked: the config says whether this VERTICAL has projects
   // at all, hasFeature says whether THIS tenant has the module. Without the second, a contractor whose plan leaves
   // projects off got a card linking to a page that answers "Projects isn't part of this CRM" — the sidebar hides the
@@ -60,9 +80,13 @@ export function JobsDashboardPage({ api, user, company, config }: JobsDashboardP
     { label: 'Contacts', value: stats?.contacts || 0, icon: Users, color: 'blue', link: '/crm/contacts' },
     ...(showProjects ? [{ label: 'Active projects', value: stats?.projects?.byStatus?.active || 0, icon: FolderKanban, color: 'green', link: '/crm/projects' }] : []),
     { label: `${cfg.jobsLabel} today`, value: stats?.jobs?.today || 0, icon: Briefcase, color: 'purple', link: cfg.jobsPath },
-    { label: 'Pending quotes', value: stats?.quotes?.pending || 0, icon: FileText, color: 'orange', link: '/crm/quotes' },
-    { label: 'Open invoices', value: stats?.invoices?.outstanding || 0, icon: Receipt, color: 'red', link: '/crm/invoices' },
-    { label: 'Outstanding', value: money(stats?.invoices?.outstandingValue || 0), icon: DollarSign, color: 'emerald', link: '/crm/invoices' },
+    // A count of quotes is work, not money, and the server still sends it — but the tile links to the
+    // Quotes page, so it goes to somebody who can open that page.
+    ...(maySeeQuotes ? [{ label: 'Pending quotes', value: stats?.quotes?.pending || 0, icon: FileText, color: 'orange', link: '/crm/quotes' }] : []),
+    ...(maySeeInvoices ? [
+      { label: 'Open invoices', value: stats?.invoices?.outstanding || 0, icon: Receipt, color: 'red', link: '/crm/invoices' },
+      { label: 'Outstanding', value: money(stats?.invoices?.outstandingValue || 0), icon: DollarSign, color: 'emerald', link: '/crm/invoices' },
+    ] : []),
   ]
 
   return (
@@ -73,7 +97,10 @@ export function JobsDashboardPage({ api, user, company, config }: JobsDashboardP
       </div>
       {error && <div className={`${panel} p-4 text-sm text-red-600 dark:text-red-300`}>{error}</div>}
 
-      <div className={`grid grid-cols-2 md:grid-cols-3 ${cards.length === 6 ? 'lg:grid-cols-6' : 'lg:grid-cols-5'} gap-4`}>
+      {/* The column count follows the number of cards, which now varies by role as well as by
+          vertical — three money tiles can drop out. A fixed 6 left a technician with a row of
+          cards stretched across dead space. */}
+      <div className={`grid grid-cols-2 md:grid-cols-3 ${CARD_COLS[cards.length] || 'lg:grid-cols-5'} gap-4`}>
         {cards.map(c => (
           <NavLink key={c.label} to={c.link} className={`${panel} p-4 hover:shadow-md transition-shadow block`}>
             <div className={`w-10 h-10 rounded-lg ${COLORS[c.color]} flex items-center justify-center mb-3`}><c.icon className="w-5 h-5" /></div>
@@ -97,10 +124,12 @@ export function JobsDashboardPage({ api, user, company, config }: JobsDashboardP
         </div>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-6">
+      {/* Each panel is a menu into a module, so it follows the same rule the sidebar does: offered
+          only to somebody that module will serve. */}
+      <div className={`grid ${PANEL_COLS[1 + (maySeeQuotes ? 1 : 0) + (maySeeInvoices ? 1 : 0)]} gap-6`}>
         <RecentList title={`Recent ${cfg.jobsLabel.toLowerCase()}`} link={cfg.jobsPath} empty={`No recent ${cfg.jobsLabel.toLowerCase()}`} rows={(activity?.recentJobs || []).map(j => ({ id: j.id, primary: j.title || 'Untitled', secondary: j.number || '—', status: j.status || 'pending', href: `${cfg.jobsPath}/${j.id}` }))} />
-        <RecentList title="Recent quotes" link="/crm/quotes" empty="No recent quotes" rows={(activity?.recentQuotes || []).map(q => ({ id: q.id, primary: q.name || 'Untitled', secondary: `${q.number || '—'} · ${money(q.total || 0)}`, status: q.status || 'draft', href: `/crm/quotes/${q.id}` }))} />
-        <RecentList title="Recent invoices" link="/crm/invoices" empty="No recent invoices" rows={(activity?.recentInvoices || []).map(inv => ({ id: inv.id, primary: inv.number || '—', secondary: `${money(inv.total || 0)}${Number(inv.balance || 0) > 0 ? ` · ${money(inv.balance)} due` : ''}`, status: inv.status || 'draft', href: `/crm/invoices/${inv.id}` }))} />
+        {maySeeQuotes && <RecentList title="Recent quotes" link="/crm/quotes" empty="No recent quotes" rows={(activity?.recentQuotes || []).map(q => ({ id: q.id, primary: q.name || 'Untitled', secondary: `${q.number || '—'} · ${money(q.total || 0)}`, status: q.status || 'draft', href: `/crm/quotes/${q.id}` }))} />}
+        {maySeeInvoices && <RecentList title="Recent invoices" link="/crm/invoices" empty="No recent invoices" rows={(activity?.recentInvoices || []).map(inv => ({ id: inv.id, primary: inv.number || '—', secondary: `${money(inv.total || 0)}${Number(inv.balance || 0) > 0 ? ` · ${money(inv.balance)} due` : ''}`, status: inv.status || 'draft', href: `/crm/invoices/${inv.id}` }))} />}
       </div>
     </div>
   )

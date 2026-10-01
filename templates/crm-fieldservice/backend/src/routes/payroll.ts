@@ -3,11 +3,23 @@ import { db } from '../../db/index.ts'
 import { timeEntry, user, staffAccountEntry } from '../../db/schema.ts'
 import { eq, and, gte, lte, lt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { createStaffBalanceStore } from '../shared/index.ts'
 import { companyTimeZone, storeDayRange } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+/**
+ * The pay run is gated. (T32 H1)
+ *
+ * This router answered on `authenticate` alone, so every signed-in user of the company could read
+ * GET /summary — every person's hours and pay, the owner's included. A field technician and a
+ * read-only viewer both did, on the tenant that was tested.
+ *
+ * `payroll:read` is held by admin and manager, which is exactly who the Pay run panel on the Time
+ * screen is already shown to, so no screen loses anything.
+ */
+app.use('*', requirePermission('payroll:read'))
 
 // The same ledger the expense sheet writes to — read here, never written. A pay run reports what
 // was recovered; the decision to recover it was made on the Expenses screen. (Salon RR9)

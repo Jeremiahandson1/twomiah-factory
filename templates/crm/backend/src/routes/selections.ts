@@ -23,6 +23,17 @@ const projectSelectionBody = z.object({ name: z.string().min(1, 'Name is require
 
 const app = new Hono()
 app.use('*', authenticate)
+/**
+ * Reads are checked against the matrix too — this is client selections and the allowance they run against. (T32 H1)
+ *
+ * Every write below has always been gated on `selections:*`; the GETs were on `authenticate`
+ * alone, so any signed-in user of the company could read them. The matrix already draws the line:
+ * `selections` sits with admin and manager, and `field` and `viewer` hold none of it.
+ *
+ * On the MOUNT rather than per handler, so the next GET added to this file is gated by
+ * construction and cannot repeat the omission.
+ */
+app.use('*', requirePermission('selections:read'))
 
 // ============================================
 // CATEGORIES

@@ -3,9 +3,21 @@ import { db } from '../../db/index.ts'
 import { timeEntry, user } from '../../db/schema.ts'
 import { eq, and, gte, lte } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+/**
+ * The pay run is gated. (T32 H1)
+ *
+ * This router answered on `authenticate` alone, so every signed-in user of the company could read
+ * GET /summary — every person's hours and pay, the owner's included. A field technician and a
+ * read-only viewer both did, on the tenant that was tested.
+ *
+ * `payroll:read` is held by admin and manager, which is exactly who the Pay run panel on the Time
+ * screen is already shown to, so no screen loses anything.
+ */
+app.use('*', requirePermission('payroll:read'))
 
 // GET payroll summary for a pay period
 app.get('/summary', async (c) => {

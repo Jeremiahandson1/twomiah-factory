@@ -3,7 +3,7 @@ import { createTeamRoutes } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { teamMember, user, job, appointment } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 
 // A stylist holds APPOINTMENTS. The roster module assumed jobs, and salon's job table has no
 // assigned_to_member_id, so removing a stylist reported "0 unassigned" while the FK on
@@ -13,5 +13,9 @@ export default createTeamRoutes({
   tables: { teamMember, user, job },
   authenticate,
   requirePermission,
+  // What somebody is PAID is withheld from a caller who may not read the pay run. `team:read` is
+  // held by viewer, a read-only role, and the roster row carries hourlyRate. (T32 H1)
+  canSee: async (role: string, permission: string, userId?: string) =>
+    hasPermission(role, permission, await getExtraPermissions(userId)),
   options: { assignedWork: [{ table: appointment, field: 'stylistMemberId', one: 'appointment', many: 'appointments' }] },
 })
