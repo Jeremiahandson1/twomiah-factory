@@ -88,7 +88,15 @@ export default function SelectionsPage({ projectId: propProjectId }: SelectionsP
       api.get('/api/projects?limit=100').then((res: Record<string, unknown>) => {
         const data = (res?.data || res || []) as ProjectItem[];
         setProjects(data);
-        if (data.length > 0 && !projectId) setProjectId(data[0].id);
+        /**
+         * ONE project selects itself. TWO OR MORE is a choice. (T32 M4)
+         *
+         * This took `data[0].id` whatever the list held, so the chooser below never appeared and
+         * the page opened on a project nobody picked — and a sheet created there was attached to
+         * it silently. With a single project there is nothing to choose and making somebody pick
+         * from a list of one is worse, so that case still selects itself.
+         */
+        if (data.length === 1 && !projectId) setProjectId(data[0].id);
       }).catch(() => {}).finally(() => setProjectsLoaded(true));
     }
   }, [propProjectId]);

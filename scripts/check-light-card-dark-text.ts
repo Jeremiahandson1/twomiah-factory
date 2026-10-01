@@ -26,6 +26,7 @@
 //   bun scripts/check-light-card-dark-text.ts
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
+import { stripSource } from './lib/stripComments.ts'
 
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 let failed = 0
@@ -62,11 +63,25 @@ for (const root of roots) {
     if (!DARK_LIGHT_TEXT.test(src)) continue
     checked++
 
-    const lines = src.split('\n')
+    /**
+     * COMMENTS ARE NOT CODE. (found while fixing T32 M4)
+     *
+     * This scanned the raw source line by line, so a code comment that MENTIONS `bg-white` —
+     * explaining a dark-mode fix, which is exactly where such a sentence belongs — was read as a
+     * className and reported as a fault. A guard that fails on its own documentation teaches people
+     * not to document.
+     */
+    const lines = stripSource(src).split('\n')
     lines.forEach((line, i) => {
-      // A className carrying bg-white and no dark:bg-* on the same element.
+      // A className carrying bg-white and no dark partner on the same element.
       if (!/\bbg-white\b/.test(line)) return
-      if (/dark:bg-/.test(line)) return
+      /**
+       * `dark:*bg-` — not just `dark:bg-`. A hover surface's partner is `dark:hover:bg-slate-800`,
+       * and the narrower pattern did not see it, so correctly-paired
+       * `hover:bg-white dark:hover:bg-slate-800` was reported as unpaired. Same for focus: and
+       * group-hover:. The rule is "the surface has a dark answer", not "the answer is spelled one way".
+       */
+      if (/dark:(?:[a-z-]+:)*bg-/.test(line)) return
       // An element that pins its OWN dark text and gives it no dark: override has committed to
       // being light, and is correct: `bg-white text-gray-900` is the signature pad you sign in dark
       // ink on, whatever the rest of the page does. Only the element that leaves its text to the

@@ -880,11 +880,26 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
   app.post('/:id/refund', requirePermission('payments:delete'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
-    const refundSchema = z.object({ amount: z.number().positive(), method: z.enum(PAYMENT_METHODS).optional(), reference: z.string().optional(), notes: z.string().optional() })
+    /**
+     * `reason` IS `notes`. (T32 L9)
+     *
+     * The report found the refund's reason "dropped — the payment row's notes always read 'Refund'".
+     * The screen's Reason box does send it, and has for a long time. What does not work is the
+     * obvious key: this route takes `notes`, while its sibling POST /:id/credit — the same decision
+     * with a different instrument, written in the same file — takes `reason`, and requires it. So a
+     * caller who sends `reason` to /refund has it silently discarded and gets the literal default
+     * "Refund" in the ledger.
+     *
+     * Two names for one field across two neighbouring endpoints is the kind of thing nobody notices
+     * until it costs somebody an audit trail. `reason` is accepted as a synonym rather than renaming
+     * `notes`, which the screens and the Stripe paths already send.
+     */
+    const refundSchema = z.object({ amount: z.number().positive(), method: z.enum(PAYMENT_METHODS).optional(), reference: z.string().optional(), notes: z.string().optional(), reason: z.string().optional() })
     const data = refundSchema.parse(await c.req.json())
     const amount = round2(data.amount)
+    const why = (data.notes ?? data.reason)?.trim() || undefined
     // The locked write lives in recordInvoiceRefund (shared with the Stripe refund paths).
-    const outcome = await recordInvoiceRefund(db, t, { invoiceId: id, companyId: currentUser.companyId, amount, method: data.method, reference: data.reference, notes: data.notes, creditToAccount: deps.options?.accountBalance?.credit })
+    const outcome = await recordInvoiceRefund(db, t, { invoiceId: id, companyId: currentUser.companyId, amount, method: data.method, reference: data.reference, notes: why, creditToAccount: deps.options?.accountBalance?.credit })
     if (!outcome.ok) return c.json({ error: outcome.error }, outcome.status)
     emitToCompany(currentUser.companyId, EVENTS.INVOICE_UPDATED, outcome.invoice)
     return c.json({ refund: outcome.refund, invoice: outcome.invoice })

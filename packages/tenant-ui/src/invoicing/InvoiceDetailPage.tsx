@@ -139,12 +139,16 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
               <div className="p-4 border-b border-gray-200 dark:border-slate-800"><h2 className="font-semibold text-gray-900 dark:text-white">Payments</h2></div>
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-slate-800/60"><tr>
-                  <th className="px-4 py-2 text-left text-xs text-gray-500 dark:text-slate-400">Date</th><th className="px-4 py-2 text-left text-xs text-gray-500 dark:text-slate-400">Method</th><th className="px-4 py-2 text-left text-xs text-gray-500 dark:text-slate-400">Reference</th>{cfg.tips && <th className="px-4 py-2 text-right text-xs text-gray-500 dark:text-slate-400">Tip</th>}<th className="px-4 py-2 text-right text-xs text-gray-500 dark:text-slate-400">Amount</th>
+                  {/* A reference and a reason are two different things, and this table had one column
+                      for both — `p.reference || p.notes`, headed "Reference". So a refund with a
+                      cheque number showed the number and never the reason, and a refund with only a
+                      reason showed it under the wrong heading. (T32 L9) */}
+                  <th className="px-4 py-2 text-left text-xs text-gray-500 dark:text-slate-400">Date</th><th className="px-4 py-2 text-left text-xs text-gray-500 dark:text-slate-400">Method</th><th className="px-4 py-2 text-left text-xs text-gray-500 dark:text-slate-400">Reference</th><th className="px-4 py-2 text-left text-xs text-gray-500 dark:text-slate-400">Note</th>{cfg.tips && <th className="px-4 py-2 text-right text-xs text-gray-500 dark:text-slate-400">Tip</th>}<th className="px-4 py-2 text-right text-xs text-gray-500 dark:text-slate-400">Amount</th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-slate-800 text-gray-900 dark:text-slate-100">
                   {invoice.payments.map((p: any, i: number) => (
                     <tr key={i}>
-                      <td className="px-4 py-2">{dateTime(p.paidAt)}</td><td className="px-4 py-2 capitalize">{String(p.method || '').replace('_', ' ')}</td><td className="px-4 py-2">{p.reference || p.notes || '-'}</td>
+                      <td className="px-4 py-2">{dateTime(p.paidAt)}</td><td className="px-4 py-2 capitalize">{String(p.method || '').replace('_', ' ')}</td><td className="px-4 py-2">{p.reference || '-'}</td><td className="px-4 py-2 text-gray-600 dark:text-slate-300">{p.notes || '-'}</td>
                       {cfg.tips && <td className="px-4 py-2 text-right">{Number(p.tipAmount) > 0 ? money(p.tipAmount) : '-'}</td>}
                       <td className={`px-4 py-2 text-right font-medium ${Number(p.amount) < 0 ? 'text-amber-700 dark:text-amber-300' : 'text-green-700 dark:text-green-300'}`}>{Number(p.amount) < 0 ? `${money(Math.abs(Number(p.amount)))} refund` : money(p.amount)}</td>
                     </tr>

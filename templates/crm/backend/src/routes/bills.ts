@@ -31,6 +31,8 @@ app.use('*', requirePermission('bills:read'))
  * over-billing check, so a void bill cannot count in one place and not another. (T32 M3)
  */
 const BILL_IS_SPEND = ['open', 'partial', 'paid']
+/** Money, to the cent. A float sum is not a money figure. (T32 L4) */
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
 const billSchema = z.object({
   vendorId: z.string().min(1),
@@ -103,8 +105,10 @@ app.get('/summary', async (c) => {
     cnt: count(),
   }).from(vendorBill).where(eq(vendorBill.companyId, currentUser.companyId)).groupBy(vendorBill.status)
   const byStatus = Object.fromEntries(rows.map(r => [r.status, { amount: Number(r.totalAmount || 0), paid: Number(r.totalPaid || 0), count: r.cnt }]))
-  const outstanding = rows.filter(r => ['open', 'partial'].includes(r.status))
-    .reduce((s, r) => s + Number(r.totalAmount || 0) - Number(r.totalPaid || 0), 0)
+  // Rounded to the cent. Summed in JavaScript, this returned 750.2500000000001 — a figure nobody
+  // typed, on the AP total. Every money figure this file answers with goes through round2. (T32 L4)
+  const outstanding = round2(rows.filter(r => ['open', 'partial'].includes(r.status))
+    .reduce((s, r) => s + Number(r.totalAmount || 0) - Number(r.totalPaid || 0), 0))
   const [{ value: overdueCount }] = await db.select({ value: count() }).from(vendorBill)
     .where(and(eq(vendorBill.companyId, currentUser.companyId), inArray(vendorBill.status, ['open', 'partial']), lt(vendorBill.dueDate, new Date())))
   return c.json({ byStatus, outstanding, overdueCount: Number(overdueCount) })

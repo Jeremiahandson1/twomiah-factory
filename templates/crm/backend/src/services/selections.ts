@@ -126,10 +126,23 @@ export async function getOptions(
 /**
  * Create selection requirement for a project
  */
+/**
+ * THREE COLUMNS THIS STATEMENT NEVER WROTE. (T32 L6)
+ *
+ * `due_date` is in the table, the route accepts it, the screen sends it — and the INSERT did not
+ * name it, so every selection ever created had a null due date. The report filed it as a
+ * "snake/camel mismatch"; it is simpler and worse than that: the column was just missing from the
+ * statement, which a raw INSERT will do silently where a Drizzle insert would not.
+ *
+ * `quantity` and `unit` went the same way, and they are not cosmetic: the change-order description
+ * raised on approval reads "Location: … Quantity: {quantity} {unit}", so a selection of 24 tiles
+ * raised a change order saying 1 each. They fell back to the column defaults, which is why nobody
+ * saw a null.
+ */
 export async function createProjectSelection(companyId: string, data: any) {
   const [row] = rows(await db.execute(sql`
-    INSERT INTO project_selection (id, company_id, project_id, category_id, name, description, location, allowance, status, notes)
-    VALUES (${createId()}, ${companyId}, ${data.projectId}, ${data.categoryId || null}, ${data.name}, ${data.description || null}, ${data.location || null}, ${data.allowance || 0}, 'pending', ${data.notes || null})
+    INSERT INTO project_selection (id, company_id, project_id, category_id, name, description, location, allowance, quantity, unit, due_date, status, notes)
+    VALUES (${createId()}, ${companyId}, ${data.projectId}, ${data.categoryId || null}, ${data.name}, ${data.description || null}, ${data.location || null}, ${data.allowance || 0}, ${data.quantity ?? 1}, ${data.unit || 'each'}, ${data.dueDate ? new Date(data.dueDate) : null}, 'pending', ${data.notes || null})
     RETURNING *
   `))
   return row

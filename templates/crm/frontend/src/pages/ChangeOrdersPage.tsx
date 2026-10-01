@@ -6,6 +6,15 @@ import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
 
+/**
+ * Money, with the sign in FRONT of the currency and always two decimals. (T32 L2)
+ *
+ * Change-order totals printed as "$-615": `$${Number(v).toLocaleString()}` puts the minus inside the
+ * amount, and on a credit line — which is now a routine thing to enter (T32 H5) — that reads as a
+ * typo rather than as money coming back off. It also dropped the cents, so $615.50 showed as $615.5.
+ */
+const asMoney = (n: number) => `${n < 0 ? '−' : ''}$${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 // While a row is being typed, quantity and unitPrice hold TEXT; they become numbers once, in
 // handleSave. Coercing on every keystroke drops a minus sign in silence — a lone "-" reads back as ""
 // from a number input, Number("") is 0, React writes that 0 into the field and the digits that follow
@@ -124,7 +133,7 @@ export default function ChangeOrdersPage() {
     { key: 'title', label: 'Title', render: (v: unknown) => <span className="font-medium">{v as string}</span> },
     { key: 'project', label: 'Project', render: (v: unknown) => (v as Record<string, unknown>)?.name as string || '-' },
     { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} /> },
-    { key: 'amount', label: 'Amount', render: (v: unknown) => `$${Number(v).toLocaleString()}` },
+    { key: 'amount', label: 'Amount', render: (v: unknown) => asMoney(Number(v)) },
     { key: 'daysAdded', label: 'Days', render: (v: unknown) => v ? `+${v}` : '-' },
     { key: 'signedBy', label: 'Signed', render: (v: unknown, row: Record<string, unknown>) => v ? <span className="text-green-700 text-sm">{v as string}{row.signedAt ? ` \u00b7 ${formatDate(row.signedAt as string)}` : ''}</span> : <span className="text-gray-500 dark:text-slate-400">-</span> },
   ];
@@ -157,11 +166,11 @@ export default function ChangeOrdersPage() {
                   <tr key={idx}><td className="px-4 py-2"><input value={li.description} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'description', e.target.value)} className="w-full px-2 py-1 border rounded" /></td>
                     <td className="px-4 py-2"><input type="number" value={li.quantity} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'quantity', e.target.value)} className="w-full px-2 py-1 border rounded" /></td>
                     <td className="px-4 py-2"><input type="number" value={li.unitPrice} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'unitPrice', e.target.value)} className="w-full px-2 py-1 border rounded" /></td>
-                    <td className="px-4 py-2 text-right">${(num0(li.quantity) * num0(li.unitPrice)).toLocaleString()}</td>
+                    <td className="px-4 py-2 text-right">{asMoney(num0(li.quantity) * num0(li.unitPrice))}</td>
                     <td><button onClick={() => removeLineItem(idx)} className="p-1 text-red-500"><Trash2 className="w-4 h-4" /></button></td></tr>
                 ))}</tbody>
               </table>
-              <div className="p-2 border-t flex justify-between items-center"><button onClick={addLineItem} className="text-sm text-orange-500">+ Add Line</button><span className="font-bold">Total: ${calcTotal().toLocaleString()}</span></div>
+              <div className="p-2 border-t flex justify-between items-center"><button onClick={addLineItem} className="text-sm text-orange-500">+ Add Line</button><span className="font-bold">Total: {asMoney(calcTotal())}</span></div>
             </div>
           </div>
         </div>

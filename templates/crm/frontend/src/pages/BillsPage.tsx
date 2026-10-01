@@ -51,7 +51,10 @@ export default function BillsPage() {
     try {
       const [resRaw, cRaw, jRaw, pRaw, sRaw] = await Promise.all([
         api.bills.list({ page, limit: 25 }),
-        api.contacts.list({ limit: 200 }),
+        // VENDORS, not every contact. This listed clients and leads too, capped at 200, so on a
+        // tenant with 300 contacts the vendor you wanted might not be in the list at all — and the
+        // ones that were are mostly people you will never raise a bill to. (T32 M13)
+        api.contacts.list({ type: 'vendor', limit: 500 }),
         api.jobs.list({ limit: 100 }),
         // Purchase Orders is its own module; switched off it answers 403 and a bill simply links to no PO.
         api.purchaseOrders.list({ limit: 100 }).catch(() => ({ data: [] })),

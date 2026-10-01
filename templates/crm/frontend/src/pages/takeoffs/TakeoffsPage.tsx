@@ -78,10 +78,45 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
   const [projectId, setProjectId] = useState<string>(propProjectId || '');
   const [sheets, setSheets] = useState<SheetItem[]>([]);
   const [selectedSheet, setSelectedSheet] = useState<SheetItem | null>(null);
+  /**
+   * Export to PO. (T32 M4)
+   *
+   * A purchase order is addressed to a vendor, so the button asks for one — wiring it straight to
+   * the endpoint would raise an order addressed to nobody. Vendors only, which is the same list the
+   * Bills form now asks for (T32 M13).
+   */
+  const [exportOpen, setExportOpen] = useState<boolean>(false);
+  const [vendors, setVendors] = useState<Array<{ id: string; name: string }>>([]);
+  const [exportVendor, setExportVendor] = useState<string>('');
+  const [exporting, setExporting] = useState<boolean>(false);
+  useEffect(() => {
+    if (!exportOpen || vendors.length) return;
+    api.get('/api/contacts?type=vendor&limit=500')
+      .then((res: Record<string, unknown>) => setVendors(((res?.data || res || []) as Array<{ id: string; name: string }>)))
+      .catch(() => setVendors([]));
+  }, [exportOpen]);
+  const doExport = async () => {
+    if (!selectedSheet || !exportVendor) return;
+    setExporting(true);
+    try {
+      const po = await api.post(`/api/takeoffs/sheets/${selectedSheet.id}/export-po`, { vendorId: exportVendor }) as Record<string, unknown>;
+      setExportOpen(false);
+      setExportVendor('');
+      // Straight to the order that was just raised — the point of the action, not a toast.
+      if (po?.id) window.location.href = '/crm/purchase-orders';
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Could not raise the purchase order');
+    } finally { setExporting(false); }
+  };
+  const [exportError, setExportError] = useState<string>('');
   const [assemblies, setAssemblies] = useState<AssemblyItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showNewSheet, setShowNewSheet] = useState<boolean>(false);
   const [showAddItem, setShowAddItem] = useState<boolean>(false);
+  // Until the list arrives, "No projects found. Create a project first." is a lie on a tenant that
+  // has projects — and now that the page no longer auto-selects, that message is actually reachable.
+  // (T32 L1, the same guard SelectionsPage already carries)
+  const [projectsLoaded, setProjectsLoaded] = useState<boolean>(false);
 
   // Load projects for standalone route (no projectId prop)
   useEffect(() => {
@@ -89,8 +124,17 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
       api.get('/api/projects?limit=100').then((res: Record<string, unknown>) => {
         const data = (res?.data || res || []) as ProjectItem[];
         setProjects(data);
-        if (data.length > 0 && !projectId) setProjectId(data[0].id);
-      }).catch(() => {});
+        /**
+         * ONE project selects itself. TWO OR MORE is a choice. (T32 M4)
+         *
+         * This took `data[0].id` whatever the list held, so the chooser below never appeared and
+         * the page opened on a project nobody picked — and a sheet created there was attached to
+         * it silently. With a single project there is nothing to choose and making somebody pick
+         * from a list of one is worse, so that case still selects itself.
+         */
+        if (data.length === 1 && !projectId) setProjectId(data[0].id);
+        setProjectsLoaded(true);
+      }).catch(() => setProjectsLoaded(true));
     }
   }, [propProjectId]);
 
@@ -138,8 +182,10 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
       <div className="flex items-center justify-center h-full">
         <div className="text-center p-8">
           <Calculator className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-          <p className="text-gray-500 mb-4 dark:text-slate-400">Select a project to view takeoffs</p>
-          {projects.length > 0 ? (
+          <p className="text-gray-500 mb-4 dark:text-slate-400">
+            {projectsLoaded ? 'Select a project to view takeoffs' : 'Loading projects…'}
+          </p>
+          {!projectsLoaded ? null : projects.length > 0 ? (
             <select
               value={projectId}
               onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setProjectId(e.target.value)}
@@ -472,11 +518,48 @@ function TotalsFooter({ sheetId }: TotalsFooterProps) {
             <p className="text-lg font-bold">${(totals.totals.totalPrice || 0).toFixed(2)}</p>
           </div>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-white">
+        {/* Wired. This had no onClick at all — a dead button on the one screen whose purpose is
+            turning quantities into an order. (T32 M4) */}
+        <button
+          onClick={() => setExportOpen(true)}
+          disabled={!selectedSheet}
+          title={selectedSheet ? 'Raise a purchase order from this sheet' : 'Pick a sheet first'}
+          /**
+           * `hover:bg-white` with no dark partner is M14's "Export to PO turns white on hover" — in
+           * dark mode the surface went white under light text and the label vanished. The guard
+           * check-light-card-dark-text.ts caught it the moment this element was touched, which is
+           * what it is for. Both themes get a hover, and the text is explicit in both.
+           */
+          className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <Download className="w-4 h-4" />
           Export to PO
         </button>
       </div>
+
+      {exportOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setExportOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-label="Export to purchase order" className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Export to purchase order</h3>
+            <p className="text-sm text-gray-600 dark:text-slate-300">
+              The materials on <strong>{selectedSheet?.name}</strong> become the lines of a new purchase order.
+            </p>
+            <label className="block text-sm font-medium mt-4 mb-1 text-gray-700 dark:text-slate-200">Vendor *</label>
+            <select value={exportVendor} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setExportVendor(e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+              <option value="">Choose a vendor…</option>
+              {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </select>
+            {!vendors.length && <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">No vendors on file yet — add one under Contacts first.</p>}
+            {exportError && <p role="alert" className="mt-3 text-sm text-red-600 dark:text-red-300">{exportError}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setExportOpen(false)} className="px-4 py-2 border rounded-lg text-sm">Cancel</button>
+              <button onClick={doExport} disabled={!exportVendor || exporting} className="px-4 py-2 rounded-lg text-sm bg-orange-500 text-white disabled:opacity-50">
+                {exporting ? 'Raising…' : 'Raise purchase order'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
