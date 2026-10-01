@@ -193,7 +193,19 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
                       <td className="px-3 py-2 text-gray-900 dark:text-slate-100">{u.user?.name || 'Unnamed'}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-slate-200">{Number(u.totalHours || 0).toFixed(2)}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-slate-200">{money(u.totalPay)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{Number(u.deductions || 0) > 0 ? <span className="text-amber-700 dark:text-amber-300">−{money(u.deductions)}</span> : '-'}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {Number(u.deductions || 0) > 0 ? (
+                          <span className="inline-flex flex-col leading-tight">
+                            <span className="text-amber-700 dark:text-amber-300">−{money(u.deductions)}</span>
+                            {/* What could not be taken out of this run — it stays on their balance, and
+                                the shop has to get it another way. Saying nothing here is how "to pay"
+                                used to go negative. */}
+                            {Number(u.unrecovered || 0) > 0 && (
+                              <span className="text-xs text-amber-700 dark:text-amber-300">{money(u.unrecovered)} could not come off this run</span>
+                            )}
+                          </span>
+                        ) : '-'}
+                      </td>
                       <td className="px-3 py-2 text-right font-medium tabular-nums text-gray-900 dark:text-slate-100">{money(u.netPay ?? u.totalPay)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{Number(u.stillOwed || 0) > 0 ? <span className="text-amber-700 dark:text-amber-300">{money(u.stillOwed)}</span> : '-'}</td>
                     </tr>

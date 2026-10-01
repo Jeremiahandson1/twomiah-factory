@@ -81,7 +81,21 @@ app.get('/summary', async (c) => {
     u.totalHours = Number(u.totalHours.toFixed(2))
     u.totalPay = Number(u.totalPay.toFixed(2))
     u.deductions = Number((deductions[id] || 0).toFixed(2))
-    u.netPay = Number((u.totalPay - u.deductions).toFixed(2))
+    /**
+     * A pay run never says "pay them minus two pounds".
+     *
+     * netPay was `totalPay - deductions` with no floor, and the first time I looked at the screen
+     * against the API it read: earned $0.00, recovered −$2.00, to pay **−$2.00**. Nobody pays a
+     * negative wage, and a figure like that in the column somebody copies into a bank transfer is
+     * worse than no column at all.
+     *
+     * It is not only a probe artefact either: somebody who owes more than they earn in a light week,
+     * or who leaves mid-period, lands here for real. So the recovery is capped at what there is to
+     * recover from, and what could NOT be taken is reported rather than folded away — it stays on
+     * their balance, and the shop has to get it another way.
+     */
+    u.netPay = Number(Math.max(0, u.totalPay - u.deductions).toFixed(2))
+    u.unrecovered = Number(Math.max(0, u.deductions - u.totalPay).toFixed(2))
     // What they still owe after this period, so the shop can see whether to keep recovering.
     u.stillOwed = 0
   })
@@ -93,7 +107,8 @@ app.get('/summary', async (c) => {
     pay: Number((acc.pay + u.totalPay).toFixed(2)),
     deductions: Number((acc.deductions + u.deductions).toFixed(2)),
     net: Number((acc.net + u.netPay).toFixed(2)),
-  }), { pay: 0, deductions: 0, net: 0 })
+    unrecovered: Number((acc.unrecovered + u.unrecovered).toFixed(2)),
+  }), { pay: 0, deductions: 0, net: 0, unrecovered: 0 })
 
   return c.json({ payPeriodStart: startDate, payPeriodEnd: endDate, users: Object.values(byUser), totals })
 })

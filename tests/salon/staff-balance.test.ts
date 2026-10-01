@@ -227,6 +227,36 @@ const owedFor = async (who: any) => {
   check('…earned is never quietly adjusted — it is still hours × rate', n2(line?.totalPay) === 80, line)
   check('…and what they still owe, so the shop can see whether to keep recovering', n2(line?.stillOwed) > 0, line?.stillOwed)
   check('the totals add up', n2(run.json?.totals?.pay) - n2(run.json?.totals?.deductions) === n2(run.json?.totals?.net), run.json?.totals)
+
+  /**
+   * …and a pay run never reports a negative wage.
+   *
+   * I found this by reading the screen against the API rather than by testing: earned $0.00,
+   * recovered −$2.00, to pay **−$2.00**. Nobody pays a negative wage, and that is the column
+   * somebody copies into a bank transfer. It is not only a probe artefact — a light week, or
+   * somebody leaving mid-period, lands here for real.
+   */
+  const bigDebt = await claim(other, 'Owed probe big debt', 100)
+  await asMgr('POST', `/api/expenses/${bigDebt}/overpayment`, { amount: 90, reason: 'Ninety over' })
+  await db.execute(sql`UPDATE company SET settings = '{"allowPayrollDeductions": true}'::json WHERE id = ${co.id}`)
+  await asMgr('POST', `/api/expenses/owed/${other.id}/settle`, {
+    amount: 90, reason: 'Recovered from a light week', via: 'payroll', authorisation: 'Signed form',
+  })
+  // They earned nothing in the window, so nothing could actually come off the run.
+  const run2 = await asMgr('GET', `/api/payroll/summary?startDate=${from}&endDate=${to}`)
+  const poor = (run2.json?.users || []).find((u: any) => u.user?.id === other.id)
+  if (!poor) {
+    // No hours at all in the window means no line, which is correct — log an hour and look again.
+    await as(other)('POST', '/api/time', { hours: 1, date: yesterday, description: 'Owed probe one hour', hourlyRate: 10 })
+  }
+  const run3 = await asMgr('GET', `/api/payroll/summary?startDate=${from}&endDate=${to}`)
+  const line3 = (run3.json?.users || []).find((u: any) => u.user?.id === other.id)
+  check('somebody owing more than they earned is never paid a negative wage',
+    n2(line3?.netPay) >= 0, { earned: line3?.totalPay, recovered: line3?.deductions, toPay: line3?.netPay })
+  check('…and what could NOT come off the run is reported rather than folded away',
+    n2(line3?.unrecovered) === n2(n2(line3?.deductions) - n2(line3?.totalPay)),
+    { recovered: line3?.deductions, earned: line3?.totalPay, unrecovered: line3?.unrecovered })
+  check('…the totals never go negative either', n2(run3.json?.totals?.net) >= 0, run3.json?.totals)
 }
 
 // ══════════ money arriving clears the debt, so the two cannot disagree ═════════════════════════

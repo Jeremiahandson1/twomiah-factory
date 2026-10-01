@@ -79,14 +79,21 @@ app.get('/summary', async (c) => {
   const deductions = await staffBalance.deductionsBetween(db, currentUser.companyId, new Date(startDate), new Date(`${endDate}T23:59:59.999Z`))
   for (const [id, u] of Object.entries(byUser) as Array<[string, any]>) {
     u.deductions = Number((deductions[id] || 0).toFixed(2))
-    u.netPay = Number((u.totalPay - u.deductions).toFixed(2))
+    // A pay run never reports a negative wage. Somebody who owes more than they earned in a light
+    // week — or who leaves mid-period — used to land on "to pay: −$2.00", which is a figure
+    // somebody copies into a bank transfer. The recovery is capped at what there is to take it
+    // from, and what could NOT be taken is reported rather than folded away: it stays on their
+    // balance and has to come from somewhere else. (Found by reading the screen against the API.)
+    u.netPay = Number(Math.max(0, u.totalPay - u.deductions).toFixed(2))
+    u.unrecovered = Number(Math.max(0, u.deductions - u.totalPay).toFixed(2))
     u.stillOwed = await staffBalance.owed(db, currentUser.companyId, id)
   }
   const totals = Object.values(byUser).reduce((acc: any, u: any) => ({
     pay: Number((acc.pay + u.totalPay).toFixed(2)),
     deductions: Number((acc.deductions + u.deductions).toFixed(2)),
     net: Number((acc.net + u.netPay).toFixed(2)),
-  }), { pay: 0, deductions: 0, net: 0 })
+    unrecovered: Number((acc.unrecovered + u.unrecovered).toFixed(2)),
+  }), { pay: 0, deductions: 0, net: 0, unrecovered: 0 })
 
   return c.json({ payPeriodStart: startDate, payPeriodEnd: endDate, users: Object.values(byUser), totals })
 })
