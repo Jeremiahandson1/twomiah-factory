@@ -110,7 +110,59 @@ app.get('/:id', async (c) => {
     db.select().from(punchListItem).where(eq(punchListItem.projectId, id)).limit(20),
   ])
 
-  return c.json({ ...foundProject, contact: projectContact[0] || null, jobs, rfis, changeOrders, punchListItems })
+  /**
+   * THE CONTRACT VALUE IS COMPUTED HERE, NOT ON THE SCREEN. (T32 H4)
+   *
+   * The project page added up `changeOrders` and printed "Change Orders +$2,262" — every change
+   * order it had been sent, drafts and pending ones included. A draft is a thing somebody is still
+   * typing; a pending one is a thing the client has not agreed to. Neither is contract money, and
+   * showing them as contract money overstated the job by whatever was in flight.
+   *
+   * Two faults, one cause. The sum was done on the screen over `changeOrders`, which is also capped
+   * at 10 rows above — so on a project with eleven change orders the figure was wrong for a second,
+   * quieter reason. A money figure is now computed once, on the server, over ALL of them.
+   *
+   * `pending` is counted as not-yet-agreed alongside draft and submitted, because that is what the
+   * selections flow used to stamp (T32 H3).
+   */
+  const coTotals = await db.select({
+    status: changeOrder.status,
+    amount: sql<string>`COALESCE(SUM(${changeOrder.amount}), 0)`,
+    n: count(),
+  })
+    .from(changeOrder)
+    .where(and(eq(changeOrder.projectId, id), eq(changeOrder.companyId, currentUser.companyId)))
+    .groupBy(changeOrder.status)
+
+  const sumWhere = (statuses: string[]) => coTotals
+    .filter((r) => statuses.includes(r.status))
+    .reduce((s, r) => s + Number(r.amount || 0), 0)
+  const countWhere = (statuses: string[]) => coTotals
+    .filter((r) => statuses.includes(r.status))
+    .reduce((s, r) => s + Number(r.n || 0), 0)
+
+  const approvedChangeOrders = Math.round(sumWhere(['approved']) * 100) / 100
+  const pendingChangeOrders = Math.round(sumWhere(['draft', 'submitted', 'pending']) * 100) / 100
+  const originalValue = Number(foundProject.estimatedValue || 0)
+
+  return c.json({
+    ...foundProject,
+    contact: projectContact[0] || null,
+    jobs, rfis, changeOrders, punchListItems,
+    financials: {
+      budget: foundProject.budget === null ? null : Number(foundProject.budget),
+      /** What the project was worth before anybody changed it — the value less what approval added. */
+      originalValue: Math.round((originalValue - approvedChangeOrders) * 100) / 100,
+      /** Agreed changes only. This is the figure that belongs next to the contract. */
+      approvedChangeOrders,
+      approvedCount: countWhere(['approved']),
+      /** In flight: raised, not agreed. Shown separately so nobody adds it in by eye. */
+      pendingChangeOrders,
+      pendingCount: countWhere(['draft', 'submitted', 'pending']),
+      /** `estimatedValue` already carries every approved change order — approval moves it. */
+      revisedContractValue: Math.round(originalValue * 100) / 100,
+    },
+  })
 })
 
 app.post('/', requirePermission('projects:create'), async (c) => {

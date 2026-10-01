@@ -258,6 +258,28 @@ export async function approveSelection(
   if (!selection) throw notFound('Selection not found')
   if (!selection.selected_option_id) throw new Error('No option selected')
 
+  /**
+   * APPROVING AN ALREADY-APPROVED SELECTION MINTED ANOTHER CHANGE ORDER. (T32 H3)
+   *
+   * There was no state guard here at all, so the report approved one selection — Calacatta quartz at
+   * $3,180 against a $2,500 allowance, a $680 difference, correctly computed — five times and got
+   * FIVE $680 change orders on the project. The tester deleted four by hand. With T32 H4 making
+   * approval move the project's contract value, each duplicate would now also move it again.
+   *
+   * The guard is a state check rather than a stored link to the change order, because re-approval is
+   * a real thing: if the client changes their mind the selection goes back to `selected` through
+   * makeSelection, and the next approval SHOULD raise a change order for the new difference. What is
+   * not real is approving the same standing decision twice.
+   */
+  const APPROVABLE_FROM = ['pending', 'selected']
+  if (!APPROVABLE_FROM.includes(String(selection.status))) {
+    throw Object.assign(new Error(
+      String(selection.status) === 'approved'
+        ? `"${selection.name}" has already been approved${selection.price_difference ? ' and its change order raised' : ''}. To change it, pick an option again first.`
+        : `"${selection.name}" is ${selection.status}, and only a selection that is awaiting approval can be approved.`,
+    ), { status: 400, code: 'selection_wrong_status' })
+  }
+
   await db.execute(sql`
     UPDATE project_selection SET status = 'approved', approved_at = ${new Date()}, approved_by_id = ${approvedBy}
     WHERE id = ${selectionId}
@@ -272,16 +294,31 @@ export async function approveSelection(
       ? `Upgrade from allowance to ${selection.selected_option?.name}\n\nLocation: ${selection.location || 'N/A'}\nQuantity: ${selection.quantity} ${selection.unit}`
       : `Credit for selecting ${selection.selected_option?.name} under allowance`
 
+    /**
+     * IN THE PROJECT'S CHANGE-ORDER SEQUENCE, AND IN A STATUS THE SCREEN KNOWS. (T32 L12 / H3)
+     *
+     * This stamped `CO-SEL-1790868881605` — a millisecond timestamp, outside the project's CO-001,
+     * CO-002, CO-003 run — and `status: 'pending'`, which is not one of the states the Change Orders
+     * screen draws, so the row appeared with no status and no actions.
+     *
+     * It is now numbered the same way POST /api/change-orders numbers one, and raised as `submitted`:
+     * a client has picked an upgrade and somebody has to agree the money, which is exactly what
+     * submitted means. The approve route then records who agreed it and moves the contract value.
+     */
+    const [{ n }] = rows(await db.execute(sql`
+      SELECT COUNT(*)::int AS n FROM change_order
+      WHERE company_id = ${companyId} AND project_id = ${selection.project_id}
+    `))
     ;[co] = await db
       .insert(changeOrder)
       .values({
         companyId,
         projectId: selection.project_id,
-        number: `CO-SEL-${Date.now()}`,
+        number: `CO-${String(Number(n || 0) + 1).padStart(3, '0')}`,
         title,
         description,
         amount: String(selection.price_difference),
-        status: 'pending',
+        status: 'submitted',
       })
       .returning()
   }

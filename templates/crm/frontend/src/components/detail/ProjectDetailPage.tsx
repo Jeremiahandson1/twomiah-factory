@@ -45,6 +45,16 @@ interface ProjectDetailData {
   rfis?: RelatedItem[];
   changeOrders?: RelatedItem[];
   punchListItems?: RelatedItem[];
+  /** Money, computed by the server over EVERY change order by status — never summed here. (T32 H4) */
+  financials?: {
+    budget: number | null;
+    originalValue: number;
+    approvedChangeOrders: number;
+    approvedCount: number;
+    pendingChangeOrders: number;
+    pendingCount: number;
+    revisedContractValue: number;
+  };
   [key: string]: unknown;
 }
 
@@ -366,13 +376,46 @@ export default function ProjectDetailPage() {
                   <span className="font-medium">${Number(project.budget).toLocaleString()}</span>
                 </div>
               )}
-              {(project.changeOrders?.length ?? 0) > 0 && (
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500 dark:text-slate-400">Change Orders</span>
-                  <span className="font-medium text-orange-600">
-                    +${project.changeOrders!.reduce((sum: number, co: RelatedItem) => sum + Number(co.amount), 0).toLocaleString()}
-                  </span>
-                </div>
+              {/**
+                * EVERY FIGURE HERE COMES FROM THE SERVER. (T32 H4)
+                *
+                * This panel used to add up `project.changeOrders` itself — a list that includes
+                * drafts and pending change orders and is capped at ten rows. So it printed money
+                * nobody had agreed to as contract money, and on a project with eleven change orders
+                * it was wrong a second way. `financials` is computed over all of them, by status.
+                *
+                * Agreed and not-yet-agreed are shown on separate lines on purpose: putting them in
+                * one number is what made the original wrong, and somebody reading the page needs to
+                * know which part of it the client has signed.
+                */}
+              {project.financials && (
+                <>
+                  {project.financials.approvedChangeOrders !== 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500 dark:text-slate-400">
+                        Approved change orders{project.financials.approvedCount ? ` (${project.financials.approvedCount})` : ''}
+                      </span>
+                      <span className={`font-medium tabular-nums ${project.financials.approvedChangeOrders < 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-orange-600 dark:text-orange-400'}`}>
+                        {project.financials.approvedChangeOrders < 0 ? '−' : '+'}${Math.abs(project.financials.approvedChangeOrders).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                  {!!project.financials.revisedContractValue && (
+                    <div className="flex items-center justify-between border-t border-gray-200 dark:border-slate-800 pt-3">
+                      <span className="font-medium text-gray-900 dark:text-slate-100">Contract value</span>
+                      <span className="font-semibold tabular-nums text-gray-900 dark:text-slate-100">
+                        ${project.financials.revisedContractValue.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                  {project.financials.pendingChangeOrders !== 0 && (
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
+                      {project.financials.pendingCount === 1 ? 'One change order' : `${project.financials.pendingCount} change orders`} worth{' '}
+                      {project.financials.pendingChangeOrders < 0 ? '−' : ''}${Math.abs(project.financials.pendingChangeOrders).toLocaleString()} raised and not yet
+                      approved — not in the contract value above.
+                    </p>
+                  )}
+                </>
               )}
             </div>
           </div>

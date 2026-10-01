@@ -73,8 +73,25 @@ export default function ChangeOrdersPage() {
     const lineItems = form.lineItems
       .filter((li: LineItem) => String(li.description || '').trim())
       .map((li: LineItem) => ({ ...li, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) }));
-    if (lineItems.some((li) => !Number.isFinite(li.quantity) || li.quantity < 0 || !Number.isFinite(li.unitPrice) || li.unitPrice < 0)) {
-      toast.error('Quantity and price must be zero or more'); return;
+    /**
+     * A CREDIT IS A NEGATIVE LINE, AND IT IS ROUTINE. (T32 H5)
+     *
+     * This refused `unitPrice < 0` with "Quantity and price must be zero or more", so a deductive
+     * change order — "Credit: laminate counter, −$615", the client dropping something out of the
+     * scope — could not be typed in at all. The API has always accepted it (the report entered
+     * CO-002 at −$615.00 straight through), so the screen was the only thing stopping normal
+     * paperwork. `daysAdded` was already allowed to go negative for exactly this reason, two lines
+     * above.
+     *
+     * What is still refused is a line that is not a number, and a NEGATIVE QUANTITY: "−2 counters at
+     * $615" and "2 counters at −$615" are the same money, and allowing both ways to write it makes
+     * two rows that look different and net the same. The price carries the sign.
+     */
+    if (lineItems.some((li) => !Number.isFinite(li.quantity) || !Number.isFinite(li.unitPrice))) {
+      toast.error('Quantity and price must be numbers'); return;
+    }
+    if (lineItems.some((li) => li.quantity < 0)) {
+      toast.error('Quantity cannot be negative — for a credit, put the minus sign on the price'); return;
     }
     const daysAdded = Number(form.daysAdded);
     if (!Number.isFinite(daysAdded)) { toast.error('Days added must be a number'); return; }
@@ -90,7 +107,9 @@ export default function ChangeOrdersPage() {
 
   const handleDelete = async () => { try { await api.changeOrders.delete((toDelete as Record<string, unknown>).id as string); toast.success('Deleted'); setDeleteOpen(false); load(); } catch (err) { toast.error((err as Error).message); } };
   const handleSubmit = async (co: Record<string, unknown>) => { try { await api.changeOrders.submit(co.id as string); toast.success('Submitted'); load(); } catch (err) { toast.error((err as Error).message); } };
-  const handleApprove = async (co: Record<string, unknown>) => { try { await api.changeOrders.approve(co.id as string, { approvedBy: 'Current User' }); toast.success('Approved'); load(); } catch (err) { toast.error((err as Error).message); } };
+  // No `approvedBy` in the body any more: the server records the signed-in user. Sending the literal
+  // string "Current User" is what made that field useless on every change order ever approved. (T32 H2)
+  const handleApprove = async (co: Record<string, unknown>) => { try { await api.changeOrders.approve(co.id as string, {}); toast.success('Approved'); load(); } catch (err) { toast.error((err as Error).message); } };
   const handleReject = async (co: Record<string, unknown>) => { try { await api.changeOrders.reject(co.id as string); toast.success('Rejected'); load(); } catch (err) { toast.error((err as Error).message); } };
 
   const addLineItem = () => setForm({ ...form, lineItems: [...form.lineItems, { description: '', quantity: '1', unitPrice: '' }] });
