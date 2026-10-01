@@ -236,8 +236,20 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
             <button
               key={sheet.id}
               onClick={() => loadSheet(sheet.id)}
-              className={`w-full px-4 py-3 text-left hover:bg-gray-100 border-b ${
-                selectedSheet?.id === sheet.id ? 'bg-orange-50 border-l-4 border-l-orange-500' : ''
+              /*
+               * T32 M14 · the selected sheet's name measured 1.00:1 — invisible.
+               *
+               * `bg-orange-50` is a near-white cream and had no dark partner, so in dark mode the
+               * SELECTED row kept a near-white ground while the name below it renders
+               * dark:text-slate-100, which is also near-white. Same colour, no contrast at all, and
+               * only on the row the user had just clicked.
+               *
+               * The hover and the divider were unpaired for the same reason and are fixed with it:
+               * a contrast fix is the pair, and fixing the one cell the report measured would have
+               * left the row beside it wrong.
+               */
+              className={`w-full px-4 py-3 text-left border-b hover:bg-gray-100 dark:border-slate-800 dark:hover:bg-slate-800 ${
+                selectedSheet?.id === sheet.id ? 'bg-orange-50 border-l-4 border-l-orange-500 dark:bg-orange-950/40' : ''
               }`}
             >
               <p className="font-medium text-sm text-gray-900 dark:text-slate-100">{sheet.name}</p>
@@ -773,9 +785,15 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }: AddItemModalProp
               </div>
             </div>
 
+            {/*
+              * Found by widening check-unpaired-dark-ink's walk to the base CRM frontend, which it
+              * had never looked at. The `text-gray-900` here was dead weight — the only child sets
+              * its own colour — and both the panel and that child were unpaired, so this hint
+              * stayed a near-white card inside a dark modal. (T32 M14)
+              */}
             {selectedAssembly && (
-              <div className="p-3 bg-blue-50 rounded-lg text-gray-900">
-                <p className="text-sm text-blue-700">
+              <div className="p-3 bg-blue-50 rounded-lg dark:bg-blue-950/40">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
                   Measurement type: <strong>{MEASUREMENT_LABELS[selectedAssembly.measurementType]}</strong>
                 </p>
               </div>

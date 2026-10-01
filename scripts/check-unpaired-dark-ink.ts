@@ -82,6 +82,19 @@ const walk = (base: string, rel = '') => {
 }
 walk('packages/tenant-ui/src/')
 walk('templates/crm-salon/frontend/src/')
+/**
+ * The BASE CRM's frontend, added in T32 M14.
+ *
+ * This guard walked tenant-ui and crm-salon and had never looked at templates/crm — which is the
+ * fallback template every unmapped trade gets, and the one the T32 report was written against. It
+ * found one real offender the moment it was pointed there (a hint panel in TakeoffsPage whose
+ * surface and ink were both unpaired), and the tree is otherwise clean, so this stays.
+ *
+ * The narrow rule above is deliberately unchanged: `bg-gray-50 text-gray-700` stat tiles were also
+ * wrong in dark mode and T32 M14 fixed four files' worth of them, but they are a judgement call and
+ * a guard that fails on judgement calls gets switched off. Near-black ink is the shape that never is.
+ */
+walk('templates/crm/frontend/src/')
 
 if (offenders.length) {
   console.error('FAIL: near-black ink with no dark-mode partner — invisible on a dark surface:')

@@ -290,12 +290,19 @@ export default function EquipmentPage({ api, config }: EquipmentPageProps) {
   );
 }
 
+/**
+ * T32 M14 · the stat tiles never had a dark-mode partner.
+ *
+ * Each entry set only `bg-X-50 text-X-700`, so on a dark page these stayed near-white cards. This
+ * is the SHARED equipment page, so it was every vertical that mounts equipment, not just the base
+ * CRM. (feedback: scan packages, not just templates)
+ */
 function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
   const colors: Record<string, string> = {
-    gray: 'bg-gray-50 text-gray-700',
-    orange: 'bg-orange-50 text-orange-700',
-    yellow: 'bg-yellow-50 text-yellow-700',
-    red: 'bg-red-50 text-red-700',
+    gray: 'bg-gray-50 text-gray-700 dark:bg-slate-800 dark:text-slate-200',
+    orange: 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300',
+    yellow: 'bg-yellow-50 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-200',
+    red: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300',
   };
 
   return (
@@ -691,12 +698,14 @@ function ServiceHistoryModal({ equipment, api, config, onClose, onRefresh }: Ser
     }
   };
 
+  // Paired the way the shared STATUS_STYLES in invoicing/ui.tsx already is — one house style for a
+  // status pill rather than a second one invented here. (T32 M14)
   const statusColors: Record<string, string> = {
-    scheduled: 'bg-blue-100 text-blue-700',
-    dispatched: 'bg-purple-100 text-purple-700',
-    in_progress: 'bg-yellow-100 text-yellow-700',
-    completed: 'bg-green-100 text-green-700',
-    cancelled: 'bg-gray-100 text-gray-600',
+    scheduled: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200',
+    dispatched: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200',
+    in_progress: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-200',
+    completed: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-200',
+    cancelled: 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300',
   };
 
   const maintenanceList = history.length === 0 ? (
@@ -744,7 +753,7 @@ function ServiceHistoryModal({ equipment, api, config, onClose, onRefresh }: Ser
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-mono text-xs text-gray-500 dark:text-slate-400">{j.number}</span>
-                <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${statusColors[j.status || ''] || 'bg-gray-100 text-gray-600'}`}>
+                <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${statusColors[j.status || ''] || 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300'}`}>
                   {j.status?.replace('_', ' ')}
                 </span>
               </div>

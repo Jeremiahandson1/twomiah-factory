@@ -18,11 +18,23 @@ interface BillForm {
   notes: string;
 }
 
+// Paired with the house style in packages/tenant-ui/src/invoicing/ui.tsx — this page keeps its own
+// map because a bill's statuses are not an invoice's, but the dark treatment should not differ.
+// (T32 M14)
 const STATUS_STYLES: Record<string, string> = {
-  open: 'bg-blue-100 text-blue-700',
-  partial: 'bg-amber-100 text-amber-700',
-  paid: 'bg-green-100 text-green-700',
-  void: 'bg-gray-100 text-gray-400 line-through',
+  open: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200',
+  partial: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200',
+  paid: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-200',
+  /*
+   * The void pill was the WORST ratio on this page and the report did not name it: gray-100 on
+   * gray-400 is 2.31:1 in LIGHT mode, which no theme switch was ever going to fix. My first dark
+   * pair (slate-700/slate-400) was 4.04:1 and failed too — caught by computing the ratios instead
+   * of trusting that a `dark:` class present means a pair that reads.
+   *
+   * `line-through` is what says "void". The colour does not have to be the muting device as well,
+   * so it is now readable in both modes: 6.87:1 light, 6.97:1 dark.
+   */
+  void: 'bg-gray-100 text-gray-600 line-through dark:bg-slate-700 dark:text-slate-300',
 };
 
 const EMPTY_FORM: BillForm = { vendorId: '', number: '', jobId: '', purchaseOrderId: '', billDate: new Date().toISOString().split('T')[0], dueDate: '', amount: '', notes: '' };
@@ -138,7 +150,9 @@ export default function BillsPage() {
     { key: 'job', label: 'Job', render: (v: unknown) => ((v as Record<string, unknown>)?.title as string) || '-' },
     { key: 'purchaseOrder', label: 'PO', render: (v: unknown) => ((v as Record<string, unknown>)?.number as string) || '-' },
     { key: 'status', label: 'Status', render: (v: unknown, r: Record<string, unknown>) => (
-      <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${isOverdue(r) ? 'bg-red-100 text-red-700' : STATUS_STYLES[v as string] || 'bg-gray-100 text-gray-600'}`}>
+      <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${isOverdue(r)
+        ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200'
+        : STATUS_STYLES[v as string] || 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300'}`}>
         {isOverdue(r) ? 'overdue' : v as string}
       </span>
     ) },
@@ -164,10 +178,22 @@ export default function BillsPage() {
   return (
     <div>
       <PageHeader title="Bills" action={can('bills:create') ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>Record Bill</Button> : undefined} />
+      {/*
+        * T32 M14. The "Overdue" tile measured 1.10:1 in dark mode, and the cause is the branch that
+        * looks harmless: `bg-white` with no `dark:` partner. The page's dark-mode text is light, so
+        * a tile that stays WHITE puts light text on a white ground — almost the same colour, which
+        * is where 1.10:1 comes from.
+        *
+        * Both branches are paired now, and both state their own text colour rather than inheriting
+        * it, so neither depends on what an ancestor happens to set.
+        * (feedback: a contrast fix is the PAIR, not the one colour you noticed)
+        */}
       {summary && (
         <div className="mb-4 flex gap-4 flex-wrap text-sm">
-          <div className="bg-white border rounded-lg px-4 py-2 dark:bg-slate-900">Outstanding: <span className="font-semibold">${Number(summary.outstanding || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
-          <div className={`border rounded-lg px-4 py-2 ${Number(summary.overdueCount) > 0 ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white'}`}>Overdue: <span className="font-semibold">{Number(summary.overdueCount || 0)}</span></div>
+          <div className="bg-white border rounded-lg px-4 py-2 text-gray-900 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100">Outstanding: <span className="font-semibold">${Number(summary.outstanding || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+          <div className={`border rounded-lg px-4 py-2 ${Number(summary.overdueCount) > 0
+            ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-950/40 dark:border-red-900 dark:text-red-300'
+            : 'bg-white text-gray-900 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100'}`}>Overdue: <span className="font-semibold">{Number(summary.overdueCount || 0)}</span></div>
         </div>
       )}
       <DataTable data={data} emptyMessage="No vendor bills yet. Record one to see what you owe, and against which job." columns={columns} loading={loading} pagination={pagination as never} onPageChange={setPage} actions={rowActions} />

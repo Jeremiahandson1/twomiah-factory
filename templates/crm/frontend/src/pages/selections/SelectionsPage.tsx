@@ -244,8 +244,8 @@ export default function SelectionsPage({ projectId: propProjectId }: SelectionsP
             onClick={() => setFilter(f)}
             className={`px-4 py-2 rounded-lg text-sm capitalize ${
               filter === f
-                ? 'bg-orange-100 text-orange-700'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-200'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
             }`}
           >
             {f}
@@ -325,12 +325,20 @@ interface SummaryCardProps {
   subtitle?: string | null;
 }
 
+/**
+ * T32 M14 · the stat tiles never had a dark-mode partner.
+ *
+ * Each entry set only `bg-X-50 text-X-700`, so on a dark page these stayed four near-white cards —
+ * legible in themselves, and wrong beside everything around them. The tile is the ONLY thing
+ * carrying a colour here, so the pair has to be declared here too; there is no ancestor to inherit
+ * a dark ground from. (feedback: a contrast fix is the pair)
+ */
 function SummaryCard({ label, value, icon: Icon, color = 'gray', subtitle }: SummaryCardProps) {
   const colors: Record<string, string> = {
-    gray: 'bg-gray-50 text-gray-700',
-    blue: 'bg-blue-50 text-blue-700',
-    green: 'bg-green-50 text-green-700',
-    orange: 'bg-orange-50 text-orange-700',
+    gray: 'bg-gray-50 text-gray-700 dark:bg-slate-800 dark:text-slate-200',
+    blue: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+    green: 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300',
+    orange: 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300',
   };
 
   return (
