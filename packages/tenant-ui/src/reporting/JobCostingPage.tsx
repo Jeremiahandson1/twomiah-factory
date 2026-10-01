@@ -18,21 +18,32 @@ interface JobRow {
   id: string; number: string; title: string; status: string; contact?: string | null
   estimatedRevenue: number; invoicedRevenue: number; totalCost: number
   profit: number; margin: number; laborHours: number; isProfitable: boolean; variance: number
+  /** Revenue from an invoice raised against the project, shown on each of the project's jobs. */
+  sharedRevenue?: number; directRevenue?: number
+  billedCost?: number; unratedLaborHours?: number
 }
 interface Totals {
   estimatedRevenue: number; invoicedRevenue: number; totalCost: number; profit: number
   laborHours: number; profitableCount: number; margin: number; profitablePercent: number
+  salesTax?: number; billedCost?: number; unratedLaborHours?: number
 }
 interface CategoryRow { key: string; jobCount: number; revenue: number; cost: number; profit: number; margin: number; avgJobRevenue: number }
-interface CostSide { revenue: number; laborCost: number; materialCost: number; totalCost: number; profit: number; margin: number; laborHours: number; collected?: number; expenseCost?: number; subcontractorCost?: number }
+interface CostSide {
+  revenue: number; laborCost: number; materialCost: number; totalCost: number; profit: number
+  margin: number; laborHours: number; collected?: number; expenseCost?: number; subcontractorCost?: number
+  billedCost?: number; salesTax?: number; sharedRevenue?: number; unratedLaborHours?: number
+}
 interface Detail {
   job: { id: string; number: string; title: string; status: string; contact?: { name?: string } | null; project?: { name?: string } | null }
   estimated: CostSide
   actual: CostSide
   variance: { cost: number; labor: number; material: number; hours: number; costPercent: number }
-  laborDetail?: Array<{ userName?: string; hours?: number; cost?: number; date?: string }>
-  materialDetail?: Array<{ name?: string; quantity?: number; cost?: number }>
+  laborDetail?: Array<{ userName?: string; user?: string; hours?: number; cost?: number; date?: string; rateKnown?: boolean }>
+  materialDetail?: Array<{ name?: string; item?: string; quantity?: number; cost?: number }>
   expenseDetail?: Array<{ description?: string; category?: string; amount?: number }>
+  /** Vendor bills raised against the job — spend that never used to reach this screen. (T32 B3) */
+  billDetail?: Array<{ number?: string | null; vendor?: string | null; amount?: number; status?: string }>
+  invoices?: Array<{ number?: string; status?: string; revenue?: number; taxAmount?: number; shared?: boolean }>
 }
 
 const card = 'bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6'
@@ -61,6 +72,8 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
   const [rows, setRows] = useState<JobRow[]>([])
   const [totals, setTotals] = useState<Totals | null>(null)
   const [count, setCount] = useState(0)
+  /** True when `rows` is a page of `count`. The totals always cover `count`, so say which is which. */
+  const [truncated, setTruncated] = useState(false)
   const [trend, setTrend] = useState<CategoryRow[]>([])
   const [status, setStatus] = useState('')
   const [startDate, setStartDate] = useState('')
@@ -78,13 +91,21 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
     if (endDate) q.endDate = endDate
     Promise.all([
       api.get('/api/job-costing/summary', q),
-      api.get('/api/job-costing/by-category', { groupBy: 'month', ...(startDate ? { startDate } : {}), ...(endDate ? { endDate } : {}) }).catch(() => []),
+      // The month table must obey the SAME filters as the list below it, or the two halves of one
+      // screen describe different sets of jobs and neither reconciles with the totals. (T32 B3)
+      api.get('/api/job-costing/by-category', {
+        groupBy: 'month',
+        ...(status ? { status } : {}),
+        ...(startDate ? { startDate } : {}),
+        ...(endDate ? { endDate } : {}),
+      }).catch(() => []),
     ])
       .then(([s, t]: any[]) => {
         if (cancelled) return
         setRows(s?.jobs || [])
         setTotals(s?.totals || null)
         setCount(typeof s?.count === "number" ? s.count : (s?.jobs || []).length)
+        setTruncated(!!s?.truncated)
         setTrend(Array.isArray(t) ? t : [])
       })
       .catch((e: any) => { if (!cancelled) setError(e?.message || 'Could not load costing') })
@@ -135,6 +156,8 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
                       ['Labour', side.laborCost],
                       ['Materials', side.materialCost],
                       ...(side.expenseCost != null ? [['Expenses', side.expenseCost]] as Array<[string, number]> : []),
+                      // Vendor bills are spend that used to be missing from this figure entirely.
+                      ...(side.billedCost ? [['Vendor bills', side.billedCost]] as Array<[string, number]> : []),
                       ...(side.subcontractorCost != null ? [['Subcontractors', side.subcontractorCost]] as Array<[string, number]> : []),
                       ['Total cost', side.totalCost],
                     ] as Array<[string, number]>).map(([k, v]) => (
@@ -150,6 +173,26 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
                       <dt className={muted}>Labour hours</dt><dd className="tabular-nums text-gray-900 dark:text-slate-100">{side.laborHours}</dd>
                     </div>
                   </dl>
+                  {/* Three things the figures above would otherwise hide. Each is only shown when it
+                      applies, so a straightforward job reads as cleanly as it did before. */}
+                  {side.sharedRevenue ? (
+                    <p className={`text-xs mt-3 ${muted}`}>
+                      {money(side.sharedRevenue)} of this revenue is on an invoice raised against the
+                      project, so it also appears on the project&rsquo;s other {noun.toLowerCase()} — it is
+                      counted once in the totals.
+                    </p>
+                  ) : null}
+                  {side.salesTax ? (
+                    <p className={`text-xs mt-2 ${muted}`}>
+                      Excludes {money(side.salesTax)} of sales tax, which is collected for the state.
+                    </p>
+                  ) : null}
+                  {side.unratedLaborHours ? (
+                    <p className="text-xs mt-2 text-amber-700 dark:text-amber-400">
+                      {side.unratedLaborHours} h have no hourly rate — on the entry or on the person — so
+                      they are counted as hours but cost nothing here. Set a rate to price them.
+                    </p>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -167,9 +210,14 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
               </p>
             </div>
 
-            {([['Labour', detail.laborDetail, (r: any) => [r.userName || 'Unassigned', `${r.hours ?? 0} h`, money(r.cost ?? 0)]],
-               ['Materials', detail.materialDetail, (r: any) => [r.name || 'Item', String(r.quantity ?? ''), money(r.cost ?? 0)]],
-               ['Expenses', detail.expenseDetail, (r: any) => [r.description || 'Expense', r.category || '', money(r.amount ?? 0)]]] as Array<[string, any[] | undefined, (r: any) => string[]]>)
+            {/* `userName`/`name` are what the API sends; `user`/`item` are the older keys it also still
+                sends, so this reads correctly whichever a vertical is running. An hour with no rate
+                shows "no rate" rather than $0.00, which would read as free labour. */}
+            {([['Labour', detail.laborDetail, (r: any) => [r.userName || r.user || 'Unassigned', `${r.hours ?? 0} h`, r.rateKnown === false ? 'no rate' : money(r.cost ?? 0)]],
+               ['Materials', detail.materialDetail, (r: any) => [r.name || r.item || 'Item', String(r.quantity ?? ''), money(r.cost ?? 0)]],
+               ['Expenses', detail.expenseDetail, (r: any) => [r.description || 'Expense', r.category || '', money(r.amount ?? 0)]],
+               ['Vendor bills', detail.billDetail, (r: any) => [r.vendor || 'Vendor', r.number || '', money(r.amount ?? 0)]],
+               ['Invoices', detail.invoices, (r: any) => [r.number || 'Invoice', r.shared ? 'project invoice' : '', money(r.revenue ?? 0)]]] as Array<[string, any[] | undefined, (r: any) => string[]]>)
               .filter(([, list]) => list && list.length)
               .map(([label, list, cols]) => (
                 <div key={label} className={card}>
@@ -237,6 +285,15 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
             <Stat label="Margin" value={pct(totals.margin)} tone={marginTone(totals.margin)} />
             <Stat label="Profitable" value={`${totals.profitableCount} of ${count}`} />
           </div>
+          {/* These figures cover every matching job, which the table below may not — it used to be the
+              other way round, silently. Invoiced is ex-tax and counts each invoice once. (T32 B3) */}
+          <p className={`text-xs mt-4 ${muted}`}>
+            Across all {count} {noun.toLowerCase()} that match these filters
+            {truncated ? `, of which the table below lists ${rows.length}` : ''}. Invoiced excludes sales tax
+            {totals.salesTax ? ` (${money(totals.salesTax)})` : ''} and counts each invoice once, even where
+            one invoice covers several {noun.toLowerCase()}.
+            {totals.unratedLaborHours ? ` ${totals.unratedLaborHours} h of labour have no hourly rate and are not priced.` : ''}
+          </p>
         </div>
       )}
 
@@ -299,7 +356,16 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
                     <td className="py-2 pr-4 font-medium text-gray-900 dark:text-slate-100">{r.number}</td>
                     <td className="py-2 pr-4 text-gray-900 dark:text-slate-100">{r.title}</td>
                     <td className="py-2 pr-4"><StatusBadge status={r.status} /></td>
-                    <td className="py-2 pr-4 text-right tabular-nums text-gray-900 dark:text-slate-100">{money(r.invoicedRevenue)}</td>
+                    {/* A project invoice shows on each of the project's jobs. Without this marker two
+                        rows carry the same figure under a smaller total and it reads as a bug. */}
+                    <td className="py-2 pr-4 text-right tabular-nums text-gray-900 dark:text-slate-100">
+                      {money(r.invoicedRevenue)}
+                      {r.sharedRevenue ? (
+                        <span className={`block text-xs font-normal ${muted}`} title={`${money(r.sharedRevenue)} is on a project invoice shared with other ${noun.toLowerCase()} and is counted once in the totals`}>
+                          incl. {money(r.sharedRevenue)} shared
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="py-2 pr-4 text-right tabular-nums text-gray-900 dark:text-slate-100">{money(r.totalCost)}</td>
                     <td className={`py-2 pr-4 text-right tabular-nums ${marginTone(r.profit)}`}>{money(r.profit)}</td>
                     <td className={`py-2 text-right tabular-nums ${marginTone(r.margin)}`}>

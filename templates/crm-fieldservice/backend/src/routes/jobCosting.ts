@@ -64,13 +64,20 @@ app.get('/summary', requirePermission('reports:read'), async (c) => {
   }))
 })
 
-/** Profitability grouped by month (or another dimension the service supports). */
+/**
+ * Profitability grouped by month (or another dimension the service supports).
+ *
+ * `status` is passed through for the same reason /summary takes it: this table sits directly above
+ * the job list on one screen, and when the list was filtered and the table was not, the two
+ * described different sets of jobs and neither reconciled with the totals row. (T32 B3)
+ */
 app.get('/by-category', requirePermission('reports:read'), async (c) => {
   const user = c.get('user') as any
   return c.json(await jobCosting.getProfitabilityByCategory(user.companyId, {
     groupBy: c.req.query('groupBy') || 'month',
     startDate: c.req.query('startDate'),
     endDate: c.req.query('endDate'),
+    status: c.req.query('status'),
   }))
 })
 
