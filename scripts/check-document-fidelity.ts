@@ -6,7 +6,12 @@
 //     preview pane rendered blank), while still downloading anything else as an opaque attachment.
 //   bun scripts/check-document-fidelity.ts
 import { readFileSync } from 'node:fs'
-const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+/**
+ * A STRING-AWARE comment stripper. The one-liner that used to live here read the `/*` inside a route
+ * pattern — `app.get('/file/*', …)` — as a comment opener, and ate real code the moment a JSDoc block
+ * below it supplied a closing `*\/`. See scripts/lib/stripComments.ts.
+ */
+import { stripSource as strip } from './lib/stripComments.ts'
 const read = (p: string) => strip(readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n'))
 const src = strip(readFileSync(new URL('../packages/tenant-backend/src/files/documents.ts', import.meta.url), 'utf8'))
 

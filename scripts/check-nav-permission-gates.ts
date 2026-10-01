@@ -18,9 +18,14 @@
 //
 //   bun scripts/check-nav-permission-gates.ts
 import { readFileSync, existsSync } from 'node:fs'
+/**
+ * A STRING-AWARE comment stripper. The one-liner that used to live here read the `/*` inside a route
+ * pattern — `app.get('/file/*', …)` — as a comment opener, and ate real code the moment a JSDoc block
+ * below it supplied a closing `*\/`. See scripts/lib/stripComments.ts.
+ */
+import { stripSource as stripComments } from './lib/stripComments.ts'
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 const read = (p: string) => { try { return readFileSync(ROOT + p, 'utf8').replace(/\r\n/g, '\n') } catch { return null } }
-const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
 
 let failed = 0
 const fail = (m: string) => { failed++; console.error('FAIL: ' + m) }

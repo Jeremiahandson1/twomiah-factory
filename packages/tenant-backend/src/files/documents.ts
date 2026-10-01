@@ -230,7 +230,25 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     c.header('Content-Type', inline ? obj.contentType : 'application/octet-stream')
     c.header('X-Content-Type-Options', 'nosniff')
     c.header('Content-Disposition', inline ? 'inline' : 'attachment')
-    c.header('Cache-Control', 'private, max-age=86400')
+    /**
+     * NO-STORE. (T32 M12)
+     *
+     * This was `private, max-age=86400` with `Vary: Origin` only — so the browser kept the file for a
+     * day and served it again from its own cache WITHOUT the credentials this route checks. The
+     * report proved it: fetch a document with a token, then fetch it again with none, and the file
+     * came back. On a shared office machine the next person to sit down can open it from history
+     * after the first has signed out. With no-store the server correctly answers 401.
+     *
+     * `private` is not enough, because the problem is not a shared proxy — it is the browser's own
+     * cache, which is exactly what `private` permits. `Vary: Authorization` would also work for a
+     * header-authenticated fetch, but not for a URL opened in a tab, which is how a preview or a
+     * download link actually gets used.
+     *
+     * The cost is re-fetching the bytes. The object in R2 keeps its own long `CacheControl` for the
+     * CDN; this header governs only the authenticated hop, which is the one that must not be replayed.
+     */
+    c.header('Cache-Control', 'no-store, must-revalidate')
+    c.header('Pragma', 'no-cache')
     return c.body(obj.body)
   })
 

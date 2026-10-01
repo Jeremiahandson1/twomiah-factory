@@ -2073,6 +2073,17 @@ jobs:
       - name: "Read routes authorise"
         run: bun run scripts/check-read-routes-authorise.ts
 
+  authenticated-files-no-store:
+    name: "a private file behind auth is not left in the browser cache"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Authenticated files no-store"
+        run: bun run scripts/check-authenticated-files-no-store.ts
+
   search-permission-gates:
     name: "Search requires the same permission as the route it links to"
     runs-on: ubuntu-latest

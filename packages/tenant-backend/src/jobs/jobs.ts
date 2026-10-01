@@ -52,6 +52,15 @@ export interface JobDeps {
    * (Field Service T30 BLOCKER)
    */
   requirePermission: (permission: string) => any
+  /**
+   * May this caller change what a job is WORTH? Asked with `quotes:update`. (T32 M7)
+   *
+   * `jobs:update` has to stay with `field` — it is how a technician runs the work — and that right
+   * was also letting them reprice the job: the report put JOB-00119's estimate from $11,183 to $1.
+   * Not wired → allowed, so an un-migrated template is unchanged; the same convention the jobs
+   * dashboard, the pricebook and the team roster all use for `canSee`.
+   */
+  canSee?: (role: string, permission: string, userId?: string) => Promise<boolean> | boolean
   emitToCompany: (companyId: string, event: string, data: any) => void
   EVENTS: { JOB_CREATED: string; JOB_UPDATED: string; JOB_DELETED: string; JOB_STATUS_CHANGED: string }
   cleanText: (min?: number) => z.ZodTypeAny
@@ -83,8 +92,18 @@ const validDate = (v: unknown) => {
   return d.getUTCFullYear() === +m[1] && d.getUTCMonth() + 1 === +m[2] && d.getUTCDate() === +m[3]
 }
 
+/** What a job's estimated value is: a quoted figure carried onto the work. (T32 M7) */
+const JOB_MONEY_PERMISSION = 'quotes:update'
+
 export function createJobRoutes(deps: JobDeps) {
   const { db, tables: t, authenticate, requirePermission, emitToCompany, EVENTS, cleanText } = deps
+  const maySetJobMoney = async (c: any) => {
+    if (!deps.canSee) return true
+    const u = c.get('user') as any
+    try { return await deps.canSee(u?.role, JOB_MONEY_PERMISSION, u?.userId) } catch { return true }
+  }
+  /** The vertical's own noun, for a message somebody reads. "job" where nothing says otherwise. */
+  const jobWord = (deps.options?.numbering?.prefix === 'SVC' ? 'service call' : 'job')
   const o = deps.options || {}
   const prefix = o.numbering?.prefix || 'JOB'
   const pad = o.numbering?.pad ?? 5
@@ -112,6 +131,26 @@ export function createJobRoutes(deps: JobDeps) {
     scheduledTime: z.string().optional().refine((v: string | undefined) => !v || /^([01]\d|2[0-3]):[0-5]\d$/.test(v), { message: 'Time must be HH:MM (24-hour).' }),
     // The edit form posts the decimal string the API returned ("4.00"), or "" when blank.
     estimatedHours: z.preprocess((v) => (v === '' || v === null || v === undefined ? undefined : v), z.coerce.number().min(0, 'Estimated hours cannot be negative').optional()),
+    /**
+     * WHAT THE JOB IS WORTH — and it was not settable at all. (T32 M7, corrected)
+     *
+     * The report says: "As field: PUT /api/jobs/:id with estimatedValue 1. 200. JOB-00119's estimate
+     * dropped from $11,183 to $1." The 200 is real. The drop is not: `estimatedValue` has never been
+     * in this schema (checked with `git log -S` over both this file and the template's route), so
+     * the key was parsed away and the handler succeeded having ignored it.
+     *
+     * That is not better, it is a different fault. A write that answers 200 and changes nothing reads
+     * as success to a tester and to a user — which is exactly what happened here, and the tester went
+     * on to "restore" a value that had never moved. And the other half: `job.estimated_value` is
+     * written ONLY by quote → convert-to-job, so a job whose value is wrong could not be corrected
+     * through any API at all.
+     *
+     * So the field is accepted now, and gated: changing it needs `quotes:update` (see the PUT
+     * handler), which is held by manager and above and not by field or viewer. Settable by the people
+     * who price work, refused — with a reason — for everybody else, and no longer silently dropped
+     * for anyone.
+     */
+    estimatedValue: z.preprocess((v) => (v === '' || v === null || v === undefined ? undefined : v), z.coerce.number().min(0, 'Estimated value cannot be negative').max(1_000_000_000).optional()),
     address: cleanText().optional(),
     city: z.string().optional(),
     state: z.string().optional(),
@@ -411,6 +450,9 @@ export function createJobRoutes(deps: JobDeps) {
         number,
         scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : null,
         estimatedHours: data.estimatedHours !== undefined ? String(data.estimatedHours) : null,
+        // decimal columns take a string, the same as estimatedHours above — and only on a vertical
+        // whose job table actually has the column (T32 M7).
+        ...(t.job.estimatedValue ? { estimatedValue: data.estimatedValue !== undefined ? String(data.estimatedValue) : null } : { estimatedValue: undefined }),
         companyId: currentUser.companyId,
         createdById: currentUser.userId,
       }).returning()
@@ -438,6 +480,45 @@ export function createJobRoutes(deps: JobDeps) {
     }
     const existing = await findOwned(id, currentUser.companyId)
     if (!existing) return c.json({ error: 'Job not found' }, 404)
+
+    /**
+     * `jobs:update` IS NOT PERMISSION TO REPRICE THE JOB. (T32 M7)
+     *
+     * `field` holds jobs:read and jobs:update so a technician can run the work: move it along its
+     * statuses, add notes, log what happened. The report used the same right to PUT
+     * `{ estimatedValue: 1 }` and dropped JOB-00119 from $11,183 to $1 — a 200 — which then feeds
+     * straight into job costing's revenue and variance (T32 B3) and the project's contract value.
+     *
+     * So the money fields on a job need the right that the rest of the money needs. `quotes:update`
+     * is the one asked for: a job's estimated value is the quoted figure carried onto the work, held
+     * by manager and above, and NOT by field or viewer. The alternative — a new `jobs:price`
+     * resource — would be a third thing to keep in sync for one field.
+     *
+     * Refused rather than silently dropped. A technician who meant to change something and had it
+     * ignored would come back to the same screen and try again.
+     */
+    const MONEY_FIELDS = ['estimatedValue', 'actualValue', 'estimatedHours'] as const
+    /**
+     * Compared as NUMBERS, to the cent. These are decimal columns, so the row holds "11183.00" and
+     * the edit form posts back 11183 — and the form posts the WHOLE record, so a string comparison
+     * refused a technician who only changed a note. My own test caught that before it shipped; it
+     * would have read as "field can no longer edit a job" rather than as a money rule.
+     */
+    const sameMoney = (a: unknown, b: unknown) => {
+      if (a === undefined || a === null || a === '') return b === undefined || b === null || b === ''
+      const x = Number(a), y = Number(b)
+      return Number.isFinite(x) && Number.isFinite(y) && Math.round(x * 100) === Math.round(y * 100)
+    }
+    const touchedMoney = MONEY_FIELDS.filter((k) => data[k] !== undefined && !sameMoney(data[k], (existing as any)[k]))
+    if (touchedMoney.length && !(await maySetJobMoney(c))) {
+      return c.json({
+        error: `Changing what a ${jobWord} is worth needs the same right as pricing a quote. Ask a manager to change ${touchedMoney.join(', ')}.`,
+        code: 'job_money_not_permitted',
+        fields: touchedMoney,
+        required: JOB_MONEY_PERMISSION,
+      }, 403)
+    }
+
     // Either field can carry the new assignee; touching either one replaces whoever was on the job, so a job
     // never ends up with a login user AND a roster member on it. (Landscaping T21 M12)
     const touchesAssignee = data.assignedToId !== undefined || data.assignedToMemberId !== undefined
@@ -473,6 +554,7 @@ export function createJobRoutes(deps: JobDeps) {
         ...data,
         scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : undefined,
         estimatedHours: data.estimatedHours !== undefined ? String(data.estimatedHours) : undefined,
+        ...(t.job.estimatedValue ? { estimatedValue: data.estimatedValue !== undefined ? String(data.estimatedValue) : undefined } : { estimatedValue: undefined }),
         ...(completedAt !== undefined ? { completedAt } : {}),
         updatedAt: new Date(),
       }).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId))).returning()

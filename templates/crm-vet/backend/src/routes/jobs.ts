@@ -8,13 +8,18 @@ import { authenticate } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import { cleanText } from '../utils/sanitize.ts'
 import reviews from '../services/reviews.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 
 export default createJobRoutes({
   db,
   tables: { job, project, contact, user, timeEntry },
   authenticate,
   requirePermission,
+  // Changing what a job is WORTH needs the right that prices a quote. `jobs:update` has to stay
+  // with field — it is how the work gets run — and was also letting a technician drop a job from
+  // $11,183 to $1. (T32 M7)
+  canSee: async (role: string, permission: string, userId?: string) =>
+    hasPermission(role, permission, await getExtraPermissions(userId)),
   emitToCompany,
   EVENTS,
   cleanText,

@@ -96,7 +96,19 @@ app.get('/file/*', async (c) => {
   c.header('Content-Type', inlineOk ? obj.contentType : 'application/octet-stream')
   c.header('X-Content-Type-Options', 'nosniff')
   if (!inlineOk) c.header('Content-Disposition', 'attachment')
-  c.header('Cache-Control', 'private, max-age=86400')
+  /**
+   * NO-STORE. (T32 M12, found in the base CRM and identical here)
+   *
+   * `private, max-age=86400` let the browser keep the file for a day and serve it again WITHOUT the
+   * credentials this route checks — so after sign-out on a shared machine the next person can open
+   * it from history. `private` stops a shared proxy caching it and explicitly permits the browser
+   * doing so, which is the cache that matters.
+   *
+   * The report found this on the base CRM's document route. It was never going to find it here,
+   * because it was testing the base CRM — and this vertical stores dispensary compliance paperwork.
+   */
+  c.header('Cache-Control', 'no-store, must-revalidate')
+  c.header('Pragma', 'no-cache')
   return c.body(obj.body)
 })
 

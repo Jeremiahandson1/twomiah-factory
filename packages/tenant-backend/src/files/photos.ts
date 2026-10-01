@@ -81,8 +81,23 @@ export function createPhotoRoutes(deps: PhotoDeps) {
     return photo
   }
 
+  /**
+   * NO-STORE, for the same reason as the document route. (T32 M12, the sibling)
+   *
+   * The report found `private, max-age=86400` on /api/documents/file/*. This route had the identical
+   * header and was not in the report only because nobody fetched a site photo twice. A job photo is
+   * the same kind of thing: a customer's property, a damaged part, somebody's driveway — kept in the
+   * browser for a day and served again without credentials after sign-out.
+   *
+   * Fixing one of two identical sites is how a finding comes back next round.
+   */
   const serve = (obj: { body: ArrayBuffer; contentType: string }) => new Response(obj.body, {
-    headers: { 'Content-Type': obj.contentType.startsWith('image/') ? obj.contentType : 'image/jpeg', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=86400' },
+    headers: {
+      'Content-Type': obj.contentType.startsWith('image/') ? obj.contentType : 'image/jpeg',
+      'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': 'no-store, must-revalidate',
+      Pragma: 'no-cache',
+    },
   })
 
   app.get('/', requirePermission('documents:read'), async (c) => {

@@ -568,14 +568,53 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     }
     const paid = Number(existing.amount) || 0
     const already = Number(existing.repaidAmount) || 0
-    const left = Math.round((paid - already) * 100) / 100
+
+    /**
+     * A REPAYMENT CANNOT EXCEED WHAT WAS OVER-PAID. (T32 M6)
+     *
+     * The ceiling was what the CLAIM was worth, which is the right answer only when nobody has worked
+     * out a figure. The report recorded a $29.55 over-payment and then put through repayments of $40
+     * and $29.55 — $69.55 came back against $29.55 owed, both accepted, "Owed" reading $0, and "the
+     * extra $40 taken from the employee is tracked nowhere". That is money off somebody's pay with
+     * no record of why.
+     *
+     * So: when an over-payment HAS been recorded against this expense, that figure is the ceiling.
+     * It is read from the ledger rather than the balance, because the balance is per PERSON and gets
+     * settled — after the first repayment `owed` is 0, and capping on it would let the next repayment
+     * fall through to the old rule and reopen exactly this hole. The ledger entry is permanent.
+     *
+     * When nothing has been recorded, the claim stays the ceiling: somebody handing back part of a
+     * paid claim, which is the case this endpoint was built for, needs no debt raised first.
+     */
+    let ceiling = paid
+    let ceilingIsDebt = false
+    if (t.staffAccountEntry && existing.submittedById) {
+      const [agg] = await db.select({
+        raised: sql<string>`COALESCE(SUM(CASE WHEN ${t.staffAccountEntry.amount} < 0 THEN -${t.staffAccountEntry.amount} ELSE 0 END), 0)`,
+      })
+        .from(t.staffAccountEntry)
+        .where(and(
+          eq(t.staffAccountEntry.companyId, currentUser.companyId),
+          eq(t.staffAccountEntry.userId, existing.submittedById),
+          eq(t.staffAccountEntry.expenseId, id),
+        ))
+      const raised = Number(agg?.raised || 0)
+      if (raised > 0.005) { ceiling = Math.round(raised * 100) / 100; ceilingIsDebt = true }
+    }
+
+    const left = Math.round((ceiling - already) * 100) / 100
     if (parsed.data.amount > left + 0.005) {
       return c.json({
         error: left <= 0
-          ? `The whole ${paid.toFixed(2)} paid on this expense has already been paid back.`
-          : `Only ${left.toFixed(2)} of the ${paid.toFixed(2)} paid on this expense is still outstanding, so ${parsed.data.amount.toFixed(2)} cannot come back against it.`,
-        code: 'exceeds_paid',
+          ? ceilingIsDebt
+            ? `The whole ${ceiling.toFixed(2)} over-paid on this expense has already come back.`
+            : `The whole ${paid.toFixed(2)} paid on this expense has already been paid back.`
+          : ceilingIsDebt
+            ? `Only ${left.toFixed(2)} of the ${ceiling.toFixed(2)} over-paid on this expense is still owed, so ${parsed.data.amount.toFixed(2)} cannot come back against it. Taking more than was over-paid is money off somebody's pay with nothing to explain it.`
+            : `Only ${left.toFixed(2)} of the ${paid.toFixed(2)} paid on this expense is still outstanding, so ${parsed.data.amount.toFixed(2)} cannot come back against it.`,
+        code: ceilingIsDebt ? 'exceeds_overpayment' : 'exceeds_paid',
         paid, alreadyRepaid: already, outstanding: left,
+        ...(ceilingIsDebt ? { overpaid: ceiling } : {}),
       }, 400)
     }
 
