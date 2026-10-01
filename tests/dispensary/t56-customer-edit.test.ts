@@ -225,6 +225,12 @@ const num = (v: unknown) => Math.round((Number(v) || 0) * 100) / 100
   check('the tile counts only people a send would actually reach',
     Number(stats.contactsWithEmail) === 1, { contactsWithEmail: stats.contactsWithEmail })
   check('…and still counts everybody under Customers', Number(stats.totalContacts) >= 5, stats.totalContacts)
+  // …as NUMBERS. Postgres count(*) arrives as a string and nothing cast it, so the endpoint answered
+  // {"totalContacts":"124"} — fine in a tile, a footgun in any arithmetic. Found while verifying a
+  // real unsubscribe click, by an assertion that was right to fail.
+  check('…and the counts are numbers, not strings',
+    ['totalContacts', 'contactsWithEmail', 'smsOptedIn'].every((k) => typeof stats[k] === 'number'),
+    { types: Object.fromEntries(['totalContacts', 'contactsWithEmail', 'smsOptedIn'].map((k) => [k, typeof stats[k]])) })
 }
 
 // ══════════ R1 · the two ways in, and the table under them ══════════════════════════════════════

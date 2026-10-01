@@ -578,10 +578,23 @@ export async function getMarketingStats(companyId: string) {
     .from(loyaltyMember)
     .where(and(eq(loyaltyMember.companyId, companyId), eq(loyaltyMember.optedInSms, true)))
 
+  /**
+   * Numbers, not strings.
+   *
+   * Postgres `count(*)` comes back as a string over the wire, and nothing cast it — so this endpoint
+   * answered `{"totalContacts":"124","contactsWithEmail":"25","smsOptedIn":"0"}`. The tiles render
+   * it fine, which is why it survived, but any screen that does arithmetic on a count gets
+   * `"25" - 1 = 24` by luck and `"25" + 1 = "251"` by the same luck running out. A count is a
+   * number; the endpoint should say so rather than leaving every caller to remember.
+   *
+   * Found while verifying the unsubscribe click: an assertion that the SMS opt-in count was a
+   * number failed, and it was right to.
+   */
+  const count = (v: unknown) => Number(v ?? 0) || 0
   return {
-    totalContacts: totalContacts?.value ?? 0,
-    contactsWithEmail: withEmail?.value ?? 0,
-    smsOptedIn: smsOptIn?.value ?? 0,
+    totalContacts: count(totalContacts?.value),
+    contactsWithEmail: count(withEmail?.value),
+    smsOptedIn: count(smsOptIn?.value),
   }
 }
 
