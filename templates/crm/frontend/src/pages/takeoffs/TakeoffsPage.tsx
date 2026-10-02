@@ -319,7 +319,7 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
 
             {/* Totals Footer */}
             {selectedSheet.items && selectedSheet.items.length > 0 && (
-              <TotalsFooter sheetId={selectedSheet.id} />
+              <TotalsFooter sheetId={selectedSheet.id} onExport={() => setExportOpen(true)} />
             )}
           </>
         ) : (
@@ -354,6 +354,38 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
           }}
           onClose={() => setShowAddItem(false)}
         />
+      )}
+
+      {/*
+        * Export to purchase order. (T32 M4, moved here by the T33 blocker fix)
+        *
+        * It lives beside the other two modals, in the component that owns `exportOpen`, `vendors`,
+        * `exportVendor`, `exporting`, `exportError` and `doExport`. It was inside TotalsFooter,
+        * which has none of them — that threw on render and blanked the page. The dialog is
+        * `position: fixed`, so where it sits in the tree makes no difference to what you see.
+        */}
+      {exportOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setExportOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-label="Export to purchase order" className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Export to purchase order</h3>
+            <p className="text-sm text-gray-600 dark:text-slate-300">
+              The materials on <strong>{selectedSheet?.name}</strong> become the lines of a new purchase order.
+            </p>
+            <label className="block text-sm font-medium mt-4 mb-1 text-gray-700 dark:text-slate-200">Vendor *</label>
+            <select value={exportVendor} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setExportVendor(e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+              <option value="">Choose a vendor…</option>
+              {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </select>
+            {!vendors.length && <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">No vendors on file yet — add one under Contacts first.</p>}
+            {exportError && <p role="alert" className="mt-3 text-sm text-red-600 dark:text-red-300">{exportError}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setExportOpen(false)} className="px-4 py-2 border rounded-lg text-sm">Cancel</button>
+              <button onClick={doExport} disabled={!exportVendor || exporting} className="px-4 py-2 rounded-lg text-sm bg-orange-500 text-white disabled:opacity-50">
+                {exporting ? 'Raising…' : 'Raise purchase order'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -493,9 +525,24 @@ function TakeoffItemCard({ item, onUpdate }: TakeoffItemCardProps) {
 
 interface TotalsFooterProps {
   sheetId: string;
+  /**
+   * Ask the PARENT to open the export dialog.
+   *
+   * T33 blocker, and it was mine: when I wired the Export to PO button (T32 M4) I put it — and its
+   * whole modal — inside this component, while `selectedSheet`, `exportOpen`, `vendors`, `doExport`
+   * and the rest are state on TakeoffsPage. None of those names is in scope here, so the first
+   * render of this footer threw `ReferenceError: selectedSheet is not defined` and blanked the
+   * entire page. The footer renders as soon as a sheet with items is opened, so clicking any sheet
+   * took the screen down on every tenant.
+   *
+   * It is a callback rather than the nine values the modal needed, because a totals footer has no
+   * business knowing about vendors: it asks for the dialog, the page owns it. The modal moved up to
+   * TakeoffsPage, which changes nothing on screen — it is `position: fixed`.
+   */
+  onExport: () => void;
 }
 
-function TotalsFooter({ sheetId }: TotalsFooterProps) {
+function TotalsFooter({ sheetId, onExport }: TotalsFooterProps) {
   const [totals, setTotals] = useState<TotalsData | null>(null);
 
   useEffect(() => {
@@ -531,11 +578,12 @@ function TotalsFooter({ sheetId }: TotalsFooterProps) {
           </div>
         </div>
         {/* Wired. This had no onClick at all — a dead button on the one screen whose purpose is
-            turning quantities into an order. (T32 M4) */}
+            turning quantities into an order. (T32 M4)
+            The footer only renders inside the `selectedSheet` branch, so the old
+            `disabled={!selectedSheet}` was always false — and reading that name here is what threw. */}
         <button
-          onClick={() => setExportOpen(true)}
-          disabled={!selectedSheet}
-          title={selectedSheet ? 'Raise a purchase order from this sheet' : 'Pick a sheet first'}
+          onClick={onExport}
+          title="Raise a purchase order from this sheet"
           /**
            * `hover:bg-white` with no dark partner is M14's "Export to PO turns white on hover" — in
            * dark mode the surface went white under light text and the label vanished. The guard
@@ -548,30 +596,6 @@ function TotalsFooter({ sheetId }: TotalsFooterProps) {
           Export to PO
         </button>
       </div>
-
-      {exportOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setExportOpen(false)}>
-          <div role="dialog" aria-modal="true" aria-label="Export to purchase order" className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Export to purchase order</h3>
-            <p className="text-sm text-gray-600 dark:text-slate-300">
-              The materials on <strong>{selectedSheet?.name}</strong> become the lines of a new purchase order.
-            </p>
-            <label className="block text-sm font-medium mt-4 mb-1 text-gray-700 dark:text-slate-200">Vendor *</label>
-            <select value={exportVendor} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setExportVendor(e.target.value)} className="w-full px-3 py-2 border rounded-lg">
-              <option value="">Choose a vendor…</option>
-              {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-            </select>
-            {!vendors.length && <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">No vendors on file yet — add one under Contacts first.</p>}
-            {exportError && <p role="alert" className="mt-3 text-sm text-red-600 dark:text-red-300">{exportError}</p>}
-            <div className="mt-5 flex justify-end gap-2">
-              <button onClick={() => setExportOpen(false)} className="px-4 py-2 border rounded-lg text-sm">Cancel</button>
-              <button onClick={doExport} disabled={!exportVendor || exporting} className="px-4 py-2 rounded-lg text-sm bg-orange-500 text-white disabled:opacity-50">
-                {exporting ? 'Raising…' : 'Raise purchase order'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
