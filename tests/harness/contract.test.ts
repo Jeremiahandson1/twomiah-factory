@@ -269,6 +269,21 @@ const OPEN_DOOR = new RegExp([
   // recipient's mail client, which has no login. It answers a 1x1 GIF, which is why this one showed
   // up as "readable without signing in" — correctly.
   '\\/marketing\\/track\\/',
+  /*
+   * The CAN-SPAM one-click unsubscribe, for the same reason and more strongly: a recipient clicking
+   * the link in an email has no account, and the law requires it to work in one click. It was
+   * flagged on the dispensary sweep (666 routes, 2 holes) because this list had the PIXEL and not
+   * the unsubscribe beside it, though both are decorated onto every send by the same function.
+   *
+   * Checked before allowlisting rather than assumed, because "it is meant to be public" is how a
+   * real hole gets waved through:
+   *   · both path segments are cuids — not sequential, not guessable
+   *   · the only effect is setting emailOptOut = true, which is the FAIL-SAFE direction; there is
+   *     no read, no write of anything else, and no way to turn it into a resubscribe
+   *     (/contacts/:id/resubscribe is correctly behind marketing:update)
+   *   · the page echoes only the address the email was already sent to, through escapeHtml
+   */
+  '\\/marketing\\/unsubscribe\\/',
   // A price list is read by a PROSPECT, who by definition has no account. crm-homecare publishes both
   // the subscription tiers and the self-hosted licence prices this way, on purpose.
   '\\/subscription\\/(self-hosted\\/)?pricing',
