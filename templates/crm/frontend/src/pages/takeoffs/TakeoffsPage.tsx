@@ -19,7 +19,13 @@ interface SheetItem {
   id: string;
   name: string;
   planReference?: string;
-  _count?: { items: number };
+  /*
+   * The server sends item_count, which camelRows renames to itemCount. The old reader asked for
+   * _count.items — a Prisma shape this codebase has never produced anywhere — so the sheet list
+   * said "0 items" next to a sheet with two lines on it, and nothing could ever have made it say
+   * otherwise. (T35 N3, carried from T32)
+   */
+  itemCount?: number | string;
   items?: TakeoffItem[];
 }
 
@@ -253,7 +259,7 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
               }`}
             >
               <p className="font-medium text-sm text-gray-900 dark:text-slate-100">{sheet.name}</p>
-              <p className="text-xs text-gray-500 dark:text-slate-400">{sheet._count?.items || 0} items</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">{Number(sheet.itemCount || 0)} {Number(sheet.itemCount || 0) === 1 ? 'item' : 'items'}</p>
             </button>
           ))}
           {sheets.length === 0 && !loading && (

@@ -32,6 +32,7 @@ await setupSchema()
 const { db } = await import('./db/index.ts')
 const {
   company, user, contact, project, job, teamMember, vendorBill, pricebookCategory, pricebookItem,
+  changeOrder,
   equipment,
 } = await import('./db/schema.ts')
 
@@ -276,6 +277,36 @@ console.log('\n══════════ project money — the project open
   check('…but not the total contract value of the company', fStats.json?.totalValue === undefined, { totalValue: fStats.json?.totalValue })
   const mStats = await as(ROLES.manager, '/api/projects/stats')
   check('…which a manager does get', Number(mStats.json?.totalValue) === 48450, { totalValue: mStats.json?.totalValue })
+
+  /*
+   * T35-6: THE SIDE DOOR. The money above came out, and the EMBEDDED CHANGE ORDERS kept their
+   * amounts — so field read $2,877 off the same page and could add the approved ones back up to the
+   * contract change. My own comment claimed that `amount` was "gated one layer up" by
+   * change-orders:read; this route selected the rows itself, so nothing was gating it.
+   *
+   * The figure here is deliberately one field cannot get any other way: /api/change-orders is 403
+   * for field (asserted in the module sweep above), so if 2877 appears in this body it came through
+   * the project page.
+   */
+  await db.insert(changeOrder).values({
+    companyId: co.id, projectId: proj.id, number: 'CO-SIDE', title: 'Kitchen island upgrade',
+    amount: '2877.00', daysAdded: 3, status: 'approved',
+  } as any)
+
+  const f2 = await as(ROLES.field, `/api/projects/${proj.id}`)
+  check('field still opens the project after a change order exists', f2.status === 200, { status: f2.status })
+  check('…and the change-order AMOUNT is not in the body', !/2877/.test(f2.text), { body: f2.text?.slice(0, 240) })
+  check('…the embedded list is an empty array, not a missing key the screen would crash on',
+    Array.isArray(f2.json?.changeOrders) && f2.json.changeOrders.length === 0, { changeOrders: f2.json?.changeOrders })
+  check('…and the title does not leak either — the row is gated, not just its money',
+    !/Kitchen island upgrade/.test(f2.text), { body: f2.text?.slice(0, 240) })
+
+  const m2 = await as(ROLES.manager, `/api/projects/${proj.id}`)
+  check('a manager still gets the change orders, with the amount',
+    Array.isArray(m2.json?.changeOrders) && m2.json.changeOrders.length === 1 && /2877/.test(m2.text),
+    { n: m2.json?.changeOrders?.length })
+  check('…and the approved total still reaches the people who may see money',
+    Number(m2.json?.financials?.approvedChangeOrders) === 2877, { financials: m2.json?.financials })
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed`)

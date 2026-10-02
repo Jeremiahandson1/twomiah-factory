@@ -393,6 +393,21 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                               )}
                               <span className="text-xs text-gray-500 dark:text-slate-400">You</span>
                             </>
+                          ) : u.role === 'owner' && !isOwner ? (
+                            /*
+                             * THE OWNER'S ROW OFFERS AN ADMIN NOTHING. (T35 N5)
+                             *
+                             * The server has refused this since T32 B6 — "Only the owner can change
+                             * the owner's account", 403, covering the role AND the access flag — and
+                             * the suite proves it. The SCREEN still drew "Revoke access" here, so an
+                             * admin was being offered a button that could only fail, on the one
+                             * account whose loss cannot be recovered from inside the product.
+                             *
+                             * The same rule as Bills and Bids after T32 M9: only offer what the route
+                             * will actually allow, and say why the gap is there rather than leaving a
+                             * blank cell that reads as a missing feature.
+                             */
+                            <span className="text-xs text-gray-500 dark:text-slate-400">Only the owner can change this account</span>
                           ) : canManageUsers ? (
                             <>
                               {isOwner && u.role !== 'owner' && (

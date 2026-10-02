@@ -163,7 +163,7 @@ export default function ProjectDetailPage() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{project.name}</h1>
             {project.contact && (
-              <Link to={`/crm/contacts/${project.contact.id}`} className="text-gray-500 hover:text-orange-500 dark:hover:text-orange-200 dark:text-slate-400">
+              <Link to={`/crm/contacts/${project.contact.id}`} className="text-gray-500 hover:text-orange-700 dark:hover:text-orange-200 dark:text-slate-400">
                 {project.contact.name}
               </Link>
             )}
@@ -195,7 +195,7 @@ export default function ProjectDetailPage() {
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium text-gray-700 dark:text-slate-200">Progress</span>
-          <span className="text-sm font-medium text-orange-600">{project.progress || 0}%</span>
+          <span className="text-sm font-medium text-orange-700 dark:text-orange-300">{project.progress || 0}%</span>
         </div>
         <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
           <div
@@ -278,7 +278,7 @@ export default function ProjectDetailPage() {
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900 dark:text-slate-100">Jobs</h2>
-                <Link to={`/crm/jobs?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600 dark:hover:text-orange-200">
+                <Link to={`/crm/jobs?projectId=${id}`} className="text-sm text-orange-700 hover:text-orange-800 dark:text-orange-300 dark:hover:text-orange-200">
                   View All
                 </Link>
               </div>
@@ -308,7 +308,7 @@ export default function ProjectDetailPage() {
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900 dark:text-slate-100">RFIs</h2>
-                <Link to={`/crm/rfis?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600 dark:hover:text-orange-200">
+                <Link to={`/crm/rfis?projectId=${id}`} className="text-sm text-orange-700 hover:text-orange-800 dark:text-orange-300 dark:hover:text-orange-200">
                   View All
                 </Link>
               </div>
@@ -334,7 +334,7 @@ export default function ProjectDetailPage() {
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900 dark:text-slate-100">Change Orders</h2>
-                <Link to={`/crm/change-orders?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600 dark:hover:text-orange-200">
+                <Link to={`/crm/change-orders?projectId=${id}`} className="text-sm text-orange-700 hover:text-orange-800 dark:text-orange-300 dark:hover:text-orange-200">
                   View All
                 </Link>
               </div>
@@ -384,7 +384,15 @@ export default function ProjectDetailPage() {
             </div>
           </div>
 
-          {/* Financial summary */}
+          {/*
+            * Financial summary — and nothing at all for somebody who may not see money. (T35-6 low)
+            *
+            * The server withholds `budget`, `estimatedValue` and the whole `financials` block from a
+            * caller without invoices:read, so for a field technician every row inside this card was
+            * false and the card rendered as a bare "Financials" heading over empty space. An empty
+            * panel reads as a loading failure, not as a boundary.
+            */}
+          {(project.financials || project.budget) && (
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Financials</h2>
             <div className="space-y-4">
@@ -413,7 +421,7 @@ export default function ProjectDetailPage() {
                       <span className="text-gray-500 dark:text-slate-400">
                         Approved change orders{project.financials.approvedCount ? ` (${project.financials.approvedCount})` : ''}
                       </span>
-                      <span className={`font-medium tabular-nums ${project.financials.approvedChangeOrders < 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-orange-600 dark:text-orange-400'}`}>
+                      <span className={`font-medium tabular-nums ${project.financials.approvedChangeOrders < 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-orange-700 dark:text-orange-400'}`}>
                         {project.financials.approvedChangeOrders < 0 ? '−' : '+'}${Math.abs(project.financials.approvedChangeOrders).toLocaleString()}
                       </span>
                     </div>
@@ -437,6 +445,7 @@ export default function ProjectDetailPage() {
               )}
             </div>
           </div>
+          )}
 
           {/* Quick actions — the whole panel goes when a role is offered none of them, rather than
               leaving an empty card headed "Quick Actions". */}

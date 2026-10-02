@@ -56,7 +56,25 @@ if (!/export const balanceAfterCredit = /.test(ui)) fail('ui.tsx must export bal
 if (!/use Apply credit on the invoice instead/.test(ui)) fail('refundEffectNote must point to Apply credit for lowering what is owed without returning money')
 const page = read('packages/tenant-ui/src/invoicing/InvoiceDetailPage.tsx')
 if (!/api\.post\(`\/api\/invoices\/\$\{id\}\/credit`/.test(page)) fail('InvoiceDetailPage must apply a credit through POST /api/invoices/:id/credit')
-if (!/!closed && balance > 0\.005 && <Button variant="secondary" onClick=\{\(\) => \{ setCreditForm\(/.test(page)) fail('InvoiceDetailPage must offer Apply credit only while something is owed')
+/*
+ * The CONDITION, not the exact adjacency. This used to pin the whole JSX expression down to the
+ * `<Button variant="secondary"` that followed it, so adding the permission gate T35 N4 needed broke
+ * a guard whose rule was still satisfied — a guard pinned to a line rather than to a behaviour.
+ */
+if (!/!closed && balance > 0\.005 &&[^\n]*setCreditForm\(/.test(page)) fail('InvoiceDetailPage must offer Apply credit only while something is owed')
+/*
+ * …and only to somebody the server will let through. Refund and credit both ask for payments:delete,
+ * which a manager does not hold: T35 N4 found the manager being offered a Refund button that could
+ * only 403. `useMayWrite` and not the config's optional `can`, which no vertical has ever set.
+ */
+if (!/useMayWrite\('payments:delete'\)/.test(page)) fail('InvoiceDetailPage must read payments:delete through useMayWrite')
+for (const [label, re] of [
+  ['Apply credit', /!closed && balance > 0\.005 && mayRefund &&[^\n]*setCreditForm\(/],
+  ['Refund', /netPaid > 0\.005 && mayRefund &&[^\n]*setRefund\(/],
+] as Array<[string, RegExp]>) {
+  if (!re.test(page)) fail(`InvoiceDetailPage must gate ${label} on the payments:delete answer (mayRefund)`)
+}
+if (/cfg\.can \? cfg\.can\(/.test(page)) fail('InvoiceDetailPage: cfg.can is never set by any vertical — a gate written that way cannot close. Use useMayWrite.')
 if (!/balanceAfterCredit\(invoice, Number\(creditForm\.amount\)\)/.test(page)) fail('the Apply credit modal must preview the balance with balanceAfterCredit')
 // the page's own "Credit Balance" (an overpayment) is a different thing from the Apply credit form — never the same name
 if (!/const credit = closed \? 0 : Math\.max\(0, netPaid - total\)/.test(page) || /const \[credit, /.test(page)) fail('InvoiceDetailPage: the Apply credit form state must not reuse the name of the Credit Balance amount')

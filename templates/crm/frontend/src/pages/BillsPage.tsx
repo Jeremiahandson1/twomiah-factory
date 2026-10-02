@@ -59,6 +59,9 @@ export default function BillsPage() {
   const [payOpen, setPayOpen] = useState(false);
   const [payBill, setPayBill] = useState<Record<string, unknown> | null>(null);
   const [payAmount, setPayAmount] = useState('');
+  const [payMethod, setPayMethod] = useState('');
+  const [payReference, setPayReference] = useState('');
+  const [payNotes, setPayNotes] = useState('');
   const [paymentsOpen, setPaymentsOpen] = useState(false);
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -133,7 +136,12 @@ export default function BillsPage() {
   const handlePay = async () => {
     if (!payBill || !payAmount) return;
     try {
-      await api.bills.recordPayment(payBill.id as string, Number(payAmount));
+      await api.bills.recordPayment(payBill.id as string, {
+        amount: Number(payAmount),
+        method: payMethod || undefined,
+        reference: payReference.trim() || undefined,
+        notes: payNotes.trim() || undefined,
+      });
       toast.success('Payment recorded');
       setPayOpen(false); load();
     } catch (err) { toast.error((err as Error).message); }
@@ -188,7 +196,7 @@ export default function BillsPage() {
   // then got a 403. Each action is now shown only to someone the route will actually let through,
   // mirroring the gates in routes/bills.ts exactly.
   const rowActions = [
-    { label: 'Record payment', icon: HandCoins, show: () => can('bills:pay'), onClick: (r: Record<string, unknown>) => { setPayBill(r); setPayAmount(String((Number(r.amount) - Number(r.amountPaid)).toFixed(2))); setPayOpen(true); } },
+    { label: 'Record payment', icon: HandCoins, show: () => can('bills:pay'), onClick: (r: Record<string, unknown>) => { setPayBill(r); setPayAmount(String((Number(r.amount) - Number(r.amountPaid)).toFixed(2))); setPayMethod(''); setPayReference(''); setPayNotes(''); setPayOpen(true); } },
     // Reading the bill back is bills:read, which everyone who can open this page already holds.
     { label: 'Payments', icon: Receipt, show: () => can('bills:read'), onClick: openPayments },
     { label: 'Edit', icon: Edit, show: () => can('bills:update'), onClick: openEdit },
@@ -262,6 +270,29 @@ export default function BillsPage() {
           </p>
           <div><label className="block text-sm font-medium mb-1">Payment amount</label>
             <input type="number" value={payAmount} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPayAmount(e.target.value)} className="w-full px-3 py-2 border rounded-lg" /></div>
+          {/*
+            * HOW it was paid, which the ledger has always had room for. (T35-2)
+            *
+            * The route accepts method, reference and notes and writes them to the payment row, and
+            * the new Payments view has columns for them — but this form only ever asked for an
+            * amount, so every row read "- / -". A cheque number is the thing you reconcile against
+            * a bank statement; recording the money without it is half the entry.
+            */}
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="block text-sm font-medium mb-1">Method</label>
+              <select value={payMethod} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setPayMethod(e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                <option value="">Not stated</option>
+                <option value="ach">ACH / bank transfer</option>
+                <option value="cheque">Cheque</option>
+                <option value="card">Card</option>
+                <option value="cash">Cash</option>
+                <option value="other">Other</option>
+              </select></div>
+            <div><label className="block text-sm font-medium mb-1">Reference</label>
+              <input value={payReference} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPayReference(e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Cheque no., ACH trace…" /></div>
+          </div>
+          <div><label className="block text-sm font-medium mb-1">Note <span className="text-xs text-gray-500 dark:text-slate-400">(optional)</span></label>
+            <input value={payNotes} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPayNotes(e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Part payment, retention held…" /></div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
           <button onClick={() => setPayOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button>

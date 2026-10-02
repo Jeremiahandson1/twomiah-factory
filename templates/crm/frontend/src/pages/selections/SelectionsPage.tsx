@@ -435,7 +435,7 @@ function SelectionRow({ selection, onSelect, onRefresh }: SelectionRowProps) {
           ) : (
             <button
               onClick={onSelect}
-              className="mt-2 text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200"
+              className="mt-2 text-sm text-orange-700 hover:text-orange-800 dark:text-orange-300 dark:hover:text-orange-200"
             >
               + Select an option
             </button>
@@ -447,7 +447,7 @@ function SelectionRow({ selection, onSelect, onRefresh }: SelectionRowProps) {
               Allowance: ${selection.allowance?.toLocaleString() || 0}
             </span>
             {selection.priceDifference !== 0 && selection.priceDifference !== undefined && (
-              <span className={(selection.priceDifference ?? 0) > 0 ? 'text-orange-600' : 'text-green-600'}>
+              <span className={(selection.priceDifference ?? 0) > 0 ? 'text-orange-700 dark:text-orange-300' : 'text-green-700 dark:text-green-400'}>
                 {(selection.priceDifference ?? 0) > 0 ? '+' : ''}${(selection.priceDifference ?? 0).toLocaleString()}
                 {(selection.priceDifference ?? 0) > 0 ? ' upgrade' : ' credit'}
               </span>
@@ -484,7 +484,7 @@ function SelectionRow({ selection, onSelect, onRefresh }: SelectionRowProps) {
           {selection.status === 'approved' && (
             <button
               onClick={handleMarkOrdered}
-              className="px-3 py-1.5 text-sm bg-purple-500 text-white rounded-lg"
+              className="px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
             >
               Mark Ordered
             </button>
@@ -602,7 +602,7 @@ function OptionPickerModal({ selection, onSelect, onClose }: OptionPickerModalPr
                       <div className="mt-2 flex items-center justify-between">
                         <span className="font-bold">${totalPrice.toLocaleString()}</span>
                         {diff !== 0 && (
-                          <span className={`text-sm ${diff > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                          <span className={`text-sm ${diff > 0 ? 'text-orange-700 dark:text-orange-300' : 'text-green-700 dark:text-green-400'}`}>
                             {diff > 0 ? '+' : ''}${diff.toLocaleString()}
                           </span>
                         )}

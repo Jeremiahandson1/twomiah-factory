@@ -31,6 +31,25 @@ const maySeeMoney = async (c: any): Promise<boolean> => {
 }
 
 /**
+ * AN EMBEDDED LIST CARRIES WHAT THE CALLER COULD READ DIRECTLY — NO MORE. (T35-6)
+ *
+ * T34 stripped the project's own money for a caller who may not see it and left the embedded
+ * change-order rows alone, with a comment claiming their `amount` was "gated one layer up" by
+ * `change-orders:read`. That was wrong, and the tester proved it: `/api/change-orders` is 403 for
+ * field, but `GET /api/projects/:id` selected whole change-order rows itself, so field read
+ * $2,877 / $680 / $300 / −$615 off the project page and could add the approved ones up to recover
+ * the contract change the stripping had just removed.
+ *
+ * A side door into a module the matrix closes is the module being open. So the embedded list is
+ * gated on the same permission the module is, and a caller without it gets an empty array rather
+ * than a missing key — the screen iterates it either way.
+ */
+const mayRead = async (c: any, permission: string): Promise<boolean> => {
+  const u = c.get('user') as any
+  try { return hasPermission(u?.role, permission, await getExtraPermissions(u?.userId)) } catch { return false }
+}
+
+/**
  * The money columns the `project` table actually has — checked against the schema, not guessed.
  * Stripped together, so none of them can be forgotten separately.
  */
@@ -145,7 +164,10 @@ app.get('/:id', async (c) => {
     }).from(contact).where(and(eq(contact.id, foundProject.contactId), eq(contact.companyId, currentUser.companyId))).limit(1) : Promise.resolve([]),
     db.select().from(job).where(eq(job.projectId, id)).orderBy(desc(job.createdAt)).limit(10),
     db.select().from(rfi).where(eq(rfi.projectId, id)).limit(10),
-    db.select().from(changeOrder).where(eq(changeOrder.projectId, id)).limit(10),
+    // Gated on the module's own permission — see mayRead above. (T35-6)
+    mayRead(c, 'change-orders:read').then((ok) => ok
+      ? db.select().from(changeOrder).where(eq(changeOrder.projectId, id)).limit(10)
+      : []),
     db.select().from(punchListItem).where(eq(punchListItem.projectId, id)).limit(20),
   ])
 
@@ -189,9 +211,11 @@ app.get('/:id', async (c) => {
    * raw columns `...foundProject` spreads, which is where Budget $40,000 came from. Returning the
    * block and forgetting the spread would have been a fix that changed nothing. (T34)
    *
-   * The change-order LIST stays: a technician may need to know a change order exists and what it
-   * says. `amount` on those rows is change-order money, gated by change-orders:read, which field no
-   * longer holds — so that one is already answered one layer up.
+   * The change-order list is NOT the exception I first thought it was. This comment used to say the
+   * amounts on those rows were "already answered one layer up" by change-orders:read — they were
+   * not, because this route selected them itself. T35-6: field read every amount off the project
+   * page and could add the approved ones back up to the contract change. The list is gated above
+   * now, on the module's own permission.
    */
   if (!(await maySeeMoney(c))) {
     return c.json({

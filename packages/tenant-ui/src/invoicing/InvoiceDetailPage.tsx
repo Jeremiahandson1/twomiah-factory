@@ -3,12 +3,17 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Edit, Trash2, Send, DollarSign, Download, Ban, RotateCcw, RefreshCw, Tag } from 'lucide-react'
 import type { InvoicingPageProps } from './types'
 import { resolveConfig } from './types'
+import { useMayWrite } from '../auth/PermissionsContext'
 import { Button, ConfirmModal, NavLink, Field, Modal, PAYMENT_METHODS, paymentMethodsFor, refundMethodsFor, StatusBadge, balanceAfterCredit, dateOnly, dateTime, downloadFile, errMsg, inputCls, isPastDay, money, refundEffectNote } from './ui'
 
 type Inv = Record<string, any>
 
 export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
   const cfg = resolveConfig(config)
+  /** payments:delete — refunds and credits both ask the server for it. (T35 N4) */
+  const mayRefund = useMayWrite('payments:delete')
+  const maySyncQuickBooks = useMayWrite('settings:update')
+  const mayDeleteInvoice = useMayWrite('invoices:delete')
   const { id = '' } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [invoice, setInvoice] = useState<Inv | null>(null)
@@ -95,13 +100,30 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
         <div className="flex flex-wrap items-center gap-2">
           {!closed && <Button variant="secondary" onClick={handleSend} disabled={busy}><Send className="w-4 h-4" /> {invoice.sentAt ? 'Send again' : 'Send'}</Button>}
           {!closed && balance > 0.005 && <Button variant="success" onClick={() => { setPayment({ amount: balance.toFixed(2), method: 'card', reference: '', notes: '', tipAmount: '' }); setPaymentOpen(true) }}><DollarSign className="w-4 h-4" /> Record Payment</Button>}
-          {!closed && balance > 0.005 && <Button variant="secondary" onClick={() => { setCreditForm({ amount: '', reason: '' }); setCreditOpen(true) }}><Tag className="w-4 h-4" /> Apply credit</Button>}
-          {invoice.status !== 'void' && netPaid > 0.005 && <Button variant="warn" onClick={() => { setRefund({ amount: netPaid.toFixed(2), method: '', reference: '', notes: '' }); setRefundOpen(true) }}><RotateCcw className="w-4 h-4" /> Refund</Button>}
+          {/*
+            * MONEY GOING BACK OUT IS ADMIN-TIER, AND THE SCREEN SAYS SO NOW. (T35 N4)
+            *
+            * Both of these ask the server for `payments:delete`, which a manager does not hold —
+            * the same line the matrix draws for settings and for paying a bill. They were offered to
+            * everyone, so a manager opened Refund, filled the form in and got a 403: exactly the
+            * fault T32 M9 fixed on Bills and Bids, never carried across to the invoice page.
+            *
+            * `useMayWrite` and not `cfg.can`: `can` is declared optional on InvoicingConfig and NO
+            * vertical has ever set it, so every `cfg.can ? … : true` on this page is a gate that
+            * cannot close — including the QuickBooks one below, which was written the same way and
+            * has been showing to everybody. The hook is the live answer, and its `!known ||` rule
+            * keeps crm-roof and crm-store (no PermissionsProvider) working as they do today.
+            */}
+          {!closed && balance > 0.005 && mayRefund && <Button variant="secondary" onClick={() => { setCreditForm({ amount: '', reason: '' }); setCreditOpen(true) }}><Tag className="w-4 h-4" /> Apply credit</Button>}
+          {invoice.status !== 'void' && netPaid > 0.005 && mayRefund && <Button variant="warn" onClick={() => { setRefund({ amount: netPaid.toFixed(2), method: '', reference: '', notes: '' }); setRefundOpen(true) }}><RotateCcw className="w-4 h-4" /> Refund</Button>}
           {invoice.status !== 'void' && netPaid <= 0.005 && <Button variant="secondary" onClick={() => setVoidOpen(true)}><Ban className="w-4 h-4" /> Void</Button>}
           <Button variant="secondary" onClick={handlePdf}><Download className="w-4 h-4" /> PDF</Button>
-          {cfg.quickbooks && (cfg.hasFeature ? cfg.hasFeature('quickbooks') : true) && (cfg.can ? cfg.can('settings:update') : true) && <Button variant="secondary" onClick={handleQuickBooks} disabled={busy}><RefreshCw className="w-4 h-4" /> {invoice.syncedAt ? 'Re-sync QuickBooks' : 'Sync to QuickBooks'}</Button>}
+          {cfg.quickbooks && (cfg.hasFeature ? cfg.hasFeature('quickbooks') : true) && maySyncQuickBooks && <Button variant="secondary" onClick={handleQuickBooks} disabled={busy}><RefreshCw className="w-4 h-4" /> {invoice.syncedAt ? 'Re-sync QuickBooks' : 'Sync to QuickBooks'}</Button>}
           {!closed && <NavLink to={`/crm/invoices?edit=${id}`} className="px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"><Edit className="w-4 h-4" /> Edit</NavLink>}
-          {Number(invoice.amountPaid || 0) <= 0 && invoice.status !== 'paid' && <Button variant="danger" onClick={() => setDeleteOpen(true)} aria-label="Delete invoice"><Trash2 className="w-4 h-4" /></Button>}
+          {/* Same rule, found while fixing N4 rather than reported: the matrix gives a manager
+              invoices read/create/update and withholds invoices:delete, so this bin icon was another
+              button that could only 403. */}
+          {Number(invoice.amountPaid || 0) <= 0 && invoice.status !== 'paid' && mayDeleteInvoice && <Button variant="danger" onClick={() => setDeleteOpen(true)} aria-label="Delete invoice"><Trash2 className="w-4 h-4" /></Button>}
         </div>
       </div>
 

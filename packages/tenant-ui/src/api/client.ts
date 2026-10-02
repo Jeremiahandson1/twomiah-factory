@@ -328,7 +328,13 @@ export class ApiClient {
     create: (data: unknown) => this.create('/api/bills', data),
     update: (id: string, data: unknown) => this.update('/api/bills', id, data),
     delete: (id: string) => this.delete('/api/bills', id),
-    recordPayment: (id: string, amount: number) => this.action('/api/bills', id, 'record-payment', { amount }),
+    /**
+     * The ledger records HOW a bill was paid, so the caller can say. Takes a figure or the whole
+     * payment — method, cheque/ACH reference and a note — because a payment row with no reference is
+     * half an answer when AP is reconciled against a bank statement. (T35-2)
+     */
+    recordPayment: (id: string, payment: number | { amount: number; method?: string; reference?: string; notes?: string }) =>
+      this.action('/api/bills', id, 'record-payment', typeof payment === 'number' ? { amount: payment } : payment),
     void: (id: string) => this.action('/api/bills', id, 'void'),
   }
 
