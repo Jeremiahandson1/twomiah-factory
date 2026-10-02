@@ -54,9 +54,37 @@ const templates = readdirSync(join(ROOT, 'templates')).filter((d) => d.startsWit
 const offers: string[] = []
 const consistent: string[] = []
 
+/**
+ * FIND THE SETTINGS PAGE WHEREVER IT IS. (T40)
+ *
+ * This looked only at `frontend/src/pages/SettingsPage.tsx`, so crm-roof — whose settings page lives
+ * at `pages/settings/SettingsPage.tsx` — fell through to "no SettingsPage" and was EXCUSED from
+ * needing two-factor. It has a 735-line settings screen and no two-factor at all, and the live
+ * tenant confirmed it: /api/auth/mfa-devices/devices answered 404 on rooftest while the guard
+ * reported the fleet clean.
+ *
+ * A guard that excuses a template because it could not find the file is worse than no guard: it
+ * reports the absence as a deliberate choice. So the search is widened, and a template with no
+ * settings page ANYWHERE is now reported as that — not quietly waved through.
+ */
+const findSettings = (tpl: string): string | null => {
+  const base = join(ROOT, 'templates', tpl, 'frontend/src')
+  const hits: string[] = []
+  const walk = (d: string) => {
+    if (!existsSync(d)) return
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const p = join(d, e.name)
+      if (e.isDirectory()) { if (!/node_modules|shared|dist/.test(e.name)) walk(p) }
+      else if (/^SettingsPage\.tsx$/.test(e.name)) hits.push(p)
+    }
+  }
+  walk(base)
+  return hits[0] ?? null
+}
+
 for (const tpl of templates) {
-  const settings = join(ROOT, 'templates', tpl, 'frontend/src/pages/SettingsPage.tsx')
-  if (!existsSync(settings)) { consistent.push(`${tpl} (no SettingsPage)`); continue }
+  const settings = findSettings(tpl)
+  if (!settings) { consistent.push(`${tpl} (no SettingsPage anywhere under frontend/src)`); continue }
   const sp = readFileSync(settings, 'utf8')
 
   /**
