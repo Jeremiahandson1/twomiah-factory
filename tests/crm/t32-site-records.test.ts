@@ -48,6 +48,7 @@ const [proj] = await db.insert(project).values({
 const app = new Hono()
 app.route('/api/daily-logs', (await import('./src/routes/dailyLogs.ts')).default)
 app.route('/api/rfis', (await import('./src/routes/rfis.ts')).default)
+app.route('/api/inspections', (await import('./src/routes/inspections.ts')).default)
 app.onError((await import('./src/utils/errors.ts')).errorHandler)
 const api = async (method: string, path: string, body?: unknown) => {
   const res = await app.request(path, {
@@ -181,6 +182,92 @@ const dayAhead = (n: number) => new Date(Date.now() + n * 86_400_000).toISOStrin
   check('closing an UNANSWERED RFI is allowed — a question can be withdrawn', closed.status === 200, { status: closed.status })
   const reopened = await api('POST', `/api/rfis/${made.json.id}/reopen`)
   check('…and reopening it returns it to open, not to answered', reopened.json?.status === 'open', reopened.json?.status)
+}
+
+// ══════════ T33 · the day a record REPORTS, on a company that is not on UTC ═══════════════════════
+//
+// Everything above runs on a UTC company, deliberately — the comment at the top says why: these are
+// locking rules, and a zone would make every boundary ambiguous. That choice is also exactly why
+// this class of defect went untested for a round, so it gets its own company rather than changing
+// the one above.
+//
+// Two reports, same root cause, OPPOSITE directions:
+//
+//   Inspections said "failed on 2026-10-02" for a result recorded at 7pm on 1 Oct in Ohio.
+//     `resulted_at` is an INSTANT, and its UTC day is tomorrow by late evening. It has to be read
+//     in the company's zone.
+//
+//   Daily logs called a 30 Sep log "2026-09-29".
+//     `date` is a calendar DAY held as a midnight marker. Converting a marker into a zone walks it
+//     backwards — 2026-09-30T00:00Z is 7pm on the 29th in Chicago. It must be taken at face value.
+//
+// Read one the way the other needs and you get the wrong day in whichever direction you guessed.
+{
+  const TZ = 'America/Chicago'
+  const [tzCo] = await db.insert(company).values({
+    name: 'Zone Co', slug: 'zone-co', email: 'z@test.local', state: 'IL',
+    settings: { timezone: TZ },
+    enabledFeatures: ['daily_logs', 'inspections', 'projects'],
+  } as any).returning()
+  const [tzOwner] = await db.insert(user).values({
+    email: 'owner-zone@test.local', passwordHash: 'x', firstName: 'Ida', lastName: 'Zone',
+    role: 'owner', companyId: tzCo.id, isActive: true,
+  } as any).returning()
+  const [tzClient] = await db.insert(contact).values({ companyId: tzCo.id, name: 'Zone Client', type: 'customer' } as any).returning()
+  const [tzProj] = await db.insert(project).values({
+    companyId: tzCo.id, contactId: tzClient.id, name: 'Zone Site', number: 'PRJ-ZONE', status: 'active',
+  } as any).returning()
+
+  const zapi = async (method: string, path: string, body?: unknown) => {
+    const res = await app.request(path, {
+      method, headers: { 'content-type': 'application/json', 'x-test-user': tzOwner.id },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+    const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+    return { status: res.status, json: j, text: t }
+  }
+  /** A calendar day N days back ON THE COMPANY'S CLOCK — not the server's. */
+  const coDay = (n: number) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' })
+    .format(new Date(Date.now() - n * 86_400_000))
+
+  // ── a daily log reports its OWN day ─────────────────────────────────────────────────────────────
+  // Yesterday, not two days back: the edit window is its own day plus the next, so a 2-day-old log
+  // is correctly closed to edits and the re-save check below would be measuring the wrong rule.
+  const theDay = coDay(1)
+  const filed = await zapi('POST', '/api/daily-logs', { projectId: tzProj.id, date: theDay, workPerformed: 'Formwork', crewSize: 3 })
+  check(`T33 a log can be filed for ${theDay}`, filed.status === 201, { status: filed.status, body: filed.text?.slice(0, 180) })
+
+  // The duplicate refusal NAMES the day. On a Chicago company this said the day before.
+  const dupe = await zapi('POST', '/api/daily-logs', { projectId: tzProj.id, date: theDay, workPerformed: 'Formwork again' })
+  check('T33 a second log for that day is refused', dupe.status === 409, { status: dupe.status })
+  check(`T33 …and the message says ${theDay}, NOT the day before`, (dupe.json?.error || '').includes(theDay),
+    { error: dupe.json?.error, expected: theDay, dayBefore: coDay(3) })
+
+  // Re-saving the SAME day must not read as moving it. Both sides have to be read the same way.
+  const resave = await zapi('PUT', `/api/daily-logs/${filed.json?.id}`, { date: theDay, workPerformed: 'Formwork, 12 bays' })
+  check('T33 re-saving a log with its OWN date is allowed, not refused as a move', resave.status === 200,
+    { status: resave.status, body: resave.text?.slice(0, 200) })
+
+  const moved = await zapi('PUT', `/api/daily-logs/${filed.json?.id}`, { date: coDay(0) })
+  check('T33 …while a genuine move is still refused', moved.status === 400, { status: moved.status })
+  check(`T33 …and that refusal also names ${theDay}`, (moved.json?.error || '').includes(theDay), { error: moved.json?.error })
+
+  // ── an inspection result reports the COMPANY'S day ──────────────────────────────────────────────
+  const ins = await zapi('POST', '/api/inspections', { type: 'framing', projectId: tzProj.id, scheduledDate: coDay(1) })
+  check('T33 an inspection can be booked for yesterday', ins.status === 201, { status: ins.status, body: ins.text?.slice(0, 180) })
+  const failed1 = await zapi('POST', `/api/inspections/${ins.json?.id}/fail`, { deficiencies: 'Joist hangers missing on bay 3' })
+  check('T33 …and failed', failed1.status === 200, { status: failed1.status, body: failed1.text?.slice(0, 180) })
+
+  const again = await zapi('POST', `/api/inspections/${ins.json?.id}/fail`, { deficiencies: 'Again' })
+  check('T33 a resulted inspection cannot be resulted twice', again.status === 400, { status: again.status })
+  check('T33 …and the message says the COMPANY\'S day, not tomorrow in UTC',
+    (again.json?.error || '').includes(coDay(0)), { error: again.json?.error, companyToday: coDay(0), utcToday: new Date().toISOString().slice(0, 10) })
+
+  // And the future-date refusal reads the scheduled day at face value while reading today in the zone.
+  const future = await zapi('POST', '/api/inspections', { type: 'final', projectId: tzProj.id, scheduledDate: coDay(-3) })
+  const early = await zapi('POST', `/api/inspections/${future.json?.id}/pass`)
+  check('T33 an inspection scheduled three days out still cannot be passed', early.status === 400, { status: early.status })
+  check('T33 …and the refusal names the day it is booked for', (early.json?.error || '').includes(coDay(-3)), { error: early.json?.error, expected: coDay(-3) })
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed`)

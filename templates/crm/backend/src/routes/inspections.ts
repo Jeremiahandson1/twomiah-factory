@@ -5,7 +5,7 @@ import { inspection, project, user } from '../../db/schema.ts'
 import { eq, and, count, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
-import { createActorName } from '../shared/index.ts'
+import { createActorName, companyTimeZone, storeDateString, markerDay } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -108,23 +108,41 @@ const load = async (id: string, companyId: string) => {
   return row || null
 }
 
-const alreadyResulted = (c: any, item: any) => c.json({
-  error: `${item.number} was ${item.status}${item.resultedAt ? ` on ${new Date(item.resultedAt).toISOString().slice(0, 10)}` : ''}. A result is the record of what an inspector found, so it is not edited — book a re-inspection instead.`,
+const alreadyResulted = (c: any, item: any, tz: string) => c.json({
+  /*
+   * `resulted_at` is an INSTANT — it is `new Date()` at the moment the inspector's result was
+   * recorded — so the day it falls on has to be read in the COMPANY'S zone. Printing its UTC day
+   * reported an inspection failed at 7pm in Ohio as "failed on 2026-10-02": tomorrow. (T33)
+   *
+   * The scheduled date two messages down is the opposite case — a calendar-day column holding a
+   * midnight marker, which is taken at face value and must NOT be converted. Same bug in two
+   * directions; see markerDay vs storeDateString in time/businessDay.ts.
+   */
+  error: `${item.number} was ${item.status}${item.resultedAt ? ` on ${storeDateString(new Date(item.resultedAt), tz)}` : ''}. A result is the record of what an inspector found, so it is not edited — book a re-inspection instead.`,
   code: 'inspection_already_resulted',
   status: item.status,
   reinspect: `POST /api/inspections/${item.id}/reinspect`,
 }, 400)
 
 /** The scheduled visit cannot be in the future when its result is recorded. */
-const notYetVisited = (c: any, item: any) => {
+const notYetVisited = (c: any, item: any, tz: string) => {
   if (!item.scheduledDate) return null
   const when = new Date(item.scheduledDate)
-  // Compared by DAY, not instant: an inspection scheduled for today at 14:00 can be recorded at 09:00
-  // because the inspector came early, and that is ordinary. A date in the future is not.
-  const day = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
-  if (day(when) <= day(new Date())) return null
+  /*
+   * Compared by DAY, not instant: an inspection scheduled for today at 14:00 can be recorded at
+   * 09:00 because the inspector came early, and that is ordinary. A date in the future is not.
+   *
+   * The two sides are read DIFFERENTLY on purpose, and getting that wrong is T33's date family:
+   *   scheduled_date is a calendar-day column, so it is taken at face value (markerDay)
+   *   "today" is an instant, so it is read in the COMPANY'S zone (storeDateString)
+   * Reading today as a UTC day let an inspection scheduled for tomorrow be resulted from 7pm in
+   * Ohio — a day early, on the server's clock rather than the site's.
+   */
+  if (markerDay(when) <= storeDateString(new Date(), tz)) return null
   return c.json({
-    error: `${item.number} is scheduled for ${when.toISOString().slice(0, 10)}, which has not happened yet. Move the date if the inspector came early.`,
+    // markerDay, not toISOString().slice(0,10) — identical for a marker, but it says WHICH of the
+    // two readings this is, which is the thing that was being got wrong.
+    error: `${item.number} is scheduled for ${markerDay(when)}, which has not happened yet. Move the date if the inspector came early.`,
     code: 'inspection_not_yet_due',
     scheduledDate: item.scheduledDate,
   }, 400)
@@ -135,8 +153,9 @@ app.post('/:id/pass', requirePermission('inspections:update'), async (c) => {
   const id = c.req.param('id')
   const existing = await load(id, user.companyId)
   if (!existing) return c.json({ error: 'Inspection not found' }, 404)
-  if (!RESULTABLE.includes(existing.status)) return alreadyResulted(c, existing)
-  const early = notYetVisited(c, existing)
+  const tz = await companyTimeZone(db, user.companyId)
+  if (!RESULTABLE.includes(existing.status)) return alreadyResulted(c, existing, tz)
+  const early = notYetVisited(c, existing, tz)
   if (early) return early
   const [item] = await db.update(inspection).set({
     status: 'passed', result: 'pass', resultedAt: new Date(), resultedBy: await actorName(user), updatedAt: new Date(),
@@ -152,8 +171,9 @@ app.post('/:id/fail', requirePermission('inspections:update'), async (c) => {
 
   const existing = await load(id, user.companyId)
   if (!existing) return c.json({ error: 'Inspection not found' }, 404)
-  if (!RESULTABLE.includes(existing.status)) return alreadyResulted(c, existing)
-  const early = notYetVisited(c, existing)
+  const tz = await companyTimeZone(db, user.companyId)
+  if (!RESULTABLE.includes(existing.status)) return alreadyResulted(c, existing, tz)
+  const early = notYetVisited(c, existing, tz)
   if (early) return early
 
   /**

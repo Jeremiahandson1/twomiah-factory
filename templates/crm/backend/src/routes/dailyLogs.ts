@@ -5,7 +5,7 @@ import { dailyLog, project, user } from '../../db/schema.ts'
 import { eq, and, gte, lte, count, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
-import { companyTimeZone, storeDateString } from '../shared/index.ts'
+import { companyTimeZone, storeDateString, dayMarker, markerDay } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -46,7 +46,18 @@ const schema = z.object({ date: z.string().optional(), projectId: z.string(), we
  */
 const EDIT_WINDOW_DAYS = 1
 
-/** The calendar day a timestamp falls on, in the company's zone, as YYYY-MM-DD. */
+/**
+ * The calendar day an INSTANT falls on, in the company's zone, as YYYY-MM-DD.
+ *
+ * For "today" and for a log filed with no date — a real moment, which has to be read on the
+ * company's clock or an evening entry lands on tomorrow.
+ *
+ * NOT for reading `dailyLog.date` back. That column holds a calendar DAY as a midnight marker, and
+ * converting a marker into a zone walks it backwards: a log filed for 30 September is stored
+ * `2026-09-30T00:00:00Z`, which in America/Chicago is 7pm on the 29th, so every message about it
+ * said 2026-09-29. Use `markerDay` for the column — same bug as the inspections one, in the
+ * opposite direction. (T33)
+ */
 const dayIn = (tz: string, when: Date) => storeDateString(when, tz)
 
 /** Whole days between two calendar-day strings. */
@@ -106,7 +117,18 @@ app.post('/', requirePermission('daily-logs:create'), async (c) => {
   const when = data.date ? new Date(data.date) : new Date()
   if (Number.isNaN(when.getTime())) return c.json({ error: 'That is not a date the log can be filed against.' }, 400)
 
-  const logDay = dayIn(tz, when)
+  /*
+   * An explicit date is a DAY; "now" is an instant. (T33)
+   *
+   * `dayIn(tz, when)` converted both, so a log filed for 2026-09-29 was parsed as
+   * 2026-09-29T00:00:00Z, read in America/Chicago as 7pm on the 28th, and filed against the 28th —
+   * the day BEFORE the one the person typed. Every message about it then said the 28th too, which is
+   * the "30 Sep log called 2026-09-29" in the report.
+   *
+   * So each is read the way it is meant: the day the user gave is taken at face value, and only a
+   * missing date falls back to the company's clock.
+   */
+  const logDay = data.date ? markerDay(when) : dayIn(tz, new Date())
   const today = dayIn(tz, new Date())
   if (daysBetween(today, logDay) > 0) {
     return c.json({
@@ -122,7 +144,7 @@ app.post('/', requirePermission('daily-logs:create'), async (c) => {
     eq(dailyLog.projectId, data.projectId),
     eq(dailyLog.userId, currentUser.userId),
   ))
-  const clash = sameDay.find((l) => dayIn(tz, new Date(l.date)) === logDay)
+  const clash = sameDay.find((l) => markerDay(new Date(l.date)) === logDay)
   if (clash) {
     return c.json({
       error: `You have already filed a log for ${logDay} on this project. Edit that one instead of filing a second.`,
@@ -133,7 +155,17 @@ app.post('/', requirePermission('daily-logs:create'), async (c) => {
 
   const [log] = await db.insert(dailyLog).values({
     ...data,
-    date: when,
+    /*
+     * The DAY, as a marker — not the instant the log happened to be filed at. (T33)
+     *
+     * `date: when` stored whatever arrived: a midnight marker when the date was given explicitly,
+     * and a real timestamp when it was not. One column, two kinds of value, so every reader had to
+     * guess which it was holding — and the ones that guessed "instant" reported the wrong day.
+     *
+     * `logDay` is already the right calendar day (derived in the company's zone when it came from
+     * `new Date()`), so writing its marker makes the column mean exactly one thing.
+     */
+    date: dayMarker(logDay),
     companyId: currentUser.companyId,
     userId: currentUser.userId,
   }).returning()
@@ -151,14 +183,17 @@ app.put('/:id', requirePermission('daily-logs:update'), async (c) => {
   if (!existing) return c.json({ error: 'Daily log not found' }, 404)
 
   const tz = await companyTimeZone(db, currentUser.companyId)
-  const logDay = dayIn(tz, new Date(existing.date))
+  const logDay = markerDay(new Date(existing.date))
   const today = dayIn(tz, new Date())
   const age = daysBetween(logDay, today)
 
   // Rule 1 — the date never moves. This is the one that took 30 September's log away.
   if (data.date !== undefined) {
     const asked = new Date(data.date)
-    if (Number.isNaN(asked.getTime()) || dayIn(tz, asked) !== logDay) {
+    // Both sides read the same way — the asked-for date arrives as a day string and becomes a
+    // marker, exactly like the stored one. Reading one as a marker and the other in the company's
+    // zone made a re-save of the SAME day look like a move, and refused it.
+    if (Number.isNaN(asked.getTime()) || markerDay(asked) !== logDay) {
       return c.json({
         error: `A daily log stays on the day it records. This one is ${logDay}; moving it would leave that day with no log and put its contents on a day it did not happen. Delete it and file a new one if it was logged against the wrong day.`,
         code: 'daily_log_date_immutable',
@@ -202,7 +237,7 @@ app.delete('/:id', requirePermission('daily-logs:delete'), async (c) => {
   if (!existing) return c.json({ error: 'Daily log not found' }, 404)
 
   const tz = await companyTimeZone(db, currentUser.companyId)
-  const logDay = dayIn(tz, new Date(existing.date))
+  const logDay = markerDay(new Date(existing.date))
   const age = daysBetween(logDay, dayIn(tz, new Date()))
   if (age > EDIT_WINDOW_DAYS) {
     return c.json({

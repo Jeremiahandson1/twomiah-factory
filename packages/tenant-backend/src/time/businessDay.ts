@@ -91,6 +91,28 @@ export function companyRowTimeZone(row: any): string {
  */
 export const dayMarker = (dateStr: string) => new Date(`${String(dateStr).slice(0, 10)}T00:00:00.000Z`)
 
+/**
+ * Read a CALENDAR-DAY column back — the counterpart to `dayMarker`, taken at face value. (T33)
+ *
+ * The rule `jobLocalDay` states in SQL, in TypeScript: a midnight marker is taken as the day it
+ * names and is NEVER converted into a zone. Converting one walks it backwards — a log filed for
+ * 30 September is stored `2026-09-30T00:00:00Z`, and `storeDateString(…, 'America/Chicago')` reads
+ * that instant as 7pm on the 29th and reports the log as 2026-09-29. The tester saw exactly that.
+ *
+ * Use this for a column that holds a DAY (a log's date, an inspection's scheduled date, an invoice's
+ * issue date). Use `storeDateString` for a column that holds an INSTANT (resulted_at, created_at,
+ * sent_at) — there the conversion is the whole point, and skipping it is what makes an evening
+ * action report as tomorrow.
+ *
+ * Getting these two the wrong way round is the same bug in opposite directions, which is why they
+ * now sit next to each other with the distinction written down.
+ */
+export const markerDay = (v: Date | string | null | undefined): string => {
+  if (!v) return ''
+  if (typeof v === 'string') return v.slice(0, 10)
+  return Number.isNaN(v.getTime()) ? '' : v.toISOString().slice(0, 10)
+}
+
 /** What the store's wall clock calls this instant's date, as YYYY-MM-DD. */
 export function storeDateString(at: Date, tz: string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at)

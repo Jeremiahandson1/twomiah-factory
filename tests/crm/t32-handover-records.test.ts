@@ -51,8 +51,24 @@ const as = (who: any) => async (method: string, path: string, body?: unknown) =>
   return { status: res.status, json: j, text: t }
 }
 const asOwner = as(owner), asManager = as(manager), asTech = as(tech)
-const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
-const nextWeek = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10)
+/**
+ * Days on the COMPANY'S clock, not the server's. (T33)
+ *
+ * This company is `state: 'OH'` with no timezone setting, which resolves to America/New_York — so
+ * from 8pm in Ohio the UTC day is already TOMORROW. These helpers used `toISOString()`, so "today"
+ * meant the UTC day, and "today's inspection can be resulted today" booked one for the company's
+ * tomorrow and expected it to be resultable.
+ *
+ * It passed only because the route compared UTC on both sides too: consistently wrong, therefore
+ * agreeing. Fixing the route to read today on the company's clock made this test fail — correctly —
+ * and only between 8pm and midnight Eastern, which is exactly the shape of a failure that reads as
+ * flakiness. (feedback: test-red-only-overnight)
+ */
+const CO_TZ = 'America/New_York'
+const coDay = (n: number) => new Intl.DateTimeFormat('en-CA', { timeZone: CO_TZ, year: 'numeric', month: '2-digit', day: '2-digit' })
+  .format(new Date(Date.now() + n * 86_400_000))
+const yesterday = coDay(-1)
+const nextWeek = coDay(7)
 
 // ══════════ M1 · a failure is not overwritten by a pass ════════════════════════════════════════
 {
@@ -99,7 +115,15 @@ const nextWeek = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10
 
   // And the re-inspection can pass, which is the point of the whole exercise.
   const reId = re.json?.inspection?.id
-  await db.update(inspection).set({ scheduledDate: new Date(Date.now() - 3600_000) }).where(eq(inspection.id, reId))
+  /*
+   * The company's today, as a DAY MARKER — not `Date.now() - 1h`, which is an instant. (T33)
+   *
+   * `scheduled_date` is a calendar-day column, and an hour ago in UTC is already TOMORROW on the
+   * company's clock after 8pm Eastern, so the route rightly refused to result a visit that has not
+   * happened. That this test reached for a raw instant is itself the evidence that the column's
+   * meaning was ambiguous: it accepted either, and every reader had to guess.
+   */
+  await db.update(inspection).set({ scheduledDate: new Date(`${coDay(0)}T00:00:00.000Z`) }).where(eq(inspection.id, reId))
   const ok = await asOwner('POST', `/api/inspections/${reId}/pass`)
   check('the re-inspection passes', ok.status === 200 && ok.json?.status === 'passed', { status: ok.status, insStatus: ok.json?.status })
   const [original] = await db.select().from(inspection).where(eq(inspection.id, id))
@@ -117,7 +141,7 @@ const nextWeek = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10
   check('…nor passed', earlyPass.status === 400, { status: earlyPass.status })
 
   // Today's inspection CAN be resulted today, even if its time is later — the inspector came at 9am.
-  const today = await asOwner('POST', '/api/inspections', { type: 'Plumbing', projectId: proj.id, scheduledDate: new Date().toISOString().slice(0, 10) })
+  const today = await asOwner('POST', '/api/inspections', { type: 'Plumbing', projectId: proj.id, scheduledDate: coDay(0) })
   const nowPass = await asOwner('POST', `/api/inspections/${today.json.id}/pass`)
   check("today's inspection can be resulted today", nowPass.status === 200, { status: nowPass.status, body: nowPass.text?.slice(0, 200) })
 }
