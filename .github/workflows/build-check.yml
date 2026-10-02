@@ -1254,6 +1254,26 @@ jobs:
       - name: "One shared row reader, no private copies"
         run: bun run scripts/check-raw-sql-camel.ts
 
+  # T33: a blocker reached a live tenant because an undeclared identifier is a RUNTIME error —
+  # `bun build` parses it, 188 guards resolve no names, and 20 API suites never render the page.
+  # tsc finds it in under a minute. The compiler and tsconfig were already in the template.
+  template-frontend-types:
+    name: "template frontends — no undeclared names"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      # The guard runs each template's OWN compiler, so the dependencies have to be there.
+      - name: Install frontend dependencies for the checkable templates
+        run: |
+          for t in crm crm-restaurant crm-rv crm-salon crm-vet; do
+            (cd "templates/$t/frontend" && bun install)
+          done
+      - name: "tsc --noEmit — zero TS2304 anywhere"
+        run: bun run scripts/check-template-frontend-types.ts
+
   revenue-one-definition:
     name: "Revenue one definition"
     runs-on: ubuntu-latest
