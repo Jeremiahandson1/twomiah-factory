@@ -29,6 +29,7 @@ const __dirname = path.dirname(__filename)
 const FRONTEND_DIST = path.resolve(__dirname, '..', 'frontend-dist')
 
 import authRoutes from './routes/auth.ts'
+import mfaRoutes from './routes/mfa.ts'
 import platformSupportRoutes from './routes/platformSupport.ts'
 import contactsRoutes from './routes/contacts.ts'
 import projectsRoutes from './routes/projects.ts'
@@ -215,6 +216,10 @@ app.use('/api/quotes', authenticate, requireEnabledFeature('quotes'))
 app.use('/api/quotes/*', authenticate, requireEnabledFeature('quotes'))
 
 app.route('/api/auth', authRoutes)
+// Two-factor enrolment. Its own mount, under /api/auth, so the sign-in challenge (POST /api/auth/mfa,
+// in shared auth) and the enrolment routes read as one feature. Mounted here since T37 — before that
+// the shared SettingsPage offered the card and these routes existed only in crm.
+app.route('/api/auth/mfa-devices', mfaRoutes)
 app.route('/api/platform-support', platformSupportRoutes)
 app.route('/api/contacts', contactsRoutes)
 app.route('/api/projects', projectsRoutes)

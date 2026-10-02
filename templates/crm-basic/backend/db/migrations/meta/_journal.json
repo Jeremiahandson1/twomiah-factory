@@ -162,6 +162,13 @@
       "when": 1791401100000,
       "tag": "0022_staff_account_entry",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791401200000,
+      "tag": "0023_mfa",
+      "breakpoints": true
     }
   ]
 }

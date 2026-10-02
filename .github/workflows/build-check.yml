@@ -1287,6 +1287,10 @@ jobs:
       # no invite and no explanation — it read as "the feature does not exist". (T37 N10)
       - name: "portal panel — names the missing email instead of vanishing"
         run: bun run scripts/check-portal-panel-reachable.ts
+      # Seven tenants offered "set up two-factor" on Settings → Security while the enrolment API
+      # answered 404: the card is in the SHARED SettingsPage, the routes were only in crm. (T37)
+      - name: "two-factor — a template that shows the card mounts the API and has the tables"
+        run: bun run scripts/check-mfa-screen-has-api.ts
 
   revenue-one-definition:
     name: "Revenue one definition"
