@@ -44,6 +44,9 @@ export type Frequency = (typeof FREQUENCIES)[keyof typeof FREQUENCIES]
  * (`recurring.company_id`, `existing.next_run_date`). Camelising happens at the return.
  */
 import { rowsOf as rows, camelRow, camelRows } from '../sqlRows'
+// The company's calendar day, for a day-valued field. The generate query already joins the company
+// row, so the zone is read from it rather than fetched again. (T33)
+import { companyRowTimeZone, storeDateString, storeDayStart } from '../time/businessDay'
 
 /** Aliases in this file that are table rows, and so are safe to camelise inside. */
 const NESTED = ['contact', 'project', 'company']
@@ -60,9 +63,9 @@ const NESTED = ['contact', 'project', 'company']
  * 31 Jan → 28 (or 29) Feb. Setting the day to 1 before changing the month is what stops the rollover
  * happening before there is a chance to clamp.
  */
-function addMonthsClamped(from: Date, months: number): Date {
+function addMonthsClamped(from: Date, months: number, anchorDay?: number): Date {
   const date = new Date(from)
-  const wantedDay = date.getDate()
+  const wantedDay = anchorDay ?? date.getDate()
   date.setDate(1)
   date.setMonth(date.getMonth() + months)
   // day 0 of the following month is the last day of this one
@@ -71,18 +74,50 @@ function addMonthsClamped(from: Date, months: number): Date {
   return date
 }
 
-export function calculateNextDate(fromDate: Date | string, frequency: string): Date {
+/**
+ * The next run date — measured from the schedule's ANCHOR DAY, not from the last date it produced.
+ *
+ * T33. The clamp added in T32 H7 was right and not enough: it stopped 31 Oct rolling over into
+ * 1 December, but it had no memory of the 31st, so the schedule stayed clamped for ever:
+ *
+ *     31 Oct → 30 Nov → 30 Dec → 30 Jan …        the day the business chose is lost after one short month
+ *     31 Oct → 30 Nov → 31 Dec → 31 Jan …        with the anchor
+ *
+ * The anchor is the day of the month the schedule STARTS on, because that is what the business
+ * picked. `30 Nov` is a fact about November, not an instruction, and chaining off it turns one
+ * short month into a permanent change to the billing date.
+ *
+ * February is the test that matters: 31 Jan → 28 Feb → 31 Mar, not 28 Feb → 28 Mar.
+ *
+ * `anchorDay` is optional so the exported signature does not break any caller that has not been
+ * told about it — omitted, this behaves exactly as before.
+ */
+export function calculateNextDate(fromDate: Date | string, frequency: string, anchorDay?: number): Date {
   const date = new Date(fromDate)
   switch (frequency) {
+    // Week-based schedules have no anchor to lose: seven days from a Tuesday is always a Tuesday.
     case FREQUENCIES.WEEKLY: date.setDate(date.getDate() + 7); return date
     case FREQUENCIES.BIWEEKLY: date.setDate(date.getDate() + 14); return date
-    case FREQUENCIES.MONTHLY: return addMonthsClamped(date, 1)
-    case FREQUENCIES.QUARTERLY: return addMonthsClamped(date, 3)
-    case FREQUENCIES.SEMIANNUAL: return addMonthsClamped(date, 6)
+    case FREQUENCIES.MONTHLY: return addMonthsClamped(date, 1, anchorDay)
+    case FREQUENCIES.QUARTERLY: return addMonthsClamped(date, 3, anchorDay)
+    case FREQUENCIES.SEMIANNUAL: return addMonthsClamped(date, 6, anchorDay)
     // 29 February + a year is 1 March by the same rollover; clamp it to 28 February.
-    case FREQUENCIES.ANNUAL: return addMonthsClamped(date, 12)
-    default: return addMonthsClamped(date, 1)
+    case FREQUENCIES.ANNUAL: return addMonthsClamped(date, 12, anchorDay)
+    default: return addMonthsClamped(date, 1, anchorDay)
   }
+}
+
+/**
+ * The day of the month a schedule bills on, read off its start date.
+ *
+ * There is no `day_of_month` column — the route accepts `dayOfMonth` and the service has never
+ * stored it — so `start_date` is the only record of what the business chose, and it is the right
+ * one: a schedule that starts on the 31st is a 31st schedule.
+ */
+const anchorDayOf = (startDate: Date | string | null | undefined): number | undefined => {
+  if (!startDate) return undefined
+  const d = new Date(startDate)
+  return Number.isNaN(d.getTime()) ? undefined : d.getDate()
 }
 
 function calculateDueDate(invoiceDate: Date, terms: string): Date {
@@ -156,7 +191,23 @@ export function createRecurringService(deps: RecurringServiceDeps) {
       SELECT * FROM recurring_line_item WHERE recurring_invoice_id = ${recurringId} ORDER BY sort_order ASC
     `))
     const number = await generateInvoiceNumber(recurring.company_id)
-    const invoiceDate = new Date()
+    /**
+     * Dated the COMPANY'S day, not the server's UTC instant. (T33)
+     *
+     * `new Date()` was stored straight into issue_date, and the screens render a calendar day by
+     * slicing the first ten characters of the serialised value — the UTC date part, deliberately,
+     * because that is how a day-valued field stays a day. So an invoice generated at 19:16 in
+     * Chicago carried `2026-10-02T00:16Z` and was dated TOMORROW: the tester saw this evening's
+     * invoices show 2 Oct.
+     *
+     * `storeDayStart` gives the instant the company's day begins, whose UTC date part IS that day —
+     * the same helper the rest of the product uses for a day-valued field (guard #173).
+     *
+     * The due date is computed from it rather than from `new Date()`, so terms are counted from the
+     * day on the invoice instead of being a day out of step with it.
+     */
+    const tz = companyRowTimeZone(recurring.company || {})
+    const invoiceDate = storeDayStart(storeDateString(new Date(), tz), tz)
     const dueDate = calculateDueDate(invoiceDate, recurring.terms)
 
     const [newInvoice] = await db.insert(invoice).values({
@@ -188,7 +239,7 @@ export function createRecurringService(deps: RecurringServiceDeps) {
       })
     }
 
-    const nextRunDate = calculateNextDate(recurring.next_run_date, recurring.frequency)
+    const nextRunDate = calculateNextDate(recurring.next_run_date, recurring.frequency, anchorDayOf(recurring.start_date))
     let newStatus = recurring.status
     if (recurring.end_date && nextRunDate > new Date(recurring.end_date)) newStatus = 'completed'
     await db.execute(sql`
@@ -327,7 +378,10 @@ export function createRecurringService(deps: RecurringServiceDeps) {
     if (!existing) return null
     let nextRunDate = new Date(existing.next_run_date)
     const now = new Date()
-    while (nextRunDate < now) nextRunDate = calculateNextDate(nextRunDate, existing.frequency)
+    // Same anchor on resume: walking a paused schedule forward a month at a time must not strand it
+    // on a clamped day either.
+    const anchor = anchorDayOf(existing.start_date)
+    while (nextRunDate < now) nextRunDate = calculateNextDate(nextRunDate, existing.frequency, anchor)
     await db.execute(sql`UPDATE recurring_invoice SET status = 'active', next_run_date = ${nextRunDate} WHERE id = ${id}`)
     return { ...camelRow(existing, NESTED), status: 'active', nextRunDate }
   }
