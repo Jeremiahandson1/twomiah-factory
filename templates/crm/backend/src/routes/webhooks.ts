@@ -3,7 +3,7 @@ import crypto from 'crypto'
 import { db } from '../../db/index.ts'
 import { contact, company } from '../../db/schema.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
-import { eq } from 'drizzle-orm'
+import { eq, asc } from 'drizzle-orm'
 import logger from '../services/logger.ts'
 
 const app = new Hono()
@@ -31,7 +31,7 @@ app.post('/leads', async (c) => {
   }
 
   // Find the company (single-tenant: first company)
-  const [comp] = await db.select({ id: company.id }).from(company).limit(1)
+  const [comp] = await db.select({ id: company.id }).from(company).orderBy(asc(company.createdAt)).limit(1)
   if (!comp) {
     logger.warn('Webhook: No company found to assign lead')
     return c.json({ error: 'No company configured' }, 500)

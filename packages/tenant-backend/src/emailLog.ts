@@ -11,7 +11,7 @@
 // Two rules this must never break: recording is best-effort — a logging failure must not fail a send that
 // actually went out — and a send that never left the building (no provider configured) is not usage.
 
-import { isNotNull } from 'drizzle-orm'
+import { isNotNull, asc } from 'drizzle-orm'
 
 export interface EmailLogTables {
   emailLog: any
@@ -52,7 +52,7 @@ export function createEmailLogger({ db, tables: t, logger }: EmailLogDeps): Emai
         const [row] = await db.select({ id: t.user.companyId }).from(t.user).where(isNotNull(t.user.companyId)).limit(1)
         companyId = row?.id || null
         if (!companyId) {
-          const [fallback] = await db.select({ id: t.company.id }).from(t.company).limit(1)
+          const [fallback] = await db.select({ id: t.company.id }).from(t.company).orderBy(asc(t.company.createdAt)).limit(1)
           companyId = fallback?.id || null
           if (companyId) logger?.warn('[emailLog] no user to resolve the company from — usage may be recorded against the wrong one')
         }

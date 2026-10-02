@@ -1291,6 +1291,10 @@ jobs:
       # answered 404: the card is in the SHARED SettingsPage, the routes were only in crm. (T37)
       - name: "two-factor — a template that shows the card mounts the API and has the tables"
         run: bun run scripts/check-mfa-screen-has-api.ts
+      # sync-features answered 200 {"features":[43]} while the company everyone signs in to kept 19:
+      # `.from(company).limit(1)` with no ORDER BY picked the second row. Found 3x in one day. (T40)
+      - name: "single-row company pick — ordered or scoped, never arbitrary"
+        run: bun run scripts/check-single-row-pick-is-ordered.ts
 
   revenue-one-definition:
     name: "Revenue one definition"

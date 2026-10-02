@@ -13,7 +13,7 @@ import { fileURLToPath } from 'url'
 import { db } from '../db/index.ts'
 import { company, user } from '../db/schema.ts'
 import { createSubscriptionSyncRoute, refreshSubscriptionFromFactory, createFactoryApiClient } from './shared/index.ts'
-import { eq } from 'drizzle-orm'
+import { eq, asc } from 'drizzle-orm'
 import logger from './services/logger.ts'
 import { initializeSocket, io } from './services/socket.ts'
 import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
@@ -471,7 +471,7 @@ app.post('/api/internal/sync-features', async (c) => {
   if (authHeader !== syncKey) return c.json({ error: 'Unauthorized' }, 401)
   const { features } = await c.req.json()
   if (!Array.isArray(features)) return c.json({ error: 'features must be an array' }, 400)
-  const [comp] = await db.select().from(company).limit(1)
+  const [comp] = await db.select().from(company).orderBy(asc(company.createdAt)).limit(1)
   if (!comp) return c.json({ error: 'No company found' }, 404)
   const [updated] = await db.update(company).set({ enabledFeatures: features, updatedAt: new Date() }).where(eq(company.id, comp.id)).returning()
   forgetFeatures(comp.id) // the gate caches for 15 s; a sync that does not say so is a 15 s lie (M5)
@@ -495,7 +495,7 @@ app.post('/api/internal/seed-from-premium', async (c) => {
   const email = String(body.email || '').trim().toLowerCase()
   const passwordHash = String(body.passwordHash || '')
   if (!email || !passwordHash) return c.json({ error: 'email and passwordHash required' }, 400)
-  const [comp] = await db.select().from(company).limit(1)
+  const [comp] = await db.select().from(company).orderBy(asc(company.createdAt)).limit(1)
   if (!comp) return c.json({ error: 'No company found' }, 404)
   const [firstName, ...rest] = (body.name || '').trim().split(/\s+/)
   const lastName = rest.join(' ') || ''

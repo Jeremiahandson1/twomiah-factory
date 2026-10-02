@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url'
 import { db } from '../db/index.ts'
 import { company, user, unit, emailLog } from '../db/schema.ts'
 import { createSubscriptionSyncRoute, refreshSubscriptionFromFactory, createFactoryApiClient, externalBookingsProxy, createEmailLogger } from './shared/index.ts'
-import { eq } from 'drizzle-orm'
+import { eq, asc } from 'drizzle-orm'
 import logger from './services/logger.ts'
 import { setEmailRecorder } from './services/email.ts'
 import { initializeSocket, io } from './services/socket.ts'
@@ -342,7 +342,7 @@ app.post('/api/internal/sync-features', async (c) => {
   if (!authHeader || authHeader.length !== syncKey.length || !crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(syncKey))) return c.json({ error: 'Unauthorized' }, 401)
   const { features } = await c.req.json()
   if (!Array.isArray(features)) return c.json({ error: 'features must be an array' }, 400)
-  const [comp] = await db.select().from(company).limit(1)
+  const [comp] = await db.select().from(company).orderBy(asc(company.createdAt)).limit(1)
   if (!comp) return c.json({ error: 'No company found' }, 404)
   const [updated] = await db.update(company).set({ enabledFeatures: features, updatedAt: new Date() }).where(eq(company.id, comp.id)).returning()
   adsConnector.onFeaturesChanged(updated.enabledFeatures) // Factory switched paid_ads on after deploy → register with Twomiah Ads (not awaited)
@@ -366,7 +366,7 @@ app.post('/api/internal/seed-units', async (c) => {
   if (!authHeader || authHeader.length !== syncKey.length || !crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(syncKey))) return c.json({ error: 'Unauthorized' }, 401)
   const { units } = await c.req.json()
   if (!Array.isArray(units)) return c.json({ error: 'units must be an array' }, 400)
-  const [comp] = await db.select().from(company).limit(1)
+  const [comp] = await db.select().from(company).orderBy(asc(company.createdAt)).limit(1)
   if (!comp) return c.json({ error: 'No company found' }, 404)
 
   const ALLOWED = ['category', 'condition', 'stockNumber', 'vin', 'hin', 'year', 'make', 'modelName', 'trim', 'status', 'msrp', 'listedPrice', 'internetPrice', 'cost', 'photos', 'floorplanImg', 'description', 'features', 'exteriorColor', 'interiorColor', 'rvClass', 'towableType', 'lengthFt', 'sleeps', 'slideOuts', 'gvwr', 'dryWeight', 'hitchWeight', 'chassis', 'freshTankGal', 'greyTankGal', 'blackTankGal', 'generatorHours', 'awnings', 'fuelType', 'engine', 'engineCc', 'mileage', 'hours', 'transmission', 'drivetrain', 'beamFt', 'draftFt', 'hullMaterial', 'engineType', 'engineCount', 'engineHp', 'fuelCapacityGal', 'maxPersons', 'trailerIncluded']
@@ -447,7 +447,7 @@ app.post('/api/internal/seed-from-premium', async (c) => {
   const email = String(body.email || '').trim().toLowerCase()
   const passwordHash = String(body.passwordHash || '')
   if (!email || !passwordHash) return c.json({ error: 'email and passwordHash required' }, 400)
-  const [comp] = await db.select().from(company).limit(1)
+  const [comp] = await db.select().from(company).orderBy(asc(company.createdAt)).limit(1)
   if (!comp) return c.json({ error: 'No company found' }, 404)
   const [firstName, ...rest] = (body.name || '').trim().split(/\s+/)
   const lastName = rest.join(' ') || ''

@@ -3,7 +3,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { db } from '../../db/index.ts'
 import { adsExperiment, adsExperimentAssignment, adsExperimentConversion, company } from '../../db/schema.ts'
-import { eq, desc, sql, and } from 'drizzle-orm'
+import { eq, desc, sql, and, asc } from 'drizzle-orm'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -28,7 +28,7 @@ app.use('*', async (c, next) => {
 
 // ─── A/B experiments ─────────────────────────────────────────────────────────
 async function companyId(): Promise<string | null> {
-  const [c] = await db.select({ id: company.id }).from(company).limit(1)
+  const [c] = await db.select({ id: company.id }).from(company).orderBy(asc(company.createdAt)).limit(1)
   return c?.id || null
 }
 

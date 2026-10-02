@@ -1,6 +1,6 @@
 import { db } from '../../db/index.ts'
 import { company } from '../../db/schema.ts'
-import { eq } from 'drizzle-orm'
+import { eq, asc } from 'drizzle-orm'
 import { getFeaturesForPlan, getFeaturesForTemplate } from '../shared/featureRegistry.ts'
 import { CRM_TEMPLATE } from '../config/template.ts'
 
@@ -10,7 +10,7 @@ import { CRM_TEMPLATE } from '../config/template.ts'
 // touched here: the Factory sync and Settings → Features own it from then on.
 export async function syncFeatures() {
   try {
-    const [comp] = await db.select().from(company).limit(1)
+    const [comp] = await db.select().from(company).orderBy(asc(company.createdAt)).limit(1)
     if (!comp) return
     const current = (comp.enabledFeatures || []) as string[]
     if (current.length > 0) {
