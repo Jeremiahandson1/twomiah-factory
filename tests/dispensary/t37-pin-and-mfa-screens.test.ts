@@ -121,6 +121,26 @@ console.log('\n══════════ the counter signs in ════�
   const wrong = await api('POST', '/api/auth/pin-login', { pin: '9999' })
   check('a PIN belonging to nobody is refused', wrong.status >= 400 && !wrong.json?.accessToken, { status: wrong.status })
 
+  /**
+   * A SECOND COMPANY ROW MUST NOT BREAK THE TILL. (T37)
+   *
+   * My first version of the resolution required EXACTLY one company and refused otherwise. It
+   * passed every test here — the sandbox has one — and then disptest answered "This server holds
+   * more than one shop", because the live tenant carries a second row from an old round. That is
+   * the identical wrong turn routes/menu.ts took and corrected: a tenant database is one shop, a
+   * second row is QA debris, and the seeded shop is the OLDEST. This fixture reproduces the live
+   * tenant rather than the clean sandbox, so the too-strict version cannot come back green.
+   */
+  const [debris] = await db.insert(company).values({
+    name: 'QA debris', slug: 'qa-debris-second-row', email: 'debris@test.local', state: 'OH',
+    settings: {}, enabledFeatures: [],
+  } as any).returning()
+  const withDebris = await api('POST', '/api/auth/pin-login', { pin: '4821' })
+  check('a bare PIN still signs in when a SECOND company row exists — the oldest is the shop',
+    withDebris.status === 200 && !!withDebris.json?.accessToken, { status: withDebris.status, body: withDebris.text?.slice(0, 180) })
+  check('…and it is still the right person', withDebris.json?.user?.id === bud.id, { got: withDebris.json?.user?.email })
+  await db.execute(sql`DELETE FROM company WHERE id = ${debris.id}`)
+
   // T57: a failed PIN must increment NOBODY — the digits matched no one, so there is no counter to
   // move, and five wrong taps used to lock every budtender out of quick login.
   for (let i = 0; i < 5; i++) await api('POST', '/api/auth/pin-login', { pin: '9999' })

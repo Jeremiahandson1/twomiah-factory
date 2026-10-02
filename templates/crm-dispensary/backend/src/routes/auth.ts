@@ -6,7 +6,9 @@ import crypto from 'crypto'
 const uuidv4 = () => crypto.randomUUID()
 import { db } from '../../db/index.ts'
 import { company, user } from '../../db/schema.ts'
-import { eq, and, gt } from 'drizzle-orm'
+// `asc` is for resolving which shop a bare PIN belongs to — the oldest company row, matching
+// routes/menu.ts's resolveSlug. See POST /pin-login. (T37)
+import { eq, and, gt, asc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { storeTimeZone, storeDateString } from '../utils/isoTime.ts'
 import emailService from '../services/email.ts'
@@ -226,23 +228,30 @@ app.post('/pin-login', async (c) => {
    * the only public endpoint carrying it is the customer menu — which a till should not have to
    * depend on to let a budtender tap in. That is why the PIN had endpoints and no screen.
    *
-   * A tenant database holds one company, but this does not ASSUME that: it reads the table and only
-   * resolves the id when there is exactly one row, refusing with a clear code otherwise. An explicit
-   * companyId still works, so every existing caller is unaffected.
+   * WHICH SHOP: THE OLDEST ROW, not "the only row".
+   *
+   * My first version of this required exactly one company and refused otherwise — and disptest
+   * answered "This server holds more than one shop", because it carries a second company row. That
+   * is the same wrong turn routes/menu.ts already took and already corrected; its `resolveSlug`
+   * says so in as many words:
+   *
+   *     "A tenant database is one dispensary; a second row is QA debris or an enterprise import,
+   *      and either way the seeded shop is the oldest. 'Exactly one row' was the first version of
+   *      this and it was too strict — the live test tenant carries two, so its own page was still
+   *      told 'Company slug is required'."
+   *
+   * So this follows that rule rather than inventing a second answer to the same question: order by
+   * createdAt and take the first. An explicit companyId still wins, so every existing caller is
+   * unaffected.
    */
   const pinSchema = z.object({ pin: z.string().min(4).max(8), companyId: z.string().optional() })
   const data = pinSchema.parse(await c.req.json())
 
   let companyId = data.companyId
   if (!companyId) {
-    const found = await db.select({ id: company.id }).from(company).limit(2)
-    if (found.length !== 1) {
-      return c.json({
-        error: 'This server holds more than one shop, so a PIN alone cannot say which till you are at. Sign in with your email and password.',
-        code: 'company_required',
-      }, 400)
-    }
-    companyId = found[0].id
+    const [seeded] = await db.select({ id: company.id }).from(company).orderBy(asc(company.createdAt)).limit(1)
+    if (!seeded) return c.json({ error: 'This server has no shop set up yet.', code: 'no_company' }, 400)
+    companyId = seeded.id
   }
 
   // Find users in this company who have a PIN set
