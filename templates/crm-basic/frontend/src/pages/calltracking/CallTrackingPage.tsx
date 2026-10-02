@@ -390,7 +390,12 @@ function TrackingNumbersTab() {
                   </span>
                 </td>
                 <td className="px-4 py-3 font-mono text-gray-500 dark:text-slate-400">{num.forwardTo}</td>
-                <td className="px-4 py-3 text-right font-medium">{num._count?.calls || 0}</td>
+                {/*
+                  * `_count.calls` was a Prisma shape this codebase has never produced — the same
+                  * phantom field the contractor takeoff list had (T35 N3). The query selects
+                  * `call_count`, which camelRows now renames to `callCount`. (T57)
+                  */}
+                <td className="px-4 py-3 text-right font-medium tabular-nums">{Number(num.callCount || 0)}</td>
               </tr>
             ))}
           </tbody>

@@ -20,6 +20,27 @@ function rows(result: any): any[] {
   return Array.isArray(result) ? result : (result?.rows || [])
 }
 
+/**
+ * THE SCREEN READS camelCase; THESE QUERIES ANSWERED snake_case. (T57)
+ *
+ * Postgres answers in snake_case and `rows()` above hands it straight out, so every multi-word field
+ * on this module's ENTITY rows arrived under a name CallTrackingPage.tsx does not read. The page was
+ * built entirely in camelCase — `forwardTo`, `phoneNumber`, `callerName`, `callerNumber`,
+ * `startTime`, `recordingUrl`, `firstTimeCaller` — so the Phone Number column, the Forward To column
+ * and most of the call list rendered blank, on a screen whose entire job is showing phone numbers.
+ * Nobody had reported it because crm-basic has never had a QA round.
+ *
+ * `camelRows` is the shared reader (packages/tenant-backend/src/sqlRows.ts) that exists for exactly
+ * this: it was written after the same fault was found and fixed separately in tasks, takeoffs and
+ * selections. This is the fourth place.
+ *
+ * Only the ENTITY row sets are camelised — the tracking numbers, the call list, one call. The
+ * aggregate queries below (call_count / total_duration / avg_duration / total_value) are read inside
+ * this file and already mapped to camelCase by hand on the way out, so camelising them would break
+ * those readers to no purpose.
+ */
+import { camelRows } from '../shared/index.ts'
+
 // Provider configuration
 const PROVIDER = process.env.CALL_TRACKING_PROVIDER;
 const CALLRAIL_API_KEY = process.env.CALLRAIL_API_KEY;
@@ -60,7 +81,7 @@ export async function getTrackingNumbers(companyId: string, { source, active = t
   if (active !== null) conds.push(sql`active = ${active}`);
   const where = sql.join(conds, sql` AND `);
 
-  return rows(await db.execute(sql`
+  return camelRows(await db.execute(sql`
     SELECT tn.*, (SELECT COUNT(*) FROM call_log cl WHERE cl.tracking_number_id = tn.id)::int as call_count
     FROM tracking_number tn
     WHERE ${where}
@@ -215,7 +236,7 @@ export async function getCalls(companyId: string, {
   const limitN = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Math.min(200, Math.floor(Number(limit))) : 50;
   const offset = (pageN - 1) * limitN;
 
-  const callData = rows(await db.execute(sql`
+  const callData = camelRows(await db.execute(sql`
     SELECT cl.*,
       tn.name as tracking_number_name, tn.source as tracking_number_source,
       c.id as contact_id_ref, c.name as contact_name
@@ -237,7 +258,7 @@ export async function getCalls(companyId: string, {
  * Get single call
  */
 export async function getCall(callId: string, companyId: string) {
-  const callRows = rows(await db.execute(sql`
+  const callRows = camelRows(await db.execute(sql`
     SELECT cl.*,
       tn.name as tracking_number_name, tn.source as tracking_number_source,
       c.id as contact_id_ref, c.name as contact_name
