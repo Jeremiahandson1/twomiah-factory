@@ -123,6 +123,73 @@ app.get('/summary', async (c) => {
   return c.json({ byStatus, outstanding, overdueCount: Number(overdueCount) })
 })
 
+/**
+ * The job's project, for a bill that names a job but no project. (T34)
+ *
+ * `null` jobId means "nothing to inherit from", so the caller can pass the id it has without
+ * branching around it.
+ */
+const projectOfJob = async (companyId: string, jobId: string | null): Promise<string | null> => {
+  if (!jobId) return null
+  const [row] = await db.select({ projectId: job.projectId }).from(job)
+    .where(and(eq(job.id, jobId), eq(job.companyId, companyId))).limit(1)
+  return row?.projectId ?? null
+}
+
+/**
+ * ONE BILL, WITH THE PAYMENTS MADE AGAINST IT. (T34)
+ *
+ * Two findings, one missing route. There was no `GET /:id` at all — opening a single bill answered
+ * 404, so the only way to see one was to find it in the list. And `vendor_bill_payment` has existed
+ * and been written to all along (five simultaneous payments are all recorded, which the tester
+ * confirmed), with nothing anywhere to read them back: a bill could say $300 paid and never say
+ * when, by what method, or in how many parts.
+ *
+ * Declared AFTER `/summary`, which matters: Hono matches in registration order, so a `/:id` written
+ * above it would swallow `/api/bills/summary` and the AP total would start looking for a bill with
+ * the id "summary". `/summary/job/:jobId` is three segments and a single `/:id` cannot match it, so
+ * that one is safe either side — but the literal route that IS one segment is not.
+ */
+app.get('/:id', async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const [bill] = await db.select().from(vendorBill)
+    .where(and(eq(vendorBill.id, id), eq(vendorBill.companyId, currentUser.companyId))).limit(1)
+  if (!bill) return c.json({ error: 'Bill not found' }, 404)
+
+  const [vendorRow, jobRow, payments] = await Promise.all([
+    bill.vendorId
+      ? db.select({ id: contact.id, name: contact.name, company: contact.company, email: contact.email })
+        .from(contact).where(eq(contact.id, bill.vendorId)).limit(1)
+      : Promise.resolve([]),
+    bill.jobId
+      ? db.select({ id: job.id, number: job.number, title: job.title, projectId: job.projectId })
+        .from(job).where(eq(job.id, bill.jobId)).limit(1)
+      : Promise.resolve([]),
+    db.select().from(vendorBillPayment).where(and(
+      eq(vendorBillPayment.vendorBillId, id),
+      eq(vendorBillPayment.companyId, currentUser.companyId),
+    )).orderBy(desc(vendorBillPayment.paidAt)),
+  ])
+
+  const paid = payments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0)
+  return c.json({
+    ...bill,
+    vendor: vendorRow[0] || null,
+    job: jobRow[0] || null,
+    payments,
+    /*
+     * The balance, computed here rather than left to the screen to subtract — the same figure
+     * derived in two places is the shape that produced "to pay −$2.00" elsewhere in this product.
+     * `paidTotal` is the sum of the PAYMENT ROWS, so it can be compared against the bill's own
+     * `amountPaid`: if those two ever disagree, something wrote one without the other.
+     */
+    paidTotal: Math.round(paid * 100) / 100,
+    balance: round2(Number(bill.amount || 0) - Number(bill.amountPaid || 0)),
+  })
+})
+
 // Job-costing rollup: what we COMMITTED (open POs) vs what we've been
 // BILLED vs what we've PAID for one job.
 app.get('/summary/job/:jobId', async (c) => {
@@ -229,12 +296,27 @@ app.post('/', requirePermission('bills:create'), async (c) => {
     }
   }
 
+  /**
+   * A BILL ON A JOB BELONGS TO THAT JOB'S PROJECT. (T34)
+   *
+   * `jobId` already fell back to the purchase order's job; `projectId` fell back to nothing. So a
+   * bill raised against a job on a project was stored with no project, and every project-level
+   * figure that counts spend simply did not see it — the cost was on the job and nowhere on the
+   * job's project.
+   *
+   * Derived, not asked for. A job knows its project; making somebody pick it again is how the two
+   * end up disagreeing. An explicit `projectId` still wins, for the case where a bill genuinely
+   * belongs to a different project than the job's.
+   */
+  const effectiveJobId = data.jobId || poJobId || null
+  const projectFromJob = await projectOfJob(currentUser.companyId, data.projectId ? null : effectiveJobId)
+
   const [bill] = await db.insert(vendorBill).values({
     companyId: currentUser.companyId,
     vendorId: data.vendorId,
     number: data.number || null,
-    jobId: data.jobId || poJobId || null,
-    projectId: data.projectId || null,
+    jobId: effectiveJobId,
+    projectId: data.projectId || projectFromJob || null,
     purchaseOrderId: data.purchaseOrderId || null,
     billDate: data.billDate ? new Date(data.billDate) : new Date(),
     dueDate: data.dueDate ? new Date(data.dueDate) : null,
@@ -289,6 +371,15 @@ app.put('/:id', requirePermission('bills:update'), async (c) => {
   if (data.number !== undefined) update.number = data.number || null
   if (data.jobId !== undefined) update.jobId = data.jobId || null
   if (data.projectId !== undefined) update.projectId = data.projectId || null
+  /*
+   * The same inheritance on EDIT, because a rule that only applies on create is a rule with a hole
+   * in it: moving a bill onto a job would otherwise leave the old project on it, or none at all.
+   * Only when the caller did not name a project itself. (T34 — one of the three standing rules)
+   */
+  if (data.jobId !== undefined && data.projectId === undefined) {
+    const inherited = await projectOfJob(currentUser.companyId, data.jobId || null)
+    if (inherited) update.projectId = inherited
+  }
   if (data.purchaseOrderId !== undefined) update.purchaseOrderId = data.purchaseOrderId || null
   if (data.billDate) update.billDate = new Date(data.billDate)
   if (data.dueDate !== undefined) update.dueDate = data.dueDate ? new Date(data.dueDate) : null

@@ -175,13 +175,40 @@ const dayAhead = (n: number) => new Date(Date.now() + n * 86_400_000).toISOStrin
   check('…once reopened, a revised answer lands', now.status === 200 && /Confirmed W12/.test(now.json?.response || ''), { status: now.status })
 }
 
-// ══════════ H11b · an unanswered RFI can still be withdrawn ════════════════════════════════════
+// ══════════ H11b / T34 · withdrawing an unanswered RFI is deliberate ═══════════════════════════
+//
+// T32 allowed this outright, and the comment said why: a question can become moot and refusing to
+// clear it would strand it. The T34 tester filed it anyway — "one can still be closed without an
+// answer" — and they are right about the thing underneath. "We asked on the 4th and never got an
+// answer" is a position in a delay claim; one click turned it into a tidy closed row with nothing
+// saying which of the two had happened.
+//
+// So the legitimate act stays available and now has to be MEANT.
 {
   const made = await api('POST', '/api/rfis', { projectId: proj.id, subject: 'Moot point', question: 'Never mind' })
-  const closed = await api('POST', `/api/rfis/${made.json.id}/close`)
-  check('closing an UNANSWERED RFI is allowed — a question can be withdrawn', closed.status === 200, { status: closed.status })
-  const reopened = await api('POST', `/api/rfis/${made.json.id}/reopen`)
+  const id = made.json.id
+
+  const casual = await api('POST', `/api/rfis/${id}/close`)
+  check('T34 closing an UNANSWERED RFI is refused by default', casual.status === 400, { status: casual.status, body: casual.text?.slice(0, 200) })
+  check('…and names the answer route rather than just saying no', /respond/.test(JSON.stringify(casual.json)), casual.json)
+  check('…and offers the withdraw it is actually asking for', /closeUnanswered/.test(JSON.stringify(casual.json)), casual.json)
+  const [stillOpen] = await db.select().from(rfi).where(eq(rfi.id, id))
+  check('…and the RFI is still open', stillOpen?.status === 'open', stillOpen?.status)
+
+  const withdrawn = await api('POST', `/api/rfis/${id}/close`, { closeUnanswered: true })
+  check('T34 …but a DELIBERATE withdrawal goes through', withdrawn.status === 200, { status: withdrawn.status, body: withdrawn.text?.slice(0, 200) })
+  check('…and says it closed without an answer, so nobody has to infer it from a null', withdrawn.json?.closedUnanswered === true, { closedUnanswered: withdrawn.json?.closedUnanswered })
+  check('…and the answer is still empty, which is what records that nobody answered', !withdrawn.json?.response, { response: withdrawn.json?.response })
+
+  const reopened = await api('POST', `/api/rfis/${id}/reopen`)
   check('…and reopening it returns it to open, not to answered', reopened.json?.status === 'open', reopened.json?.status)
+
+  // An ANSWERED RFI closes with no ceremony — the flag is only for the case that loses information.
+  const asked = await api('POST', '/api/rfis', { projectId: proj.id, subject: 'Real question', question: 'Which beam?' })
+  await api('POST', `/api/rfis/${asked.json.id}/respond`, { response: 'The 2x12 header on the north wall.' })
+  const normal = await api('POST', `/api/rfis/${asked.json.id}/close`)
+  check('T34 an ANSWERED RFI still closes in one call, with no flag', normal.status === 200, { status: normal.status, body: normal.text?.slice(0, 160) })
+  check('…and is not marked as closed-unanswered', normal.json?.closedUnanswered === false, { closedUnanswered: normal.json?.closedUnanswered })
 }
 
 // ══════════ T33 · the day a record REPORTS, on a company that is not on UTC ═══════════════════════

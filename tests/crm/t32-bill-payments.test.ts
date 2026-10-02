@@ -22,7 +22,7 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
 const { setupSchema } = await import('./setup.ts')
 await setupSchema()
 const { db } = await import('./db/index.ts')
-const { company, user, contact, vendorBill } = await import('./db/schema.ts')
+const { company, user, contact, vendorBill, project, job } = await import('./db/schema.ts')
 
 const [co] = await db.insert(company).values({
   name: 'AP Co', slug: 'ap-co', email: 'ap@test.local', state: 'OH', settings: {},
@@ -133,6 +133,107 @@ const ledgerFor = async (id: string) => {
   const up = await api('PUT', `/api/bills/${bill.id}`, { amount: 900 })
   check('a settled bill is closed to further edits (the pre-existing rule)', up.status === 400, { status: up.status, body: up.text?.slice(0, 140) })
   check('…and it says so in those terms', /paid bill/i.test(JSON.stringify(up.json)), up.json)
+}
+
+// ══════════ T34 · a bill on a job belongs to that job's project ═══════════════════════════════
+//
+// The report raised a bill against a job that sits on a project and the bill came back with no
+// project, so every project-level spend figure was blind to it. `jobId` already fell back to the
+// purchase order's job; `projectId` fell back to nothing.
+const mkProject = async (number: string, name: string) => (await db.insert(project).values({
+  companyId: co.id, number, name,
+} as any).returning())[0]
+const mkJob = async (number: string, projectId: string | null) => (await db.insert(job).values({
+  companyId: co.id, number, title: `Job ${number}`, projectId,
+} as any).returning())[0]
+
+{
+  const proj = await mkProject('P-700', 'Riverside Remodel')
+  const theJob = await mkJob('J-700', proj.id)
+
+  const created = await api('POST', '/api/bills', { vendorId: vendor.id, jobId: theJob.id, amount: 250, number: 'INH-1' })
+  check("a bill created on a job picks up the job's project",
+    created.status === 201 && created.json?.projectId === proj.id,
+    { status: created.status, projectId: created.json?.projectId, expected: proj.id })
+
+  const other = await mkProject('P-701', 'A Different Project')
+  const explicit = await api('POST', '/api/bills', { vendorId: vendor.id, jobId: theJob.id, projectId: other.id, amount: 100, number: 'INH-2' })
+  check('…and a project named outright is not replaced by the job\'s',
+    explicit.status === 201 && explicit.json?.projectId === other.id,
+    { status: explicit.status, projectId: explicit.json?.projectId, expected: other.id })
+
+  // THE SAME RULE ON EDIT. A rule that only applies on create is a rule with a hole in it: a bill
+  // moved onto a job would otherwise keep the project it had, or none.
+  const loose = await api('POST', '/api/bills', { vendorId: vendor.id, amount: 90, number: 'INH-3' })
+  check('…a bill raised against no job starts with no project',
+    loose.status === 201 && loose.json?.projectId === null, loose.json?.projectId)
+
+  const moved = await api('PUT', `/api/bills/${loose.json.id}`, { jobId: theJob.id })
+  check('…and moving it onto a job inherits the project on edit too',
+    moved.status === 200 && moved.json?.projectId === proj.id,
+    { status: moved.status, projectId: moved.json?.projectId, expected: proj.id })
+
+  const movedExplicit = await api('PUT', `/api/bills/${loose.json.id}`, { jobId: theJob.id, projectId: other.id })
+  check('…on edit too, the project the caller named wins',
+    movedExplicit.status === 200 && movedExplicit.json?.projectId === other.id,
+    { status: movedExplicit.status, projectId: movedExplicit.json?.projectId, expected: other.id })
+
+  // A job with no project of its own must not blank out a project already on the bill.
+  const looseJob = await mkJob('J-702', null)
+  const kept = await api('PUT', `/api/bills/${loose.json.id}`, { jobId: looseJob.id })
+  check('…and a job that has no project leaves the bill\'s project alone',
+    kept.status === 200 && kept.json?.projectId === other.id,
+    { status: kept.status, projectId: kept.json?.projectId, expected: other.id })
+}
+
+// ══════════ T34 · one bill, with the payments made against it ═════════════════════════════════
+//
+// There was no GET /:id at all, so opening a single bill answered 404; and vendor_bill_payment had
+// been written to all along with nothing anywhere to read it back — a bill could say $350 paid and
+// never say when, by what method, or in how many parts.
+{
+  const bill = await mkBill(600, 'ONE-1')
+  await api('POST', `/api/bills/${bill.id}/record-payment`, { amount: 200, method: 'ach', reference: 'A-1' })
+  await api('POST', `/api/bills/${bill.id}/record-payment`, { amount: 150, method: 'cheque', reference: 'C-9' })
+
+  const one = await api('GET', `/api/bills/${bill.id}`)
+  check('opening a single bill answers 200, not 404', one.status === 200, { status: one.status, body: one.text?.slice(0, 140) })
+  check('…with the vendor on it', one.json?.vendor?.id === vendor.id, one.json?.vendor)
+  check('…and both payments listed individually',
+    Array.isArray(one.json?.payments) && one.json.payments.length === 2, one.json?.payments?.length)
+  check('…each with the method and reference it was recorded with',
+    (one.json?.payments || []).map((p: any) => `${p.method}:${p.reference}`).sort().join(',') === 'ach:A-1,cheque:C-9',
+    one.json?.payments)
+  check('…paidTotal is the sum of the payment ROWS, so it can be compared against the bill',
+    Math.round(Number(one.json?.paidTotal) * 100) === 35000, one.json?.paidTotal)
+  check('…and balance is what is left to pay', Math.round(Number(one.json?.balance) * 100) === 25000, one.json?.balance)
+
+  /*
+   * …and paidTotal is derived from the rows, not copied off the bill. Proven by making the two
+   * DISAGREE: a payment row written straight to the table, with `amount_paid` left alone. If
+   * paidTotal just echoed the bill's own figure the assertion above would pass either way, which is
+   * the kind of green that hid "to pay −$2.00" elsewhere in this product.
+   */
+  await db.execute(sql`INSERT INTO vendor_bill_payment (id, company_id, vendor_bill_id, amount, method)
+                       VALUES ('direct-row-1', ${co.id}, ${bill.id}, '50.00', 'manual')`)
+  const again = await api('GET', `/api/bills/${bill.id}`)
+  check('…paidTotal counts a payment row the bill does not know about',
+    Math.round(Number(again.json?.paidTotal) * 100) === 40000, again.json?.paidTotal)
+  check('…and the bill\'s own amountPaid is reported unchanged beside it, so the disagreement shows',
+    Math.round(Number(again.json?.amountPaid) * 100) === 35000, again.json?.amountPaid)
+
+  const missing = await api('GET', '/api/bills/no-such-bill')
+  check('a bill that is not there is still a 404', missing.status === 404, missing.status)
+
+  /*
+   * /:id is declared AFTER /summary on purpose. If that order ever flips, Hono matches /:id first
+   * and the AP total starts looking up a bill whose id is "summary" — a 404 where a figure belongs.
+   * Asserted here as behaviour, because nothing about the two lines looks wrong on its own.
+   */
+  const summary = await api('GET', '/api/bills/summary')
+  check('…and /summary is still the summary, not a bill lookup',
+    summary.status === 200 && summary.json?.outstanding !== undefined,
+    { status: summary.status, body: summary.text?.slice(0, 140) })
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed`)

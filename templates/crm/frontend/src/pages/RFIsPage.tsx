@@ -66,7 +66,7 @@ export default function RFIsPage() {
 
   const handleRespond = async () => {
     if (!response) { toast.error('Response required'); return; }
-    try { await api.rfis.respond((respondRfi as Record<string, unknown>).id as string, { response, respondedBy: 'Current User' }); toast.success('Response added'); setRespondOpen(false); load(); }
+    try { await api.rfis.respond((respondRfi as Record<string, unknown>).id as string, { response }); toast.success('Response added'); setRespondOpen(false); load(); }
     catch (err) { toast.error((err as Error).message); }
   };
 

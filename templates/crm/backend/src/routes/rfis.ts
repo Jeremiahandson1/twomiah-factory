@@ -172,14 +172,51 @@ app.post('/:id/respond', requirePermission('rfis:update'), async (c) => {
   return c.json(updated)
 })
 
+/**
+ * CLOSING AN UNANSWERED RFI IS DELIBERATE, NOT INCIDENTAL. (T34)
+ *
+ * T32 allowed it with a note that a question can be withdrawn, and that is still true — refusing it
+ * outright would strand a moot question with no way to clear it, which is the kind of refusal that
+ * stops real work. The tester filed it again anyway, and they are right about the thing underneath:
+ * nothing made you NOTICE. One click turned "nobody ever answered this" into a tidy closed row.
+ *
+ * On a construction job that distinction is the whole value of the register. "We asked on the 4th
+ * and never got an answer" is a position in a delay claim; "closed" reads as resolved.
+ *
+ * So it takes an explicit `closeUnanswered: true`, the same shape as `allowOverage` on an
+ * over-billed purchase order and `replace=true` on a second RFI answer: the accidental case is
+ * refused with the answer route named, the deliberate one goes through, and nobody has to remember
+ * a new verb.
+ *
+ * No new column for a reason. `status = closed` with `response` still null already records exactly
+ * which of the two happened, and `reopen` reads that same field to decide where an RFI goes back to
+ * — writing prose into `response` would make a withdrawn question reopen as "answered".
+ */
 app.post('/:id/close', requirePermission('rfis:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
+  const body = await c.req.json().catch(() => ({}))
+
+  const [existing] = await db.select().from(rfi)
+    .where(and(eq(rfi.id, id), eq(rfi.companyId, currentUser.companyId))).limit(1)
+  if (!existing) return c.json({ error: 'RFI not found' }, 404)
+
+  const answered = !!(existing.response && existing.response.trim().length > 0)
+  if (!answered && body?.closeUnanswered !== true) {
+    return c.json({
+      error: `${existing.number} has no answer. Closing it now records a question nobody answered — answer it first, or send closeUnanswered: true to withdraw it.`,
+      code: 'rfi_unanswered',
+      respond: `POST /api/rfis/${id}/respond`,
+      withdraw: `POST /api/rfis/${id}/close with { "closeUnanswered": true }`,
+    }, 400)
+  }
+
   // `closedAt` was never written, so a closed RFI could not say when it closed — and the report saw
   // it "cleared" on re-answer, which it could not have been, because nothing ever set it.
   const [updated] = await db.update(rfi).set({ status: CLOSED, closedAt: new Date(), updatedAt: new Date() }).where(and(eq(rfi.id, id), eq(rfi.companyId, currentUser.companyId))).returning()
   if (!updated) return c.json({ error: 'RFI not found' }, 404)
-  return c.json(updated)
+  // Says which of the two closes this was, so a caller does not have to infer it from a null.
+  return c.json({ ...updated, closedUnanswered: !answered })
 })
 
 /**
