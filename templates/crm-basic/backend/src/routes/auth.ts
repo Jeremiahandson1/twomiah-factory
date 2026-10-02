@@ -20,6 +20,24 @@ export default createAuthRoutes({
   emailService,
   logger,
   options: {
-    vertical: 'fieldservice',
+    /**
+     * 'showcase', not 'fieldservice'. (T38)
+     *
+     * This template was cloned from crm-fieldservice and kept its label, so a gym, a hotel, a
+     * wedding venue or a food truck signed in and told the client it was a field-service business.
+     * Every other template names itself correctly, which is how it stood out.
+     *
+     * It is not cosmetic: the mobile app reads company.vertical to choose its screens and vocabulary
+     * (apps/mobile/src/vertical/VerticalContext.tsx), and WrongAppGate uses it to tell somebody they
+     * have signed in to the wrong Twomiah app — so a gym owner was being told their company "is set
+     * up for Twomiah Field Service".
+     *
+     * NOTE: apps/mobile's detectVertical() only accepts contractor | fieldservice | homecare |
+     * roofing | landscaping | dispensary, so 'showcase' — like the existing 'restaurant', 'rv',
+     * 'salon' and 'vet' — falls through to its feature-signal inference. That gap is recorded in the
+     * round notes rather than fixed here: changing which verticals the mobile app recognises is a
+     * decision about that app, not about this template's name.
+     */
+    vertical: 'showcase',
   },
 })

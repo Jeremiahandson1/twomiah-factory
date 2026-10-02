@@ -168,6 +168,68 @@ app.post('/tickets', async (c) => {
 });
 
 // GET /support/tickets/:id
+/**
+ * DECLARED BEFORE /tickets/:id, and it has to stay there. (T38)
+ *
+ * Hono matches in registration order. This sat below the `:id` route, so every request for it was
+ * answered by that handler as a lookup for a ticket whose id is the word "patterns" —
+ * {"error":"Ticket not found"}, for the life of the endpoint, in nine of the ten templates that
+ * carry it. `/tickets/stats` a few lines above was always correct, which is how the rule was known
+ * and the later addition still missed it.
+ */
+
+app.get('/tickets/patterns', async (c) => {
+  const u = c.get('user') as any;
+
+  try {
+    // Category distribution
+    const byCategory = await db.select({
+      category: supportTicket.category,
+      cnt: count(),
+    }).from(supportTicket)
+      .where(eq(supportTicket.companyId, u.companyId))
+      .groupBy(supportTicket.category);
+
+    // Priority distribution
+    const byPriority = await db.select({
+      priority: supportTicket.priority,
+      cnt: count(),
+    }).from(supportTicket)
+      .where(eq(supportTicket.companyId, u.companyId))
+      .groupBy(supportTicket.priority);
+
+    // Average rating
+    const [avgRating] = await db.select({
+      avg: sql<number>`avg(${supportTicket.rating})`,
+      cnt: sql<number>`count(${supportTicket.rating})`,
+    }).from(supportTicket)
+      .where(and(eq(supportTicket.companyId, u.companyId), sql`${supportTicket.rating} is not null`));
+
+    // Recent trends — tickets per day for last 30 days
+    const daily = await db.select({
+      day: sql<string>`date(${supportTicket.createdAt})`,
+      cnt: count(),
+    }).from(supportTicket)
+      .where(and(
+        eq(supportTicket.companyId, u.companyId),
+        sql`${supportTicket.createdAt} > now() - interval '30 days'`,
+      ))
+      .groupBy(sql`date(${supportTicket.createdAt})`)
+      .orderBy(sql`date(${supportTicket.createdAt})`);
+
+    return c.json({
+      byCategory,
+      byPriority,
+      averageRating: avgRating?.avg ? Number(avgRating.avg).toFixed(1) : null,
+      ratedCount: avgRating?.cnt || 0,
+      dailyTrend: daily,
+    });
+  } catch (e: any) {
+    if (e.message?.includes('does not exist')) return c.json({ byCategory: [], byPriority: [], averageRating: null, ratedCount: 0, dailyTrend: [] });
+    throw e;
+  }
+});
+
 app.get('/tickets/:id', async (c) => {
   const u = c.get('user') as any;
   const id = c.req.param('id');
@@ -433,57 +495,5 @@ app.post('/sla-policies', requirePermission('support-sla:create'), async (c) => 
 });
 
 // ─── Pattern Detection (Level 5) ────────────────────────────────────────────
-
-app.get('/tickets/patterns', async (c) => {
-  const u = c.get('user') as any;
-
-  try {
-    // Category distribution
-    const byCategory = await db.select({
-      category: supportTicket.category,
-      cnt: count(),
-    }).from(supportTicket)
-      .where(eq(supportTicket.companyId, u.companyId))
-      .groupBy(supportTicket.category);
-
-    // Priority distribution
-    const byPriority = await db.select({
-      priority: supportTicket.priority,
-      cnt: count(),
-    }).from(supportTicket)
-      .where(eq(supportTicket.companyId, u.companyId))
-      .groupBy(supportTicket.priority);
-
-    // Average rating
-    const [avgRating] = await db.select({
-      avg: sql<number>`avg(${supportTicket.rating})`,
-      cnt: sql<number>`count(${supportTicket.rating})`,
-    }).from(supportTicket)
-      .where(and(eq(supportTicket.companyId, u.companyId), sql`${supportTicket.rating} is not null`));
-
-    // Recent trends — tickets per day for last 30 days
-    const daily = await db.select({
-      day: sql<string>`date(${supportTicket.createdAt})`,
-      cnt: count(),
-    }).from(supportTicket)
-      .where(and(
-        eq(supportTicket.companyId, u.companyId),
-        sql`${supportTicket.createdAt} > now() - interval '30 days'`,
-      ))
-      .groupBy(sql`date(${supportTicket.createdAt})`)
-      .orderBy(sql`date(${supportTicket.createdAt})`);
-
-    return c.json({
-      byCategory,
-      byPriority,
-      averageRating: avgRating?.avg ? Number(avgRating.avg).toFixed(1) : null,
-      ratedCount: avgRating?.cnt || 0,
-      dailyTrend: daily,
-    });
-  } catch (e: any) {
-    if (e.message?.includes('does not exist')) return c.json({ byCategory: [], byPriority: [], averageRating: null, ratedCount: 0, dailyTrend: [] });
-    throw e;
-  }
-});
 
 export default app;

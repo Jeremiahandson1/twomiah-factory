@@ -45,6 +45,28 @@ app.post('/', requirePermission('settings:update'), async (c) => {
 })
 
 // Update geofence
+/**
+ * ABOVE PUT /:id. (T38)
+ *
+ * `PUT /settings` was answered by `PUT /:id` as an edit to a geofence whose id is the word
+ * "settings" — so saving the tracking settings could only ever 404. `GET /settings` sits below the
+ * GET routes with no `GET /:id` to shadow it, which is why reading them worked and saving them
+ * never could.
+ */
+app.put('/settings', async (c) => {
+  const user = c.get('user') as any
+  const { locationTrackingEnabled, autoClockEnabled, locationAccuracy, trackingInterval } = await c.req.json()
+
+  const settings = await geofencing.updateLocationSettings(user.userId, {
+    locationTrackingEnabled,
+    autoClockEnabled,
+    locationAccuracy,
+    trackingInterval,
+  })
+
+  return c.json(settings)
+})
+
 app.put('/:id', requirePermission('settings:update'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
@@ -156,19 +178,6 @@ app.get('/settings', async (c) => {
 })
 
 // Update location settings
-app.put('/settings', async (c) => {
-  const user = c.get('user') as any
-  const { locationTrackingEnabled, autoClockEnabled, locationAccuracy, trackingInterval } = await c.req.json()
-
-  const settings = await geofencing.updateLocationSettings(user.userId, {
-    locationTrackingEnabled,
-    autoClockEnabled,
-    locationAccuracy,
-    trackingInterval,
-  })
-
-  return c.json(settings)
-})
 
 // ============================================
 // HISTORY & REPORTS

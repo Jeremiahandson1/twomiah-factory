@@ -1279,6 +1279,10 @@ jobs:
       # on correct code, or stops seeing the code it guards and passes.
       - name: "stripComments — strings are not comments, prose is not a string"
         run: bun run scripts/lib/stripComments.test.ts
+      # Hono matches in registration order, so a literal declared under a :param is unreachable.
+      # Found in nine templates at once and invisible to review: both lines are correct alone. (T38)
+      - name: "route shadowing — no literal path under a :param that swallows it"
+        run: bun run scripts/check-route-shadowing.ts
 
   revenue-one-definition:
     name: "Revenue one definition"
