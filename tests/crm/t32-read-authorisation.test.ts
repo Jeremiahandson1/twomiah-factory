@@ -43,6 +43,8 @@ const [co] = await db.insert(company).values({
     'vendor_bills', 'purchase_orders', 'bid_management', 'change_orders', 'selections',
     'takeoff_tools', 'pricebook', 'flat_rate_pricebook', 'equipment_tracking', 'time_tracking',
     'projects', 'reports', 'job_costing',
+    // T34: these three gate reads now, so their switches must be ON or a 403 could be the feature.
+    'aia_forms', 'draw_schedules', 'lien_waivers',
   ],
 } as any).returning()
 
@@ -84,6 +86,10 @@ for (const [path, mod] of [
   ['/api/team', './src/routes/team.ts'],
   ['/api/dashboard', './src/routes/dashboard.ts'],
   ['/api/equipment', './src/routes/equipment.ts'],
+  ['/api/aia-forms', './src/routes/aiaForms.ts'],
+  ['/api/draw-schedules', './src/routes/drawSchedules.ts'],
+  ['/api/lien-waivers', './src/routes/lienWaivers.ts'],
+  ['/api/projects', './src/routes/projects.ts'],
 ] as Array<[string, string]>) {
   app.route(path, (await import(mod)).default)
 }
@@ -119,6 +125,18 @@ const TABLE: Array<[string, Expect, string]> = [
   ['/api/takeoffs/assemblies', MANAGER_UP, 'takeoff assemblies'],
   [`/api/payroll/summary${PERIOD}`, MANAGER_UP, "the pay run — everyone's hours and pay"],
   ['/api/pricebook/export', MANAGER_UP, 'a full price AND cost dump of the book'],
+  /*
+   * T34 · three modules whose WRITES were gated and whose READS were not.
+   *
+   * create/update/delete have always required `aia-forms:*`, `draw-schedules:*` and
+   * `lien-waivers:*` — owner, admin and manager only. The GETs required nothing but a session, so a
+   * field user or a viewer could read every pay application, payment plan and subcontractor waiver
+   * on the job. Empty on the tester's tenant, so nothing leaked that day; on a live job these are
+   * the billing position with the owner and what each sub has been paid.
+   */
+  ['/api/aia-forms', MANAGER_UP, 'AIA pay applications — the billing position with the owner'],
+  ['/api/draw-schedules', MANAGER_UP, 'the payment plan on the contract'],
+  ['/api/lien-waivers', MANAGER_UP, 'what each subcontractor was paid'],
   // …and the two that stay open on purpose.
   ['/api/pricebook/items', ALLOWED_TO_STAFF, 'the price list a technician works from'],
   ['/api/equipment', ALLOWED_TO_STAFF, "the customer's equipment"],
@@ -206,6 +224,58 @@ console.log('\n══════════ equipment service history crossed 
   check("…and a service record cannot be written onto it either", res.status === 404, { status: res.status })
   const after: any = await db.execute((await import('drizzle-orm')).sql`SELECT COUNT(*)::int AS n FROM equipment_maintenance WHERE equipment_id = ${theirs.id}`)
   check('…nothing was written', Number((after.rows || after)[0]?.n) === 0, (after.rows || after)[0])
+}
+
+// ══════════ T34 · a project is readable; what it is WORTH is not ═════════════════════════════════
+//
+// The report: "Field still sees project money — the project page shows Budget $40,000, approved
+// change orders +$3,327 and Contract value $48,450."
+//
+// `projects:read` is the permission a technician needs to open the job they are standing on, and it
+// was the only thing between them and the contract. So this is NOT a 403: a field user must still
+// read the project. The money comes out of it.
+//
+// `invoices:read` is the line that already existed for exactly this question — owner, admin,
+// manager and viewer hold it, field does not.
+console.log('\n══════════ project money — the project opens, the figures do not ══════════')
+{
+  // Real figures, so "absent" cannot be confused with "zero" or "this tenant has no money on it".
+  const { eq } = await import('drizzle-orm')
+  await db.update(project).set({ budget: '40000.00', estimatedValue: '48450.00' }).where(eq(project.id, proj.id))
+
+  for (const name of ['owner', 'admin', 'manager', 'viewer'] as const) {
+    const r = await as(ROLES[name], `/api/projects/${proj.id}`)
+    check(`${name} sees the project's money`, r.status === 200 && Number(r.json?.budget) === 40000 && !!r.json?.financials,
+      { status: r.status, budget: r.json?.budget, hasFinancials: !!r.json?.financials })
+    check(`…including the contract value`, Number(r.json?.financials?.revisedContractValue) === 48450,
+      { revisedContractValue: r.json?.financials?.revisedContractValue })
+  }
+
+  const f = await as(ROLES.field, `/api/projects/${proj.id}`)
+  check('field can still OPEN the project — refusing it would stop the work', f.status === 200, { status: f.status })
+  check('…and still gets what the job IS', f.json?.name === 'Matrix Site' && !!f.json?.number, { name: f.json?.name, number: f.json?.number })
+  check('…and its jobs, RFIs and punch list', Array.isArray(f.json?.jobs) && Array.isArray(f.json?.rfis), { jobs: Array.isArray(f.json?.jobs) })
+  check('field gets NO budget', f.json?.budget === undefined, { budget: f.json?.budget })
+  check('field gets NO estimatedValue — the raw column the page read for Contract value', f.json?.estimatedValue === undefined, { estimatedValue: f.json?.estimatedValue })
+  check('field gets NO financials block at all', f.json?.financials === undefined, { financials: f.json?.financials })
+  // The figures the tester actually read off the screen must not be anywhere in the body — the
+  // whole-payload check, because stripping the block and leaving the spread fixed nothing.
+  check('…and neither 40000 nor 48450 appears anywhere in the response', !/40000|48450/.test(f.text), { body: f.text?.slice(0, 200) })
+
+  // The LIST carries the same columns, and fixing only the page the report named would have left
+  // them there.
+  const list = await as(ROLES.field, '/api/projects')
+  check('field can still list projects', list.status === 200, { status: list.status })
+  check('…with no money on the rows', !/budget|estimatedValue|40000|48450/.test(list.text), { body: list.text?.slice(0, 200) })
+  const mgrList = await as(ROLES.manager, '/api/projects')
+  check('…while a manager still gets it on the list', /40000|48450/.test(mgrList.text), { body: mgrList.text?.slice(0, 160) })
+
+  // And the roll-up, whose totalValue is every project's contract value added up.
+  const fStats = await as(ROLES.field, '/api/projects/stats')
+  check('field can still see project COUNTS', fStats.status === 200 && typeof fStats.json?.total === 'number', { total: fStats.json?.total })
+  check('…but not the total contract value of the company', fStats.json?.totalValue === undefined, { totalValue: fStats.json?.totalValue })
+  const mStats = await as(ROLES.manager, '/api/projects/stats')
+  check('…which a manager does get', Number(mStats.json?.totalValue) === 48450, { totalValue: mStats.json?.totalValue })
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed`)

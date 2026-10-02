@@ -18,6 +18,9 @@ import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+// Reads gated like the writes already were — a draw schedule is the payment plan on the contract.
+// Above the routes, because a Hono gate below one never runs for it. (T34)
+app.use('*', requirePermission('draw-schedules:read'))
 
 // ─────────────────────────────────────────────────────────────
 // DRAW SCHEDULES (schedule of values)

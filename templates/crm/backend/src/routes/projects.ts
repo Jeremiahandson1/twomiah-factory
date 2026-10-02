@@ -4,10 +4,42 @@ import { db } from '../../db/index.ts'
 import { project, contact, job, rfi, changeOrder, punchListItem, activity } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+/**
+ * WHO MAY SEE WHAT A PROJECT IS WORTH. (T34)
+ *
+ * The project page showed a FIELD user Budget $40,000, approved change orders +$3,327 and Contract
+ * value $48,450. `projects:read` is the permission a technician needs to open the job they are
+ * standing on; it was also the only thing between them and the contract.
+ *
+ * `invoices:read` is the line that already exists for exactly this: owner, admin, manager and
+ * viewer have it, field does not. It is the permission that separates the people who see money from
+ * the people who do the work, so the money on a project moves behind it rather than inventing a new
+ * verb nobody has been granted.
+ *
+ * Three places leaked, not one — the detail, the list and the stats roll-up. Fixing only the page
+ * the report named would have left the same figures on the list behind it. (feedback: fix by rule)
+ */
+const MONEY_PERMISSION = 'invoices:read'
+const maySeeMoney = async (c: any): Promise<boolean> => {
+  const u = c.get('user') as any
+  try { return hasPermission(u?.role, MONEY_PERMISSION, await getExtraPermissions(u?.userId)) } catch { return false }
+}
+
+/**
+ * The money columns the `project` table actually has — checked against the schema, not guessed.
+ * Stripped together, so none of them can be forgotten separately.
+ */
+const MONEY_FIELDS = ['budget', 'estimatedValue'] as const
+const withoutMoney = <T extends Record<string, any>>(row: T): T => {
+  const out: Record<string, any> = { ...row }
+  for (const k of MONEY_FIELDS) if (k in out) delete out[k]
+  return out as T
+}
 
 const projectFields = z.object({
   name: z.string().min(1),
@@ -67,8 +99,11 @@ app.get('/', async (c) => {
   const contactMap = Object.fromEntries(contacts.map(ct => [ct.id, ct]))
 
   const dataWithContacts = data.map(p => ({ ...p, contact: p.contactId ? contactMap[p.contactId] || null : null }))
+  // The list carries budget and estimatedValue on every row — the same figures as the page.
+  const money = await maySeeMoney(c)
+  const rows = money ? dataWithContacts : dataWithContacts.map(withoutMoney)
 
-  return c.json({ data: dataWithContacts, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
+  return c.json({ data: rows, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
 })
 
 app.get('/stats', async (c) => {
@@ -76,6 +111,10 @@ app.get('/stats', async (c) => {
   const projects = await db.select({ status: project.status, estimatedValue: project.estimatedValue, budget: project.budget }).from(project).where(eq(project.companyId, currentUser.companyId))
   const stats: Record<string, number> = { total: projects.length, planning: 0, active: 0, completed: 0, totalValue: 0 }
   projects.forEach(p => { stats[p.status] = (stats[p.status] || 0) + 1; stats.totalValue += Number(p.estimatedValue || 0) })
+  // The counts are work, not money — a technician may know how many projects are active. The VALUE
+  // is the contract total of every project the company holds, which is the most sensitive figure on
+  // the roll-up and was the one nobody thought to gate.
+  if (!(await maySeeMoney(c))) delete stats.totalValue
   return c.json(stats)
 })
 
@@ -144,6 +183,23 @@ app.get('/:id', async (c) => {
   const approvedChangeOrders = Math.round(sumWhere(['approved']) * 100) / 100
   const pendingChangeOrders = Math.round(sumWhere(['draft', 'submitted', 'pending']) * 100) / 100
   const originalValue = Number(foundProject.estimatedValue || 0)
+
+  /*
+   * No money for somebody who may not see it — and that means the whole `financials` block AND the
+   * raw columns `...foundProject` spreads, which is where Budget $40,000 came from. Returning the
+   * block and forgetting the spread would have been a fix that changed nothing. (T34)
+   *
+   * The change-order LIST stays: a technician may need to know a change order exists and what it
+   * says. `amount` on those rows is change-order money, gated by change-orders:read, which field no
+   * longer holds — so that one is already answered one layer up.
+   */
+  if (!(await maySeeMoney(c))) {
+    return c.json({
+      ...withoutMoney(foundProject),
+      contact: projectContact[0] || null,
+      jobs, rfis, changeOrders, punchListItems,
+    })
+  }
 
   return c.json({
     ...foundProject,

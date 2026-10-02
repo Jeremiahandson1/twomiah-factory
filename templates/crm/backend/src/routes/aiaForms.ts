@@ -22,6 +22,18 @@ import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+/*
+ * READS are gated too, not just the writes. (T34)
+ *
+ * create/update/delete have always required `aia-forms:*`, which only owner, admin and manager
+ * hold — but GET / and GET /:id required nothing beyond being signed in, so a field user or a
+ * viewer could read every pay application on the job. The tester found them empty on this tenant,
+ * so nothing leaked today; on a live job an AIA form is the billing position with the owner.
+ *
+ * A blanket `app.use` ABOVE the routes, which is the only placement that works — a Hono gate
+ * declared below a route never runs for it. (feedback: middleware order IS the gate)
+ */
+app.use('*', requirePermission('aia-forms:read'))
 
 // G703 line items are stored as JSON. Each row is one item from the
 // schedule of values: work description, scheduled value, previous + current
