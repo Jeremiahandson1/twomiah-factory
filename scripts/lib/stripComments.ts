@@ -36,14 +36,49 @@ export function stripComments(src: string): string {
     // A string or template literal: copied through verbatim, escapes honoured. Template literals can
     // contain `${…}` with nested quotes; copying the whole literal through is enough for every guard
     // here, none of which cares what is inside one.
-    if (ch === '"' || ch === "'" || ch === '`') {
-      const quote = ch
+    /*
+     * AN APOSTROPHE IN JSX PROSE IS NOT A STRING. (T35)
+     *
+     * This treated every quote as a literal opener and scanned forward until it found the partner,
+     * wherever that was. JSX TEXT is not code, and English is full of apostrophes:
+     *
+     *     above the sheet's measured cost.
+     *
+     * That lone `'` opened a "string" that ran on for thirty lines, copying a block comment through
+     * verbatim on the way — and check-light-card-dark-text.ts then matched `bg-white` inside the
+     * COMMENT that exists to explain the bg-white rule, and failed on correct code. The same class
+     * of fault this file was written for, from the other direction: here the scanner saw a string
+     * where there was none.
+     *
+     * A single- or double-quoted string in this repo never spans a line (anything multi-line uses a
+     * template literal, below). So: scan for the partner on THIS LINE only. No partner means the
+     * quote was prose — emit it and carry on reading code, which is what the stripper must do if the
+     * comments after it are to be found at all.
+     */
+    if (ch === '"' || ch === "'") {
+      const nl = src.indexOf('\n', i)
+      const lineEnd = nl < 0 ? n : nl
+      let j = i + 1
+      let closed = -1
+      while (j < lineEnd) {
+        if (src[j] === '\\') { j += 2; continue }
+        if (src[j] === ch) { closed = j; break }
+        j++
+      }
+      if (closed < 0) { out += ch; i++; continue }   // prose, not a literal
+      out += src.slice(i, closed + 1)
+      i = closed + 1
+      continue
+    }
+
+    // Template literals DO span lines, and `${…}` inside one may contain anything; copy it through.
+    if (ch === '`') {
       out += ch
       i++
       while (i < n) {
         if (src[i] === '\\') { out += src[i] + (src[i + 1] ?? ''); i += 2; continue }
         out += src[i]
-        if (src[i] === quote) { i++; break }
+        if (src[i] === '`') { i++; break }
         i++
       }
       continue

@@ -377,6 +377,19 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
             <p className="text-sm text-gray-600 dark:text-slate-300">
               The materials on <strong>{selectedSheet?.name}</strong> become the lines of a new purchase order.
             </p>
+            {/*
+              * WHY THE ORDER COSTS MORE THAN THE SHEET. (T35-13)
+              *
+              * The tester reconciled both figures to the cent and found the PO $12.00 above the
+              * sheet: the sheet costs the measured quantity (15.95 sheets of drywall, 23.925 studs)
+              * and the order has to ask for whole ones. Neither figure is wrong and the difference
+              * is not an error — but finding that out took arithmetic, which is exactly the kind of
+              * unexplained gap between two money figures that makes somebody distrust both.
+              */}
+            <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+              Quantities are rounded <strong>up</strong> to whole units — you cannot buy 15.95 sheets of
+              drywall — so the order total usually sits a little above the sheet's measured cost.
+            </p>
             <label className="block text-sm font-medium mt-4 mb-1 text-gray-700 dark:text-slate-200">Vendor *</label>
             <select value={exportVendor} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setExportVendor(e.target.value)} className="w-full px-3 py-2 border rounded-lg">
               <option value="">Choose a vendor…</option>
@@ -576,7 +589,7 @@ function TotalsFooter({ sheetId, onExport }: TotalsFooterProps) {
           </div>
           <div>
             <p className="text-sm text-gray-500 dark:text-slate-400">Total Cost</p>
-            <p className="text-lg font-bold text-green-600">${(totals.totals.totalCost || 0).toFixed(2)}</p>
+            <p className="text-lg font-bold text-green-700 dark:text-green-400">${(totals.totals.totalCost || 0).toFixed(2)}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500 dark:text-slate-400">Total Price</p>

@@ -1275,6 +1275,10 @@ jobs:
         run: bun run scripts/check-template-frontend-types.ts
       - name: "SMS consent — the toggle has somewhere to go"
         run: bun run scripts/check-sms-consent-wired.ts
+      # The comment stripper five guards depend on. Its failures are invisible: a guard either fails
+      # on correct code, or stops seeing the code it guards and passes.
+      - name: "stripComments — strings are not comments, prose is not a string"
+        run: bun run scripts/lib/stripComments.test.ts
 
   revenue-one-definition:
     name: "Revenue one definition"

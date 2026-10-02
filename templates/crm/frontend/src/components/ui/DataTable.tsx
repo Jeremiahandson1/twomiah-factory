@@ -165,7 +165,15 @@ export function DataTable<T extends Record<string, unknown> = Record<string, unk
                             setMenuPos({ top: rect.bottom + 4, right: Math.max(8, window.innerWidth - rect.right) });
                             setOpenMenu(openMenu === rowId ? null : rowId);
                           }}
-                          className="p-1.5 rounded-md border border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 hover:border-gray-300 text-gray-500 dark:text-slate-400 hover:text-gray-700 transition-colors"
+                          /*
+                           * A 28×28 target is the SMALLEST control on a phone and the one you need
+                           * most — every action on a row is behind it. Measured at 390px wide:
+                           * 25 of these per screen at 28×28, against the 44px both platform
+                           * guidelines ask for. It grows to 44 on touch widths and keeps the compact
+                           * desktop look from `sm:` up, so the tables do not change on a laptop.
+                           * (T35, found by probing a dimension no round had ever covered)
+                           */
+                          className="p-1.5 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 inline-flex items-center justify-center rounded-md border border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 hover:border-gray-300 text-gray-500 dark:text-slate-400 hover:text-gray-700 transition-colors"
                         >
                           <MoreVertical className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                         </button>
