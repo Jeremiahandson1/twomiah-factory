@@ -581,22 +581,43 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
             </div>
           )}
 
-          {showPortal && contact.email && (() => {
+          {/**
+            * The panel SHOWS without an email, and says what is missing. (T37 N10)
+            *
+            * This read `showPortal && contact.email &&`, so a contact with no email address got no
+            * portal panel at all — no toggle, no invite, and nothing saying why. The tester's report
+            * was "I found no portal or invite button on the contact page to turn it on; it had to be
+            * enabled through the API", and that is exactly what it looks like from the outside: the
+            * feature appears not to exist. 17 of ctrtest's 98 contacts have no email, including
+            * every `lead`, so it is not a rare corner.
+            *
+            * An email IS genuinely required — the invite is sent to it — so the toggle stays
+            * disabled until there is one. The difference is that the screen now names the
+            * prerequisite instead of hiding the feature. `client_portal` was enabled on the tenant
+            * and the status endpoint answered 200 all along; the only thing missing was an address.
+            */}
+          {showPortal && (() => {
             const role = String(contact.type || 'client').toLowerCase()
             const isSub = role === 'subcontractor' || role === 'vendor' || role === 'supplier'
             const kind = isSub ? 'Subcontractor Portal' : 'Customer Portal'
+            const noEmail = !contact.email
             return (
               <div className={cardPad}>
                 <h2 className={`${h2} mb-4 flex items-center gap-2`}><Globe className="w-4 h-4 text-blue-500" />{kind}</h2>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-500 dark:text-slate-400">Status</span>
-                    <button type="button" onClick={togglePortal} disabled={portalLoading} className="flex items-center gap-1.5" aria-label={portalStatus?.enabled ? 'Disable portal access' : 'Enable portal access'}>
+                    <button type="button" onClick={togglePortal} disabled={portalLoading || noEmail}
+                      title={noEmail ? 'Add an email address first' : undefined}
+                      className={`flex items-center gap-1.5 ${noEmail ? 'cursor-not-allowed opacity-60' : ''}`}
+                      aria-label={portalStatus?.enabled ? 'Disable portal access' : 'Enable portal access'}>
                       {portalStatus?.enabled ? <ToggleRight className="w-6 h-6 text-green-500" /> : <ToggleLeft className="w-6 h-6 text-gray-400" />}
                       <span className={`text-sm font-medium ${portalStatus?.enabled ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}`}>{portalStatus?.enabled ? 'Enabled' : 'Disabled'}</span>
                     </button>
                   </div>
-                  <div className="flex items-center justify-between text-sm gap-3"><span className="text-gray-500 dark:text-slate-400">Email</span><span className="text-gray-900 dark:text-slate-100 break-all text-right">{contact.email}</span></div>
+                  {noEmail
+                    ? <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800">Add an email address to this contact to invite them to the {isSub ? 'subcontractor' : 'customer'} portal.</p>
+                    : <div className="flex items-center justify-between text-sm gap-3"><span className="text-gray-500 dark:text-slate-400">Email</span><span className="text-gray-900 dark:text-slate-100 break-all text-right">{contact.email}</span></div>}
                   {portalStatus?.lastVisit && <div className="flex items-center justify-between text-sm"><span className="text-gray-500 dark:text-slate-400">Last Login</span><span className="text-gray-900 dark:text-slate-100">{dateOnly(portalStatus.lastVisit)}</span></div>}
                   {portalStatus?.enabled && portalStatus?.portalUrl && (
                     <div>
@@ -611,7 +632,9 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                       {portalCopied && <p className="text-xs text-green-600 mt-1">Copied</p>}
                     </div>
                   )}
-                  {portalStatus?.enabled && (
+                  {/* Not offered with no address to send to — the portal can be enabled through the
+                      API without one, so this is checked here and not inferred from `enabled`. */}
+                  {portalStatus?.enabled && !noEmail && (
                     <button type="button" onClick={resendPortalInvite} disabled={portalLoading} className="w-full mt-2 px-4 py-2 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 flex items-center justify-center gap-2 dark:bg-blue-900/30 dark:text-blue-200">
                       {portalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}Resend Portal Invite
                     </button>

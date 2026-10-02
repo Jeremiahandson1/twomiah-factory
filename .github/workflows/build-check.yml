@@ -1283,6 +1283,10 @@ jobs:
       # Found in nine templates at once and invisible to review: both lines are correct alone. (T38)
       - name: "route shadowing — no literal path under a :param that swallows it"
         run: bun run scripts/check-route-shadowing.ts
+      # The portal panel was hidden by `contact.email`, so a contact with no address got no toggle,
+      # no invite and no explanation — it read as "the feature does not exist". (T37 N10)
+      - name: "portal panel — names the missing email instead of vanishing"
+        run: bun run scripts/check-portal-panel-reachable.ts
 
   revenue-one-definition:
     name: "Revenue one definition"

@@ -568,8 +568,29 @@ export function createRecurringRoutes(deps: RecurringRoutesDeps) {
     return c.body(null, 204)
   })
 
-  // Cron endpoint — secure with an internal secret, not the user session.
-  app.post('/process', async (c: any) => {
+  /**
+   * Cron endpoint — and it needs `invoices:create`, because it creates invoices. (T37)
+   *
+   * The comment here used to read "secure with an internal secret, not the user session", and all
+   * three halves of that were wrong:
+   *
+   *   · It sits under `app.use('*', authenticate)` a few lines above, so it has ALWAYS required a
+   *     user session. A secret-only caller could never have reached it.
+   *   · The secret check was `if (process.env.CRON_SECRET && …)` — fail-OPEN. CRON_SECRET is not
+   *     set in a tenant's environment by the deploy pipeline or render.yaml, so on every tenant the
+   *     condition was false and the check was skipped entirely.
+   *   · It had no permission gate, while every other write in this file has one.
+   *
+   * Net effect: any signed-in person could generate every due recurring invoice for the company —
+   * a viewer, whose whole contract is read-only, or a field technician. Found while confirming the
+   * T37 note about viewers reading /api/recurring (which IS correct: reads are gated on
+   * invoices:read and a schedule is an invoice template).
+   *
+   * Nothing calls this endpoint — no internal caller, no Render cron, no template scheduler — so
+   * the gate cannot break a caller. The secret check is kept for the day a real scheduler is wired
+   * up, but it is no longer the only thing standing here.
+   */
+  app.post('/process', requirePermission('invoices:create'), async (c: any) => {
     const cronSecret = c.req.header('x-cron-secret')
     if (process.env.CRON_SECRET && cronSecret !== process.env.CRON_SECRET) return c.json({ error: 'Unauthorized' }, 401)
     return c.json(await service.processDueRecurring())
