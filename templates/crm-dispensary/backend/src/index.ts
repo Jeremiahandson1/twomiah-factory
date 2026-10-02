@@ -26,6 +26,7 @@ const FRONTEND_DIST = path.resolve(__dirname, '..', 'frontend-dist')
 import { requireEnabledFeature, forgetFeatures } from './middleware/enabledFeature.ts'
 import { authenticate } from './middleware/auth.ts'
 import authRoutes from './routes/auth.ts'
+import mfaRoutes from './routes/mfa.ts'
 import platformSupportRoutes from './routes/platformSupport.ts'
 import messagingBillingRoutes from './routes/messagingBilling.ts'
 import billingRoutes from './routes/billing.ts'
@@ -371,6 +372,11 @@ app.use('/api/purchase-orders/*', authenticate, requireEnabledFeature('purchase_
 app.use('/api/menu-sync', authenticate, requireEnabledFeature('menu_sync'))
 app.use('/api/menu-sync/*', authenticate, requireEnabledFeature('menu_sync'))
 app.route('/api/auth', authRoutes)
+// Two-factor enrolment. Its own mount, under /api/auth, so the sign-in challenge (POST /api/auth/mfa,
+// in shared auth) and the enrolment routes read as one feature. This is where two-factor was built —
+// the tables and the sign-in gate have been here all along — and it was the last vertical to get the
+// enrolment half back after the engine moved into shared auth. (T37)
+app.route('/api/auth/mfa-devices', mfaRoutes)
 app.route('/api/platform-support', platformSupportRoutes)
 app.route('/api/messaging-billing', messagingBillingRoutes)
 app.route('/api/billing', billingRoutes)

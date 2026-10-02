@@ -173,6 +173,45 @@ class ApiClient {
     return result;
   }
 
+  /**
+   * Sign in with a till PIN. (T37)
+   *
+   * `companyId` is deliberately not sent: a sign-in screen has no way to know it, and the server
+   * resolves it when the database holds exactly one shop (which a tenant always does) and refuses
+   * with `company_required` otherwise. That requirement is why the PIN had endpoints and no screen.
+   */
+  async pinLogin(pin: string) {
+    const result = await this.request('/api/auth/pin-login', { method: 'POST', body: JSON.stringify({ pin }) });
+    // Same rule as login(): a PIN sign-in can stop for a second factor and comes back with no
+    // tokens. Storing undefined would leave the client believing it was signed in.
+    if (result?.accessToken) this.setTokens(result.accessToken, result.refreshToken);
+    return result;
+  }
+
+  /** The till PIN for the signed-in person. Reading its state is `getMe().user.pinSet`. */
+  pin = {
+    set: (pin: string) => this.request('/api/auth/pin', { method: 'PUT', body: JSON.stringify({ pin }) }),
+    clear: () => this.request('/api/auth/pin', { method: 'DELETE' }),
+  };
+
+  /**
+   * Two-factor enrolment, the namespace TwoFactorCard expects. (T37)
+   *
+   * Mirrors packages/tenant-ui/src/api/client.ts. This template has its own api client and its own
+   * SettingsPage, which is why it was the one vertical that showed no Two-Factor card at all while
+   * the tables and the sign-in gate had been here since two-factor was built.
+   */
+  mfa = {
+    devices: () => this.request('/api/auth/mfa-devices/devices'),
+    setup: () => this.request('/api/auth/mfa-devices/setup', { method: 'POST', body: '{}' }),
+    verify: (deviceId: string, code: string) =>
+      this.request('/api/auth/mfa-devices/verify', { method: 'POST', body: JSON.stringify({ deviceId, code }) }),
+    newRecoveryCodes: (code: string) =>
+      this.request('/api/auth/mfa-devices/recovery-codes', { method: 'POST', body: JSON.stringify({ code }) }),
+    remove: (deviceId: string, code: string) =>
+      this.request(`/api/auth/mfa-devices/devices/${deviceId}`, { method: 'DELETE', body: JSON.stringify({ code }) }),
+  };
+
   async logout() {
     // Send this device's refresh token so only THIS session is revoked (other registers stay in).
     await this.request('/api/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken: this.refreshToken }) }).catch(() => {});

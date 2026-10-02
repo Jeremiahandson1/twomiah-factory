@@ -218,11 +218,35 @@ async function signedInPayload(foundUser: any, foundCompany: any, gate?: { enrol
 
 // PIN Login (for POS quick-login — budtenders switch fast without full email/password)
 app.post('/pin-login', async (c) => {
-  const pinSchema = z.object({ pin: z.string().min(4).max(8), companyId: z.string() })
+  /**
+   * `companyId` is OPTIONAL, and that is what makes a PIN screen possible. (T37)
+   *
+   * It was required, and a sign-in screen has no way to know it: the id is a cuid the database
+   * generates at seed time, so it is not a build-time placeholder the generator can substitute, and
+   * the only public endpoint carrying it is the customer menu — which a till should not have to
+   * depend on to let a budtender tap in. That is why the PIN had endpoints and no screen.
+   *
+   * A tenant database holds one company, but this does not ASSUME that: it reads the table and only
+   * resolves the id when there is exactly one row, refusing with a clear code otherwise. An explicit
+   * companyId still works, so every existing caller is unaffected.
+   */
+  const pinSchema = z.object({ pin: z.string().min(4).max(8), companyId: z.string().optional() })
   const data = pinSchema.parse(await c.req.json())
 
+  let companyId = data.companyId
+  if (!companyId) {
+    const found = await db.select({ id: company.id }).from(company).limit(2)
+    if (found.length !== 1) {
+      return c.json({
+        error: 'This server holds more than one shop, so a PIN alone cannot say which till you are at. Sign in with your email and password.',
+        code: 'company_required',
+      }, 400)
+    }
+    companyId = found[0].id
+  }
+
   // Find users in this company who have a PIN set
-  const users = await db.select().from(user).where(and(eq(user.companyId, data.companyId), eq(user.isActive, true)))
+  const users = await db.select().from(user).where(and(eq(user.companyId, companyId), eq(user.isActive, true)))
   const usersWithPin = users.filter(u => u.pinHash)
 
   if (usersWithPin.length === 0) {
@@ -333,7 +357,28 @@ app.put('/pin', authenticate, async (c) => {
   const pinHash = await Bun.password.hash(data.pin, 'bcrypt')
   await db.update(user).set({ pinHash, pinAttempts: 0, pinLockedUntil: null, updatedAt: new Date() } as any).where(eq(user.id, currentUser.userId))
 
-  return c.json({ message: 'PIN updated' })
+  return c.json({ message: 'PIN updated', pinSet: true })
+})
+
+/**
+ * Turn quick sign-in off for yourself. (T37)
+ *
+ * A PIN could be set and changed and never removed, so somebody who had one was stuck with one —
+ * and a budtender finishing a shift on a shared till had no way to take their own quick sign-in off
+ * that counter. Clearing the hash is the whole operation; the attempt counter and any lockout go
+ * with it, because they describe a PIN that no longer exists.
+ *
+ * Self-scoped, like PUT /pin: this removes the CALLER's PIN. Removing somebody else's is a Team
+ * action and deliberately not reachable from here.
+ */
+app.delete('/pin', authenticate, async (c) => {
+  const currentUser = c.get('user') as any
+  const [me] = await db.select().from(user).where(eq(user.id, currentUser.userId)).limit(1)
+  if (!me) return c.json({ error: 'User not found' }, 404)
+  if (!me.pinHash) return c.json({ error: 'You do not have a PIN set.', code: 'no_pin' }, 400)
+
+  await db.update(user).set({ pinHash: null, pinAttempts: 0, pinLockedUntil: null, updatedAt: new Date() } as any).where(eq(user.id, currentUser.userId))
+  return c.json({ message: 'Quick sign-in is off for your account.', pinSet: false })
 })
 
 // Refresh token
@@ -398,7 +443,15 @@ app.get('/me', authenticate, async (c) => {
   const permissions = await effectivePermissions(getPermissions, getExtraPermissions, foundUser.id, foundUser.role)
 
   return c.json({
-    user: { id: foundUser.id, email: foundUser.email, firstName: foundUser.firstName, lastName: foundUser.lastName, phone: foundUser.phone, role: normalizeRole(foundUser.role), avatar: foundUser.avatar },
+    /**
+     * `pinSet` — whether this person has a till PIN, NOT the PIN. (T37)
+     *
+     * A screen cannot offer "change your PIN" or "turn quick sign-in off" without knowing whether
+     * there is one, and nothing answered that question: the PIN endpoints existed with no way to
+     * read their state, which is half of why the dispensary never had a PIN screen at all. A boolean
+     * is the whole answer — the hash never leaves the server.
+     */
+    user: { id: foundUser.id, email: foundUser.email, firstName: foundUser.firstName, lastName: foundUser.lastName, phone: foundUser.phone, role: normalizeRole(foundUser.role), avatar: foundUser.avatar, pinSet: !!foundUser.pinHash },
     company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, taxRate: (foundCompany as any).taxRate, localTaxRate: (foundCompany as any).localTaxRate, exciseTaxRate: (foundCompany as any).exciseTaxRate, purchaseLimitOz: (foundCompany as any).purchaseLimitOz, visionUrl: process.env.VISION_URL || null, vertical: 'dispensary',
       // The store's own clock, so no screen has to guess the shop's date from the viewer's laptop.
       // A manager in Central looking at an Ohio store at 23:10 asked Analytics for "2026-09-27"

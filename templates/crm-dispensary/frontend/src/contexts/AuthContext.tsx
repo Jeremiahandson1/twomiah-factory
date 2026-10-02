@@ -63,6 +63,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  /**
+   * Sign in with a till PIN. (T37)
+   *
+   * Deliberately the SAME shape as login(): it can come back `mfaRequired`, because /pin-login asks
+   * the same gate and opens the same challenge as a password — a PIN is a convenience at the
+   * counter, not a way around someone's second factor. So the caller hands the result to the same
+   * code step, and nothing about the session is set until a code is accepted.
+   */
+  const pinLogin = async (pin) => {
+    setError(null);
+    try {
+      const data = await api.pinLogin(pin);
+      if (data?.mfaRequired) return data;
+      setUser(data.user);
+      setCompany(data.company);
+      if (Array.isArray(data.permissions)) setPermissions(data.permissions);
+      return data;
+    } catch (err) {
+      setError(err.message || 'That PIN was not accepted');
+      throw err;
+    }
+  };
+
   /** The second half of a sign-in: an authenticator code, or one of the recovery codes. (T49 H4) */
   const completeMfa = async (challengeId, code) => {
     setError(null);
@@ -142,6 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       can,
       token: localStorage.getItem('accessToken'),
       login,
+      pinLogin,
       completeMfa,
       register,
       logout,
