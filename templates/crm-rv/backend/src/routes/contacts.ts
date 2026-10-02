@@ -1,6 +1,7 @@
 // Contacts — shared implementation (packages/tenant-backend/src/contacts/contacts.ts), vendored into this
 // tenant as ../shared at generation. This file only wires the template's tables, middleware and services in.
 import { createContactRoutes, standardRelations, standardGuards } from '../shared/index.ts'
+import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { contact, project, quote, invoice, job, repairOrder, salesLead } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
@@ -19,6 +20,9 @@ export default createContactRoutes({
   audit,
   cleanText,
   options: {
+    // SMS opt-out lives on the contact row. The shared sender already refuses to text a contact
+    // carrying this flag; without the field here the toggle answered 200 and stored nothing. (T35 N1)
+    extraFields: { optedOutSms: z.boolean().optional() },
     // a dealership sells to customers; legacy 'client' rows are folded into 'customer' at boot (db/prune-legacy.ts)
     types: ['lead', 'customer', 'vendor'],
     convertTo: 'customer',

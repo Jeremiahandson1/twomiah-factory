@@ -232,6 +232,13 @@
       "when": 1791900000000,
       "tag": "0032_takeoff_item_legacy_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792000000000,
+      "tag": "0033_contact_sms_opt_out",
+      "breakpoints": true
     }
   ]
 }

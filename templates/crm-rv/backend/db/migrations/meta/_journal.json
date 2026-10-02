@@ -190,6 +190,13 @@
       "when": 1791400700000,
       "tag": "0026_rental_reservation",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792000200000,
+      "tag": "0027_contact_sms_opt_out",
+      "breakpoints": true
     }
   ]
 }

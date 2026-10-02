@@ -147,6 +147,9 @@ export const contact = pgTable('contact', {
   portalToken: text('portal_token'),
   portalTokenExp: timestamp('portal_token_exp'),
   lastPortalVisit: timestamp('last_portal_visit'),
+  /** Withdrawn SMS consent. The shared sender already refuses to text a contact carrying this; on
+   * this vertical the column did not exist, so the guard read undefined and texted them anyway. */
+  optedOutSms: boolean('opted_out_sms').default(false).notNull(),
   emailOptOut: boolean('email_opt_out').default(false).notNull(),
   emailOptOutAt: timestamp('email_opt_out_at'),
   // When this client was last chased — the win-back list's equivalent of the vaccination stamp, so a

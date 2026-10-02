@@ -1,0 +1,14 @@
+-- SMS CONSENT HAD NOWHERE TO LIVE. (T35 N1)
+--
+-- The shared contact page has always offered "Opt Out SMS", and the shared SMS sender has always
+-- refused to text a contact whose row carries the flag:
+--
+--     if ((contactRow as any).optedOutSms) return null
+--
+-- On this vertical the column did not exist. So the toggle answered 200 and stored nothing, the
+-- screen said "SMS opted out", and the guard above read `undefined` and sent the message anyway —
+-- a withdrawal of consent that was acknowledged to the user and then lost.
+--
+-- Added where crm-fieldservice, crm-landscaping and crm-basic already carry it, so the four
+-- templates that share the sender now share the column it reads.
+ALTER TABLE "contact" ADD COLUMN IF NOT EXISTS "opted_out_sms" boolean DEFAULT false NOT NULL;

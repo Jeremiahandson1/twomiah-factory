@@ -1273,6 +1273,8 @@ jobs:
           done
       - name: "tsc --noEmit — zero TS2304 anywhere"
         run: bun run scripts/check-template-frontend-types.ts
+      - name: "SMS consent — the toggle has somewhere to go"
+        run: bun run scripts/check-sms-consent-wired.ts
 
   revenue-one-definition:
     name: "Revenue one definition"

@@ -169,6 +169,13 @@
       "when": 1791400600000,
       "tag": "0023_event_invoice_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792000100000,
+      "tag": "0024_contact_sms_opt_out",
+      "breakpoints": true
     }
   ]
 }
