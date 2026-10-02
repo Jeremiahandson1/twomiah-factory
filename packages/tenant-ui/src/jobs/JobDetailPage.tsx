@@ -92,7 +92,19 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
           <div className={card}>
             <h2 className="font-semibold mb-4 text-gray-900 dark:text-slate-100">{cfg.labels.singular} Details</h2>
             <div className="grid md:grid-cols-2 gap-4">
-              {job.scheduledDate && <div className="flex items-center gap-3"><Calendar className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Scheduled</p><p className="text-gray-900 dark:text-slate-100">{dateOnly(job.scheduledDate)} {job.scheduledTime}</p></div></div>}
+              {/*
+                * AN UNSCHEDULED JOB SAYS SO. (T34)
+                *
+                * Converting an approved quote deliberately leaves the job `pending` with no date —
+                * "scheduled" is a promise to a customer about a day, and converting a quote does not
+                * make one (T32 M15). But this row was hidden whenever the date was null, so the job
+                * you land on after converting said nothing at all about scheduling, and the tester
+                * read the deliberate state as a broken one. It now names the state and points at the
+                * form that fixes it.
+                */}
+              {job.scheduledDate
+                ? <div className="flex items-center gap-3"><Calendar className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Scheduled</p><p className="text-gray-900 dark:text-slate-100">{dateOnly(job.scheduledDate)} {job.scheduledTime}</p></div></div>
+                : open && <div className="flex items-center gap-3"><Calendar className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Scheduled</p><p className="text-gray-500 dark:text-slate-400">Not scheduled yet — <NavLink to={`/crm/jobs?edit=${id}`} className="text-blue-600 dark:text-blue-400 hover:underline">pick a date</NavLink></p></div></div>}
               {job.estimatedHours != null && job.estimatedHours !== '' && <div className="flex items-center gap-3"><Clock className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Estimated</p><p className="text-gray-900 dark:text-slate-100">{job.estimatedHours} hours</p></div></div>}
               {(job.address || job.city) && <div className="flex items-center gap-3"><MapPin className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Location</p><p className="text-gray-900 dark:text-slate-100">{[job.address, job.city, [job.state, job.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')}</p></div></div>}
               {job.assignedTo && <div className="flex items-center gap-3"><User className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Assigned To</p><p className="text-gray-900 dark:text-slate-100">{job.assignedTo.firstName} {job.assignedTo.lastName}</p></div></div>}
