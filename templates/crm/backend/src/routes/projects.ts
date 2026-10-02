@@ -31,22 +31,29 @@ const maySeeMoney = async (c: any): Promise<boolean> => {
 }
 
 /**
- * AN EMBEDDED LIST CARRIES WHAT THE CALLER COULD READ DIRECTLY — NO MORE. (T35-6)
+ * THE MONEY IS WHAT IS WITHHELD — NOT THE FACT THAT THE WORK CHANGED. (T35-6, corrected in T37 N6)
  *
- * T34 stripped the project's own money for a caller who may not see it and left the embedded
- * change-order rows alone, with a comment claiming their `amount` was "gated one layer up" by
- * `change-orders:read`. That was wrong, and the tester proved it: `/api/change-orders` is 403 for
- * field, but `GET /api/projects/:id` selected whole change-order rows itself, so field read
- * $2,877 / $680 / $300 / −$615 off the project page and could add the approved ones up to recover
- * the contract change the stripping had just removed.
+ * Two wrong answers before this one, in opposite directions.
  *
- * A side door into a module the matrix closes is the module being open. So the embedded list is
- * gated on the same permission the module is, and a caller without it gets an empty array rather
- * than a missing key — the screen iterates it either way.
+ * T34 stripped the project's own money and left the embedded change-order rows alone, claiming their
+ * `amount` was "gated one layer up" by `change-orders:read`. It was not — this route selects the
+ * rows itself — so field read $2,877 / $680 / $300 / −$615 off the project page and could add the
+ * approved ones up to recover the contract change the stripping had just removed.
+ *
+ * T35-6 then gated the whole list on `change-orders:read` and handed field an empty array. That
+ * stopped the leak and printed a FALSEHOOD: the project page's summary read "Change Orders 0" on a
+ * project carrying eight of them, which is worse than withholding, because a zero is an answer.
+ *
+ * So: every caller gets the rows — the count, the number, the title, the status, the days — and only
+ * a caller who may see money gets `amount`. A technician standing on the job can know that the scope
+ * changed and what the change is called; what the client agreed to pay for it is money, and money is
+ * what `invoices:read` draws the line on.
  */
-const mayRead = async (c: any, permission: string): Promise<boolean> => {
-  const u = c.get('user') as any
-  try { return hasPermission(u?.role, permission, await getExtraPermissions(u?.userId)) } catch { return false }
+const CO_MONEY_FIELDS = ['amount'] as const
+const withoutChangeOrderMoney = <T extends Record<string, any>>(row: T): T => {
+  const out: Record<string, any> = { ...row }
+  for (const k of CO_MONEY_FIELDS) if (k in out) delete out[k]
+  return out as T
 }
 
 /**
@@ -164,10 +171,8 @@ app.get('/:id', async (c) => {
     }).from(contact).where(and(eq(contact.id, foundProject.contactId), eq(contact.companyId, currentUser.companyId))).limit(1) : Promise.resolve([]),
     db.select().from(job).where(eq(job.projectId, id)).orderBy(desc(job.createdAt)).limit(10),
     db.select().from(rfi).where(eq(rfi.projectId, id)).limit(10),
-    // Gated on the module's own permission — see mayRead above. (T35-6)
-    mayRead(c, 'change-orders:read').then((ok) => ok
-      ? db.select().from(changeOrder).where(eq(changeOrder.projectId, id)).limit(10)
-      : []),
+    // Every caller gets the rows; the money comes off below for whoever may not see it. (T37 N6)
+    db.select().from(changeOrder).where(eq(changeOrder.projectId, id)).limit(10),
     db.select().from(punchListItem).where(eq(punchListItem.projectId, id)).limit(20),
   ])
 
@@ -221,7 +226,9 @@ app.get('/:id', async (c) => {
     return c.json({
       ...withoutMoney(foundProject),
       contact: projectContact[0] || null,
-      jobs, rfis, changeOrders, punchListItems,
+      jobs, rfis, punchListItems,
+      // The changes themselves, without what they cost. See withoutChangeOrderMoney. (T37 N6)
+      changeOrders: changeOrders.map(withoutChangeOrderMoney),
     })
   }
 

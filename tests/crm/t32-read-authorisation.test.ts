@@ -293,13 +293,26 @@ console.log('\n══════════ project money — the project open
     amount: '2877.00', daysAdded: 3, status: 'approved',
   } as any)
 
+  /*
+   * T37 N6 corrected the shape of this. Gating the whole list handed field an empty array, and the
+   * project page's summary then printed "Change Orders 0" on a project carrying eight — a zero is an
+   * ANSWER, and a false one is worse than a withheld fact. The money is what the line is drawn on.
+   */
   const f2 = await as(ROLES.field, `/api/projects/${proj.id}`)
   check('field still opens the project after a change order exists', f2.status === 200, { status: f2.status })
   check('…and the change-order AMOUNT is not in the body', !/2877/.test(f2.text), { body: f2.text?.slice(0, 240) })
-  check('…the embedded list is an empty array, not a missing key the screen would crash on',
-    Array.isArray(f2.json?.changeOrders) && f2.json.changeOrders.length === 0, { changeOrders: f2.json?.changeOrders })
-  check('…and the title does not leak either — the row is gated, not just its money',
-    !/Kitchen island upgrade/.test(f2.text), { body: f2.text?.slice(0, 240) })
+  check('…and no `amount` key survives on the row at all',
+    (f2.json?.changeOrders || []).every((co: any) => !('amount' in co)),
+    (f2.json?.changeOrders || []).map((co: any) => Object.keys(co).filter((k) => /amount/i.test(k))))
+  check('…but the CHANGE is visible: one row, so the page cannot print "Change Orders 0"',
+    Array.isArray(f2.json?.changeOrders) && f2.json.changeOrders.length === 1, { changeOrders: f2.json?.changeOrders?.length })
+  check('…with its number, title and status — what somebody on site needs to know',
+    f2.json?.changeOrders?.[0]?.number === 'CO-SIDE'
+    && /Kitchen island upgrade/.test(f2.text)
+    && f2.json?.changeOrders?.[0]?.status === 'approved',
+    f2.json?.changeOrders?.[0])
+  check('…and the days, which are schedule rather than money',
+    Number(f2.json?.changeOrders?.[0]?.daysAdded) === 3, { daysAdded: f2.json?.changeOrders?.[0]?.daysAdded })
 
   const m2 = await as(ROLES.manager, `/api/projects/${proj.id}`)
   check('a manager still gets the change orders, with the amount',

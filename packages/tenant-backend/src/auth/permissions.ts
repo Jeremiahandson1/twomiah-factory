@@ -43,8 +43,18 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
      * SELECTIONS AND TAKEOFFS ARE NO LONGER IN THAT GROUP. (T32 H1)
      * Both are money documents in a construction CRM — a selection is an option priced against the
      * client's allowance, a takeoff is quantities and what the material costs — and `field` has no
-     * quotes, no invoices and no pricebook, so there is no job it does and no screen it opens that
-     * needs either. Their reads are gated on the mount in templates/crm/backend/src/routes.
+     * quotes and no invoices, so there is no job it does and no screen it opens that needs either.
+     * Their reads are gated on the mount in templates/crm/backend/src/routes.
+     *
+     * THE PRICEBOOK IS THE EXCEPTION, and this comment used to claim otherwise. (T37, asked by the
+     * tester after seeing a field technician's nav)
+     *
+     * `pricebook:read` is NOT in field's list below — and `GET /pricebook/items` and
+     * `GET /pricebook/search` carry no permission gate at all, deliberately, with COST and the margin
+     * computed from it stripped for any caller who may not see them. So a technician asked "what does
+     * another outlet come to?" has the price list and not the markup, which is the useful half. The
+     * gate is on the DATA, not the endpoint — `GET /pricebook/export`, which hands over the whole
+     * list as a file, does require `pricebook:read`.
      */
     'equipment:*', 'fleet:*', 'warranties:*', 'inventory:*', 'agreements:*',
     'selections:*', 'takeoffs:*', 'calltracking:*', 'reports:*',
