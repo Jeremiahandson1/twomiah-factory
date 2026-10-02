@@ -49,11 +49,30 @@ const maySeeMoney = async (c: any): Promise<boolean> => {
  * changed and what the change is called; what the client agreed to pay for it is money, and money is
  * what `invoices:read` draws the line on.
  */
-const CO_MONEY_FIELDS = ['amount'] as const
-const withoutChangeOrderMoney = <T extends Record<string, any>>(row: T): T => {
-  const out: Record<string, any> = { ...row }
-  for (const k of CO_MONEY_FIELDS) if (k in out) delete out[k]
-  return out as T
+/**
+ * AN ALLOW-LIST, NOT A DENY-LIST — and that is the lesson of T37 N9. (T37)
+ *
+ * The first version of this deleted `amount` and kept everything else, which let the whole signing
+ * record through: `signature`, `signedBy`, `signedIp`, `signedUserAgent`, `signatureHash` and
+ * `consentAt`. None of this tenant's change orders is signed yet, so nothing had leaked — but the
+ * moment a client signs one, a field technician would receive the client's signature and IP address.
+ *
+ * A deny-list is wrong by construction here: it has to be edited every time a column is added, and
+ * the person adding the column is not thinking about this route. Naming what a technician NEEDS
+ * instead means a new column is invisible until somebody decides otherwise, which fails in the safe
+ * direction.
+ *
+ * What the work needs: which change it is, what it says, where it stands, and how many days it adds.
+ * Not what it costs, and not who signed it from which address.
+ */
+const CHANGE_ORDER_WORK_FIELDS = [
+  'id', 'projectId', 'number', 'title', 'description', 'reason', 'status',
+  'daysAdded', 'submittedDate', 'approvedDate', 'approvedBy', 'createdAt', 'updatedAt',
+] as const
+const changeOrderForWork = (row: Record<string, any>): Record<string, any> => {
+  const out: Record<string, any> = {}
+  for (const k of CHANGE_ORDER_WORK_FIELDS) if (k in row) out[k] = row[k]
+  return out
 }
 
 /**
@@ -227,8 +246,8 @@ app.get('/:id', async (c) => {
       ...withoutMoney(foundProject),
       contact: projectContact[0] || null,
       jobs, rfis, punchListItems,
-      // The changes themselves, without what they cost. See withoutChangeOrderMoney. (T37 N6)
-      changeOrders: changeOrders.map(withoutChangeOrderMoney),
+      // The changes themselves — what the work needs, and nothing else. See above. (T37 N6 / N9)
+      changeOrders: changeOrders.map(changeOrderForWork),
     })
   }
 

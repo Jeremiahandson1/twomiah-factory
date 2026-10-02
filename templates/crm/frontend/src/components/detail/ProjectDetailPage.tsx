@@ -334,9 +334,19 @@ export default function ProjectDetailPage() {
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900 dark:text-slate-100">Change Orders</h2>
-                <Link to={`/crm/change-orders?projectId=${id}`} className="text-sm text-orange-700 hover:text-orange-800 dark:text-orange-300 dark:hover:text-orange-200">
-                  View All
-                </Link>
+                {/*
+                  * No link into a module this person cannot open. (T37 N8)
+                  *
+                  * The panel itself stays for everybody — a technician needs to know the scope
+                  * changed (T37 N6) — but View All went to /crm/change-orders, which answers "You
+                  * don't have access to Change Orders" for field. A link whose only outcome is a
+                  * refusal page is the same fault as a button the server rejects.
+                  */}
+                {can('change-orders:read') && (
+                  <Link to={`/crm/change-orders?projectId=${id}`} className="text-sm text-orange-700 hover:text-orange-800 dark:text-orange-300 dark:hover:text-orange-200">
+                    View All
+                  </Link>
+                )}
               </div>
               <div className="divide-y">
                 {project.changeOrders!.slice(0, 5).map((co: RelatedItem) => (
@@ -349,7 +359,18 @@ export default function ProjectDetailPage() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium">${Number(co.amount).toLocaleString()}</p>
+                      {/*
+                        * `$NaN` on every row, for a whole round. (T37 N7)
+                        *
+                        * The server stops sending `amount` to somebody who may not see money, and
+                        * this printed `$${Number(undefined)}` — so the fix that withheld the figure
+                        * replaced it with nonsense, which looks like a broken page rather than a
+                        * boundary. The ABSENCE of the field is the signal, not a permission check:
+                        * the screen renders what it was given.
+                        */}
+                      {co.amount === undefined || co.amount === null
+                        ? null
+                        : <p className="font-medium tabular-nums">${Number(co.amount).toLocaleString()}</p>}
                       <StatusBadge status={co.status} />
                     </div>
                   </div>

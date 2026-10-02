@@ -288,9 +288,18 @@ console.log('\n══════════ project money — the project open
    * for field (asserted in the module sweep above), so if 2877 appears in this body it came through
    * the project page.
    */
+  /*
+   * SIGNED, because T37 N9 turned on what happens after a client signs. The first fix deleted
+   * `amount` and kept the rest of the row, so the whole signing record — the client's name, their IP
+   * address, their user agent and the signature itself — travelled to a field technician. Nothing
+   * had leaked on the tenant only because no change order was signed yet. This one is.
+   */
   await db.insert(changeOrder).values({
     companyId: co.id, projectId: proj.id, number: 'CO-SIDE', title: 'Kitchen island upgrade',
     amount: '2877.00', daysAdded: 3, status: 'approved',
+    signature: 'data:image/png;base64,IHEREBYAGREE', signedBy: 'Dana Client',
+    signedIp: '203.0.113.47', signedUserAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0)',
+    signatureHash: 'f1d2d2f924e986ac86fdf7b36c94bcdf32beec15', consentAt: new Date(),
   } as any)
 
   /*
@@ -313,6 +322,31 @@ console.log('\n══════════ project money — the project open
     f2.json?.changeOrders?.[0])
   check('…and the days, which are schedule rather than money',
     Number(f2.json?.changeOrders?.[0]?.daysAdded) === 3, { daysAdded: f2.json?.changeOrders?.[0]?.daysAdded })
+
+  /*
+   * T37 N9. The row is built from an ALLOW-LIST of what the work needs, so these assertions are
+   * about the thing a deny-list kept getting wrong: everything nobody decided to include.
+   */
+  const fRow = f2.json?.changeOrders?.[0] || {}
+  for (const leak of ['signature', 'signedBy', 'signedIp', 'signedUserAgent', 'signatureHash', 'consentAt']) {
+    check(`…and NO ${leak} — the client's signing record is not site information`, !(leak in fRow), { [leak]: fRow[leak] })
+  }
+  check("…the client's IP address appears nowhere in the body", !/203\.0\.113\.47/.test(f2.text), f2.text?.slice(0, 200))
+  check('…nor the signature itself', !/IHEREBYAGREE/.test(f2.text), f2.text?.slice(0, 200))
+  check("…nor the signer's name", !/Dana Client/.test(f2.text), f2.text?.slice(0, 200))
+  /*
+   * The allow-list's real point: a column added to change_order tomorrow is invisible here until
+   * somebody decides it should be visible. Asserted as a CEILING on the keys, so adding a field to
+   * the row without thinking about this route fails the suite rather than shipping.
+   */
+  const allowed = new Set(['id', 'projectId', 'number', 'title', 'description', 'reason', 'status',
+    'daysAdded', 'submittedDate', 'approvedDate', 'approvedBy', 'createdAt', 'updatedAt'])
+  const unexpected = Object.keys(fRow).filter((k) => !allowed.has(k))
+  check('…and nothing else at all reaches field on that row', unexpected.length === 0, { unexpected })
+
+  const mRow = (await as(ROLES.manager, `/api/projects/${proj.id}`)).json?.changeOrders?.[0] || {}
+  check('…while a manager, who may see money, still gets the whole row',
+    mRow.amount !== undefined && mRow.signedBy === 'Dana Client', { amount: mRow.amount, signedBy: mRow.signedBy })
 
   const m2 = await as(ROLES.manager, `/api/projects/${proj.id}`)
   check('a manager still gets the change orders, with the amount',
