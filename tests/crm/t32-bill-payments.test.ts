@@ -204,6 +204,9 @@ const mkJob = async (number: string, projectId: string | null) => (await db.inse
   check('…each with the method and reference it was recorded with',
     (one.json?.payments || []).map((p: any) => `${p.method}:${p.reference}`).sort().join(',') === 'ach:A-1,cheque:C-9',
     one.json?.payments)
+  check('…and WHO recorded each one, by name rather than by id',
+    (one.json?.payments || []).every((p: any) => p.recordedBy === 'O W'),
+    (one.json?.payments || []).map((p: any) => p.recordedBy))
   check('…paidTotal is the sum of the payment ROWS, so it can be compared against the bill',
     Math.round(Number(one.json?.paidTotal) * 100) === 35000, one.json?.paidTotal)
   check('…and balance is what is left to pay', Math.round(Number(one.json?.balance) * 100) === 25000, one.json?.balance)
@@ -221,6 +224,9 @@ const mkJob = async (number: string, projectId: string | null) => (await db.inse
     Math.round(Number(again.json?.paidTotal) * 100) === 40000, again.json?.paidTotal)
   check('…and the bill\'s own amountPaid is reported unchanged beside it, so the disagreement shows',
     Math.round(Number(again.json?.amountPaid) * 100) === 35000, again.json?.amountPaid)
+  check('…a payment with no recorder is null, not a stray id or a crash',
+    (again.json?.payments || []).find((p: any) => p.id === 'direct-row-1')?.recordedBy === null,
+    (again.json?.payments || []).find((p: any) => p.id === 'direct-row-1'))
 
   const missing = await api('GET', '/api/bills/no-such-bill')
   check('a bill that is not there is still a 404', missing.status === 404, missing.status)

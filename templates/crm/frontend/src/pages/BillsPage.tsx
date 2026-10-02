@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '../utils/date';
-import { Plus, Edit, Trash2, Ban, HandCoins } from 'lucide-react';
+import { Plus, Edit, Trash2, Ban, HandCoins, Receipt } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -59,6 +59,9 @@ export default function BillsPage() {
   const [payOpen, setPayOpen] = useState(false);
   const [payBill, setPayBill] = useState<Record<string, unknown> | null>(null);
   const [payAmount, setPayAmount] = useState('');
+  const [paymentsOpen, setPaymentsOpen] = useState(false);
+  const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -136,6 +139,22 @@ export default function BillsPage() {
     } catch (err) { toast.error((err as Error).message); }
   };
 
+  /**
+   * THE PAYMENTS, ONE BY ONE. (T34)
+   *
+   * The table has always shown a single "Paid" figure, so $350 against a $600 bill said nothing
+   * about when, by what method or in how many parts — and `vendor_bill_payment` has been recording
+   * all of it since the money race was fixed, with nothing anywhere to read it back. This is the
+   * screen for the new `GET /api/bills/:id`; without it the endpoint would be a server feature with
+   * no way in.
+   */
+  const openPayments = async (r: Record<string, unknown>) => {
+    setDetail(null); setDetailLoading(true); setPaymentsOpen(true);
+    try { setDetail(await api.bills.get(r.id as string) as Record<string, unknown>); }
+    catch (err) { toast.error((err as Error).message); setPaymentsOpen(false); }
+    finally { setDetailLoading(false); }
+  };
+
   const handleDelete = async () => {
     try { await api.bills.delete((toDelete as Record<string, unknown>).id as string); toast.success('Deleted'); setDeleteOpen(false); load(); }
     catch (err) { toast.error((err as Error).message); }
@@ -170,6 +189,8 @@ export default function BillsPage() {
   // mirroring the gates in routes/bills.ts exactly.
   const rowActions = [
     { label: 'Record payment', icon: HandCoins, show: () => can('bills:pay'), onClick: (r: Record<string, unknown>) => { setPayBill(r); setPayAmount(String((Number(r.amount) - Number(r.amountPaid)).toFixed(2))); setPayOpen(true); } },
+    // Reading the bill back is bills:read, which everyone who can open this page already holds.
+    { label: 'Payments', icon: Receipt, show: () => can('bills:read'), onClick: openPayments },
     { label: 'Edit', icon: Edit, show: () => can('bills:update'), onClick: openEdit },
     { label: 'Void', icon: Ban, show: () => can('bills:pay'), onClick: async (r: Record<string, unknown>) => { try { await api.bills.void(r.id as string); toast.success('Voided'); load(); } catch (err) { toast.error((err as Error).message); } } },
     { label: 'Delete', icon: Trash2, show: () => can('bills:delete'), onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },
@@ -245,6 +266,63 @@ export default function BillsPage() {
         <div className="flex justify-end gap-3 mt-6">
           <button onClick={() => setPayOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button>
           <Button onClick={handlePay}>Record</Button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={paymentsOpen} onClose={() => setPaymentsOpen(false)} title={detail ? `Payments — ${(detail.number as string) || 'Bill'}` : 'Payments'} size="lg">
+        {detailLoading && <p className="text-sm text-gray-500 dark:text-slate-400">Loading…</p>}
+        {detail && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600 dark:text-slate-400">
+              {((detail.vendor as Record<string, unknown>)?.name as string) || 'Vendor'} · ${Number(detail.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} billed
+              {(detail.job as Record<string, unknown>)?.title ? ` · ${(detail.job as Record<string, unknown>).title as string}` : ''}
+            </p>
+            {((detail.payments as Record<string, unknown>[]) || []).length === 0
+              ? <p className="text-sm text-gray-500 dark:text-slate-400">No payments recorded against this bill yet.</p>
+              : (
+                <div className="overflow-x-auto border rounded-lg dark:border-slate-700">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 dark:bg-slate-900">
+                      <tr className="text-left text-gray-700 dark:text-slate-200">
+                        <th className="px-3 py-2 font-medium">Paid</th>
+                        <th className="px-3 py-2 font-medium">Method</th>
+                        <th className="px-3 py-2 font-medium">Reference</th>
+                        <th className="px-3 py-2 font-medium">Recorded by</th>
+                        <th className="px-3 py-2 font-medium text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y dark:divide-slate-700">
+                      {((detail.payments as Record<string, unknown>[]) || []).map((p) => (
+                        <tr key={p.id as string} className="text-gray-900 dark:text-slate-100">
+                          <td className="px-3 py-2">{p.paidAt ? formatDate(p.paidAt as string) : '-'}</td>
+                          <td className="px-3 py-2 capitalize">{(p.method as string) || '-'}</td>
+                          <td className="px-3 py-2">{(p.reference as string) || '-'}</td>
+                          <td className="px-3 py-2">{(p.recordedBy as string) || '-'}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">${Number(p.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            <div className="flex flex-wrap gap-4 text-sm text-gray-900 dark:text-slate-100">
+              <span>Paid: <span className="font-semibold tabular-nums">${Number(detail.paidTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></span>
+              <span>Balance: <span className="font-semibold tabular-nums">${Number(detail.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></span>
+            </div>
+            {/*
+              * paidTotal is summed from the payment rows; amountPaid is the bill's own column. They
+              * should always agree, so when they do not, say so here rather than quietly showing
+              * one of them — that disagreement means something wrote one without the other.
+              */}
+            {Math.abs(Number(detail.paidTotal || 0) - Number(detail.amountPaid || 0)) >= 0.005 && (
+              <p className="text-sm text-amber-700 dark:text-amber-300">
+                The payments listed add up to ${Number(detail.paidTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}, but the bill records ${Number(detail.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} paid. Worth checking before you reconcile.
+              </p>
+            )}
+          </div>
+        )}
+        <div className="flex justify-end mt-6">
+          <button onClick={() => setPaymentsOpen(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Close</button>
         </div>
       </Modal>
 

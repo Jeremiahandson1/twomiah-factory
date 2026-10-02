@@ -7,7 +7,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { vendorBill, vendorBillPayment, jobPurchaseOrder as purchaseOrder, contact, job } from '../../db/schema.ts'
+import { vendorBill, vendorBillPayment, jobPurchaseOrder as purchaseOrder, contact, job, user } from '../../db/schema.ts'
 import { eq, and, count, desc, sql, inArray, lt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -167,18 +167,41 @@ app.get('/:id', async (c) => {
       ? db.select({ id: job.id, number: job.number, title: job.title, projectId: job.projectId })
         .from(job).where(eq(job.id, bill.jobId)).limit(1)
       : Promise.resolve([]),
-    db.select().from(vendorBillPayment).where(and(
-      eq(vendorBillPayment.vendorBillId, id),
-      eq(vendorBillPayment.companyId, currentUser.companyId),
-    )).orderBy(desc(vendorBillPayment.paidAt)),
+    /*
+     * WHO recorded it, by name. `recordedById` is an id, and an id on a reconciliation screen is
+     * the same as nothing — the person checking the bank statement needs the name, the way
+     * `respondedBy` on an RFI and `approvedBy` on a change order already carry one.
+     */
+    db.select({
+      id: vendorBillPayment.id,
+      amount: vendorBillPayment.amount,
+      method: vendorBillPayment.method,
+      reference: vendorBillPayment.reference,
+      notes: vendorBillPayment.notes,
+      paidAt: vendorBillPayment.paidAt,
+      recordedById: vendorBillPayment.recordedById,
+      recordedByFirst: user.firstName,
+      recordedByLast: user.lastName,
+      recordedByEmail: user.email,
+    }).from(vendorBillPayment)
+      .leftJoin(user, eq(user.id, vendorBillPayment.recordedById))
+      .where(and(
+        eq(vendorBillPayment.vendorBillId, id),
+        eq(vendorBillPayment.companyId, currentUser.companyId),
+      )).orderBy(desc(vendorBillPayment.paidAt)),
   ])
 
+  const named = payments.map((p: any) => {
+    const { recordedByFirst, recordedByLast, recordedByEmail, ...rest } = p
+    const full = [recordedByFirst, recordedByLast].filter(Boolean).join(' ').trim()
+    return { ...rest, recordedBy: full || recordedByEmail || null }
+  })
   const paid = payments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0)
   return c.json({
     ...bill,
     vendor: vendorRow[0] || null,
     job: jobRow[0] || null,
-    payments,
+    payments: named,
     /*
      * The balance, computed here rather than left to the screen to subtract — the same figure
      * derived in two places is the shape that produced "to pay −$2.00" elsewhere in this product.

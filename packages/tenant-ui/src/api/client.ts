@@ -321,6 +321,8 @@ export class ApiClient {
 
   bills = {
     list: (params?: ListParams) => this.get('/api/bills', params),
+    /** One bill with its payment rows, paidTotal and balance. (T34) */
+    get: (id: string) => this.getOne('/api/bills', id),
     summary: () => this.get('/api/bills/summary'),
     jobSummary: (jobId: string) => this.get(`/api/bills/summary/job/${jobId}`),
     create: (data: unknown) => this.create('/api/bills', data),
