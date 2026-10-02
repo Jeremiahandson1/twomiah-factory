@@ -8,7 +8,9 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
-const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/[^\n]*/g, '$1')
+// The ONE comment stripper (scripts/lib/stripComments.ts): string-aware, so a route pattern like
+// '/file/*' or a `src/**` in a line comment cannot pair with a later `*/` and delete real code. (T57)
+import { stripSource as strip } from './lib/stripComments.ts'
 const read = (p: string) => strip(readFileSync(join(ROOT, p), 'utf8'))
 
 let failed = 0

@@ -3915,3 +3915,63 @@ export const staffAccountEntry = pgTable('staff_account_entry', {
   index('staff_account_entry_company_id_idx').on(t.companyId),
   index('staff_account_entry_user_id_idx').on(t.userId),
 ])
+
+// ==================== TWO-FACTOR ====================
+//
+// Ported from crm-dispensary in T57, which had the only implementation in the fleet. The engine is
+// shared (packages/tenant-backend/src/auth/mfa.ts + totp.ts) and asks the DATABASE whether these two
+// tables exist, so a vertical switches two-factor on by adding them and nothing else.
+//
+// Why a contractor CRM wants it: this database holds the client list, the contract values, the
+// payroll rates, the vendor bills and a Stripe connection. The password is the only thing in front
+// of all of it.
+
+export const mfaDevice = pgTable('mfa_devices', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  /** totp | backup_codes. sms/email are presentable factors the engine knows but this vertical does not offer. */
+  type: text('type').notNull(),
+  name: text('name'),
+  /** The base32 TOTP seed. Only ever read by the verifier; never returned by a route after enrolment. */
+  secret: text('secret'),
+  phoneNumber: text('phone_number'),
+  /** Recovery codes, SHA-256 hashed and removed as they are spent. */
+  backupCodes: json('backup_codes'),
+  /**
+   * An enrolment nobody finished is not a second factor. The gate only counts verified devices, so a
+   * half-set-up authenticator cannot lock somebody out of their own account.
+   */
+  isVerified: boolean('is_verified').default(false),
+  isPrimary: boolean('is_primary').default(false),
+  lastUsedAt: timestamp('last_used_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('mfa_device_user_idx').on(t.userId),
+  index('mfa_device_company_idx').on(t.companyId),
+])
+
+export const mfaChallenge = pgTable('mfa_challenges', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  /*
+   * ON DELETE SET NULL, because a challenge row is the record that a sign-in HAPPENED and the device
+   * it used may later be removed. Without it, turning two-factor off answered 409 "a related record
+   * is still in use" for anybody who had ever completed a sign-in with that authenticator — found by
+   * tests/crm/t57-mfa.test.ts, latent here too. (T57)
+   */
+  deviceId: text('device_id').references(() => mfaDevice.id, { onDelete: 'set null' }),
+  code: text('code'),
+  /** 'login' for the sign-in challenge; the in-app ones use the factor's own name. */
+  type: text('type').notNull(),
+  status: text('status').default('pending'), // pending|verified|expired|failed
+  /** Wrong codes spent against this challenge — five and it is done. (T57) */
+  attempts: integer('attempts').default(0).notNull(),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  expiresAt: timestamp('expires_at').notNull(),
+  verifiedAt: timestamp('verified_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('mfa_challenge_user_idx').on(t.userId),
+])

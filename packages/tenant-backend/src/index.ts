@@ -113,6 +113,19 @@ export type { AuthMiddlewareDeps, AuthUserContext } from './auth/middleware'
 export { createPermissions, ROLE_HIERARCHY, BASE_ROLE_PERMISSIONS } from './auth/permissions'
 export type { PermissionsDeps, Permissions } from './auth/permissions'
 export { createAuthRoutes, passwordSchema, PASSWORD_RULE_TEXT, generateTokens } from './auth/auth'
+/**
+ * Two-factor, shared. (T57)
+ *
+ * The engine moved here out of crm-dispensary, which had the only implementation in the fleet: the
+ * verifier and the sign-in gate are not a dispensary concern, and two copies of a code verifier is
+ * two verifiers that can disagree. A vertical with no mfa_devices table gets "no second factor"
+ * rather than an error, so shared auth can ask the question everywhere.
+ */
+export { mfaGateFor, openLoginChallenge, verifyLoginChallenge, MAX_CODE_ATTEMPTS } from './auth/mfa'
+export type { MfaGate, MfaCodeOutcome } from './auth/mfa'
+export { verifyTOTP, generateTOTPCode, base32Encode, base32Decode } from './auth/totp'
+export { createMfaRoutes } from './auth/mfaRoutes'
+export type { MfaRoutesDeps } from './auth/mfaRoutes'
 export { createActorName } from './auth/actorName'
 export type { ActorNameDeps, ActorContext, ActorName } from './auth/actorName'
 export type { AuthDeps, AuthOptions, AuthTables } from './auth/auth'

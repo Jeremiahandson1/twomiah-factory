@@ -5,7 +5,9 @@
 //   bun scripts/check-assignee-source.ts
 import { readFileSync } from 'node:fs'
 const read = (p: string) => readFileSync(new URL('../' + p, import.meta.url), 'utf8')
-const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+// The ONE comment stripper (scripts/lib/stripComments.ts): string-aware, so a route pattern like
+// '/file/*' or a `src/**` in a line comment cannot pair with a later `*/` and delete real code. (T57)
+import { stripSource as strip } from './lib/stripComments.ts'
 
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }

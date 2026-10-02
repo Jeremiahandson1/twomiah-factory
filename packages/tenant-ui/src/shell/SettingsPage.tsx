@@ -7,6 +7,7 @@ import { Button, Field, inputCls, errMsg } from '../invoicing/ui'
 import { meetsRole, DEFAULT_ROLES, ROLE_LABELS } from './types'
 import type { SettingsPageProps, RoleOption } from './types'
 import { useConfirm } from '../ui/ConfirmProvider'
+import { TwoFactorCard } from '../auth/TwoFactorCard'
 
 interface CompanyForm { name: string; email: string; phone: string; address: string; city: string; state: string; zip: string; website: string; licenseNumber: string; defaultTaxRate: string; paymentTermsDays: string; logo: string; primaryColor: string }
 /** The colour the portal header and the Stripe payment form fall back to when a tenant has not set one. */
@@ -345,7 +346,9 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
           )}
 
           {tab === 'security' && (
-            <div className="space-y-4 max-w-xl">
+            <div className="space-y-6 max-w-xl">
+              {/* Two-factor first: it is the stronger of the two things on this tab. (T57) */}
+              <TwoFactorCard api={api as any} toast={toast} />
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Change Password</h2>
               <Field label="Current Password"><input type="password" autoComplete="current-password" value={pw.currentPassword} onChange={(e) => setPw({ ...pw, currentPassword: e.target.value })} className={inputCls} /></Field>
               <Field label="New Password"><input type="password" autoComplete="new-password" value={pw.newPassword} onChange={(e) => setPw({ ...pw, newPassword: e.target.value })} className={inputCls} /></Field>

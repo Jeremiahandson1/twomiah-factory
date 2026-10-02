@@ -31,7 +31,7 @@ import crypto from 'crypto'
 import { setupSchema } from './setup.ts'
 import { db } from './db/index.ts'
 import { company, user } from './db/schema.ts'
-import { generateTOTPCode, base32Encode } from './src/utils/totp.ts'
+import { generateTOTPCode, base32Encode } from './src/shared/index.ts'
 
 let failed = 0, passed = 0
 const check = (name: string, ok: boolean, detail?: unknown) => {

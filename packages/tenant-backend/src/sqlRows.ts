@@ -23,7 +23,6 @@
 
 /** node-postgres hands back `{ rows }`; the PGlite driver hands back the array. Both, then. */
 export const rowsOf = (result: any): any[] => (Array.isArray(result) ? result : (result?.rows || []))
-
 const toCamel = (s: string) => s.replace(/_([a-z0-9])/g, (_m, ch: string) => ch.toUpperCase())
 
 /**

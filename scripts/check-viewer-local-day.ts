@@ -20,7 +20,9 @@ import { spawnSync } from 'node:child_process'
 // Comments are stripped before any of these patterns are applied: the files under test EXPLAIN the bug
 // they avoid, so a bare search for `toISOString` matches the prose warning against it and fails the very
 // file that got it right.
-const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+// The ONE comment stripper (scripts/lib/stripComments.ts): string-aware, so a route pattern like
+// '/file/*' or a `src/**` in a line comment cannot pair with a later `*/` and delete real code. (T57)
+import { stripSource as strip } from './lib/stripComments.ts'
 const read = (p: string) => { try { return strip(readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')) } catch { return null } }
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }

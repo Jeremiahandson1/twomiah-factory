@@ -5,7 +5,9 @@
 // the silent coercion so the user sees an error instead of losing their setting.
 //   bun scripts/check-settings-money-validation.ts
 import { readFileSync } from 'node:fs'
-const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+// The ONE comment stripper (scripts/lib/stripComments.ts): string-aware, so a route pattern like
+// '/file/*' or a `src/**` in a line comment cannot pair with a later `*/` and delete real code. (T57)
+import { stripSource as strip } from './lib/stripComments.ts'
 const src = strip(readFileSync(new URL('../packages/tenant-ui/src/shell/SettingsPage.tsx', import.meta.url), 'utf8'))
 const save = (src.match(/const\s+saveCompany[\s\S]*?\n  }/) || [''])[0]
 

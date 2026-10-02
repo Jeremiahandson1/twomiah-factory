@@ -5,6 +5,10 @@
  * verify a code too (T49 H4) and a route module is not a place to import a helper from: importing
  * it would pull in a whole Hono app and its middleware for the sake of one HMAC.
  *
+ * MOVED HERE from templates/crm-dispensary/backend/src/utils (T57). Two-factor is not a dispensary
+ * concern — every vertical holds contacts, invoices and a Stripe connection — so the verifier lives
+ * with the rest of shared auth and the dispensary imports it like everybody else.
+ *
  * One implementation, used by enrolment and by sign-in. Two copies of a code verifier is two
  * verifiers that can disagree about whether a code is valid, and the one nobody updated is the one
  * that lets the wrong code through.

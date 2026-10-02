@@ -11,7 +11,9 @@
 //     picker stop a day short of what createBooking accepted (vet T12 N1).
 //   bun scripts/check-booking-availability.ts
 import { readFileSync } from 'node:fs'
-const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+// The ONE comment stripper (scripts/lib/stripComments.ts): string-aware, so a route pattern like
+// '/file/*' or a `src/**` in a line comment cannot pair with a later `*/` and delete real code. (T57)
+import { stripSource as strip } from './lib/stripComments.ts'
 const src = strip(readFileSync(new URL('../packages/tenant-backend/src/booking/service.ts', import.meta.url), 'utf8'))
 
 let failed = 0

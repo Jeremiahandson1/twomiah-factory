@@ -49,6 +49,24 @@ const PUBLIC_BY_DESIGN = new Set([
 ])
 
 /**
+ * SELF-SERVICE: the signed-in person is the only subject, so there is no permission to ask for.
+ *
+ * A permission gate here would be actively wrong, not merely redundant. Gating "enrol my own
+ * authenticator" on a right an owner has to grant would mean somebody could be refused permission to
+ * protect their own account — and a company policy requiring two-factor could not be satisfied by the
+ * people it applies to. The same reasoning already puts `/api/auth/password` (change my own password)
+ * beyond this guard's reach, inside auth.ts above.
+ *
+ * What stands in for authorisation is SCOPE, and it is asserted rather than assumed: every statement
+ * in a self-service module must be bounded by the caller's own ids from the token. The check below
+ * enforces that, so this exemption cannot become a hole if somebody later adds a route here that
+ * takes a user id from the request.
+ */
+const SELF_SERVICE = new Set([
+  'packages/tenant-backend/src/auth/mfaRoutes.ts',
+])
+
+/**
  * Known debt: write routes any signed-in user of the company can genuinely drive, with the count each
  * module carried when it was triaged. The count may go DOWN (fix some) or to zero (delete the line). It
  * may not go up.
@@ -156,6 +174,34 @@ for (const rel of files) {
   const whole = stripComments(readFileSync(ROOT + rel, 'utf8').replace(/\r\n/g, '\n'))
   if (!/export function create\w*Routes/.test(whole)) continue
   if (PUBLIC_BY_DESIGN.has(rel)) continue
+
+  /*
+   * A self-service module is exempt from needing a PERMISSION, and required to be SCOPED instead.
+   * The exemption is only honest while every statement is bounded by the caller's own ids, so that
+   * is what gets checked: a route added here later that reads a user id out of the request would
+   * fail this, rather than quietly inheriting the exemption.
+   */
+  if (SELF_SERVICE.has(rel)) {
+    const statements = [...whole.matchAll(/sql`([\s\S]*?)`/g)].map((m) => m[1])
+    const subject = statements.filter((s) => /\b(FROM|INTO|UPDATE|DELETE FROM)\s+mfa_\w+/i.test(s))
+    if (!subject.length) fail(`${rel}: listed as self-service but touches no mfa_* table — is this still the right exemption?`)
+    for (const s of subject) {
+      /*
+       * An INSERT has no WHERE to bound: what makes it self-scoped is that the row it writes carries
+       * the caller's own id, so the test is that `${u.userId}` is in the statement at all. Everything
+       * else — SELECT, UPDATE, DELETE — must FILTER on it, which is the stronger claim and the one
+       * that matters: those are the statements that could otherwise touch somebody else's row.
+       */
+      const isInsert = /^\s*INSERT\s+INTO/i.test(s)
+      const scoped = isInsert ? /\$\{u\.userId\}/.test(s) : /user_id = \$\{u\.userId\}/.test(s)
+      // …the one exception being a read of the company's own policy row, which names no user.
+      const policyRead = /FROM company WHERE id = \$\{u\.companyId\}/.test(s)
+      if (!scoped && !policyRead) {
+        fail(`${rel}: a self-service module must bound every statement by the caller's own user id — this one does not: ${s.replace(/\s+/g, ' ').trim().slice(0, 90)}`)
+      }
+    }
+    continue
+  }
 
   for (const factory of factoryBlocks(whole)) {
   if (PUBLIC_BY_DESIGN.has(`${rel}#${factory.name}`)) continue

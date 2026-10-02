@@ -14,8 +14,8 @@ import logger from '../services/logger.ts'
 import { passwordSchema } from '../shared/index.ts'
 import { sql } from 'drizzle-orm'  // for the security_events row the code step writes
 // Two-factor at sign-in. The gate answers "is there a factor to ask for", which is not the same
-// question as "is MFA configured" — see services/loginMfa.ts. (T49 H4)
-import { mfaGateFor, openLoginChallenge, verifyLoginChallenge } from '../services/loginMfa.ts'
+// question as "is MFA configured" — see shared auth/mfa.ts. (T49 H4)
+import { mfaGateFor, openLoginChallenge, verifyLoginChallenge } from '../shared/index.ts'
 
 const app = new Hono()
 
@@ -116,7 +116,7 @@ app.post('/login', async (c) => {
   // protected by it; it was protected by the password alone.
   //
   // mfaGateFor() asks whether a factor can actually be PRESENTED, not whether MFA is configured —
-  // see services/loginMfa.ts for why that distinction is the difference between a working shop and
+  // see shared auth/mfa.ts for why that distinction is the difference between a working shop and
   // a locked-out one.
   const gate = await mfaGateFor(db, foundUser.companyId, foundUser.id)
   if (gate.required) {
@@ -229,35 +229,72 @@ app.post('/pin-login', async (c) => {
     return c.json({ error: 'No PIN-enabled users found' }, 404)
   }
 
-  // Try each user's PIN (in practice, PINs should be unique per company)
+  /**
+   * ONE WRONG PIN USED TO LOCK OUT THE WHOLE COUNTER. (T57)
+   *
+   * The loop tried every PIN-enabled user and, for each one the PIN did not match, incremented THAT
+   * user's `pin_attempts` and locked them after five. So five wrong taps — one person fumbling, or
+   * anybody at all sending five requests with no credentials — locked every budtender out of quick
+   * login for fifteen minutes. The suite proved it: two budtenders, five tries at a PIN belonging to
+   * nobody, both at `attempts = 5` and both answered "Invalid PIN" afterwards.
+   *
+   * A failed PIN entry is UNATTRIBUTABLE: the digits are all we have, and they matched nobody, so
+   * there is no user whose counter should move. Nothing is incremented on a miss. What bounds
+   * guessing is the rate limiter on this route (index.ts) — a brake that slows an attacker without
+   * handing them a way to shut the shop.
+   *
+   * A user's own lockout still applies when their PIN DOES match (below), which is the case where we
+   * know whose it is.
+   */
   for (const u of usersWithPin) {
-    // Check lockout
-    if (u.pinLockedUntil && new Date(u.pinLockedUntil) > new Date()) {
-      continue // Skip locked users
-    }
-
     const valid = await Bun.password.verify(data.pin, u.pinHash!)
-    if (valid) {
-      // Reset attempts on success
-      await db.update(user).set({ pinAttempts: 0, lastLogin: new Date(), updatedAt: new Date() } as any).where(eq(user.id, u.id))
+    if (!valid) continue
 
-      const [foundCompany] = await db.select().from(company).where(eq(company.id, u.companyId)).limit(1)
-      if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
-
-      const tokens = generateTokens(u.id, u.companyId, u.email, u.role)
-      await storeRefreshToken(u.id, tokens.refreshToken)
-
+    // It is this person's PIN. Their own lockout is the one that counts.
+    if (u.pinLockedUntil && new Date(u.pinLockedUntil) > new Date()) {
       return c.json({
-        user: { id: u.id, email: u.email, firstName: u.firstName, lastName: u.lastName, role: u.role, avatar: u.avatar },
-        company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, enabledFeatures: foundCompany.enabledFeatures },
-        ...tokens,
-      })
-    } else {
-      // Increment failed attempts
-      const attempts = (u.pinAttempts ?? 0) + 1
-      const lockUntil = attempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null // Lock for 15 min after 5 failures
-      await db.update(user).set({ pinAttempts: attempts, pinLockedUntil: lockUntil, updatedAt: new Date() } as any).where(eq(user.id, u.id))
+        error: 'This PIN is locked for a few minutes after too many wrong tries. Sign in with your email and password instead.',
+        code: 'pin_locked',
+      }, 423)
     }
+
+    /**
+     * …AND A PIN DOES NOT SKIP THE SECOND FACTOR. (T57)
+     *
+     * `/login` has asked a TOTP-enrolled user for a code since T49 H4. This route minted tokens
+     * straight away, so four digits at the till walked past the factor the owner switched on — the
+     * suite signed the owner in with a PIN and got a full access token while the password door was
+     * correctly refusing one. A control that one door enforces and another ignores is not a control.
+     *
+     * The same gate, the same challenge, the same POST /api/auth/mfa to finish. The till still works;
+     * it just finishes the way the other door does.
+     */
+    const pinGate = await mfaGateFor(db, u.companyId, u.id)
+    if (pinGate.required) {
+      const { challengeId, expiresAt } = await openLoginChallenge(db, u.companyId, u.id)
+      return c.json({
+        mfaRequired: true,
+        challengeId,
+        expiresAt,
+        methods: pinGate.methods,
+        recoveryCodesAvailable: pinGate.hasRecoveryCodes,
+        message: 'Enter the code from your authenticator app to finish signing in.',
+      }, 200)
+    }
+
+    await db.update(user).set({ pinAttempts: 0, lastLogin: new Date(), updatedAt: new Date() } as any).where(eq(user.id, u.id))
+
+    const [foundCompany] = await db.select().from(company).where(eq(company.id, u.companyId)).limit(1)
+    if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
+
+    const tokens = generateTokens(u.id, u.companyId, u.email, u.role)
+    await storeRefreshToken(u.id, tokens.refreshToken)
+
+    return c.json({
+      user: { id: u.id, email: u.email, firstName: u.firstName, lastName: u.lastName, role: u.role, avatar: u.avatar },
+      company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, enabledFeatures: foundCompany.enabledFeatures },
+      ...tokens,
+    })
   }
 
   return c.json({ error: 'Invalid PIN' }, 401)
@@ -268,6 +305,30 @@ app.put('/pin', authenticate, async (c) => {
   const currentUser = c.get('user') as any
   const pinSchema = z.object({ pin: z.string().min(4).max(8) })
   const data = pinSchema.parse(await c.req.json())
+
+  /**
+   * A PIN IDENTIFIES ONE PERSON. (T57)
+   *
+   * `/pin-login` has only the digits to go on: it walks the PIN-enabled users and the first match
+   * wins. Nothing stopped two budtenders both choosing 1234 — and then the till attributes the sale,
+   * the till drawer and the compliance record to whichever of them the loop reached first. On a
+   * seed-to-sale counter every action has to be attributable to the person who took it, so the
+   * uniqueness the old comment described as "in practice" is enforced here.
+   *
+   * Checked by VERIFYING against each other hash rather than comparing hashes: bcrypt salts, so two
+   * rows holding the same PIN do not look alike.
+   */
+  const others = await db.select().from(user)
+    .where(and(eq(user.companyId, currentUser.companyId), eq(user.isActive, true)))
+  for (const other of others) {
+    if (other.id === currentUser.userId || !other.pinHash) continue
+    if (await Bun.password.verify(data.pin, other.pinHash)) {
+      return c.json({
+        error: 'Somebody else in this shop already uses that PIN. Choose a different one — a PIN has to point at one person, or the till cannot say who rang a sale.',
+        code: 'pin_in_use',
+      }, 409)
+    }
+  }
 
   const pinHash = await Bun.password.hash(data.pin, 'bcrypt')
   await db.update(user).set({ pinHash, pinAttempts: 0, pinLockedUntil: null, updatedAt: new Date() } as any).where(eq(user.id, currentUser.userId))

@@ -8,7 +8,9 @@
 //   L1/L2 a past date or an over-capacity room warns and asks, never blocks (confirmEventRisks in both forms).
 //   bun scripts/check-events-booking-rules.ts
 import { readFileSync } from 'node:fs'
-const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+// The ONE comment stripper (scripts/lib/stripComments.ts): string-aware, so a route pattern like
+// '/file/*' or a `src/**` in a line comment cannot pair with a later `*/` and delete real code. (T57)
+import { stripSource as strip } from './lib/stripComments.ts'
 const read = (p: string) => strip(readFileSync(new URL(`../${p}`, import.meta.url), 'utf8'))
 
 let failed = 0

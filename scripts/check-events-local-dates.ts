@@ -4,7 +4,9 @@
 //  used the same UTC "today", so after ~7pm a payment due today showed overdue.
 //   bun scripts/check-events-local-dates.ts
 import { readFileSync, readdirSync } from 'node:fs'
-const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+// The ONE comment stripper (scripts/lib/stripComments.ts): string-aware, so a route pattern like
+// '/file/*' or a `src/**` in a line comment cannot pair with a later `*/` and delete real code. (T57)
+import { stripSource as strip } from './lib/stripComments.ts'
 const dir = new URL('../templates/crm-restaurant/frontend/src/pages/events/', import.meta.url)
 
 let failed = 0

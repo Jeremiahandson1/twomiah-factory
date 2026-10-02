@@ -6,20 +6,53 @@ import { NavLink as RouterLink } from '../invoicing/ui'
 
 export function LoginPage({ companyName }: { companyName: string }) {
   const navigate = useNavigate()
-  const { login, error } = useAuth()
+  const { login, completeMfa, error } = useAuth()
   const [formData, setFormData] = useState({ email: '', password: '' })
   const [loading, setLoading] = useState(false)
   const [localError, setLocalError] = useState('')
+  /**
+   * The code step. (T57)
+   *
+   * Sign-in answers one of two things: a session, or `mfaRequired` with a challenge id. The second is
+   * not a failure and not a session — it is the same sign-in, waiting for six digits — so it replaces
+   * the form rather than appearing beside it, and the password is never asked for twice.
+   */
+  const [challenge, setChallenge] = useState<{ id: string; methods: string[]; recovery: boolean } | null>(null)
+  const [code, setCode] = useState('')
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setLoading(true)
     setLocalError('')
     try {
-      await login(formData.email.toLowerCase().trim(), formData.password)
+      const result = await login(formData.email.toLowerCase().trim(), formData.password) as any
+      if (result?.mfaRequired) {
+        setChallenge({
+          id: String(result.challengeId),
+          methods: Array.isArray(result.methods) ? result.methods : ['totp'],
+          recovery: result.recoveryCodesAvailable === true,
+        })
+        return
+      }
       navigate('/')
     } catch (err) {
       setLocalError((err as Error).message || 'Login failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCode = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!challenge) return
+    setLoading(true)
+    setLocalError('')
+    try {
+      await completeMfa(challenge.id, code.trim())
+      navigate('/')
+    } catch (err) {
+      setLocalError((err as Error).message || 'That code was not accepted')
+      setCode('')
     } finally {
       setLoading(false)
     }
@@ -42,6 +75,52 @@ export function LoginPage({ companyName }: { companyName: string }) {
             </div>
           )}
 
+          {challenge ? (
+            <form onSubmit={handleCode} className="space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">One more step</h2>
+                <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">
+                  Enter the six-digit code from your authenticator app
+                  {challenge.recovery ? ', or one of your recovery codes' : ''}.
+                </p>
+              </div>
+              <div>
+                <label htmlFor="login-code" className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Code</label>
+                <input
+                  id="login-code"
+                  type="text"
+                  name="one-time-code"
+                  // The keypad on a phone, the browser's own code autofill on a laptop.
+                  inputMode="text"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  required
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  value={code}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCode(e.target.value)}
+                  className={`${inputCls} tracking-widest font-mono`}
+                  placeholder="123456"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading || !code.trim()}
+                className="w-full py-2 px-4 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 disabled:opacity-50"
+              >
+                {loading ? 'Checking…' : 'Finish signing in'}
+              </button>
+              {/* A way back, because a wrong account is the other reason somebody is stuck here. */}
+              <button
+                type="button"
+                onClick={() => { setChallenge(null); setCode(''); setLocalError(''); setFormData({ ...formData, password: '' }) }}
+                className="w-full text-sm text-gray-600 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200"
+              >
+                Start again
+              </button>
+            </form>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Email</label>
@@ -86,12 +165,16 @@ export function LoginPage({ companyName }: { companyName: string }) {
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
+          )}
 
-          <div className="mt-6 text-center text-sm">
-            <RouterLink to="/forgot-password" className="text-gray-500 hover:text-gray-700 font-medium dark:text-slate-400 dark:hover:text-slate-200">
-              Forgot password?
-            </RouterLink>
-          </div>
+          {/* Not while a code is owed: "forgot password" there is a dead end — the password was right. */}
+          {!challenge && (
+            <div className="mt-6 text-center text-sm">
+              <RouterLink to="/forgot-password" className="text-gray-500 hover:text-gray-700 font-medium dark:text-slate-400 dark:hover:text-slate-200">
+                Forgot password?
+              </RouterLink>
+            </div>
+          )}
         </div>
       </div>
     </div>

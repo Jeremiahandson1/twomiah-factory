@@ -3,7 +3,9 @@
 // its own copy of the money logic again (7 drifted copies is how the Connect/webhook/refund bugs hid).
 //   bun scripts/check-shared-stripe.ts
 import { readFileSync } from 'node:fs'
-const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+// The ONE comment stripper (scripts/lib/stripComments.ts): string-aware, so a route pattern like
+// '/file/*' or a `src/**` in a line comment cannot pair with a later `*/` and delete real code. (T57)
+import { stripSource as strip } from './lib/stripComments.ts'
 const read = (p: string) => strip(readFileSync(new URL(`../${p}`, import.meta.url), 'utf8'))
 
 // Dispensary (no Stripe — policy) and homecare (parked) keep their own files and are not vendored here.

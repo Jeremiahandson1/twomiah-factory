@@ -9,7 +9,9 @@
 // red, blue links, white text on solid coloured buttons) are intentionally allowed.
 //   bun scripts/check-lead-inbox-theme.ts
 import { readFileSync } from 'node:fs'
-const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+// The ONE comment stripper (scripts/lib/stripComments.ts): string-aware, so a route pattern like
+// '/file/*' or a `src/**` in a line comment cannot pair with a later `*/` and delete real code. (T57)
+import { stripSource as strip } from './lib/stripComments.ts'
 const read = (f: string) => strip(readFileSync(new URL('../' + f, import.meta.url), 'utf8'))
 
 let failed = 0

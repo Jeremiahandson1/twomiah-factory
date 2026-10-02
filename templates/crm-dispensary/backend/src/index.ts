@@ -171,6 +171,19 @@ app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'pr
 // how long — it just never got to run. Ten accounts × ten failures is 100; 150 leaves room for a bad
 // afternoon and still stops credential stuffing. (Salon T28 L9)
 app.use('/api/auth/login', createRateLimiter(15 * 60 * 1000, 150))
+/**
+ * The OTHER two sign-in doors, which had no limiter of their own. (T57)
+ *
+ * `/pin-login` guesses against four digits — ten thousand combinations — and `/mfa` against six.
+ * Both were under the generic write limit (1,200 per quarter hour in production) while the password
+ * door sat at 150, and the PIN route's only other brake used to be a per-user lockout that could be
+ * turned into a shop-wide outage by anybody who could reach it.
+ *
+ * Deliberately roomier than /login for the till: a busy counter has budtenders tapping in and out all
+ * shift, and a limiter that stops a shop trading is the failure this product has already had once.
+ */
+app.use('/api/auth/pin-login', createRateLimiter(15 * 60 * 1000, 200))
+app.use('/api/auth/mfa', createRateLimiter(15 * 60 * 1000, 100))
 app.use('/api/auth/register', createRateLimiter(15 * 60 * 1000, 20))
 app.use('/api/auth/forgot-password', createRateLimiter(15 * 60 * 1000, 20))
 

@@ -68,6 +68,9 @@ export type { ScheduleConfig, SchedulePageProps } from './schedule/types'
 // App shell — sidebar/header layout, settings, feature toggles + the hooks/components they use.
 export { AppShell } from './shell/AppShell'
 export { SettingsPage } from './shell/SettingsPage'
+// Two-factor enrolment card — on the Security tab by default; exported for a template that builds
+// its own settings screen. (T57)
+export { TwoFactorCard } from './auth/TwoFactorCard'
 export { FeaturesSettingsPage } from './shell/FeaturesSettingsPage'
 export { GlobalSearch } from './shell/GlobalSearch'
 export { TrialBanner } from './shell/TrialBanner'

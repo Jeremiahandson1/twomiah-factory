@@ -2174,10 +2174,25 @@ export const mfaDevice = pgTable('mfa_devices', {
 export const mfaChallenge = pgTable('mfa_challenges', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  deviceId: text('device_id').references(() => mfaDevice.id),
+  /*
+   * ON DELETE SET NULL, because a challenge row is the record that a sign-in HAPPENED and the device
+   * it used may later be removed. Without it, turning two-factor off answered 409 "a related record
+   * is still in use" for anybody who had ever completed a sign-in with that authenticator — found by
+   * tests/crm/t57-mfa.test.ts, latent here too. (T57)
+   */
+  deviceId: text('device_id').references(() => mfaDevice.id, { onDelete: 'set null' }),
   code: text('code'), // Hashed
   type: text('type').notNull(), // totp|sms|email
   status: text('status').default('pending'), // pending|verified|expired|failed
+  /**
+   * Wrong codes spent against this challenge. (T57)
+   *
+   * It counted nothing, so a pending challenge accepted six-digit guesses for its whole ten-minute
+   * life — the suite put twelve through and the thirteenth, the real one, still worked. On the row
+   * rather than in memory because "this sign-in was abandoned after five bad guesses" is a security
+   * event that has to outlive the process that saw it.
+   */
+  attempts: integer('attempts').default(0).notNull(),
   ipAddress: text('ip_address'),
   userAgent: text('user_agent'),
   expiresAt: timestamp('expires_at').notNull(),

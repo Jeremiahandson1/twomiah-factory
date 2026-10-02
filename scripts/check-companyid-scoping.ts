@@ -61,7 +61,9 @@ const PUBLIC_BY_DESIGN: Record<string, string> = {
 }
 
 const read = (p: string) => { try { return readFileSync(p, 'utf8') } catch { return '' } }
-const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+// The ONE comment stripper (scripts/lib/stripComments.ts): string-aware, so a route pattern like
+// '/file/*' or a `src/**` in a line comment cannot pair with a later `*/` and delete real code. (T57)
+import { stripSource as strip } from './lib/stripComments.ts'
 const walk = (d: string, out: string[] = []): string[] => {
   if (!existsSync(d)) return out
   for (const e of readdirSync(d)) {

@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import crypto from 'crypto'
-import { base32Encode, base32Decode, generateTOTPCode, verifyTOTP } from '../utils/totp.ts'
+import { base32Encode, base32Decode, generateTOTPCode, verifyTOTP } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
@@ -24,7 +24,7 @@ const camel = (row: any): any => {
 // TOTP Helpers
 // ==========================================
 
-// TOTP and base32 live in utils/totp.ts. They were private to this file until sign-in had to
+// TOTP and base32 live in shared auth/totp.ts (moved out of this template in T57). They were private to this file until sign-in had to
 // verify a code as well (T49 H4) — and two code verifiers that can disagree about whether a code
 // is valid is one verifier too many.
 

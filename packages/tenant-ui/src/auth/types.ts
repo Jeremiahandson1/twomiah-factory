@@ -41,6 +41,8 @@ export interface AuthData {
 /** The slice of the template's api client the auth module uses. */
 export interface AuthApi {
   login: (email: string, password: string) => Promise<AuthData>
+  /** The code step, when login answered mfaRequired. (T57) */
+  completeMfa: (challengeId: string, code: string) => Promise<AuthData>
   logout: () => Promise<void>
   getMe: () => Promise<any>
   forgotPassword: (email: string) => Promise<any>
@@ -57,6 +59,8 @@ export interface AuthContextValue {
   isAdmin: boolean
   isManager: boolean
   login: (email: string, password: string) => Promise<AuthData>
+  /** The code step, for a sign-in that answered `mfaRequired` instead of handing over tokens. (T57) */
+  completeMfa: (challengeId: string, code: string) => Promise<AuthData>
   logout: () => Promise<void>
   checkAuth: () => Promise<void>
   updateCompany: (updates: Partial<AuthCompany>) => void

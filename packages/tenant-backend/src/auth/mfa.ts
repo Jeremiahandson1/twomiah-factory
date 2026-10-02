@@ -1,16 +1,17 @@
 /**
- * Two-factor at SIGN-IN.
+ * Two-factor at SIGN-IN, for every vertical.
  *
- * ── what was wrong ──────────────────────────────────────────────────────────────────────────────
+ * ── where this came from ────────────────────────────────────────────────────────────────────────
  *
- * T49 H4. The product had the whole of MFA except the part that matters: enrolment screens, an
- * authenticator secret, SMS codes, recovery codes, and a "Require MFA for all users" policy switch
- * — and POST /api/auth/login handed out tokens for an email and a password, every time. An owner who
- * turned two-factor on believed the account holding the tax filings, the payroll rates and the
- * compliance records was protected by it. It was protected by the password alone.
+ * Built for the dispensary in T49 H4, after a report found the product had the whole of MFA except
+ * the part that matters: enrolment screens, an authenticator secret, recovery codes and a "Require
+ * MFA for all users" switch — and POST /api/auth/login handed out tokens for an email and a password
+ * every time. An owner who turned two-factor on believed the account holding the tax filings and the
+ * payroll rates was protected by it; it was protected by the password alone.
  *
- * A security control that reports itself as on while doing nothing is worse than not having it: the
- * owner stops worrying about the password.
+ * Moved here in T57 because nothing about it is a dispensary concern. Every vertical holds contacts,
+ * invoices and a Stripe connection, and two implementations of a code verifier is two verifiers that
+ * can disagree — the one nobody updated being the one that lets the wrong code through.
  *
  * ── the rule ────────────────────────────────────────────────────────────────────────────────────
  *
@@ -19,29 +20,33 @@
  *
  * ── and the part that has to be right, or nobody can work ───────────────────────────────────────
  *
- * The failure mode of getting this wrong is locking every user out of a live shop. So the test is
- * "is there a factor that can be presented", not "is MFA configured":
+ * The failure mode of getting this wrong is locking every user out of a live business. So the test
+ * is "is there a factor that can be presented", not "is MFA configured":
  *
  *   · a verified totp / sms / email device  → CHALLENGE. There is something to type.
  *   · backup codes ALONE                    → let them in. Recovery codes are recovery FOR a second
  *     factor, not a second factor; they are not presented at sign-in because nobody carries them.
- *     This is the state the dispensary owner is actually in today, and challenging it would have
- *     locked the owner out of their own shop on deploy.
  *   · the policy requires MFA but the user has enrolled nothing → let them in, and say so. Switching
- *     a policy on must not lock out the people it applies to before they have had a chance to
- *     enrol. The flag lets a screen insist; it does not bar the door.
+ *     a policy on must not lock out the people it applies to before they have had a chance to enrol.
+ *     The flag lets a screen insist; it does not bar the door.
+ *   · THE TABLES ARE NOT IN THIS VERTICAL'S SCHEMA → let them in. (T57)
+ *     This is the new one, and it is why the port is safe to land everywhere at once: a template
+ *     that has not added mfa_devices has nothing enrolled by definition, so the honest answer is
+ *     "no second factor", not a 500 on the sign-in route of every tenant in the fleet.
  *
- * Recovery codes ARE accepted at the challenge — that is their entire purpose, and the tester's
- * point that "the codes exist, but nothing accepts them" was exactly right.
+ * Recovery codes ARE accepted at the challenge — that is their entire purpose.
  */
 import { sql } from 'drizzle-orm'
 import crypto from 'crypto'
 // The same verifier enrolment uses. Passing it in as a parameter would have let sign-in be handed
 // a different one.
-import { verifyTOTP } from '../utils/totp.ts'
+import { verifyTOTP } from './totp.ts'
 
 /** A factor a person can be asked for at sign-in. Backup codes are deliberately not one. */
 const PRESENTABLE = ['totp', 'sms', 'email'] as const
+
+/** Wrong codes one challenge will take before it is spent. (T57) */
+export const MAX_CODE_ATTEMPTS = 5
 
 export interface MfaGate {
   /** Sign-in must stop and ask for a code. */
@@ -54,13 +59,37 @@ export interface MfaGate {
   hasRecoveryCodes: boolean
 }
 
+const NO_FACTOR: MfaGate = { required: false, methods: [], enrolmentRequired: false, hasRecoveryCodes: false }
+
+/**
+ * Is two-factor even possible in this schema?
+ *
+ * Asked of the database rather than configured per template, so adding the tables is the only thing
+ * a vertical has to do to switch the feature on — and forgetting to flip a flag cannot leave a
+ * vertical with enrolment screens and a sign-in that ignores them, which is the T49 fault exactly.
+ */
+async function tablesPresent(db: any): Promise<boolean> {
+  try {
+    const r: any = await db.execute(sql`
+      SELECT COUNT(*)::int AS n FROM information_schema.tables
+      WHERE table_name IN ('mfa_devices', 'mfa_challenges')
+    `)
+    return Number(((r as any).rows || r)[0]?.n ?? 0) >= 2
+  } catch { return false }
+}
+
 /** What sign-in should do about two-factor for this user. */
 export async function mfaGateFor(db: any, companyId: string, userId: string): Promise<MfaGate> {
-  const rows: any = await db.execute(sql`
-    SELECT type, is_verified FROM mfa_devices
-    WHERE user_id = ${userId} AND company_id = ${companyId}
-  `)
-  const devices = ((rows as any).rows || rows) as Array<{ type: string; is_verified: boolean }>
+  if (!(await tablesPresent(db))) return NO_FACTOR
+  let devices: Array<{ type: string; is_verified: boolean }> = []
+  try {
+    const rows: any = await db.execute(sql`
+      SELECT type, is_verified FROM mfa_devices
+      WHERE user_id = ${userId} AND company_id = ${companyId}
+    `)
+    devices = ((rows as any).rows || rows) as any[]
+  } catch { return NO_FACTOR }
+
   const presentable = devices
     .filter((d) => d.is_verified !== false && (PRESENTABLE as readonly string[]).includes(String(d.type)))
     .map((d) => String(d.type))
@@ -107,7 +136,10 @@ export type MfaCodeOutcome =
  * Check a code against a pending sign-in challenge, and spend it.
  *
  * TOTP is checked against the enrolled secret. A recovery code is matched by hash and REMOVED, so it
- * works once — which is the property the brief asked to be tested and nothing could satisfy.
+ * works once. A wrong code costs one of five tries on this challenge (T57): a pending challenge used
+ * to accept guesses for its whole ten-minute life, and a suite put twelve through before the real
+ * code still worked. Being spent is not a lockout on the ACCOUNT — the person signs in again with
+ * their password and gets a fresh challenge, which is what an honest typo needs.
  */
 export async function verifyLoginChallenge(
   db: any,
@@ -118,10 +150,10 @@ export async function verifyLoginChallenge(
   if (!given) return { ok: false, error: 'Enter the code from your authenticator, or one of your recovery codes.', code: 'code_required' }
 
   // Two plain queries rather than a join: the challenge, then the user it belongs to. The table is
-  // `user` (singular) in this schema, and guessing it in a clever join is how this would have failed
-  // at runtime on a route nothing else covers.
+  // `user` (singular) in these schemas, and guessing it in a clever join is how this would have
+  // failed at runtime on a route nothing else covers.
   const rows: any = await db.execute(sql`
-    SELECT id, user_id, expires_at, status FROM mfa_challenges
+    SELECT id, user_id, expires_at, status, attempts FROM mfa_challenges
     WHERE id = ${challengeId} AND type = 'login' LIMIT 1
   `)
   const challenge = ((rows as any).rows || rows)[0]
@@ -166,7 +198,22 @@ export async function verifyLoginChallenge(
     return { ok: true, userId, usedRecoveryCode: true }
   }
 
-  return { ok: false, error: 'That code was not right. Try again, or use one of your recovery codes.', code: 'bad_code' }
+  const spentAttempts = Number(challenge.attempts ?? 0) + 1
+  if (spentAttempts >= MAX_CODE_ATTEMPTS) {
+    await db.execute(sql`UPDATE mfa_challenges SET status = 'failed', attempts = ${spentAttempts} WHERE id = ${challengeId}`)
+    return {
+      ok: false,
+      error: `That code was not right, and this sign-in request has had ${MAX_CODE_ATTEMPTS} tries. Sign in again to get a new code.`,
+      code: 'too_many_attempts',
+    }
+  }
+  await db.execute(sql`UPDATE mfa_challenges SET attempts = ${spentAttempts} WHERE id = ${challengeId}`)
+  const left = MAX_CODE_ATTEMPTS - spentAttempts
+  return {
+    ok: false,
+    error: `That code was not right. Try again, or use one of your recovery codes. ${left} ${left === 1 ? 'try' : 'tries'} left on this request.`,
+    code: 'bad_code',
+  }
 }
 
 async function spend(db: any, challengeId: string, deviceId: string) {

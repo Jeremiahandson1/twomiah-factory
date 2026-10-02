@@ -10,6 +10,7 @@
 import { Hono } from 'hono'
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
+import { mfaGateFor, openLoginChallenge, verifyLoginChallenge } from './mfa.ts'
 import crypto from 'crypto'
 import { eq, and, gt } from 'drizzle-orm'
 import { redactCompanySettings, isPrivilegedRole } from './redactSettings'
@@ -165,6 +166,31 @@ export function createAuthRoutes(deps: AuthDeps) {
     const [foundCompany] = await db.select().from(company).where(eq(company.id, foundUser.companyId)).limit(1)
     if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
 
+    /**
+     * THE PASSWORD WAS RIGHT; IS THERE A SECOND FACTOR TO ASK FOR? (T57, ported from T49 H4)
+     *
+     * The dispensary has asked this since T49, when a report found it had enrolment screens, an
+     * authenticator secret, recovery codes and a "Require MFA for all users" switch while this route
+     * handed out tokens for an email and a password every time. Every other vertical still did.
+     *
+     * `mfaGateFor` asks whether a factor can actually be PRESENTED, not whether MFA is configured —
+     * and answers "no factor" when the vertical has no mfa_devices table at all, which is what makes
+     * landing this in shared auth safe for the templates that have not added one. See auth/mfa.ts.
+     */
+    const gate = await mfaGateFor(db, foundUser.companyId, foundUser.id)
+    if (gate.required) {
+      const { challengeId, expiresAt } = await openLoginChallenge(db, foundUser.companyId, foundUser.id)
+      // No tokens. Nothing about the account beyond what is needed to finish signing in.
+      return c.json({
+        mfaRequired: true,
+        challengeId,
+        expiresAt,
+        methods: gate.methods,
+        recoveryCodesAvailable: gate.hasRecoveryCodes,
+        message: 'Enter the code from your authenticator app to finish signing in.',
+      }, 200)
+    }
+
     const tokens = generateTokens(foundUser.id, foundUser.companyId, foundUser.email, foundUser.role)
     await storeRefreshToken(foundUser.id, tokens.refreshToken, { lastLogin: new Date() })
 
@@ -185,6 +211,47 @@ export function createAuthRoutes(deps: AuthDeps) {
       user: userPayload(foundUser, foundUser.role),
       company: companyPayload(foundCompany, permissions.normalizeRole(foundUser.role)),
       permissions: await effectivePermissions(foundUser.id, foundUser.role),
+      ...(gate.enrolmentRequired ? { mfaEnrolmentRequired: true } : {}),
+      ...tokens,
+    })
+  })
+
+  /**
+   * Finish a sign-in that stopped for a code. (T57)
+   *
+   * PUBLIC on purpose: the caller has no token yet — that is the whole point of being here. What
+   * stands in for authentication is the challenge id, which is single-use, expires in ten minutes,
+   * takes five wrong codes at most, and was created only after a correct password.
+   *
+   * Recovery codes are accepted here and burned on use.
+   */
+  app.post('/mfa', async (c) => {
+    const schema = z.object({ challengeId: z.string().min(1), code: z.string().min(1) })
+    const parsed = schema.safeParse(await c.req.json().catch(() => ({})))
+    if (!parsed.success) {
+      return c.json({ error: 'Send the challenge id and the code from your authenticator or a recovery code.', code: 'code_required' }, 400)
+    }
+
+    const outcome = await verifyLoginChallenge(db, parsed.data.challengeId, parsed.data.code)
+    if (!outcome.ok) {
+      // 401 for a wrong code, 400 for a request that can no longer be completed — a screen shows the
+      // first in the code field and sends the reader back to the start for the second.
+      return c.json({ error: outcome.error, code: outcome.code }, outcome.code === 'bad_code' ? 401 : 400)
+    }
+
+    const [mfaUser] = await db.select().from(user).where(eq(user.id, outcome.userId)).limit(1)
+    if (!mfaUser || !mfaUser.isActive) return c.json({ error: 'Account is disabled' }, 401)
+    const [mfaCompany] = await db.select().from(company).where(eq(company.id, mfaUser.companyId)).limit(1)
+    if (!mfaCompany) return c.json({ error: 'Company not found' }, 404)
+
+    const tokens = generateTokens(mfaUser.id, mfaUser.companyId, mfaUser.email, mfaUser.role)
+    await storeRefreshToken(mfaUser.id, tokens.refreshToken, { lastLogin: new Date() })
+    return c.json({
+      user: userPayload(mfaUser, mfaUser.role),
+      company: companyPayload(mfaCompany, permissions.normalizeRole(mfaUser.role)),
+      permissions: await effectivePermissions(mfaUser.id, mfaUser.role),
+      // So a screen can tell somebody they have one fewer recovery code than they did.
+      ...(outcome.usedRecoveryCode ? { usedRecoveryCode: true } : {}),
       ...tokens,
     })
   })

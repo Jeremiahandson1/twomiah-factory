@@ -70,6 +70,14 @@ export function AuthProvider({ api, children }: { api: AuthApi; children: React.
     setError(null)
     try {
       const data = await api.login(email, password)
+      /*
+       * A sign-in that stopped for a code is not a session yet. (T57)
+       *
+       * It carries no user, no company and no tokens — only a challenge id — so setting state from
+       * it would put a half-signed-in person into the app. Handed back to the caller for the code
+       * step; completeMfa() below does the state once the code is accepted.
+       */
+      if ((data as any)?.mfaRequired) return data
       setUser(data.user)
       setCompany(data.company)
       // Login does not carry the list in every CRM; checkAuth() fills it in either way. Setting what we
@@ -78,6 +86,21 @@ export function AuthProvider({ api, children }: { api: AuthApi; children: React.
       return data
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
+      throw err
+    }
+  }
+
+  /** The code step of a sign-in that stopped for one. Same state work as login, once it is accepted. */
+  const completeMfa = async (challengeId: string, code: string): Promise<AuthData> => {
+    setError(null)
+    try {
+      const data = await (api as any).completeMfa(challengeId, code)
+      setUser(data.user)
+      setCompany(data.company)
+      setPermissions(Array.isArray((data as any).permissions) ? ((data as any).permissions as string[]) : null)
+      return data
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'That code was not accepted')
       throw err
     }
   }
@@ -109,7 +132,7 @@ export function AuthProvider({ api, children }: { api: AuthApi; children: React.
   const can = useCallback((permission: string): boolean => permissionAllows(permissions, permission), [permissions])
 
   return (
-    <AuthContext.Provider value={{ user, company, loading, error, isAuthenticated, isAdmin, isManager, login, logout, checkAuth, updateCompany, updateUser, hasFeature, permissions, can, getToken }}>
+    <AuthContext.Provider value={{ user, company, loading, error, isAuthenticated, isAdmin, isManager, login, completeMfa, logout, checkAuth, updateCompany, updateUser, hasFeature, permissions, can, getToken }}>
       {children}
     </AuthContext.Provider>
   )

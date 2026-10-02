@@ -27,7 +27,9 @@ const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, 
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 const read = (p: string) => { try { return readFileSync(join(ROOT, p), 'utf8') } catch { return '' } }
-const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+// The ONE comment stripper (scripts/lib/stripComments.ts): string-aware, so a route pattern like
+// '/file/*' or a `src/**` in a line comment cannot pair with a later `*/` and delete real code. (T57)
+import { stripSource as strip } from './lib/stripComments.ts'
 
 const templates = readdirSync(join(ROOT, 'templates')).filter((t) => t.startsWith('crm') && t !== 'crm-automotive')
 

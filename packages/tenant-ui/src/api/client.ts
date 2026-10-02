@@ -180,10 +180,37 @@ export class ApiClient {
   }
 
   // ── Auth
+  /**
+   * Sign in — which may stop and ask for a code. (T57)
+   *
+   * A two-factor response carries no tokens, so `setTokens` must NOT run: calling it with undefined
+   * stored the string "undefined" as a bearer token and every later request went out with it.
+   * The caller sees `mfaRequired` and sends the code to completeMfa().
+   */
   async login(email: string, password: string): Promise<AuthData> {
     const result = await this.request<AuthData>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
+    if ((result as any)?.mfaRequired) return result
     this.setTokens(result.accessToken, result.refreshToken)
     return result
+  }
+
+  /** Finish a sign-in that stopped for a code — an authenticator's six digits, or a recovery code. */
+  async completeMfa(challengeId: string, code: string): Promise<AuthData> {
+    const result = await this.request<AuthData>('/api/auth/mfa', { method: 'POST', body: JSON.stringify({ challengeId, code }) })
+    this.setTokens(result.accessToken, result.refreshToken)
+    return result
+  }
+
+  /** Two-factor enrolment for the signed-in person. */
+  mfa = {
+    devices: () => this.request('/api/auth/mfa-devices/devices'),
+    setup: () => this.request('/api/auth/mfa-devices/setup', { method: 'POST', body: '{}' }),
+    verify: (deviceId: string, code: string) =>
+      this.request('/api/auth/mfa-devices/verify', { method: 'POST', body: JSON.stringify({ deviceId, code }) }),
+    newRecoveryCodes: (code: string) =>
+      this.request('/api/auth/mfa-devices/recovery-codes', { method: 'POST', body: JSON.stringify({ code }) }),
+    remove: (deviceId: string, code: string) =>
+      this.request(`/api/auth/mfa-devices/devices/${deviceId}`, { method: 'DELETE', body: JSON.stringify({ code }) }),
   }
 
   async logout(): Promise<void> {

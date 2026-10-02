@@ -26,7 +26,9 @@ import { join } from 'node:path'
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
-const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+// The ONE comment stripper (scripts/lib/stripComments.ts): string-aware, so a route pattern like
+// '/file/*' or a `src/**` in a line comment cannot pair with a later `*/` and delete real code. (T57)
+import { stripSource as strip } from './lib/stripComments.ts'
 
 /** The ids in `options: { categories: [...] }`, or null when the route passes no options. */
 function backendCategories(src: string): { ids: string[] | null; labels: Record<string, string> } {
