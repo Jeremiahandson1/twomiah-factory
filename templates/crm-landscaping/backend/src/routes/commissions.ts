@@ -33,7 +33,20 @@ const planSchema = z.object({
   effectiveTo: z.string().optional(),
 })
 
-app.get('/plans', async (c) => {
+/**
+ * commissions:read, like every other read in this module. (T38)
+ *
+ * This was the one route in the file with no gate, so any signed-in person — a coach on a gym's
+ * front desk, a labourer — could read the company's entire pay structure: each plan's name, type,
+ * flat rate, percentage, tier table and the role it applies to. Nothing leaked on the test tenant
+ * because no plans existed yet, which is exactly why it survived: the fault only shows once
+ * somebody sets commission up.
+ *
+ * The gate is not a new idea here. Every write on /plans is already gated, /summary/by-user is
+ * gated with this same permission, and GET / self-scopes for the same reason. owner and admin hold
+ * commissions:*, manager holds commissions:read, a `user` seat holds neither.
+ */
+app.get('/plans', requirePermission('commissions:read'), async (c) => {
   const currentUser = c.get('user') as any
   const plans = await db.select().from(commissionPlan).where(eq(commissionPlan.companyId, currentUser.companyId))
   return c.json({ data: plans })

@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { formatDate } from '../utils/date';
 import { DollarSign, Plus, Check, Loader2 } from 'lucide-react';
 import api from '../services/api';
+import { usePermissions } from '../contexts/PermissionsContext';
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-gray-100 text-gray-700',
@@ -17,6 +18,11 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function CommissionsPage() {
+  // Not useMayWrite: that answers true while the permission list is still in flight, which is right
+  // for a write button but wrong for a tab holding the company's pay rates. Absent then present
+  // beats briefly shown then refused.
+  const { can } = usePermissions();
+  const mayReadPlans = can('commissions:read');
   const [tab, setTab] = useState<'records' | 'plans'>('records');
   const [commissions, setCommissions] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
@@ -24,12 +30,30 @@ export default function CommissionsPage() {
   const [showPlan, setShowPlan] = useState(false);
   const [planForm, setPlanForm] = useState({ name: '', planType: 'percent_of_invoice', flatRateAmount: '', percentRate: '10', appliesToRole: 'technician' });
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [mayReadPlans]);
+  /**
+   * The two loads are SEPARATE. (T38)
+   *
+   * They were one Promise.all inside a try/catch that only logged, so a refusal on either one
+   * left BOTH lists empty — and /api/commissions/plans is now gated on commissions:read, which a
+   * `user` seat does not hold. That person is entitled to their own earnings (GET / self-scopes
+   * for exactly that reason), so a refusal on the pay structure must not take their earnings with
+   * it. Loading them together is what would have turned a correct refusal into a broken screen.
+   */
   const load = async () => {
     try {
-      const [r1, r2] = await Promise.all([api.get('/api/commissions'), api.get('/api/commissions/plans')]);
-      setCommissions(r1.data || []); setPlans(r2.data || []);
-    } catch (e) { console.error(e); } finally { setLoading(false); }
+      const r = await api.get('/api/commissions');
+      setCommissions(r.data || []);
+    } catch (e) { console.error(e); }
+    if (mayReadPlans) {
+      try {
+        const r = await api.get('/api/commissions/plans');
+        setPlans(r.data || []);
+      } catch (e) { console.error(e); }
+    } else {
+      setPlans([]);
+    }
+    setLoading(false);
   };
 
   const createPlan = async (e: React.FormEvent) => {
@@ -47,12 +71,12 @@ export default function CommissionsPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div><h1 className="text-2xl font-bold flex items-center gap-2"><DollarSign className="w-6 h-6 text-sky-500" />Commissions</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Tech + sales rep commission tracking</p></div>
-        {tab === 'plans' && <button onClick={() => setShowPlan(true)} className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Plan</button>}
+        {tab === 'plans' && mayReadPlans && <button onClick={() => setShowPlan(true)} className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Plan</button>}
       </div>
 
       <div className="flex gap-2 mb-4 border-b">
         <button onClick={() => setTab('records')} className={`px-4 py-2 border-b-2 ${tab === 'records' ? 'border-sky-500 text-sky-600 font-semibold' : 'border-transparent text-gray-500 dark:text-slate-400'}`}>Earnings</button>
-        <button onClick={() => setTab('plans')} className={`px-4 py-2 border-b-2 ${tab === 'plans' ? 'border-sky-500 text-sky-600 font-semibold' : 'border-transparent text-gray-500 dark:text-slate-400'}`}>Plans</button>
+        {mayReadPlans && <button onClick={() => setTab('plans')} className={`px-4 py-2 border-b-2 ${tab === 'plans' ? 'border-sky-500 text-sky-600 font-semibold' : 'border-transparent text-gray-500 dark:text-slate-400'}`}>Plans</button>}
       </div>
 
       {tab === 'records' ? (
