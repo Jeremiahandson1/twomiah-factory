@@ -535,10 +535,19 @@ function menuChangeBreaksSchedule(synced: any): string | null {
   if (scheduled <= 0.005) return null
   const total = round2(Number(synced?.inv?.total || 0))
   if (scheduled > total + 0.005) {
-    return `That change would leave $${scheduled.toFixed(2)} of scheduled payments against an invoice total of $${total.toFixed(2)}. Change the payment schedule first.`
+    return `That change would leave ${money(scheduled)} of scheduled payments against an invoice total of ${money(total)}. Change the payment schedule first.`
   }
   return null
 }
+
+/**
+ * A figure a coordinator has to read, not a figure a program has to parse.
+ *
+ * `toFixed(2)` has no thousands separator, so this refusal read "$12000.00" — and a five-figure sum
+ * with no grouping is exactly the number somebody misreads by a factor of ten while a client is on
+ * the phone. (T41: "the over-schedule message prints $12000.00 unformatted")
+ */
+const money = (n: number) => `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 // The schedule can't promise more than the invoice bills. Checked after the invoice is in step with the
 // menu/quote, inside the same transaction.
@@ -546,7 +555,7 @@ function scheduleExceedsInvoice(inv: any, schedule: any[], ignoreId: string | nu
   const total = round2(Number(inv.total))
   if (total <= 0.005) return 'Add menu lines or a quoted total before scheduling payments — there is nothing to bill yet.'
   const scheduled = round2(schedule.filter((p: any) => p.id !== ignoreId).reduce((s: number, p: any) => s + Number(p.amount || 0), 0) + amount)
-  if (scheduled > total + 0.005) return `Scheduled payments would total $${scheduled.toFixed(2)} — more than the event's invoice total of $${total.toFixed(2)}.`
+  if (scheduled > total + 0.005) return `Scheduled payments would total ${money(scheduled)} — more than the event's invoice total of ${money(total)}.`
   return null
 }
 
@@ -629,7 +638,7 @@ app.put('/:id/payments/:paymentId', requirePermission('invoices:update'), async 
   // what the invoice has covered of it. (T16 L7)
   if ('amount' in updates) {
     const covered = (await loadEventLedger(currentUser.companyId, eventId))?.payments.find((p: any) => p.id === paymentId)
-    if (covered && Number(updates.amount) < covered.paidAmount - 0.005) return c.json({ error: `"${existing.label}" already has $${covered.paidAmount.toFixed(2)} recorded against it — the amount can't go below that. Refund on the invoice first.` }, 409)
+    if (covered && Number(updates.amount) < covered.paidAmount - 0.005) return c.json({ error: `"${existing.label}" already has ${money(covered.paidAmount)} recorded against it — the amount can't go below that. Refund on the invoice first.` }, 409)
   }
 
   let updated
@@ -670,7 +679,7 @@ app.delete('/:id/payments/:paymentId', requirePermission('invoices:update'), asy
   // An installment the invoice has already covered (in part or in full) stays on the schedule until that
   // money is refunded — deleting it used to answer 200 and silently re-spread the payment. (T16 L7)
   const covered = (await loadEventLedger(currentUser.companyId, eventId))?.payments.find((p: any) => p.id === paymentId)
-  if (covered && covered.paidAmount > 0.005) return c.json({ error: `"${existing.label}" already has $${covered.paidAmount.toFixed(2)} recorded against it — refund it on the invoice before removing it from the schedule.` }, 409)
+  if (covered && covered.paidAmount > 0.005) return c.json({ error: `"${existing.label}" already has ${money(covered.paidAmount)} recorded against it — refund it on the invoice before removing it from the schedule.` }, 409)
 
   await db.transaction(async (tx: any) => {
     await tx.delete(eventPayment).where(eq(eventPayment.id, paymentId))

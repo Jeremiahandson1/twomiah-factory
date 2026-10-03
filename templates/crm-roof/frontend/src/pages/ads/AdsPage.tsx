@@ -145,7 +145,7 @@ function ExperimentsTab() {
                     e.status === 'running' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                     e.status === 'completed' ? 'bg-green-50 text-green-700 border-green-200' :
                     'bg-gray-100 text-gray-600 border-gray-200'
-                  }`}>{e.status}</span>
+                  } dark:text-blue-300`}>{e.status}</span>
                 </div>
                 <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${e.variants.length}, 1fr)` }}>
                   {e.variants.map((v, i) => {
@@ -450,7 +450,7 @@ function CampaignsTab() {
                 <p className="font-semibold text-gray-900 dark:text-white text-sm">{ad.headline}</p>
                 <p className="text-gray-500 dark:text-slate-400 text-xs mt-1 line-clamp-2">{ad.body}</p>
                 {ad.cta && (
-                  <span className="inline-block mt-2 px-2 py-0.5 text-xs font-medium bg-blue-500 text-white rounded">
+                  <span className="inline-block mt-2 px-2 py-0.5 text-xs font-medium bg-blue-600 text-white rounded">
                     {ad.cta}
                   </span>
                 )}
@@ -584,7 +584,7 @@ function ApprovalsTab({ onCountChange }: { onCountChange: (n: number) => void })
                     <h4 className="font-semibold text-gray-900 dark:text-white">{item.headline}</h4>
                     <p className="text-gray-600 dark:text-slate-300 text-sm mt-1">{item.body}</p>
                     {item.cta && (
-                      <span className="inline-block mt-3 px-3 py-1 text-xs font-semibold bg-blue-500 text-white rounded-md">
+                      <span className="inline-block mt-3 px-3 py-1 text-xs font-semibold bg-blue-600 text-white rounded-md">
                         {item.cta}
                       </span>
                     )}
@@ -607,7 +607,7 @@ function ApprovalsTab({ onCountChange }: { onCountChange: (n: number) => void })
                   <button
                     onClick={() => handleApprove(item.id)}
                     disabled={acting === item.id}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-500 hover:bg-green-600 rounded-lg transition-colors disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-700 hover:bg-green-800 rounded-lg transition-colors disabled:opacity-50"
                   >
                     <Check className="w-4 h-4" />
                     Approve & Go Live
@@ -715,7 +715,7 @@ function AdDetailSlideOver({ ad, onClose }: { ad: any; onClose: () => void }) {
             <h4 className="font-semibold text-gray-900 dark:text-white text-lg">{ad.headline}</h4>
             <p className="text-gray-600 dark:text-slate-300 text-sm mt-2">{ad.body}</p>
             {ad.cta && (
-              <span className="inline-block mt-3 px-4 py-1.5 text-sm font-semibold bg-blue-500 text-white rounded-lg">
+              <span className="inline-block mt-3 px-4 py-1.5 text-sm font-semibold bg-blue-600 text-white rounded-lg">
                 {ad.cta}
               </span>
             )}

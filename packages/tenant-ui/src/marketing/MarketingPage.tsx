@@ -115,7 +115,7 @@ function CampaignsTab({ api, toast, contactTypes, onChanged }: { api: MarketingA
                     <span className={`px-2 py-1 text-xs rounded-full ${statusCls[c.status] || statusCls.draft}`}>{c.status}</span>
                     {c.status === 'scheduled' && c.scheduledDate && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{fmtWhen(c.scheduledDate)}</p>}
                     {c.status === 'sent' && c.sentAt && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{fmtWhen(c.sentAt)}</p>}
-                    {c.status === 'failed' && !!c.lastError && <p className="text-xs text-red-600 mt-1 max-w-xs">{c.lastError}</p>}
+                    {c.status === 'failed' && !!c.lastError && <p className="text-xs text-red-600 mt-1 max-w-xs dark:text-red-400">{c.lastError}</p>}
                   </td>
                   <td className="px-4 py-3 text-right">{c.recipientCount ?? 0}</td>
                   <td className="px-4 py-3 text-right">{c.openCount ?? 0}</td>
@@ -124,10 +124,10 @@ function CampaignsTab({ api, toast, contactTypes, onChanged }: { api: MarketingA
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1 justify-end">
                       {(c.status === 'draft' || c.status === 'failed') && <>
-                        <button onClick={() => setConfirmSend(c)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" title={c.status === 'failed' ? 'Send again' : 'Send now'}><Send className="w-4 h-4" /></button>
-                        <button onClick={() => setSchedule({ campaign: c, when: '' })} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Schedule"><Calendar className="w-4 h-4" /></button>
+                        <button onClick={() => setConfirmSend(c)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg dark:text-green-300" title={c.status === 'failed' ? 'Send again' : 'Send now'}><Send className="w-4 h-4" /></button>
+                        <button onClick={() => setSchedule({ campaign: c, when: '' })} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg dark:text-blue-300" title="Schedule"><Calendar className="w-4 h-4" /></button>
                       </>}
-                      {c.status === 'scheduled' && <button onClick={() => unschedule(c)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Cancel schedule"><X className="w-4 h-4" /></button>}
+                      {c.status === 'scheduled' && <button onClick={() => unschedule(c)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg dark:text-blue-300" title="Cancel schedule"><X className="w-4 h-4" /></button>}
                       {c.status !== 'sent' && c.status !== 'sending' && <button onClick={() => setForm({ open: true, campaign: c })} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100" title="Edit"><Edit2 className="w-4 h-4" /></button>}
                       {c.status !== 'sending' && <button onClick={() => setToDelete(c)} className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50" title="Delete"><Trash2 className="w-4 h-4" /></button>}
                     </div>
@@ -347,7 +347,7 @@ function SequenceForm({ api, toast, sequence, label, onSaved, onClose }: { api: 
         </div>
         <p className="text-xs text-gray-500 dark:text-slate-400">Contacts are enrolled by hand from the sequence card. Step 1 goes out within 15 minutes of enrolling; each later step waits its delay after the previous one.</p>
         <div className="space-y-3">
-          <div className="flex items-center justify-between"><h3 className="font-medium text-gray-900 dark:text-slate-100">Steps</h3><button type="button" onClick={() => setForm({ ...form, steps: [...form.steps, { delayDays: 1, delayHours: 0, subject: '', body: '' }] })} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200">+ Add step</button></div>
+          <div className="flex items-center justify-between"><h3 className="font-medium text-gray-900 dark:text-slate-100">Steps</h3><button type="button" onClick={() => setForm({ ...form, steps: [...form.steps, { delayDays: 1, delayHours: 0, subject: '', body: '' }] })} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300">+ Add step</button></div>
           {form.steps.map((s, i) => (
             <div key={i} className="p-4 border rounded-lg space-y-3 dark:border-slate-700">
               <div className="flex items-center justify-between flex-wrap gap-2">
@@ -387,7 +387,7 @@ function EnrollModal({ api, toast, sequence, onDone, onClose }: { api: Marketing
           {results.map((c) => (
             <button key={c.id} type="button" disabled={!c.email || busy === c.id} onClick={() => go(c.id)} className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-gray-50 disabled:opacity-50 dark:hover:bg-slate-800">
               <span><span className="font-medium text-gray-900 dark:text-slate-100">{c.name}</span><span className="block text-xs text-gray-500 dark:text-slate-400">{c.email || 'no email address'}{c.emailOptOut ? ' · unsubscribed' : ''}</span></span>
-              <span className="text-xs text-orange-600">{busy === c.id ? 'Enrolling…' : 'Enroll'}</span>
+              <span className="text-xs text-orange-600 dark:text-orange-300">{busy === c.id ? 'Enrolling…' : 'Enroll'}</span>
             </button>
           ))}
         </div>

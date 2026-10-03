@@ -26,7 +26,7 @@ export function PortalProjects() {
   return (
     <div>
       <PageTitle title="Projects" subtitle="Track the progress of your projects." />
-      {error && <p role="alert" className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {projects.length === 0 ? <Empty icon={FolderKanban} text="No projects yet." /> : (
         <div className="space-y-6">
           {active.length > 0 && <Section title={`Active Projects (${active.length})`}>{active.map((p) => <ProjectCard key={p.id} project={p} token={token} />)}</Section>}
@@ -43,7 +43,7 @@ function ProjectCard({ project, token }: { project: PortalProjectData; token?: s
     <PLink to={`/portal/${token}/projects/${project.id}`} className={`block ${card} p-5 hover:shadow-md transition-all`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4 min-w-0">
-          <div className="p-3 bg-purple-100 rounded-lg shrink-0"><FolderKanban className="w-6 h-6 text-purple-600" /></div>
+          <div className="p-3 bg-purple-100 rounded-lg shrink-0 dark:bg-purple-950/40"><FolderKanban className="w-6 h-6 text-purple-600 dark:text-purple-300" /></div>
           <div className="min-w-0">
             <h3 className="font-semibold text-gray-900 dark:text-slate-100">{project.name}</h3>
             <p className="text-sm text-gray-500 dark:text-slate-400">{project.number}</p>
@@ -56,7 +56,7 @@ function ProjectCard({ project, token }: { project: PortalProjectData; token?: s
         <div className="mt-4"><div className="flex justify-between text-sm mb-1"><span className="text-gray-600 dark:text-slate-400">Progress</span><span className="font-medium text-gray-900 dark:text-slate-100">{project.progress}%</span></div><div className="h-2 bg-gray-200 rounded-full overflow-hidden dark:bg-slate-700"><div className="h-full bg-purple-500 transition-all" style={{ width: `${project.progress}%` }} /></div></div>
       )}
       {(project.startDate || project.endDate) && <div className="flex items-center gap-4 mt-4 text-sm text-gray-500 dark:text-slate-400"><Calendar className="w-4 h-4" />{project.startDate && <span>Started: {formatDate(project.startDate)}</span>}{project.endDate && <span>Est. completion: {formatDate(project.endDate)}</span>}</div>}
-      <div className="flex items-center justify-end mt-4 text-orange-600 text-sm font-medium">View details <ArrowRight className="w-4 h-4 ml-1" /></div>
+      <div className="flex items-center justify-end mt-4 text-orange-600 text-sm font-medium dark:text-orange-300">View details <ArrowRight className="w-4 h-4 ml-1" /></div>
     </PLink>
   )
 }
@@ -74,7 +74,7 @@ export function PortalProjectDetail() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <PLink to={`/portal/${token}/projects`} className="text-orange-600 hover:underline text-sm">{'<-'} Back to Projects</PLink>
+        <PLink to={`/portal/${token}/projects`} className="text-orange-600 hover:underline text-sm dark:text-orange-300">{'<-'} Back to Projects</PLink>
         {sections.projectFiles && <PLink to={`/portal/${token}/projects/${projectId}/files`} className={btnSecondary}>Project Files</PLink>}
       </div>
       <div className={`${card} overflow-hidden`}>

@@ -31,7 +31,7 @@ export default function ForgotPasswordPage() {
         {sent ? (
           <div className="card p-6 space-y-3">
             <h1 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Check your email</h1>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 dark:text-slate-400">
               If an account exists for <strong>{email}</strong>, we&rsquo;ve sent a link to set a new
               password. The link expires in 1 hour.
             </p>
@@ -41,14 +41,14 @@ export default function ForgotPasswordPage() {
           <form onSubmit={submit} className="card p-6 space-y-4">
             <div>
               <h1 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Forgot password</h1>
-              <p className="text-sm text-gray-500">Enter your admin email and we&rsquo;ll send a reset link</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Enter your admin email and we&rsquo;ll send a reset link</p>
             </div>
             <div>
               <label className="label">Email</label>
               <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
             </div>
             <button className="btn-primary w-full" disabled={busy}>{busy ? 'Sending…' : 'Send reset link'}</button>
-            <Link to="/login" className="block text-center text-sm text-gray-500 hover:underline">Back to sign in</Link>
+            <Link to="/login" className="block text-center text-sm text-gray-500 hover:underline dark:text-slate-400">Back to sign in</Link>
           </form>
         )}
       </div>

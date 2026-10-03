@@ -39,7 +39,7 @@ export function PortalPets() {
   return (
     <div>
       <PageTitle title={config.labels.pets} subtitle="Your animals, their vaccinations and what is booked." />
-      {error && <p role="alert" className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {pets.length === 0 ? <Empty icon={PawPrint} text="No pets on your account yet." /> : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {pets.map((p) => (
@@ -51,11 +51,11 @@ export function PortalPets() {
                     {speciesLabel(p.species)}{p.breed ? ` · ${p.breed}` : ''}{p.sex ? ` · ${p.sex}` : ''}
                   </p>
                 </div>
-                <PawPrint className="w-5 h-5 text-teal-600 shrink-0" />
+                <PawPrint className="w-5 h-5 text-teal-600 shrink-0 dark:text-teal-300" />
               </div>
               <div className="mt-4 space-y-2 text-sm">
                 {!!p.vaccinationsDue && p.vaccinationsDue > 0 && (
-                  <p className="flex items-center gap-2 text-red-600">
+                  <p className="flex items-center gap-2 text-red-600 dark:text-red-400">
                     <AlertTriangle className="w-4 h-4 shrink-0" />
                     {p.vaccinationsDue} vaccination{p.vaccinationsDue === 1 ? '' : 's'} due
                   </p>
@@ -90,7 +90,7 @@ export function PortalPetDetail() {
   const [error, setError] = useState('')
   useEffect(() => { portalFetch(`/pets/${petId}`).then(setData).catch((e) => setError((e as Error).message)).finally(() => setLoading(false)) }, [portalFetch, petId])
   if (loading) return <Spinner />
-  if (error || !data) return <p role="alert" className="text-sm text-red-600">{error || 'Pet not found.'}</p>
+  if (error || !data) return <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error || 'Pet not found.'}</p>
   const { pet, vaccinations, appointments, visits } = data
   const upcoming = appointments.filter((a) => new Date(a.startTime) >= new Date())
   const past = appointments.filter((a) => new Date(a.startTime) < new Date())

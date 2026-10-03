@@ -185,7 +185,7 @@ export default function EODReportPage() {
 
               {/* Sales Summary */}
               <div>
-                <h4 className="font-semibold flex items-center gap-2 mb-3"><DollarSign className="w-5 h-5 text-green-600" />Sales Summary</h4>
+                <h4 className="font-semibold flex items-center gap-2 mb-3"><DollarSign className="w-5 h-5 text-green-600 dark:text-green-300" />Sales Summary</h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-white border rounded-lg p-4 dark:bg-slate-900">
                     <div className="text-sm text-gray-500 dark:text-slate-400">Total Orders</div>
@@ -193,7 +193,7 @@ export default function EODReportPage() {
                   </div>
                   <div className="bg-white border rounded-lg p-4 dark:bg-slate-900">
                     <div className="text-sm text-gray-500 dark:text-slate-400">Total Revenue</div>
-                    <div className="text-2xl font-bold text-green-600">${(report.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                    <div className="text-2xl font-bold text-green-600 dark:text-green-300">${(report.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                   </div>
                   <div className="bg-white border rounded-lg p-4 dark:bg-slate-900">
                     <div className="text-sm text-gray-500 dark:text-slate-400">Cash</div>
@@ -209,7 +209,7 @@ export default function EODReportPage() {
               {/* Cash Reconciliation */}
               <div>
                 <h4 className="font-semibold flex items-center gap-2 mb-3">
-                  <DollarSign className="w-5 h-5 text-yellow-600" />Cash Reconciliation
+                  <DollarSign className="w-5 h-5 text-yellow-600 dark:text-yellow-300" />Cash Reconciliation
                   {report.cashDrawerStatus === 'closed' && (
                     <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-300">Drawer closed — final at close</span>
                   )}
@@ -297,7 +297,7 @@ export default function EODReportPage() {
               {((report.unsettledSales || 0) > 0 || (report.awaitingCollection || 0) > 0) && (
                 <div>
                   <h4 className="font-semibold flex items-center gap-2 mb-3">
-                    <AlertTriangle className="w-5 h-5 text-amber-600" />Still outstanding at close
+                    <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-300" />Still outstanding at close
                   </h4>
                   <div className="bg-white border rounded-lg p-5 space-y-5 dark:bg-slate-900 dark:border-slate-700">
                     {(report.unsettledSales || 0) > 0 && (
@@ -365,7 +365,7 @@ export default function EODReportPage() {
 
               {/* Inventory */}
               <div>
-                <h4 className="font-semibold flex items-center gap-2 mb-3"><Package className="w-5 h-5 text-blue-600" />Inventory</h4>
+                <h4 className="font-semibold flex items-center gap-2 mb-3"><Package className="w-5 h-5 text-blue-600 dark:text-blue-300" />Inventory</h4>
                 <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -384,7 +384,7 @@ export default function EODReportPage() {
 
               {/* Compliance Checklist */}
               <div>
-                <h4 className="font-semibold flex items-center gap-2 mb-3"><Shield className="w-5 h-5 text-purple-600" />Compliance Checklist</h4>
+                <h4 className="font-semibold flex items-center gap-2 mb-3"><Shield className="w-5 h-5 text-purple-600 dark:text-purple-300" />Compliance Checklist</h4>
                 <div className="bg-white border rounded-lg p-5 space-y-3 dark:bg-slate-900">
                   {(report.complianceChecklist || [
                     { id: 'id_check', label: 'All IDs verified for every transaction' },
@@ -398,7 +398,7 @@ export default function EODReportPage() {
                       <input type="checkbox" checked={checklist[item.id] || false}
                         onChange={e => setChecklist({ ...checklist, [item.id]: e.target.checked })}
                         disabled={report.status === 'submitted'}
-                        className="rounded text-green-600 w-4 h-4" />
+                        className="rounded text-green-600 w-4 h-4 dark:text-green-300" />
                       <span className="text-sm">{item.label}</span>
                     </label>
                   ))}
@@ -407,7 +407,7 @@ export default function EODReportPage() {
 
               {/* Staff */}
               <div>
-                <h4 className="font-semibold flex items-center gap-2 mb-3"><Users className="w-5 h-5 text-indigo-600" />Staff</h4>
+                <h4 className="font-semibold flex items-center gap-2 mb-3"><Users className="w-5 h-5 text-indigo-600 dark:text-indigo-300" />Staff</h4>
                 <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
                   <div className="grid grid-cols-3 gap-4">
                     <div>
@@ -518,7 +518,7 @@ export default function EODReportPage() {
                         <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{r.submittedBy || '-'}</td>
                         <td className="px-4 py-3">
                           <button onClick={() => viewHistoricReport(r.id)}
-                            className="text-green-600 hover:text-green-800 dark:hover:text-green-300 text-sm font-medium flex items-center gap-1">
+                            className="text-green-600 hover:text-green-800 dark:hover:text-green-300 text-sm font-medium flex items-center gap-1 dark:text-green-300">
                             <Eye className="w-3 h-3" />View
                           </button>
                         </td>

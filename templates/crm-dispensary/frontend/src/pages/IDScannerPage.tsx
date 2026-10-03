@@ -153,8 +153,8 @@ export default function IDScannerPage() {
       {/* Stats Bar */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3 dark:bg-slate-900">
-          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-            <ScanLine className="w-5 h-5 text-green-600" />
+          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center dark:bg-green-950/40">
+            <ScanLine className="w-5 h-5 text-green-600 dark:text-green-300" />
           </div>
           <div>
             <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.scansToday || 0}</p>
@@ -162,8 +162,8 @@ export default function IDScannerPage() {
           </div>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3 dark:bg-slate-900">
-          <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-            <XCircle className="w-5 h-5 text-red-600" />
+          <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center dark:bg-red-950/40">
+            <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
           </div>
           <div>
             <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.underageAttempts || 0}</p>
@@ -171,8 +171,8 @@ export default function IDScannerPage() {
           </div>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3 dark:bg-slate-900">
-          <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-            <AlertTriangle className="w-5 h-5 text-orange-600" />
+          <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center dark:bg-orange-950/40">
+            <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-300" />
           </div>
           <div>
             <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.expiredIds || 0}</p>
@@ -218,7 +218,7 @@ export default function IDScannerPage() {
                       scanMethod === m.value
                         ? 'bg-green-700 text-white'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
+                    } dark:text-slate-300`}
                   >
                     {m.label}
                   </button>
@@ -313,9 +313,9 @@ export default function IDScannerPage() {
                   'bg-yellow-50 border border-yellow-200'
                 }`}>
                   {scanResult.status === 'verified' ? (
-                    <CheckCircle className="w-8 h-8 text-green-600 flex-shrink-0" />
+                    <CheckCircle className="w-8 h-8 text-green-600 flex-shrink-0 dark:text-green-300" />
                   ) : (
-                    <XCircle className="w-8 h-8 text-red-600 flex-shrink-0" />
+                    <XCircle className="w-8 h-8 text-red-600 flex-shrink-0 dark:text-red-400" />
                   )}
                   <div>
                     <p className="font-semibold text-gray-900 dark:text-slate-100">
@@ -382,12 +382,12 @@ export default function IDScannerPage() {
 
                 {/* Customer Match */}
                 {scanResult.customerId && (
-                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg dark:bg-blue-950/40">
                     <p className="text-sm text-blue-700 dark:text-blue-300">
                       <User className="w-4 h-4 inline mr-1" />
                       Matched to existing customer profile
                     </p>
-                    <button className="text-sm text-blue-600 hover:underline mt-1 font-medium">
+                    <button className="text-sm text-blue-600 hover:underline mt-1 font-medium dark:text-blue-300">
                       View Customer Profile
                     </button>
                   </div>
@@ -519,7 +519,7 @@ export default function IDScannerPage() {
                         <span>Scanned: {scan.createdAt ? new Date(scan.createdAt).toLocaleString() : '—'}</span>
                       </div>
                       {scan.flagReason && (
-                        <p className="text-sm text-red-600 mt-2">Reason: {scan.flagReason}</p>
+                        <p className="text-sm text-red-600 mt-2 dark:text-red-400">Reason: {scan.flagReason}</p>
                       )}
                     </div>
                     <div className="flex gap-2 ml-4">

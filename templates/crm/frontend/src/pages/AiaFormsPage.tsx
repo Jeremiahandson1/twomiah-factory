@@ -82,7 +82,7 @@ export default function AiaFormsPage() {
                   <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{formatDate(f.periodTo)}</td>
                   <td className="px-4 py-3 font-mono text-sm">${Number(f.currentPaymentDue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[f.status]}`}>{f.status}</span></td>
-                  <td className="px-4 py-3">{f.status === 'draft' && <button onClick={() => sign(f.id)} className="text-blue-600 text-xs hover:underline">Sign</button>}</td>
+                  <td className="px-4 py-3">{f.status === 'draft' && <button onClick={() => sign(f.id)} className="text-blue-600 text-xs hover:underline dark:text-blue-300">Sign</button>}</td>
                 </tr>
               ))}
           </tbody>
@@ -106,7 +106,7 @@ export default function AiaFormsPage() {
               </div>
 
               <div className="border-t pt-3">
-                <div className="flex items-center justify-between mb-2"><div className="text-sm font-semibold">G703 Line Items</div><button type="button" onClick={addLineItem} className="text-sm text-blue-600 hover:underline">+ Add row</button></div>
+                <div className="flex items-center justify-between mb-2"><div className="text-sm font-semibold">G703 Line Items</div><button type="button" onClick={addLineItem} className="text-sm text-blue-600 hover:underline dark:text-blue-300">+ Add row</button></div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead className="bg-gray-50 dark:bg-slate-900"><tr><th className="p-1">#</th><th className="p-1">Description</th><th className="p-1">Sch. Value</th><th className="p-1">Prev. Done</th><th className="p-1">This Period</th><th className="p-1">Stored</th><th className="p-1">Total</th><th className="p-1">%</th></tr></thead>

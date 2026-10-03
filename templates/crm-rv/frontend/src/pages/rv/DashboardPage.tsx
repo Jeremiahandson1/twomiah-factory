@@ -177,7 +177,7 @@ export default function DashboardPage() {
           </div>
           <div className="mt-3 text-3xl font-bold text-gray-900 dark:text-slate-100">{num(inventory.total)}</div>
           <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">
-            <span className="font-medium text-green-600">{num(inventory.available)}</span> available
+            <span className="font-medium text-green-600 dark:text-green-300">{num(inventory.available)}</span> available
           </p>
         </Link>
 
@@ -265,7 +265,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-gray-900 dark:text-slate-100">Available by category</h2>
-            <Link to="/crm/units" className="text-xs text-orange-600 hover:underline">View all</Link>
+            <Link to="/crm/units" className="text-xs text-orange-600 hover:underline dark:text-orange-300">View all</Link>
           </div>
           {categoryRows.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">No units in stock yet</p>

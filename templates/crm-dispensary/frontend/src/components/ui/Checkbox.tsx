@@ -42,7 +42,7 @@ export function Checkbox({
             </span>
           )}
           {description && (
-            <p className="text-sm text-slate-500 mt-0.5">{description}</p>
+            <p className="text-sm text-slate-500 mt-0.5 dark:text-slate-400">{description}</p>
           )}
         </div>
       )}
@@ -95,7 +95,7 @@ export function Toggle({
       {(label || description) && (
         <div>
           {label && <span className="text-sm font-medium text-slate-200">{label}</span>}
-          {description && <p className="text-xs text-slate-500">{description}</p>}
+          {description && <p className="text-xs text-slate-500 dark:text-slate-400">{description}</p>}
         </div>
       )}
     </label>

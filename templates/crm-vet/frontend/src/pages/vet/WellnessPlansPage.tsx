@@ -104,7 +104,7 @@ export default function WellnessPlansPage() {
           </h1>
           <p className="text-gray-500 dark:text-slate-400">Recurring preventive-care memberships</p>
         </div>
-        <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">
+        <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">
           <Plus className="w-4 h-4" /> New Plan
         </button>
       </div>
@@ -162,7 +162,7 @@ export default function WellnessPlansPage() {
                 <Users className="w-4 h-4 text-teal-500" /> Enrollments
                 <span className="text-xs bg-gray-100 text-gray-600 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{enrollments.length}</span>
               </h2>
-              <button onClick={() => setShowEnroll(true)} disabled={plans.length === 0} className="flex items-center gap-1 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm disabled:opacity-50" title={plans.length === 0 ? 'Create a plan first' : ''}>
+              <button onClick={() => setShowEnroll(true)} disabled={plans.length === 0} className="flex items-center gap-1 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm disabled:opacity-50" title={plans.length === 0 ? 'Create a plan first' : ''}>
                 <Plus className="w-4 h-4" /> Enroll Patient
               </button>
             </div>
@@ -193,7 +193,7 @@ export default function WellnessPlansPage() {
                         </td>
                         <td className="px-4 py-3 text-right">
                           {(e.status || 'active') === 'active' && (
-                            <button onClick={() => unenroll(e)} className="text-xs text-red-600 hover:text-red-700 dark:hover:text-red-300">Cancel</button>
+                            <button onClick={() => unenroll(e)} className="text-xs text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400">Cancel</button>
                           )}
                         </td>
                       </tr>
@@ -287,7 +287,7 @@ function EnrollModal({ plans, onSave, onClose }: { plans: WellnessPlan[]; onSave
             </div>
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
                 {saving ? 'Enrolling…' : 'Enroll'}
               </button>
             </div>
@@ -383,7 +383,7 @@ function PlanModal({ plan, onSave, onClose }: { plan: WellnessPlan | null; onSav
             </div>
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
                 {saving ? 'Saving...' : 'Save Plan'}
               </button>
             </div>

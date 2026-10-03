@@ -26,7 +26,7 @@ export function PortalSelections() {
 
   if (loading) return <Spinner />
   const title = <PageTitle title="Selections" subtitle="Choose finishes, fixtures, and materials for your project." />
-  if (projects.length === 0) return <div>{title}{error && <p role="alert" className="mb-4 text-sm text-red-600">{error}</p>}<Empty icon={Palette} text="No projects available." /></div>
+  if (projects.length === 0) return <div>{title}{error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}<Empty icon={Palette} text="No projects available." /></div>
 
   const grouped: Record<string, any[]> = {}
   for (const sel of selections) { const cat = sel.category?.name || 'Uncategorized'; (grouped[cat] ||= []).push(sel) }
@@ -56,7 +56,7 @@ function CategoryGroup({ category, items, projectId, onUpdate }: { category: str
   return (
     <div className={`${card} overflow-hidden`}>
       <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors dark:hover:bg-slate-800">
-        <div className="flex items-center gap-3"><div className="p-2 bg-purple-100 rounded-lg"><Palette className="w-5 h-5 text-purple-600" /></div><div className="text-left"><h2 className="font-semibold text-gray-900 dark:text-slate-100">{category}</h2><p className="text-sm text-gray-500 dark:text-slate-400">{items.length} selection{items.length !== 1 ? 's' : ''}{pendingCount > 0 && <span className="ml-2 text-orange-600 font-medium">{pendingCount} awaiting your choice</span>}</p></div></div>
+        <div className="flex items-center gap-3"><div className="p-2 bg-purple-100 rounded-lg dark:bg-purple-950/40"><Palette className="w-5 h-5 text-purple-600 dark:text-purple-300" /></div><div className="text-left"><h2 className="font-semibold text-gray-900 dark:text-slate-100">{category}</h2><p className="text-sm text-gray-500 dark:text-slate-400">{items.length} selection{items.length !== 1 ? 's' : ''}{pendingCount > 0 && <span className="ml-2 text-orange-600 font-medium dark:text-orange-300">{pendingCount} awaiting your choice</span>}</p></div></div>
         <div className="flex items-center gap-4">
           {totalAllowance > 0 && <div className="text-right text-sm"><p className="text-gray-500 dark:text-slate-400">Allowance</p><p className="font-medium text-gray-900 dark:text-slate-100">{moneyShort(totalAllowance)}</p></div>}
           {totalSelected > 0 && <div className="text-right text-sm"><p className="text-gray-500 dark:text-slate-400">Selected</p><p className={`font-medium ${totalSelected > totalAllowance ? 'text-red-600' : 'text-green-600'}`}>{moneyShort(totalSelected)}{totalAllowance > 0 && <span className="text-xs ml-1">({totalSelected - totalAllowance >= 0 ? '+' : ''}{moneyShort(totalSelected - totalAllowance)})</span>}</p></div>}
@@ -103,16 +103,16 @@ function SelectionItem({ selection, projectId, onUpdate }: { selection: any; pro
       </div>
       {selection.selected_option && (
         <div className="mt-2 p-3 bg-blue-50 rounded-lg flex items-center gap-3 dark:bg-blue-950/30">
-          <Check className="w-5 h-5 text-blue-600 shrink-0" />
-          <div className="flex-1"><p className="text-sm font-medium text-blue-900 dark:text-blue-200">{selection.selected_option.name}{selection.selected_option.manufacturer && <span className="text-blue-600 font-normal"> by {selection.selected_option.manufacturer}</span>}</p>{selection.client_notes && <p className="text-xs text-blue-700 mt-1 dark:text-blue-300">Note: {selection.client_notes}</p>}</div>
+          <Check className="w-5 h-5 text-blue-600 shrink-0 dark:text-blue-300" />
+          <div className="flex-1"><p className="text-sm font-medium text-blue-900 dark:text-blue-200">{selection.selected_option.name}{selection.selected_option.manufacturer && <span className="text-blue-600 font-normal dark:text-blue-300"> by {selection.selected_option.manufacturer}</span>}</p>{selection.client_notes && <p className="text-xs text-blue-700 mt-1 dark:text-blue-300">Note: {selection.client_notes}</p>}</div>
           {selection.selected_option.image_url && <img src={selection.selected_option.image_url} alt="" className="w-12 h-12 rounded object-cover" />}
         </div>
       )}
       {confirmed && <div className="mt-2 p-3 bg-green-50 rounded-lg flex items-center gap-2 dark:bg-green-950/30"><Check className="w-5 h-5 text-green-700 dark:text-green-300" /><p className="text-sm font-medium text-green-800 dark:text-green-300">Selection saved successfully!</p></div>}
-      {error && <p role="alert" className="mt-2 text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {canSelect && options.length > 0 && (
         <div className="mt-3">
-          <button onClick={() => setShowOptions(!showOptions)} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 font-medium flex items-center gap-1">{showOptions ? 'Hide options' : `View ${options.length} option${options.length !== 1 ? 's' : ''}`}{showOptions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button>
+          <button onClick={() => setShowOptions(!showOptions)} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 font-medium flex items-center gap-1 dark:text-orange-300">{showOptions ? 'Hide options' : `View ${options.length} option${options.length !== 1 ? 's' : ''}`}{showOptions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button>
           {showOptions && (
             <div className="mt-3 space-y-3">
               <div><label className="flex items-center gap-1 text-xs font-medium text-gray-600 mb-1 dark:text-slate-400"><StickyNote className="w-3 h-3" /> Add a note (optional)</label><input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g., Prefer matte finish..." className={inputCls} /></div>
@@ -128,7 +128,7 @@ function SelectionItem({ selection, projectId, onUpdate }: { selection: any; pro
                       {option.description && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 line-clamp-2">{option.description}</p>}
                       <div className="mt-2 flex items-center justify-between"><p className="text-sm font-bold text-gray-900 dark:text-slate-100">{moneyShort(totalPrice)}</p>{allowance > 0 && <span className={`text-xs font-medium ${priceDiff > 0 ? 'text-red-600' : priceDiff < 0 ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}`}>{priceDiff !== 0 ? `${priceDiff > 0 ? '+' : ''}${moneyShort(priceDiff)}` : 'Within allowance'}</span>}</div>
                       {option.lead_time_days > 0 && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-1"><Clock className="w-3 h-3" />{option.lead_time_days} day lead time</p>}
-                      {isSelected && <div className="mt-2 flex items-center gap-1 text-blue-600 text-xs font-medium"><Check className="w-3 h-3" /> Currently selected</div>}
+                      {isSelected && <div className="mt-2 flex items-center gap-1 text-blue-600 text-xs font-medium dark:text-blue-300"><Check className="w-3 h-3" /> Currently selected</div>}
                     </button>
                   )
                 })}

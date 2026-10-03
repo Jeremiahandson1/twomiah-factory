@@ -107,7 +107,7 @@ export default function CurbsidePage() {
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-100 dark:bg-slate-900">
           <p className="text-sm text-gray-500 dark:text-slate-400">Completed Today</p>
-          <p className="text-2xl font-bold text-green-600">{stats.completedToday}</p>
+          <p className="text-2xl font-bold text-green-600 dark:text-green-300">{stats.completedToday}</p>
         </div>
       </div>
 
@@ -143,7 +143,7 @@ export default function CurbsidePage() {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h3 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-                        <User className="w-4 h-4 text-green-600" />
+                        <User className="w-4 h-4 text-green-600 dark:text-green-300" />
                         {pickup.customerName || 'Unknown'}
                       </h3>
                       <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[pickup.status] || 'bg-gray-100 text-gray-600'}`}>
@@ -223,8 +223,8 @@ export default function CurbsidePage() {
       {tab === 'customer' && (
         <div className="max-w-md mx-auto">
           <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100 text-center dark:bg-slate-900">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Car className="w-8 h-8 text-green-600" />
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 dark:bg-green-950/40">
+              <Car className="w-8 h-8 text-green-600 dark:text-green-300" />
             </div>
             <h2 className="text-xl font-bold text-gray-900 mb-2 dark:text-slate-100">Curbside Pickup</h2>
             <p className="text-gray-600 mb-6 dark:text-slate-400">This is what your customer sees after checking in.</p>

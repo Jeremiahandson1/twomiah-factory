@@ -360,7 +360,7 @@ export default function JobDetailPage() {
                 <button
                   onClick={advanceStage}
                   disabled={advancing || job.status === 'collected'}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-800 disabled:opacity-50"
                 >
                   <ChevronRight className="w-4 h-4" />
                   {advancing ? 'Advancing...' : 'Advance Stage'}
@@ -450,12 +450,12 @@ export default function JobDetailPage() {
             {job.jobType === 'insurance' && hasInsurance && (
               <Link
                 to={`/crm/jobs/${id}/insurance`}
-                className="block bg-orange-50 rounded-xl shadow-sm border border-orange-200 p-4 hover:border-orange-400 transition-colors"
+                className="block bg-orange-50 rounded-xl shadow-sm border border-orange-200 p-4 hover:border-orange-400 transition-colors dark:bg-orange-950/40"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
-                      <Shield className="w-5 h-5 text-orange-600" />
+                    <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center dark:bg-orange-950/40">
+                      <Shield className="w-5 h-5 text-orange-600 dark:text-orange-300" />
                     </div>
                     <div>
                       <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Insurance Claim</h2>
@@ -522,7 +522,7 @@ export default function JobDetailPage() {
                 {job.approvedScope !== undefined && (
                   <div className="mt-4">
                     <p className="text-gray-500 text-sm mb-1 dark:text-slate-400">Approved Scope</p>
-                    <p className="text-sm text-gray-900 whitespace-pre-wrap bg-yellow-50 rounded-lg p-3 border border-yellow-200 dark:text-slate-100">
+                    <p className="text-sm text-gray-900 whitespace-pre-wrap bg-yellow-50 rounded-lg p-3 border border-yellow-200 dark:text-slate-100 dark:bg-yellow-950/40">
                       {job.approvedScope || 'Not yet defined'}
                     </p>
                   </div>
@@ -554,13 +554,13 @@ export default function JobDetailPage() {
                   {measurement.status === 'complete' && (
                     <>
                       <div className="grid grid-cols-3 gap-3">
-                        <div className="bg-purple-50 rounded-lg p-2.5 text-center">
+                        <div className="bg-purple-50 rounded-lg p-2.5 text-center dark:bg-purple-950/40">
                           <p className="text-lg font-bold text-purple-700 dark:text-purple-300">{measurement.totalSquares}</p>
-                          <p className="text-[10px] text-purple-600">Squares</p>
+                          <p className="text-[10px] text-purple-600 dark:text-purple-300">Squares</p>
                         </div>
-                        <div className="bg-blue-50 rounded-lg p-2.5 text-center">
+                        <div className="bg-blue-50 rounded-lg p-2.5 text-center dark:bg-blue-950/40">
                           <p className="text-lg font-bold text-blue-700 dark:text-blue-300">{measurement.totalArea ? Number(measurement.totalArea).toLocaleString() : '—'}</p>
-                          <p className="text-[10px] text-blue-600">Sqft</p>
+                          <p className="text-[10px] text-blue-600 dark:text-blue-300">Sqft</p>
                         </div>
                         <div className="bg-gray-50 rounded-lg p-2.5 text-center dark:bg-slate-900">
                           <p className="text-lg font-bold text-gray-700 dark:text-slate-200">{Array.isArray(measurement.segments) ? measurement.segments.length : '—'}</p>
@@ -915,7 +915,7 @@ export default function JobDetailPage() {
                       <div className="text-right">
                         <p className="text-sm font-medium">${Number(inv.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                         {inv.balance > 0 && (
-                          <p className="text-xs text-red-600">Bal: ${Number(inv.balance).toFixed(2)}</p>
+                          <p className="text-xs text-red-600 dark:text-red-400">Bal: ${Number(inv.balance).toFixed(2)}</p>
                         )}
                       </div>
                     </Link>

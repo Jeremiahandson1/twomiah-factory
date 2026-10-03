@@ -64,7 +64,7 @@ export function TrialBanner() {
   const Icon = urgent ? AlertTriangle : Clock;
   const btn = urgent
     ? 'bg-red-600 hover:bg-red-700 text-white'
-    : 'bg-yellow-600 hover:bg-yellow-700 text-white';
+    : 'bg-yellow-700 hover:bg-yellow-800 text-white';
 
   return (
     <div className={`border-b ${bg} px-4 py-3`}>

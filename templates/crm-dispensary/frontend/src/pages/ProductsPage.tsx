@@ -499,7 +499,7 @@ export default function ProductsPage() {
                 />
               </label>
               {formData.imageUrl && !uploadingImage && (
-                <button type="button" onClick={() => setFormData({ ...formData, imageUrl: '' })} className="text-sm text-red-600 hover:underline">Remove</button>
+                <button type="button" onClick={() => setFormData({ ...formData, imageUrl: '' })} className="text-sm text-red-600 hover:underline dark:text-red-400">Remove</button>
               )}
             </div>
             <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">JPEG, PNG, WebP, GIF or AVIF · up to 8 MB</p>

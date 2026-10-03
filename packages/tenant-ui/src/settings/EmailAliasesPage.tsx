@@ -159,7 +159,7 @@ export function EmailAliasesPage(): React.ReactElement {
           )}
 
           {!adding && domain && (
-            <button onClick={() => setAdding(true)} className="w-full py-3 border border-dashed border-gray-300 text-gray-600 rounded-md text-sm hover:bg-gray-50">+ Add email address</button>
+            <button onClick={() => setAdding(true)} className="w-full py-3 border border-dashed border-gray-300 text-gray-600 rounded-md text-sm hover:bg-gray-50 dark:text-slate-300">+ Add email address</button>
           )}
         </div>
       )}
@@ -180,7 +180,7 @@ function AliasRow({ alias, domain, onUpdate, onDelete }: { alias: Alias; domain:
             ? (editingForward
                 ? <span className="inline-flex items-center gap-2">
                     <input type="email" value={forwardDraft} onChange={e => setForwardDraft(e.target.value)} className="px-2 py-0.5 border border-gray-300 rounded text-xs" />
-                    <button onClick={() => { onUpdate({ forwardTo: forwardDraft }); setEditingForward(false) }} className="text-xs text-orange-600">Save</button>
+                    <button onClick={() => { onUpdate({ forwardTo: forwardDraft }); setEditingForward(false) }} className="text-xs text-orange-600 dark:text-orange-300">Save</button>
                     <button onClick={() => { setForwardDraft(alias.forwardTo || ''); setEditingForward(false) }} className="text-xs text-gray-500 dark:text-slate-400">Cancel</button>
                   </span>
                 : <>Forwards to <strong>{alias.forwardTo || '—'}</strong>{' '}<button onClick={() => setEditingForward(true)} className="underline text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200">change</button></>)
@@ -191,7 +191,7 @@ function AliasRow({ alias, domain, onUpdate, onDelete }: { alias: Alias; domain:
         <option value="forward">Forward</option>
         <option value="crm">CRM</option>
       </select>
-      <label className="inline-flex items-center gap-2 text-xs text-gray-600">
+      <label className="inline-flex items-center gap-2 text-xs text-gray-600 dark:text-slate-300">
         <input type="checkbox" checked={alias.enabled} onChange={e => onUpdate({ enabled: e.target.checked })} />
         Enabled
       </label>

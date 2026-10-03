@@ -105,7 +105,7 @@ function Toggle({ enabled, onChange, label }: { enabled: boolean; onChange: (v: 
   return (
     <button type="button" onClick={() => onChange(!enabled)} className="flex items-center gap-3 group">
       {enabled
-        ? <ToggleRight className="w-8 h-8 text-green-600" />
+        ? <ToggleRight className="w-8 h-8 text-green-600 dark:text-green-300" />
         : <ToggleLeft className="w-8 h-8 text-gray-400 group-hover:text-gray-500" />}
       <span className="text-sm font-medium">{label}</span>
     </button>
@@ -723,7 +723,7 @@ export default function SettingsPage() {
                           type="checkbox"
                           checked={!storeHours[day]?.closed}
                           onChange={e => updateHours(day, 'closed', !e.target.checked)}
-                          className="w-4 h-4 rounded text-green-600 focus:ring-green-500"
+                          className="w-4 h-4 rounded text-green-600 focus:ring-green-500 dark:text-green-300"
                         />
                         <span className="text-sm text-gray-500 dark:text-slate-400">{storeHours[day]?.closed ? 'Closed' : 'Open'}</span>
                       </label>
@@ -1095,7 +1095,7 @@ export default function SettingsPage() {
                             (Dispensary T28 L-i) */}
                         <td className="px-4 py-3 text-sm text-right space-x-3">
                           {k.status !== 'revoked' && (
-                            <button onClick={() => handleRevokeKiosk(k)} className="text-xs font-medium text-red-600 hover:text-red-700 dark:hover:text-red-300">
+                            <button onClick={() => handleRevokeKiosk(k)} className="text-xs font-medium text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400">
                               Revoke
                             </button>
                           )}

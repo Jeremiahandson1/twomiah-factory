@@ -40,7 +40,7 @@ export default function OrderDetailPage() {
   }
 
   if (loading) return <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-primary-500" /></div>
-  if (!order) return <p className="text-gray-500">Order not found.</p>
+  if (!order) return <p className="text-gray-500 dark:text-slate-400">Order not found.</p>
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -49,7 +49,7 @@ export default function OrderDetailPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{order.orderNumber || 'Pending order'}</h1>
-          <p className="text-sm text-gray-500">{formatDate(order.createdAt)} · {order.provider}</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">{formatDate(order.createdAt)} · {order.provider}</p>
         </div>
         <span className={`rounded-full px-3 py-1 text-sm font-medium ${statusColor(order.status)}`}>{order.status}</span>
       </div>
@@ -74,7 +74,7 @@ export default function OrderDetailPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-gray-900 truncate dark:text-slate-100">{it.productName}</div>
-                <div className="text-xs text-gray-500">{it.variantName} · {it.sku} · × {it.quantity}</div>
+                <div className="text-xs text-gray-500 dark:text-slate-400">{it.variantName} · {it.sku} · × {it.quantity}</div>
               </div>
               <div className="text-sm font-medium">{money(it.lineTotalCents, order.currency)}</div>
             </div>
@@ -94,17 +94,17 @@ export default function OrderDetailPage() {
         <div className="card p-5">
           <h2 className="font-semibold text-gray-900 mb-2 dark:text-slate-100">Customer</h2>
           <p className="text-sm text-gray-700 dark:text-slate-200">{order.customerName || '—'}</p>
-          <p className="text-sm text-gray-500">{order.customerEmail}</p>
-          {order.customerPhone && <p className="text-sm text-gray-500">{order.customerPhone}</p>}
+          <p className="text-sm text-gray-500 dark:text-slate-400">{order.customerEmail}</p>
+          {order.customerPhone && <p className="text-sm text-gray-500 dark:text-slate-400">{order.customerPhone}</p>}
         </div>
         {(order.supplierStatus || order.supplierOrderId) && (
           <div className="card p-5">
             <h2 className="font-semibold text-gray-900 mb-2 dark:text-slate-100">Supplier</h2>
-            <div className="text-sm text-gray-600 space-y-1">
+            <div className="text-sm text-gray-600 space-y-1 dark:text-slate-300">
               <div>Status: <span className={"font-medium " + (order.supplierStatus === 'error' ? 'text-red-600' : order.supplierStatus === 'placed' || order.supplierStatus === 'shipped' ? 'text-green-600' : 'text-yellow-600')}>{order.supplierStatus}</span></div>
               {order.supplierOrderId && <div>Supplier order: <span className="font-mono text-xs">{order.supplierOrderId}</span></div>}
               {order.supplierCostCents != null && <div>Supplier cost: ${(order.supplierCostCents / 100).toFixed(2)} <span className="text-gray-400">(margin ${((order.totalCents - order.supplierCostCents) / 100).toFixed(2)})</span></div>}
-              {order.supplierError && <div className="text-red-600 text-xs">{order.supplierError}</div>}
+              {order.supplierError && <div className="text-red-600 text-xs dark:text-red-400">{order.supplierError}</div>}
             </div>
             {!order.supplierOrderId && (
               <div className="flex gap-2 mt-3">
@@ -118,7 +118,7 @@ export default function OrderDetailPage() {
         <div className="card p-5">
           <h2 className="font-semibold text-gray-900 mb-2 dark:text-slate-100">Ship to</h2>
           {order.shippingAddress ? (
-            <address className="not-italic text-sm text-gray-600 leading-relaxed">
+            <address className="not-italic text-sm text-gray-600 leading-relaxed dark:text-slate-300">
               {order.shippingAddress.line1}<br />
               {order.shippingAddress.line2 && <>{order.shippingAddress.line2}<br /></>}
               {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.postalCode}<br />
@@ -192,20 +192,20 @@ function LabelPanel({ orderId, order, onBought }: { orderId: string; order: Orde
 
       {order.labelUrl ? (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-600 dark:text-slate-300">
             {order.trackingCarrier} {order.trackingNumber}
             {order.labelCostCents != null && <span className="text-gray-400"> · ${(order.labelCostCents / 100).toFixed(2)}</span>}
           </p>
           <a href={order.labelUrl} target="_blank" rel="noreferrer" className="btn-secondary">Print label</a>
         </div>
       ) : !order.shippingAddress ? (
-        <p className="text-sm text-gray-500">This order has no shipping address, so a label cannot be bought.</p>
+        <p className="text-sm text-gray-500 dark:text-slate-400">This order has no shipping address, so a label cannot be bought.</p>
       ) : (
         <>
           {!rates ? (
             <button onClick={loadRates} disabled={busy} className="btn-secondary">{busy ? 'Checking…' : 'Get rates'}</button>
           ) : rates.length === 0 ? (
-            <p className="text-sm text-gray-500">No rates came back for this address and parcel.</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">No rates came back for this address and parcel.</p>
           ) : (
             <div className="space-y-2">
               {rates.map((r) => (

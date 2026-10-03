@@ -161,7 +161,7 @@ export default function HelpPage() {
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
               placeholder="Ask a question..." className="flex-1 px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none" />
             <button onClick={sendChat} disabled={chatLoading || !chatInput.trim()}
-              className="px-3 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg text-sm">
+              className="px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg text-sm">
               <Send size={16} />
             </button>
           </div>
@@ -183,7 +183,7 @@ export default function HelpPage() {
             <h1 className="text-lg font-bold text-gray-900 dark:text-white">Manage Help Articles</h1>
           </div>
           <button onClick={() => setEditArticle({ title: '', content: '', category: '', isFaq: false, sortOrder: 0 })}
-            className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm">
+            className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">
             <Plus size={14} /> Add Article
           </button>
         </div>
@@ -232,7 +232,7 @@ export default function HelpPage() {
               <div className="flex justify-end gap-2 mt-4">
                 <button onClick={() => setEditArticle(null)} className="px-3 py-1.5 text-gray-600 dark:text-gray-400 text-sm">Cancel</button>
                 <button onClick={saveArticle} disabled={!editArticle.title || !editArticle.content}
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-sm">Save</button>
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm">Save</button>
               </div>
             </div>
           </div>

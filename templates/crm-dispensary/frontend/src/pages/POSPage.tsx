@@ -837,7 +837,7 @@ export default function POSPage() {
               <span>${Number(subtotal).toFixed(2)}</span>
             </div>
             {loyaltyApplied && discountAmount > 0 && (
-              <div className="flex justify-between text-green-600">
+              <div className="flex justify-between text-green-600 dark:text-green-300">
                 <span>
                   {selectedReward ? `${selectedReward.name} (${Number(selectedReward.pointsCost || selectedReward.pointsRequired || 0)} pts)` : 'Loyalty Discount'}
                   <button onClick={clearLoyalty} className="ml-2 text-xs text-gray-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-300" title="Remove reward">✕</button>
@@ -940,7 +940,7 @@ export default function POSPage() {
                 placeholder="0.00"
               />
               {parseFloat(cashTendered || '0') >= total && total > 0 && (
-                <p className="text-sm text-green-600 mt-1 font-medium">
+                <p className="text-sm text-green-600 mt-1 font-medium dark:text-green-300">
                   Change: ${Number(changeDue).toFixed(2)}
                 </p>
               )}
@@ -959,7 +959,7 @@ export default function POSPage() {
               type="checkbox"
               checked={idVerified}
               onChange={(e) => setIdVerified(e.target.checked)}
-              className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
+              className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
             />
             <ShieldCheck className="w-4 h-4 text-gray-500 dark:text-slate-400" />
             <span className="text-sm text-gray-700 dark:text-slate-200">ID Verified (21+)</span>
@@ -982,7 +982,7 @@ export default function POSPage() {
               processing || cart.length === 0 || !idVerified || overWeight || overStock
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-green-700 text-white hover:bg-green-800'
-            }`}
+            } dark:text-slate-400`}
           >
             <Check className="w-5 h-5" />
             {processing ? 'Processing...' : 'Complete Sale'}

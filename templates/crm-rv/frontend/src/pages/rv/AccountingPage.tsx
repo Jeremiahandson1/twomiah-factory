@@ -70,7 +70,7 @@ export default function AccountingPage() {
         </table>
       </div>
 
-      {done && <div className="mt-4 bg-white rounded-xl border shadow-sm p-4 flex items-center gap-2 text-sm dark:bg-slate-900"><CheckCircle2 className="text-green-600" /><span>Posted <b>{done.posted}</b> entries ({money(done.total)}) to {done.provider} · batch {done.batch}</span></div>}
+      {done && <div className="mt-4 bg-white rounded-xl border shadow-sm p-4 flex items-center gap-2 text-sm dark:bg-slate-900"><CheckCircle2 className="text-green-600 dark:text-green-300" /><span>Posted <b>{done.posted}</b> entries ({money(done.total)}) to {done.provider} · batch {done.batch}</span></div>}
     </div>
   );
 }

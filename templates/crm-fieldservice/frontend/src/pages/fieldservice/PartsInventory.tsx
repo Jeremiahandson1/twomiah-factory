@@ -214,7 +214,7 @@ export default function PartsInventory() {
               <p className="text-gray-500 dark:text-slate-400">No parts found</p>
               <button
                 onClick={() => setShowForm(true)}
-                className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200"
+                className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300"
               >
                 Add your first part
               </button>

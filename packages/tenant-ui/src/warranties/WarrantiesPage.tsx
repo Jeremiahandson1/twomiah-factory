@@ -283,7 +283,7 @@ function WarrantiesList({ warranties, onRefresh }: WarrantiesListProps) {
               </td>
               <td className="px-4 py-3">
                 {warranty.isExpired ? (
-                  <span className="text-red-600">Expired</span>
+                  <span className="text-red-600 dark:text-red-400">Expired</span>
                 ) : (
                   <div>
                     <p className={warranty.isExpiringSoon ? 'text-orange-600 dark:text-orange-300 font-medium' : 'text-gray-900 dark:text-slate-100'}>
@@ -445,7 +445,7 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
                           <>
                             <button
                               onClick={() => handleSchedule(claim.id)}
-                              className="px-3 py-1 text-sm bg-purple-500 text-white rounded-lg"
+                              className="px-3 py-1 text-sm bg-purple-600 text-white rounded-lg"
                             >
                               Schedule
                             </button>
@@ -460,7 +460,7 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
                         {(claim.status === 'scheduled' || claim.status === 'in_progress') && (
                           <button
                             onClick={() => handleComplete(claim.id)}
-                            className="px-3 py-1 text-sm bg-green-500 text-white rounded-lg"
+                            className="px-3 py-1 text-sm bg-green-700 text-white rounded-lg"
                           >
                             Complete
                           </button>

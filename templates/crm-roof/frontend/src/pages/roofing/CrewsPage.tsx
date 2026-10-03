@@ -105,8 +105,8 @@ export default function CrewsPage() {
             <div key={crew.id} className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                    <Users className="w-5 h-5 text-blue-600" />
+                  <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center dark:bg-blue-950/40">
+                    <Users className="w-5 h-5 text-blue-600 dark:text-blue-300" />
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900 dark:text-slate-100">{crew.name}</h3>

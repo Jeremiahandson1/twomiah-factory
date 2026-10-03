@@ -26,7 +26,7 @@ export function PortalMyJobs() {
   return (
     <div>
       <PageTitle title={config.labels.myJobs} subtitle={canComplete ? 'Jobs assigned to you.' : 'Your scheduled and completed work.'} />
-      {error && <p role="alert" className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {jobs.length === 0 ? <Empty icon={Hammer} text={canComplete ? 'No jobs assigned yet.' : 'No work scheduled yet.'} /> : (
         <div className="space-y-6">
           {active.length > 0 && <Section title={`Active (${active.length})`}>{active.map((j) => <JobCard key={j.id} job={j} busy={busyId === j.id} onComplete={canComplete ? () => complete(j.id) : null} />)}</Section>}
@@ -42,7 +42,7 @@ function JobCard({ job, busy, onComplete }: { job: SubJob; busy: boolean; onComp
     <div className={`${card} p-4`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">
-          <div className="p-2 bg-orange-100 rounded-lg shrink-0"><Hammer className="w-5 h-5 text-orange-600" /></div>
+          <div className="p-2 bg-orange-100 rounded-lg shrink-0 dark:bg-orange-950/40"><Hammer className="w-5 h-5 text-orange-600 dark:text-orange-300" /></div>
           <div className="min-w-0">
             <p className="font-medium text-gray-900 dark:text-slate-100">{job.number} — {job.title}</p>
             {job.projectName && <p className="text-sm text-gray-500 dark:text-slate-400">Project: {job.projectNumber ? `${job.projectNumber} · ` : ''}{job.projectName}</p>}
@@ -56,7 +56,7 @@ function JobCard({ job, busy, onComplete }: { job: SubJob; busy: boolean; onComp
         </div>
         <div className="text-right shrink-0">
           <span className={pill(JOB_STYLES[job.status] || 'bg-gray-100 text-gray-700')}>{job.status.replace('_', ' ')}</span>
-          {onComplete && <button onClick={onComplete} disabled={busy} className="mt-2 flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"><CheckCircle2 className="w-3.5 h-3.5" />{busy ? 'Saving…' : 'Mark Complete'}</button>}
+          {onComplete && <button onClick={onComplete} disabled={busy} className="mt-2 flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-green-700 text-white rounded-lg hover:bg-green-800 disabled:opacity-50"><CheckCircle2 className="w-3.5 h-3.5" />{busy ? 'Saving…' : 'Mark Complete'}</button>}
         </div>
       </div>
     </div>
@@ -91,7 +91,7 @@ export function PortalLienWaivers() {
     <div className={`${card} p-4`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">
-          <div className="p-2 bg-blue-100 rounded-lg shrink-0"><FileSignature className="w-5 h-5 text-blue-600" /></div>
+          <div className="p-2 bg-blue-100 rounded-lg shrink-0 dark:bg-blue-950/40"><FileSignature className="w-5 h-5 text-blue-600 dark:text-blue-300" /></div>
           <div className="min-w-0">
             <p className="font-medium text-gray-900 dark:text-slate-100">{WAIVER_LABELS[w.waiverType] || w.waiverType}</p>
             {w.projectName && <p className="text-sm text-gray-500 dark:text-slate-400">Project: {w.projectNumber ? `${w.projectNumber} · ` : ''}{w.projectName}</p>}
@@ -101,7 +101,7 @@ export function PortalLienWaivers() {
         <div className="text-right shrink-0">
           {w.amountTotal !== undefined && w.amountTotal !== null && <p className="font-bold text-gray-900 dark:text-slate-100">{moneyShort(w.amountTotal)}</p>}
           <span className={`${pill(WAIVER_STYLES[w.status] || 'bg-gray-100 text-gray-700')} mt-1 dark:text-slate-200`}>{w.status}</span>
-          {onSign && <div className="mt-2"><button onClick={onSign} className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700">Sign</button></div>}
+          {onSign && <div className="mt-2"><button onClick={onSign} className="px-3 py-1.5 text-xs font-medium bg-green-700 text-white rounded-lg hover:bg-green-800">Sign</button></div>}
         </div>
       </div>
     </div>
@@ -109,7 +109,7 @@ export function PortalLienWaivers() {
   return (
     <div>
       <PageTitle title="Lien Waivers" subtitle="Review and sign lien waivers for your work." />
-      {error && <p role="alert" className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {waivers.length === 0 ? <Empty icon={FileSignature} text="No lien waivers yet." /> : (
         <div className="space-y-6">
           {pending.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500" /> Pending ({pending.length})</>}>{pending.map((w) => <WaiverCard key={w.id} w={w} onSign={() => { setSigning(w); setDocumentUrl(w.documentUrl || ''); setNotes('') }} />)}</Section>}
@@ -122,7 +122,7 @@ export function PortalLienWaivers() {
             <div><label className={labelCls} htmlFor="lw-url">Signed Document URL (optional)</label><input id="lw-url" type="url" value={documentUrl} onChange={(e) => setDocumentUrl(e.target.value)} placeholder="https://..." className={inputCls} /><p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Paste a link to the signed PDF, or leave blank.</p></div>
             <div><label className={labelCls} htmlFor="lw-notes">Notes (optional)</label><textarea id="lw-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className={inputCls} /></div>
           </div>
-          <div className="flex justify-end gap-2 mt-6"><button onClick={() => setSigning(null)} disabled={busy} className={btnSecondary}>Cancel</button><button onClick={submitSign} disabled={busy} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">{busy ? 'Signing…' : 'Confirm Sign'}</button></div>
+          <div className="flex justify-end gap-2 mt-6"><button onClick={() => setSigning(null)} disabled={busy} className={btnSecondary}>Cancel</button><button onClick={submitSign} disabled={busy} className="px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 disabled:opacity-50">{busy ? 'Signing…' : 'Confirm Sign'}</button></div>
         </PortalModal>
       )}
     </div>
@@ -158,7 +158,7 @@ export function PortalSubmittalReview() {
     <div className={`${card} p-4`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">
-          <div className="p-2 bg-purple-100 rounded-lg shrink-0"><FileCheck2 className="w-5 h-5 text-purple-600" /></div>
+          <div className="p-2 bg-purple-100 rounded-lg shrink-0 dark:bg-purple-950/40"><FileCheck2 className="w-5 h-5 text-purple-600 dark:text-purple-300" /></div>
           <div className="min-w-0">
             <p className="font-medium text-gray-900 dark:text-slate-100">{s.number} — {s.title}</p>
             {s.projectName && <p className="text-sm text-gray-500 dark:text-slate-400">Project: {s.projectNumber ? `${s.projectNumber} · ` : ''}{s.projectName}</p>}
@@ -170,7 +170,7 @@ export function PortalSubmittalReview() {
         </div>
         <div className="text-right shrink-0">
           <span className={pill(SUB_STYLES[s.status] || 'bg-gray-100 text-gray-700')}>{s.status}</span>
-          {actions && <div className="mt-2 flex flex-col gap-1.5"><button onClick={() => { setModal({ kind: 'approve', submittal: s }); setNotes('') }} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700"><CheckCircle2 className="w-3.5 h-3.5" /> Approve</button><button onClick={() => { setModal({ kind: 'revise', submittal: s }); setNotes('') }} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-yellow-600 text-white rounded-lg hover:bg-yellow-700"><RotateCcw className="w-3.5 h-3.5" /> Revise</button></div>}
+          {actions && <div className="mt-2 flex flex-col gap-1.5"><button onClick={() => { setModal({ kind: 'approve', submittal: s }); setNotes('') }} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-green-700 text-white rounded-lg hover:bg-green-800"><CheckCircle2 className="w-3.5 h-3.5" /> Approve</button><button onClick={() => { setModal({ kind: 'revise', submittal: s }); setNotes('') }} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-yellow-700 text-white rounded-lg hover:bg-yellow-800"><RotateCcw className="w-3.5 h-3.5" /> Revise</button></div>}
         </div>
       </div>
     </div>
@@ -178,7 +178,7 @@ export function PortalSubmittalReview() {
   return (
     <div>
       <PageTitle title="Submittals" subtitle={`Review and approve submittals from the ${config.providerNoun}.`} />
-      {error && <p role="alert" className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {subs.length === 0 ? <Empty icon={FileCheck2} text="No submittals yet." /> : (
         <div className="space-y-6">
           {pending.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500" /> Pending Review ({pending.length})</>}>{pending.map((s) => <SubCard key={s.id} s={s} actions />)}</Section>}
@@ -189,7 +189,7 @@ export function PortalSubmittalReview() {
         <PortalModal title={modal.kind === 'approve' ? 'Approve Submittal' : 'Request Revision'} subtitle={`${modal.submittal.number} — ${modal.submittal.title}`} onClose={() => setModal(null)}>
           <label className={labelCls} htmlFor="sub-notes">{modal.kind === 'approve' ? 'Notes (optional)' : 'Reason for revision'}</label>
           <textarea id="sub-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} className={inputCls} placeholder={modal.kind === 'revise' ? 'Explain what needs to change…' : ''} />
-          <div className="flex justify-end gap-2 mt-6"><button onClick={() => setModal(null)} disabled={busy} className={btnSecondary}>Cancel</button><button onClick={submit} disabled={busy || (modal.kind === 'revise' && !notes.trim())} className={`px-4 py-2 text-white rounded-lg disabled:opacity-50 ${modal.kind === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-yellow-600 hover:bg-yellow-700'}`}>{busy ? 'Saving…' : modal.kind === 'approve' ? 'Approve' : 'Request Revision'}</button></div>
+          <div className="flex justify-end gap-2 mt-6"><button onClick={() => setModal(null)} disabled={busy} className={btnSecondary}>Cancel</button><button onClick={submit} disabled={busy || (modal.kind === 'revise' && !notes.trim())} className={`px-4 py-2 text-white rounded-lg disabled:opacity-50 ${modal.kind === 'approve' ? 'bg-green-700 hover:bg-green-800' : 'bg-yellow-700 hover:bg-yellow-800'}`}>{busy ? 'Saving…' : modal.kind === 'approve' ? 'Approve' : 'Request Revision'}</button></div>
         </PortalModal>
       )}
     </div>
@@ -222,7 +222,7 @@ export function PortalAssignedRfis() {
     <div className={`${card} p-4`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">
-          <div className="p-2 bg-indigo-100 rounded-lg shrink-0"><HelpCircle className="w-5 h-5 text-indigo-600" /></div>
+          <div className="p-2 bg-indigo-100 rounded-lg shrink-0 dark:bg-indigo-950/40"><HelpCircle className="w-5 h-5 text-indigo-600 dark:text-indigo-300" /></div>
           <div className="min-w-0">
             <p className="font-medium text-gray-900 dark:text-slate-100">{r.number} — {r.subject}</p>
             {r.projectName && <p className="text-sm text-gray-500 dark:text-slate-400">Project: {r.projectNumber ? `${r.projectNumber} · ` : ''}{r.projectName}</p>}
@@ -231,14 +231,14 @@ export function PortalAssignedRfis() {
             <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500 dark:text-slate-400">{r.dueDate && <span>Due {formatDate(r.dueDate)}</span>}<span>Opened {formatDate(r.createdAt)}</span>{r.respondedAt && <span>Answered {formatDate(r.respondedAt)}</span>}</div>
           </div>
         </div>
-        <div className="text-right shrink-0"><span className={pill(RFI_STYLES[r.status] || 'bg-gray-100 text-gray-700')}>{r.status}</span>{onRespond && <div className="mt-2"><button onClick={onRespond} className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700">Respond</button></div>}</div>
+        <div className="text-right shrink-0"><span className={pill(RFI_STYLES[r.status] || 'bg-gray-100 text-gray-700')}>{r.status}</span>{onRespond && <div className="mt-2"><button onClick={onRespond} className="px-3 py-1.5 text-xs font-medium bg-green-700 text-white rounded-lg hover:bg-green-800">Respond</button></div>}</div>
       </div>
     </div>
   )
   return (
     <div>
       <PageTitle title="RFIs" subtitle="Requests for information assigned to you." />
-      {error && <p role="alert" className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {rfis.length === 0 ? <Empty icon={HelpCircle} text="No RFIs assigned to you yet." /> : (
         <div className="space-y-6">
           {open.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500" /> Awaiting Response ({open.length})</>}>{open.map((r) => <RfiCard key={r.id} r={r} onRespond={() => { setResponding(r); setResponse('') }} />)}</Section>}
@@ -250,7 +250,7 @@ export function PortalAssignedRfis() {
           <div className="bg-gray-50 rounded-lg p-3 mb-4 dark:bg-slate-800"><p className="text-xs font-medium text-gray-500 mb-1 dark:text-slate-400">Question</p><p className="text-sm text-gray-900 whitespace-pre-wrap dark:text-slate-100">{responding.question}</p></div>
           <label className={labelCls} htmlFor="rfi-response">Your Response</label>
           <textarea id="rfi-response" value={response} onChange={(e) => setResponse(e.target.value)} rows={5} className={inputCls} />
-          <div className="flex justify-end gap-2 mt-6"><button onClick={() => setResponding(null)} disabled={busy} className={btnSecondary}>Cancel</button><button onClick={submit} disabled={busy || !response.trim()} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">{busy ? 'Sending…' : 'Send Response'}</button></div>
+          <div className="flex justify-end gap-2 mt-6"><button onClick={() => setResponding(null)} disabled={busy} className={btnSecondary}>Cancel</button><button onClick={submit} disabled={busy || !response.trim()} className="px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 disabled:opacity-50">{busy ? 'Sending…' : 'Send Response'}</button></div>
         </PortalModal>
       )}
     </div>
@@ -274,7 +274,7 @@ export function PortalSharedDocuments() {
   return (
     <div>
       <PageTitle title={config.labels.sharedDocuments} subtitle={`Documents shared with you by the ${config.providerNoun}.`} />
-      {error && <p role="alert" className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {docs.length === 0 ? <Empty icon={FolderOpen} text="No documents shared with you yet." /> : (
         <>
           {types.length > 1 && (

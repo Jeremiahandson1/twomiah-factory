@@ -55,12 +55,12 @@ export function PortalInvoices() {
   return (
     <div>
       <PageTitle title="Invoices" subtitle="View, download and pay your invoices." />
-      {error && <p role="alert" className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {totalOutstanding > 0 && (
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6 dark:bg-orange-950/20 dark:border-orange-900">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3"><AlertCircle className="w-6 h-6 text-orange-500" /><div><p className="font-medium text-gray-900 dark:text-slate-100">Outstanding Balance</p><p className="text-sm text-gray-600 dark:text-slate-400">{unpaid.length} unpaid invoice(s)</p></div></div>
-            <p className="text-2xl font-bold text-orange-600">{moneyShort(totalOutstanding)}</p>
+            <p className="text-2xl font-bold text-orange-600 dark:text-orange-300">{moneyShort(totalOutstanding)}</p>
           </div>
         </div>
       )}
@@ -92,7 +92,7 @@ function InvoiceCard({ invoice, token }: { invoice: PortalInvoiceData; token?: s
               <p className="text-xs text-gray-500 dark:text-slate-400">of {moneyShort(invoice.total)}</p>
               <span className={`${pill(STATUS_STYLES[invoice.status] || 'bg-gray-100 text-gray-700')} mt-1 dark:text-slate-200`}>{invoiceStatusLabel(invoice.status)}</span>
             </>
-          ) : <p className="text-lg font-bold text-green-600">{settledLabel(invoice.status)}</p>}
+          ) : <p className="text-lg font-bold text-green-600 dark:text-green-300">{settledLabel(invoice.status)}</p>}
         </div>
       </div>
     </PLink>
@@ -118,7 +118,7 @@ export function PortalInvoiceDetail() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <PLink to={`/portal/${token}/invoices`} className="text-orange-600 hover:underline text-sm">{'<-'} Back to Invoices</PLink>
+        <PLink to={`/portal/${token}/invoices`} className="text-orange-600 hover:underline text-sm dark:text-orange-300">{'<-'} Back to Invoices</PLink>
         <a href={url(`/invoices/${invoiceId}/pdf`)} target="_blank" rel="noreferrer" className={btnSecondary}><Download className="w-4 h-4" /> Download PDF</a>
       </div>
       <div className={`${card} overflow-hidden`}>
@@ -141,7 +141,7 @@ export function PortalInvoiceDetail() {
             {Number(invoice.taxAmount || 0) > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Tax ({invoice.taxRate}%)</span><span>{moneyShort(invoice.taxAmount)}</span></div>}
             {Number(invoice.discount || 0) > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Discount</span><span>-{moneyShort(invoice.discount)}</span></div>}
             <div className="flex justify-between font-medium border-t pt-2 dark:border-slate-700"><span>Total</span><span>{moneyShort(invoice.total)}</span></div>
-            {Number(invoice.amountPaid || 0) > 0 && <div className="flex justify-between text-sm text-green-600"><span>Paid</span><span>-{moneyShort(invoice.amountPaid)}</span></div>}
+            {Number(invoice.amountPaid || 0) > 0 && <div className="flex justify-between text-sm text-green-600 dark:text-green-300"><span>Paid</span><span>-{moneyShort(invoice.amountPaid)}</span></div>}
             {Number(invoice.amountRefunded || 0) > 0 && <div className="flex justify-between text-sm text-amber-700 dark:text-amber-300"><span>Refunded</span><span>{moneyShort(invoice.amountRefunded)}</span></div>}
             <div className="flex justify-between text-lg font-bold border-t pt-2 dark:border-slate-700"><span>Balance Due</span><span className={Number(invoice.balance) > 0 ? 'text-orange-600' : 'text-green-600'}>{moneyShort(invoice.balance)}</span></div>
           </div>
@@ -150,14 +150,14 @@ export function PortalInvoiceDetail() {
           <div className="p-6 bg-orange-50 border-t dark:bg-orange-950/20 dark:border-slate-700">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div><p className="font-medium text-gray-900 dark:text-slate-100">Ready to pay?</p><p className="text-sm text-gray-600 dark:text-slate-400">Secure payment by card</p></div>
-              <button onClick={() => setShowPayment(true)} className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"><CreditCard className="w-5 h-5" /> Pay {moneyShort(invoice.balance)}</button>
+              <button onClick={() => setShowPayment(true)} className="flex items-center gap-2 px-6 py-3 bg-green-700 text-white rounded-lg hover:bg-green-800 transition-colors"><CreditCard className="w-5 h-5" /> Pay {moneyShort(invoice.balance)}</button>
             </div>
           </div>
         )}
         {(invoice.payments?.length ?? 0) > 0 && (
           <div className="p-6 border-t dark:border-slate-700">
             <h3 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Payment History</h3>
-            <div className="space-y-2">{invoice.payments!.map((p, i) => <div key={p.id || i} className="flex justify-between text-sm py-2 border-b last:border-0 dark:border-slate-800"><div><span className="text-gray-900 dark:text-slate-100">{formatDate(p.paidAt)}</span><span className="text-gray-500 ml-2 dark:text-slate-400">via {p.method}</span></div><span className="font-medium text-green-600">{moneyShort(p.amount)}</span></div>)}</div>
+            <div className="space-y-2">{invoice.payments!.map((p, i) => <div key={p.id || i} className="flex justify-between text-sm py-2 border-b last:border-0 dark:border-slate-800"><div><span className="text-gray-900 dark:text-slate-100">{formatDate(p.paidAt)}</span><span className="text-gray-500 ml-2 dark:text-slate-400">via {p.method}</span></div><span className="font-medium text-green-600 dark:text-green-300">{moneyShort(p.amount)}</span></div>)}</div>
           </div>
         )}
         <div className="p-6 bg-gray-100 border-t dark:bg-slate-800 dark:border-slate-700"><p className="text-sm text-gray-600 dark:text-slate-400">Questions about this invoice? Contact {invoice.company?.email || invoice.company?.phone}</p></div>

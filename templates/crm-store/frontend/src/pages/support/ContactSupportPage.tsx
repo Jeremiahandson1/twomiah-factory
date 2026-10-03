@@ -61,13 +61,13 @@ export default function ContactSupportPage() {
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
           <LifeBuoy className="w-6 h-6" /> Contact Twomiah
         </h1>
-        <p className="text-gray-500 mt-1">
+        <p className="text-gray-500 mt-1 dark:text-slate-400">
           Something wrong with the software itself? Tell us here — it goes straight to our team.
         </p>
         {statusUrl && (
           <p className="text-sm mt-2">
             Before you write: <a href={statusUrl} target="_blank" rel="noreferrer"
-              className="text-blue-600 underline">check whether we already know about an outage</a>.
+              className="text-blue-600 underline dark:text-blue-300">check whether we already know about an outage</a>.
           </p>
         )}
       </div>
@@ -133,14 +133,14 @@ export default function ContactSupportPage() {
       <div className="mt-8">
         <h2 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Your requests to Twomiah</h2>
         {tickets.length === 0 ? (
-          <p className="text-gray-500 text-sm">Nothing yet.</p>
+          <p className="text-gray-500 text-sm dark:text-slate-400">Nothing yet.</p>
         ) : (
           <div className="bg-white rounded-xl border divide-y dark:bg-slate-900">
             {tickets.map((t) => (
               <div key={t.id} className="flex items-center justify-between px-4 py-3">
                 <div>
                   <p className="font-medium text-gray-900 dark:text-slate-100">{t.subject}</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
                     {t.number} - {new Date(t.created_at).toLocaleDateString()}
                   </p>
                 </div>

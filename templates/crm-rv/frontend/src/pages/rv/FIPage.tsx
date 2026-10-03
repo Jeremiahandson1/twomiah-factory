@@ -83,7 +83,7 @@ export default function FIPage() {
           {missingOption && <option value={leadId}>{leadLabel({ customerName: lead.customerName, unitYear: lead.unit?.year, unitMake: lead.unit?.make, unitModel: lead.unit?.modelName, unitPrice: lead.unit?.price })}</option>}
           {leads.map((l) => <option key={l.id} value={l.id}>{leadLabel(l)}</option>)}
         </select>
-        {loadError && <p className="mt-2 text-sm text-red-600">{loadError}</p>}
+        {loadError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{loadError}</p>}
       </div>
 
       {lead && !totals && (
@@ -145,7 +145,7 @@ export default function FIPage() {
           ? <div className="mt-4 bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 text-sm">{decision.error}</div>
           : <div className="mt-4 bg-white rounded-xl border shadow-sm p-5 dark:bg-slate-900">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
-              {decision.result?.decision === 'approved' ? <CheckCircle2 className="text-green-600" /> : decision.result?.decision === 'declined' ? <XCircle className="text-red-600" /> : <AlertCircle className="text-amber-600" />}
+              {decision.result?.decision === 'approved' ? <CheckCircle2 className="text-green-600 dark:text-green-300" /> : decision.result?.decision === 'declined' ? <XCircle className="text-red-600 dark:text-red-400" /> : <AlertCircle className="text-amber-600 dark:text-amber-300" />}
               <span className="text-lg font-bold capitalize">{decision.result?.decision}</span>
               <span className="text-sm text-gray-500 dark:text-slate-400">· {decision.result?.lender}</span>
               {!live && <span className="sm:ml-auto text-[11px] bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">demo decision — live via RouteOne / DealerTrack on integration</span>}

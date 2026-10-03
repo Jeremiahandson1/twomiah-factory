@@ -285,7 +285,7 @@ export default function PurchaseOrdersPage() {
                 <tbody>
                   {orders.map(po => (
                     <tr key={po.id} className="border-t hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-medium text-green-600">{po.poNumber || po.id?.slice(0, 8)}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-green-600 dark:text-green-300">{po.poNumber || po.id?.slice(0, 8)}</td>
                       <td className="px-4 py-3 text-sm font-medium">{po.supplierName}</td>
                       <td className="px-4 py-3 text-sm">{po.itemCount || 0}</td>
                       <td className="px-4 py-3 text-sm font-medium">${(po.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
@@ -299,11 +299,11 @@ export default function PurchaseOrdersPage() {
                       <td className="px-4 py-3 text-right">
                         <div className="inline-flex items-center gap-3">
                           {po.status === 'draft' && (
-                            <button onClick={() => handleSubmitPO(po.id)} className="inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300" title="Submit this PO so it can be received">
+                            <button onClick={() => handleSubmitPO(po.id)} className="inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 dark:text-green-300" title="Submit this PO so it can be received">
                               <Send className="w-4 h-4" /> Submit
                             </button>
                           )}
-                          <button onClick={() => handleDeletePO(po.id)} className="inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-700 dark:hover:text-red-300" title="Delete or void this PO">
+                          <button onClick={() => handleDeletePO(po.id)} className="inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400" title="Delete or void this PO">
                             <Trash2 className="w-4 h-4" /> Delete / Void
                           </button>
                         </div>
@@ -433,7 +433,7 @@ export default function PurchaseOrdersPage() {
                         <tbody>
                           {(group.orders || []).map((po: any) => (
                             <tr key={po.id} className="border-t text-sm">
-                              <td className="py-2 text-green-600">{po.poNumber || po.id?.slice(0, 8)}</td>
+                              <td className="py-2 text-green-600 dark:text-green-300">{po.poNumber || po.id?.slice(0, 8)}</td>
                               <td className="py-2">
                                 <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[po.status] || ''}`}>{po.status}</span>
                               </td>

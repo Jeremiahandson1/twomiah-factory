@@ -368,7 +368,7 @@ function ExperimentsTab({ api, toast, can }: { api: AdsApi; toast: AdsToast; can
                     <Badge s={e.status} />
                     {can.update && e.status === 'running' && <><Button variant="secondary" onClick={() => setCompleting(e)}><Trophy className="w-4 h-4" />Finish</Button><Button variant="secondary" onClick={() => patch(e, { status: 'archived' }, 'Test archived')}><Archive className="w-4 h-4" />Archive</Button></>}
                     {can.update && e.status !== 'running' && <Button variant="secondary" onClick={() => patch(e, { status: 'running' }, 'Test running')}><Play className="w-4 h-4" />Run</Button>}
-                    {can.update && <button onClick={() => setDeleting(e)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg" title="Delete test" aria-label="Delete test"><Trash2 className="w-4 h-4" /></button>}
+                    {can.update && <button onClick={() => setDeleting(e)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg dark:text-red-400" title="Delete test" aria-label="Delete test"><Trash2 className="w-4 h-4" /></button>}
                   </div>
                 </div>
                 <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.max(1, e.variants.length)}, minmax(0, 1fr))` }}>
@@ -476,7 +476,7 @@ function SettingsTab({ api, toast, can, overview, config, onChanged }: { api: Ad
         <div className="grid md:grid-cols-2 gap-3 mt-3">
           {([['managed', 'Managed by Twomiah', 'Ads run in accounts Twomiah creates for you. No Google Ads experience needed.'], ['connected', 'Your own ad accounts', 'Link your existing Meta, TikTok or Local Services account and keep its history.']] as const).map(([id, title, text]) => (
             <button key={id} disabled={!can.admin || modeBusy || overview.mode === id} onClick={() => setMode(id)} className={`p-4 rounded-lg border-2 text-left ${overview.mode === id ? 'border-orange-500 bg-orange-50 dark:bg-orange-500/10' : 'border-gray-200 dark:border-slate-700'} ${can.admin && overview.mode !== id ? 'hover:border-gray-300' : 'cursor-default'}`}>
-              <div className="font-semibold">{title}{overview.mode === id && <span className="ml-2 text-xs text-orange-600">CURRENT</span>}</div>
+              <div className="font-semibold">{title}{overview.mode === id && <span className="ml-2 text-xs text-orange-600 dark:text-orange-300">CURRENT</span>}</div>
               <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">{text}</p>
             </button>
           ))}

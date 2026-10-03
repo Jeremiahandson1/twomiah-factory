@@ -95,7 +95,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
 
       <div className="space-y-4">
         <SectionLabel label="Domain" />
-        <GuideCard icon={<Globe className="w-6 h-6 text-sky-600" />} iconBg="bg-sky-100 dark:bg-sky-500/20" title="Custom Domain (DNS)" description="Point your domain to your CRM so customers see your brand." expanded={expandedGuide === 'dns'} onToggle={() => setExpandedGuide(expandedGuide === 'dns' ? null : 'dns')}
+        <GuideCard icon={<Globe className="w-6 h-6 text-sky-600 dark:text-sky-300" />} iconBg="bg-sky-100 dark:bg-sky-500/20" title="Custom Domain (DNS)" description="Point your domain to your CRM so customers see your brand." expanded={expandedGuide === 'dns'} onToggle={() => setExpandedGuide(expandedGuide === 'dns' ? null : 'dns')}
           steps={['Log into your domain registrar (GoDaddy, Namecheap, Cloudflare, etc.)', 'Go to DNS settings for your domain', 'Add a CNAME record pointing your subdomain (e.g. crm.yourdomain.com) to your CRM URL shown above', 'Save changes — DNS propagation can take up to 24 hours', 'Once propagated, your CRM will be accessible at your custom domain']} />
 
         <SectionLabel label="Accounting" />
@@ -120,7 +120,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
             <button onClick={qbSync} disabled={saving === 'sync'} className="px-3 py-2 text-sm text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg flex items-center gap-1">{saving === 'sync' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}Sync Now</button>
             <button onClick={qbDisconnect} disabled={saving === 'quickbooks'} className="px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg">Disconnect</button>
           </>) : (
-            <button onClick={qbConnect} disabled={saving === 'qb-connect'} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2">Connect QuickBooks<ExternalLink className="w-4 h-4" /></button>
+            <button onClick={qbConnect} disabled={saving === 'qb-connect'} className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-800 flex items-center gap-2">Connect QuickBooks<ExternalLink className="w-4 h-4" /></button>
           )} />
 
         <SectionLabel label="Payments" />

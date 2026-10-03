@@ -137,7 +137,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Booked Value Ahead</p>
-            <TrendingUp className="w-5 h-5 text-green-600" />
+            <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-300" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{money(events.bookedValue)}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">Food &amp; beverage on held events</p>
@@ -250,7 +250,7 @@ export default function DashboardPage() {
 
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-            <Wallet className="w-4 h-4 text-green-600" /> Payments Due
+            <Wallet className="w-4 h-4 text-green-600 dark:text-green-300" /> Payments Due
           </h2>
           {(activity.duePayments || []).length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">Nothing outstanding</p>

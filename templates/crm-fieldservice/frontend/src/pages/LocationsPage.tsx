@@ -32,7 +32,7 @@ export default function LocationsPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div><h1 className="text-2xl font-bold flex items-center gap-2"><MapPin className="w-6 h-6 text-sky-500" />Locations</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Multi-branch dispatch — assign techs and jobs per location</p></div>
-        <button onClick={() => setShowCreate(true)} className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Location</button>
+        <button onClick={() => setShowCreate(true)} className="bg-sky-700 hover:bg-sky-800 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Location</button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -41,7 +41,7 @@ export default function LocationsPage() {
             <div key={l.id} className={`bg-white dark:bg-slate-900 rounded-lg border p-5 ${!l.isActive ? 'opacity-50' : ''}`}>
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <div className="text-xs font-mono text-sky-600 mb-1">{l.code}</div>
+                  <div className="text-xs font-mono text-sky-600 mb-1 dark:text-sky-300">{l.code}</div>
                   <h3 className="font-bold text-lg">{l.name}</h3>
                 </div>
                 {!l.isActive && <span className="text-xs text-gray-500 dark:text-slate-400">Inactive</span>}
@@ -52,7 +52,7 @@ export default function LocationsPage() {
                 {l.phone && <div className="text-gray-500 dark:text-slate-400">{l.phone}</div>}
                 <div className="text-xs text-gray-500 mt-2 dark:text-slate-400">Service radius: {l.serviceAreaRadiusMiles} mi · {l.timezone}</div>
               </div>
-              {l.isActive && <button onClick={() => deactivate(l.id)} className="mt-3 text-xs text-red-600 hover:underline">Deactivate</button>}
+              {l.isActive && <button onClick={() => deactivate(l.id)} className="mt-3 text-xs text-red-600 hover:underline dark:text-red-400">Deactivate</button>}
             </div>
           ))}
       </div>
@@ -81,7 +81,7 @@ export default function LocationsPage() {
                 <input type="number" placeholder="Service radius (miles)" value={form.serviceAreaRadiusMiles} onChange={(e) => setForm({ ...form, serviceAreaRadiusMiles: e.target.value })} className="border rounded-lg px-3 py-2" />
               </div>
               <textarea placeholder="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="w-full border rounded-lg px-3 py-2" />
-              <div className="flex justify-end gap-2"><button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 border rounded-lg">Cancel</button><button type="submit" className="px-4 py-2 bg-sky-500 text-white rounded-lg">Create</button></div>
+              <div className="flex justify-end gap-2"><button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 border rounded-lg">Cancel</button><button type="submit" className="px-4 py-2 bg-sky-700 text-white rounded-lg">Create</button></div>
             </form>
           </div>
         </div>

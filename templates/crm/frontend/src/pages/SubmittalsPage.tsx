@@ -130,11 +130,11 @@ export default function SubmittalsPage() {
                 <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{s.dueDate ? formatDate(s.dueDate) : '—'}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
-                    {s.status === 'draft' && <button onClick={() => runAction(s.id, 'submit')} className="text-blue-600 hover:bg-blue-50 p-1 rounded" title="Submit for review"><Plus className="w-4 h-4 rotate-45" /></button>}
+                    {s.status === 'draft' && <button onClick={() => runAction(s.id, 'submit')} className="text-blue-600 hover:bg-blue-50 p-1 rounded dark:text-blue-300" title="Submit for review"><Plus className="w-4 h-4 rotate-45" /></button>}
                     {s.status === 'submitted' && (<>
-                      <button onClick={() => runAction(s.id, 'approve')} className="text-green-600 hover:bg-green-50 p-1 rounded" title="Approve"><Check className="w-4 h-4" /></button>
-                      <button onClick={() => runAction(s.id, 'revise')} className="text-yellow-600 hover:bg-yellow-50 p-1 rounded" title="Revise and resubmit"><RotateCcw className="w-4 h-4" /></button>
-                      <button onClick={() => runAction(s.id, 'reject')} className="text-red-600 hover:bg-red-50 p-1 rounded" title="Reject"><X className="w-4 h-4" /></button>
+                      <button onClick={() => runAction(s.id, 'approve')} className="text-green-600 hover:bg-green-50 p-1 rounded dark:text-green-300" title="Approve"><Check className="w-4 h-4" /></button>
+                      <button onClick={() => runAction(s.id, 'revise')} className="text-yellow-600 hover:bg-yellow-50 p-1 rounded dark:text-yellow-300" title="Revise and resubmit"><RotateCcw className="w-4 h-4" /></button>
+                      <button onClick={() => runAction(s.id, 'reject')} className="text-red-600 hover:bg-red-50 p-1 rounded dark:text-red-400" title="Reject"><X className="w-4 h-4" /></button>
                     </>)}
                   </div>
                 </td>

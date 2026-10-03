@@ -294,7 +294,7 @@ export default function PatientDetailPage() {
   if (!p) {
     return (
       <div className="text-center py-12 text-gray-500 dark:text-slate-400">
-        Patient not found. <Link to="/crm/patients" className="text-teal-600">Back to patients</Link>
+        Patient not found. <Link to="/crm/patients" className="text-teal-600 dark:text-teal-300">Back to patients</Link>
       </div>
     );
   }
@@ -365,8 +365,8 @@ export default function PatientDetailPage() {
       <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-teal-50 rounded-lg">
-              <PawPrint className="w-6 h-6 text-teal-600" />
+            <div className="p-3 bg-teal-50 rounded-lg dark:bg-teal-950/40">
+              <PawPrint className="w-6 h-6 text-teal-600 dark:text-teal-300" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
@@ -459,7 +459,7 @@ export default function PatientDetailPage() {
       {tab === 'visits' && (
         <div className="space-y-3">
           <div className="flex justify-end">
-            <button onClick={() => { setEditVisit(null); setShowVisit(true); }} className="flex items-center gap-2 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm">
+            <button onClick={() => { setEditVisit(null); setShowVisit(true); }} className="flex items-center gap-2 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm">
               <Plus className="w-4 h-4" /> New Visit
             </button>
           </div>
@@ -483,17 +483,17 @@ export default function PatientDetailPage() {
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{money(v.total)}</span>
                       {(v as Record<string, unknown>).invoiceId ? (
-                        <Link to={`/crm/invoices/${(v as Record<string, unknown>).invoiceId as string}`} className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300">Billed →</Link>
+                        <Link to={`/crm/invoices/${(v as Record<string, unknown>).invoiceId as string}`} className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 dark:text-green-300">Billed →</Link>
                       ) : Number(v.total) > 0 ? (
                         <button
                           onClick={() => billVisit(v.id)}
                           disabled={billingVisitId === v.id}
-                          className="text-sm text-teal-600 hover:text-teal-700 dark:hover:text-teal-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-sm text-teal-600 hover:text-teal-700 dark:hover:text-teal-300 disabled:opacity-50 disabled:cursor-not-allowed dark:text-teal-300"
                         >
                           {billingVisitId === v.id ? 'Billing…' : 'Bill this visit'}
                         </button>
                       ) : null}
-                      <button onClick={() => { setEditVisit(v); setShowVisit(true); }} className="text-sm text-teal-600 hover:text-teal-700 dark:hover:text-teal-300">Edit</button>
+                      <button onClick={() => { setEditVisit(v); setShowVisit(true); }} className="text-sm text-teal-600 hover:text-teal-700 dark:hover:text-teal-300 dark:text-teal-300">Edit</button>
                     </div>
                   </div>
                   {(v.assessment || v.plan) && (
@@ -521,7 +521,7 @@ export default function PatientDetailPage() {
       {tab === 'vaccinations' && (
         <div className="space-y-3">
           <div className="flex justify-end">
-            <button onClick={() => setShowVaccine(true)} className="flex items-center gap-2 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm">
+            <button onClick={() => setShowVaccine(true)} className="flex items-center gap-2 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm">
               <Plus className="w-4 h-4" /> Add Vaccine
             </button>
           </div>
@@ -558,7 +558,7 @@ export default function PatientDetailPage() {
                         {v.isRabies && (
                           <button
                             onClick={() => openPrintable(`/api/reminders/rabies/${v.id}`)}
-                            className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 dark:hover:text-teal-300"
+                            className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 dark:hover:text-teal-300 dark:text-teal-300"
                           >
                             <ExternalLink className="w-3 h-3" /> Rabies Certificate
                           </button>
@@ -577,7 +577,7 @@ export default function PatientDetailPage() {
       {tab === 'prescriptions' && (
         <div className="space-y-3">
           <div className="flex justify-end">
-            <button onClick={() => setShowRx(true)} className="flex items-center gap-2 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm">
+            <button onClick={() => setShowRx(true)} className="flex items-center gap-2 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm">
               <Plus className="w-4 h-4" /> Add Rx
             </button>
           </div>
@@ -610,7 +610,7 @@ export default function PatientDetailPage() {
       {tab === 'labs' && (
         <div className="space-y-3">
           <div className="flex justify-end">
-            <button onClick={() => setShowLab(true)} className="flex items-center gap-2 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm">
+            <button onClick={() => setShowLab(true)} className="flex items-center gap-2 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm">
               <Plus className="w-4 h-4" /> Add Lab
             </button>
           </div>
@@ -632,7 +632,7 @@ export default function PatientDetailPage() {
                   </div>
                   {l.summary && <p className="text-sm text-gray-600 mt-1 dark:text-slate-400">{l.summary}</p>}
                   {safeUrl(l.fileUrl) && (
-                    <a href={safeUrl(l.fileUrl)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 dark:hover:text-teal-300 mt-1">
+                    <a href={safeUrl(l.fileUrl)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 dark:hover:text-teal-300 mt-1 dark:text-teal-300">
                       <FileText className="w-3 h-3" /> View file
                     </a>
                   )}
@@ -647,7 +647,7 @@ export default function PatientDetailPage() {
       {tab === 'documents' && (
         <div className="space-y-3">
           <div className="flex justify-end">
-            <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-white ${uploading ? 'bg-teal-400 cursor-wait' : 'bg-teal-600 hover:bg-teal-700 cursor-pointer'}`}>
+            <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-white ${uploading ? 'bg-teal-700 cursor-wait' : 'bg-teal-700 hover:bg-teal-800 cursor-pointer'}`}>
               <Plus className="w-4 h-4" /> {uploading ? 'Uploading…' : 'Upload file'}
               <input
                 type="file"
@@ -671,7 +671,7 @@ export default function PatientDetailPage() {
                   </div>
                   <div className="flex items-center gap-3 mt-1">
                     {safeUrl(d.url) && (
-                      <a href={safeUrl(d.url)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 dark:hover:text-teal-300">
+                      <a href={safeUrl(d.url)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 dark:hover:text-teal-300 dark:text-teal-300">
                         <FileText className="w-3 h-3" /> Open
                       </a>
                     )}
@@ -704,7 +704,7 @@ export default function PatientDetailPage() {
                   </div>
                   <div className="flex items-center justify-between gap-3 mt-1">
                     <span className="text-xs text-gray-500 dark:text-slate-400">{fmtDate(inv.issueDate)}</span>
-                    {Number(inv.balance || 0) > 0 && <span className="text-xs text-amber-600">${Number(inv.balance).toFixed(2)} outstanding</span>}
+                    {Number(inv.balance || 0) > 0 && <span className="text-xs text-amber-600 dark:text-amber-300">${Number(inv.balance).toFixed(2)} outstanding</span>}
                   </div>
                 </Link>
               ))}
@@ -777,7 +777,7 @@ function FormButtons({ saving, onClose }: { saving: boolean; onClose: () => void
   return (
     <div className="flex gap-3 pt-2">
       <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-      <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
+      <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
         {saving ? 'Saving...' : 'Save'}
       </button>
     </div>
@@ -824,7 +824,7 @@ function VaccineModal({ patientId, rabiesTag, onSave, onClose }: { patientId: st
   };
 
   return (
-    <ModalShell title="Add Vaccine" icon={<Syringe className="w-5 h-5 text-teal-600" />} onClose={onClose}>
+    <ModalShell title="Add Vaccine" icon={<Syringe className="w-5 h-5 text-teal-600 dark:text-teal-300" />} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <Field label="Vaccine *"><input type="text" value={form.vaccine} onChange={(e) => set('vaccine', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required /></Field>
         <div className="grid grid-cols-2 gap-4">
@@ -892,7 +892,7 @@ function RxModal({ patientId, allergies, onSave, onClose }: { patientId: string;
   const submit = (e: React.FormEvent) => { e.preventDefault(); void save(false); };
 
   return (
-    <ModalShell title="Add Prescription" icon={<Pill className="w-5 h-5 text-teal-600" />} onClose={onClose}>
+    <ModalShell title="Add Prescription" icon={<Pill className="w-5 h-5 text-teal-600 dark:text-teal-300" />} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         {!!allergies?.trim() && (
           <div role="note" className="flex items-start gap-2 p-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-sm dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-100">
@@ -965,7 +965,7 @@ function LabModal({ patientId, onSave, onClose }: { patientId: string; onSave: (
   };
 
   return (
-    <ModalShell title="Add Lab Result" icon={<FlaskConical className="w-5 h-5 text-teal-600" />} onClose={onClose}>
+    <ModalShell title="Add Lab Result" icon={<FlaskConical className="w-5 h-5 text-teal-600 dark:text-teal-300" />} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <Field label="Test Name *"><input type="text" value={form.testName} onChange={(e) => set('testName', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required /></Field>

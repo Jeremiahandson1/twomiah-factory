@@ -50,12 +50,12 @@ export function SignaturePad({ onSave, onCancel, width = 500, height = 200, penC
           <span className="text-xs text-gray-500 dark:text-slate-400">{new Date().toLocaleDateString()}</span>
         </div>
       </div>
-      {warning && <p className="mt-2 text-sm text-red-600">{warning}</p>}
+      {warning && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{warning}</p>}
       <div className="flex items-center gap-2 mt-3">
         <button type="button" onClick={clear} className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400 dark:hover:bg-slate-800"><Eraser className="w-4 h-4" /> Clear</button>
         <div className="flex-1" />
         {onCancel && <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 dark:text-slate-400 dark:border-slate-700 dark:hover:bg-slate-800">Cancel</button>}
-        <button type="button" onClick={save} disabled={!hasSignature} className="flex items-center gap-1 px-4 py-2 text-sm text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"><Check className="w-4 h-4" /> Accept & Sign</button>
+        <button type="button" onClick={save} disabled={!hasSignature} className="flex items-center gap-1 px-4 py-2 text-sm text-white bg-green-700 rounded-lg hover:bg-green-800 disabled:opacity-50"><Check className="w-4 h-4" /> Accept & Sign</button>
       </div>
     </div>
   )
@@ -103,10 +103,10 @@ export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document
             <input id="sig-name" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter your full name" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-800" />
           </div>
           <label className="mb-4 flex items-start gap-2 cursor-pointer">
-            <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500 dark:border-slate-700" />
+            <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500 dark:border-slate-700 dark:text-orange-300" />
             <span className="text-xs text-gray-600 dark:text-slate-400">I agree that my electronic signature is the legal equivalent of my handwritten signature. <span className="text-red-500">*</span></span>
           </label>
-          {warning && <p className="mb-3 text-sm text-red-600" role="alert">{warning}</p>}
+          {warning && <p className="mb-3 text-sm text-red-600 dark:text-red-400" role="alert">{warning}</p>}
           <SignaturePad onSave={handleSave} onCancel={onClose} width={450} height={150} />
         </div>
       </div>

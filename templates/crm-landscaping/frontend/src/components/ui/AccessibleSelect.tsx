@@ -74,7 +74,7 @@ const AccessibleSelect = forwardRef<HTMLSelectElement, any>(({
       </div>
 
       {hasError && (
-        <p id={errorId} className="mt-1 text-sm text-red-600" role="alert">
+        <p id={errorId} className="mt-1 text-sm text-red-600 dark:text-red-400" role="alert">
           {error}
         </p>
       )}

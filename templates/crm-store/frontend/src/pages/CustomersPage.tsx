@@ -17,7 +17,7 @@ export default function CustomersPage() {
       {loading ? <PageSpinner /> : customers.length === 0 ? (
         <div className="card p-10 text-center">
           <Users className="h-10 w-10 mx-auto text-gray-300" />
-          <p className="mt-3 text-gray-500">No customers yet. They'll appear here after the first order.</p>
+          <p className="mt-3 text-gray-500 dark:text-slate-400">No customers yet. They'll appear here after the first order.</p>
         </div>
       ) : (
         <div className="card overflow-x-auto">
@@ -30,11 +30,11 @@ export default function CustomersPage() {
                 <tr key={c.email} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-900 dark:text-slate-100">{c.name || c.email}</div>
-                    <div className="text-xs text-gray-500">{c.email}{c.phone ? ` · ${c.phone}` : ''}</div>
+                    <div className="text-xs text-gray-500 dark:text-slate-400">{c.email}{c.phone ? ` · ${c.phone}` : ''}</div>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{c.orderCount}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-slate-300">{c.orderCount}</td>
                   <td className="px-4 py-3 font-medium">{money(c.totalSpentCents)}</td>
-                  <td className="px-4 py-3 text-gray-500">{formatDate(c.lastOrderAt)}</td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{formatDate(c.lastOrderAt)}</td>
                 </tr>
               ))}
             </tbody>

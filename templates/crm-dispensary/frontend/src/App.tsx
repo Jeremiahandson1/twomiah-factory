@@ -104,7 +104,7 @@ function CrmNotFound() {
       <p className="text-6xl font-bold text-gray-300 dark:text-slate-700">404</p>
       <h1 className="mt-4 text-xl font-semibold text-gray-900 dark:text-slate-100">Page not found</h1>
       <p className="mt-2 text-gray-500 dark:text-slate-400">This page doesn’t exist. Check the address or head back to your dashboard.</p>
-      <Link to="/crm" className="mt-6 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg">Back to Dashboard</Link>
+      <Link to="/crm" className="mt-6 px-4 py-2 bg-green-700 hover:bg-green-800 text-white text-sm font-semibold rounded-lg">Back to Dashboard</Link>
     </div>
   );
 }

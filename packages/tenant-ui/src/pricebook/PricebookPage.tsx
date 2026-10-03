@@ -111,7 +111,7 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
         <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
           <BookOpen className="w-12 h-12 mx-auto text-gray-400 mb-3" />
           <p className="text-gray-500 dark:text-slate-400">No {itemWord.toLowerCase()}s found</p>
-          {mayCreate && <button onClick={() => setEditing({ open: true, item: null })} className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200">Add your first {itemWord.toLowerCase()}</button>}
+          {mayCreate && <button onClick={() => setEditing({ open: true, item: null })} className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300">Add your first {itemWord.toLowerCase()}</button>}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -134,14 +134,14 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
                 {showCost && <div><p className="text-gray-500 dark:text-slate-400">Margin</p><p className={`font-medium ${Number(item.margin) > 30 ? 'text-green-600' : 'text-orange-600'}`}>{item.margin}%</p></div>}
               </div>
               {Number(item.laborHours) > 0 && <div className="mt-2 flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400"><Clock className="w-4 h-4" />{Number(item.laborHours)} hours</div>}
-              {Number(item._count?.goodBetterBest) > 0 && <div className="mt-2 flex items-center gap-1 text-sm text-blue-600"><Star className="w-4 h-4" />{item._count.goodBetterBest} {config?.tiersTitle || 'pricing tier'}{item._count.goodBetterBest === 1 ? '' : 's'}</div>}
+              {Number(item._count?.goodBetterBest) > 0 && <div className="mt-2 flex items-center gap-1 text-sm text-blue-600 dark:text-blue-300"><Star className="w-4 h-4" />{item._count.goodBetterBest} {config?.tiersTitle || 'pricing tier'}{item._count.goodBetterBest === 1 ? '' : 's'}</div>}
               {/* Options is PUT /items/:id/options (pricebook:update); Duplicate is a POST that
                   creates (pricebook:create); Delete is pricebook:delete. With none of the three the
                   footer has nothing in it, so the divider goes too. */}
               {(mayUpdate || mayCreate || mayDelete) && (
                 <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800 flex items-center gap-1">
                   {mayUpdate && <button onClick={() => setEditing({ open: true, item })} className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg dark:text-slate-400 dark:hover:bg-slate-800"><Edit2 className="w-4 h-4" />Edit</button>}
-                  {mayUpdate && <button onClick={() => setTiersFor(item)} className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg"><Star className="w-4 h-4" />{config?.tiersButton || 'Options'}</button>}
+                  {mayUpdate && <button onClick={() => setTiersFor(item)} className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg dark:text-blue-300"><Star className="w-4 h-4" />{config?.tiersButton || 'Options'}</button>}
                   {mayCreate && <button onClick={() => duplicate(item)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg" title="Duplicate" aria-label="Duplicate"><Copy className="w-4 h-4" /></button>}
                   {mayDelete && <button onClick={() => setToDelete(item)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Delete" aria-label="Delete"><Trash2 className="w-4 h-4" /></button>}
                 </div>
@@ -233,7 +233,7 @@ function CategoriesModal({ api, toast, categories, onClose, onChanged }: { api: 
             <span className="truncate">{c.name}</span>
             <span className="flex items-center gap-3 text-sm text-gray-500 dark:text-slate-400 shrink-0">{c._count?.items || 0} items
               <button onClick={() => rename(c)} className="text-gray-600 hover:underline dark:text-slate-300">Rename</button>
-              <button onClick={() => retire(c)} className="text-red-600 hover:underline">Hide</button>
+              <button onClick={() => retire(c)} className="text-red-600 hover:underline dark:text-red-400">Hide</button>
             </span>
           </div>
         ))}

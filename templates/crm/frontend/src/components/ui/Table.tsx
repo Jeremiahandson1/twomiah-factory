@@ -94,7 +94,7 @@ export function EmptyState({
     <div className="flex flex-col items-center justify-center py-12 text-center">
       {Icon && (
         <div className="p-4 bg-slate-800 rounded-full mb-4">
-          <Icon className="w-8 h-8 text-slate-500" />
+          <Icon className="w-8 h-8 text-slate-500 dark:text-slate-400" />
         </div>
       )}
       <h3 className="text-lg font-medium text-white mb-1">{title}</h3>

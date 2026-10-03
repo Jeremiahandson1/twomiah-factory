@@ -23,7 +23,7 @@ export default function OrdersPage() {
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <button key={f} onClick={() => setFilter(f)}
-            className={`rounded-full px-3 py-1 text-sm capitalize ${filter === f ? 'bg-primary-500 text-white' : 'bg-white border text-gray-600 hover:bg-gray-50'} dark:bg-slate-900`}>
+            className={`rounded-full px-3 py-1 text-sm capitalize ${filter === f ? 'bg-primary-500 text-white' : 'bg-white border text-gray-600 hover:bg-gray-50'} dark:bg-slate-900 dark:text-slate-300`}>
             {f}
           </button>
         ))}
@@ -32,7 +32,7 @@ export default function OrdersPage() {
       {loading ? <PageSpinner /> : orders.length === 0 ? (
         <div className="card p-10 text-center">
           <ShoppingBag className="h-10 w-10 mx-auto text-gray-300" />
-          <p className="mt-3 text-gray-500">No {filter === 'all' ? '' : filter} orders.</p>
+          <p className="mt-3 text-gray-500 dark:text-slate-400">No {filter === 'all' ? '' : filter} orders.</p>
         </div>
       ) : (
         <div className="card overflow-x-auto">
@@ -44,8 +44,8 @@ export default function OrdersPage() {
               {orders.map((o) => (
                 <tr key={o.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3"><Link to={`/orders/${o.id}`} className="font-medium text-primary-600">{o.orderNumber || 'Pending'}</Link></td>
-                  <td className="px-4 py-3 text-gray-600">{o.customerName || o.customerEmail}</td>
-                  <td className="px-4 py-3 text-gray-500">{formatDate(o.createdAt)}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-slate-300">{o.customerName || o.customerEmail}</td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{formatDate(o.createdAt)}</td>
                   <td className="px-4 py-3"><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(o.status)}`}>{o.status}</span></td>
                   <td className="px-4 py-3 text-right font-medium">{money(o.totalCents, o.currency)}</td>
                 </tr>

@@ -80,7 +80,7 @@ export function InboundMessagesPage(): React.ReactElement {
                   <span>{new Date(m.receivedAt).toLocaleDateString()}</span>
                 </div>
                 <div className="text-sm font-semibold truncate">{m.fromName || m.fromEmail}</div>
-                <div className="text-xs text-gray-600 truncate">{m.subject || '(no subject)'}</div>
+                <div className="text-xs text-gray-600 truncate dark:text-slate-300">{m.subject || '(no subject)'}</div>
               </button>
             ))}
           </div>
@@ -91,10 +91,10 @@ export function InboundMessagesPage(): React.ReactElement {
                 <div className="border-b border-gray-100 pb-3 mb-3">
                   <div className="text-xs text-gray-500 dark:text-slate-400 mb-1">Received {new Date(selected.receivedAt).toLocaleString()}</div>
                   <div className="font-semibold mb-1">{selected.subject || '(no subject)'}</div>
-                  <div className="text-xs text-gray-600">
+                  <div className="text-xs text-gray-600 dark:text-slate-300">
                     From: <span className="font-mono">{selected.fromName ? selected.fromName + ' <' + selected.fromEmail + '>' : selected.fromEmail}</span>
                   </div>
-                  <div className="text-xs text-gray-600">To: <span className="font-mono">{selected.toLocalPart}@</span></div>
+                  <div className="text-xs text-gray-600 dark:text-slate-300">To: <span className="font-mono">{selected.toLocalPart}@</span></div>
                   <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                     SPF: <span className={selected.spfVerdict?.toLowerCase().includes('pass') ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}>{selected.spfVerdict || 'unknown'}</span>
                     {' · '}

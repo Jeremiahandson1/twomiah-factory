@@ -91,8 +91,8 @@ export default function StormRadarPage() {
 
       {/* Provider status banner */}
       {!status?.configured && (
-        <div className="mb-6 bg-yellow-50 border border-yellow-300 rounded-lg p-4 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+        <div className="mb-6 bg-yellow-50 border border-yellow-300 rounded-lg p-4 flex items-start gap-3 dark:bg-yellow-950/40">
+          <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5 dark:text-yellow-300" />
           <div>
             <div className="font-semibold text-yellow-900 dark:text-yellow-300">Storm Radar isn't turned on yet</div>
             <div className="text-sm text-yellow-800 mt-1 dark:text-yellow-300">Live storm tracking for your area isn't enabled on your account yet. Contact support to switch it on and start generating storm-season leads.</div>
@@ -121,7 +121,7 @@ export default function StormRadarPage() {
                   <td className="px-4 py-3 text-sm">{e.hailSizeInches ? `${e.hailSizeInches}"` : '—'}</td>
                   <td className="px-4 py-3 text-sm">{e.windSpeedMph ? `${e.windSpeedMph} mph` : '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{e.startedAt ? formatDate(e.startedAt) : '—'}</td>
-                  <td className="px-4 py-3"><button onClick={() => matchEvent(e.id)} className="text-xs text-orange-600 hover:underline">Match Contacts</button></td>
+                  <td className="px-4 py-3"><button onClick={() => matchEvent(e.id)} className="text-xs text-orange-600 hover:underline dark:text-orange-300">Match Contacts</button></td>
                 </tr>
               ))}
           </tbody>

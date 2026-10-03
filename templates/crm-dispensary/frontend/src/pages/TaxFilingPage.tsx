@@ -254,7 +254,7 @@ export default function TaxFilingPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => viewDetail(filing)} className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1 ml-auto">
+                        <button onClick={() => viewDetail(filing)} className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1 ml-auto dark:text-green-300">
                           <Eye className="w-3 h-3" /> View
                         </button>
                       </td>
@@ -365,8 +365,8 @@ export default function TaxFilingPage() {
               <div className="grid md:grid-cols-3 gap-4">
                 <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                      <DollarSign className="w-5 h-5 text-green-600" />
+                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center dark:bg-green-950/40">
+                      <DollarSign className="w-5 h-5 text-green-600 dark:text-green-300" />
                     </div>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Total Collected (YTD)</p>
                   </div>
@@ -376,8 +376,8 @@ export default function TaxFilingPage() {
                 </div>
                 <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <CheckCircle className="w-5 h-5 text-blue-600" />
+                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center dark:bg-blue-950/40">
+                      <CheckCircle className="w-5 h-5 text-blue-600 dark:text-blue-300" />
                     </div>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Total Filed (YTD)</p>
                   </div>
@@ -387,8 +387,8 @@ export default function TaxFilingPage() {
                 </div>
                 <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                      <AlertTriangle className="w-5 h-5 text-orange-600" />
+                    <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center dark:bg-orange-950/40">
+                      <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-300" />
                     </div>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Outstanding</p>
                   </div>
@@ -430,7 +430,7 @@ export default function TaxFilingPage() {
                           <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{row.type || '—'}</td>
                           <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">${Number(row.collected || 0).toFixed(2)}</td>
                           <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">${Number(row.filed || 0).toFixed(2)}</td>
-                          <td className="px-4 py-3 text-right font-medium text-orange-600">${Number(row.outstanding || 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right font-medium text-orange-600 dark:text-orange-300">${Number(row.outstanding || 0).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>

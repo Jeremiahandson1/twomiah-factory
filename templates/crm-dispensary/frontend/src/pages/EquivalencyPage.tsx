@@ -335,7 +335,7 @@ const unitOf = (rule: any): string => {
           {/* Add product */}
           <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
             <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
-              <Calculator className="w-5 h-5 text-green-600" />
+              <Calculator className="w-5 h-5 text-green-600 dark:text-green-300" />
               Add Products
             </h3>
             <div className="flex gap-3">
@@ -378,7 +378,7 @@ const unitOf = (rule: any): string => {
               />
             </div>
             {overLimit && (
-              <div className="flex items-center gap-2 mt-3 text-red-600">
+              <div className="flex items-center gap-2 mt-3 text-red-600 dark:text-red-400">
                 <AlertTriangle className="w-4 h-4" />
                 <span className="text-sm font-medium">
                   Over purchase limit by {Number(totalEquivalentGrams - purchaseLimit).toFixed(1)}g!

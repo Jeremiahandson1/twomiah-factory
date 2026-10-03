@@ -99,14 +99,14 @@ export function GbpReviewsPage(): React.ReactElement {
 
       {!status?.connected && (
         <div className="bg-white border rounded-lg p-6 dark:bg-slate-900">
-          <p className="text-sm text-gray-600 mb-4">Connect the Google account that manages your business listing. You'll approve access on Google's own sign-in page — we never see your password.</p>
+          <p className="text-sm text-gray-600 mb-4 dark:text-slate-300">Connect the Google account that manages your business listing. You'll approve access on Google's own sign-in page — we never see your password.</p>
           <button onClick={connect} className="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-semibold">Connect Google Business</button>
         </div>
       )}
 
       {status?.connected && status?.needsLocation && (
         <div className="bg-white border rounded-lg p-6 dark:bg-slate-900">
-          <p className="text-sm text-gray-600 mb-3">Connected as <span className="font-mono">{status.email}</span>. Which listing is this business?</p>
+          <p className="text-sm text-gray-600 mb-3 dark:text-slate-300">Connected as <span className="font-mono">{status.email}</span>. Which listing is this business?</p>
           {locations.length === 0 && !error && <p className="text-sm text-gray-500 dark:text-slate-400">No listings found on that Google account.</p>}
           <div className="space-y-2">
             {locations.map(l => (
@@ -138,7 +138,7 @@ export function GbpReviewsPage(): React.ReactElement {
                 <Stars rating={STARS[r.starRating] || 0} />
                 {r.comment && <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap dark:text-slate-200">{r.comment}</p>}
                 {r.reply ? (
-                  <div className="mt-3 pl-3 border-l-2 border-gray-200 text-sm text-gray-600">
+                  <div className="mt-3 pl-3 border-l-2 border-gray-200 text-sm text-gray-600 dark:text-slate-300">
                     <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 block mb-1">Your reply</span>
                     {r.reply}
                   </div>
@@ -151,7 +151,7 @@ export function GbpReviewsPage(): React.ReactElement {
                     </div>
                   </div>
                 ) : (
-                  <button onClick={() => { setReplyFor(r.name); setReplyText('') }} className="mt-2 text-xs font-semibold text-orange-600 hover:text-orange-700 dark:hover:text-orange-200">Reply</button>
+                  <button onClick={() => { setReplyFor(r.name); setReplyText('') }} className="mt-2 text-xs font-semibold text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300">Reply</button>
                 )}
               </div>
             ))}

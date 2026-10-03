@@ -450,7 +450,7 @@ function FleetMap({ vehicles }: FleetMapProps) {
                 </div>
               </div>
               {v.currentLocation!.speed > 0 && (
-                <span className="text-sm text-green-600">{Math.round(v.currentLocation!.speed)} mph</span>
+                <span className="text-sm text-green-600 dark:text-green-300">{Math.round(v.currentLocation!.speed)} mph</span>
               )}
             </div>
           ))}

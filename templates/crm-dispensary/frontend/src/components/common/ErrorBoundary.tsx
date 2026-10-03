@@ -43,7 +43,7 @@ class ErrorBoundary extends React.Component<any, any> {
       return (
         <div className="min-h-[400px] flex items-center justify-center p-6">
           <div className="text-center max-w-md">
-            <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4 dark:bg-red-950/40">
               <AlertTriangle className="w-8 h-8 text-red-500" />
             </div>
             <h2 className="text-xl font-semibold text-gray-900 mb-2 dark:text-slate-100">Something went wrong</h2>
@@ -52,13 +52,13 @@ class ErrorBoundary extends React.Component<any, any> {
             </p>
             
             {import.meta.env.DEV && this.state.error && (
-              <div className="mb-6 p-4 bg-red-50 rounded-lg text-left">
+              <div className="mb-6 p-4 bg-red-50 rounded-lg text-left dark:bg-red-950/40">
                 <p className="font-mono text-sm text-red-800 break-all dark:text-red-300">
                   {this.state.error.toString()}
                 </p>
                 {this.state.errorInfo && (
                   <details className="mt-2">
-                    <summary className="text-sm text-red-600 cursor-pointer">Stack trace</summary>
+                    <summary className="text-sm text-red-600 cursor-pointer dark:text-red-400">Stack trace</summary>
                     <pre className="mt-2 text-xs text-red-700 overflow-auto max-h-40 dark:text-red-300">
                       {this.state.errorInfo.componentStack}
                     </pre>

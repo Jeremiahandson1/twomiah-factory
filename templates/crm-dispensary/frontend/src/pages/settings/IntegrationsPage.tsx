@@ -203,8 +203,8 @@ export default function IntegrationsPage() {
         <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                <KeyRound className="w-6 h-6 text-orange-600" />
+              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center dark:bg-orange-950/40">
+                <KeyRound className="w-6 h-6 text-orange-600 dark:text-orange-300" />
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-slate-100">POS API key</h3>
@@ -251,8 +251,8 @@ export default function IntegrationsPage() {
         <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <BookOpen className="w-6 h-6 text-green-600" />
+              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center dark:bg-green-950/40">
+                <BookOpen className="w-6 h-6 text-green-600 dark:text-green-300" />
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-slate-100">QuickBooks</h3>
@@ -263,7 +263,7 @@ export default function IntegrationsPage() {
                 </p>
                 {integrations.quickbooks.connected && (
                   <div className="mt-2 text-sm">
-                    <p className="text-green-600 font-medium">
+                    <p className="text-green-600 font-medium dark:text-green-300">
                       ✓ Connected to {integrations.quickbooks.companyName}
                     </p>
                     {integrations.quickbooks.lastSync && (
@@ -315,8 +315,8 @@ export default function IntegrationsPage() {
         <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                <CreditCard className="w-6 h-6 text-purple-600" />
+              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center dark:bg-purple-950/40">
+                <CreditCard className="w-6 h-6 text-purple-600 dark:text-purple-300" />
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-slate-100">Stripe Payments</h3>
@@ -326,9 +326,9 @@ export default function IntegrationsPage() {
                 {integrations.stripe.connected && (
                   <div className="mt-2 text-sm">
                     {integrations.stripe.chargesEnabled ? (
-                      <p className="text-green-600 font-medium">✓ Ready to accept payments</p>
+                      <p className="text-green-600 font-medium dark:text-green-300">✓ Ready to accept payments</p>
                     ) : (
-                      <p className="text-yellow-600 font-medium">⚠ Setup incomplete - check Stripe dashboard</p>
+                      <p className="text-yellow-600 font-medium dark:text-yellow-300">⚠ Setup incomplete - check Stripe dashboard</p>
                     )}
                   </div>
                 )}
@@ -360,8 +360,8 @@ export default function IntegrationsPage() {
         <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <MessageSquare className="w-6 h-6 text-blue-600" />
+              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center dark:bg-blue-950/40">
+                <MessageSquare className="w-6 h-6 text-blue-600 dark:text-blue-300" />
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-slate-100">SMS Notifications</h3>
@@ -407,8 +407,8 @@ export default function IntegrationsPage() {
         <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                <Mail className="w-6 h-6 text-orange-600" />
+              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center dark:bg-orange-950/40">
+                <Mail className="w-6 h-6 text-orange-600 dark:text-orange-300" />
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-slate-100">Email</h3>

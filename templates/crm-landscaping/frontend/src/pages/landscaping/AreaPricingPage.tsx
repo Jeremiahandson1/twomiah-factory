@@ -93,7 +93,7 @@ export default function AreaPricingPage() {
                   <td>${Number(r.ratePer1000Sqft).toFixed(2)}</td>
                   <td>${Number(r.minCharge).toFixed(2)}</td>
                   <td>{r.unitLabel}</td>
-                  <td><button onClick={() => removeRate(r.id)} className="text-red-600 p-1 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4" /></button></td>
+                  <td><button onClick={() => removeRate(r.id)} className="text-red-600 p-1 hover:bg-red-50 rounded dark:text-red-400"><Trash2 className="w-4 h-4" /></button></td>
                 </tr>
               ))}
               {rates.length === 0 && <tr><td colSpan={6} className="py-4 text-gray-500 dark:text-slate-400">No rates yet — add one below.</td></tr>}
@@ -108,7 +108,7 @@ export default function AreaPricingPage() {
           <input className="border rounded px-2 py-1.5 text-sm" type="number" placeholder="Rate /1k" value={form.ratePer1000Sqft} onChange={e => setForm({ ...form, ratePer1000Sqft: e.target.value })} />
           <input className="border rounded px-2 py-1.5 text-sm" type="number" placeholder="Min $" value={form.minCharge} onChange={e => setForm({ ...form, minCharge: e.target.value })} />
           <input className="border rounded px-2 py-1.5 text-sm" placeholder="Unit" value={form.unitLabel} onChange={e => setForm({ ...form, unitLabel: e.target.value })} />
-          <button onClick={addRate} className="flex items-center justify-center gap-1 bg-green-600 text-white rounded px-3 py-1.5 text-sm"><Plus className="w-4 h-4" /> Add</button>
+          <button onClick={addRate} className="flex items-center justify-center gap-1 bg-green-700 text-white rounded px-3 py-1.5 text-sm"><Plus className="w-4 h-4" /> Add</button>
         </div>
       </section>
 
@@ -139,13 +139,13 @@ export default function AreaPricingPage() {
             <option value="">Select service…</option>
             {rates.map(r => <option key={r.id} value={r.serviceType}>{r.serviceType}</option>)}
           </select>
-          <button onClick={runQuote} className="bg-green-600 text-white rounded px-4 py-1.5 text-sm">Calculate</button>
+          <button onClick={runQuote} className="bg-green-700 text-white rounded px-4 py-1.5 text-sm">Calculate</button>
         </div>
         {calcResult && (
-          <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded">
+          <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded dark:bg-green-950/40">
             <div className="text-2xl font-bold text-green-800 dark:text-green-300">${Number(calcResult.price).toFixed(2)}</div>
             <div className="text-sm text-green-700 dark:text-green-300">{calcResult.lineItem?.description}</div>
-            {calcResult.minChargeApplied && <div className="text-xs text-green-600 mt-1">Minimum charge applied.</div>}
+            {calcResult.minChargeApplied && <div className="text-xs text-green-600 mt-1 dark:text-green-300">Minimum charge applied.</div>}
           </div>
         )}
       </section>

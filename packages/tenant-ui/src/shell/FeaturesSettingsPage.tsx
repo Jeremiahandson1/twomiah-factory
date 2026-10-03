@@ -81,7 +81,7 @@ export function FeaturesSettingsPage({ api, auth, toast }: FeaturesSettingsPageP
       <h1 className="text-2xl font-bold mb-1 text-gray-900 dark:text-white">Features</h1>
       <p className="text-gray-500 mb-6 dark:text-slate-400">
         Every feature is included in your plan — switch on the ones you want. Changes apply to your whole team immediately.
-        {!isAdmin && <span className="block mt-1 text-amber-600 font-medium">Only admins can change features.</span>}
+        {!isAdmin && <span className="block mt-1 text-amber-600 font-medium dark:text-amber-300">Only admins can change features.</span>}
       </p>
 
       {categories.length === 0 && <div className="text-gray-500 dark:text-slate-400">No optional features are available for this product.</div>}

@@ -119,9 +119,9 @@ export function PortalDashboard() {
         <h2 className="font-semibold text-gray-900 mb-2 dark:text-slate-100">Need Help?</h2>
         <p className="text-gray-600 dark:text-slate-400">
           Contact us at{' '}
-          {!!company?.email && <a href={`mailto:${company.email}`} className="text-orange-600 hover:underline">{company.email}</a>}
+          {!!company?.email && <a href={`mailto:${company.email}`} className="text-orange-600 hover:underline dark:text-orange-300">{company.email}</a>}
           {!!company?.email && !!company?.phone && ' or '}
-          {!!company?.phone && <a href={`tel:${company.phone}`} className="text-orange-600 hover:underline">{company.phone}</a>}
+          {!!company?.phone && <a href={`tel:${company.phone}`} className="text-orange-600 hover:underline dark:text-orange-300">{company.phone}</a>}
         </p>
       </div>
     </div>

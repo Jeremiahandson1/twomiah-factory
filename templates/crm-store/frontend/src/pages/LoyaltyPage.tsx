@@ -17,7 +17,7 @@ const BLANK_REWARD = {
 }
 
 function Card({ card }: { card: LoyaltyPunchCard }) {
-  if (!card?.enabled) return <span className="text-gray-500">—</span>
+  if (!card?.enabled) return <span className="text-gray-500 dark:text-slate-400">—</span>
   const filled = card.unclaimed > 0 ? card.visitsRequired : card.progress
   return (
     <span className="inline-flex items-center gap-1" title={`${card.progress} of ${card.visitsRequired} orders`}>
@@ -97,7 +97,7 @@ export default function LoyaltyPage() {
   const describe = (r: LoyaltyReward) =>
     r.type === 'percent' ? `${r.valueCents}% off` : `$${centsToDollars(r.valueCents)} off`
 
-  if (loading) return <div className="p-8 text-gray-600">Loading…</div>
+  if (loading) return <div className="p-8 text-gray-600 dark:text-slate-300">Loading…</div>
 
   const card = config?.loyaltyPunchCard
 
@@ -105,7 +105,7 @@ export default function LoyaltyPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-slate-100">Loyalty</h1>
-        <p className="text-gray-600">
+        <p className="text-gray-600 dark:text-slate-300">
           {config?.loyaltyEnabled === false
             ? 'The programme is switched off — shoppers are not earning.'
             : <>Shoppers earn {config?.loyaltyPointsPerDollar ?? 1} point per $1 spent on goods
@@ -113,7 +113,7 @@ export default function LoyaltyPage() {
                 ? `, and every ${card.visitsRequired} orders earns ${card.rewardName || 'a reward'}.`
                 : '.'}</>}
         </p>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
           Shoppers are recognised by their email address at checkout — this store has no customer login.
         </p>
       </div>
@@ -154,8 +154,8 @@ export default function LoyaltyPage() {
                     <tr key={m.id}>
                       <td className="px-4 py-2.5 text-gray-900 dark:text-slate-100">{m.email}</td>
                       <td className="px-4 py-2.5 tabular-nums font-medium text-gray-900 dark:text-slate-100">{m.pointsBalance}</td>
-                      <td className="px-4 py-2.5 tabular-nums text-gray-600">{m.lifetimePoints}</td>
-                      <td className="px-4 py-2.5 tabular-nums text-gray-600">{m.qualifyingOrders}</td>
+                      <td className="px-4 py-2.5 tabular-nums text-gray-600 dark:text-slate-300">{m.lifetimePoints}</td>
+                      <td className="px-4 py-2.5 tabular-nums text-gray-600 dark:text-slate-300">{m.qualifyingOrders}</td>
                       <td className="px-4 py-2.5"><Card card={m.punchCard} /></td>
                     </tr>
                   ))}
@@ -170,7 +170,7 @@ export default function LoyaltyPage() {
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 overflow-x-auto rounded border border-gray-200 bg-white dark:bg-slate-900">
             {rewards.length === 0 ? (
-              <p className="p-8 text-center text-gray-600">No rewards yet. Add one so points are worth something.</p>
+              <p className="p-8 text-center text-gray-600 dark:text-slate-300">No rewards yet. Add one so points are worth something.</p>
             ) : (
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-left text-gray-600">
@@ -183,17 +183,17 @@ export default function LoyaltyPage() {
                     <tr key={r.id} className={r.active ? '' : 'opacity-60'}>
                       <td className="px-4 py-2.5">
                         <div className="font-medium text-gray-900 dark:text-slate-100">{r.name}</div>
-                        {r.description && <div className="text-gray-500">{r.description}</div>}
-                        {!r.active && <div className="text-xs text-gray-500">Not currently available</div>}
+                        {r.description && <div className="text-gray-500 dark:text-slate-400">{r.description}</div>}
+                        {!r.active && <div className="text-xs text-gray-500 dark:text-slate-400">Not currently available</div>}
                       </td>
                       <td className="px-4 py-2.5 tabular-nums text-gray-900 dark:text-slate-100">
                         {r.pointsCost > 0 ? `${r.pointsCost} pts` : <span className="text-indigo-700 dark:text-indigo-300">A full card</span>}
                       </td>
                       <td className="px-4 py-2.5 text-gray-900 dark:text-slate-100">{describe(r)}</td>
-                      <td className="px-4 py-2.5 tabular-nums text-gray-600">
+                      <td className="px-4 py-2.5 tabular-nums text-gray-600 dark:text-slate-300">
                         {r.minSubtotalCents > 0 ? `$${centsToDollars(r.minSubtotalCents)}` : '—'}
                       </td>
-                      <td className="px-4 py-2.5 tabular-nums text-gray-600">{r.usedCount}</td>
+                      <td className="px-4 py-2.5 tabular-nums text-gray-600 dark:text-slate-300">{r.usedCount}</td>
                       <td className="px-4 py-2.5 whitespace-nowrap text-right">
                         <button
                           onClick={() => {
@@ -209,7 +209,7 @@ export default function LoyaltyPage() {
                           }}
                           className="px-2 py-1 text-indigo-700 hover:underline dark:text-indigo-300"
                         >Edit</button>
-                        <button onClick={() => removeReward(r)} className="px-2 py-1 text-red-600 hover:underline">Delete</button>
+                        <button onClick={() => removeReward(r)} className="px-2 py-1 text-red-600 hover:underline dark:text-red-400">Delete</button>
                       </td>
                     </tr>
                   ))}
@@ -221,36 +221,36 @@ export default function LoyaltyPage() {
           <div className="h-fit space-y-3 rounded border border-gray-200 bg-white p-5 dark:bg-slate-900">
             <h2 className="font-semibold text-gray-900 dark:text-slate-100">{editingId ? 'Edit reward' : 'Add a reward'}</h2>
 
-            <label className="block text-sm text-gray-600">Name
+            <label className="block text-sm text-gray-600 dark:text-slate-300">Name
               <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-gray-900 dark:text-slate-100" />
             </label>
 
-            <label className="block text-sm text-gray-600">What it gives
+            <label className="block text-sm text-gray-600 dark:text-slate-300">What it gives
               <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as any })}
                 className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-gray-900 dark:text-slate-100">
                 <option value="fixed">Money off</option>
                 <option value="percent">Percentage off</option>
               </select>
-              <span className="mt-1 block text-xs text-gray-500">
+              <span className="mt-1 block text-xs text-gray-500 dark:text-slate-400">
                 Money off only — with no customer login, anyone who knows the email could spend the balance.
               </span>
             </label>
 
-            <label className="block text-sm text-gray-600">{form.type === 'percent' ? 'Percent off' : 'Amount off ($)'}
+            <label className="block text-sm text-gray-600 dark:text-slate-300">{form.type === 'percent' ? 'Percent off' : 'Amount off ($)'}
               <input type="number" min="0" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })}
                 className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-gray-900 dark:text-slate-100" />
             </label>
 
-            <label className="block text-sm text-gray-600">Points to redeem
+            <label className="block text-sm text-gray-600 dark:text-slate-300">Points to redeem
               <input type="number" min="0" value={form.pointsCost} onChange={(e) => setForm({ ...form, pointsCost: e.target.value })}
                 className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-gray-900 dark:text-slate-100" />
-              <span className="mt-1 block text-xs text-gray-500">
+              <span className="mt-1 block text-xs text-gray-500 dark:text-slate-400">
                 Leave at 0 for a punch-card reward — a full card pays for it instead of points.
               </span>
             </label>
 
-            <label className="block text-sm text-gray-600">Minimum spend ($, optional)
+            <label className="block text-sm text-gray-600 dark:text-slate-300">Minimum spend ($, optional)
               <input type="number" min="0" value={form.minSubtotal} onChange={(e) => setForm({ ...form, minSubtotal: e.target.value })}
                 className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-gray-900 dark:text-slate-100" />
             </label>
@@ -282,14 +282,14 @@ export default function LoyaltyPage() {
             Run a loyalty programme
           </label>
 
-          <label className="block text-sm text-gray-600">Points per $1 spent
+          <label className="block text-sm text-gray-600 dark:text-slate-300">Points per $1 spent
             <input type="number" min="0" step="0.1" defaultValue={config.loyaltyPointsPerDollar}
               onBlur={(e) => saveConfig({ loyaltyPointsPerDollar: Number(e.target.value) || 0 })}
               className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-gray-900 dark:text-slate-100" />
-            <span className="mt-1 block text-xs text-gray-500">Earned on goods after discounts — not on shipping or tax.</span>
+            <span className="mt-1 block text-xs text-gray-500 dark:text-slate-400">Earned on goods after discounts — not on shipping or tax.</span>
           </label>
 
-          <label className="block text-sm text-gray-600">Welcome points
+          <label className="block text-sm text-gray-600 dark:text-slate-300">Welcome points
             <input type="number" min="0" defaultValue={config.loyaltyWelcomePoints}
               onBlur={(e) => saveConfig({ loyaltyWelcomePoints: Math.round(Number(e.target.value)) || 0 })}
               className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-gray-900 dark:text-slate-100" />
@@ -297,28 +297,28 @@ export default function LoyaltyPage() {
 
           <fieldset className="space-y-2 rounded border border-gray-200 p-3">
             <legend className="px-1 text-sm font-medium text-gray-700 dark:text-slate-200">Punch card</legend>
-            <label className="block text-sm text-gray-600">Orders needed for a free reward
+            <label className="block text-sm text-gray-600 dark:text-slate-300">Orders needed for a free reward
               <input type="number" min="0" defaultValue={config.loyaltyPunchCard?.visitsRequired ?? 0}
                 onBlur={(e) => saveConfig({ loyaltyPunchCard: {
                   ...config.loyaltyPunchCard,
                   visitsRequired: Math.max(0, Math.round(Number(e.target.value)) || 0),
                 } as any })}
                 className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-gray-900 dark:text-slate-100" />
-              <span className="mt-1 block text-xs text-gray-500">0 switches the card off.</span>
+              <span className="mt-1 block text-xs text-gray-500 dark:text-slate-400">0 switches the card off.</span>
             </label>
-            <label className="block text-sm text-gray-600">What they get
+            <label className="block text-sm text-gray-600 dark:text-slate-300">What they get
               <input defaultValue={config.loyaltyPunchCard?.rewardName ?? ''}
                 onBlur={(e) => saveConfig({ loyaltyPunchCard: {
                   ...config.loyaltyPunchCard, rewardName: e.target.value.trim(),
                 } as any })}
                 className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-gray-900 dark:text-slate-100" />
-              <span className="mt-1 block text-xs text-gray-500">
+              <span className="mt-1 block text-xs text-gray-500 dark:text-slate-400">
                 Add a reward costing 0 points on the Rewards tab — a full card pays for it.
               </span>
             </label>
           </fieldset>
 
-          {saving && <p className="text-sm text-gray-500">Saving…</p>}
+          {saving && <p className="text-sm text-gray-500 dark:text-slate-400">Saving…</p>}
         </div>
       )}
     </div>

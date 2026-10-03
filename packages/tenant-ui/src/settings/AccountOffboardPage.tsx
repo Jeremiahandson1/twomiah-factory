@@ -122,7 +122,7 @@ export function AccountOffboardPage(): React.ReactElement {
       )}
 
       {!loading && !isOffboarding && confirming && (
-        <div className="border border-red-300 rounded-md p-5 bg-red-50">
+        <div className="border border-red-300 rounded-md p-5 bg-red-50 dark:bg-red-950/40">
           <h2 className="font-semibold text-red-900 dark:text-red-200 mb-2">Confirm offboarding</h2>
           <p className="text-sm text-red-900 dark:text-red-200 mb-4">Clicking below triggers: subscription cancellation at period-end, domain unlock (if we bought it for you), and starts the 30-day grace window. You can reactivate any time until the grace ends.</p>
           <div className="flex gap-2">

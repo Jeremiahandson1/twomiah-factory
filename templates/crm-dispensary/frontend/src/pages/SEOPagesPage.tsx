@@ -179,7 +179,7 @@ export default function SEOPagesPage() {
                         {isManager && (
                           <button
                             onClick={() => openEdit(page)}
-                            className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1 ml-auto"
+                            className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1 ml-auto dark:text-green-300"
                           >
                             <Edit className="w-3 h-3" /> Edit
                           </button>
@@ -208,7 +208,7 @@ export default function SEOPagesPage() {
         <div className="max-w-xl space-y-6">
           <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
             <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-              <Globe className="w-5 h-5 text-green-600" />
+              <Globe className="w-5 h-5 text-green-600 dark:text-green-300" />
               Sitemap
             </h3>
             <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">

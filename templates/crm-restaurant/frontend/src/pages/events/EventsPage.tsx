@@ -133,13 +133,13 @@ export default function EventsPage() {
         <div className="flex border rounded-lg overflow-hidden">
           <button
             onClick={() => setView('pipeline')}
-            className={`flex items-center gap-1 px-3 py-2 text-sm ${view === 'pipeline' ? 'bg-orange-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'} dark:bg-slate-900`}
+            className={`flex items-center gap-1 px-3 py-2 text-sm ${view === 'pipeline' ? 'bg-orange-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'} dark:bg-slate-900 dark:text-slate-300`}
           >
             <LayoutGrid className="w-4 h-4" /> Pipeline
           </button>
           <button
             onClick={() => setView('list')}
-            className={`flex items-center gap-1 px-3 py-2 text-sm ${view === 'list' ? 'bg-orange-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'} dark:bg-slate-900`}
+            className={`flex items-center gap-1 px-3 py-2 text-sm ${view === 'list' ? 'bg-orange-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'} dark:bg-slate-900 dark:text-slate-300`}
           >
             <List className="w-4 h-4" /> List
           </button>

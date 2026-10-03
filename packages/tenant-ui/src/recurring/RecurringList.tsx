@@ -139,8 +139,8 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <div className="bg-white rounded-xl border p-4 dark:bg-slate-900">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <RefreshCw className="w-5 h-5 text-green-600" />
+              <div className="p-2 bg-green-100 rounded-lg dark:bg-green-950/40">
+                <RefreshCw className="w-5 h-5 text-green-600 dark:text-green-300" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.active}</p>
@@ -150,8 +150,8 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
           </div>
           <div className="bg-white rounded-xl border p-4 dark:bg-slate-900">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-yellow-100 rounded-lg">
-                <Pause className="w-5 h-5 text-yellow-600" />
+              <div className="p-2 bg-yellow-100 rounded-lg dark:bg-yellow-950/40">
+                <Pause className="w-5 h-5 text-yellow-600 dark:text-yellow-300" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.paused}</p>
@@ -172,8 +172,8 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
           </div>
           <div className="bg-white rounded-xl border p-4 dark:bg-slate-900">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <DollarSign className="w-5 h-5 text-orange-600" />
+              <div className="p-2 bg-orange-100 rounded-lg dark:bg-orange-950/40">
+                <DollarSign className="w-5 h-5 text-orange-600 dark:text-orange-300" />
               </div>
               <div>
                 <p className="text-2xl font-bold">${(stats.monthlyRecurringRevenue ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
@@ -194,7 +194,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
               filter === s
                 ? 'bg-orange-100 text-orange-700'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+            } dark:text-slate-300`}
           >
             {s === '' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
           </button>
@@ -208,7 +208,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
           <p className="text-gray-500 mb-4 dark:text-slate-400">No recurring invoices</p>
           <Link
             to="/crm/recurring/new"
-            className="text-orange-600 hover:underline"
+            className="text-orange-600 hover:underline dark:text-orange-300"
           >
             Create your first recurring invoice
           </Link>

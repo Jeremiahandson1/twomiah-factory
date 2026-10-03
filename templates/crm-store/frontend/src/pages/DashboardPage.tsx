@@ -53,14 +53,14 @@ export default function DashboardPage() {
           <Link to="/orders" className="text-sm text-primary-600 flex items-center gap-1">View all <ArrowRight className="h-3 w-3" /></Link>
         </div>
         {orders.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-gray-500">No orders yet.</p>
+          <p className="px-5 py-8 text-center text-sm text-gray-500 dark:text-slate-400">No orders yet.</p>
         ) : (
           <div className="divide-y">
             {orders.map((o) => (
               <Link key={o.id} to={`/orders/${o.id}`} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50">
                 <div>
                   <div className="font-medium text-sm text-gray-900 dark:text-slate-100">{o.orderNumber || 'Pending'}</div>
-                  <div className="text-xs text-gray-500">{o.customerEmail} · {formatDate(o.createdAt)}</div>
+                  <div className="text-xs text-gray-500 dark:text-slate-400">{o.customerEmail} · {formatDate(o.createdAt)}</div>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(o.status)}`}>{o.status}</span>
@@ -78,7 +78,7 @@ export default function DashboardPage() {
 function StatCard({ icon: Icon, label, value, highlight }: { icon: any; label: string; value: string; highlight?: boolean }) {
   return (
     <div className="card p-5">
-      <div className="flex items-center gap-2 text-sm text-gray-500"><Icon className="h-4 w-4" /> {label}</div>
+      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400"><Icon className="h-4 w-4" /> {label}</div>
       <div className={`mt-2 text-2xl font-bold ${highlight ? 'text-primary-600' : 'text-gray-900'} dark:text-slate-100`}>{value}</div>
     </div>
   )

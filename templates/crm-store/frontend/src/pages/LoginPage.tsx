@@ -33,7 +33,7 @@ export default function LoginPage() {
         <form onSubmit={submit} className="card p-6 space-y-4">
           <div>
             <h1 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Store admin</h1>
-            <p className="text-sm text-gray-500">Sign in to manage your store</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Sign in to manage your store</p>
           </div>
           {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
           <div>
@@ -45,7 +45,7 @@ export default function LoginPage() {
             <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </div>
           <button className="btn-primary w-full" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
-          <Link to="/forgot-password" className="block text-center text-sm text-gray-500 hover:underline">Forgot password?</Link>
+          <Link to="/forgot-password" className="block text-center text-sm text-gray-500 hover:underline dark:text-slate-400">Forgot password?</Link>
         </form>
       </div>
     </div>

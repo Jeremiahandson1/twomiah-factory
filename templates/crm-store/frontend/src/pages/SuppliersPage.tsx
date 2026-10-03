@@ -56,12 +56,12 @@ export default function SuppliersPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Suppliers</h1>
-      <p className="text-sm text-gray-500 -mt-4">Dropshipping: when a customer pays, we place the matching order at your supplier with their address, and tracking flows back to the customer automatically.</p>
+      <p className="text-sm text-gray-500 -mt-4 dark:text-slate-400">Dropshipping: when a customer pays, we place the matching order at your supplier with their address, and tracking flows back to the customer automatically.</p>
 
       {connected ? (
         <div className="card p-5">
-          <div className="flex items-center gap-2 text-green-600 font-medium"><CheckCircle2 className="h-5 w-5" /> Connected</div>
-          <div className="mt-3 text-sm text-gray-600 space-y-1">
+          <div className="flex items-center gap-2 text-green-600 font-medium dark:text-green-300"><CheckCircle2 className="h-5 w-5" /> Connected</div>
+          <div className="mt-3 text-sm text-gray-600 space-y-1 dark:text-slate-300">
             <div>Supplier: <span className="font-medium capitalize">{status?.config?.provider}</span></div>
             <div>Mode: <span className="font-medium capitalize">{status?.config?.mode}</span>{status?.config?.mode === 'test' && ' (orders stay as unconfirmed drafts)'}</div>
           </div>
@@ -74,13 +74,13 @@ export default function SuppliersPage() {
         </div>
       ) : (
         <div className="card p-5">
-          <div className="flex items-center gap-2 text-gray-500"><Truck className="h-5 w-5" /> No supplier connected — orders are fulfilled manually.</div>
+          <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400"><Truck className="h-5 w-5" /> No supplier connected — orders are fulfilled manually.</div>
         </div>
       )}
 
       <div className="card p-5 space-y-4">
         <h2 className="font-semibold text-gray-900 dark:text-slate-100">Connect your {form.provider === 'cj' ? 'CJ Dropshipping' : 'Printful'} account</h2>
-        <p className="text-xs text-gray-500">{f.blurb}</p>
+        <p className="text-xs text-gray-500 dark:text-slate-400">{f.blurb}</p>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label">Supplier</label>
@@ -111,7 +111,7 @@ export default function SuppliersPage() {
         <button onClick={connect} className="btn-primary" disabled={saving || !form.apiKey || (f.needsEmail && !form.accountEmail)}>{saving ? 'Verifying…' : connected ? 'Update connection' : 'Connect'}</button>
       </div>
 
-      <div className="card p-5 text-sm text-gray-600">
+      <div className="card p-5 text-sm text-gray-600 dark:text-slate-300">
         <h2 className="font-semibold text-gray-900 mb-2 dark:text-slate-100">Next step</h2>
         Link each product variant to its supplier item on the product page — orders only forward when every item in them is linked.
       </div>

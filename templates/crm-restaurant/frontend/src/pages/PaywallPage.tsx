@@ -24,8 +24,8 @@ export default function PaywallPage() {
         </div>
 
         <div className="p-8 space-y-6">
-          <div className="flex gap-3 bg-green-50 border border-green-200 rounded-lg p-4">
-            <Shield className="w-5 h-5 text-green-700 flex-shrink-0 mt-0.5" />
+          <div className="flex gap-3 bg-green-50 border border-green-200 rounded-lg p-4 dark:bg-green-950/40">
+            <Shield className="w-5 h-5 text-green-700 flex-shrink-0 mt-0.5 dark:text-green-300" />
             <div>
               <p className="font-semibold text-green-900">Your data is safe</p>
               <p className="text-sm text-green-800 mt-1">
@@ -53,11 +53,11 @@ export default function PaywallPage() {
           <div className="pt-4 border-t border-gray-100 text-center">
             <p className="text-xs text-gray-500 dark:text-slate-400">
               Questions?{' '}
-              <a href="mailto:support@twomiah.com" className="text-orange-600 hover:underline">
+              <a href="mailto:support@twomiah.com" className="text-orange-600 hover:underline dark:text-orange-300">
                 Contact support
               </a>
               {' '}or{' '}
-              <button onClick={logout} className="text-orange-600 hover:underline">
+              <button onClick={logout} className="text-orange-600 hover:underline dark:text-orange-300">
                 sign out
               </button>
               .

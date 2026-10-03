@@ -174,8 +174,8 @@ export default function PayByBankPage() {
       {/* Stats Bar */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3 dark:bg-slate-900">
-          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-            <ArrowRightLeft className="w-5 h-5 text-blue-600" />
+          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center dark:bg-blue-950/40">
+            <ArrowRightLeft className="w-5 h-5 text-blue-600 dark:text-blue-300" />
           </div>
           <div>
             <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.totalTransactions || 0}</p>
@@ -183,8 +183,8 @@ export default function PayByBankPage() {
           </div>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3 dark:bg-slate-900">
-          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-            <DollarSign className="w-5 h-5 text-green-600" />
+          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center dark:bg-green-950/40">
+            <DollarSign className="w-5 h-5 text-green-600 dark:text-green-300" />
           </div>
           <div>
             <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">${Number(stats.totalVolume || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
@@ -192,8 +192,8 @@ export default function PayByBankPage() {
           </div>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3 dark:bg-slate-900">
-          <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-            <TrendingUp className="w-5 h-5 text-purple-600" />
+          <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center dark:bg-purple-950/40">
+            <TrendingUp className="w-5 h-5 text-purple-600 dark:text-purple-300" />
           </div>
           <div>
             <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">${Number(stats.avgSize || 0).toFixed(2)}</p>
@@ -230,7 +230,7 @@ export default function PayByBankPage() {
                 type="checkbox"
                 checked={config.enabled}
                 onChange={(e) => setConfig({ ...config, enabled: e.target.checked })}
-                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
+                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
               />
               <span className={`text-sm font-medium ${config.enabled ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}`}>
                 {config.enabled ? 'Enabled' : 'Disabled'}
@@ -324,7 +324,7 @@ export default function PayByBankPage() {
                       <p className="font-medium text-gray-900 dark:text-slate-100">{c.name || `${c.firstName} ${c.lastName}`}</p>
                       <p className="text-sm text-gray-500 dark:text-slate-400">{c.phone || c.email || ''}</p>
                     </div>
-                    <span className="text-sm text-green-600">Select</span>
+                    <span className="text-sm text-green-600 dark:text-green-300">Select</span>
                   </button>
                 ))}
               </div>
@@ -337,8 +337,8 @@ export default function PayByBankPage() {
               <div className="bg-white rounded-lg shadow-sm p-5 mb-4 dark:bg-slate-900">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                      <Users className="w-5 h-5 text-green-600" />
+                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center dark:bg-green-950/40">
+                      <Users className="w-5 h-5 text-green-600 dark:text-green-300" />
                     </div>
                     <div>
                       <p className="font-semibold text-gray-900 dark:text-slate-100">{selectedCustomer.name || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`}</p>
@@ -377,7 +377,7 @@ export default function PayByBankPage() {
                   {accounts.map(account => (
                     <div key={account.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                       <div className="flex items-center gap-3 mb-3">
-                        <Landmark className="w-5 h-5 text-blue-600" />
+                        <Landmark className="w-5 h-5 text-blue-600 dark:text-blue-300" />
                         <div>
                           <p className="font-semibold text-gray-900 dark:text-slate-100">{account.bankName || 'Bank Account'}</p>
                           <p className="text-sm text-gray-500 dark:text-slate-400">****{account.mask || account.last4 || '----'}</p>
@@ -426,7 +426,7 @@ export default function PayByBankPage() {
                   txnFilter === s.value
                     ? 'bg-green-700 text-white'
                     : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-                } dark:bg-slate-900`}
+                } dark:bg-slate-900 dark:text-slate-300`}
               >
                 {s.label}
               </button>

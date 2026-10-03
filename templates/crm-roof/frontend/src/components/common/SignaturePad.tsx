@@ -130,7 +130,7 @@ export default function SignaturePad({
           type="button"
           onClick={save}
           disabled={!hasSignature}
-          className="flex items-center gap-1 px-4 py-2 text-sm text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+          className="flex items-center gap-1 px-4 py-2 text-sm text-white bg-green-700 rounded-lg hover:bg-green-800 disabled:opacity-50"
         >
           <Check className="w-4 h-4" /> Accept &amp; Sign
         </button>

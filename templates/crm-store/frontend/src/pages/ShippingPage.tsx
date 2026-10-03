@@ -71,7 +71,7 @@ export default function ShippingPage() {
     <div className="space-y-5 max-w-2xl">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Shipping labels</h1>
-        <p className="text-gray-500">Connect a carrier account to buy and print labels straight from an order.</p>
+        <p className="text-gray-500 dark:text-slate-400">Connect a carrier account to buy and print labels straight from an order.</p>
       </div>
 
       {cfg?.connected && (
@@ -83,7 +83,7 @@ export default function ShippingPage() {
 
       <div className="card p-5 space-y-4">
         <h2 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100"><Truck className="h-4 w-4" /> EasyPost</h2>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-500 dark:text-slate-400">
           One account covers USPS, UPS and FedEx. Test mode gives real label URLs without buying postage.
         </p>
         <div className="grid sm:grid-cols-2 gap-3">
@@ -114,7 +114,7 @@ export default function ShippingPage() {
         </div>
 
         <h3 className="font-medium text-gray-900 pt-2 dark:text-slate-100">Default parcel</h3>
-        <p className="text-sm text-gray-500">Used for quotes and labels unless you change it later per order.</p>
+        <p className="text-sm text-gray-500 dark:text-slate-400">Used for quotes and labels unless you change it later per order.</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div><label className="label">Length (in)</label><input type="number" className="input" value={parcel.lengthIn} onChange={(e) => setParcel({ ...parcel, lengthIn: e.target.value })} /></div>
           <div><label className="label">Width (in)</label><input type="number" className="input" value={parcel.widthIn} onChange={(e) => setParcel({ ...parcel, widthIn: e.target.value })} /></div>

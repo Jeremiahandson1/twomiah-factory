@@ -215,7 +215,7 @@ export default function ProjectDetailPage() {
             <div className="grid md:grid-cols-2 gap-6">
               {(project.address || project.city) && (
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0 dark:bg-orange-950/40">
                     <MapPin className="w-5 h-5 text-orange-500" />
                   </div>
                   <div>
@@ -229,7 +229,7 @@ export default function ProjectDetailPage() {
               )}
               {(project.startDate || project.endDate) && (
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0 dark:bg-blue-950/40">
                     <Calendar className="w-5 h-5 text-blue-500" />
                   </div>
                   <div>
@@ -244,7 +244,7 @@ export default function ProjectDetailPage() {
               )}
               {(project.estimatedValue || project.budget) && (
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center flex-shrink-0 dark:bg-green-950/40">
                     <DollarSign className="w-5 h-5 text-green-500" />
                   </div>
                   <div>

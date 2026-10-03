@@ -187,7 +187,7 @@ export default function DashboardPage() {
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{visits.thisMonth || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1">
-            <DollarSign className="w-3 h-3 text-green-600" />
+            <DollarSign className="w-3 h-3 text-green-600 dark:text-green-300" />
             {money(visits.revenueThisMonth)} revenue
           </p>
         </div>

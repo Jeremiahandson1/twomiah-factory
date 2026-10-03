@@ -85,7 +85,7 @@ export default function OwnerPicker({ value, onChange, initialLabel }: OwnerPick
           <button
             type="button"
             onClick={() => { setOpen(true); }}
-            className="text-xs text-teal-600 hover:text-teal-700 dark:hover:text-teal-300"
+            className="text-xs text-teal-600 hover:text-teal-700 dark:hover:text-teal-300 dark:text-teal-300"
           >
             Change
           </button>
@@ -125,7 +125,7 @@ export default function OwnerPicker({ value, onChange, initialLabel }: OwnerPick
                         {[c.phone, c.email].filter(Boolean).join(' · ')}
                       </span>
                     </span>
-                    {value === c.id && <Check className="w-4 h-4 text-teal-600" />}
+                    {value === c.id && <Check className="w-4 h-4 text-teal-600 dark:text-teal-300" />}
                   </button>
                 ))
               )}

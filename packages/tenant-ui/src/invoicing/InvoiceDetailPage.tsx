@@ -36,7 +36,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
   useEffect(() => { load() }, [load])
 
   if (loading) return <div className="p-8 text-gray-500 dark:text-slate-400">Loading…</div>
-  if (error || !invoice) return <div className="p-8 text-center"><p className="text-red-600 mb-3">{error || 'Invoice not found'}</p><Button variant="secondary" onClick={load}>Retry</Button></div>
+  if (error || !invoice) return <div className="p-8 text-center"><p className="text-red-600 mb-3 dark:text-red-400">{error || 'Invoice not found'}</p><Button variant="secondary" onClick={load}>Retry</Button></div>
 
   // Refund model, both halves (mirrors invoiceBalance in invoicing/money.ts): a refunded DEPOSIT on a
   // not-fully-paid invoice reopens the balance; a refund on a FULLY-PAID invoice is a return/goodwill and

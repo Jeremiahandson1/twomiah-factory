@@ -154,7 +154,7 @@ export default function DeliveryPage() {
                   statusFilter === s.value
                     ? 'bg-green-700 text-white'
                     : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-                } dark:bg-slate-900`}
+                } dark:bg-slate-900 dark:text-slate-300`}
               >
                 {s.label}
               </button>
@@ -200,7 +200,7 @@ export default function DeliveryPage() {
                         </span>
                         <span className="font-medium text-gray-900 dark:text-slate-100">${Number(delivery.total || 0).toFixed(2)}</span>
                         {delivery.driverName && (
-                          <span className="text-blue-600">Driver: {delivery.driverName}</span>
+                          <span className="text-blue-600 dark:text-blue-300">Driver: {delivery.driverName}</span>
                         )}
                       </div>
                     </div>
@@ -258,7 +258,7 @@ export default function DeliveryPage() {
               <div key={zone.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-                    <MapPin className="w-4 h-4 text-green-600" />
+                    <MapPin className="w-4 h-4 text-green-600 dark:text-green-300" />
                     {zone.name}
                   </h3>
                 {/* The same names the create and the update use, and the same ones the order path
@@ -348,7 +348,7 @@ export default function DeliveryPage() {
                   type="checkbox"
                   checked={zoneForm.isActive}
                   onChange={(e) => setZoneForm({ ...zoneForm, isActive: e.target.checked })}
-                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
+                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
                 />
                 <span className="text-sm text-gray-700 dark:text-slate-200">Active</span>
               </label>

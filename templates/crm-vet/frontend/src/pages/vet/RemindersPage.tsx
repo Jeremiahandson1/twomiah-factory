@@ -149,7 +149,7 @@ export default function RemindersPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-          <BellRing className="w-6 h-6 text-teal-600" /> Reminders
+          <BellRing className="w-6 h-6 text-teal-600 dark:text-teal-300" /> Reminders
         </h1>
         <p className="text-gray-500 dark:text-slate-400">Bring patients back in for the care they're due</p>
       </div>
@@ -186,7 +186,7 @@ export default function RemindersPage() {
                 <option value={90}>90 days</option>
               </select>
               <span className="text-sm text-gray-500 dark:text-slate-400">
-                {dueCount} due · <span className="text-red-600 font-medium">{overdueCount} overdue</span>
+                {dueCount} due · <span className="text-red-600 font-medium dark:text-red-400">{overdueCount} overdue</span>
               </span>
             </>
           ) : (
@@ -205,7 +205,7 @@ export default function RemindersPage() {
         <button
           onClick={() => setShowSend(true)}
           disabled={selected.size === 0}
-          className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50"
         >
           <Send className="w-4 h-4" /> Send Reminder{selected.size > 0 ? ` (${selected.size})` : ''}
         </button>
@@ -350,7 +350,7 @@ function SendReminderModal({ contactIds, vaccinationIds, onDone, onClose }: { co
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold flex items-center gap-2"><Send className="w-5 h-5 text-teal-600" /> Send Reminder</h2>
+            <h2 className="text-lg font-bold flex items-center gap-2"><Send className="w-5 h-5 text-teal-600 dark:text-teal-300" /> Send Reminder</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
 
@@ -376,7 +376,7 @@ function SendReminderModal({ contactIds, vaccinationIds, onDone, onClose }: { co
                   <span>{result.failed} could not be reached{(result.sent || 0) > 0 && result.error ? ` — ${result.error}` : ''}</span>
                 </div>
               )}
-              <button onClick={onDone} className="w-full px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">Done</button>
+              <button onClick={onDone} className="w-full px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">Done</button>
             </div>
           ) : (
             <div className="space-y-4">
@@ -392,7 +392,7 @@ function SendReminderModal({ contactIds, vaccinationIds, onDone, onClose }: { co
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-                <button onClick={send} disabled={sending || contactIds.length === 0} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
+                <button onClick={send} disabled={sending || contactIds.length === 0} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
                   {sending ? 'Sending...' : 'Send'}
                 </button>
               </div>

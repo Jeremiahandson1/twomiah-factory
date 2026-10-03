@@ -154,7 +154,7 @@ export default function ImportPage() {
       </div>
 
       {/* How it works */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-gray-900 dark:text-slate-100">
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-gray-900 dark:text-slate-100 dark:bg-blue-950/40">
         <h3 className="font-semibold text-blue-900 mb-2 dark:text-blue-300">How cross-referencing works</h3>
         <div className="flex items-center gap-2 text-sm text-blue-800 flex-wrap dark:text-blue-300">
           <span className="flex items-center gap-1"><Users size={14} /> Clients CSV</span>
@@ -215,11 +215,11 @@ export default function ImportPage() {
                 {entry.loading ? (
                   <Loader2 size={18} className="text-gray-500 dark:text-slate-400 animate-spin" />
                 ) : entry.detectedType === 'clients' ? (
-                  <Users size={18} className="text-green-600" />
+                  <Users size={18} className="text-green-600 dark:text-green-300" />
                 ) : entry.detectedType === 'jobs' ? (
                   <Briefcase size={18} className="text-blue-600 dark:text-blue-400" />
                 ) : (
-                  <AlertCircle size={18} className="text-yellow-600" />
+                  <AlertCircle size={18} className="text-yellow-600 dark:text-yellow-300" />
                 )}
                 <div>
                   <p className="font-medium text-gray-900 dark:text-slate-100">{entry.name}</p>
@@ -339,7 +339,7 @@ export default function ImportPage() {
 
           {/* Errors */}
           {(results.summary.contacts.errors.length > 0 || results.summary.jobs.errors.length > 0) && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-gray-900 dark:text-slate-100">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-gray-900 dark:text-slate-100 dark:bg-red-950/40">
               <h3 className="font-semibold text-red-800 mb-2 dark:text-red-300">
                 <AlertCircle size={16} className="inline mr-1" />
                 Errors ({results.summary.contacts.errors.length + results.summary.jobs.errors.length})

@@ -19,7 +19,7 @@ export function PortalEquipment() {
   return (
     <div>
       <PageTitle title={config.labels.equipment} subtitle="The systems we look after for you, with their service history." />
-      {error && <p role="alert" className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {units.length === 0 ? <Empty icon={Wrench} text="No equipment registered yet."><p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Contact us to add your systems.</p></Empty> : (
         <div className="space-y-3">
           {units.map((u) => {
@@ -27,7 +27,7 @@ export function PortalEquipment() {
             return (
               <PLink key={u.id} to={`/portal/${token}/equipment/${u.id}`} className={`block ${card} p-4 hover:shadow-md transition-shadow`}>
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center shrink-0"><Wrench className="w-5 h-5 text-blue-600" /></div>
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center shrink-0 dark:bg-blue-950/40"><Wrench className="w-5 h-5 text-blue-600 dark:text-blue-300" /></div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-gray-900 dark:text-slate-100">{u.name}</h3>
                     <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{[u.manufacturer, u.model].filter(Boolean).join(' ') || 'No model info'}</p>
@@ -62,7 +62,7 @@ export function PortalEquipmentDetail() {
   const eq = data.equipment, w = warranty(eq.warrantyExpiry)
   return (
     <div className="space-y-5">
-      <PLink to={`/portal/${token}/equipment`} className="text-orange-600 hover:underline text-sm inline-block">{'<-'} Back to Equipment</PLink>
+      <PLink to={`/portal/${token}/equipment`} className="text-orange-600 hover:underline text-sm inline-block dark:text-orange-300">{'<-'} Back to Equipment</PLink>
       <div className={`${card} p-5`}>
         <h1 className="text-xl font-bold text-gray-900 mb-4 dark:text-slate-100">{eq.name}</h1>
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -102,7 +102,7 @@ function VisitCard({ visit }: { visit: any }) {
       {checklist && (
         <div className="border-t dark:border-slate-700">
           <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-slate-800">
-            <div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-600" /><span className="text-gray-700 dark:text-slate-200">Inspection checklist{flagged > 0 && ` — ${flagged} item${flagged > 1 ? 's' : ''} flagged`}</span></div>
+            <div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-600 dark:text-green-300" /><span className="text-gray-700 dark:text-slate-200">Inspection checklist{flagged > 0 && ` — ${flagged} item${flagged > 1 ? 's' : ''} flagged`}</span></div>
             {open ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
           </button>
           {open && (
@@ -137,7 +137,7 @@ export function PortalAgreements() {
   return (
     <div className="space-y-5">
       <PageTitle title={config.labels.agreements} subtitle="Your recurring service plans and upcoming visits." />
-      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       {rows.length === 0 ? (
         <Empty icon={CalendarCheck} text={`No ${config.labels.agreements.toLowerCase()} yet.`}>
           <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 mb-6">Regular maintenance keeps your systems running efficiently.</p>
@@ -151,7 +151,7 @@ export function PortalAgreements() {
                 <div><h3 className="font-semibold text-gray-900 text-lg dark:text-slate-100">{a.name}</h3><p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{freq(a.billingFrequency)}{a.amount ? ` — ${moneyShort(a.amount)}` : ''}</p></div>
                 <span className={pill('bg-green-100 text-green-700 capitalize')}>{a.status}</span>
               </div>
-              {a.nextVisitDate && <div className="mt-4 flex items-center gap-3 bg-blue-50 rounded-lg px-4 py-3 dark:bg-blue-950/30"><Calendar className="w-5 h-5 text-blue-600" /><div><p className="text-sm font-medium text-blue-900 dark:text-blue-200">Next Scheduled Visit</p><p className="text-sm text-blue-700 dark:text-blue-300">{formatDate(a.nextVisitDate)}</p></div></div>}
+              {a.nextVisitDate && <div className="mt-4 flex items-center gap-3 bg-blue-50 rounded-lg px-4 py-3 dark:bg-blue-950/30"><Calendar className="w-5 h-5 text-blue-600 dark:text-blue-300" /><div><p className="text-sm font-medium text-blue-900 dark:text-blue-200">Next Scheduled Visit</p><p className="text-sm text-blue-700 dark:text-blue-300">{formatDate(a.nextVisitDate)}</p></div></div>}
               <dl className="mt-4 space-y-2 text-sm">
                 {a.startDate && <div className="flex justify-between"><dt className="text-gray-500 dark:text-slate-400">Start Date</dt><dd className="text-gray-900 dark:text-slate-100">{formatDate(a.startDate)}</dd></div>}
                 {a.endDate && <div className="flex justify-between"><dt className="text-gray-500 dark:text-slate-400">Renewal Date</dt><dd className="text-gray-900 dark:text-slate-100">{formatDate(a.endDate)}</dd></div>}
@@ -215,7 +215,7 @@ export function PortalServiceRequest() {
   if (done) {
     return (
       <div className="py-12 max-w-lg mx-auto text-center">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle className="w-8 h-8 text-green-600" /></div>
+        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 dark:bg-green-950/40"><CheckCircle className="w-8 h-8 text-green-600 dark:text-green-300" /></div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Request Received</h1>
         <p className="text-gray-600 mb-1 dark:text-slate-400">We'll be in touch <strong>{URGENCY_PROMISE[done.urgency || 'routine'] || `within ${done.responseHours} hours`}</strong>.</p>
         <p className="text-sm text-gray-500 dark:text-slate-400 mb-8">Reference: {done.jobNumber}</p>
@@ -243,7 +243,7 @@ export function PortalServiceRequest() {
           <p className={labelCls}>How should we reach you?</p>
           <div className="flex gap-2">{(['call', 'text', 'email'] as const).map((m) => <button key={m} type="button" onClick={() => setForm((f) => ({ ...f, preferredContact: m }))} className={`flex-1 py-2.5 rounded-lg border text-sm font-medium capitalize transition-colors ${form.preferredContact === m ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/30' : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-slate-700 dark:text-slate-300'}`}>{m}</button>)}</div>
         </div>
-        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+        {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <button type="submit" disabled={submitting} className={`w-full justify-center py-3 font-bold ${btnPrimary}`}>{submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <LifeBuoy className="w-5 h-5" />} Submit Request</button>
       </form>
     </div>

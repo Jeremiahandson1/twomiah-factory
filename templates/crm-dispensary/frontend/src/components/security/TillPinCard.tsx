@@ -73,7 +73,7 @@ export function TillPinCard({ user, toast }: { user: any; toast: any }) {
   return (
     <div className="bg-white rounded-lg border p-6 dark:bg-slate-900 dark:border-slate-700">
       <h2 className="text-lg font-semibold mb-1 flex items-center gap-2 text-gray-900 dark:text-slate-100">
-        <KeyRound className="w-4 h-4 text-emerald-600" />Till PIN
+        <KeyRound className="w-4 h-4 text-emerald-600 dark:text-emerald-300" />Till PIN
       </h2>
       <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">
         Four to eight digits to sign in at the counter without typing your password. It is for getting
@@ -97,7 +97,7 @@ export function TillPinCard({ user, toast }: { user: any; toast: any }) {
           <Button onClick={() => setEditing(true)}>{pinSet ? 'Change PIN' : 'Set a PIN'}</Button>
           {pinSet && (
             <button type="button" onClick={clear} disabled={busy}
-              className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-red-600 hover:bg-red-50 disabled:opacity-60 dark:border-slate-700 dark:hover:bg-slate-800">
+              className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-red-600 hover:bg-red-50 disabled:opacity-60 dark:border-slate-700 dark:hover:bg-slate-800 dark:text-red-400">
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Turn quick sign-in off'}
             </button>
           )}

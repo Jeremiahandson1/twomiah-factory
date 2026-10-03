@@ -20,7 +20,7 @@ const statusColors: Record<string, string> = {
   active: 'bg-green-100 text-green-700',
   configuring: 'bg-yellow-100 text-yellow-700',
   error: 'bg-red-100 text-red-700',
-  disabled: 'bg-gray-100 text-gray-500',
+  disabled: 'bg-gray-100 text-gray-600',
 };
 
 export default function MarketplacePage() {
@@ -270,7 +270,7 @@ export default function MarketplacePage() {
                       integration.installed
                         ? 'bg-gray-100 text-gray-600 cursor-default'
                         : 'bg-green-700 text-white hover:bg-green-800 disabled:opacity-50'
-                    }`}
+                    } dark:text-slate-300`}
                   >
                     {integration.installed ? 'Installed' : installing === integration.id ? 'Installing...' : 'Install'}
                   </button>

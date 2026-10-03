@@ -257,16 +257,16 @@ export default function QuotesPage() {
                           )}
                           {(q.status === 'sent' || q.status === 'viewed') && (
                             <>
-                              <button onClick={() => performAction(q.id, 'approve')} title="Approve" className="p-1 text-green-600 hover:bg-green-50 rounded">
+                              <button onClick={() => performAction(q.id, 'approve')} title="Approve" className="p-1 text-green-600 hover:bg-green-50 rounded dark:text-green-300">
                                 <Check className="w-4 h-4" />
                               </button>
-                              <button onClick={() => performAction(q.id, 'decline')} title="Decline" className="p-1 text-red-600 hover:bg-red-50 rounded">
+                              <button onClick={() => performAction(q.id, 'decline')} title="Decline" className="p-1 text-red-600 hover:bg-red-50 rounded dark:text-red-400">
                                 <X className="w-4 h-4" />
                               </button>
                             </>
                           )}
                           {q.status === 'approved' && !q.jobId && (
-                            <button onClick={() => performAction(q.id, 'convert')} title="Convert to Job" className="p-1 text-purple-600 hover:bg-purple-50 rounded">
+                            <button onClick={() => performAction(q.id, 'convert')} title="Convert to Job" className="p-1 text-purple-600 hover:bg-purple-50 rounded dark:text-purple-300">
                               <ArrowRight className="w-4 h-4" />
                             </button>
                           )}
@@ -309,7 +309,7 @@ export default function QuotesPage() {
               </button>
             </div>
 
-            <div className="border border-green-200 rounded-lg bg-green-50 p-4 text-gray-900 dark:text-slate-100">
+            <div className="border border-green-200 rounded-lg bg-green-50 p-4 text-gray-900 dark:text-slate-100 dark:bg-green-950/40">
               {certQuote.signature && (
                 <img src={certQuote.signature} alt="Customer signature" className="max-h-24 bg-white rounded dark:bg-slate-900" />
               )}

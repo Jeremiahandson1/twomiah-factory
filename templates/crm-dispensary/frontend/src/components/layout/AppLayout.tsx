@@ -489,8 +489,8 @@ export default function AppLayout() {
                   aria-expanded={userMenuOpen}
                   aria-haspopup="true"
                 >
-                  <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
-                    <User className="w-5 h-5 text-orange-600" aria-hidden="true" />
+                  <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center dark:bg-orange-950/40">
+                    <User className="w-5 h-5 text-orange-600 dark:text-orange-300" aria-hidden="true" />
                   </div>
                   <ChevronDown className="w-4 h-4 text-gray-400 hidden sm:block" aria-hidden="true" />
                 </button>

@@ -187,7 +187,7 @@ export default function ImportPage() {
           <button
             onClick={runImport}
             disabled={!file || importing || !canImport || preview?.valid === false}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50"
+            className="px-4 py-2 bg-green-700 text-white rounded-lg font-medium hover:bg-green-800 disabled:opacity-50"
           >
             {importing ? <><Loader2 className="w-4 h-4 inline mr-2 animate-spin" />Importing…</> : <><Upload className="w-4 h-4 inline mr-2" />Import</>}
           </button>
@@ -210,7 +210,7 @@ export default function ImportPage() {
             ) : (
               <div>
                 <p className="font-medium text-gray-900 dark:text-slate-100">
-                  <Check className="w-4 h-4 inline mr-1 text-green-600" />
+                  <Check className="w-4 h-4 inline mr-1 text-green-600 dark:text-green-300" />
                   {typeof preview.willImport === 'number'
                     ? `${preview.willImport} of ${preview.rowCount} row${preview.rowCount === 1 ? '' : 's'} will import`
                     : `${preview.rowCount} row${preview.rowCount === 1 ? '' : 's'} ready to import`}

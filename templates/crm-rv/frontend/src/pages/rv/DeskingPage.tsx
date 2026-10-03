@@ -159,7 +159,7 @@ export default function DeskingPage() {
                   important figure, and the only row on the desk with no dark-mode answer. */}
               <div className="flex justify-between py-2 font-bold text-lg text-blue-800 dark:text-blue-300"><span>Amount to finance</span><span>{shown(t.financed)}</span></div>
             </div>
-            {hasErrors && <p className="mt-2 text-xs text-red-600">Totals and payments show once the highlighted fields are fixed.</p>}
+            {hasErrors && <p className="mt-2 text-xs text-red-600 dark:text-red-400">Totals and payments show once the highlighted fields are fixed.</p>}
             {leadId && (
               <div className="mt-3 flex items-center gap-2 flex-wrap">
                 {/* "Save deal stays enabled for staff with a bare 'Permission denied' toast."
@@ -170,8 +170,8 @@ export default function DeskingPage() {
                 <button type="button" onClick={save} disabled={saving || loadingDeal || hasErrors || !dirty || !maySaveDeal} title={!maySaveDeal ? 'Saving a desked deal needs permission to edit the lead.' : undefined} className="px-3 py-1.5 rounded-lg bg-blue-700 text-white text-sm font-medium hover:bg-blue-800 disabled:opacity-50 inline-flex items-center gap-1.5">
                   {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}{dirty ? 'Save deal' : 'Saved'}
                 </button>
-                <button type="button" onClick={sendToFi} disabled={saving || loadingDeal || hasErrors} className="px-3 py-1.5 rounded-lg border text-sm text-blue-700 hover:bg-blue-50 disabled:opacity-50 dark:hover:bg-slate-800">Send to F&I →</button>
-                {hasErrors && <span className="text-xs text-red-600">Fix the highlighted fields to save.</span>}
+                <button type="button" onClick={sendToFi} disabled={saving || loadingDeal || hasErrors} className="px-3 py-1.5 rounded-lg border text-sm text-blue-700 hover:bg-blue-50 disabled:opacity-50 dark:hover:bg-slate-800 dark:text-blue-300">Send to F&I →</button>
+                {hasErrors && <span className="text-xs text-red-600 dark:text-red-400">Fix the highlighted fields to save.</span>}
               </div>
             )}
           </div>

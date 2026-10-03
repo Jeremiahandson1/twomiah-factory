@@ -148,7 +148,7 @@ export function DataTable<Row extends { id?: any } = any>({
               // list so a broken fetch doesn't masquerade as "no data".
               <tr>
                 <td colSpan={columns.length + (actions ? 1 : 0)} className="px-4 py-12 text-center">
-                  <p className="text-sm text-red-600 mb-3">{typeof error === 'string' && error ? error : 'Something went wrong loading this list.'}</p>
+                  <p className="text-sm text-red-600 mb-3 dark:text-red-400">{typeof error === 'string' && error ? error : 'Something went wrong loading this list.'}</p>
                   {onRetry && (
                     <button
                       onClick={onRetry}
@@ -328,7 +328,7 @@ export function Button({ children, variant = 'primary', size = 'md', className =
   const variants: Record<string, string> = {
     primary: 'bg-orange-500 hover:bg-orange-600 text-white',
     secondary: 'bg-gray-100 hover:bg-gray-200 text-gray-700',
-    danger: 'bg-red-500 hover:bg-red-600 text-white',
+    danger: 'bg-red-600 hover:bg-red-700 text-white',
     ghost: 'hover:bg-gray-100 text-gray-700',
   };
 

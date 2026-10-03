@@ -476,7 +476,7 @@ function SelectionRow({ selection, onSelect, onRefresh }: SelectionRowProps) {
           {selection.status === 'selected' && (
             <button
               onClick={handleApprove}
-              className="px-3 py-1.5 text-sm bg-green-500 text-white rounded-lg"
+              className="px-3 py-1.5 text-sm bg-green-700 text-white rounded-lg"
             >
               Approve
             </button>
@@ -492,7 +492,7 @@ function SelectionRow({ selection, onSelect, onRefresh }: SelectionRowProps) {
           {selection.status === 'ordered' && (
             <button
               onClick={handleMarkReceived}
-              className="px-3 py-1.5 text-sm bg-emerald-500 text-white rounded-lg"
+              className="px-3 py-1.5 text-sm bg-emerald-700 text-white rounded-lg"
             >
               Mark Received
             </button>

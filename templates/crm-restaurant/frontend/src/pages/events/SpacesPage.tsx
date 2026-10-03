@@ -63,7 +63,7 @@ export default function SpacesPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-            <DoorOpen className="w-6 h-6 text-orange-600" /> Spaces
+            <DoorOpen className="w-6 h-6 text-orange-600 dark:text-orange-300" /> Spaces
           </h1>
           <p className="text-gray-500 dark:text-slate-400">What you can sell, who it holds, what it has to spend</p>
         </div>
@@ -229,7 +229,7 @@ function SpaceModal({ space, onSave, onClose }: { space: Space | null; onSave: (
                     key={a}
                     type="button"
                     onClick={() => toggleAmenity(a)}
-                    className={`text-xs px-2 py-1 rounded-full border ${amenities.includes(a) ? 'bg-orange-600 text-white border-orange-600' : 'bg-white dark:bg-slate-900 text-gray-600 hover:bg-gray-50'}`}
+                    className={`text-xs px-2 py-1 rounded-full border ${amenities.includes(a) ? 'bg-orange-600 text-white border-orange-600' : 'bg-white dark:bg-slate-900 text-gray-600 hover:bg-gray-50'} dark:text-slate-300`}
                   >
                     {a}
                   </button>

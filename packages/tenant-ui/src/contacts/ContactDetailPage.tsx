@@ -495,7 +495,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                 <h2 className={h2}>Locations</h2>
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-gray-500 dark:text-slate-400">{contact.sites?.length || 0}</span>
-                  <button type="button" onClick={() => setSiteModalOpen(true)} className="px-3 py-1.5 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 flex items-center gap-1"><Plus className="w-3 h-3" />Add Location</button>
+                  <button type="button" onClick={() => setSiteModalOpen(true)} className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 flex items-center gap-1"><Plus className="w-3 h-3" />Add Location</button>
                 </div>
               </div>
               {contact.sites && contact.sites.length > 0 ? (
@@ -531,7 +531,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                 {smsMessages.length === 0 && !smsLoading && <p className="text-center text-sm text-gray-500 dark:text-slate-400 py-6">No messages yet</p>}
                 {smsMessages.map((m: any) => (
                   <div key={m.message.id} className={`flex ${m.message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[75%] rounded-xl px-3 py-2 text-sm ${m.message.direction === 'outbound' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-900 dark:bg-slate-800 dark:text-slate-100'}`}>
+                    <div className={`max-w-[75%] rounded-xl px-3 py-2 text-sm ${m.message.direction === 'outbound' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900 dark:bg-slate-800 dark:text-slate-100'}`}>
                       <p>{m.message.body}</p>
                       <p className={`text-[10px] mt-1 ${m.message.direction === 'outbound' ? 'text-blue-200' : 'text-gray-600 dark:text-slate-400'}`}>{dateTime(m.message.createdAt)}</p>
                     </div>
@@ -629,10 +629,10 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                         <code className="flex-1 min-w-0 break-all text-xs bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200">{portalStatus.portalUrl}</code>
                         <button type="button" onClick={copyPortalLink} aria-label="Copy portal link"
                           className="shrink-0 px-2 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
-                          {portalCopied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                          {portalCopied ? <Check className="w-4 h-4 text-green-600 dark:text-green-300" /> : <Copy className="w-4 h-4" />}
                         </button>
                       </div>
-                      {portalCopied && <p className="text-xs text-green-600 mt-1">Copied</p>}
+                      {portalCopied && <p className="text-xs text-green-600 mt-1 dark:text-green-300">Copied</p>}
                     </div>
                   )}
                   {/* Not offered with no address to send to — the portal can be enabled through the
@@ -690,7 +690,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                   ))}
                 </div>
               ) : <p className="text-sm text-gray-500 dark:text-slate-400">No equipment at this location</p>}
-              <NavLink to={`/crm/equipment?contactId=${id}&siteId=${siteDetail.id}`} className="mt-2 inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200"><Plus className="w-3 h-3" /> Add Equipment to This Location</NavLink>
+              <NavLink to={`/crm/equipment?contactId=${id}&siteId=${siteDetail.id}`} className="mt-2 inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300"><Plus className="w-3 h-3" /> Add Equipment to This Location</NavLink>
             </div>
             <div>
               <h3 className="text-sm font-semibold text-gray-900 mb-2 dark:text-slate-100">Service History ({siteDetail.jobs?.length || 0})</h3>

@@ -82,7 +82,7 @@ export default function WebsiteAnalyticsPage() {
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'
                 : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-            } dark:bg-slate-900`}
+            } dark:bg-slate-900 dark:text-slate-300`}
           >
             <tab.icon className="w-4 h-4" />
             {tab.label}
@@ -352,8 +352,8 @@ function RealtimeTab() {
     <div className="space-y-6">
       {/* Active Visitors */}
       <div className="bg-white rounded-lg shadow-sm p-8 text-center dark:bg-slate-900">
-        <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
-          <Activity className="w-8 h-8 text-green-600" />
+        <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3 dark:bg-green-950/40">
+          <Activity className="w-8 h-8 text-green-600 dark:text-green-300" />
         </div>
         <p className="text-5xl font-bold text-gray-900 dark:text-slate-100">{realtime?.activeVisitors ?? 0}</p>
         <p className="text-gray-500 mt-1 dark:text-slate-400">Active visitors right now</p>

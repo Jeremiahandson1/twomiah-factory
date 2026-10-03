@@ -130,7 +130,7 @@ export default function AILeadResponderPage() {
                         <button onClick={sendSms} disabled={smsSending || smsSent || !sms.trim() || !selected.contactId} className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 inline-flex items-center gap-1.5">{smsSending ? <Loader2 className="animate-spin" size={13} /> : <Send size={13} />} {smsSent ? 'Sent ✓' : smsSending ? 'Sending…' : 'Send text'}</button>
                         <span className="text-[11px] text-gray-500 dark:text-slate-400 ml-auto">{sms.length} chars</span>
                       </div>
-                      {smsError && <p className="text-xs text-red-600">{smsError}</p>}
+                      {smsError && <p className="text-xs text-red-600 dark:text-red-400">{smsError}</p>}
                     </div>
                   </div>
                 </>

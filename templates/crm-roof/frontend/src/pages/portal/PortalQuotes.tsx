@@ -195,7 +195,7 @@ export default function PortalQuotes() {
                 <button
                   onClick={() => setShowSignature(true)}
                   disabled={busy}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-800 disabled:opacity-50"
                 >
                   <PenTool className="w-4 h-4" /> Sign &amp; Approve
                 </button>

@@ -12,7 +12,7 @@ const BATCH_STATUSES = ['active', 'quarantine', 'depleted', 'recalled', 'expired
 const statusBadge: Record<string, string> = {
   active: 'bg-green-100 text-green-700',
   quarantine: 'bg-yellow-100 text-yellow-700',
-  depleted: 'bg-gray-100 text-gray-500',
+  depleted: 'bg-gray-100 text-gray-600',
   recalled: 'bg-red-100 text-red-700',
   expired: 'bg-orange-100 text-orange-700',
 };
@@ -401,7 +401,7 @@ export default function BatchesPage() {
                 {/* Lab Test Link */}
                 <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
                   <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
-                    <FlaskConical className="w-5 h-5 text-purple-600" /> Lab Test
+                    <FlaskConical className="w-5 h-5 text-purple-600 dark:text-purple-300" /> Lab Test
                   </h3>
                   {detail.labTestId ? (
                     <div className="space-y-2">
@@ -427,7 +427,7 @@ export default function BatchesPage() {
             {detail.statusHistory && detail.statusHistory.length > 0 && (
               <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
                 <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
-                  <Clock className="w-5 h-5 text-blue-600" /> Status History
+                  <Clock className="w-5 h-5 text-blue-600 dark:text-blue-300" /> Status History
                 </h3>
                 <div className="space-y-3">
                   {detail.statusHistory.map((entry: any, idx: number) => (
@@ -514,9 +514,9 @@ export default function BatchesPage() {
 
       {/* Expiring Alert */}
       {expiringBatches.length > 0 && (
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6 text-gray-900 dark:text-slate-100">
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6 text-gray-900 dark:text-slate-100 dark:bg-orange-950/40">
           <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-5 h-5 text-orange-600" />
+            <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-300" />
             <h3 className="font-semibold text-orange-800 dark:text-orange-300">Expiring Batches</h3>
           </div>
           <div className="space-y-1">
@@ -526,7 +526,7 @@ export default function BatchesPage() {
               </p>
             ))}
             {expiringBatches.length > 5 && (
-              <p className="text-sm text-orange-600">+{expiringBatches.length - 5} more</p>
+              <p className="text-sm text-orange-600 dark:text-orange-300">+{expiringBatches.length - 5} more</p>
             )}
           </div>
         </div>
@@ -604,16 +604,16 @@ export default function BatchesPage() {
                     <div className="flex gap-2">
                       {isManager && batch.status === 'active' && (
                         <>
-                          <button onClick={() => confirmAction(batch.id, 'quarantine', 'Quarantine')} className="text-xs text-yellow-600 hover:text-yellow-700 dark:hover:text-yellow-300">Quarantine</button>
+                          <button onClick={() => confirmAction(batch.id, 'quarantine', 'Quarantine')} className="text-xs text-yellow-600 hover:text-yellow-700 dark:hover:text-yellow-300 dark:text-yellow-300">Quarantine</button>
                           <button onClick={() => confirmAction(batch.id, 'deplete', 'Deplete')} className="text-xs text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 dark:text-slate-400">Deplete</button>
-                          <button onClick={() => confirmAction(batch.id, 'recall', 'Recall')} className="text-xs text-red-600 hover:text-red-700 dark:hover:text-red-300">Recall</button>
+                          <button onClick={() => confirmAction(batch.id, 'recall', 'Recall')} className="text-xs text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400">Recall</button>
                         </>
                       )}
                       {isManager && batch.status === 'quarantine' && (
-                        <button onClick={() => confirmAction(batch.id, 'activate', 'Activate')} className="text-xs text-green-600 hover:text-green-700 dark:hover:text-green-300">Release</button>
+                        <button onClick={() => confirmAction(batch.id, 'activate', 'Activate')} className="text-xs text-green-600 hover:text-green-700 dark:hover:text-green-300 dark:text-green-300">Release</button>
                       )}
                       {isManager && (
-                        <button onClick={() => handleDeleteBatch(batch.id)} className="text-xs text-red-600 hover:text-red-700 dark:hover:text-red-300 inline-flex items-center gap-1" title="Delete batch">
+                        <button onClick={() => handleDeleteBatch(batch.id)} className="text-xs text-red-600 hover:text-red-700 dark:hover:text-red-300 inline-flex items-center gap-1 dark:text-red-400" title="Delete batch">
                           <Trash2 className="w-3.5 h-3.5" /> Delete
                         </button>
                       )}

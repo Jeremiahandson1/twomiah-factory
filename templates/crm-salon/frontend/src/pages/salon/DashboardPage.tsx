@@ -197,7 +197,7 @@ export default function DashboardPage() {
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{services.thisMonth || 0}</p>
           {services.revenueThisMonth !== undefined && (
             <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1">
-              <DollarSign className="w-3 h-3 text-green-600" />
+              <DollarSign className="w-3 h-3 text-green-600 dark:text-green-300" />
               {money(services.revenueThisMonth)} in the chair
             </p>
           )}

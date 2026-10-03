@@ -167,19 +167,19 @@ export default function GrowInputsPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
             <p className="text-sm text-gray-500 dark:text-slate-400">Total Inputs</p>
-            <p className="text-2xl font-bold text-green-600">{stats.totalInputs || 0}</p>
+            <p className="text-2xl font-bold text-green-600 dark:text-green-300">{stats.totalInputs || 0}</p>
           </div>
           <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
             <p className="text-sm text-gray-500 dark:text-slate-400">Low Stock</p>
-            <p className="text-2xl font-bold text-red-600">{stats.lowStock || 0}</p>
+            <p className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.lowStock || 0}</p>
           </div>
           <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
             <p className="text-sm text-gray-500 dark:text-slate-400">Applications This Week</p>
-            <p className="text-2xl font-bold text-blue-600">{stats.applicationsThisWeek || 0}</p>
+            <p className="text-2xl font-bold text-blue-600 dark:text-blue-300">{stats.applicationsThisWeek || 0}</p>
           </div>
           <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
             <p className="text-sm text-gray-500 dark:text-slate-400">Active Policies</p>
-            <p className="text-2xl font-bold text-purple-600">{stats.activePolicies || 0}</p>
+            <p className="text-2xl font-bold text-purple-600 dark:text-purple-300">{stats.activePolicies || 0}</p>
           </div>
         </div>
       )}
@@ -194,7 +194,7 @@ export default function GrowInputsPage() {
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'
                 : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-            } dark:bg-slate-900`}
+            } dark:bg-slate-900 dark:text-slate-300`}
           >
             <tab.icon className="w-4 h-4" />
             {tab.label}
@@ -515,7 +515,7 @@ function InventoryTab() {
           onClick={() => setOrganicOnly(!organicOnly)}
           className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
             organicOnly ? 'bg-green-50 border-green-300 text-green-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-          }`}
+          } dark:text-slate-300`}
         >
           <Leaf className="w-4 h-4" />
           Organic Only
@@ -638,7 +638,7 @@ function InventoryTab() {
               </button>
             </div>
             {formData.activeIngredients.length === 0 && (
-              <p className="text-xs text-slate-500 italic">No active ingredients added</p>
+              <p className="text-xs text-slate-500 italic dark:text-slate-400">No active ingredients added</p>
             )}
             {formData.activeIngredients.map((ing, i) => (
               <div key={i} className="flex gap-2 mb-2">
@@ -979,7 +979,7 @@ function ApplicationsTab() {
                   onClick={() => { setTargetTab(t); setFormData({ ...formData, targetId: '' }); }}
                   className={`px-3 py-1 text-xs font-medium rounded-lg capitalize transition-colors ${
                     targetTab === t ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
+                  } dark:text-slate-300`}
                 >
                   {t}
                 </button>
@@ -1348,7 +1348,7 @@ function PoliciesTab() {
                 </span>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => openEdit(policy)} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 font-medium">Edit</button>
+                <button onClick={() => openEdit(policy)} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 font-medium dark:text-orange-300">Edit</button>
               </div>
             </div>
           ))}
@@ -1375,7 +1375,7 @@ function PoliciesTab() {
                 <Plus className="w-3 h-3" /> Add Rule
               </button>
             </div>
-            {formData.rules.length === 0 && <p className="text-xs text-slate-500 italic">No rules added</p>}
+            {formData.rules.length === 0 && <p className="text-xs text-slate-500 italic dark:text-slate-400">No rules added</p>}
             {formData.rules.map((rule, i) => (
               <div key={i} className="flex gap-2 mb-2 items-start">
                 <select
@@ -1691,13 +1691,13 @@ function TraceabilityTab() {
                 {traceData.batch && (
                   <div className="relative">
                     <div className="absolute -left-[2.35rem] w-4 h-4 bg-blue-500 rounded-full border-2 border-white" />
-                    <div className="bg-blue-50 rounded-lg p-4">
+                    <div className="bg-blue-50 rounded-lg p-4 dark:bg-blue-950/40">
                       <h4 className="font-semibold text-blue-900 mb-1 dark:text-blue-300">Batch Information</h4>
                       <div className="grid grid-cols-2 gap-2 text-sm">
-                        <p><span className="text-blue-600">Batch #:</span> {traceData.batch.batchNumber}</p>
-                        <p><span className="text-blue-600">Received:</span> {traceData.batch.receivedDate ? formatDate(traceData.batch.receivedDate) : '--'}</p>
-                        <p><span className="text-blue-600">Supplier:</span> {traceData.batch.supplier || '--'}</p>
-                        <p><span className="text-blue-600">Grower:</span> {traceData.batch.grower || '--'}</p>
+                        <p><span className="text-blue-600 dark:text-blue-300">Batch #:</span> {traceData.batch.batchNumber}</p>
+                        <p><span className="text-blue-600 dark:text-blue-300">Received:</span> {traceData.batch.receivedDate ? formatDate(traceData.batch.receivedDate) : '--'}</p>
+                        <p><span className="text-blue-600 dark:text-blue-300">Supplier:</span> {traceData.batch.supplier || '--'}</p>
+                        <p><span className="text-blue-600 dark:text-blue-300">Grower:</span> {traceData.batch.grower || '--'}</p>
                       </div>
                     </div>
                   </div>
@@ -1707,7 +1707,7 @@ function TraceabilityTab() {
                 {traceData.labResults && (
                   <div className="relative">
                     <div className="absolute -left-[2.35rem] w-4 h-4 bg-purple-500 rounded-full border-2 border-white" />
-                    <div className="bg-purple-50 rounded-lg p-4">
+                    <div className="bg-purple-50 rounded-lg p-4 dark:bg-purple-950/40">
                       <h4 className="font-semibold text-purple-900 mb-2 dark:text-purple-300">Lab Results</h4>
                       <div className="flex flex-wrap gap-3 text-sm mb-2">
                         <span className="px-3 py-1 bg-white rounded-lg font-medium text-gray-900 dark:bg-slate-900 dark:text-slate-100">THC: {traceData.labResults.thcPercent}%</span>
@@ -1737,7 +1737,7 @@ function TraceabilityTab() {
                 {traceData.inputs && traceData.inputs.length > 0 && (
                   <div className="relative">
                     <div className="absolute -left-[2.35rem] w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
-                    <div className="bg-green-50 rounded-lg p-4 text-gray-900 dark:text-slate-100">
+                    <div className="bg-green-50 rounded-lg p-4 text-gray-900 dark:text-slate-100 dark:bg-green-950/40">
                       <h4 className="font-semibold text-green-900 mb-2 dark:text-green-300">Inputs Applied ({traceData.inputs.length})</h4>
                       <div className="space-y-2">
                         {traceData.inputs.map((inp: any, i: number) => (
@@ -1767,13 +1767,13 @@ function TraceabilityTab() {
                 {(traceData.room || traceData.plant) && (
                   <div className="relative">
                     <div className="absolute -left-[2.35rem] w-4 h-4 bg-amber-500 rounded-full border-2 border-white" />
-                    <div className="bg-amber-50 rounded-lg p-4">
+                    <div className="bg-amber-50 rounded-lg p-4 dark:bg-amber-950/40">
                       <h4 className="font-semibold text-amber-900 mb-1 dark:text-amber-300">Grow Details</h4>
                       <div className="grid grid-cols-2 gap-2 text-sm">
-                        {traceData.room && <p><span className="text-amber-600">Room:</span> {traceData.room.name}</p>}
-                        {traceData.plant && <p><span className="text-amber-600">Plant Tag:</span> {traceData.plant.metrcTag}</p>}
-                        {traceData.plant?.strainName && <p><span className="text-amber-600">Strain:</span> {traceData.plant.strainName}</p>}
-                        {traceData.plant?.phase && <p><span className="text-amber-600">Phase:</span> {traceData.plant.phase}</p>}
+                        {traceData.room && <p><span className="text-amber-600 dark:text-amber-300">Room:</span> {traceData.room.name}</p>}
+                        {traceData.plant && <p><span className="text-amber-600 dark:text-amber-300">Plant Tag:</span> {traceData.plant.metrcTag}</p>}
+                        {traceData.plant?.strainName && <p><span className="text-amber-600 dark:text-amber-300">Strain:</span> {traceData.plant.strainName}</p>}
+                        {traceData.plant?.phase && <p><span className="text-amber-600 dark:text-amber-300">Phase:</span> {traceData.plant.phase}</p>}
                       </div>
                     </div>
                   </div>

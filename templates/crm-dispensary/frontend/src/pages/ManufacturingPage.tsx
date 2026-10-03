@@ -252,11 +252,11 @@ export default function ManufacturingPage() {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
             <p className="text-sm text-gray-500 dark:text-slate-400">In Progress</p>
-            <p className="text-2xl font-bold text-blue-600">{stats.inProgress || 0}</p>
+            <p className="text-2xl font-bold text-blue-600 dark:text-blue-300">{stats.inProgress || 0}</p>
           </div>
           <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
             <p className="text-sm text-gray-500 dark:text-slate-400">Avg Yield</p>
-            <p className="text-2xl font-bold text-green-600">{stats.avgYield ? `${stats.avgYield}%` : '--'}</p>
+            <p className="text-2xl font-bold text-green-600 dark:text-green-300">{stats.avgYield ? `${stats.avgYield}%` : '--'}</p>
           </div>
           <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
             <p className="text-sm text-gray-500 dark:text-slate-400">Completed This Week</p>
@@ -378,7 +378,7 @@ export default function ManufacturingPage() {
                     {typeof b === 'string' ? batchLabel(b) : `${b.batchNumber || batchLabel(b.batchId) || b.id || ''}${b.quantity != null ? ` (${b.quantity}${b.unit || ''})` : ''}`.trim()}
                   </span>
                 ))}
-                {(!selectedJob.inputBatches || selectedJob.inputBatches.length === 0) && <span className="text-slate-500">No input batches</span>}
+                {(!selectedJob.inputBatches || selectedJob.inputBatches.length === 0) && <span className="text-slate-500 dark:text-slate-400">No input batches</span>}
               </div>
             </div>
 
@@ -412,7 +412,7 @@ export default function ManufacturingPage() {
               <p className="text-sm text-slate-400 mb-2">Timeline</p>
               <div className="space-y-2 text-sm">
                 <div className="flex items-center gap-2 text-slate-300">
-                  <Clock className="w-4 h-4 text-slate-500" />
+                  <Clock className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                   <span>Created: {selectedJob.createdAt ? new Date(selectedJob.createdAt).toLocaleString() : '--'}</span>
                 </div>
                 {selectedJob.startedAt && (

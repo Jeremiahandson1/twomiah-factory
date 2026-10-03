@@ -160,7 +160,7 @@ export default function SettingsPage() {
             <div className="col-span-3"><label className="label text-xs">States (blank = all)</label><input className="input" value={z.states} onChange={(e) => setZone(i, 'states', e.target.value)} placeholder="CA, NY" /></div>
             <div className="col-span-1"><label className="label text-xs">Rate $</label><input className="input" value={z.rate} onChange={(e) => setZone(i, 'rate', e.target.value)} placeholder="7.00" /></div>
             <div className="col-span-2"><label className="label text-xs">Free over $</label><input className="input" value={z.free} onChange={(e) => setZone(i, 'free', e.target.value)} placeholder="—" /></div>
-            <div className="col-span-1"><button onClick={() => delZone(i)} className="text-red-600 text-sm pb-2">✕</button></div>
+            <div className="col-span-1"><button onClick={() => delZone(i)} className="text-red-600 text-sm pb-2 dark:text-red-400">✕</button></div>
           </div>
         ))}
       </div>
@@ -176,13 +176,13 @@ export default function SettingsPage() {
             <div className="col-span-4"><label className="label text-xs">Country</label><input className="input" value={t.country} onChange={(e) => setTax(i, 'country', e.target.value)} placeholder="US" /></div>
             <div className="col-span-4"><label className="label text-xs">State (blank = all)</label><input className="input" value={t.state} onChange={(e) => setTax(i, 'state', e.target.value)} placeholder="CA" /></div>
             <div className="col-span-3"><label className="label text-xs">Rate %</label><input className="input" value={t.rate} onChange={(e) => setTax(i, 'rate', e.target.value)} placeholder="7.25" /></div>
-            <div className="col-span-1"><button onClick={() => delTax(i)} className="text-red-600 text-sm pb-2">✕</button></div>
+            <div className="col-span-1"><button onClick={() => delTax(i)} className="text-red-600 text-sm pb-2 dark:text-red-400">✕</button></div>
           </div>
         ))}
         {/* Store settings are owner-level on the server (PATCH /api/admin/settings requires owner), so
             the control says so here rather than letting staff fill the form and collect a 403. */}
         <button onClick={save} className="btn-primary mt-2" disabled={saving || !isOwner} title={isOwner ? undefined : 'Only the store owner can change these settings'}>{saving ? 'Saving…' : 'Save settings'}</button>
-        {!isOwner && <p className="text-xs text-gray-500 mt-1">Only the store owner can change these settings.</p>}
+        {!isOwner && <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Only the store owner can change these settings.</p>}
       </div>
 
       <div className="card p-5 space-y-3">
@@ -212,7 +212,7 @@ export default function SettingsPage() {
               <div key={u.id} className="flex items-center justify-between px-4 py-3">
                 <div>
                   <p className={`text-sm font-medium ${u.isActive === false ? 'text-gray-400 line-through' : 'text-gray-900'} dark:text-slate-100`}>{u.name || u.email}</p>
-                  <p className="text-xs text-gray-500">{u.email}</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">{u.email}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 capitalize">{u.role}</span>

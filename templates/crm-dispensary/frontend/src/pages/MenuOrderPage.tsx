@@ -170,7 +170,7 @@ export default function MenuOrderPage() {
           <button
             onClick={() => setCheckout(true)}
             disabled={cart.length === 0}
-            className="relative px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50"
+            className="relative px-4 py-2 bg-green-700 text-white rounded-lg font-medium hover:bg-green-800 disabled:opacity-50"
           >
             <ShoppingCart className="w-4 h-4 inline mr-2" />
             {money(subtotal)}
@@ -306,7 +306,7 @@ export default function MenuOrderPage() {
               <button
                 onClick={placeOrder}
                 disabled={placing || cart.length === 0}
-                className="w-full py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50"
+                className="w-full py-3 bg-green-700 text-white rounded-lg font-semibold hover:bg-green-800 disabled:opacity-50"
               >
                 {placing ? <><Loader2 className="w-4 h-4 inline mr-2 animate-spin" />Placing…</> : 'Place order'}
               </button>
@@ -336,7 +336,7 @@ export default function MenuOrderPage() {
                         {p.inStock ? (
                           <button
                             onClick={() => add(p)}
-                            className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
+                            className="px-3 py-1.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800"
                           >
                             <Plus className="w-3 h-3 inline mr-1" />Add
                           </button>

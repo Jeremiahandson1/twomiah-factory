@@ -197,7 +197,7 @@ export default function PurchaseOrdersPage() {
                 </div>
               ))}
             </div>
-            <button onClick={() => setForm(f => ({ ...f, lines: [...f.lines, { ...EMPTY_LINE }] }))} className="mt-2 text-sm text-blue-600 hover:underline">+ Add line</button>
+            <button onClick={() => setForm(f => ({ ...f, lines: [...f.lines, { ...EMPTY_LINE }] }))} className="mt-2 text-sm text-blue-600 hover:underline dark:text-blue-300">+ Add line</button>
           </div>
 
           <div><label className="block text-sm font-medium mb-1">Notes</label>

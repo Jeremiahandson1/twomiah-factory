@@ -491,7 +491,7 @@ function StepIntegrations({
                       className="w-full flex items-center gap-3 p-4 text-left"
                     >
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        isDone ? 'bg-green-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300'
+                        isDone ? 'bg-green-700 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300'
                       }`}>
                         {isDone ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
                       </div>
@@ -523,7 +523,7 @@ function StepIntegrations({
                         <div className="flex items-center gap-3 mt-4 pt-3 border-t dark:border-slate-700">
                           <button
                             onClick={() => onDone(integration.id)}
-                            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-green-700 hover:bg-green-800 rounded-lg transition-colors"
                           >
                             <Check className="w-4 h-4" /> I've Done This
                           </button>

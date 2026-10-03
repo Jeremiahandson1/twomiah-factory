@@ -224,7 +224,7 @@ export default function ReferralsPage() {
                 {/* Referrer Reward */}
                 <div>
                   <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-                    <Gift className="w-4 h-4 text-green-600" />
+                    <Gift className="w-4 h-4 text-green-600 dark:text-green-300" />
                     Referrer Reward (person who refers)
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
@@ -258,7 +258,7 @@ export default function ReferralsPage() {
                 {/* Referred Reward */}
                 <div>
                   <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-                    <Award className="w-4 h-4 text-green-600" />
+                    <Award className="w-4 h-4 text-green-600 dark:text-green-300" />
                     Referred Reward (new customer)
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
@@ -439,8 +439,8 @@ export default function ReferralsPage() {
               <div className="grid md:grid-cols-3 gap-4 mb-6">
                 <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                      <Users className="w-5 h-5 text-blue-600" />
+                    <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center dark:bg-blue-950/40">
+                      <Users className="w-5 h-5 text-blue-600 dark:text-blue-300" />
                     </div>
                     <div>
                       <p className="text-sm text-gray-500 dark:text-slate-400">Total Referrals</p>
@@ -451,8 +451,8 @@ export default function ReferralsPage() {
 
                 <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                      <TrendingUp className="w-5 h-5 text-green-600" />
+                    <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center dark:bg-green-950/40">
+                      <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-300" />
                     </div>
                     <div>
                       <p className="text-sm text-gray-500 dark:text-slate-400">Conversion Rate</p>
@@ -463,8 +463,8 @@ export default function ReferralsPage() {
 
                 <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-                      <DollarSign className="w-5 h-5 text-purple-600" />
+                    <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center dark:bg-purple-950/40">
+                      <DollarSign className="w-5 h-5 text-purple-600 dark:text-purple-300" />
                     </div>
                     <div>
                       <p className="text-sm text-gray-500 dark:text-slate-400">Rewards Issued</p>
@@ -499,7 +499,7 @@ export default function ReferralsPage() {
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-gray-900 dark:text-slate-100">{referrer.count ?? 0} referrals</p>
-                        <p className="text-sm text-green-600">{referrer.successful ?? 0} converted</p>
+                        <p className="text-sm text-green-600 dark:text-green-300">{referrer.successful ?? 0} converted</p>
                       </div>
                     </div>
                   ))}

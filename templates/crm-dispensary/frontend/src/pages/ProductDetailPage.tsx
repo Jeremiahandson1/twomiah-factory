@@ -166,7 +166,7 @@ export default function ProductDetailPage() {
           {isManager && (
             <button
               onClick={() => setDeleteOpen(true)}
-              className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg font-medium flex items-center gap-2"
+              className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg font-medium flex items-center gap-2 dark:text-red-400"
             >
               <Trash2 className="w-4 h-4" /> Delete
             </button>
@@ -343,7 +343,7 @@ export default function ProductDetailPage() {
                 />
               </div>
               {form.price && form.costPrice && (
-                <div className="md:col-span-2 p-3 bg-green-50 rounded-lg">
+                <div className="md:col-span-2 p-3 bg-green-50 rounded-lg dark:bg-green-950/40">
                   <p className="text-sm text-green-700 dark:text-green-300">
                     Margin: ${(parseFloat(form.price) - parseFloat(form.costPrice)).toFixed(2)} ({((1 - parseFloat(form.costPrice) / parseFloat(form.price)) * 100).toFixed(1)}%)
                   </p>

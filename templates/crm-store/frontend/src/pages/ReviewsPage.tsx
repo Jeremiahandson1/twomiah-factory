@@ -51,7 +51,7 @@ export default function ReviewsPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Reviews</h1>
-        <p className="text-gray-500">Approve what appears on your product pages.</p>
+        <p className="text-gray-500 dark:text-slate-400">Approve what appears on your product pages.</p>
       </div>
 
       <div className="flex gap-2">
@@ -68,7 +68,7 @@ export default function ReviewsPage() {
       ) : rows.length === 0 ? (
         <div className="card p-10 text-center">
           <Star className="h-9 w-9 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">No {status === 'all' ? '' : status} reviews.</p>
+          <p className="text-gray-500 dark:text-slate-400">No {status === 'all' ? '' : status} reviews.</p>
           <p className="text-sm text-gray-400 mt-1">Customers are asked for one a few days after their order ships.</p>
         </div>
       ) : (
@@ -88,19 +88,19 @@ export default function ReviewsPage() {
                     )}
                   </div>
                   {r.title && <p className="font-medium text-gray-900 mt-1 dark:text-slate-100">{r.title}</p>}
-                  {r.body && <p className="text-gray-600 text-sm mt-1 whitespace-pre-wrap">{r.body}</p>}
+                  {r.body && <p className="text-gray-600 text-sm mt-1 whitespace-pre-wrap dark:text-slate-300">{r.body}</p>}
                   <p className="text-xs text-gray-400 mt-2">
                     {r.authorName} on {r.productName || 'product'} · {new Date(r.createdAt).toLocaleDateString()}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {r.status !== 'approved' && (
-                    <button onClick={() => decide(r.id, 'approved')} title="Publish" className="p-2 text-green-600 hover:bg-green-50 rounded-lg"><Check className="h-4 w-4" /></button>
+                    <button onClick={() => decide(r.id, 'approved')} title="Publish" className="p-2 text-green-600 hover:bg-green-50 rounded-lg dark:text-green-300"><Check className="h-4 w-4" /></button>
                   )}
                   {r.status !== 'rejected' && (
-                    <button onClick={() => decide(r.id, 'rejected')} title="Reject" className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"><X className="h-4 w-4" /></button>
+                    <button onClick={() => decide(r.id, 'rejected')} title="Reject" className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg dark:text-slate-400"><X className="h-4 w-4" /></button>
                   )}
-                  <button onClick={() => remove(r.id)} title="Delete" className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="h-4 w-4" /></button>
+                  <button onClick={() => remove(r.id)} title="Delete" className="p-2 text-red-600 hover:bg-red-50 rounded-lg dark:text-red-400"><Trash2 className="h-4 w-4" /></button>
                 </div>
               </div>
             </div>

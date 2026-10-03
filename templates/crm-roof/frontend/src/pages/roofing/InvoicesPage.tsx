@@ -282,13 +282,13 @@ export default function InvoicesPage() {
                             )}
                             {balance > 0 && inv.status !== 'draft' && (
                               <>
-                                <button onClick={() => markPaid(inv.id)} title="Mark Paid" className="p-1 text-green-600 hover:bg-green-50 rounded">
+                                <button onClick={() => markPaid(inv.id)} title="Mark Paid" className="p-1 text-green-600 hover:bg-green-50 rounded dark:text-green-300">
                                   <Check className="w-4 h-4" />
                                 </button>
                                 <button
                                   onClick={() => { setPaymentInvoice(inv); setPayment({ amount: String(balance.toFixed(2)), method: 'card', reference: '', notes: '' }); setPaymentOpen(true); }}
                                   title="Record Payment"
-                                  className="p-1 text-purple-600 hover:bg-purple-50 rounded"
+                                  className="p-1 text-purple-600 hover:bg-purple-50 rounded dark:text-purple-300"
                                 >
                                   <DollarSign className="w-4 h-4" />
                                 </button>
@@ -450,7 +450,7 @@ export default function InvoicesPage() {
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setPaymentOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
-              <button onClick={recordPayment} className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">Record</button>
+              <button onClick={recordPayment} className="px-4 py-2 text-sm bg-green-700 text-white rounded-lg hover:bg-green-800">Record</button>
             </div>
           </div>
         </div>

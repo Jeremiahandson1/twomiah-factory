@@ -26,7 +26,7 @@ export default function AITradeAppraisalPage() {
   return (
     <div className="max-w-3xl mx-auto p-6">
       <div className="flex items-center gap-3 mb-1">
-        <div className="w-10 h-10 rounded-lg bg-emerald-600 flex items-center justify-center text-white"><Calculator size={22} /></div>
+        <div className="w-10 h-10 rounded-lg bg-emerald-700 flex items-center justify-center text-white"><Calculator size={22} /></div>
         <div>
           <h1 className="text-2xl font-bold">AI Trade Appraisal</h1>
           <p className="text-sm text-gray-500 dark:text-slate-400">Instant trade-in estimate on any unit. Type it in, get a number to work the deal.</p>
@@ -47,7 +47,7 @@ export default function AITradeAppraisalPage() {
         <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Condition
           <select value={f.condition} onChange={(e) => set('condition', e.target.value)} className="mt-1 w-full p-2 border rounded-lg text-sm capitalize">{CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}</select></label>
         <div className="col-span-2 md:col-span-3">
-          <button onClick={appraise} disabled={loading} className="px-6 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50 inline-flex items-center gap-2">
+          <button onClick={appraise} disabled={loading} className="px-6 py-2 rounded-lg bg-emerald-700 text-white font-medium hover:bg-emerald-800 disabled:opacity-50 inline-flex items-center gap-2">
             {loading ? <Loader2 className="animate-spin" size={18} /> : <Calculator size={18} />}{loading ? 'Appraising…' : 'Appraise'}</button>
         </div>
       </div>

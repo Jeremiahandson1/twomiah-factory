@@ -346,7 +346,7 @@ export default function PipelineBoard() {
                           )}
 
                           {job.source === 'storm' && (
-                            <span className="flex items-center gap-0.5 text-[10px] text-amber-600 font-medium">
+                            <span className="flex items-center gap-0.5 text-[10px] text-amber-600 font-medium dark:text-amber-300">
                               <Zap className="w-3 h-3" />
                               storm
                             </span>
@@ -372,7 +372,7 @@ export default function PipelineBoard() {
                             {job.dateOfLoss && (() => {
                               const daysSinceLoss = Math.floor((Date.now() - new Date(job.dateOfLoss).getTime()) / (1000 * 60 * 60 * 24));
                               return daysSinceLoss > 45 ? (
-                                <span className="flex items-center gap-0.5 text-[10px] text-red-600 font-semibold">
+                                <span className="flex items-center gap-0.5 text-[10px] text-red-600 font-semibold dark:text-red-400">
                                   <AlertTriangle className="w-3 h-3" />
                                   {daysSinceLoss}d loss
                                 </span>

@@ -86,7 +86,7 @@ export default function CommissionsPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div><h1 className="text-2xl font-bold flex items-center gap-2"><DollarSign className="w-6 h-6 text-sky-500" />Commissions</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">How commission is calculated, and what has been earned</p></div>
-        {tab === 'plans' && mayCreatePlans && <button onClick={() => setShowPlan(true)} className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Plan</button>}
+        {tab === 'plans' && mayCreatePlans && <button onClick={() => setShowPlan(true)} className="bg-sky-700 hover:bg-sky-800 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Plan</button>}
       </div>
 
       <div className="flex gap-2 mb-4 border-b">
@@ -110,7 +110,7 @@ export default function CommissionsPage() {
                     <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[c.status]}`}>{c.status}</span></td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
-                        {c.status === 'pending' && mayApprove && <button onClick={() => act(c.id, 'approve')} className="text-blue-600 hover:bg-blue-50 p-1 rounded" title="Approve"><Check className="w-4 h-4" /></button>}
+                        {c.status === 'pending' && mayApprove && <button onClick={() => act(c.id, 'approve')} className="text-blue-600 hover:bg-blue-50 p-1 rounded dark:text-blue-300" title="Approve"><Check className="w-4 h-4" /></button>}
                         {c.status === 'approved' && mayApprove && <button onClick={() => act(c.id, 'mark-paid')} className="text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-500/10 p-1 rounded text-xs">Mark Paid</button>}
                       </div>
                     </td>
@@ -172,7 +172,7 @@ export default function CommissionsPage() {
               </div>
               {planForm.planType === 'flat_rate' && <div><label className="text-xs text-gray-500 dark:text-slate-400">Flat amount per job</label><input type="number" step="0.01" value={planForm.flatRateAmount} onChange={(e) => setPlanForm({ ...planForm, flatRateAmount: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>}
               {planForm.planType !== 'flat_rate' && <div><label className="text-xs text-gray-500 dark:text-slate-400">Percent rate</label><input type="number" step="0.1" value={planForm.percentRate} onChange={(e) => setPlanForm({ ...planForm, percentRate: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>}
-              <div className="flex justify-end gap-2"><button type="button" onClick={() => setShowPlan(false)} className="px-4 py-2 border rounded-lg">Cancel</button><button type="submit" className="px-4 py-2 bg-sky-500 text-white rounded-lg">Create</button></div>
+              <div className="flex justify-end gap-2"><button type="button" onClick={() => setShowPlan(false)} className="px-4 py-2 border rounded-lg">Cancel</button><button type="submit" className="px-4 py-2 bg-sky-700 text-white rounded-lg">Create</button></div>
             </form>
           </div>
         </div>

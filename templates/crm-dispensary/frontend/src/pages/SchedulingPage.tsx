@@ -428,7 +428,7 @@ export default function SchedulingPage() {
                     <td className="px-4 py-3 text-sm font-medium">{entry.employeeName}</td>
                     <td className="px-4 py-3 text-sm">{entry.date}</td>
                     <td className="px-4 py-3 text-sm">{formatTime(entry.clockIn)}</td>
-                    <td className="px-4 py-3 text-sm">{entry.clockOut ? formatTime(entry.clockOut) : <span className="text-yellow-600">Active</span>}</td>
+                    <td className="px-4 py-3 text-sm">{entry.clockOut ? formatTime(entry.clockOut) : <span className="text-yellow-600 dark:text-yellow-300">Active</span>}</td>
                     <td className="px-4 py-3 text-sm font-medium">{entry.hours ? `${Number(entry.hours).toFixed(1)}h` : '-'}</td>
                     <td className="px-4 py-3 text-sm">
                       <span className={`px-2 py-0.5 rounded-full text-xs ${entry.approved ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
@@ -438,7 +438,7 @@ export default function SchedulingPage() {
                     {isManager && (
                       <td className="px-4 py-3 text-sm">
                         {!entry.approved && (
-                          <button onClick={() => approveTimeEntry(entry.id)} className="text-green-600 hover:text-green-800 dark:hover:text-green-300 text-sm font-medium">
+                          <button onClick={() => approveTimeEntry(entry.id)} className="text-green-600 hover:text-green-800 dark:hover:text-green-300 text-sm font-medium dark:text-green-300">
                             Approve
                           </button>
                         )}

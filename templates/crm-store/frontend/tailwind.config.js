@@ -54,19 +54,43 @@ function readableUnderWhite(h, s, l, exactHex) {
   return '#000000';
 }
 
+/**
+ * The 700 shade is what the UI paints AS INK on the 50 and 100 shades (every status badge and
+ * chip: `bg-orange-100 text-orange-700`). readableUnderWhite covers the opposite case — white on
+ * the colour — and nothing covered this one, so a green or yellow brand's 700 sat at about 3.3:1
+ * on its own 100 while a navy brand's cleared easily. Same cause as the white-text clamp: these
+ * shades fix LIGHTNESS, and lightness is not luminance.
+ *
+ * Darken until the ink clears AA against the 100 shade, the harder of the two tints.
+ * Monotonically safe — darker ink on a light tint is strictly more readable, and bg-*-700 only
+ * ever carries white text, which improves too. A brand that already clears is untouched.
+ */
+function readableAsInkOn(h, s, l, tintHex) {
+  const tintLum = relLuminance(tintHex);
+  const clears = (hex) => (tintLum + 0.05) / (relLuminance(hex) + 0.05) >= 4.5;
+  const start = hslToHex(h, s, l);
+  if (clears(start)) return start;
+  for (let d = l - 1; d >= 0; d--) {
+    const candidate = hslToHex(h, s, d);
+    if (clears(candidate)) return candidate;
+  }
+  return '#000000';
+}
+
 function generatePalette(hex) {
   // Fallback for unreplaced token
   if (!hex || hex.startsWith('{')) hex = '#f97316';
   const [h, s, l] = hexToHsl(hex);
+  const tint100 = hslToHex(h, Math.min(s, 100), 90);
   return {
     50:  hslToHex(h, Math.min(s, 100), 96),
-    100: hslToHex(h, Math.min(s, 100), 90),
+    100: tint100,
     200: hslToHex(h, Math.min(s, 100), 80),
     300: hslToHex(h, Math.min(s, 95), 65),
     400: hslToHex(h, Math.min(s, 95), 55),
     500: readableUnderWhite(h, s, l, hex),
     600: readableUnderWhite(h, Math.min(s + 5, 100), 40),
-    700: hslToHex(h, Math.min(s + 5, 100), 33),
+    700: readableAsInkOn(h, Math.min(s + 5, 100), 33, tint100),
     800: hslToHex(h, Math.min(s + 5, 100), 26),
     900: hslToHex(h, Math.min(s + 5, 100), 20),
     950: hslToHex(h, Math.min(s + 5, 100), 12),

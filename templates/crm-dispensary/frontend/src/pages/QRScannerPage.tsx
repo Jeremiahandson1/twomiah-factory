@@ -55,7 +55,7 @@ export default function QRScannerPage() {
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'
                 : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-            } dark:bg-slate-900`}
+            } dark:bg-slate-900 dark:text-slate-300`}
           >
             <tab.icon className="w-4 h-4" />
             {tab.label}
@@ -222,7 +222,7 @@ function ScannerTab() {
                   context === ctx.value
                     ? 'bg-orange-500 text-white'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
+                } dark:text-slate-300`}
               >
                 <ctx.icon className="w-4 h-4" />
                 {ctx.label}
@@ -286,9 +286,9 @@ function ScannerTab() {
                     scan.entityType === 'batch' ? 'bg-purple-100' :
                     'bg-gray-100'
                   }`}>
-                    {scan.entityType === 'product' ? <Package className="w-4 h-4 text-green-600" /> :
-                     scan.entityType === 'grow_input' ? <Leaf className="w-4 h-4 text-blue-600" /> :
-                     scan.entityType === 'batch' ? <Layers className="w-4 h-4 text-purple-600" /> :
+                    {scan.entityType === 'product' ? <Package className="w-4 h-4 text-green-600 dark:text-green-300" /> :
+                     scan.entityType === 'grow_input' ? <Leaf className="w-4 h-4 text-blue-600 dark:text-blue-300" /> :
+                     scan.entityType === 'batch' ? <Layers className="w-4 h-4 text-purple-600 dark:text-purple-300" /> :
                      <QrCode className="w-4 h-4 text-gray-600 dark:text-slate-400" />}
                   </div>
                   <div>
@@ -390,8 +390,8 @@ function InputResultCard({ result, context, toast }: { result: any; context: str
   return (
     <div>
       <div className="flex items-start gap-3">
-        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-          <Leaf className="w-6 h-6 text-blue-600" />
+        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0 dark:bg-blue-950/40">
+          <Leaf className="w-6 h-6 text-blue-600 dark:text-blue-300" />
         </div>
         <div className="flex-1 min-w-0">
           <h4 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{input.name}</h4>
@@ -448,14 +448,14 @@ function BatchResultCard({ result, toast }: { result: any; toast: any }) {
   const statusColors: Record<string, string> = {
     active: 'bg-green-100 text-green-700',
     quarantine: 'bg-yellow-100 text-yellow-700',
-    depleted: 'bg-gray-100 text-gray-500',
+    depleted: 'bg-gray-100 text-gray-600',
     recalled: 'bg-red-100 text-red-700',
   };
 
   return (
     <div className="flex items-start gap-3">
-      <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-        <Layers className="w-6 h-6 text-purple-600" />
+      <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0 dark:bg-purple-950/40">
+        <Layers className="w-6 h-6 text-purple-600 dark:text-purple-300" />
       </div>
       <div className="flex-1 min-w-0">
         <h4 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Batch #{batch.batchNumber}</h4>
@@ -675,22 +675,22 @@ function AnalyticsTab() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
           <p className="text-sm text-gray-500 dark:text-slate-400">Today</p>
-          <p className="text-2xl font-bold text-orange-600">{stats?.today || 0}</p>
+          <p className="text-2xl font-bold text-orange-600 dark:text-orange-300">{stats?.today || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">scans</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
           <p className="text-sm text-gray-500 dark:text-slate-400">This Week</p>
-          <p className="text-2xl font-bold text-blue-600">{stats?.thisWeek || 0}</p>
+          <p className="text-2xl font-bold text-blue-600 dark:text-blue-300">{stats?.thisWeek || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">scans</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
           <p className="text-sm text-gray-500 dark:text-slate-400">This Month</p>
-          <p className="text-2xl font-bold text-green-600">{stats?.thisMonth || 0}</p>
+          <p className="text-2xl font-bold text-green-600 dark:text-green-300">{stats?.thisMonth || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">scans</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
           <p className="text-sm text-gray-500 dark:text-slate-400">All Time</p>
-          <p className="text-2xl font-bold text-purple-600">{stats?.allTime || 0}</p>
+          <p className="text-2xl font-bold text-purple-600 dark:text-purple-300">{stats?.allTime || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">scans</p>
         </div>
       </div>

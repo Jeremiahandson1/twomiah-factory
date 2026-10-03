@@ -33,13 +33,13 @@ export function OnboardingWizard({ productId, onComplete }: OnboardingWizardProp
       <div className="max-w-3xl mx-auto px-4">
         <div className="mb-6 text-center">
           <h1 className="text-3xl font-bold mb-2">Welcome to Twomiah</h1>
-          <p className="text-sm text-gray-600">A few quick steps to set up your CRM. Most can be revisited in Settings.</p>
+          <p className="text-sm text-gray-600 dark:text-slate-300">A few quick steps to set up your CRM. Most can be revisited in Settings.</p>
         </div>
 
         <div className="flex items-center justify-center gap-2 mb-8">
           {STEPS.map((s, i) => (
             <div key={s.key} className="flex items-center">
-              <div className={'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ' + (i < stepIdx ? 'bg-green-500 text-white' : i === stepIdx ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-600')}>
+              <div className={'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ' + (i < stepIdx ? 'bg-green-700 text-white' : i === stepIdx ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-600')}>
                 {i < stepIdx ? '✓' : i + 1}
               </div>
               {i < STEPS.length - 1 && <div className={'w-8 h-0.5 ' + (i < stepIdx ? 'bg-green-500' : 'bg-gray-200')} />}

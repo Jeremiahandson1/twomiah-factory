@@ -254,7 +254,7 @@ export default function RoofReportsPage() {
           <button
             onClick={() => handleFinalize(preview.edges, preview.measurements)}
             disabled={finalizing}
-            className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-800 disabled:opacity-50 transition-colors"
           >
             {finalizing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             {finalizing ? 'Creating...' : 'Create Report'}
@@ -391,7 +391,7 @@ export default function RoofReportsPage() {
                   type="button"
                   onClick={() => handleGenerate('auto')}
                   disabled={purchasing}
-                  className="flex flex-col items-center gap-1 p-4 border-2 border-blue-200 bg-blue-50 rounded-xl hover:border-blue-400 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                  className="flex flex-col items-center gap-1 p-4 border-2 border-blue-200 bg-blue-50 rounded-xl hover:border-blue-400 hover:bg-blue-100 transition-colors disabled:opacity-50 dark:bg-blue-950/40"
                 >
                   <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">Professional Report</span>
                   <span className="text-xs text-blue-500">Verified measurements, delivered fast</span>

@@ -387,13 +387,13 @@ export default function MeasurementsPage() {
               {/* Totals */}
               {selectedReport.status === 'complete' && (
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-purple-50 rounded-lg p-3 text-center">
+                  <div className="bg-purple-50 rounded-lg p-3 text-center dark:bg-purple-950/40">
                     <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">{selectedReport.totalSquares || '—'}</p>
-                    <p className="text-xs text-purple-600">Total Squares</p>
+                    <p className="text-xs text-purple-600 dark:text-purple-300">Total Squares</p>
                   </div>
-                  <div className="bg-blue-50 rounded-lg p-3 text-center">
+                  <div className="bg-blue-50 rounded-lg p-3 text-center dark:bg-blue-950/40">
                     <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{selectedReport.totalArea ? Number(selectedReport.totalArea).toLocaleString() : '—'}</p>
-                    <p className="text-xs text-blue-600">Total Sqft</p>
+                    <p className="text-xs text-blue-600 dark:text-blue-300">Total Sqft</p>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-3 text-center dark:bg-slate-900">
                     <p className="text-2xl font-bold text-gray-700 dark:text-slate-200">{Array.isArray(selectedReport.segments) ? selectedReport.segments.length : '—'}</p>

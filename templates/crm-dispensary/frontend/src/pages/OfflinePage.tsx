@@ -14,7 +14,7 @@ const SYNC_STATUS_STYLES: Record<string, string> = {
   syncing: 'bg-blue-100 text-blue-700',
   synced: 'bg-green-100 text-green-700',
   failed: 'bg-red-100 text-red-700',
-  skipped: 'bg-gray-100 text-gray-500',
+  skipped: 'bg-gray-100 text-gray-600',
 };
 
 export default function OfflinePage() {
@@ -225,7 +225,7 @@ export default function OfflinePage() {
               <span className="text-sm text-gray-500 dark:text-slate-400">Failed Syncs</span>
               <XCircle className="w-5 h-5 text-red-500" />
             </div>
-            <div className="text-2xl font-bold text-red-600">{status.failedCount}</div>
+            <div className="text-2xl font-bold text-red-600 dark:text-red-400">{status.failedCount}</div>
             <div className="text-sm text-gray-500 dark:text-slate-400">need attention</div>
           </div>
         </div>
@@ -280,7 +280,7 @@ export default function OfflinePage() {
                       </div>
                       <input type="checkbox" checked={(config as any)[feature.key]}
                         onChange={e => setConfig({ ...config, [feature.key]: e.target.checked })}
-                        className="rounded text-green-600 w-4 h-4" />
+                        className="rounded text-green-600 w-4 h-4 dark:text-green-300" />
                     </label>
                   ))}
                 </div>
@@ -399,7 +399,7 @@ export default function OfflinePage() {
               </ul>
             </div>
 
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-gray-900 dark:text-slate-100">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-gray-900 dark:text-slate-100 dark:bg-yellow-950/40">
               <h4 className="font-medium text-yellow-800 flex items-center gap-2 mb-2 dark:text-yellow-300">
                 <AlertTriangle className="w-4 h-4" />If Sync Fails
               </h4>

@@ -3,7 +3,7 @@ import { Repeat, Plus, Loader2 } from 'lucide-react';
 import api from '../../services/api';
 
 const money = (n: number) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const STATUS: any = { out: 'bg-blue-100 text-blue-700', reserved: 'bg-amber-100 text-amber-700', returned: 'bg-green-100 text-green-700', cancelled: 'bg-gray-100 text-gray-500' };
+const STATUS: any = { out: 'bg-blue-100 text-blue-700', reserved: 'bg-amber-100 text-amber-700', returned: 'bg-green-100 text-green-700', cancelled: 'bg-gray-100 text-gray-600' };
 // the status changes the server allows
 const ACTIONS: Record<string, [string, string][]> = { reserved: [['out', 'Check out'], ['cancelled', 'Cancel']], out: [['returned', 'Return']] };
 const EMPTY = { unitId: '', customer: '', start: '', end: '', rate: '' };

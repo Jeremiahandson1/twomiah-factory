@@ -118,8 +118,8 @@ export default function CashPage() {
         {currentSession && currentSession.status === 'open' ? (
           <div>
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                <Unlock className="w-5 h-5 text-green-600" />
+              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center dark:bg-green-950/40">
+                <Unlock className="w-5 h-5 text-green-600 dark:text-green-300" />
               </div>
               <div>
                 <h2 className="font-semibold text-gray-900 dark:text-slate-100">Drawer Open</h2>
@@ -143,7 +143,7 @@ export default function CashPage() {
                 <p className="text-sm text-gray-500 dark:text-slate-400">Cash Refunds</p>
                 <p className="text-xl font-bold text-red-700 dark:text-red-300">${Number(currentSession.cashRefunds || 0).toFixed(2)}</p>
               </div>
-              <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+              <div className="p-4 bg-green-50 rounded-lg border border-green-200 dark:bg-green-950/40">
                 <p className="text-sm text-green-700 dark:text-green-300">Expected in Drawer</p>
                 <p className="text-xl font-bold text-green-700 dark:text-green-300">${Number(expectedClosing).toFixed(2)}</p>
               </div>

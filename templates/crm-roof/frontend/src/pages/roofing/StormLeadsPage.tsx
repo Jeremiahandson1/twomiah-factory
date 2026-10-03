@@ -17,7 +17,7 @@ const STATUS_COLORS: Record<string, string> = {
   new: 'bg-blue-100 text-blue-700',
   contacted: 'bg-yellow-100 text-yellow-700',
   converted: 'bg-green-100 text-green-700',
-  dismissed: 'bg-gray-100 text-gray-500',
+  dismissed: 'bg-gray-100 text-gray-600',
 }
 
 export default function StormLeadsPage() {
@@ -299,7 +299,7 @@ export default function StormLeadsPage() {
                 <span className="text-xs text-gray-500 dark:text-slate-400">{selectedLeads.size} selected</span>
                 {selectedLeads.size > 0 && (
                   <>
-                    <button onClick={bulkConvert} className="text-xs bg-green-600 text-white px-2.5 py-1 rounded font-medium">Convert Selected</button>
+                    <button onClick={bulkConvert} className="text-xs bg-green-700 text-white px-2.5 py-1 rounded font-medium">Convert Selected</button>
                     <button onClick={bulkDismiss} className="text-xs text-gray-500 px-2.5 py-1 border rounded dark:text-slate-400">Dismiss Selected</button>
                   </>
                 )}
@@ -357,7 +357,7 @@ export default function StormLeadsPage() {
                               className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline">Convert</button>
                           )}
                           {lead.isExistingCustomer && lead.status === 'new' && (
-                            <button className="text-xs text-yellow-600 font-medium hover:underline">Follow Up</button>
+                            <button className="text-xs text-yellow-600 font-medium hover:underline dark:text-yellow-300">Follow Up</button>
                           )}
                           {lead.jobId && (
                             <button onClick={() => navigate(`/crm/jobs/${lead.jobId}`)}
@@ -451,7 +451,7 @@ export default function StormLeadsPage() {
                 <label className="text-xs text-gray-500 dark:text-slate-400">Email (optional)</label>
                 <input value={convertEmail} onChange={e => setConvertEmail(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" />
               </div>
-              <button onClick={() => convertLead(showConvertModal)} className="w-full py-2.5 bg-green-600 text-white rounded-xl font-semibold text-sm">
+              <button onClick={() => convertLead(showConvertModal)} className="w-full py-2.5 bg-green-700 text-white rounded-xl font-semibold text-sm">
                 Convert to Lead
               </button>
             </div>

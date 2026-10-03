@@ -214,7 +214,7 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
           <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">Paste this where you want the booking form to appear. If a service requires a deposit, the customer pays it before the slot is confirmed.</p>
           <pre className="bg-gray-900 text-gray-100 text-xs rounded-lg p-4 overflow-x-auto whitespace-pre-wrap">{embed || 'Loading…'}</pre>
           <Button variant="secondary" className="mt-3" disabled={!embed} onClick={() => { navigator.clipboard?.writeText(embed); setCopied(true); setTimeout(() => setCopied(false), 2000) }}>
-            {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}{copied ? 'Copied' : 'Copy embed code'}
+            {copied ? <Check className="w-4 h-4 text-green-600 dark:text-green-300" /> : <Copy className="w-4 h-4" />}{copied ? 'Copied' : 'Copy embed code'}
           </Button>
         </div>
       )}

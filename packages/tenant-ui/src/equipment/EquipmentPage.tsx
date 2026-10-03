@@ -905,7 +905,7 @@ function ServiceHistoryModal({ equipment, api, config, onClose, onRefresh }: Ser
             <p className="mt-2 text-gray-600 dark:text-slate-400">{record.description}</p>
           )}
           {record.recommendations && (
-            <p className="mt-2 text-sm text-orange-600">
+            <p className="mt-2 text-sm text-orange-600 dark:text-orange-300">
               Recommendation: {record.recommendations}
             </p>
           )}
@@ -938,7 +938,7 @@ function ServiceHistoryModal({ equipment, api, config, onClose, onRefresh }: Ser
               </p>
             </div>
             {j.completedAt && (
-              <span className="text-xs text-green-600">Completed {formatDate(j.completedAt)}</span>
+              <span className="text-xs text-green-600 dark:text-green-300">Completed {formatDate(j.completedAt)}</span>
             )}
           </div>
         </div>

@@ -37,20 +37,20 @@ export default function ResetPasswordPage() {
         {done ? (
           <div className="card p-6 space-y-3">
             <h1 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Password updated</h1>
-            <p className="text-sm text-gray-500">Your new password is set. Sign in to continue.</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Your new password is set. Sign in to continue.</p>
             <Link to="/login" className="btn-primary block text-center">Sign in</Link>
           </div>
         ) : !token ? (
           <div className="card p-6 space-y-3">
             <h1 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Invalid link</h1>
-            <p className="text-sm text-gray-500">This reset link is missing its token. Request a new one.</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">This reset link is missing its token. Request a new one.</p>
             <Link to="/forgot-password" className="text-sm text-primary-600 hover:underline">Request a new link</Link>
           </div>
         ) : (
           <form onSubmit={submit} className="card p-6 space-y-4">
             <div>
               <h1 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Set a new password</h1>
-              <p className="text-sm text-gray-500">Minimum 8 characters</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Minimum 8 characters</p>
             </div>
             {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
             <div>

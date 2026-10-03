@@ -116,7 +116,7 @@ export default function AppointmentsPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Appointments</h1>
           <p className="text-gray-500 dark:text-slate-400">Daily schedule</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">
+        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">
           <Plus className="w-4 h-4" /> New Appointment
         </button>
       </div>
@@ -161,7 +161,7 @@ export default function AppointmentsPage() {
                 {(a.status || 'scheduled').replace('_', ' ')}
               </span>
               {NOT_CHECKED_IN.has(a.status || 'scheduled') && (
-                <button onClick={() => checkIn(a)} className="flex items-center gap-1 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm">
+                <button onClick={() => checkIn(a)} className="flex items-center gap-1 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm">
                   <CheckCircle2 className="w-4 h-4" /> Check In
                 </button>
               )}
@@ -169,10 +169,10 @@ export default function AppointmentsPage() {
                 <button onClick={() => setStatus(a, 'in_progress')} className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">Start</button>
               )}
               {a.status === 'in_progress' && (
-                <button onClick={() => setStatus(a, 'completed')} className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">Complete</button>
+                <button onClick={() => setStatus(a, 'completed')} className="px-3 py-1.5 bg-green-700 text-white rounded-lg hover:bg-green-800 text-sm">Complete</button>
               )}
               {['scheduled', 'confirmed', 'checked_in'].includes(a.status || 'scheduled') && (
-                <button onClick={() => setStatus(a, 'no_show')} className="px-3 py-1.5 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 text-sm">No-Show</button>
+                <button onClick={() => setStatus(a, 'no_show')} className="px-3 py-1.5 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 text-sm dark:text-amber-300">No-Show</button>
               )}
               {!['completed', 'cancelled', 'no_show'].includes(a.status || 'scheduled') && (
                 <button onClick={() => setStatus(a, 'cancelled')} className="px-3 py-1.5 border border-red-200 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 text-sm">Cancel</button>
@@ -339,14 +339,14 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
                 <p className="font-medium">{conflictMsg}</p>
                 <p className="mt-1 text-amber-700 dark:text-amber-300">Book this appointment anyway, or change the time or provider.</p>
                 <div className="flex gap-2 mt-2">
-                  <button type="button" disabled={saving} onClick={() => { setConflictMsg(null); submit(undefined, true); }} className="px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50">Book anyway</button>
+                  <button type="button" disabled={saving} onClick={() => { setConflictMsg(null); submit(undefined, true); }} className="px-3 py-1.5 bg-amber-700 text-white rounded-lg hover:bg-amber-800 disabled:opacity-50">Book anyway</button>
                   <button type="button" onClick={() => setConflictMsg(null)} className="px-3 py-1.5 border border-amber-300 rounded-lg hover:bg-amber-100">Change time</button>
                 </div>
               </div>
             )}
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
                 {saving ? 'Saving...' : 'Create'}
               </button>
             </div>

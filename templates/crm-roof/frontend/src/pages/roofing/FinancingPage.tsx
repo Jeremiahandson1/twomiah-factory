@@ -62,8 +62,8 @@ export default function FinancingPage() {
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
                       {a.status === 'pending' && <button onClick={() => act(a.id, 'mark-sent', { applicationUrl: prompt('Application URL:') || '', lenderReference: prompt('Lender ref #:') || '' })} className="text-blue-600 dark:text-blue-400 text-xs hover:underline">Send</button>}
-                      {a.status === 'sent' && <><button onClick={() => { const amt = prompt('Approved amount:'); if (amt) act(a.id, 'approve', { amountApproved: Number(amt), termMonths: a.termMonths }); }} className="text-green-600 hover:bg-green-50 p-1 rounded" title="Approve"><Check className="w-4 h-4" /></button><button onClick={() => act(a.id, 'decline', { notes: prompt('Decline reason:') || '' })} className="text-red-600 hover:bg-red-50 p-1 rounded" title="Decline"><X className="w-4 h-4" /></button></>}
-                      {a.status === 'approved' && <button onClick={() => act(a.id, 'mark-funded')} className="text-emerald-600 text-xs hover:underline">Funded</button>}
+                      {a.status === 'sent' && <><button onClick={() => { const amt = prompt('Approved amount:'); if (amt) act(a.id, 'approve', { amountApproved: Number(amt), termMonths: a.termMonths }); }} className="text-green-600 hover:bg-green-50 p-1 rounded dark:text-green-300" title="Approve"><Check className="w-4 h-4" /></button><button onClick={() => act(a.id, 'decline', { notes: prompt('Decline reason:') || '' })} className="text-red-600 hover:bg-red-50 p-1 rounded dark:text-red-400" title="Decline"><X className="w-4 h-4" /></button></>}
+                      {a.status === 'approved' && <button onClick={() => act(a.id, 'mark-funded')} className="text-emerald-600 text-xs hover:underline dark:text-emerald-300">Funded</button>}
                     </div>
                   </td>
                 </tr>

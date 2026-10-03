@@ -22,9 +22,9 @@ export function DoneStep({ onComplete }: { onComplete: () => void }): React.Reac
 
   return (
     <div className="text-center">
-      <div className="w-16 h-16 rounded-full bg-green-500 text-white mx-auto flex items-center justify-center text-3xl mb-4">✓</div>
+      <div className="w-16 h-16 rounded-full bg-green-700 text-white mx-auto flex items-center justify-center text-3xl mb-4">✓</div>
       <h2 className="text-2xl font-bold mb-2">You're set up</h2>
-      <p className="text-sm text-gray-600 mb-6">Your CRM is ready. You can tune anything later in Settings.</p>
+      <p className="text-sm text-gray-600 mb-6 dark:text-slate-300">Your CRM is ready. You can tune anything later in Settings.</p>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700 text-left">{error}</div>}
 

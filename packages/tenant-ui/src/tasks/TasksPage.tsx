@@ -351,7 +351,7 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }: TaskItem
                 </button>
                 <button
                   onClick={() => { setShowMenu(false); onDelete(); }}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-gray-50 w-full"
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-gray-50 w-full dark:text-red-400"
                 >
                   <Trash2 className="w-4 h-4" />
                   Delete
@@ -551,7 +551,7 @@ function TaskFormModal({ task, onSave, onClose, api }: TaskFormModalProps) {
                 <button
                   type="button"
                   onClick={addChecklistItem}
-                  className="px-3 py-2 text-orange-600 hover:bg-orange-50 rounded-lg"
+                  className="px-3 py-2 text-orange-600 hover:bg-orange-50 rounded-lg dark:text-orange-300"
                 >
                   <Plus className="w-4 h-4" />
                 </button>

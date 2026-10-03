@@ -193,14 +193,14 @@ export default function FraudDetectionPage() {
       } />
 
       {scanResults && (
-        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between dark:bg-green-950/40">
           <div>
             <div className="font-medium text-green-800 dark:text-green-300">Scan Complete</div>
-            <div className="text-sm text-green-600">
+            <div className="text-sm text-green-600 dark:text-green-300">
               {scanResults.alertsGenerated || 0} new alerts &middot; {scanResults.transactionsScanned || 0} transactions scanned &middot; {scanResults.duration || '0s'}
             </div>
           </div>
-          <button onClick={() => setScanResults(null)} className="text-green-600 hover:text-green-800 dark:hover:text-green-300"><XCircle className="w-5 h-5" /></button>
+          <button onClick={() => setScanResults(null)} className="text-green-600 hover:text-green-800 dark:hover:text-green-300 dark:text-green-300"><XCircle className="w-5 h-5" /></button>
         </div>
       )}
 
@@ -219,7 +219,7 @@ export default function FraudDetectionPage() {
           <div className="flex gap-2 mb-4">
             {['all', 'critical', 'high', 'medium', 'low'].map(f => (
               <button key={f} onClick={() => setAlertFilter(f)}
-                className={`px-3 py-1 text-sm rounded-full ${alertFilter === f ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                className={`px-3 py-1 text-sm rounded-full ${alertFilter === f ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'} dark:text-slate-300`}>
                 {f.charAt(0).toUpperCase() + f.slice(1)}
               </button>
             ))}
@@ -260,7 +260,7 @@ export default function FraudDetectionPage() {
                       <td className="px-4 py-3 text-sm max-w-xs truncate">{alert.description}</td>
                       <td className="px-4 py-3 text-sm">
                         {alert.employeeName ? (
-                          <span className="text-green-600 hover:underline cursor-pointer">{alert.employeeName}</span>
+                          <span className="text-green-600 hover:underline cursor-pointer dark:text-green-300">{alert.employeeName}</span>
                         ) : '-'}
                       </td>
                       <td className="px-4 py-3">
@@ -364,7 +364,7 @@ export default function FraudDetectionPage() {
                     <span className="text-sm text-gray-500 dark:text-slate-400">Critical</span>
                     <ShieldAlert className="w-5 h-5 text-red-500" />
                   </div>
-                  <div className="text-2xl font-bold text-red-600">{dashboardData?.criticalCount || 0}</div>
+                  <div className="text-2xl font-bold text-red-600 dark:text-red-400">{dashboardData?.criticalCount || 0}</div>
                 </div>
                 <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
                   <div className="flex items-center justify-between mb-2">
@@ -456,7 +456,7 @@ export default function FraudDetectionPage() {
           </div>
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={ruleForm.active} onChange={e => setRuleForm({ ...ruleForm, active: e.target.checked })}
-              className="rounded text-green-600" />
+              className="rounded text-green-600 dark:text-green-300" />
             <span className="text-sm font-medium">Active</span>
           </label>
         </div>

@@ -275,7 +275,7 @@ export function PageHeader({ title, subtitle, action }: PageHeaderProps) {
 const dtButtonVariants: Record<string, string> = {
   primary: 'bg-orange-500 hover:bg-orange-600 text-white',
   secondary: 'bg-gray-100 hover:bg-gray-200 text-gray-700',
-  danger: 'bg-red-500 hover:bg-red-600 text-white',
+  danger: 'bg-red-600 hover:bg-red-700 text-white',
   ghost: 'hover:bg-gray-100 text-gray-700',
 };
 

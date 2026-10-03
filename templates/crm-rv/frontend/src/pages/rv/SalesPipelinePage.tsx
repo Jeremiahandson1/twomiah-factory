@@ -174,7 +174,7 @@ export default function SalesPipelinePage() {
                       <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><Mail className="w-3 h-3" /> {row.contactEmail}</p>
                     )}
                     {row.lead.tradeInInfo && (
-                      <p className="text-xs text-amber-600">Trade-in: {row.lead.tradeInInfo}</p>
+                      <p className="text-xs text-amber-600 dark:text-amber-300">Trade-in: {row.lead.tradeInInfo}</p>
                     )}
                     <div className="flex items-center justify-between pt-1 border-t">
                       <span className="text-xs text-gray-500 dark:text-slate-400">{salespersonName(row)}</span>
@@ -184,7 +184,7 @@ export default function SalesPipelinePage() {
                       <button
                         type="button"
                         onClick={() => navigate(`/crm/desking?lead=${row.lead.id}`)}
-                        className="w-full flex items-center justify-center gap-1 text-xs text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 border border-orange-200 rounded px-2 py-1"
+                        className="w-full flex items-center justify-center gap-1 text-xs text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 border border-orange-200 rounded px-2 py-1 dark:text-orange-300"
                       >
                         <Calculator className="w-3 h-3" /> Deal Desk
                       </button>

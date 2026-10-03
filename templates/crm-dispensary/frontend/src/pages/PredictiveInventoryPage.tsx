@@ -259,7 +259,7 @@ export default function PredictiveInventoryPage() {
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{s.reorderQty ?? '—'}</td>
                       <td className="px-4 py-3">
                         {s.approved ? (
-                          <span className="text-xs text-green-600 flex items-center gap-1">
+                          <span className="text-xs text-green-600 flex items-center gap-1 dark:text-green-300">
                             <CheckCircle className="w-3 h-3" /> Approved
                           </span>
                         ) : s.dismissed ? (
@@ -267,7 +267,7 @@ export default function PredictiveInventoryPage() {
                             <XCircle className="w-3 h-3" /> Dismissed
                           </span>
                         ) : (
-                          <span className="text-xs text-yellow-600">Pending</span>
+                          <span className="text-xs text-yellow-600 dark:text-yellow-300">Pending</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -317,7 +317,7 @@ export default function PredictiveInventoryPage() {
               {/* Top Movers */}
               <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
                 <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
-                  <TrendingUp className="w-5 h-5 text-green-600" />
+                  <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-300" />
                   Top Movers
                 </h3>
                 <div className="space-y-3">
@@ -329,7 +329,7 @@ export default function PredictiveInventoryPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <TrendingUp className="w-3 h-3 text-green-500" />
-                        <span className="text-sm text-green-600 font-medium">
+                        <span className="text-sm text-green-600 font-medium dark:text-green-300">
                           {t.dailySales ? `${Number(t.dailySales).toFixed(1)}/day` : t.velocity || '—'}
                         </span>
                       </div>
@@ -356,7 +356,7 @@ export default function PredictiveInventoryPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <TrendingDown className="w-3 h-3 text-red-500" />
-                        <span className="text-sm text-red-600 font-medium">
+                        <span className="text-sm text-red-600 font-medium dark:text-red-400">
                           {t.dailySales ? `${Number(t.dailySales).toFixed(1)}/day` : t.velocity || '—'}
                         </span>
                       </div>

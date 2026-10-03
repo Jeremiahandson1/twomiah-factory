@@ -27,6 +27,9 @@ const EVENT_INVOICE_STATUS = 'open'
 // The event has left the book; its invoice is closed by closeEventInvoice and no longer follows the menu.
 export const EXIT_STATUSES = ['cancelled', 'lost']
 
+/** A sum a coordinator reads, grouped — see the note on money() in routes/events.ts. (T41) */
+const money = (n: number) => `${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
 export class LedgerError extends Error {
   constructor(message: string, public status: 400 | 404 | 409 = 400) { super(message) }
 }
@@ -206,7 +209,7 @@ export async function closeEventInvoice(tx: any, companyId: string, eventId: str
     return
   }
   if (!keepDeposit) {
-    throw new LedgerError(`$${kept.toFixed(2)} has been collected for this event. Keep it as a retained deposit, or refund it on invoice ${inv.number} first.`, 409)
+    throw new LedgerError(`${money(kept)} has been collected for this event. Keep it as a retained deposit, or refund it on invoice ${inv.number} first.`, 409)
   }
   const refunded = round2(Number(inv.amountRefunded || 0))
   const lines = [{ description: `Deposit retained — ${m.ev.name} cancelled`, quantity: 1, unitPrice: kept }]

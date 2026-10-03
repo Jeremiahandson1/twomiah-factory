@@ -52,12 +52,12 @@ export function TeamInvitesStep({ onBack, onNext }: { onBack: () => void; onNext
               <option value="user">User</option>
               <option value="admin">Admin</option>
             </select>
-            {invites.length > 1 && <button onClick={() => removeRow(i)} className="text-xs text-red-600">Remove</button>}
+            {invites.length > 1 && <button onClick={() => removeRow(i)} className="text-xs text-red-600 dark:text-red-400">Remove</button>}
           </div>
         ))}
       </div>
 
-      <button onClick={addRow} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 mb-6">+ Add another</button>
+      <button onClick={addRow} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 mb-6 dark:text-orange-300">+ Add another</button>
 
       <div className="flex justify-between">
         <button onClick={onBack} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm dark:text-slate-200">Back</button>

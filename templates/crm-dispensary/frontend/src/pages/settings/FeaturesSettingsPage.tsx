@@ -84,7 +84,7 @@ export default function FeaturesSettingsPage() {
       <h1 className="text-2xl font-bold mb-1">Features</h1>
       <p className="text-gray-500 mb-6 dark:text-slate-400">
         Every feature is included in your plan — switch on the ones you want. Changes apply to your whole team immediately.
-        {!isAdmin && <span className="block mt-1 text-amber-600 font-medium">Only admins can change features.</span>}
+        {!isAdmin && <span className="block mt-1 text-amber-600 font-medium dark:text-amber-300">Only admins can change features.</span>}
       </p>
 
       {categories.length === 0 && <div className="text-gray-500 dark:text-slate-400">No optional features are available for this product.</div>}
@@ -136,7 +136,7 @@ export default function FeaturesSettingsPage() {
             <span className="text-sm text-gray-600 dark:text-slate-400">{changedCount} unsaved {changedCount === 1 ? 'change' : 'changes'}</span>
             <div className="flex gap-3">
               <button onClick={() => setSelected(new Set(initial))} disabled={saving} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 dark:text-slate-400">Discard</button>
-              <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg">
+              <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-green-700 hover:bg-green-800 disabled:opacity-50 text-white text-sm font-semibold rounded-lg">
                 {saving ? 'Saving…' : 'Save changes'}
               </button>
             </div>

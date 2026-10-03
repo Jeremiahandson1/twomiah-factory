@@ -95,7 +95,7 @@ export function EmailDomainPage(): React.ReactElement {
                     ? 'All DNS records are valid. Outbound email sends as your domain.'
                     : 'Add the records below at your DNS host, then click Verify. DNS propagation usually takes 5–30 minutes.'}
                 </div>
-                {status.detail && <div className="text-xs text-gray-600 mt-2">{status.detail}</div>}
+                {status.detail && <div className="text-xs text-gray-600 mt-2 dark:text-slate-300">{status.detail}</div>}
               </div>
               <button onClick={verify} disabled={verifying} className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white rounded-md text-sm font-semibold whitespace-nowrap">
                 {verifying ? 'Verifying…' : 'Verify Now'}
@@ -124,18 +124,18 @@ export function EmailDomainPage(): React.ReactElement {
                       <td className="px-3 py-2 font-mono text-xs break-all">
                         <button onClick={() => copy('host-' + i, r.host)} className="text-left hover:text-orange-600 dark:hover:text-orange-200" title="Copy">
                           {r.host}
-                          {copiedKey === 'host-' + i && <span className="text-green-600 ml-1">✓</span>}
+                          {copiedKey === 'host-' + i && <span className="text-green-600 ml-1 dark:text-green-300">✓</span>}
                         </button>
                       </td>
                       <td className="px-3 py-2 font-mono text-xs break-all">
                         <button onClick={() => copy('data-' + i, r.data)} className="text-left hover:text-orange-600 dark:hover:text-orange-200" title="Copy">
                           {r.data}
-                          {copiedKey === 'data-' + i && <span className="text-green-600 ml-1">✓</span>}
+                          {copiedKey === 'data-' + i && <span className="text-green-600 ml-1 dark:text-green-300">✓</span>}
                         </button>
                       </td>
                       <td className="px-3 py-2">
-                        {r.valid === true ? <span className="text-green-600 font-semibold">✓</span>
-                          : r.valid === false ? <span className="text-red-600 font-semibold">✗</span>
+                        {r.valid === true ? <span className="text-green-600 font-semibold dark:text-green-300">✓</span>
+                          : r.valid === false ? <span className="text-red-600 font-semibold dark:text-red-400">✗</span>
                           : <span className="text-gray-500 dark:text-slate-400">—</span>}
                       </td>
                     </tr>

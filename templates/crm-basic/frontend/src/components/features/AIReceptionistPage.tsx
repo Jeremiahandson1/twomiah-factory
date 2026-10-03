@@ -63,7 +63,7 @@ function AutoReplyForm({ item, onSave, onClose }: any) {
       )}
       <Input label="Delay (minutes)" type="number" min="0" value={form.delayMinutes} onChange={(e: any) => setForm({ ...form, delayMinutes: parseInt(e.target.value) || 0 })} placeholder="0 = immediate" />
       <Textarea label="Auto-Reply Message" value={form.messageTemplate} onChange={(e: any) => setForm({ ...form, messageTemplate: e.target.value })} placeholder="Thanks for contacting {{company}}! We'll get back to you shortly..." rows={4} required />
-      <p className="text-xs text-slate-500">Use {'{{company}}'} for company name, {'{{name}}'} for caller name</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">Use {'{{company}}'} for company name, {'{{name}}'} for caller name</p>
       <label className="flex items-center gap-2 cursor-pointer">
         <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} className="w-4 h-4 rounded border-slate-600 bg-slate-800" />
         <span className="text-sm text-slate-300">Active</span>
@@ -199,7 +199,7 @@ export function AIReceptionistPage() {
                     <TableCell><span className="px-2 py-0.5 rounded text-xs" style={{ backgroundColor: `${primaryColor}20`, color: primaryColor }}>{rule.trigger?.replace('_', ' ')}</span></TableCell>
                     <TableCell className="text-slate-400">{rule.channel}</TableCell>
                     <TableCell className="text-slate-400 text-sm max-w-xs truncate">{(rule.messageTemplate || '').substring(0, 50)}...</TableCell>
-                    <TableCell>{rule.isActive ? <span className="text-emerald-400 text-sm">Active</span> : <span className="text-slate-500 text-sm">Inactive</span>}</TableCell>
+                    <TableCell>{rule.isActive ? <span className="text-emerald-400 text-sm">Active</span> : <span className="text-slate-500 text-sm dark:text-slate-400">Inactive</span>}</TableCell>
                     <TableCell><div className="flex gap-1">
                       <button onClick={() => toggleRuleActive(rule)} className={`p-1.5 hover:bg-slate-700 rounded ${rule.isActive ? 'text-emerald-400' : 'text-slate-500'}`}><Check className="w-4 h-4" /></button>
                       <button onClick={() => { setEditItem(rule); setShowForm(true); }} className="p-1.5 hover:bg-slate-700 rounded"><Edit2 className="w-4 h-4 text-slate-400" /></button>

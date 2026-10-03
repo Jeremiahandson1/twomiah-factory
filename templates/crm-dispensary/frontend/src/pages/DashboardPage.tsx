@@ -122,7 +122,7 @@ export default function DashboardPage() {
           cashSession?.status === 'open'
             ? 'bg-green-50 text-green-700 border border-green-200'
             : 'bg-gray-50 text-gray-600 border border-gray-200'
-        }`}>
+        } dark:text-green-300`}>
           <Banknote className="w-4 h-4" />
           {cashSession?.status === 'open' ? 'Cash Drawer Open' : 'Cash Drawer Closed'}
           <Link to="/crm/cash" className="ml-2 underline text-xs">

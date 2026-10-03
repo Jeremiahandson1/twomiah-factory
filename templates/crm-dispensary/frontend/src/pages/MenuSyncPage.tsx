@@ -217,7 +217,7 @@ export default function MenuSyncPage() {
                           Last sync: {conn.lastSync ? new Date(conn.lastSync).toLocaleString() : 'Never'}
                         </div>
                         {conn.autoSync && (
-                          <div className="flex items-center gap-1 text-green-600 mt-1">
+                          <div className="flex items-center gap-1 text-green-600 mt-1 dark:text-green-300">
                             <Zap className="w-3 h-3" />Auto-sync enabled
                           </div>
                         )}
@@ -303,9 +303,9 @@ export default function MenuSyncPage() {
                       <td className="px-4 py-3 text-sm">{log.productsSynced || 0}</td>
                       <td className="px-4 py-3 text-sm">
                         {log.errors > 0 ? (
-                          <span className="text-red-600 font-medium">{log.errors}</span>
+                          <span className="text-red-600 font-medium dark:text-red-400">{log.errors}</span>
                         ) : (
-                          <span className="text-green-600">0</span>
+                          <span className="text-green-600 dark:text-green-300">0</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{log.duration || '-'}</td>
@@ -360,7 +360,7 @@ export default function MenuSyncPage() {
                     <div className="p-4">
                       <div className="flex items-start justify-between mb-1">
                         <h3 className="font-semibold">{product.name}</h3>
-                        <span className="text-green-600 font-bold">${Number(product.price || 0).toFixed(2)}</span>
+                        <span className="text-green-600 font-bold dark:text-green-300">${Number(product.price || 0).toFixed(2)}</span>
                       </div>
                       <div className="flex gap-2 mb-2">
                         {product.category && (
@@ -373,7 +373,7 @@ export default function MenuSyncPage() {
                       {product.thc && <div className="text-xs text-gray-500 dark:text-slate-400">THC: {product.thc}%{product.cbd ? ` | CBD: ${product.cbd}%` : ''}</div>}
                       <div className="text-sm text-gray-500 mt-2 line-clamp-2 dark:text-slate-400">{product.description}</div>
                       {product.inStock === false && (
-                        <div className="text-xs text-red-600 font-medium mt-2 flex items-center gap-1">
+                        <div className="text-xs text-red-600 font-medium mt-2 flex items-center gap-1 dark:text-red-400">
                           <AlertTriangle className="w-3 h-3" />Out of Stock
                         </div>
                       )}
@@ -418,7 +418,7 @@ export default function MenuSyncPage() {
                   </div>
                   <input type="checkbox" checked={(configForm as any)[opt.key]}
                     onChange={e => setConfigForm({ ...configForm, [opt.key]: e.target.checked })}
-                    className="rounded text-green-600 w-4 h-4" />
+                    className="rounded text-green-600 w-4 h-4 dark:text-green-300" />
                 </label>
               ))}
             </div>

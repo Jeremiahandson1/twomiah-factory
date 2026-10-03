@@ -318,7 +318,7 @@ function JobCard({ job, onTap, onNavigate }: { job: Job; onTap: () => void; onNa
   return (
     <div className="bg-white px-4 py-4 active:bg-gray-50 transition-colors dark:bg-slate-900">
       <div className="flex items-start gap-3" onClick={onTap}>
-        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center dark:bg-blue-950/40">
           <TypeIcon className="w-5 h-5 text-blue-700 dark:text-blue-300" />
         </div>
         <div className="flex-1 min-w-0">
@@ -558,7 +558,7 @@ function JobDetailScreen({
             onClick={onChecklist}
             className="w-full flex items-center gap-3 bg-white rounded-xl p-4 shadow-sm active:bg-gray-50 border-l-4 border-l-purple-400 dark:bg-slate-900"
           >
-            <ClipboardList className="w-6 h-6 text-purple-600" />
+            <ClipboardList className="w-6 h-6 text-purple-600 dark:text-purple-300" />
             <div className="flex-1 text-left">
               <p className="font-semibold text-gray-900 dark:text-slate-100">HVAC Inspection Checklist</p>
               <p className="text-xs text-gray-500 mt-0.5 dark:text-slate-400">Refrigerant, coils, filter, thermostat, drain, electrical, airflow</p>
@@ -663,7 +663,7 @@ function JobDetailScreen({
             <button
               onClick={() => { onComplete(completionNotes); setShowCompleteConfirm(false); }}
               disabled={actionLoading}
-              className="w-full py-4 bg-green-600 text-white rounded-xl font-bold text-lg active:bg-green-700 disabled:opacity-50"
+              className="w-full py-4 bg-green-700 text-white rounded-xl font-bold text-lg active:bg-green-700 disabled:opacity-50"
             >
               {actionLoading ? 'Completing...' : 'Confirm Complete'}
             </button>
@@ -677,7 +677,7 @@ function JobDetailScreen({
           <button
             onClick={onMyWay}
             disabled={actionLoading}
-            className="w-full flex items-center justify-center gap-2 py-4 bg-yellow-500 text-white rounded-xl font-bold text-lg active:bg-yellow-600 disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 py-4 bg-yellow-700 text-white rounded-xl font-bold text-lg active:bg-yellow-700 disabled:opacity-50"
           >
             {actionLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Truck className="w-5 h-5" />}
             On My Way
@@ -697,14 +697,14 @@ function JobDetailScreen({
           <button
             onClick={() => setShowCompleteConfirm(true)}
             disabled={actionLoading}
-            className="w-full flex items-center justify-center gap-2 py-4 bg-green-600 text-white rounded-xl font-bold text-lg active:bg-green-700 disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 py-4 bg-green-700 text-white rounded-xl font-bold text-lg active:bg-green-700 disabled:opacity-50"
           >
             <CheckCircle className="w-5 h-5" />
             Complete Job
           </button>
         )}
         {job.status === 'completed' && (
-          <div className="text-center py-3 text-green-600 font-semibold flex items-center justify-center gap-2">
+          <div className="text-center py-3 text-green-600 font-semibold flex items-center justify-center gap-2 dark:text-green-300">
             <CheckCircle className="w-5 h-5" />
             Job Completed
           </div>
@@ -748,17 +748,17 @@ function ChecklistScreen({ job, onBack, onComplete }: { job: Job; onBack: () => 
   };
 
   const statusIcon = (status: string) => {
-    if (status === 'pass') return <CheckCircle className="w-6 h-6 text-green-600" />;
-    if (status === 'fail') return <X className="w-6 h-6 text-red-600" />;
-    return <AlertTriangle className="w-6 h-6 text-yellow-600" />;
+    if (status === 'pass') return <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-300" />;
+    if (status === 'fail') return <X className="w-6 h-6 text-red-600 dark:text-red-400" />;
+    return <AlertTriangle className="w-6 h-6 text-yellow-600 dark:text-yellow-300" />;
   };
 
   const statusButtonClass = (current: string, target: string) => {
     const base = 'flex-1 py-3 rounded-lg font-semibold text-sm transition-colors';
     if (current === target) {
-      if (target === 'pass') return `${base} bg-green-600 text-white`;
+      if (target === 'pass') return `${base} bg-green-700 text-white`;
       if (target === 'fail') return `${base} bg-red-600 text-white`;
-      return `${base} bg-yellow-500 text-white`;
+      return `${base} bg-yellow-700 text-white`;
     }
     return `${base} bg-gray-100 text-gray-600 active:bg-gray-200`;
   };
@@ -791,9 +791,9 @@ function ChecklistScreen({ job, onBack, onComplete }: { job: Job; onBack: () => 
 
       {/* Summary bar */}
       <div className="bg-white border-b px-4 py-2 flex items-center gap-4 text-xs font-semibold dark:bg-slate-900">
-        <span className="text-green-600">{items.filter(i => i.status === 'pass').length} Pass</span>
-        <span className="text-yellow-600">{attentionCount} Attention</span>
-        <span className="text-red-600">{failCount} Fail</span>
+        <span className="text-green-600 dark:text-green-300">{items.filter(i => i.status === 'pass').length} Pass</span>
+        <span className="text-yellow-600 dark:text-yellow-300">{attentionCount} Attention</span>
+        <span className="text-red-600 dark:text-red-400">{failCount} Fail</span>
       </div>
 
       {/* Checklist Items */}

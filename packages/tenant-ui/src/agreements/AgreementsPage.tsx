@@ -498,7 +498,7 @@ function AutopayToggle({ agreement, onChanged }: { agreement: Agreement; onChang
         <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${on ? 'translate-x-5' : 'translate-x-1'}`} />
       </button>
       {lastError && (
-        <p className="mt-1 text-[11px] text-red-600 max-w-[12rem]" title={lastError}>Last charge failed</p>
+        <p className="mt-1 text-[11px] text-red-600 max-w-[12rem] dark:text-red-400" title={lastError}>Last charge failed</p>
       )}
     </div>
   );
@@ -583,7 +583,7 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowPro
           {agreement.status === 'active' && mayUpdate && (
             <button
               onClick={onRenew}
-              className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+              className="p-1.5 text-green-600 hover:bg-green-50 rounded dark:text-green-300"
               title="Renew"
             >
               <RefreshCw className="w-4 h-4" />

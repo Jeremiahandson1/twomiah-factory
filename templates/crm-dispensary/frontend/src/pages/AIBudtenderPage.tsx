@@ -199,7 +199,7 @@ export default function AIBudtenderPage() {
                 type="checkbox"
                 checked={config.enabled}
                 onChange={(e) => setConfig({ ...config, enabled: e.target.checked })}
-                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
+                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
               />
               <span className={`text-sm font-medium ${config.enabled ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}`}>
                 {config.enabled ? 'Enabled' : 'Disabled'}
@@ -270,7 +270,7 @@ export default function AIBudtenderPage() {
                     type="checkbox"
                     checked={config.channels.includes(ch)}
                     onChange={() => toggleChannel(ch)}
-                    className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
+                    className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
                   />
                   <span className="text-sm text-gray-700 dark:text-slate-200">{ch.replace(/_/g, ' ')}</span>
                 </label>
@@ -405,8 +405,8 @@ export default function AIBudtenderPage() {
               {/* Greeting */}
               {demoMessages.length === 0 && config.greeting && (
                 <div className="flex gap-3">
-                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Bot className="w-4 h-4 text-green-600" />
+                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 dark:bg-green-950/40">
+                    <Bot className="w-4 h-4 text-green-600 dark:text-green-300" />
                   </div>
                   <div className="bg-white rounded-lg p-3 shadow-sm max-w-[80%] dark:bg-slate-900">
                     <p className="text-sm text-gray-900 dark:text-slate-100">{config.greeting}</p>
@@ -424,8 +424,8 @@ export default function AIBudtenderPage() {
                     </div>
                   ) : (
                     <div className="flex gap-3">
-                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <Bot className="w-4 h-4 text-green-600" />
+                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 dark:bg-green-950/40">
+                        <Bot className="w-4 h-4 text-green-600 dark:text-green-300" />
                       </div>
                       <div className="space-y-2 max-w-[80%]">
                         <div className="bg-white rounded-lg p-3 shadow-sm dark:bg-slate-900">
@@ -440,7 +440,7 @@ export default function AIBudtenderPage() {
                                   <div>
                                     <p className="font-medium text-gray-900 text-sm dark:text-slate-100">{rec.name || rec.productName}</p>
                                     <p className="text-xs text-gray-500 dark:text-slate-400">{rec.category || ''} {rec.thc ? `| THC: ${rec.thc}` : ''}</p>
-                                    {rec.price && <p className="text-sm font-semibold text-green-600 mt-1">${Number(rec.price).toFixed(2)}</p>}
+                                    {rec.price && <p className="text-sm font-semibold text-green-600 mt-1 dark:text-green-300">${Number(rec.price).toFixed(2)}</p>}
                                   </div>
                                   <button
                                     onClick={() => toast.success(`${rec.name || rec.productName} added to cart`)}
@@ -462,8 +462,8 @@ export default function AIBudtenderPage() {
 
               {demoLoading && (
                 <div className="flex gap-3">
-                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Bot className="w-4 h-4 text-green-600" />
+                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 dark:bg-green-950/40">
+                    <Bot className="w-4 h-4 text-green-600 dark:text-green-300" />
                   </div>
                   <div className="bg-white rounded-lg p-3 shadow-sm dark:bg-slate-900">
                     <div className="flex gap-1">
@@ -522,8 +522,8 @@ export default function AIBudtenderPage() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <MessageSquare className="w-5 h-5 text-blue-600" />
+                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center dark:bg-blue-950/40">
+                      <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-300" />
                     </div>
                     <div>
                       <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{analytics.totalSessions || 0}</p>
@@ -533,8 +533,8 @@ export default function AIBudtenderPage() {
                 </div>
                 <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                      <TrendingUp className="w-5 h-5 text-green-600" />
+                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center dark:bg-green-950/40">
+                      <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-300" />
                     </div>
                     <div>
                       <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{analytics.conversionRate || 0}%</p>
@@ -544,8 +544,8 @@ export default function AIBudtenderPage() {
                 </div>
                 <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
-                      <Star className="w-5 h-5 text-yellow-600" />
+                    <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center dark:bg-yellow-950/40">
+                      <Star className="w-5 h-5 text-yellow-600 dark:text-yellow-300" />
                     </div>
                     <div>
                       <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{Number(analytics.avgSatisfaction || 0).toFixed(1)}/5</p>

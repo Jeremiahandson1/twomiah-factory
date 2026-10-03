@@ -308,7 +308,7 @@ export default function GamifiedLoyaltyPage() {
                       {isManager && (
                         <button
                           onClick={() => openChallengeModal(challenge)}
-                          className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300"
+                          className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 dark:text-green-300"
                         >
                           Edit
                         </button>
@@ -473,7 +473,7 @@ export default function GamifiedLoyaltyPage() {
                   type="checkbox"
                   checked={challengeForm.active}
                   onChange={(e) => setChallengeForm({ ...challengeForm, active: e.target.checked })}
-                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
+                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
                 />
                 <span className="text-sm text-gray-700 dark:text-slate-200">Active</span>
               </label>
@@ -620,7 +620,7 @@ export default function GamifiedLoyaltyPage() {
                       {/* The server calls this bonusMultiplier. Reading `multiplier` meant every
                           card fell through to its "2x" placeholder — including the 1000x event the
                           report created. (T45 M14) */}
-                      <span className="text-4xl font-bold text-yellow-600">{Number(event.bonusMultiplier ?? event.multiplier ?? 1)}x</span>
+                      <span className="text-4xl font-bold text-yellow-600 dark:text-yellow-300">{Number(event.bonusMultiplier ?? event.multiplier ?? 1)}x</span>
                       <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Point Multiplier</p>
                     </div>
                     <div className="space-y-1 text-sm text-gray-600 dark:text-slate-400">
@@ -639,7 +639,7 @@ export default function GamifiedLoyaltyPage() {
                       <div className="mt-4 pt-3 border-t flex justify-end dark:border-slate-700">
                         <button
                           onClick={() => deleteEvent(event)}
-                          className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1 dark:hover:text-red-300"
+                          className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1 dark:hover:text-red-300 dark:text-red-400"
                         >
                           <Trash2 className="w-3 h-3" /> Delete
                         </button>
@@ -752,7 +752,7 @@ export default function GamifiedLoyaltyPage() {
                       <p className="font-medium text-gray-900 dark:text-slate-100">{m.name || `${m.firstName} ${m.lastName}`}</p>
                       <p className="text-sm text-gray-500 dark:text-slate-400">{m.phone || m.email || ''}</p>
                     </div>
-                    <span className="text-sm text-green-600">View Progress</span>
+                    <span className="text-sm text-green-600 dark:text-green-300">View Progress</span>
                   </button>
                 ))}
               </div>
@@ -765,8 +765,8 @@ export default function GamifiedLoyaltyPage() {
               <div className="bg-white rounded-lg shadow-sm p-5 mb-4 dark:bg-slate-900">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                      <Users className="w-5 h-5 text-green-600" />
+                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center dark:bg-green-950/40">
+                      <Users className="w-5 h-5 text-green-600 dark:text-green-300" />
                     </div>
                     <div>
                       <p className="font-semibold text-gray-900 dark:text-slate-100">{selectedMember.name || `${selectedMember.firstName} ${selectedMember.lastName}`}</p>

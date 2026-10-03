@@ -212,8 +212,8 @@ export default function ReportsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                <Briefcase className="w-5 h-5 text-blue-600" />
+              <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center dark:bg-blue-950/40">
+                <Briefcase className="w-5 h-5 text-blue-600 dark:text-blue-300" />
               </div>
               <span className="text-sm text-gray-500 dark:text-slate-400">Total Jobs</span>
             </div>
@@ -222,8 +222,8 @@ export default function ReportsPage() {
 
           <div className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-green-600" />
+              <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center dark:bg-green-950/40">
+                <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-300" />
               </div>
               <span className="text-sm text-gray-500 dark:text-slate-400">Close Rate</span>
             </div>
@@ -233,8 +233,8 @@ export default function ReportsPage() {
 
           <div className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
-                <DollarSign className="w-5 h-5 text-purple-600" />
+              <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center dark:bg-purple-950/40">
+                <DollarSign className="w-5 h-5 text-purple-600 dark:text-purple-300" />
               </div>
               <span className="text-sm text-gray-500 dark:text-slate-400">Avg Job Value</span>
             </div>
@@ -245,8 +245,8 @@ export default function ReportsPage() {
 
           <div className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center">
-                <BarChart3 className="w-5 h-5 text-orange-600" />
+              <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center dark:bg-orange-950/40">
+                <BarChart3 className="w-5 h-5 text-orange-600 dark:text-orange-300" />
               </div>
               {/* H3: this tile was labelled "Total Revenue" but is summed from job estimates — it is
                   what the pipeline is thought to be worth, not money that exists. Named for what it

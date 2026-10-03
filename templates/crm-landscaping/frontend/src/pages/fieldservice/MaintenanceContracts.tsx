@@ -251,7 +251,7 @@ export default function MaintenanceContracts() {
                         {contract.status === 'active' && (
                           <button
                             onClick={() => handleRenew(contract.id)}
-                            className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-500/10 rounded"
+                            className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-500/10 rounded dark:text-green-300"
                             title="Renew"
                           >
                             <RefreshCw className="w-4 h-4" />

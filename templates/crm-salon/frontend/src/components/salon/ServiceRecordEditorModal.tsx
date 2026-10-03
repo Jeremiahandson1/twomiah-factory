@@ -214,7 +214,7 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
         <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2">
-              <Scissors className="w-5 h-5 text-teal-600" /> {record?.id ? 'Edit Service Record' : 'New Service Record'}
+              <Scissors className="w-5 h-5 text-teal-600 dark:text-teal-300" /> {record?.id ? 'Edit Service Record' : 'New Service Record'}
             </h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
@@ -317,7 +317,7 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
 
             <div className="flex gap-3 pt-2">
               {record?.id && (
-                <button type="button" onClick={handleDelete} disabled={saving} className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50">Delete</button>
+                <button type="button" onClick={handleDelete} disabled={saving} className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 dark:text-red-400">Delete</button>
               )}
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">

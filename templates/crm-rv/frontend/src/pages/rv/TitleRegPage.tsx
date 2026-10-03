@@ -67,7 +67,7 @@ export default function TitleRegPage() {
         ? <div className="mt-4 bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 text-sm">{result.error}</div>
         : <div className="mt-4 bg-white rounded-xl border shadow-sm p-5 dark:bg-slate-900">
           <div className="flex items-center gap-2 mb-3 flex-wrap">
-            {accepted ? <CheckCircle2 className="text-green-600" /> : <AlertCircle className="text-amber-600" />}
+            {accepted ? <CheckCircle2 className="text-green-600 dark:text-green-300" /> : <AlertCircle className="text-amber-600 dark:text-amber-300" />}
             <span className="text-lg font-bold capitalize">{statusLabel}</span>
             {res?.refNumber && <span className="text-sm text-gray-500 dark:text-slate-400">· {res.refNumber}</span>}
             {res?.state && <span className="text-sm text-gray-500 dark:text-slate-400">· {res.state}</span>}

@@ -61,7 +61,7 @@ export default function DiscountsPage() {
         {loading ? <p className="text-gray-400 text-sm">Loading…</p> : codes.length === 0 ? <p className="text-gray-400 text-sm">No codes yet.</p> : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="text-left text-gray-500"><th className="py-2 pr-4">Code</th><th className="pr-4">Discount</th><th className="pr-4">Used</th><th className="pr-4">Min</th><th className="pr-4">Expires</th><th></th></tr></thead>
+              <thead><tr className="text-left text-gray-500 dark:text-slate-400"><th className="py-2 pr-4">Code</th><th className="pr-4">Discount</th><th className="pr-4">Used</th><th className="pr-4">Min</th><th className="pr-4">Expires</th><th></th></tr></thead>
               <tbody>
                 {codes.map((c) => (
                   <tr key={c.id} className="border-t">
@@ -71,8 +71,8 @@ export default function DiscountsPage() {
                     <td className="pr-4">{c.minSubtotalCents ? `$${centsToDollars(c.minSubtotalCents)}` : '—'}</td>
                     <td className="pr-4">{c.expiresAt ? new Date(c.expiresAt).toLocaleDateString() : '—'}</td>
                     <td className="text-right whitespace-nowrap">
-                      <button onClick={() => toggle(c)} className={`text-xs px-2 py-1 rounded ${c.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{c.active ? 'Active' : 'Inactive'}</button>
-                      <button onClick={() => del(c)} className="text-xs text-red-600 ml-2">Delete</button>
+                      <button onClick={() => toggle(c)} className={`text-xs px-2 py-1 rounded ${c.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{c.active ? 'Active' : 'Inactive'}</button>
+                      <button onClick={() => del(c)} className="text-xs text-red-600 ml-2 dark:text-red-400">Delete</button>
                     </td>
                   </tr>
                 ))}

@@ -282,7 +282,7 @@ export default function SettingsPage() {
             <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100"><MessageSquare className="w-4 h-4 text-gray-400" /> SMS &amp; AI Usage</h2>
             <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Enable texting &amp; AI and manage your at-cost usage wallet.</p>
           </div>
-          <button onClick={openSmsBilling} className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg whitespace-nowrap">Manage billing &rarr;</button>
+          <button onClick={openSmsBilling} className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg whitespace-nowrap">Manage billing &rarr;</button>
         </div>
 
         {/* Company Info */}
@@ -371,8 +371,8 @@ export default function SettingsPage() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                <CreditCard className="w-5 h-5 text-green-600" />
+              <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center dark:bg-green-950/40">
+                <CreditCard className="w-5 h-5 text-green-600 dark:text-green-300" />
               </div>
               <div>
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Billing</h2>
@@ -390,8 +390,8 @@ export default function SettingsPage() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                <SlidersHorizontal className="w-5 h-5 text-green-600" />
+              <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center dark:bg-green-950/40">
+                <SlidersHorizontal className="w-5 h-5 text-green-600 dark:text-green-300" />
               </div>
               <div>
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Features</h2>
@@ -409,8 +409,8 @@ export default function SettingsPage() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-                <Calculator className="w-5 h-5 text-purple-600" />
+              <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center dark:bg-purple-950/40">
+                <Calculator className="w-5 h-5 text-purple-600 dark:text-purple-300" />
               </div>
               <div>
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Instant Estimator Widget</h2>
@@ -428,8 +428,8 @@ export default function SettingsPage() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                <AtSign className="w-5 h-5 text-blue-600" />
+              <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center dark:bg-blue-950/40">
+                <AtSign className="w-5 h-5 text-blue-600 dark:text-blue-300" />
               </div>
               <div>
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Branded Email</h2>
@@ -447,8 +447,8 @@ export default function SettingsPage() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-sky-100 flex items-center justify-center">
-                <Globe className="w-5 h-5 text-sky-600" />
+              <div className="w-10 h-10 rounded-lg bg-sky-100 flex items-center justify-center dark:bg-sky-950/40">
+                <Globe className="w-5 h-5 text-sky-600 dark:text-sky-300" />
               </div>
               <div>
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Email Domain</h2>
@@ -466,8 +466,8 @@ export default function SettingsPage() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-                <Inbox className="w-5 h-5 text-indigo-600" />
+              <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center dark:bg-indigo-950/40">
+                <Inbox className="w-5 h-5 text-indigo-600 dark:text-indigo-300" />
               </div>
               <div>
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Email Inbox</h2>
@@ -482,7 +482,7 @@ export default function SettingsPage() {
         {hasQB && (
           <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
             <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
-              <Link2 className="w-4 h-4 text-green-600" /> QuickBooks Integration
+              <Link2 className="w-4 h-4 text-green-600 dark:text-green-300" /> QuickBooks Integration
             </h2>
             {qbStatus?.connected ? (
               <div className="space-y-3">
@@ -509,7 +509,7 @@ export default function SettingsPage() {
             ) : (
               <div className="space-y-3">
                 <p className="text-sm text-gray-500 dark:text-slate-400">Connect QuickBooks to automatically sync contacts and invoices.</p>
-                <button onClick={connectQB} className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">
+                <button onClick={connectQB} className="flex items-center gap-1.5 px-4 py-2 bg-green-700 text-white text-sm rounded-lg hover:bg-green-800">
                   <Link2 className="w-4 h-4" /> Connect QuickBooks
                 </button>
               </div>

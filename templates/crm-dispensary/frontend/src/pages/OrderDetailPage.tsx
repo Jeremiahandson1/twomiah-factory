@@ -281,7 +281,7 @@ export default function OrderDetailPage() {
           {isManager && order.completedAt && order.status !== 'refunded' && order.status !== 'cancelled' && (
             <button
               onClick={openRefund}
-              className="px-4 py-2 text-red-600 border border-red-200 rounded-lg hover:bg-red-50 font-medium flex items-center gap-2"
+              className="px-4 py-2 text-red-600 border border-red-200 rounded-lg hover:bg-red-50 font-medium flex items-center gap-2 dark:text-red-400"
             >
               <RotateCcw className="w-4 h-4" /> Refund
             </button>
@@ -292,7 +292,7 @@ export default function OrderDetailPage() {
           {isManager && !order.completedAt && order.status !== 'cancelled' && order.status !== 'refunded' && (
             <button
               onClick={() => { setVoidReason(''); setVoidOpen(true); }}
-              className="px-4 py-2 text-red-600 border border-red-200 rounded-lg hover:bg-red-50 font-medium flex items-center gap-2 dark:border-red-900/60 dark:hover:bg-red-950/40"
+              className="px-4 py-2 text-red-600 border border-red-200 rounded-lg hover:bg-red-50 font-medium flex items-center gap-2 dark:border-red-900/60 dark:hover:bg-red-950/40 dark:text-red-400"
             >
               <XCircle className="w-4 h-4" /> Void Order
             </button>
@@ -382,7 +382,7 @@ export default function OrderDetailPage() {
                     type="checkbox"
                     checked={idChecked}
                     onChange={e => setIdChecked(e.target.checked)}
-                    className="w-4 h-4 rounded text-green-600 focus:ring-green-500"
+                    className="w-4 h-4 rounded text-green-600 focus:ring-green-500 dark:text-green-300"
                   />
                   ID checked, 21+
                 </label>
@@ -472,14 +472,14 @@ export default function OrderDetailPage() {
               </tr>
               {Number(order.discountAmount || 0) > 0 && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-2 text-right text-sm text-green-600">Discount</td>
-                  <td className="px-4 py-2 text-right text-green-600">-${Number(order.discountAmount).toFixed(2)}</td>
+                  <td colSpan={3} className="px-4 py-2 text-right text-sm text-green-600 dark:text-green-300">Discount</td>
+                  <td className="px-4 py-2 text-right text-green-600 dark:text-green-300">-${Number(order.discountAmount).toFixed(2)}</td>
                 </tr>
               )}
               {order.loyaltyDiscount > 0 && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-2 text-right text-sm text-green-600">Loyalty Discount</td>
-                  <td className="px-4 py-2 text-right text-green-600">-${Number(order.loyaltyDiscount).toFixed(2)}</td>
+                  <td colSpan={3} className="px-4 py-2 text-right text-sm text-green-600 dark:text-green-300">Loyalty Discount</td>
+                  <td className="px-4 py-2 text-right text-green-600 dark:text-green-300">-${Number(order.loyaltyDiscount).toFixed(2)}</td>
                 </tr>
               )}
               <tr className="border-t-2">

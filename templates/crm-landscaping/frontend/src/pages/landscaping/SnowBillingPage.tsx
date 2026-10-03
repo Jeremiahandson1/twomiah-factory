@@ -230,7 +230,7 @@ export default function SnowBillingPage() {
                     <div className="text-xs text-gray-500 dark:text-slate-400">unbilled • {sm.events || 0} events</div>
                     {Number(sm.unbilledTotal || 0) > 0 && mayBill && (
                       <button onClick={(e) => { e.stopPropagation(); billContract(ct, Number(sm.unbilledTotal)); }} disabled={billing === ct.id}
-                        className="mt-1 mr-2 text-xs bg-green-600 text-white rounded px-2 py-1 disabled:opacity-50">
+                        className="mt-1 mr-2 text-xs bg-green-700 text-white rounded px-2 py-1 disabled:opacity-50">
                         {billing === ct.id ? 'Billing…' : `Bill $${Number(sm.unbilledTotal).toFixed(2)}`}
                       </button>
                     )}

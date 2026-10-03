@@ -217,8 +217,8 @@ export default function ReportsPage() {
   const SortIcon = ({ field }: { field: string }) => {
     if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-gray-400" />;
     return sortDir === 'asc'
-      ? <ChevronUp className="w-3 h-3 text-green-600" />
-      : <ChevronDown className="w-3 h-3 text-green-600" />;
+      ? <ChevronUp className="w-3 h-3 text-green-600 dark:text-green-300" />
+      : <ChevronDown className="w-3 h-3 text-green-600 dark:text-green-300" />;
   };
 
   const widgetTypeIcons: Record<string, any> = {
@@ -302,7 +302,7 @@ export default function ReportsPage() {
                   <div key={widget.id} className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden dark:bg-slate-900">
                     <div className="px-5 py-3 border-b flex items-center justify-between bg-gray-50 dark:bg-slate-900">
                       <div className="flex items-center gap-2">
-                        <Icon className="w-4 h-4 text-green-600" />
+                        <Icon className="w-4 h-4 text-green-600 dark:text-green-300" />
                         <h3 className="font-medium text-gray-900 text-sm dark:text-slate-100">{widget.title}</h3>
                       </div>
                       <button
@@ -618,7 +618,7 @@ export default function ReportsPage() {
                     dateRange === opt.value
                       ? 'bg-green-700 text-white'
                       : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-                  } dark:bg-slate-900`}
+                  } dark:bg-slate-900 dark:text-slate-300`}
                 >
                   {opt.label}
                 </button>

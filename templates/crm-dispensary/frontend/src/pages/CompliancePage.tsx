@@ -414,9 +414,9 @@ export default function CompliancePage() {
 
       {/* Expiring Licenses Alert */}
       {expiringLicenses.length > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 text-gray-900 dark:text-slate-100">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 text-gray-900 dark:text-slate-100 dark:bg-yellow-950/40">
           <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-5 h-5 text-yellow-600" />
+            <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-300" />
             <h3 className="font-semibold text-yellow-800 dark:text-yellow-300">Licenses Expiring Soon</h3>
           </div>
           <div className="space-y-1">
@@ -501,7 +501,7 @@ export default function CompliancePage() {
                         <button onClick={() => openEditLicense(license)} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 flex items-center gap-1 dark:text-slate-400">
                           <Edit className="w-3 h-3" /> Edit
                         </button>
-                        <button onClick={() => { setLicenseToDelete(license); setDeleteLicenseOpen(true); }} className="text-sm text-red-600 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1">
+                        <button onClick={() => { setLicenseToDelete(license); setDeleteLicenseOpen(true); }} className="text-sm text-red-600 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1 dark:text-red-400">
                           <Trash2 className="w-3 h-3" /> Delete
                         </button>
                       </div>
@@ -604,7 +604,7 @@ export default function CompliancePage() {
                           <FileText className="w-3 h-3" /> View
                         </button>
                         {report.status !== 'submitted' && (
-                          <button onClick={() => submitReport(report.id)} className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1">
+                          <button onClick={() => submitReport(report.id)} className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1 dark:text-green-300">
                             <Send className="w-3 h-3" /> Submit
                           </button>
                         )}
@@ -681,7 +681,7 @@ export default function CompliancePage() {
                           <button
                             onClick={() => reportWasteToMetrc(entry.id)}
                             disabled={reportingToMetrc === entry.id}
-                            className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1 disabled:opacity-50"
+                            className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1 disabled:opacity-50 dark:text-green-300"
                           >
                             <Send className="w-3 h-3" />
                             {reportingToMetrc === entry.id ? 'Reporting...' : 'Report to Metrc'}

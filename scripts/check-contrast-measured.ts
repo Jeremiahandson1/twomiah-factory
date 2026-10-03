@@ -290,5 +290,123 @@ for (const t of BRAND_TEXT) {
   if (checked === 0) fail('no template tailwind.config.js exposed generatePalette — this check silently measured nothing')
 }
 
+// ---------------------------------------------------------------- the BRAND scale, used AS INK
+//
+// The block above measures white ON the brand. This measures the brand AS INK on its own tints,
+// which is the other half and was missing: every status badge and chip in the fleet is
+// `bg-orange-100 text-orange-700` / `bg-orange-50 text-orange-700`, and those classes resolve to
+// brand shades. Live measurement, T41:
+//
+//   roofing/jobs    "insurance"            3.28:1
+//   events/spaces   "Exclusive use"        3.57:1
+//   contractor      "Expiring in 30 Days"  3.57:1
+//
+// Same cause as the white-text clamp — the shades fix LIGHTNESS, and at equal lightness a green is
+// far brighter than a navy, so a green/teal/yellow brand's 700 lands near 3.3:1 on its own 100
+// while a navy brand's clears easily. generatePalette now clamps it (readableAsInkOn). Run the
+// REAL generator over the whole hue circle, template by template, rather than a copied table.
+{
+  const hslHex = (h: number) => {
+    const s = 1, l = 0.5, a = s * Math.min(l, 1 - l)
+    const f = (n: number) => { const k = (n + h / 30) % 12; return l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1) }
+    return '#' + [f(0), f(8), f(4)].map((x) => Math.round(x * 255).toString(16).padStart(2, '0')).join('')
+  }
+  const PARKED = new Set(['crm-homecare', 'crm-automotive'])
+  let checked = 0
+  for (const t of readdirSync(ROOT + 'templates').sort()) {
+    const cfgPath = ROOT + 'templates/' + t + '/frontend/tailwind.config.js'
+    let src: string
+    try { src = readFileSync(cfgPath, 'utf8').replace(/\r/g, '') } catch { continue }
+    if (!/function generatePalette/.test(src)) continue
+    if (PARKED.has(t)) continue
+
+    let palette: ((hex: string) => Record<string, string>) | null = null
+    try {
+      const body = src.slice(0, src.search(/^(export default|module\.exports)/m))
+      palette = new Function(body + '; return generatePalette;')() as (hex: string) => Record<string, string>
+    } catch (e: any) { fail('could not load generatePalette from ' + cfgPath + ': ' + (e?.message || e)); continue }
+    checked++
+    let worst = { tint: '', hue: -1, r: Infinity }
+    for (let h = 0; h < 360; h++) {
+      const p = palette(hslHex(h))
+      for (const tint of ['50', '100']) {
+        const r = ratio(p['700'], p[tint])
+        if (r < worst.r) worst = { tint, hue: h, r }
+      }
+    }
+    if (worst.r < AA) {
+      fail(`${t}: brand ink on its own tint is ${worst.r.toFixed(2)}:1 at hue ${worst.hue} (shade 700 on ${worst.tint}) — generatePalette must keep 700 dark enough to clear ${AA}:1 against the 100 shade at EVERY hue, or every status chip in the product is unreadable for a green, teal or yellow tenant`)
+    }
+  }
+  if (checked === 0) fail('no template tailwind.config.js exposed generatePalette for the ink check — it silently measured nothing')
+}
+
+// ---------------------------------------------------------------- white text on a LITERAL hue
+//
+// The brand scale is clamped at generation. The literal Tailwind hues are not, and they carry white
+// text in a few hundred places. Live measurement, T41:
+//
+//   landscaping/locations  "New Location"   white on bg-sky-500     2.77:1
+//   contractor             "Mark approved"  white on bg-green-500   2.28:1
+//   fieldservice TechView  the pause button white on bg-yellow-500  1.93:1
+//
+// `orange`, `primary` and `brand` are skipped — those three ARE the brand palette, measured above.
+{
+  const WHITE_ON: Record<string, Record<string, string>> = {
+    red: { '400': '#f87171', '500': '#ef4444', '600': '#dc2626' },
+    green: { '400': '#4ade80', '500': '#22c55e', '600': '#16a34a' },
+    emerald: { '400': '#34d399', '500': '#10b981', '600': '#059669' },
+    teal: { '400': '#2dd4bf', '500': '#14b8a6', '600': '#0d9488' },
+    cyan: { '400': '#22d3ee', '500': '#06b6d4', '600': '#0891b2' },
+    sky: { '400': '#38bdf8', '500': '#0ea5e9', '600': '#0284c7' },
+    lime: { '400': '#a3e635', '500': '#84cc16', '600': '#65a30d' },
+    yellow: { '400': '#facc15', '500': '#eab308', '600': '#ca8a04' },
+    amber: { '400': '#fbbf24', '500': '#f59e0b', '600': '#d97706' },
+    blue: { '400': '#60a5fa', '500': '#3b82f6', '600': '#2563eb' },
+    indigo: { '400': '#818cf8', '500': '#6366f1' },
+    violet: { '400': '#a78bfa', '500': '#8b5cf6' },
+    purple: { '400': '#c084fc', '500': '#a855f7' },
+    pink: { '400': '#f472b6', '500': '#ec4899' },
+    rose: { '400': '#fb7185', '500': '#f43f5e' },
+  }
+  const PARKED = new Set(['crm-homecare', 'crm-automotive'])
+  const walk = (dir: string, out: string[] = []): string[] => {
+    let entries: string[]
+    try { entries = readdirSync(dir, { withFileTypes: true }).map((d: any) => (d.isDirectory() ? d.name + '/' : d.name)) } catch { return out }
+    for (const n of entries) {
+      if (n.endsWith('/')) {
+        const name = n.slice(0, -1)
+        if (['node_modules', 'dist', 'shared', '.git'].includes(name)) continue
+        walk(dir + '/' + name, out)
+      } else if (n.endsWith('.tsx')) out.push(dir + '/' + n)
+    }
+    return out
+  }
+  const files: string[] = []
+  for (const t of readdirSync(ROOT + 'templates')) {
+    if (!/^crm(-|$)/.test(t) || PARKED.has(t)) continue
+    walk(ROOT + 'templates/' + t + '/frontend/src', files)
+  }
+  walk(ROOT + 'packages/tenant-ui/src', files)
+
+  let offenders = 0
+  for (const f of files) {
+    const lines = readFileSync(f, 'utf8').replace(/\r\n/g, '\n').split('\n')
+    lines.forEach((line, i) => {
+      if (/^\s*(\/\/|\*|\/\*)/.test(line)) return
+      if (!/\btext-white\b/.test(line)) return
+      for (const m of line.matchAll(/\bbg-([a-z]+)-(400|500|600)\b/g)) {
+        const table = WHITE_ON[m[1]]
+        if (!table || !table[m[2]]) continue
+        const r = ratio('#ffffff', table[m[2]])
+        if (r >= AA) continue
+        offenders++
+        fail(`${f.slice(ROOT.length)}:${i + 1} white text on bg-${m[1]}-${m[2]} is ${r.toFixed(2)}:1 — needs ${AA}:1. Darken the ground (bg-${m[1]}-700 clears it for every hue in this table) rather than keeping a button nobody can read`)
+      }
+    })
+  }
+  if (!offenders) console.log(`  white-on-light: ${files.length} screens carry no literal light ground under white text`)
+}
+
 if (failed) { console.error(`\ncontrast measured: ${failed} pair(s) below ${AA}:1`); process.exit(1) }
 console.log(`contrast measured: brand text on shades ${safeLight[0]}/${safeDark[0]} (the only pair safe for every hue); every chip (${platformColours.size} platform colours x 2 themes) and every coloured banner clears ${AA}:1`)

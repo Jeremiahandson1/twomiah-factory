@@ -32,7 +32,7 @@ export function TrialBanner({ company }: { company: any }) {
             <p className="text-xs">Upgrade now to keep uninterrupted access. Your data stays safe either way.</p>
           </div>
         </div>
-        <NavLink to="/crm/settings/billing" className={`px-4 py-2 rounded-lg text-sm font-semibold flex-shrink-0 text-white ${urgent ? 'bg-red-600 hover:bg-red-700' : 'bg-yellow-600 hover:bg-yellow-700'}`}>Upgrade</NavLink>
+        <NavLink to="/crm/settings/billing" className={`px-4 py-2 rounded-lg text-sm font-semibold flex-shrink-0 text-white ${urgent ? 'bg-red-600 hover:bg-red-700' : 'bg-yellow-700 hover:bg-yellow-800'}`}>Upgrade</NavLink>
       </div>
     </div>
   )

@@ -25,7 +25,7 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
   useEffect(() => { load() }, [load])
 
   if (loading) return <div className="p-8 text-gray-500 dark:text-slate-400">Loading…</div>
-  if (error || !quote) return <div className="p-8 text-center"><p className="text-red-600 mb-3">{error || 'Quote not found'}</p><Button variant="secondary" onClick={load}>Retry</Button></div>
+  if (error || !quote) return <div className="p-8 text-center"><p className="text-red-600 mb-3 dark:text-red-400">{error || 'Quote not found'}</p><Button variant="secondary" onClick={load}>Retry</Button></div>
 
   const act = async (path: string, ok: string) => { setBusy(true); try { const r = await api.post(path, {}); toast.success(ok); await load(); return r } catch (e) { toast.error(errMsg(e, 'That did not work')) } finally { setBusy(false) } }
   const handleDelete = async () => { try { await api.delete('/api/quotes', id); toast.success('Quote deleted'); navigate('/crm/quotes') } catch (e) { toast.error(errMsg(e, 'Could not delete')) } }

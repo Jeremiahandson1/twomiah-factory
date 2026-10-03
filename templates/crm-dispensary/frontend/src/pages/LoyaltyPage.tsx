@@ -326,7 +326,7 @@ export default function LoyaltyPage() {
                 type="checkbox" disabled={!isAdmin}
                 checked={config.isEnabled}
                 onChange={(e) => setConfig({ ...config, isEnabled: e.target.checked })}
-                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
+                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
               />
               <span className="font-medium text-gray-900 dark:text-slate-100">Enable Loyalty Program</span>
             </label>
@@ -429,7 +429,7 @@ export default function LoyaltyPage() {
               <div key={reward.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <Gift className="w-5 h-5 text-green-600" />
+                    <Gift className="w-5 h-5 text-green-600 dark:text-green-300" />
                     <h3 className="font-semibold text-gray-900 dark:text-slate-100">{reward.name}</h3>
                   </div>
                   <span className={`px-2 py-0.5 text-xs rounded-full ${reward.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
@@ -447,7 +447,7 @@ export default function LoyaltyPage() {
                   <button onClick={() => openEditReward(reward)} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 flex items-center gap-1 dark:text-slate-400">
                     <Edit className="w-3 h-3" /> Edit
                   </button>
-                  <button onClick={() => { setRewardToDelete(reward); setDeleteRewardOpen(true); }} className="text-sm text-red-600 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1">
+                  <button onClick={() => { setRewardToDelete(reward); setDeleteRewardOpen(true); }} className="text-sm text-red-600 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1 dark:text-red-400">
                     <Trash2 className="w-3 h-3" /> Delete
                   </button>
                 </div>
@@ -517,7 +517,7 @@ export default function LoyaltyPage() {
                             checked={!!member.optedInSms}
                             disabled={savingConsent === `${member.id}:optedInSms`}
                             onChange={(e) => setConsent(member, 'optedInSms', e.target.checked)}
-                            className="rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50 dark:border-slate-600"
+                            className="rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50 dark:border-slate-600 dark:text-green-300"
                             aria-label={`Text ${member.customerName || 'this customer'}`}
                           />
                           Texts
@@ -528,7 +528,7 @@ export default function LoyaltyPage() {
                             checked={!!member.optedInEmail}
                             disabled={savingConsent === `${member.id}:optedInEmail`}
                             onChange={(e) => setConsent(member, 'optedInEmail', e.target.checked)}
-                            className="rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50 dark:border-slate-600"
+                            className="rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50 dark:border-slate-600 dark:text-green-300"
                             aria-label={`Email ${member.customerName || 'this customer'}`}
                           />
                           Email
@@ -619,7 +619,7 @@ export default function LoyaltyPage() {
               type="checkbox"
               checked={rewardForm.isActive}
               onChange={(e) => setRewardForm({ ...rewardForm, isActive: e.target.checked })}
-              className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
+              className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
             />
             <span className="text-sm text-gray-700 dark:text-slate-200">Active</span>
           </label>

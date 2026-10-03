@@ -254,7 +254,7 @@ export default function CanvassingDashboard() {
             <p className="text-sm text-gray-500 dark:text-slate-400">Answered</p>
           </div>
           <div className="bg-white rounded-xl p-4 border dark:bg-slate-900">
-            <p className="text-2xl font-bold text-green-600">{s.leadsCreated || 0}</p>
+            <p className="text-2xl font-bold text-green-600 dark:text-green-300">{s.leadsCreated || 0}</p>
             <p className="text-sm text-gray-500 dark:text-slate-400">Leads Created</p>
           </div>
           <div className="bg-white rounded-xl p-4 border dark:bg-slate-900">
@@ -358,7 +358,7 @@ export default function CanvassingDashboard() {
                     </td>
                     <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{formatDate(s.startedAt || s.createdAt)}</td>
                     <td className="px-4 py-3">{s.totalDoors || 0}</td>
-                    <td className="px-4 py-3 font-semibold text-green-600">{s.leadsCreated || 0}</td>
+                    <td className="px-4 py-3 font-semibold text-green-600 dark:text-green-300">{s.leadsCreated || 0}</td>
                     <td className="px-4 py-3">
                       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
                         s.status === 'active' ? 'bg-green-100 text-green-700' :
@@ -399,7 +399,7 @@ export default function CanvassingDashboard() {
                       <span className="text-sm font-medium truncate">{rep.name}</span>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold text-green-600">{rep.leads} leads</p>
+                      <p className="text-sm font-bold text-green-600 dark:text-green-300">{rep.leads} leads</p>
                       <p className="text-[10px] text-gray-500 dark:text-slate-400">{rep.doors} doors</p>
                     </div>
                   </div>

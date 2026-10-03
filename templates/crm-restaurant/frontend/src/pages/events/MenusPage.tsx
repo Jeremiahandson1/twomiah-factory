@@ -80,7 +80,7 @@ export default function MenusPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-            <UtensilsCrossed className="w-6 h-6 text-orange-600" /> Catering Menus
+            <UtensilsCrossed className="w-6 h-6 text-orange-600 dark:text-orange-300" /> Catering Menus
           </h1>
           <p className="text-gray-500 dark:text-slate-400">Packages priced per head, with their courses and minimums</p>
         </div>
@@ -271,7 +271,7 @@ function PackageModal({ pkg, onSave, onClose }: { pkg: Package | null; onSave: (
                 <button
                   type="button"
                   onClick={() => setCourses((rows) => [...rows, { course: '', options: '' }])}
-                  className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 dark:hover:text-orange-200"
+                  className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300"
                 >
                   <Plus className="w-3 h-3" /> Add course
                 </button>

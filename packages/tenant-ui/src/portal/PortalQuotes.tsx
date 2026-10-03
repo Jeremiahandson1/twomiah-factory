@@ -6,7 +6,7 @@ import { usePortal } from './PortalContext'
 import { SignatureModal, SignatureDisplay, type SignatureData } from './SignaturePad'
 import { PLink, Spinner, PageTitle, Empty, Section, card, pill, btnSuccess, btnSecondary, formatDate, moneyShort, PortalModal, inputCls, labelCls } from './common'
 
-const STATUS_STYLES: Record<string, string> = { sent: 'bg-blue-100 text-blue-700', viewed: 'bg-yellow-100 text-yellow-700', approved: 'bg-green-100 text-green-700', rejected: 'bg-red-100 text-red-700', declined: 'bg-red-100 text-red-700', expired: 'bg-gray-100 text-gray-500' }
+const STATUS_STYLES: Record<string, string> = { sent: 'bg-blue-100 text-blue-700', viewed: 'bg-yellow-100 text-yellow-700', approved: 'bg-green-100 text-green-700', rejected: 'bg-red-100 text-red-700', declined: 'bg-red-100 text-red-700', expired: 'bg-gray-100 text-gray-600' }
 const RESPONDABLE = ['sent', 'viewed']
 
 export interface PortalQuoteData {
@@ -34,7 +34,7 @@ export function PortalQuotes() {
   return (
     <div>
       <PageTitle title="Quotes" subtitle={`Review and approve quotes from your ${config.providerNoun}.`} />
-      {error && <p role="alert" className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {quotes.length === 0 ? <Empty icon={FileText} text="No quotes yet." /> : (
         <div className="space-y-6">
           {pending.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500" /> Awaiting Your Response ({pending.length})</>}>{pending.map((q) => <QuoteCard key={q.id} quote={q} token={token} highlight />)}</Section>}
@@ -50,7 +50,7 @@ function QuoteCard({ quote, token, highlight }: { quote: PortalQuoteData; token?
     <PLink to={`/portal/${token}/quotes/${quote.id}`} className={`block bg-white rounded-xl border p-4 hover:shadow-md transition-all dark:bg-slate-900 ${highlight ? 'border-orange-300 ring-2 ring-orange-100 dark:ring-orange-900/40' : 'border-gray-200 dark:border-slate-700'}`}>
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="p-2 bg-blue-100 rounded-lg shrink-0"><FileText className="w-5 h-5 text-blue-600" /></div>
+          <div className="p-2 bg-blue-100 rounded-lg shrink-0 dark:bg-blue-950/40"><FileText className="w-5 h-5 text-blue-600 dark:text-blue-300" /></div>
           <div className="min-w-0"><p className="font-medium text-gray-900 truncate dark:text-slate-100">{quote.name || quote.number}</p><p className="text-sm text-gray-500 dark:text-slate-400">{quote.number}</p></div>
         </div>
         <div className="text-right shrink-0"><p className="text-lg font-bold text-gray-900 dark:text-slate-100">{moneyShort(quote.total)}</p><span className={pill(STATUS_STYLES[quote.status] || 'bg-gray-100 text-gray-700')}>{quote.status}</span></div>
@@ -95,10 +95,10 @@ export function PortalQuoteDetail() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <PLink to={`/portal/${token}/quotes`} className="text-orange-600 hover:underline text-sm">{'<-'} Back to Quotes</PLink>
+        <PLink to={`/portal/${token}/quotes`} className="text-orange-600 hover:underline text-sm dark:text-orange-300">{'<-'} Back to Quotes</PLink>
         <a href={url(`/quotes/${quoteId}/pdf`)} target="_blank" rel="noreferrer" className={btnSecondary}><Download className="w-4 h-4" /> Download PDF</a>
       </div>
-      {error && <p role="alert" className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       <div className={`${card} overflow-hidden`}>
         <div className="p-6 border-b dark:border-slate-700">
           <div className="flex items-start justify-between gap-4">
@@ -134,7 +134,7 @@ export function PortalQuoteDetail() {
         {quote.status === 'approved' && (
           <div className="p-6 bg-green-50 border-t dark:bg-green-950/20 dark:border-slate-700">
             <div className="flex items-start gap-4">
-              <CheckCircle className="w-6 h-6 text-green-600 shrink-0 mt-1" />
+              <CheckCircle className="w-6 h-6 text-green-600 shrink-0 mt-1 dark:text-green-300" />
               <div className="flex-1"><p className="font-medium text-green-800 dark:text-green-300">Quote approved{quote.approvedAt ? ` on ${formatDate(quote.approvedAt)}` : ''}</p>{quote.signature && <SignatureDisplay className="mt-3" signature={quote.signature} signedBy={(quote.signedBy || quote.approvedBy) ?? undefined} signedAt={quote.approvedAt ?? undefined} />}</div>
             </div>
           </div>

@@ -90,7 +90,7 @@ export default function RecurringRoutesPage() {
           <h1 className="text-2xl font-bold flex items-center gap-2"><MapPin className="w-6 h-6" /> Recurring Route Board</h1>
           <p className="text-gray-500 text-sm dark:text-slate-400">Weekly mow routes grouped by day. Build a route, add property stops in visit order.</p>
         </div>
-        {mayCreateRoute && <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 bg-green-600 text-white rounded-lg px-4 py-2 text-sm"><Plus className="w-4 h-4" /> New Route</button>}
+        {mayCreateRoute && <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 bg-green-700 text-white rounded-lg px-4 py-2 text-sm"><Plus className="w-4 h-4" /> New Route</button>}
       </div>
 
       {showForm && (
@@ -100,7 +100,7 @@ export default function RecurringRoutesPage() {
             {DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
           </select>
           <input className="border rounded px-2 py-1.5 text-sm" type="number" placeholder="Est. hours" value={form.estimatedHours} onChange={e => setForm({ ...form, estimatedHours: e.target.value })} />
-          <button onClick={createRoute} className="bg-green-600 text-white rounded px-3 py-1.5 text-sm">Create</button>
+          <button onClick={createRoute} className="bg-green-700 text-white rounded px-3 py-1.5 text-sm">Create</button>
         </div>
       )}
 
@@ -131,7 +131,7 @@ export default function RecurringRoutesPage() {
               <h2 className="font-semibold">{detail.name} <span className="text-sm text-gray-500 dark:text-slate-400">· {detail.dayName}</span></h2>
               <p className="text-xs text-gray-500 dark:text-slate-400">{detail.stops?.length || 0} stops</p>
             </div>
-            {mayDeleteRoute && <button onClick={() => deleteRoute(detail.id)} className="text-red-600 flex items-center gap-1 text-sm"><Trash2 className="w-4 h-4" /> Delete route</button>}
+            {mayDeleteRoute && <button onClick={() => deleteRoute(detail.id)} className="text-red-600 flex items-center gap-1 text-sm dark:text-red-400"><Trash2 className="w-4 h-4" /> Delete route</button>}
           </div>
 
           <div className="space-y-1 mb-4">
@@ -152,7 +152,7 @@ export default function RecurringRoutesPage() {
             <input className="border rounded px-2 py-1.5 text-sm" placeholder="Service" value={stopForm.serviceType} onChange={e => setStopForm({ ...stopForm, serviceType: e.target.value })} />
             <input className="border rounded px-2 py-1.5 text-sm" type="number" placeholder="Minutes" value={stopForm.estimatedMinutes} onChange={e => setStopForm({ ...stopForm, estimatedMinutes: e.target.value })} />
             <input className="border rounded px-2 py-1.5 text-sm" type="number" placeholder="Price/visit" value={stopForm.pricePerVisit} onChange={e => setStopForm({ ...stopForm, pricePerVisit: e.target.value })} />
-            <button onClick={addStop} className="bg-green-600 text-white rounded px-3 py-1.5 text-sm">Add Stop</button>
+            <button onClick={addStop} className="bg-green-700 text-white rounded px-3 py-1.5 text-sm">Add Stop</button>
           </div>
         </div>
       )}

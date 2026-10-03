@@ -264,7 +264,7 @@ export default function AnalyticsPage() {
         {/* Revenue Chart */}
         <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
-            <BarChart3 className="w-5 h-5 text-green-600" />
+            <BarChart3 className="w-5 h-5 text-green-600 dark:text-green-300" />
             Revenue Over Time
           </h2>
           <div className="space-y-2">
@@ -297,7 +297,7 @@ export default function AnalyticsPage() {
         {/* Product Mix */}
         <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
-            <Package className="w-5 h-5 text-purple-600" />
+            <Package className="w-5 h-5 text-purple-600 dark:text-purple-300" />
             Product Mix
           </h2>
           {/* Said plainly, because it can never equal the revenue tile above it and a reader with no
@@ -335,7 +335,7 @@ export default function AnalyticsPage() {
         {/* Peak Hours */}
         <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
-            <Clock className="w-5 h-5 text-blue-600" />
+            <Clock className="w-5 h-5 text-blue-600 dark:text-blue-300" />
             Peak Hours
           </h2>
           <div className="flex items-end gap-1 h-40">
@@ -363,7 +363,7 @@ export default function AnalyticsPage() {
         {/* Customer Metrics */}
         <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
-            <Users className="w-5 h-5 text-amber-600" />
+            <Users className="w-5 h-5 text-amber-600 dark:text-amber-300" />
             Customer Insights
           </h2>
           <div className="grid grid-cols-2 gap-4">

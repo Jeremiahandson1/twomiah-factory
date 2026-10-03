@@ -410,7 +410,7 @@ export default function CanvassingView() {
               <p className="text-xs text-gray-500 dark:text-slate-400">Answered</p>
             </div>
             <div className="bg-white rounded-xl p-4 border dark:bg-slate-900">
-              <p className="text-2xl font-bold text-green-600">{s.leadsCreated || 0}</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-300">{s.leadsCreated || 0}</p>
               <p className="text-xs text-gray-500 dark:text-slate-400">Leads Created</p>
             </div>
             <div className="bg-white rounded-xl p-4 border dark:bg-slate-900">
@@ -428,11 +428,11 @@ export default function CanvassingView() {
             <div>
               <h3 className="text-sm font-semibold text-green-700 mb-2 dark:text-green-300">Appointments ({appointments.length})</h3>
               {appointments.map((st: Stop) => (
-                <div key={st.id} className="bg-green-50 border border-green-200 rounded-lg p-3 mb-2 text-gray-900 dark:text-slate-100">
+                <div key={st.id} className="bg-green-50 border border-green-200 rounded-lg p-3 mb-2 text-gray-900 dark:text-slate-100 dark:bg-green-950/40">
                   <p className="text-sm font-medium">{st.address}</p>
                   {st.notes && <p className="text-xs text-gray-600 mt-1 dark:text-slate-400">{st.notes}</p>}
                   {st.jobId && (
-                    <button onClick={() => navigate(`/crm/jobs/${st.jobId}`)} className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                    <button onClick={() => navigate(`/crm/jobs/${st.jobId}`)} className="text-xs text-blue-600 mt-1 flex items-center gap-1 dark:text-blue-300">
                       View in CRM <ArrowRight size={12} />
                     </button>
                   )}
@@ -445,10 +445,10 @@ export default function CanvassingView() {
             <div>
               <h3 className="text-sm font-semibold text-yellow-700 mb-2 dark:text-yellow-300">Interested ({interested.length})</h3>
               {interested.map((st: Stop) => (
-                <div key={st.id} className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-2 text-gray-900 dark:text-slate-100">
+                <div key={st.id} className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-2 text-gray-900 dark:text-slate-100 dark:bg-yellow-950/40">
                   <p className="text-sm font-medium">{st.address}</p>
                   {st.jobId && (
-                    <button onClick={() => navigate(`/crm/jobs/${st.jobId}`)} className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                    <button onClick={() => navigate(`/crm/jobs/${st.jobId}`)} className="text-xs text-blue-600 mt-1 flex items-center gap-1 dark:text-blue-300">
                       View lead <ArrowRight size={12} />
                     </button>
                   )}
@@ -461,7 +461,7 @@ export default function CanvassingView() {
             <div>
               <h3 className="text-sm font-semibold text-blue-700 mb-2 dark:text-blue-300">Follow-Ups ({followUps.length})</h3>
               {followUps.map((st: Stop) => (
-                <div key={st.id} className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2 text-gray-900 dark:text-slate-100">
+                <div key={st.id} className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2 text-gray-900 dark:text-slate-100 dark:bg-blue-950/40">
                   <p className="text-sm font-medium">{st.address}</p>
                   <p className="text-xs text-gray-600 dark:text-slate-400">Follow up: {formatDate(st.followUpDate)}</p>
                 </div>
@@ -513,7 +513,7 @@ export default function CanvassingView() {
                   <div className="flex items-center gap-4 mt-1 text-xs text-gray-500 dark:text-slate-400">
                     <span>{formatDate(s.startedAt || s.createdAt)}</span>
                     <span>{s.totalDoors || 0} doors</span>
-                    <span className="text-green-600 font-medium">{s.leadsCreated || 0} leads</span>
+                    <span className="text-green-600 font-medium dark:text-green-300">{s.leadsCreated || 0} leads</span>
                   </div>
                   {s.weatherEvent && (
                     <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 flex items-center gap-1">
@@ -599,7 +599,7 @@ export default function CanvassingView() {
           <p className="text-[10px] text-gray-500 dark:text-slate-400">Answered</p>
         </div>
         <div className="flex-1 text-center">
-          <p className="text-lg font-bold text-green-600">{activeSession.leadsCreated || 0}</p>
+          <p className="text-lg font-bold text-green-600 dark:text-green-300">{activeSession.leadsCreated || 0}</p>
           <p className="text-[10px] text-gray-500 dark:text-slate-400">Leads</p>
         </div>
       </div>
@@ -644,7 +644,7 @@ export default function CanvassingView() {
                     <h3 className="text-lg font-bold mb-3">{step.title}</h3>
                     <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap dark:text-slate-200">{step.body}</p>
                     {step.tips && (
-                      <div className="mt-4 bg-yellow-50 rounded-lg p-3">
+                      <div className="mt-4 bg-yellow-50 rounded-lg p-3 dark:bg-yellow-950/40">
                         <p className="text-xs font-semibold text-yellow-800 mb-1 dark:text-yellow-300">Tips</p>
                         <p className="text-xs text-yellow-700 dark:text-yellow-300">{step.tips}</p>
                       </div>
@@ -736,16 +736,16 @@ export default function CanvassingView() {
                 <h3 className="text-lg font-bold">Where are you?</h3>
 
                 {logGpsStatus === 'loading' && (
-                  <div className="bg-blue-50 rounded-xl p-4 flex items-center gap-3">
+                  <div className="bg-blue-50 rounded-xl p-4 flex items-center gap-3 dark:bg-blue-950/40">
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600" />
                     <p className="text-sm text-blue-700 dark:text-blue-300">Getting your location...</p>
                   </div>
                 )}
 
                 {logGpsStatus === 'success' && logAddress && (
-                  <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-4 dark:bg-green-950/40">
                     <div className="flex items-center gap-2 mb-1">
-                      <Navigation size={16} className="text-green-600" />
+                      <Navigation size={16} className="text-green-600 dark:text-green-300" />
                       <p className="text-sm font-medium text-green-800 dark:text-green-300">GPS Location Found</p>
                     </div>
                     <p className="text-sm text-gray-700 dark:text-slate-200">{logAddress}{logCity ? `, ${logCity}` : ''}{logState ? `, ${logState}` : ''} {logZip}</p>
@@ -753,7 +753,7 @@ export default function CanvassingView() {
                 )}
 
                 {logGpsStatus === 'denied' && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 dark:bg-yellow-950/40">
                     <p className="text-sm text-yellow-800 dark:text-yellow-300">GPS unavailable — enter address manually</p>
                   </div>
                 )}
@@ -783,7 +783,7 @@ export default function CanvassingView() {
 
                 {logGpsStatus !== 'success' && (
                   <button onClick={requestGps}
-                    className="w-full py-2.5 border border-blue-200 rounded-lg text-sm text-blue-600 font-medium flex items-center justify-center gap-2">
+                    className="w-full py-2.5 border border-blue-200 rounded-lg text-sm text-blue-600 font-medium flex items-center justify-center gap-2 dark:text-blue-300">
                     <Navigation size={16} /> Use GPS Location
                   </button>
                 )}
@@ -810,7 +810,7 @@ export default function CanvassingView() {
                       <div key={i} className="relative">
                         <img src={photo} alt={`Photo ${i + 1}`} className="w-full h-20 object-cover rounded-lg" />
                         <button onClick={() => setLogPhotos((prev) => prev.filter((_, j) => j !== i))}
-                          className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs">
+                          className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 text-white rounded-full flex items-center justify-center text-xs">
                           <X size={10} />
                         </button>
                       </div>
@@ -959,7 +959,7 @@ export default function CanvassingView() {
                 </div>
 
                 {(logOutcome === 'interested' || logOutcome === 'appointment_set') && logPhone && (
-                  <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-3 dark:bg-green-950/40">
                     <p className="text-sm text-green-800 font-medium dark:text-green-300">This will create a new lead in your CRM</p>
                   </div>
                 )}
@@ -970,7 +970,7 @@ export default function CanvassingView() {
                     {submitting ? 'Saving...' : 'Log & Continue'}
                   </button>
                   <button onClick={() => handleSubmitStop(true)} disabled={submitting}
-                    className="flex-1 py-3 border-2 border-blue-600 text-blue-600 rounded-xl font-semibold disabled:opacity-50">
+                    className="flex-1 py-3 border-2 border-blue-600 text-blue-600 rounded-xl font-semibold disabled:opacity-50 dark:text-blue-300">
                     Log & Done
                   </button>
                 </div>

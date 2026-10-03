@@ -42,7 +42,7 @@ export function PortalChangeOrders() {
   return (
     <div>
       <PageTitle title="Change Orders" subtitle="Review and approve change orders for your projects." />
-      {error && <p role="alert" className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {rows.length === 0 ? <Empty icon={ClipboardList} text="No change orders." /> : (
         <div className="space-y-6">
           {pending.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500" /> Awaiting Your Approval ({pending.length})</>}>{pending.map((co) => <ChangeOrderCard key={co.id} co={co} token={token} highlight />)}</Section>}
@@ -99,8 +99,8 @@ export function PortalChangeOrderDetail() {
 
   return (
     <div>
-      <PLink to={`/portal/${token}/change-orders`} className="text-orange-600 hover:underline text-sm mb-4 inline-block">{'<-'} Back to Change Orders</PLink>
-      {error && <p role="alert" className="mb-4 text-sm text-red-600">{error}</p>}
+      <PLink to={`/portal/${token}/change-orders`} className="text-orange-600 hover:underline text-sm mb-4 inline-block dark:text-orange-300">{'<-'} Back to Change Orders</PLink>
+      {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       <div className={`${card} overflow-hidden`}>
         <div className="p-6 border-b dark:border-slate-700">
           <div className="flex items-start justify-between gap-4">
@@ -123,7 +123,7 @@ export function PortalChangeOrderDetail() {
           </div>
         )}
         {co.status === 'approved' && (
-          <div className="p-6 bg-green-50 border-t dark:bg-green-950/20 dark:border-slate-700"><div className="flex items-start gap-4"><CheckCircle className="w-6 h-6 text-green-600 shrink-0 mt-1" /><div className="flex-1"><p className="font-medium text-green-800 dark:text-green-300">Approved{approvedOn ? ` on ${formatDate(approvedOn)}` : ''}</p>{co.signature && <SignatureDisplay className="mt-3" signature={co.signature} signedBy={(co.signedBy || co.approvedBy) ?? undefined} signedAt={approvedOn ?? undefined} />}</div></div></div>
+          <div className="p-6 bg-green-50 border-t dark:bg-green-950/20 dark:border-slate-700"><div className="flex items-start gap-4"><CheckCircle className="w-6 h-6 text-green-600 shrink-0 mt-1 dark:text-green-300" /><div className="flex-1"><p className="font-medium text-green-800 dark:text-green-300">Approved{approvedOn ? ` on ${formatDate(approvedOn)}` : ''}</p>{co.signature && <SignatureDisplay className="mt-3" signature={co.signature} signedBy={(co.signedBy || co.approvedBy) ?? undefined} signedAt={approvedOn ?? undefined} />}</div></div></div>
         )}
         {co.status === 'rejected' && <div className="p-6 bg-red-50 border-t dark:bg-red-950/20 dark:border-slate-700"><div className="flex items-center gap-2 text-red-700 dark:text-red-300"><XCircle className="w-5 h-5" /><span className="font-medium">Declined</span></div></div>}
       </div>

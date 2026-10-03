@@ -455,7 +455,7 @@ function LocationsTab({ locations, onAddLocation, onRefresh }: LocationsTabProps
           {onAddLocation && (
             <button
               onClick={onAddLocation}
-              className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200"
+              className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300"
             >
               + Add
             </button>
@@ -562,7 +562,7 @@ function PurchaseOrdersTab({ locations }: PurchaseOrdersTabProps) {
     <div className="bg-white rounded-xl border dark:bg-slate-900">
       <div className="p-4 border-b flex items-center justify-between">
         <h3 className="font-medium text-gray-900 dark:text-slate-100">Purchase Orders</h3>
-        <button className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200">
+        <button className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300">
           + New Order
         </button>
       </div>

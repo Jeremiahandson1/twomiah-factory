@@ -70,8 +70,8 @@ export default function OnboardingWizard() {
                 Your roofing CRM is ready — pipeline, jobs, insurance claims, crews, and storm tools are all set up.
                 Two quick things and you're in.
               </p>
-              <div className="flex items-start gap-3 p-4 bg-orange-50 border border-orange-200 rounded-lg mb-6 text-gray-900 dark:text-slate-100">
-                <Mail className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
+              <div className="flex items-start gap-3 p-4 bg-orange-50 border border-orange-200 rounded-lg mb-6 text-gray-900 dark:text-slate-100 dark:bg-orange-950/40">
+                <Mail className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0 dark:text-orange-300" />
                 <p className="text-sm text-gray-700 dark:text-slate-200">
                   Next, we'll set up branded email addresses on your domain — <span className="font-mono">sales@</span>,{' '}
                   <span className="font-mono">estimates@</span>, <span className="font-mono">support@</span> — forwarding
@@ -97,7 +97,7 @@ export default function OnboardingWizard() {
               </div>
               <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">You're all set</h1>
               <p className="text-gray-600 mb-6 dark:text-slate-400">Head to the pipeline and start working leads. Email addresses, features, and integrations live in Settings whenever you need them.</p>
-              {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
+              {error && <p className="text-sm text-red-600 mb-4 dark:text-red-400">{error}</p>}
               <button onClick={handleComplete} disabled={saving} className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 rounded-lg">
                 {saving ? 'Saving…' : 'Go to your CRM'} <Rocket className="w-4 h-4" />
               </button>

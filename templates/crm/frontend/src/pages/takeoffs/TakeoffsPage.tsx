@@ -315,7 +315,7 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
                   <p className="text-gray-500 dark:text-slate-400">No measurements yet</p>
                   <button
                     onClick={() => setShowAddItem(true)}
-                    className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200"
+                    className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300"
                   >
                     Add your first measurement
                   </button>
@@ -440,8 +440,8 @@ function TakeoffItemCard({ item, onUpdate }: TakeoffItemCardProps) {
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-            <Layers className="w-5 h-5 text-blue-600" />
+          <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center dark:bg-blue-950/40">
+            <Layers className="w-5 h-5 text-blue-600 dark:text-blue-300" />
           </div>
           <div>
             <p className="font-medium text-gray-900 dark:text-slate-100">{item.name}</p>
@@ -516,7 +516,7 @@ function TakeoffItemCard({ item, onUpdate }: TakeoffItemCardProps) {
                   <tr key={i}>
                     <td className="px-3 py-2">{mat.materialName}</td>
                     <td className="px-3 py-2 text-right">{Number(mat.baseQuantity).toFixed(2)} {mat.unit}</td>
-                    <td className="px-3 py-2 text-right text-orange-600">+{Number(mat.wasteQuantity).toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right text-orange-600 dark:text-orange-300">+{Number(mat.wasteQuantity).toFixed(2)}</td>
                     <td className="px-3 py-2 text-right font-medium">{Number(mat.totalQuantity).toFixed(2)}</td>
                     <td className="px-3 py-2 text-right">${Number(mat.unitCost).toFixed(2)}</td>
                     <td className="px-3 py-2 text-right font-medium">${Number(mat.totalCost).toFixed(2)}</td>
@@ -772,7 +772,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }: AddItemModalProp
                     alert('Could not add the standard assemblies');
                   }
                 }}
-                className="mt-2 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700"
+                className="mt-2 px-3 py-1.5 rounded-lg bg-amber-700 text-white text-sm font-medium hover:bg-amber-800"
               >
                 Add the standard assemblies
               </button>

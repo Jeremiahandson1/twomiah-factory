@@ -42,7 +42,7 @@ export function ImportContactsStep({ onBack, onNext }: { onBack: () => void; onN
       <div className="border-2 border-dashed border-gray-300 rounded-md p-6 text-center mb-6">
         <input type="file" accept=".csv,text/csv" onChange={e => setFile(e.target.files?.[0] || null)} className="mb-3" />
         {file && (
-          <div className="text-sm text-gray-600 mb-3">{file.name} ({Math.round(file.size / 1024)} KB)</div>
+          <div className="text-sm text-gray-600 mb-3 dark:text-slate-300">{file.name} ({Math.round(file.size / 1024)} KB)</div>
         )}
         <button onClick={upload} disabled={!file || uploading} className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white rounded-md text-sm font-semibold">
           {uploading ? 'Uploading…' : 'Upload CSV'}

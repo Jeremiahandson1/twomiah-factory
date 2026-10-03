@@ -64,7 +64,7 @@ export default function ProductEditPage() {
     <div className="max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
         <Link to="/products" className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-slate-200"><ArrowLeft className="h-4 w-4" /> Products</Link>
-        {!isNew && <button onClick={remove} className="text-sm text-red-600 flex items-center gap-1"><Trash2 className="h-4 w-4" /> Delete</button>}
+        {!isNew && <button onClick={remove} className="text-sm text-red-600 flex items-center gap-1 dark:text-red-400"><Trash2 className="h-4 w-4" /> Delete</button>}
       </div>
 
       <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{isNew ? 'New product' : form.name}</h1>
@@ -104,7 +104,7 @@ export default function ProductEditPage() {
       </div>
 
       {isNew ? (
-        <p className="text-sm text-gray-500">Save the product first, then add variants (prices) and photos.</p>
+        <p className="text-sm text-gray-500 dark:text-slate-400">Save the product first, then add variants (prices) and photos.</p>
       ) : product ? (
         <>
           <VariantsSection product={product} onChange={reloadProduct} />
@@ -182,7 +182,7 @@ function VariantsSection({ product, onChange }: { product: Product; onChange: ()
         <h2 className="font-semibold text-gray-900 dark:text-slate-100">Variants & pricing</h2>
         {!adding && <button onClick={() => setAdding(true)} className="btn-secondary text-xs"><Plus className="h-3 w-3" /> Add variant</button>}
       </div>
-      {(product.variants || []).length === 0 && !adding && <p className="text-sm text-gray-500">Add at least one variant so the product can be sold.</p>}
+      {(product.variants || []).length === 0 && !adding && <p className="text-sm text-gray-500 dark:text-slate-400">Add at least one variant so the product can be sold.</p>}
       <div className="space-y-2">
         {(product.variants || []).map((v) => (
           <VariantRow
@@ -320,8 +320,8 @@ function ImagesSection({ product, onChange }: { product: Product; onChange: () =
         className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed py-6 text-center transition ${dragOver ? 'border-primary-500 bg-primary-50' : 'border-gray-300 hover:border-gray-400'} ${uploading ? 'pointer-events-none opacity-60' : ''}`}
       >
         {uploading
-          ? <><Loader2 className="h-5 w-5 animate-spin text-primary-500" /><span className="text-sm text-gray-500">Uploading…</span></>
-          : <><Upload className="h-5 w-5 text-gray-400" /><span className="text-sm text-gray-600">Drop images here or <span className="font-medium text-primary-600">browse</span></span><span className="text-xs text-gray-400">JPEG, PNG, WebP, GIF or AVIF · up to 8 MB</span></>}
+          ? <><Loader2 className="h-5 w-5 animate-spin text-primary-500" /><span className="text-sm text-gray-500 dark:text-slate-400">Uploading…</span></>
+          : <><Upload className="h-5 w-5 text-gray-400" /><span className="text-sm text-gray-600 dark:text-slate-300">Drop images here or <span className="font-medium text-primary-600">browse</span></span><span className="text-xs text-gray-400">JPEG, PNG, WebP, GIF or AVIF · up to 8 MB</span></>}
       </div>
       <input
         ref={fileInput} type="file" accept="image/*" multiple className="hidden"

@@ -30,7 +30,7 @@ export default function ProductsPage() {
       {loading ? <PageSpinner /> : products.length === 0 ? (
         <div className="card p-10 text-center">
           <Package className="h-10 w-10 mx-auto text-gray-300" />
-          <p className="mt-3 text-gray-500">No products yet.</p>
+          <p className="mt-3 text-gray-500 dark:text-slate-400">No products yet.</p>
           <Link to="/products/new" className="btn-primary mt-4 inline-flex"><Plus className="h-4 w-4" /> Add your first product</Link>
         </div>
       ) : (
@@ -47,7 +47,7 @@ export default function ProductsPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="font-medium text-sm text-gray-900 truncate dark:text-slate-100">{p.name}</div>
-                    <div className="text-xs text-gray-500">{p.variants.length} variant(s){inv !== null && ` · ${inv} in stock`}</div>
+                    <div className="text-xs text-gray-500 dark:text-slate-400">{p.variants.length} variant(s){inv !== null && ` · ${inv} in stock`}</div>
                   </div>
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(p.status)}`}>{p.status}</span>
                   <div className="w-20 text-right text-sm font-medium text-gray-900 dark:text-slate-100">{price !== null ? money(price) : '—'}</div>

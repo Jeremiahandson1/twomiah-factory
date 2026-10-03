@@ -388,7 +388,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                         <td className="px-4 py-3">{u.firstName} {u.lastName}</td>
                         <td className="px-4 py-3">{u.email}</td>
                         <td className="px-4 py-3">{roleWord(u.role)}</td>
-                        <td className="px-4 py-3">{u.isActive ? <span className="text-green-600">Active</span> : <span className="text-gray-500 dark:text-slate-400">Inactive</span>}</td>
+                        <td className="px-4 py-3">{u.isActive ? <span className="text-green-600 dark:text-green-300">Active</span> : <span className="text-gray-500 dark:text-slate-400">Inactive</span>}</td>
                         <td className="px-4 py-3 text-right">
                           {u.id === myId ? (
                             <>

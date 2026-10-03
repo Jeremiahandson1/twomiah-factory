@@ -85,7 +85,7 @@ export default function GeofencesPage() {
       </div>
 
       {/* Info Card */}
-      <div className="bg-blue-50 rounded-xl p-4">
+      <div className="bg-blue-50 rounded-xl p-4 dark:bg-blue-950/40">
         <h3 className="font-medium text-blue-900 mb-2 dark:text-blue-300">How Geofencing Works</h3>
         <p className="text-sm text-blue-700 dark:text-blue-300">
           When team members enter a geofenced area, they're automatically clocked in to the associated job.
@@ -400,7 +400,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
               type="button"
               onClick={getCurrentLocation}
               disabled={gettingLocation}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg"
+              className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg dark:text-blue-300"
             >
               {gettingLocation ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

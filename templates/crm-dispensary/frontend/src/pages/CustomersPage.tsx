@@ -403,7 +403,7 @@ export default function CustomersPage() {
             <button
               type="button"
               onClick={() => { setSavedWarnings([]); setModalOpen(false); }}
-              className="mt-3 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700"
+              className="mt-3 px-3 py-1.5 rounded-lg bg-amber-700 text-white text-sm font-medium hover:bg-amber-800"
             >Got it</button>
           </div>
         )}

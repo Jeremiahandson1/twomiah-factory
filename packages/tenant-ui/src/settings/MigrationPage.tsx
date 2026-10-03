@@ -110,13 +110,13 @@ export function MigrationPage({ api, config }: { api: SettingsApi; config?: Migr
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {selectedProvider.hasApi && (
                 <button onClick={() => setMode('api')} className="p-5 border-2 border-gray-200 dark:border-slate-600 rounded-xl text-left hover:border-green-400 transition-colors">
-                  <Link className="w-8 h-8 text-green-600 mb-3" /><p className="font-semibold text-gray-900 dark:text-white">Automatic API Migration</p>
+                  <Link className="w-8 h-8 text-green-600 mb-3 dark:text-green-300" /><p className="font-semibold text-gray-900 dark:text-white">Automatic API Migration</p>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Connect directly and import everything — contacts, jobs, invoices, and more</p>
-                  <div className="flex items-center gap-1.5 mt-3 text-sm text-green-600 font-medium"><Shield className="w-4 h-4" /> Recommended</div>
+                  <div className="flex items-center gap-1.5 mt-3 text-sm text-green-600 font-medium dark:text-green-300"><Shield className="w-4 h-4" /> Recommended</div>
                 </button>
               )}
               <button onClick={() => setMode('csv')} className="p-5 border-2 border-gray-200 dark:border-slate-600 rounded-xl text-left hover:border-blue-400 transition-colors">
-                <FileSpreadsheet className="w-8 h-8 text-blue-600 mb-3" /><p className="font-semibold text-gray-900 dark:text-white">CSV File Import</p>
+                <FileSpreadsheet className="w-8 h-8 text-blue-600 mb-3 dark:text-blue-300" /><p className="font-semibold text-gray-900 dark:text-white">CSV File Import</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Export your data from {selectedProvider.name} as CSV and upload here</p>
                 <p className="text-sm text-gray-500 dark:text-slate-400 mt-3">We auto-detect {selectedProvider.name} column formats</p>
               </button>
@@ -137,17 +137,17 @@ export function MigrationPage({ api, config }: { api: SettingsApi; config?: Migr
                   <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{field.help}</p></div>
               ))}
               {error && <div role="alert" className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 p-3 rounded-lg flex items-center gap-2 text-sm"><AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}</div>}
-              <button onClick={startApiMigration} disabled={importing || (CREDENTIAL_FIELDS[selectedProvider.id] || []).some((f) => !credentials[f.key])} className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-semibold flex items-center justify-center gap-2">
+              <button onClick={startApiMigration} disabled={importing || (CREDENTIAL_FIELDS[selectedProvider.id] || []).some((f) => !credentials[f.key])} className="w-full py-3 bg-green-700 text-white rounded-lg hover:bg-green-800 disabled:opacity-50 font-semibold flex items-center justify-center gap-2">
                 {importing ? <><Loader2 className="w-5 h-5 animate-spin" /> Connecting...</> : <><ArrowRight className="w-5 h-5" /> Start Migration</>}
               </button>
             </div>
           ) : (
             <div className="bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 p-6 space-y-5">
               <div className="flex items-center justify-between"><h2 className="text-lg font-semibold text-gray-900 dark:text-white">Migration Progress</h2>
-                {progress?.status === 'complete' && <span className="flex items-center gap-1.5 text-green-600 font-medium text-sm"><Check className="w-4 h-4" /> Complete</span>}
-                {progress?.status === 'error' && <span className="flex items-center gap-1.5 text-red-600 font-medium text-sm"><X className="w-4 h-4" /> Error</span>}</div>
+                {progress?.status === 'complete' && <span className="flex items-center gap-1.5 text-green-600 font-medium text-sm dark:text-green-300"><Check className="w-4 h-4" /> Complete</span>}
+                {progress?.status === 'error' && <span className="flex items-center gap-1.5 text-red-600 font-medium text-sm dark:text-red-400"><X className="w-4 h-4" /> Error</span>}</div>
               {progress && (<>
-                <div className="flex items-center gap-3">{['fetching', 'importing', 'connecting'].includes(progress.status) && <Loader2 className="w-5 h-5 animate-spin text-blue-600" />}<span className="text-gray-700 dark:text-gray-300">{progress.phase}</span></div>
+                <div className="flex items-center gap-3">{['fetching', 'importing', 'connecting'].includes(progress.status) && <Loader2 className="w-5 h-5 animate-spin text-blue-600 dark:text-blue-300" />}<span className="text-gray-700 dark:text-gray-300">{progress.phase}</span></div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="text-center p-4 bg-gray-50 dark:bg-slate-700/50 rounded-lg"><p className="text-2xl font-bold text-gray-900 dark:text-white">{progress.total}</p><p className="text-xs text-gray-500 dark:text-gray-400">Total Records</p></div>
                   <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg"><p className="text-2xl font-bold text-green-700 dark:text-green-400">{progress.imported}</p><p className="text-xs text-gray-500 dark:text-gray-400">Imported</p></div>

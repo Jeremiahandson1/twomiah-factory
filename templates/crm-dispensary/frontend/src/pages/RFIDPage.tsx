@@ -65,7 +65,7 @@ export default function RFIDPage() {
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'
                 : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-            } dark:bg-slate-900`}
+            } dark:bg-slate-900 dark:text-slate-300`}
           >
             <tab.icon className="w-4 h-4" />
             {tab.label}
@@ -321,8 +321,8 @@ function ScanTab() {
     <div className="max-w-2xl mx-auto">
       <div className="bg-white rounded-xl shadow-sm p-6 dark:bg-slate-900">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center">
-            <Radio className="w-6 h-6 text-orange-600" />
+          <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center dark:bg-orange-950/40">
+            <Radio className="w-6 h-6 text-orange-600 dark:text-orange-300" />
           </div>
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">RFID Scanner</h2>
@@ -357,7 +357,7 @@ function ScanTab() {
         {result && (
           <div className={`mt-6 p-4 rounded-lg border ${result.matched ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
             <div className="flex items-center gap-2 mb-3">
-              {result.matched ? <CheckCircle className="w-5 h-5 text-green-600" /> : <AlertTriangle className="w-5 h-5 text-amber-600" />}
+              {result.matched ? <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-300" /> : <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-300" />}
               <span className={`font-semibold ${result.matched ? 'text-green-800 dark:text-green-300' : 'text-amber-800 dark:text-amber-300'}`}>
                 {result.matched ? 'Tag Matched' : 'Unknown Tag'}
               </span>
@@ -452,7 +452,7 @@ function InventoryCountTab() {
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-gray-700 dark:text-slate-200">Scanned Tags ({scannedEpcs.length})</span>
-              <button onClick={() => setScannedEpcs([])} className="text-xs text-red-600 hover:text-red-800 dark:hover:text-red-300">Clear All</button>
+              <button onClick={() => setScannedEpcs([])} className="text-xs text-red-600 hover:text-red-800 dark:hover:text-red-300 dark:text-red-400">Clear All</button>
             </div>
             <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y dark:border-slate-700">
               {scannedEpcs.map((epc, i) => (
@@ -477,24 +477,24 @@ function InventoryCountTab() {
         <div className="bg-white rounded-xl shadow-sm p-6 dark:bg-slate-900">
           <h3 className="text-lg font-semibold text-gray-900 mb-4 dark:text-slate-100">Count Results</h3>
           <div className="grid grid-cols-3 gap-4 mb-4">
-            <div className="p-4 bg-green-50 rounded-lg text-center">
+            <div className="p-4 bg-green-50 rounded-lg text-center dark:bg-green-950/40">
               <p className="text-2xl font-bold text-green-700 dark:text-green-300">{results.matched || 0}</p>
-              <p className="text-sm text-green-600">Matched</p>
+              <p className="text-sm text-green-600 dark:text-green-300">Matched</p>
             </div>
-            <div className="p-4 bg-amber-50 rounded-lg text-center">
+            <div className="p-4 bg-amber-50 rounded-lg text-center dark:bg-amber-950/40">
               <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{results.unmatched || 0}</p>
-              <p className="text-sm text-amber-600">Unmatched</p>
+              <p className="text-sm text-amber-600 dark:text-amber-300">Unmatched</p>
             </div>
-            <div className="p-4 bg-red-50 rounded-lg text-center">
+            <div className="p-4 bg-red-50 rounded-lg text-center dark:bg-red-950/40">
               <p className="text-2xl font-bold text-red-700 dark:text-red-300">{results.missing || 0}</p>
-              <p className="text-sm text-red-600">Missing (Shrinkage)</p>
+              <p className="text-sm text-red-600 dark:text-red-400">Missing (Shrinkage)</p>
             </div>
           </div>
 
           {results.missingTags && results.missingTags.length > 0 && (
             <div className="mb-4">
               <p className="text-sm font-medium text-gray-700 mb-2 dark:text-slate-200">Missing Tags (Expected but not scanned)</p>
-              <div className="max-h-32 overflow-y-auto border border-red-200 rounded-lg bg-red-50 p-3 text-gray-900 dark:text-slate-100">
+              <div className="max-h-32 overflow-y-auto border border-red-200 rounded-lg bg-red-50 p-3 text-gray-900 dark:text-slate-100 dark:bg-red-950/40">
                 {results.missingTags.map((tag: any) => (
                   <div key={tag.epc} className="flex items-center gap-2 text-sm text-red-700 py-1 dark:text-red-300">
                     <AlertTriangle className="w-3 h-3" />
