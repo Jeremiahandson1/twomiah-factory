@@ -26,7 +26,7 @@ const statusCls: Record<string, string> = {
   active: 'bg-green-100 text-green-700', running: 'bg-blue-100 text-blue-700', paused: 'bg-gray-100 text-gray-700', budget_paused: 'bg-amber-100 text-amber-800',
   balance_paused: 'bg-amber-100 text-amber-800', completed: 'bg-green-100 text-green-700', archived: 'bg-gray-100 text-gray-600', draft: 'bg-gray-100 text-gray-600', failed: 'bg-red-100 text-red-700',
 }
-const Badge = ({ s }: { s?: string | null }) => <span className={`px-2 py-0.5 text-xs rounded-full ${statusCls[String(s)] || 'bg-gray-100 text-gray-700'}`}>{human(s)}</span>
+const Badge = ({ s }: { s?: string | null }) => <span className={`px-2 py-0.5 text-xs rounded-full ${statusCls[String(s)] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>{human(s)}</span>
 const Spinner = () => <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
 const ErrorBox = ({ msg, onRetry }: { msg: string; onRetry?: () => void }) => (msg ? <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300"><span className="flex items-center gap-2"><AlertCircle className="w-4 h-4 shrink-0" />{msg}</span>{onRetry && <button onClick={onRetry} className="underline">Retry</button>}</div> : null)
 const Empty = ({ icon: Icon, text, hint }: { icon: any; text: string; hint?: string }) => <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900"><Icon className="w-10 h-10 mx-auto text-gray-400 mb-3" /><p className="text-gray-600 dark:text-slate-300">{text}</p>{hint && <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 max-w-md mx-auto">{hint}</p>}</div>
@@ -310,7 +310,7 @@ function RecommendationsTab({ api, toast, can }: { api: AdsApi; toast: AdsToast;
               <div key={r.id} className={`${card} p-4`}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="font-medium text-gray-900 dark:text-slate-100">{human(r.action_type)} {urgency && <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${urgency === 'high' ? 'bg-red-100 text-red-700' : urgency === 'medium' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'}`}>{urgency}</span>}</p>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{human(r.action_type)} {urgency && <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${urgency === 'high' ? 'bg-red-100 text-red-700' : urgency === 'medium' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>{urgency}</span>}</p>
                     <p className="text-xs text-gray-500 dark:text-slate-400">{r.campaign_name || 'Account-wide'}{r.platform ? ` · ${PLATFORM_LABEL[r.platform] || r.platform}` : ''} · {when(r.created_at)}</p>
                     <p className="text-sm mt-2 text-gray-700 dark:text-slate-300">{r.reasoning}</p>
                     {r.executed && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1"><Check className="w-3 h-3 inline" /> {String(r.reasoning || '').includes('[DISMISSED]') ? 'Dismissed' : 'Applied'} {when(r.executed_at)}</p>}

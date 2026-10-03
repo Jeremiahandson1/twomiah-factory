@@ -98,14 +98,14 @@ export function GbpReviewsPage(): React.ReactElement {
       {error && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">{error}</div>}
 
       {!status?.connected && (
-        <div className="bg-white border rounded-lg p-6">
+        <div className="bg-white border rounded-lg p-6 dark:bg-slate-900">
           <p className="text-sm text-gray-600 mb-4">Connect the Google account that manages your business listing. You'll approve access on Google's own sign-in page — we never see your password.</p>
           <button onClick={connect} className="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-semibold">Connect Google Business</button>
         </div>
       )}
 
       {status?.connected && status?.needsLocation && (
-        <div className="bg-white border rounded-lg p-6">
+        <div className="bg-white border rounded-lg p-6 dark:bg-slate-900">
           <p className="text-sm text-gray-600 mb-3">Connected as <span className="font-mono">{status.email}</span>. Which listing is this business?</p>
           {locations.length === 0 && !error && <p className="text-sm text-gray-500 dark:text-slate-400">No listings found on that Google account.</p>}
           <div className="space-y-2">
@@ -130,13 +130,13 @@ export function GbpReviewsPage(): React.ReactElement {
           </div>
           <div className="space-y-3">
             {reviews.map(r => (
-              <div key={r.name} className="bg-white border rounded-lg p-4">
+              <div key={r.name} className="bg-white border rounded-lg p-4 dark:bg-slate-900">
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-semibold text-sm">{r.reviewer}</span>
                   <span className="text-xs text-gray-500 dark:text-slate-400">{new Date(r.createTime).toLocaleDateString()}</span>
                 </div>
                 <Stars rating={STARS[r.starRating] || 0} />
-                {r.comment && <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap">{r.comment}</p>}
+                {r.comment && <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap dark:text-slate-200">{r.comment}</p>}
                 {r.reply ? (
                   <div className="mt-3 pl-3 border-l-2 border-gray-200 text-sm text-gray-600">
                     <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 block mb-1">Your reply</span>

@@ -143,7 +143,7 @@ export default function KioskPage() {
               {/* These steps used to start at "Launch Kiosk", from before tablets were paired. Following
                   them landed the operator on the "Pair this kiosk" screen holding no code, because the
                   code is minted one level down in Settings → Kiosks and this page never said so. (T28 M-g) */}
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-gray-900">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-gray-900 dark:text-slate-100">
                 <h3 className="font-medium text-green-800 mb-2">How to set up a kiosk</h3>
                 <ol className="list-decimal list-inside space-y-1 text-sm text-green-700">
                   {/* Settings is admin-only in this UI, so sending a manager there is a dead end —
@@ -235,7 +235,7 @@ export default function KioskPage() {
                   statusFilter === s.value
                     ? 'bg-green-700 text-white'
                     : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-                }`}
+                } dark:bg-slate-900`}
               >
                 {s.label}
               </button>

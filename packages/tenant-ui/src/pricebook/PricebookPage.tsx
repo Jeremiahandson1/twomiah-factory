@@ -275,7 +275,7 @@ function TiersModal({ api, toast, item, presets, title, onClose, onSaved }: { ap
             {opts.map((o) => (
               <div key={o.tier} className={`p-4 rounded-xl border-2 ${o.recommended ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/20' : 'border-gray-200 dark:border-slate-700'}`}>
                 <div className="flex items-center justify-between mb-3">
-                  <span className={`px-2 py-1 rounded text-xs font-medium uppercase ${o.tier === 'good' ? 'bg-gray-200 text-gray-700' : o.tier === 'better' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>{o.tier}</span>
+                  <span className={`px-2 py-1 rounded text-xs font-medium uppercase ${o.tier === 'good' ? 'bg-gray-200 text-gray-700' : o.tier === 'better' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'} dark:text-slate-200`}>{o.tier}</span>
                   <label className="flex items-center gap-1 text-xs"><input type="radio" name="recommended" checked={o.recommended} onChange={() => setOpts((cur) => cur.map((x) => ({ ...x, recommended: x.tier === o.tier })))} />Recommended</label>
                 </div>
                 <input className={`${inputCls} mb-2 font-medium`} maxLength={100} value={o.name} onChange={(e) => upd(o.tier, { name: e.target.value })} placeholder="Option name" />

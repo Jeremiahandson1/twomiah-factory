@@ -316,7 +316,7 @@ export default function PlatformPage() {
                           {step.completed && <CheckSquare className="w-4 h-4" />}
                         </button>
                         <div>
-                          <p className={`text-sm font-medium ${step.completed ? 'text-gray-500 dark:text-slate-400 line-through' : 'text-gray-900'}`}>
+                          <p className={`text-sm font-medium ${step.completed ? 'text-gray-500 dark:text-slate-400 line-through' : 'text-gray-900 dark:text-slate-100'}`}>
                             {step.title || step.name || `Step ${i + 1}`}
                           </p>
                           {step.description && (

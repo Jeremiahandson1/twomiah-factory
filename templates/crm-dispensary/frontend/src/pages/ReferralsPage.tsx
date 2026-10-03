@@ -490,7 +490,7 @@ export default function ReferralsPage() {
                         idx === 1 ? 'bg-gray-200 text-gray-700' :
                         idx === 2 ? 'bg-orange-100 text-orange-700' :
                         'bg-gray-100 text-gray-600'
-                      }`}>
+                      } dark:text-slate-200`}>
                         {idx + 1}
                       </div>
                       <div className="flex-1">

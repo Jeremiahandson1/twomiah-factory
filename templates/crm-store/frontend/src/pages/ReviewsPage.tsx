@@ -50,14 +50,14 @@ export default function ReviewsPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Reviews</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Reviews</h1>
         <p className="text-gray-500">Approve what appears on your product pages.</p>
       </div>
 
       <div className="flex gap-2">
         {(['pending', 'approved', 'rejected', 'all'] as const).map((s) => (
           <button key={s} onClick={() => setStatus(s)}
-            className={`px-3 py-1.5 rounded-lg text-sm capitalize ${status === s ? 'bg-gray-900 text-white' : 'bg-white border text-gray-600'}`}>
+            className={`px-3 py-1.5 rounded-lg text-sm capitalize ${status === s ? 'bg-gray-900 text-white' : 'bg-white border text-gray-600'} dark:bg-slate-900`}>
             {s}{s !== 'all' ? ` (${counts[s] ?? 0})` : ''}
           </button>
         ))}
@@ -87,7 +87,7 @@ export default function ReviewsPage() {
                       <span className="text-xs text-green-700 flex items-center gap-1"><ShieldCheck className="h-3 w-3" /> Verified buyer</span>
                     )}
                   </div>
-                  {r.title && <p className="font-medium text-gray-900 mt-1">{r.title}</p>}
+                  {r.title && <p className="font-medium text-gray-900 mt-1 dark:text-slate-100">{r.title}</p>}
                   {r.body && <p className="text-gray-600 text-sm mt-1 whitespace-pre-wrap">{r.body}</p>}
                   <p className="text-xs text-gray-400 mt-2">
                     {r.authorName} on {r.productName || 'product'} · {new Date(r.createdAt).toLocaleDateString()}

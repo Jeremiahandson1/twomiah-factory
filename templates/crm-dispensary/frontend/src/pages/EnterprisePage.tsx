@@ -636,7 +636,7 @@ function APIDocsTab() {
                   onClick={() => setExpandedEndpoint(isExpanded ? null : ep.id)}
                   className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 text-left"
                 >
-                  <span className={`px-2 py-0.5 text-xs font-bold rounded uppercase ${methodColors[ep.method] || 'bg-gray-100 text-gray-700'}`}>
+                  <span className={`px-2 py-0.5 text-xs font-bold rounded uppercase ${methodColors[ep.method] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
                     {ep.method}
                   </span>
                   <span className="font-mono text-sm text-gray-900 dark:text-slate-100">{ep.path}</span>

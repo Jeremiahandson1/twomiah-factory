@@ -187,7 +187,7 @@ export default function RoofReportsPage() {
       LOW: 'bg-red-100 text-red-700',
     }
     return (
-      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${colors[quality] || 'bg-gray-100 text-gray-700'}`}>
+      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${colors[quality] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
         {quality}
       </span>
     )

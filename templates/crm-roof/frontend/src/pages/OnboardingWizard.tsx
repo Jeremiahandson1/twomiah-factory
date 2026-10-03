@@ -53,7 +53,7 @@ export default function OnboardingWizard() {
                     : 'bg-gray-200 text-gray-600'}`}>
                   {idx < currentStep ? <Check className="w-4 h-4" /> : idx + 1}
                 </div>
-                <span className={`text-xs hidden sm:block ${idx <= currentStep ? 'text-gray-900 font-medium' : 'text-gray-500 dark:text-slate-400'}`}>{label}</span>
+                <span className={`text-xs hidden sm:block ${idx <= currentStep ? 'text-gray-900 dark:text-slate-100 font-medium' : 'text-gray-500 dark:text-slate-400'}`}>{label}</span>
               </div>
               {idx < STEPS.length - 1 && <div className={`w-10 sm:w-16 h-0.5 ${idx < currentStep ? 'bg-orange-500' : 'bg-gray-200'}`} />}
             </div>
@@ -70,7 +70,7 @@ export default function OnboardingWizard() {
                 Your roofing CRM is ready — pipeline, jobs, insurance claims, crews, and storm tools are all set up.
                 Two quick things and you're in.
               </p>
-              <div className="flex items-start gap-3 p-4 bg-orange-50 border border-orange-200 rounded-lg mb-6 text-gray-900">
+              <div className="flex items-start gap-3 p-4 bg-orange-50 border border-orange-200 rounded-lg mb-6 text-gray-900 dark:text-slate-100">
                 <Mail className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
                 <p className="text-sm text-gray-700 dark:text-slate-200">
                   Next, we'll set up branded email addresses on your domain — <span className="font-mono">sales@</span>,{' '}

@@ -175,7 +175,7 @@ export default function MenuOrderPage() {
             <ShoppingCart className="w-4 h-4 inline mr-2" />
             {money(subtotal)}
             {itemCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 bg-white text-green-700 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center border border-green-600">
+              <span className="absolute -top-1.5 -right-1.5 bg-white text-green-700 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center border border-green-600 dark:bg-slate-900">
                 {itemCount}
               </span>
             )}

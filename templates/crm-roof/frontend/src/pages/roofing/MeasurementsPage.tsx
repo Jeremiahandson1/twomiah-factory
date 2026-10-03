@@ -480,7 +480,7 @@ export default function MeasurementsPage() {
                   <button
                     key={q}
                     onClick={() => setBuyQty(q)}
-                    className={`px-3 py-1.5 text-sm rounded-lg border ${buyQty === q ? 'bg-purple-600 text-white border-purple-600' : 'bg-white dark:bg-slate-900 text-gray-700 hover:bg-gray-50'}`}
+                    className={`px-3 py-1.5 text-sm rounded-lg border ${buyQty === q ? 'bg-purple-600 text-white border-purple-600' : 'bg-white dark:bg-slate-900 text-gray-700 hover:bg-gray-50'} dark:text-slate-200`}
                   >
                     {q}
                   </button>

@@ -48,7 +48,7 @@ export default function OnboardingWizard() {
   const Nav = ({ backTo, nextLabel, onNext }: { backTo: number | null; nextLabel: string; onNext: () => void }) => (
     <div className="flex justify-between mt-6">
       {backTo !== null
-        ? <button onClick={() => setCurrentStep(backTo)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm">Back</button>
+        ? <button onClick={() => setCurrentStep(backTo)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm dark:text-slate-200">Back</button>
         : <div />}
       <button onClick={onNext} className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg">
         {nextLabel} <ChevronRight className="w-4 h-4" />
@@ -69,7 +69,7 @@ export default function OnboardingWizard() {
                     : 'bg-gray-200 text-gray-500'}`}>
                   {idx < currentStep ? <Check className="w-4 h-4" /> : idx + 1}
                 </div>
-                <span className={`text-xs hidden sm:block ${idx <= currentStep ? 'text-gray-900 font-medium' : 'text-gray-400'}`}>{label}</span>
+                <span className={`text-xs hidden sm:block ${idx <= currentStep ? 'text-gray-900 font-medium' : 'text-gray-400'} dark:text-slate-100`}>{label}</span>
               </div>
               {idx < STEPS.length - 1 && <div className={`w-6 sm:w-12 h-0.5 ${idx < currentStep ? 'bg-primary-600' : 'bg-gray-200'}`} />}
             </div>
@@ -80,10 +80,10 @@ export default function OnboardingWizard() {
       <div className="flex-1 flex items-start justify-center px-4 py-8">
         <div className="w-full max-w-3xl">
           {currentStep === 0 && (
-            <div className="bg-white rounded-xl shadow-sm p-8 max-w-2xl mx-auto">
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome{storeName ? `, ${storeName}` : ''} 👋</h1>
+            <div className="bg-white rounded-xl shadow-sm p-8 max-w-2xl mx-auto dark:bg-slate-900">
+              <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Welcome{storeName ? `, ${storeName}` : ''} 👋</h1>
               <p className="text-gray-600 mb-6">Your storefront and back-office are live. Three quick steps and you're ready to take orders.</p>
-              <ul className="space-y-3 mb-6 text-sm text-gray-700">
+              <ul className="space-y-3 mb-6 text-sm text-gray-700 dark:text-slate-200">
                 <li className="flex items-start gap-3"><CreditCard className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0" /> Connect your payment account — Stripe, Square, or PayPal. You get paid directly; we never touch the money.</li>
                 <li className="flex items-start gap-3"><Package className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0" /> Add your first product so the storefront has something to sell.</li>
                 <li className="flex items-start gap-3"><Mail className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0" /> Set up branded email — <span className="font-mono">support@</span> and <span className="font-mono">orders@</span> on your domain, forwarding wherever you read mail.</li>
@@ -103,8 +103,8 @@ export default function OnboardingWizard() {
           )}
 
           {currentStep === 2 && (
-            <div className="bg-white rounded-xl shadow-sm p-8 max-w-2xl mx-auto">
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Add your first product</h2>
+            <div className="bg-white rounded-xl shadow-sm p-8 max-w-2xl mx-auto dark:bg-slate-900">
+              <h2 className="text-xl font-bold text-gray-900 mb-2 dark:text-slate-100">Add your first product</h2>
               <p className="text-gray-600 mb-6">The product editor opens in a new tab so you don't lose your place here. Name, price, photos, inventory — one product is enough to go live.</p>
               <button onClick={() => window.open('/products/new', '_blank', 'noopener')} className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 rounded-lg mb-2">
                 Open the product editor <ExternalLink className="w-4 h-4" />
@@ -120,11 +120,11 @@ export default function OnboardingWizard() {
           )}
 
           {currentStep === 4 && (
-            <div className="bg-white rounded-xl shadow-sm p-8 text-center max-w-2xl mx-auto">
+            <div className="bg-white rounded-xl shadow-sm p-8 text-center max-w-2xl mx-auto dark:bg-slate-900">
               <div className="w-14 h-14 rounded-full bg-primary-600 text-white flex items-center justify-center mx-auto mb-4">
                 <Rocket className="w-7 h-7" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">You're all set</h1>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">You're all set</h1>
               <p className="text-gray-600 mb-6">Orders, customers, discounts, and everything else lives in the sidebar. Payments and email can be revisited any time from Settings.</p>
               {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
               <button onClick={handleComplete} disabled={saving} className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 rounded-lg">
@@ -138,7 +138,7 @@ export default function OnboardingWizard() {
               revisited from Settings. */}
           {currentStep < 4 && (
             <div className="text-center mt-6">
-              <button onClick={handleComplete} disabled={saving} className="text-sm text-gray-500 hover:text-gray-700 underline disabled:opacity-50">
+              <button onClick={handleComplete} disabled={saving} className="text-sm text-gray-500 hover:text-gray-700 underline disabled:opacity-50 dark:text-slate-200">
                 {saving ? 'Saving…' : "Skip setup for now — I'll finish from Settings later"}
               </button>
             </div>

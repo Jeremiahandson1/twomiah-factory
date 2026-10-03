@@ -26,11 +26,11 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Dashboard</h1>
 
       {!setupDone && (
         <div className="card p-5">
-          <h2 className="font-semibold text-gray-900 mb-3">Finish setting up your store</h2>
+          <h2 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Finish setting up your store</h2>
           <ul className="space-y-2 text-sm">
             <ChecklistItem done={activeProducts > 0} to="/products"
               text={activeProducts > 0 ? `${activeProducts} product(s) live` : 'Add and activate your first product'} />
@@ -49,7 +49,7 @@ export default function DashboardPage() {
 
       <div className="card">
         <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h2 className="font-semibold text-gray-900">Recent orders</h2>
+          <h2 className="font-semibold text-gray-900 dark:text-slate-100">Recent orders</h2>
           <Link to="/orders" className="text-sm text-primary-600 flex items-center gap-1">View all <ArrowRight className="h-3 w-3" /></Link>
         </div>
         {orders.length === 0 ? (
@@ -59,7 +59,7 @@ export default function DashboardPage() {
             {orders.map((o) => (
               <Link key={o.id} to={`/orders/${o.id}`} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50">
                 <div>
-                  <div className="font-medium text-sm text-gray-900">{o.orderNumber || 'Pending'}</div>
+                  <div className="font-medium text-sm text-gray-900 dark:text-slate-100">{o.orderNumber || 'Pending'}</div>
                   <div className="text-xs text-gray-500">{o.customerEmail} · {formatDate(o.createdAt)}</div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -79,7 +79,7 @@ function StatCard({ icon: Icon, label, value, highlight }: { icon: any; label: s
   return (
     <div className="card p-5">
       <div className="flex items-center gap-2 text-sm text-gray-500"><Icon className="h-4 w-4" /> {label}</div>
-      <div className={`mt-2 text-2xl font-bold ${highlight ? 'text-primary-600' : 'text-gray-900'}`}>{value}</div>
+      <div className={`mt-2 text-2xl font-bold ${highlight ? 'text-primary-600' : 'text-gray-900'} dark:text-slate-100`}>{value}</div>
     </div>
   )
 }
@@ -87,7 +87,7 @@ function StatCard({ icon: Icon, label, value, highlight }: { icon: any; label: s
 function ChecklistItem({ done, text, to }: { done: boolean; text: string; to: string }) {
   return (
     <li>
-      <Link to={to} className="flex items-center gap-2 text-gray-700 hover:text-primary-600">
+      <Link to={to} className="flex items-center gap-2 text-gray-700 hover:text-primary-600 dark:text-slate-200">
         {done ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <AlertCircle className="h-4 w-4 text-yellow-500" />}
         {text}
       </Link>

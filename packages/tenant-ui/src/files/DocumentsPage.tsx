@@ -270,10 +270,10 @@ export function DocumentsPage({ api, toast, config }: DocumentsPageProps) {
       {preview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4" onClick={() => setPreview(null)} role="dialog" aria-label={`Preview ${preview.name}`}>
           <div className="relative max-w-5xl w-full max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between text-white mb-2"><span className="font-medium truncate">{preview.name}</span><button onClick={() => setPreview(null)} className="p-2 rounded-full bg-white/10 hover:bg-white/20" aria-label="Close"><X className="w-5 h-5" /></button></div>
+            <div className="flex items-center justify-between text-white mb-2"><span className="font-medium truncate">{preview.name}</span><button onClick={() => setPreview(null)} className="p-2 rounded-full bg-white/10 hover:bg-white/20 dark:bg-slate-900" aria-label="Close"><X className="w-5 h-5" /></button></div>
             {!previewUrl ? <div className="text-center text-white/70 py-24">Loading…</div>
               : preview.mimeType?.startsWith('image/') ? <img src={previewUrl} alt={preview.name} className="max-w-full max-h-[85vh] object-contain rounded-lg mx-auto" />
-              : <iframe src={previewUrl} title={preview.name} className="w-full h-[85vh] bg-white rounded-lg" />}
+              : <iframe src={previewUrl} title={preview.name} className="w-full h-[85vh] bg-white rounded-lg dark:bg-slate-900" />}
           </div>
         </div>
       )}
@@ -331,8 +331,8 @@ function HistoryModal({ api, toast, doc, onClose, onChanged }: { api: FilesApi; 
               <div key={v.id || 'current'} className="rounded-lg border border-gray-200 dark:border-slate-700 px-3 py-2 flex items-center justify-between gap-3">
                 <div className="min-w-0"><p className="text-sm font-medium truncate">v{v.versionNumber} — {v.originalName}{v.isCurrent ? <span className="ml-2 text-xs font-normal text-green-600">current</span> : null}</p><p className="text-xs text-gray-500 dark:text-slate-400">{new Date(v.createdAt).toLocaleString()}{v.note ? ` — ${v.note}` : ''}</p></div>
                 <div className="flex gap-1 shrink-0">
-                  <button onClick={() => downloadAuthed(api, v.isCurrent ? `/api/documents/${doc.id}/download` : `/api/documents/${doc.id}/versions/${v.id}/download`, v.originalName || 'download').catch(e => toast.error(errMsg(e, 'Download failed')))} className="p-2 rounded text-gray-500 hover:text-gray-900 dark:hover:text-slate-100" title="Download"><Download className="w-4 h-4" /></button>
-                  {!v.isCurrent && <button onClick={() => restore(v)} className="p-2 rounded text-gray-500 hover:text-gray-900 dark:hover:text-slate-100" title="Restore this version"><RotateCcw className="w-4 h-4" /></button>}
+                  <button onClick={() => downloadAuthed(api, v.isCurrent ? `/api/documents/${doc.id}/download` : `/api/documents/${doc.id}/versions/${v.id}/download`, v.originalName || 'download').catch(e => toast.error(errMsg(e, 'Download failed')))} className="p-2 rounded text-gray-500 hover:text-gray-900 dark:hover:text-slate-100 dark:text-slate-100" title="Download"><Download className="w-4 h-4" /></button>
+                  {!v.isCurrent && <button onClick={() => restore(v)} className="p-2 rounded text-gray-500 hover:text-gray-900 dark:hover:text-slate-100 dark:text-slate-100" title="Restore this version"><RotateCcw className="w-4 h-4" /></button>}
                 </div>
               </div>
             ))}

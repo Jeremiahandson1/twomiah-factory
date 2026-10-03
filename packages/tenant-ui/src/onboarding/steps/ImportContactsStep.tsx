@@ -50,7 +50,7 @@ export function ImportContactsStep({ onBack, onNext }: { onBack: () => void; onN
       </div>
 
       <div className="flex justify-between">
-        <button onClick={onBack} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm">Back</button>
+        <button onClick={onBack} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm dark:text-slate-200">Back</button>
         <button onClick={onNext} className="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-md text-sm font-semibold">
           {result ? 'Continue' : 'Skip for now'}
         </button>

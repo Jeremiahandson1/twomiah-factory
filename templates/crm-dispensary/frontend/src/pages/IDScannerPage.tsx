@@ -371,7 +371,7 @@ export default function IDScannerPage() {
                     <span className="text-gray-500 w-24 dark:text-slate-400">Expires:</span>
                     <span className={`font-medium ${
                       scanResult.expiry && new Date(scanResult.expiry) < new Date() ? 'text-red-600' : 'text-gray-900'
-                    }`}>
+                    } dark:text-slate-100`}>
                       {scanResult.expiry ? formatDate(scanResult.expiry) : '—'}
                       {scanResult.expiry && new Date(scanResult.expiry) < new Date() && (
                         <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700">EXPIRED</span>

@@ -157,7 +157,7 @@ export default function AppointmentsPage() {
                 {a.room && <span className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><DoorOpen className="w-3 h-3" /> {a.room}</span>}
                 {providerName(a) && <span className="text-xs text-gray-500 dark:text-slate-400">Dr. {providerName(a)}</span>}
               </div>
-              <span className={`text-xs px-2 py-1 rounded-full capitalize ${STATUS_COLORS[a.status || ''] || 'bg-gray-100 text-gray-700'}`}>
+              <span className={`text-xs px-2 py-1 rounded-full capitalize ${STATUS_COLORS[a.status || ''] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
                 {(a.status || 'scheduled').replace('_', ' ')}
               </span>
               {NOT_CHECKED_IN.has(a.status || 'scheduled') && (

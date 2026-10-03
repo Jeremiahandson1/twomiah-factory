@@ -274,7 +274,7 @@ export default function ApprovalsPage() {
                         <td className="px-4 py-3 text-sm">{req.requesterName}</td>
                         <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate dark:text-slate-400">{req.reason || '-'}</td>
                         <td className="px-4 py-3">
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[req.status] || 'bg-gray-100 text-gray-700'}`}>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[req.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
                             {req.status}
                           </span>
                         </td>
@@ -310,7 +310,7 @@ export default function ApprovalsPage() {
                 </div>
                 <div className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${config.voidsRequireApproval ? 'bg-green-500' : 'bg-gray-300'}`}
                   onClick={() => setConfig({ ...config, voidsRequireApproval: !config.voidsRequireApproval })}>
-                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${config.voidsRequireApproval ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${config.voidsRequireApproval ? 'translate-x-5' : 'translate-x-0.5'} dark:bg-slate-900`} />
                 </div>
               </label>
 
@@ -328,7 +328,7 @@ export default function ApprovalsPage() {
                 </div>
                 <div className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${config.refundsRequireApproval ? 'bg-green-500' : 'bg-gray-300'}`}
                   onClick={() => setConfig({ ...config, refundsRequireApproval: !config.refundsRequireApproval })}>
-                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${config.refundsRequireApproval ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${config.refundsRequireApproval ? 'translate-x-5' : 'translate-x-0.5'} dark:bg-slate-900`} />
                 </div>
               </label>
 
@@ -339,7 +339,7 @@ export default function ApprovalsPage() {
                 </div>
                 <div className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${config.priceOverridesRequireApproval ? 'bg-green-500' : 'bg-gray-300'}`}
                   onClick={() => setConfig({ ...config, priceOverridesRequireApproval: !config.priceOverridesRequireApproval })}>
-                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${config.priceOverridesRequireApproval ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${config.priceOverridesRequireApproval ? 'translate-x-5' : 'translate-x-0.5'} dark:bg-slate-900`} />
                 </div>
               </label>
 

@@ -105,7 +105,7 @@ export function PortalChangeOrderDetail() {
         <div className="p-6 border-b dark:border-slate-700">
           <div className="flex items-start justify-between gap-4">
             <div><h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{co.title || co.number}</h1><p className="text-gray-500 dark:text-slate-400">{co.number}</p>{co.project?.name && <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Project: {co.project.name}</p>}</div>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[co.status] || 'bg-gray-100 text-gray-700'}`}>{co.status}</span>
+            <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[co.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>{co.status}</span>
           </div>
         </div>
         <div className={`p-6 ${isAddition ? 'bg-red-50 dark:bg-red-950/20' : 'bg-green-50 dark:bg-green-950/20'}`}>

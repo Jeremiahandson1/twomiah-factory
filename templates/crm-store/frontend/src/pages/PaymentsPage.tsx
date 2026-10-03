@@ -51,7 +51,7 @@ export default function PaymentsPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Payments</h1>
 
       {connected ? (
         <div className="card p-5">
@@ -71,7 +71,7 @@ export default function PaymentsPage() {
 
       {/* Connect form */}
       <div className="card p-5 space-y-4">
-        <h2 className="font-semibold text-gray-900">Connect your {form.provider} account</h2>
+        <h2 className="font-semibold text-gray-900 dark:text-slate-100">Connect your {form.provider} account</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label">Provider</label>
@@ -100,7 +100,7 @@ export default function PaymentsPage() {
         </div>
         <p className="text-xs text-gray-500">We{"'"}ll set up payment notifications (the webhook) in your {form.provider} account automatically when you connect.</p>
         <details className="text-sm">
-          <summary className="cursor-pointer text-gray-500 hover:text-gray-700">Advanced: configure the webhook yourself</summary>
+          <summary className="cursor-pointer text-gray-500 hover:text-gray-700 dark:text-slate-200">Advanced: configure the webhook yourself</summary>
           <div className="mt-3 space-y-3">
             <div>
               <p className="text-xs text-gray-500 mb-1">Point your webhook at:</p>

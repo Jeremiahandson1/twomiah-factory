@@ -108,7 +108,7 @@ export default function CultivationPage() {
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'
                 : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-            }`}
+            } dark:bg-slate-900`}
           >
             <tab.icon className="w-4 h-4" />
             {tab.label}
@@ -211,7 +211,7 @@ function PlantsTab() {
           value={val}
           onChange={(e) => { e.stopPropagation(); handlePhaseChange(row.id, e.target.value); }}
           onClick={(e) => e.stopPropagation()}
-          className={`px-2 py-1 text-xs font-medium rounded-full border-0 cursor-pointer ${phaseColors[val] || 'bg-gray-100 text-gray-700'}`}
+          className={`px-2 py-1 text-xs font-medium rounded-full border-0 cursor-pointer ${phaseColors[val] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}
         >
           {phases.filter(p => p.value).map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
         </select>
@@ -397,7 +397,7 @@ function RoomsTab() {
               >
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-gray-900 dark:text-slate-100">{room.name}</h3>
-                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${roomTypeColors[room.type] || 'bg-gray-100 text-gray-700'}`}>
+                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${roomTypeColors[room.type] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
                     {room.type}
                   </span>
                 </div>

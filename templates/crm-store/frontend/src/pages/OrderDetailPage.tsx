@@ -44,11 +44,11 @@ export default function OrderDetailPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <Link to="/orders" className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"><ArrowLeft className="h-4 w-4" /> Orders</Link>
+      <Link to="/orders" className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-slate-200"><ArrowLeft className="h-4 w-4" /> Orders</Link>
 
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{order.orderNumber || 'Pending order'}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{order.orderNumber || 'Pending order'}</h1>
           <p className="text-sm text-gray-500">{formatDate(order.createdAt)} · {order.provider}</p>
         </div>
         <span className={`rounded-full px-3 py-1 text-sm font-medium ${statusColor(order.status)}`}>{order.status}</span>
@@ -65,7 +65,7 @@ export default function OrderDetailPage() {
 
       {/* Items */}
       <div className="card">
-        <h2 className="px-5 py-3 font-semibold text-gray-900 border-b">Items</h2>
+        <h2 className="px-5 py-3 font-semibold text-gray-900 border-b dark:text-slate-100">Items</h2>
         <div className="divide-y">
           {order.items?.map((it) => (
             <div key={it.id} className="flex items-center gap-3 px-5 py-3">
@@ -73,7 +73,7 @@ export default function OrderDetailPage() {
                 {it.imageUrl && <img src={it.imageUrl} alt="" className="h-full w-full object-cover" />}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-gray-900 truncate">{it.productName}</div>
+                <div className="text-sm font-medium text-gray-900 truncate dark:text-slate-100">{it.productName}</div>
                 <div className="text-xs text-gray-500">{it.variantName} · {it.sku} · × {it.quantity}</div>
               </div>
               <div className="text-sm font-medium">{money(it.lineTotalCents, order.currency)}</div>
@@ -92,14 +92,14 @@ export default function OrderDetailPage() {
       {/* Customer */}
       <div className="grid sm:grid-cols-2 gap-4">
         <div className="card p-5">
-          <h2 className="font-semibold text-gray-900 mb-2">Customer</h2>
-          <p className="text-sm text-gray-700">{order.customerName || '—'}</p>
+          <h2 className="font-semibold text-gray-900 mb-2 dark:text-slate-100">Customer</h2>
+          <p className="text-sm text-gray-700 dark:text-slate-200">{order.customerName || '—'}</p>
           <p className="text-sm text-gray-500">{order.customerEmail}</p>
           {order.customerPhone && <p className="text-sm text-gray-500">{order.customerPhone}</p>}
         </div>
         {(order.supplierStatus || order.supplierOrderId) && (
           <div className="card p-5">
-            <h2 className="font-semibold text-gray-900 mb-2">Supplier</h2>
+            <h2 className="font-semibold text-gray-900 mb-2 dark:text-slate-100">Supplier</h2>
             <div className="text-sm text-gray-600 space-y-1">
               <div>Status: <span className={"font-medium " + (order.supplierStatus === 'error' ? 'text-red-600' : order.supplierStatus === 'placed' || order.supplierStatus === 'shipped' ? 'text-green-600' : 'text-yellow-600')}>{order.supplierStatus}</span></div>
               {order.supplierOrderId && <div>Supplier order: <span className="font-mono text-xs">{order.supplierOrderId}</span></div>}
@@ -116,7 +116,7 @@ export default function OrderDetailPage() {
         )}
 
         <div className="card p-5">
-          <h2 className="font-semibold text-gray-900 mb-2">Ship to</h2>
+          <h2 className="font-semibold text-gray-900 mb-2 dark:text-slate-100">Ship to</h2>
           {order.shippingAddress ? (
             <address className="not-italic text-sm text-gray-600 leading-relaxed">
               {order.shippingAddress.line1}<br />
@@ -130,7 +130,7 @@ export default function OrderDetailPage() {
 
       {/* Fulfillment */}
       <div className="card p-5 space-y-3">
-        <h2 className="font-semibold text-gray-900">Fulfillment</h2>
+        <h2 className="font-semibold text-gray-900 dark:text-slate-100">Fulfillment</h2>
         <div className="grid sm:grid-cols-2 gap-3">
           <div><label className="label">Carrier</label><input className="input" value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="USPS, UPS, FedEx…" /></div>
           <div><label className="label">Tracking number</label><input className="input" value={tracking} onChange={(e) => setTracking(e.target.value)} /></div>
@@ -188,7 +188,7 @@ function LabelPanel({ orderId, order, onBought }: { orderId: string; order: Orde
 
   return (
     <div className="card p-5 space-y-3">
-      <h2 className="font-semibold text-gray-900">Shipping label</h2>
+      <h2 className="font-semibold text-gray-900 dark:text-slate-100">Shipping label</h2>
 
       {order.labelUrl ? (
         <div className="flex items-center justify-between">
@@ -210,7 +210,7 @@ function LabelPanel({ orderId, order, onBought }: { orderId: string; order: Orde
             <div className="space-y-2">
               {rates.map((r) => (
                 <div key={r.id} className="flex items-center justify-between border rounded-lg px-3 py-2">
-                  <span className="text-sm text-gray-700">
+                  <span className="text-sm text-gray-700 dark:text-slate-200">
                     {r.carrier} {r.service}
                     {r.estimatedDays ? <span className="text-gray-400"> · {r.estimatedDays} days</span> : null}
                   </span>
@@ -229,5 +229,5 @@ function LabelPanel({ orderId, order, onBought }: { orderId: string; order: Orde
 }
 
 function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
-  return <div className={`flex justify-between ${bold ? 'font-semibold text-gray-900 pt-1' : 'text-gray-600'}`}><span>{label}</span><span>{value}</span></div>
+  return <div className={`flex justify-between ${bold ? 'font-semibold text-gray-900 pt-1' : 'text-gray-600'} dark:text-slate-100`}><span>{label}</span><span>{value}</span></div>
 }

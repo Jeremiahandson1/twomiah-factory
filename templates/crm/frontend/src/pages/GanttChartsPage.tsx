@@ -95,7 +95,7 @@ export default function GanttChartsPage() {
                 {/* Bar */}
                 <div className="absolute top-2 bottom-2 rounded-md flex items-center px-2 text-white text-xs font-medium overflow-hidden" style={{ left: `${leftPct}%`, width: `${widthPct}%`, background: color, minWidth: '40px' }}>
                   {/* Percent complete fill */}
-                  <div className="absolute top-0 bottom-0 left-0 bg-white/25" style={{ width: `${p.percentComplete || 0}%` }} />
+                  <div className="absolute top-0 bottom-0 left-0 bg-white/25 dark:bg-slate-900" style={{ width: `${p.percentComplete || 0}%` }} />
                   <span className="relative z-10 truncate">{p.name}</span>
                 </div>
               </div>

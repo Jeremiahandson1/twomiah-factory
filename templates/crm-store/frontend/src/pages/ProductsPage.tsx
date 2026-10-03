@@ -23,7 +23,7 @@ export default function ProductsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Products</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Products</h1>
         <Link to="/products/new" className="btn-primary"><Plus className="h-4 w-4" /> New product</Link>
       </div>
 
@@ -46,11 +46,11 @@ export default function ProductsPage() {
                     {img ? <img src={img.url} alt="" className="h-full w-full object-cover" /> : <Package className="h-5 w-5 text-gray-300" />}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium text-sm text-gray-900 truncate">{p.name}</div>
+                    <div className="font-medium text-sm text-gray-900 truncate dark:text-slate-100">{p.name}</div>
                     <div className="text-xs text-gray-500">{p.variants.length} variant(s){inv !== null && ` · ${inv} in stock`}</div>
                   </div>
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(p.status)}`}>{p.status}</span>
-                  <div className="w-20 text-right text-sm font-medium text-gray-900">{price !== null ? money(price) : '—'}</div>
+                  <div className="w-20 text-right text-sm font-medium text-gray-900 dark:text-slate-100">{price !== null ? money(price) : '—'}</div>
                 </Link>
               )
             })}

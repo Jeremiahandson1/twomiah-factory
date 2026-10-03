@@ -47,7 +47,7 @@ export function OnboardingWizard({ productId, onComplete }: OnboardingWizardProp
           ))}
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 dark:bg-slate-900">
           {stepIdx === 0 && <CompanyConfirmStep onNext={next} />}
           {stepIdx === 1 && <EmailAliasesStep productId={productId} onBack={back} onNext={next} />}
           {stepIdx === 2 && <TeamInvitesStep onBack={back} onNext={next} />}

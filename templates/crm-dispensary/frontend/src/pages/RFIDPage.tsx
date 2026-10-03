@@ -65,7 +65,7 @@ export default function RFIDPage() {
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'
                 : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-            }`}
+            } dark:bg-slate-900`}
           >
             <tab.icon className="w-4 h-4" />
             {tab.label}
@@ -494,7 +494,7 @@ function InventoryCountTab() {
           {results.missingTags && results.missingTags.length > 0 && (
             <div className="mb-4">
               <p className="text-sm font-medium text-gray-700 mb-2 dark:text-slate-200">Missing Tags (Expected but not scanned)</p>
-              <div className="max-h-32 overflow-y-auto border border-red-200 rounded-lg bg-red-50 p-3 text-gray-900">
+              <div className="max-h-32 overflow-y-auto border border-red-200 rounded-lg bg-red-50 p-3 text-gray-900 dark:text-slate-100">
                 {results.missingTags.map((tag: any) => (
                   <div key={tag.epc} className="flex items-center gap-2 text-sm text-red-700 py-1">
                     <AlertTriangle className="w-3 h-3" />

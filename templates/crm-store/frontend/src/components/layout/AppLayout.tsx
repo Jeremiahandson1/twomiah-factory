@@ -33,8 +33,8 @@ export default function AppLayout() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Mobile top bar */}
-      <div className="lg:hidden flex items-center justify-between bg-white border-b px-4 py-3">
-        <div className="flex items-center gap-2 font-semibold text-gray-900">
+      <div className="lg:hidden flex items-center justify-between bg-white border-b px-4 py-3 dark:bg-slate-900">
+        <div className="flex items-center gap-2 font-semibold text-gray-900 dark:text-slate-100">
           <Store className="h-5 w-5 text-primary-500" /> {companyName}
         </div>
         <button onClick={() => setOpen(!open)} className="p-2 text-gray-600">
@@ -44,8 +44,8 @@ export default function AppLayout() {
 
       <div className="flex">
         {/* Sidebar */}
-        <aside className={`${open ? 'block' : 'hidden'} lg:block fixed lg:static inset-0 top-[57px] lg:top-0 z-20 w-full lg:w-64 bg-white border-r lg:min-h-screen`}>
-          <div className="hidden lg:flex items-center gap-2 px-6 py-5 font-semibold text-gray-900 border-b">
+        <aside className={`${open ? 'block' : 'hidden'} lg:block fixed lg:static inset-0 top-[57px] lg:top-0 z-20 w-full lg:w-64 bg-white border-r lg:min-h-screen dark:bg-slate-900`}>
+          <div className="hidden lg:flex items-center gap-2 px-6 py-5 font-semibold text-gray-900 border-b dark:text-slate-100">
             <Store className="h-5 w-5 text-primary-500" /> {companyName}
           </div>
           <nav className="p-3 space-y-1">

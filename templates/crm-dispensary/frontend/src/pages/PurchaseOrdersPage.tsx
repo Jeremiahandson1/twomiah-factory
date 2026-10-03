@@ -290,7 +290,7 @@ export default function PurchaseOrdersPage() {
                       <td className="px-4 py-3 text-sm">{po.itemCount || 0}</td>
                       <td className="px-4 py-3 text-sm font-medium">${(po.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[po.status] || 'bg-gray-100 text-gray-700'}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[po.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
                           {po.status}
                         </span>
                       </td>

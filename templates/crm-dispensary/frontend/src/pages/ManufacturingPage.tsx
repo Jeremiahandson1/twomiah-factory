@@ -197,7 +197,7 @@ export default function ManufacturingPage() {
 
   const columns = [
     { key: 'jobNumber', label: 'Job #', render: (val: string) => <span className="font-mono font-medium text-gray-900 dark:text-slate-100">{val || '--'}</span> },
-    { key: 'type', label: 'Type', render: (val: string) => <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[val] || 'bg-gray-100 text-gray-700'}`}>{val}</span> },
+    { key: 'type', label: 'Type', render: (val: string) => <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[val] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>{val}</span> },
     { key: 'status', label: 'Status', render: (val: string) => <StatusBadge status={val} statusColors={statusColors} /> },
     { key: 'inputBatches', label: 'Input Batches', render: (val: any) => {
       const batches = Array.isArray(val) ? val : [];
@@ -346,7 +346,7 @@ export default function ManufacturingPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-slate-400">Type</p>
-                <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[selectedJob.type] || 'bg-gray-100 text-gray-700'}`}>{selectedJob.type}</span>
+                <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[selectedJob.type] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>{selectedJob.type}</span>
               </div>
               <div>
                 <p className="text-sm text-slate-400">Status</p>

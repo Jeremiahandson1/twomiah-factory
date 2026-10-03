@@ -14,7 +14,7 @@ export default function PaywallPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 dark:bg-slate-900">
       <div className="max-w-lg w-full bg-white rounded-2xl shadow-xl overflow-hidden dark:bg-slate-900">
         <div className="bg-gradient-to-br from-red-600 to-orange-600 px-8 py-10 text-white text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full mb-4 dark:bg-slate-900">
             <Lock className="w-8 h-8" />
           </div>
           <h1 className="text-2xl font-bold mb-2">Your free trial has ended</h1>

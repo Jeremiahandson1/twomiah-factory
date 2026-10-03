@@ -292,7 +292,7 @@ export default function InventoryPage() {
                     <Tag className="w-3 h-3" /> {categoryLabel(u.category)}
                   </span>
                   {u.status && (
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[u.status] || 'bg-gray-100 text-gray-700'}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[u.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
                       {u.status.replace('_', ' ')}
                     </span>
                   )}

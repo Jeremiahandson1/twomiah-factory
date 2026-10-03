@@ -320,7 +320,7 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }: VehicleCardProp
           vehicle.status === 'active' ? 'bg-green-100 text-green-700' :
           vehicle.status === 'maintenance' ? 'bg-yellow-100 text-yellow-700' :
           'bg-gray-100 text-gray-700'
-        }`}>
+        } dark:text-slate-200`}>
           {vehicle.status}
         </span>
       </div>

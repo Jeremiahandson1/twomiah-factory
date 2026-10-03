@@ -384,8 +384,8 @@ export default function KioskOrderPage() {
             className={`px-5 py-2.5 rounded-xl text-base font-medium whitespace-nowrap transition-colors touch-manipulation ${
               selectedCategory === 'all'
                 ? 'bg-green-700 text-white'
-                : 'bg-white text-gray-700 border border-gray-200'
-            }`}
+                : 'bg-white dark:bg-slate-900 text-gray-700 dark:text-slate-200 border border-gray-200 dark:border-slate-700'
+            } dark:text-slate-200 dark:bg-slate-900`}
           >
             All
           </button>
@@ -396,8 +396,8 @@ export default function KioskOrderPage() {
               className={`px-5 py-2.5 rounded-xl text-base font-medium whitespace-nowrap capitalize transition-colors touch-manipulation ${
                 selectedCategory === cat
                   ? 'bg-green-700 text-white'
-                  : 'bg-white text-gray-700 border border-gray-200'
-              }`}
+                  : 'bg-white dark:bg-slate-900 text-gray-700 dark:text-slate-200 border border-gray-200 dark:border-slate-700'
+              } dark:text-slate-200 dark:bg-slate-900`}
             >
               {cat}
             </button>
@@ -635,7 +635,7 @@ export default function KioskOrderPage() {
     return (
       <div className="min-h-screen bg-green-600 flex items-center justify-center p-8">
         <div className="text-center max-w-lg">
-          <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-8 dark:bg-slate-900">
+          <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-8">
             <CheckCircle className="w-14 h-14 text-green-600" />
           </div>
           <h1 className="text-4xl font-bold text-white mb-4">Thank You!</h1>
@@ -649,7 +649,7 @@ export default function KioskOrderPage() {
           </p>
           <button
             onClick={resetKiosk}
-            className="px-8 py-4 bg-white text-green-700 text-xl font-bold rounded-xl hover:bg-green-50 transition-colors touch-manipulation dark:bg-slate-900"
+            className="px-8 py-4 bg-white text-green-700 text-xl font-bold rounded-xl hover:bg-green-50 transition-colors touch-manipulation"
           >
             Start New Order
           </button>

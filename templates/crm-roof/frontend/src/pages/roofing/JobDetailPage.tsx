@@ -538,7 +538,7 @@ export default function JobDetailPage() {
               {measurement ? (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${MEASUREMENT_STATUS_COLORS[measurement.status] || 'bg-gray-100 text-gray-700'}`}>
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${MEASUREMENT_STATUS_COLORS[measurement.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
                       {formatStatus(measurement.status)}
                     </span>
                     {measurement.imageryQuality && (
@@ -632,7 +632,7 @@ export default function JobDetailPage() {
                             order.status === 'delivered' ? 'bg-green-100 text-green-700' :
                             order.status === 'ordered' ? 'bg-blue-100 text-blue-700' :
                             'bg-gray-100 text-gray-700'
-                          }`}>
+                          } dark:text-slate-200`}>
                             {formatStatus(order.status)}
                           </span>
                         </div>

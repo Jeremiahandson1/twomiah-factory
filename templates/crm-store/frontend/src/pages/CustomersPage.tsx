@@ -13,7 +13,7 @@ export default function CustomersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Customers</h1>
       {loading ? <PageSpinner /> : customers.length === 0 ? (
         <div className="card p-10 text-center">
           <Users className="h-10 w-10 mx-auto text-gray-300" />
@@ -29,7 +29,7 @@ export default function CustomersPage() {
               {customers.map((c) => (
                 <tr key={c.email} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
-                    <div className="font-medium text-gray-900">{c.name || c.email}</div>
+                    <div className="font-medium text-gray-900 dark:text-slate-100">{c.name || c.email}</div>
                     <div className="text-xs text-gray-500">{c.email}{c.phone ? ` · ${c.phone}` : ''}</div>
                   </td>
                   <td className="px-4 py-3 text-gray-600">{c.orderCount}</td>

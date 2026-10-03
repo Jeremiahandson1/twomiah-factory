@@ -132,7 +132,7 @@ export default function CustomerPortal() {
                   {companyName.charAt(0)}
                 </div>
               )}
-              <h1 className="text-lg font-bold text-slate-900">{companyName}</h1>
+              <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">{companyName}</h1>
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm text-slate-500">
@@ -153,7 +153,7 @@ export default function CustomerPortal() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome */}
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-slate-900">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
             Welcome back{user?.firstName ? `, ${user.firstName}` : ''}
           </h2>
           <p className="text-slate-500 mt-1">Your dispensary hub</p>
@@ -170,7 +170,7 @@ export default function CustomerPortal() {
                   `revenueToday` and then `revenue.today` — two shapes the endpoint has never sent —
                   so both fell through to the zero at the end of the chain and the hub read $0 and 0
                   orders on a day the dashboard beside it read $225.75 and 12. (T46 N4) */}
-              <p className="text-xl font-bold text-slate-900">
+              <p className="text-xl font-bold text-slate-900 dark:text-slate-100">
                 {/* money(), not toLocaleString(). A bare toLocaleString drops a trailing zero, so
                     $269.50 of takings printed as "$269.5" — which reads like a rounding error in the
                     shop's own till. The shared helper has always formatted money properly; these two
@@ -183,7 +183,7 @@ export default function CustomerPortal() {
               <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center mb-2">
                 <ClipboardList className="w-4 h-4 text-blue-500" />
               </div>
-              <p className="text-xl font-bold text-slate-900">
+              <p className="text-xl font-bold text-slate-900 dark:text-slate-100">
                 {loading ? '—' : Number(stats.today?.orderCount ?? 0)}
               </p>
               <p className="text-xs text-slate-500">Orders Today</p>
@@ -192,7 +192,7 @@ export default function CustomerPortal() {
               <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center mb-2">
                 <ShoppingCart className="w-4 h-4 text-emerald-500" />
               </div>
-              <p className="text-xl font-bold text-slate-900">
+              <p className="text-xl font-bold text-slate-900 dark:text-slate-100">
                 {loading ? '—' : ((stats.openCashSessions || []).length > 0 ? 'Open' : 'Closed')}
               </p>
               <p className="text-xs text-slate-500">Cash Session</p>
@@ -208,7 +208,7 @@ export default function CustomerPortal() {
               <div
                 key={action.title}
                 onClick={() => navigate(action.path)}
-                className={`bg-white rounded-xl border p-6 cursor-pointer hover:shadow-md transition-all group relative overflow-hidden ${
+                className={`bg-white dark:bg-slate-900 rounded-xl border p-6 cursor-pointer hover:shadow-md transition-all group relative overflow-hidden ${
                   action.highlight ? `border-emerald-300 ring-1 ring-emerald-100` : 'border-slate-200 hover:border-slate-300'
                 }`}
               >
@@ -219,7 +219,7 @@ export default function CustomerPortal() {
                   </div>
                   <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-900 mb-1">{action.title}</h3>
+                <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-slate-100">{action.title}</h3>
                 <p className="text-sm text-slate-500">{action.description}</p>
               </div>
             );
@@ -231,7 +231,7 @@ export default function CustomerPortal() {
           <div className="bg-white rounded-xl border border-amber-200 mb-8 dark:bg-slate-900">
             <div className="px-6 py-4 border-b border-amber-100 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-500" />
-              <h3 className="font-semibold text-slate-900">Low Stock Alerts</h3>
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100">Low Stock Alerts</h3>
               <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium ml-auto">
                 {lowStock.length} item{lowStock.length !== 1 ? 's' : ''}
               </span>
@@ -244,7 +244,7 @@ export default function CustomerPortal() {
                   onClick={() => navigate(`/crm/products/${item.id}`)}
                 >
                   <div className="w-2 h-2 rounded-full bg-amber-400" />
-                  <span className="text-sm text-slate-700 font-medium">{item.name}</span>
+                  <span className="text-sm text-slate-700 font-medium dark:text-slate-200">{item.name}</span>
                   <span className="text-xs text-amber-600 ml-auto">
                     {item.quantity ?? item.stockQuantity ?? 0} remaining
                   </span>

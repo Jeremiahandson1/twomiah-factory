@@ -126,10 +126,10 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Settings</h1>
 
       <div className="card p-5 space-y-4">
-        <h2 className="font-semibold text-gray-900">Store</h2>
+        <h2 className="font-semibold text-gray-900 dark:text-slate-100">Store</h2>
         <div><label className="label">Store name</label><input className="input" value={form.companyName} onChange={(e) => set('companyName', e.target.value)} /></div>
         <div><label className="label">Support email</label><input className="input" type="email" value={form.supportEmail} onChange={(e) => set('supportEmail', e.target.value)} /></div>
         <div className="grid grid-cols-2 gap-4">
@@ -139,7 +139,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="card p-5 space-y-4">
-        <h2 className="font-semibold text-gray-900">Shipping</h2>
+        <h2 className="font-semibold text-gray-900 dark:text-slate-100">Shipping</h2>
         <div className="grid grid-cols-2 gap-4">
           <div><label className="label">Flat shipping ($)</label><input className="input" value={form.flatShipping} onChange={(e) => set('flatShipping', e.target.value)} /></div>
           <div><label className="label">Free shipping over ($)</label><input className="input" value={form.freeShippingThreshold} onChange={(e) => set('freeShippingThreshold', e.target.value)} placeholder="Blank = never" /></div>
@@ -149,7 +149,7 @@ export default function SettingsPage() {
 
       <div className="card p-5 space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900">Shipping zones <span className="text-gray-400 font-normal">(by region)</span></h2>
+          <h2 className="font-semibold text-gray-900 dark:text-slate-100">Shipping zones <span className="text-gray-400 font-normal">(by region)</span></h2>
           <button onClick={addZone} className="btn-secondary text-sm">+ Add zone</button>
         </div>
         {(form.zones || []).length === 0 && <p className="text-sm text-gray-400">No zones — the flat rate applies everywhere.</p>}
@@ -167,7 +167,7 @@ export default function SettingsPage() {
 
       <div className="card p-5 space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900">Tax rates <span className="text-gray-400 font-normal">(by region)</span></h2>
+          <h2 className="font-semibold text-gray-900 dark:text-slate-100">Tax rates <span className="text-gray-400 font-normal">(by region)</span></h2>
           <button onClick={addTax} className="btn-secondary text-sm">+ Add rate</button>
         </div>
         {(form.taxes || []).length === 0 && <p className="text-sm text-gray-400">No region rates — the flat tax rate applies.</p>}
@@ -186,7 +186,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="card p-5 space-y-3">
-        <h2 className="font-semibold text-gray-900">Email</h2>
+        <h2 className="font-semibold text-gray-900 dark:text-slate-100">Email</h2>
         <div className="flex flex-wrap gap-2">
           <button onClick={() => navigate('/settings/email')} className="btn-secondary text-sm inline-flex items-center gap-1.5"><AtSign className="h-4 w-4" /> Branded Email</button>
           <button onClick={() => navigate('/settings/email-domain')} className="btn-secondary text-sm inline-flex items-center gap-1.5"><Globe className="h-4 w-4" /> Email Domain</button>
@@ -195,7 +195,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="card p-5 space-y-4">
-        <h2 className="font-semibold text-gray-900">Change password</h2>
+        <h2 className="font-semibold text-gray-900 dark:text-slate-100">Change password</h2>
         <div><label className="label">Current password</label><input className="input" type="password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} /></div>
         <div><label className="label">New password</label><input className="input" type="password" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} placeholder="At least 8 characters" /></div>
         <button onClick={changePassword} className="btn-secondary" disabled={pwSaving || !pw.current || pw.next.length < 8}>{pwSaving ? 'Saving…' : 'Update password'}</button>
@@ -205,13 +205,13 @@ export default function SettingsPage() {
           so the card is hidden rather than showing buttons that 403. */}
       {isOwner && (
         <div className="card p-5 space-y-4">
-          <h2 className="font-semibold text-gray-900">Team</h2>
+          <h2 className="font-semibold text-gray-900 dark:text-slate-100">Team</h2>
 
           <div className="divide-y border rounded-lg">
             {staff.map((u) => (
               <div key={u.id} className="flex items-center justify-between px-4 py-3">
                 <div>
-                  <p className={`text-sm font-medium ${u.isActive === false ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{u.name || u.email}</p>
+                  <p className={`text-sm font-medium ${u.isActive === false ? 'text-gray-400 line-through' : 'text-gray-900'} dark:text-slate-100`}>{u.name || u.email}</p>
                   <p className="text-xs text-gray-500">{u.email}</p>
                 </div>
                 <div className="flex items-center gap-3">

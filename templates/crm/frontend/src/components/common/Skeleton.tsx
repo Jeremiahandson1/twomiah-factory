@@ -36,7 +36,7 @@ export function SkeletonAvatar({ size = 40, className = '' }) {
 // Card skeleton
 export function SkeletonCard({ className = '' }) {
   return (
-    <div className={`bg-white rounded-lg shadow-sm p-4 ${className}`}>
+    <div className={`bg-white rounded-lg shadow-sm p-4 ${className} dark:bg-slate-900`}>
       <div className="flex items-start gap-4">
         <SkeletonAvatar />
         <div className="flex-1">

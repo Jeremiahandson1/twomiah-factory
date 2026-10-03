@@ -140,7 +140,7 @@ export default function ServicePage() {
                     <select
                       value={row.ro.status}
                       onChange={(e) => changeStatus(row.ro.id, e.target.value)}
-                      className={`text-xs px-2 py-1 rounded-full border-0 ${STATUS_COLORS[row.ro.status] || 'bg-gray-100 text-gray-700'}`}
+                      className={`text-xs px-2 py-1 rounded-full border-0 ${STATUS_COLORS[row.ro.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}
                     >
                       {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>

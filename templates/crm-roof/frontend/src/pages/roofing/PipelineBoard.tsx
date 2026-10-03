@@ -235,7 +235,7 @@ export default function PipelineBoard() {
           onClick={() => setFilterCanvassing(!filterCanvassing)}
           className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border font-medium transition ${
             filterCanvassing ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-white border-gray-300 text-gray-600'
-          }`}
+          } dark:bg-slate-900`}
         >
           <MapPin className="w-3.5 h-3.5" />
           Canvassing

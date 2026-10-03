@@ -109,7 +109,7 @@ export function AccountOffboardPage(): React.ReactElement {
       {!loading && !isOffboarding && !confirming && (
         <div className="border border-gray-200 rounded-md p-5">
           <h2 className="font-semibold mb-2">Before you go</h2>
-          <ul className="text-sm text-gray-700 space-y-2 pl-5 list-disc mb-4">
+          <ul className="text-sm text-gray-700 space-y-2 pl-5 list-disc mb-4 dark:text-slate-200">
             <li><strong>30-day grace period</strong> — everything stays live so you can change your mind.</li>
             <li><strong>Data export</strong> — we'll email you CSV + JSON of every contact, job, quote, invoice, and document.</li>
             <li><strong>Clean domain handoff</strong> — if you bought your domain through us, we unlock it and send the transfer auth code.</li>
@@ -129,7 +129,7 @@ export function AccountOffboardPage(): React.ReactElement {
             <button onClick={startOffboard} disabled={working} className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-md text-sm font-semibold">
               {working ? 'Working…' : 'Yes, offboard my account'}
             </button>
-            <button onClick={() => setConfirming(false)} disabled={working} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md text-sm">
+            <button onClick={() => setConfirming(false)} disabled={working} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md text-sm dark:text-slate-200">
               Cancel
             </button>
           </div>

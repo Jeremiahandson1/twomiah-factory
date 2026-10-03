@@ -428,7 +428,7 @@ export default function CanvassingView() {
             <div>
               <h3 className="text-sm font-semibold text-green-700 mb-2">Appointments ({appointments.length})</h3>
               {appointments.map((st: Stop) => (
-                <div key={st.id} className="bg-green-50 border border-green-200 rounded-lg p-3 mb-2 text-gray-900">
+                <div key={st.id} className="bg-green-50 border border-green-200 rounded-lg p-3 mb-2 text-gray-900 dark:text-slate-100">
                   <p className="text-sm font-medium">{st.address}</p>
                   {st.notes && <p className="text-xs text-gray-600 mt-1 dark:text-slate-400">{st.notes}</p>}
                   {st.jobId && (
@@ -445,7 +445,7 @@ export default function CanvassingView() {
             <div>
               <h3 className="text-sm font-semibold text-yellow-700 mb-2">Interested ({interested.length})</h3>
               {interested.map((st: Stop) => (
-                <div key={st.id} className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-2 text-gray-900">
+                <div key={st.id} className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-2 text-gray-900 dark:text-slate-100">
                   <p className="text-sm font-medium">{st.address}</p>
                   {st.jobId && (
                     <button onClick={() => navigate(`/crm/jobs/${st.jobId}`)} className="text-xs text-blue-600 mt-1 flex items-center gap-1">
@@ -461,7 +461,7 @@ export default function CanvassingView() {
             <div>
               <h3 className="text-sm font-semibold text-blue-700 mb-2">Follow-Ups ({followUps.length})</h3>
               {followUps.map((st: Stop) => (
-                <div key={st.id} className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2 text-gray-900">
+                <div key={st.id} className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2 text-gray-900 dark:text-slate-100">
                   <p className="text-sm font-medium">{st.address}</p>
                   <p className="text-xs text-gray-600 dark:text-slate-400">Follow up: {formatDate(st.followUpDate)}</p>
                 </div>
@@ -612,7 +612,7 @@ export default function CanvassingView() {
             <div ref={mapRef} className="h-full w-full" />
 
             {/* Legend */}
-            <div className="absolute top-3 right-3 bg-white/95 rounded-lg shadow-lg p-2 text-[10px] space-y-1 z-[1000] text-gray-900">
+            <div className="absolute top-3 right-3 bg-white/95 rounded-lg shadow-lg p-2 text-[10px] space-y-1 z-[1000] text-gray-900 dark:text-slate-100 dark:bg-slate-900">
               {Object.entries(PIN_COLORS).map(([k, c]) => (
                 <div key={k} className="flex items-center gap-1.5">
                   <span className="w-3 h-3 rounded-full" style={{ backgroundColor: c }} />
@@ -854,10 +854,10 @@ export default function CanvassingView() {
                     <button key={key}
                       onClick={() => setLogOutcome(key)}
                       className={`p-4 rounded-xl border-2 text-left transition-all ${
-                        logOutcome === key ? cfg.bgColor + ' border-2' : 'bg-white border-gray-200'
-                      }`}>
+                        logOutcome === key ? cfg.bgColor + ' border-2' : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700'
+                      } dark:bg-slate-900`}>
                       <span className="text-2xl">{cfg.emoji}</span>
-                      <p className={`text-sm font-semibold mt-1 ${logOutcome === key ? cfg.color : 'text-gray-700'}`}>
+                      <p className={`text-sm font-semibold mt-1 ${logOutcome === key ? cfg.color : 'text-gray-700'} dark:text-slate-200`}>
                         {cfg.label}
                       </p>
                     </button>
@@ -897,7 +897,10 @@ export default function CanvassingView() {
                   <span className="text-sm font-medium">Left door hanger</span>
                   <button onClick={() => setLogDoorHanger(!logDoorHanger)}
                     className={`w-12 h-6 rounded-full transition ${logDoorHanger ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                    <div className={`w-5 h-5 bg-white dark:bg-slate-900 rounded-full shadow transition-transform ${logDoorHanger ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                    {/* The knob STAYS white in both themes — it is white to read against its own
+                      coloured track, so `dark:bg-white` is the deliberate answer rather than an
+                      omission. A dark surface here would hide the knob inside the track. (T41) */}
+                  <div className={`w-5 h-5 bg-white dark:bg-white rounded-full shadow transition-transform ${logDoorHanger ? 'translate-x-6' : 'translate-x-0.5'}`} />
                   </button>
                 </div>
 

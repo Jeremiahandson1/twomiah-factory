@@ -68,7 +68,7 @@ export default function CustomerPortal() {
               >
                 {companyName.charAt(0)}
               </div>
-              <h1 className="text-lg font-bold text-slate-900">{companyName}</h1>
+              <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">{companyName}</h1>
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm text-slate-500">{user?.email}</span>
@@ -87,7 +87,7 @@ export default function CustomerPortal() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome */}
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-slate-900">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
             Welcome back{user?.email ? '' : ''}
           </h2>
           <p className="text-slate-500 mt-1">Manage your business from one place</p>
@@ -113,7 +113,7 @@ export default function CustomerPortal() {
               </div>
               <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Roofing CRM</h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-slate-100">Roofing CRM</h3>
             <p className="text-sm text-slate-500">
               Pipeline, jobs, quotes, invoices, crews, and more
             </p>
@@ -134,7 +134,7 @@ export default function CustomerPortal() {
                 </div>
                 <ExternalLink className="w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-all" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">Live Website</h3>
+              <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-slate-100">Live Website</h3>
               <p className="text-sm text-slate-500">View your public-facing website</p>
             </a>
           )}
@@ -154,7 +154,7 @@ export default function CustomerPortal() {
                 </div>
                 <ExternalLink className="w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-all" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">Website Manager</h3>
+              <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-slate-100">Website Manager</h3>
               <p className="text-sm text-slate-500">Edit pages, services, gallery, and content</p>
             </a>
           )}
@@ -175,7 +175,7 @@ export default function CustomerPortal() {
                   FREE TRIAL
                 </span>
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">Pricebook</h3>
+              <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-slate-100">Pricebook</h3>
               <p className="text-sm text-slate-500">
                 Standardized pricing catalog — consistent quotes, faster estimates
               </p>
@@ -198,7 +198,7 @@ export default function CustomerPortal() {
                   FREE TRIAL
                 </span>
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">Exterior Visualizer</h3>
+              <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-slate-100">Exterior Visualizer</h3>
               <p className="text-sm text-slate-500">
                 Show customers what their home will look like — AI-powered exterior renderings
               </p>
@@ -221,7 +221,7 @@ export default function CustomerPortal() {
                   FREE TRIAL
                 </span>
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">Instant Roof Estimator</h3>
+              <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-slate-100">Instant Roof Estimator</h3>
               <p className="text-sm text-slate-500">
                 Satellite-powered roof estimates with embeddable widget and lead capture
               </p>
@@ -240,7 +240,7 @@ export default function CustomerPortal() {
               </div>
               <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Account Settings</h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-slate-100">Account Settings</h3>
             <p className="text-sm text-slate-500">
               Company info, users, integrations, billing
             </p>

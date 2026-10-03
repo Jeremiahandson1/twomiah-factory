@@ -582,7 +582,7 @@ function PurchaseOrdersTab({ locations }: PurchaseOrdersTabProps) {
                 order.status === 'received' ? 'bg-green-100 text-green-700' :
                 order.status === 'partial' ? 'bg-yellow-100 text-yellow-700' :
                 'bg-gray-100 text-gray-700'
-              }`}>
+              } dark:text-slate-200`}>
                 {order.status}
               </span>
             </div>

@@ -153,7 +153,7 @@ export function EmailAliasesPage(): React.ReactElement {
               )}
               <div className="flex gap-2">
                 <button onClick={addAlias} className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-md text-sm font-semibold">Create</button>
-                <button onClick={() => setAdding(false)} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md text-sm">Cancel</button>
+                <button onClick={() => setAdding(false)} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md text-sm dark:text-slate-200">Cancel</button>
               </div>
             </div>
           )}

@@ -231,7 +231,7 @@ export default function EventDetailPage() {
               onChange={(e) => setStatus(e.target.value)}
               disabled={!mayEdit}
               title={!mayEdit ? 'Changing the stage needs permission to edit the event.' : undefined}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize border disabled:opacity-100 disabled:cursor-default ${STATUS_COLORS[ev.status || ''] || 'bg-gray-100 text-gray-700'}`}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize border disabled:opacity-100 disabled:cursor-default ${STATUS_COLORS[ev.status || ''] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}
             >
               {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>

@@ -609,7 +609,7 @@ function TotalsFooter({ sheetId, onExport }: TotalsFooterProps) {
            * check-light-card-dark-text.ts caught it the moment this element was touched, which is
            * what it is for. Both themes get a hover, and the text is explicit in both.
            */
-          className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-slate-900"
         >
           <Download className="w-4 h-4" />
           Export to PO

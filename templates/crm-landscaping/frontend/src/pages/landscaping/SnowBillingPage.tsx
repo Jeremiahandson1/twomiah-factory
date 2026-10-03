@@ -218,7 +218,7 @@ export default function SnowBillingPage() {
             const sm = sumFor(ct.id);
             return (
               <div key={ct.id} onClick={() => openContract(ct)}
-                className={`border rounded-lg p-4 bg-white cursor-pointer hover:shadow ${selected?.id === ct.id ? 'ring-2 ring-blue-500' : ''}`}>
+                className={`border rounded-lg p-4 bg-white cursor-pointer hover:shadow ${selected?.id === ct.id ? 'ring-2 ring-blue-500' : ''} dark:bg-slate-900`}>
                 <div className="flex justify-between">
                   <div>
                     <div className="font-medium">{ct.siteName || ct.siteId}</div>

@@ -130,7 +130,7 @@ export default function CustomerPortal() {
                   {companyName.charAt(0)}
                 </div>
               )}
-              <h1 className="text-lg font-bold text-slate-900">{companyName}</h1>
+              <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">{companyName}</h1>
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm text-slate-500">
@@ -151,7 +151,7 @@ export default function CustomerPortal() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome */}
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-slate-900">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
             Welcome back{user?.firstName ? `, ${user.firstName}` : ''}
           </h2>
           <p className="text-slate-500 mt-1">Manage your business from one place</p>
@@ -173,7 +173,7 @@ export default function CustomerPortal() {
                 <div className={`w-8 h-8 rounded-lg bg-${stat.color}-50 flex items-center justify-center mb-2`}>
                   <stat.icon className={`w-4 h-4 text-${stat.color}-500`} />
                 </div>
-                <p className="text-xl font-bold text-slate-900">{loading ? '—' : stat.value}</p>
+                <p className="text-xl font-bold text-slate-900 dark:text-slate-100">{loading ? '—' : stat.value}</p>
                 <p className="text-xs text-slate-500">{stat.label}</p>
               </div>
             ))}
@@ -200,7 +200,7 @@ export default function CustomerPortal() {
               </div>
               <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Dealership CRM</h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-slate-100">Dealership CRM</h3>
             <p className="text-sm text-slate-500">
               Inventory, leads, deals, service, invoices, and more
             </p>
@@ -223,7 +223,7 @@ export default function CustomerPortal() {
                 </div>
                 <ExternalLink className="w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-all" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">Live Website</h3>
+              <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-slate-100">Live Website</h3>
               <p className="text-sm text-slate-500">
                 View your public-facing website
               </p>
@@ -245,7 +245,7 @@ export default function CustomerPortal() {
                 </div>
                 <ExternalLink className="w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-all" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">Website Manager</h3>
+              <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-slate-100">Website Manager</h3>
               <p className="text-sm text-slate-500">
                 Edit pages, services, gallery, and content
               </p>
@@ -265,7 +265,7 @@ export default function CustomerPortal() {
               </div>
               <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Account Settings</h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-slate-100">Account Settings</h3>
             <p className="text-sm text-slate-500">
               Company info, users, integrations, billing
             </p>
@@ -276,7 +276,7 @@ export default function CustomerPortal() {
         {/* Recent Activity */}
         <div className="bg-white rounded-xl border border-slate-200 dark:bg-slate-900">
           <div className="px-6 py-4 border-b border-slate-100">
-            <h3 className="font-semibold text-slate-900">Recent Activity</h3>
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100">Recent Activity</h3>
           </div>
           <div className="divide-y divide-slate-100">
             {(() => {
@@ -293,21 +293,21 @@ export default function CustomerPortal() {
                   {units.slice(0, 2).map((item: Record<string, unknown>) => (
                     <div key={item.id as string} className="px-6 py-3 flex items-center gap-3">
                       <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                      <span className="text-sm text-slate-700">Unit: {[item.year, item.make, item.modelName].filter(Boolean).join(' ')} — {(item.status as string)?.replace('_', ' ') || 'in stock'}</span>
+                      <span className="text-sm text-slate-700 dark:text-slate-200">Unit: {[item.year, item.make, item.modelName].filter(Boolean).join(' ')} — {(item.status as string)?.replace('_', ' ') || 'in stock'}</span>
                       <span className="text-xs text-slate-400 ml-auto">{when(item.updatedAt)}</span>
                     </div>
                   ))}
                   {leads.slice(0, 2).map((item: Record<string, unknown>) => (
                     <div key={item.id as string} className="px-6 py-3 flex items-center gap-3">
                       <div className="w-2 h-2 rounded-full bg-amber-400" />
-                      <span className="text-sm text-slate-700">Lead: {(item.source as string) || 'walk-in'} — {(item.stage as string)?.replace(/_/g, ' ') || 'new'}</span>
+                      <span className="text-sm text-slate-700 dark:text-slate-200">Lead: {(item.source as string) || 'walk-in'} — {(item.stage as string)?.replace(/_/g, ' ') || 'new'}</span>
                       <span className="text-xs text-slate-400 ml-auto">{when(item.updatedAt)}</span>
                     </div>
                   ))}
                   {ros.slice(0, 2).map((item: Record<string, unknown>) => (
                     <div key={item.id as string} className="px-6 py-3 flex items-center gap-3">
                       <div className="w-2 h-2 rounded-full bg-blue-400" />
-                      <span className="text-sm text-slate-700">RO: {(item.roNumber as string) || (item.id as string)} — {(item.status as string)?.replace(/_/g, ' ') || 'open'}</span>
+                      <span className="text-sm text-slate-700 dark:text-slate-200">RO: {(item.roNumber as string) || (item.id as string)} — {(item.status as string)?.replace(/_/g, ' ') || 'open'}</span>
                       <span className="text-xs text-slate-400 ml-auto">{when(item.updatedAt)}</span>
                     </div>
                   ))}

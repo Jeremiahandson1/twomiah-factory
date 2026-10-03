@@ -63,11 +63,11 @@ export default function ProductEditPage() {
   return (
     <div className="max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
-        <Link to="/products" className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"><ArrowLeft className="h-4 w-4" /> Products</Link>
+        <Link to="/products" className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-slate-200"><ArrowLeft className="h-4 w-4" /> Products</Link>
         {!isNew && <button onClick={remove} className="text-sm text-red-600 flex items-center gap-1"><Trash2 className="h-4 w-4" /> Delete</button>}
       </div>
 
-      <h1 className="text-2xl font-bold text-gray-900">{isNew ? 'New product' : form.name}</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{isNew ? 'New product' : form.name}</h1>
 
       {/* Details */}
       <div className="card p-5 space-y-4">
@@ -97,7 +97,7 @@ export default function ProductEditPage() {
             <input className="input" type="number" value={form.leadTimeDays ?? ''} onChange={(e) => set('leadTimeDays', e.target.value === '' ? null : e.target.value)} placeholder="Optional" />
           </div>
         </div>
-        <label className="flex items-center gap-2 text-sm text-gray-700">
+        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
           <input type="checkbox" checked={!!form.featured} onChange={(e) => set('featured', e.target.checked)} /> Feature on storefront home
         </label>
         <button onClick={save} className="btn-primary" disabled={saving || !form.name}>{saving ? 'Saving…' : isNew ? 'Create product' : 'Save changes'}</button>
@@ -179,7 +179,7 @@ function VariantsSection({ product, onChange }: { product: Product; onChange: ()
   return (
     <div className="card p-5">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="font-semibold text-gray-900">Variants & pricing</h2>
+        <h2 className="font-semibold text-gray-900 dark:text-slate-100">Variants & pricing</h2>
         {!adding && <button onClick={() => setAdding(true)} className="btn-secondary text-xs"><Plus className="h-3 w-3" /> Add variant</button>}
       </div>
       {(product.variants || []).length === 0 && !adding && <p className="text-sm text-gray-500">Add at least one variant so the product can be sold.</p>}
@@ -243,7 +243,7 @@ function VariantRow({ v, supplierConnected, supplierRef, supplierName, onSave, o
   return (
     <div className="flex items-center gap-2 text-sm">
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-gray-900 truncate">{v.name}</div>
+        <div className="font-medium text-gray-900 truncate dark:text-slate-100">{v.name}</div>
         <div className="text-xs text-gray-400">{v.sku}</div>
       </div>
       <div className="flex items-center gap-1">
@@ -297,7 +297,7 @@ function ImagesSection({ product, onChange }: { product: Product; onChange: () =
 
   return (
     <div className="card p-5">
-      <h2 className="font-semibold text-gray-900 mb-3">Photos</h2>
+      <h2 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Photos</h2>
       <div className="flex flex-wrap gap-3 mb-3">
         {(product.images || []).map((img) => (
           <div key={img.id} className="relative group h-24 w-24 rounded-lg overflow-hidden border">

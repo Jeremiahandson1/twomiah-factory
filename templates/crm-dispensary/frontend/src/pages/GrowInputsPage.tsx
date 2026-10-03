@@ -194,7 +194,7 @@ export default function GrowInputsPage() {
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'
                 : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-            }`}
+            } dark:bg-slate-900`}
           >
             <tab.icon className="w-4 h-4" />
             {tab.label}
@@ -406,7 +406,7 @@ function InventoryTab() {
       key: 'type',
       label: 'Type',
       render: (val: string) => (
-        <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[val] || 'bg-gray-100 text-gray-700'}`}>
+        <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[val] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
           {val?.replace(/_/g, ' ')}
         </span>
       ),
@@ -863,7 +863,7 @@ function ApplicationsTab() {
       key: 'inputType',
       label: 'Type',
       render: (val: string) => (
-        <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[val] || 'bg-gray-100 text-gray-700'}`}>
+        <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[val] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
           {val?.replace(/_/g, ' ')}
         </span>
       ),
@@ -938,7 +938,7 @@ function ApplicationsTab() {
                       className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm text-gray-900 flex items-center justify-between dark:text-slate-100"
                     >
                       <span>{opt.name} <span className="text-gray-500 dark:text-slate-400">({opt.brand})</span></span>
-                      <span className={`px-1.5 py-0.5 text-[10px] rounded-full ${typeColors[opt.type] || 'bg-gray-100 text-gray-700'}`}>{opt.type}</span>
+                      <span className={`px-1.5 py-0.5 text-[10px] rounded-full ${typeColors[opt.type] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>{opt.type}</span>
                     </button>
                   ))}
                 </div>
@@ -1737,7 +1737,7 @@ function TraceabilityTab() {
                 {traceData.inputs && traceData.inputs.length > 0 && (
                   <div className="relative">
                     <div className="absolute -left-[2.35rem] w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
-                    <div className="bg-green-50 rounded-lg p-4 text-gray-900">
+                    <div className="bg-green-50 rounded-lg p-4 text-gray-900 dark:text-slate-100">
                       <h4 className="font-semibold text-green-900 mb-2">Inputs Applied ({traceData.inputs.length})</h4>
                       <div className="space-y-2">
                         {traceData.inputs.map((inp: any, i: number) => (

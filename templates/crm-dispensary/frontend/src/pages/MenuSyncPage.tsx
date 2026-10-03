@@ -296,7 +296,7 @@ export default function MenuSyncPage() {
                     <tr key={log.id} className="border-t">
                       <td className="px-4 py-3 text-sm font-medium">{log.platformName || log.platformId}</td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${SYNC_STATUS_STYLES[log.status] || 'bg-gray-100 text-gray-700'}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${SYNC_STATUS_STYLES[log.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
                           {log.status}
                         </span>
                       </td>

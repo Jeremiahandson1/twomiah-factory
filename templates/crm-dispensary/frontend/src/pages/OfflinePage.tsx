@@ -247,7 +247,7 @@ export default function OfflinePage() {
                 </div>
                 <div className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${config.offlineEnabled ? 'bg-green-500' : 'bg-gray-300'}`}
                   onClick={() => setConfig({ ...config, offlineEnabled: !config.offlineEnabled })}>
-                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${config.offlineEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${config.offlineEnabled ? 'translate-x-5' : 'translate-x-0.5'} dark:bg-slate-900`} />
                 </div>
               </label>
 
@@ -340,7 +340,7 @@ export default function OfflinePage() {
                           along. (T47 P16) */}
                       <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{item.createdOfflineAt || item.createdAt ? formatDateTime(item.createdOfflineAt || item.createdAt, storeTz) : '-'}</td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${SYNC_STATUS_STYLES[item.status] || 'bg-gray-100 text-gray-700'}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${SYNC_STATUS_STYLES[item.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
                           {item.status}
                         </span>
                       </td>
@@ -399,7 +399,7 @@ export default function OfflinePage() {
               </ul>
             </div>
 
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-gray-900">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-gray-900 dark:text-slate-100">
               <h4 className="font-medium text-yellow-800 flex items-center gap-2 mb-2">
                 <AlertTriangle className="w-4 h-4" />If Sync Fails
               </h4>

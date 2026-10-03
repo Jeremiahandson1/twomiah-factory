@@ -176,7 +176,7 @@ export default function DashboardPage() {
                     order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
                     order.status === 'delivery' ? 'bg-blue-100 text-blue-700' :
                     'bg-gray-100 text-gray-700'
-                  }`}>
+                  } dark:text-slate-200`}>
                     {order.status || 'pending'}
                   </span>
                 </div>

@@ -341,7 +341,7 @@ export default function SchedulingPage() {
                             onClick={() => cellShifts.length === 0 && openCreateShift(dateStr, emp.id)}>
                             {cellShifts.map(s => (
                               <div key={s.id}
-                                className={`text-xs px-1 py-1 rounded border mb-1 cursor-pointer ${ROLE_COLORS[s.role] || 'bg-gray-100 text-gray-700'}`}
+                                className={`text-xs px-1 py-1 rounded border mb-1 cursor-pointer ${ROLE_COLORS[s.role] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}
                                 onClick={(e) => { e.stopPropagation(); openEditShift(s); }}>
                                 {formatTime(s.startTime)}-{formatTime(s.endTime)}
                               </div>

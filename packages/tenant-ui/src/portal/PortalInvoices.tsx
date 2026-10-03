@@ -90,7 +90,7 @@ function InvoiceCard({ invoice, token }: { invoice: PortalInvoiceData; token?: s
             <>
               <p className="text-lg font-bold text-gray-900 dark:text-slate-100">{moneyShort(invoice.balance)}</p>
               <p className="text-xs text-gray-500 dark:text-slate-400">of {moneyShort(invoice.total)}</p>
-              <span className={`${pill(STATUS_STYLES[invoice.status] || 'bg-gray-100 text-gray-700')} mt-1`}>{invoiceStatusLabel(invoice.status)}</span>
+              <span className={`${pill(STATUS_STYLES[invoice.status] || 'bg-gray-100 text-gray-700')} mt-1 dark:text-slate-200`}>{invoiceStatusLabel(invoice.status)}</span>
             </>
           ) : <p className="text-lg font-bold text-green-600">{settledLabel(invoice.status)}</p>}
         </div>
@@ -125,7 +125,7 @@ export function PortalInvoiceDetail() {
         <div className="p-6 border-b dark:border-slate-700">
           <div className="flex items-start justify-between gap-4">
             <div><h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Invoice {invoice.number}</h1>{invoice.project && <p className="text-gray-500 dark:text-slate-400">Project: {invoice.project.name}</p>}</div>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[invoice.status] || 'bg-gray-100 text-gray-700'}`}>{Number(invoice.balance) > 0 ? invoiceStatusLabel(invoice.status) : settledLabel(invoice.status)}</span>
+            <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[invoice.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>{Number(invoice.balance) > 0 ? invoiceStatusLabel(invoice.status) : settledLabel(invoice.status)}</span>
           </div>
           {invoice.dueDate && <p className={`mt-2 ${overdue ? 'text-red-600 font-medium' : 'text-gray-500 dark:text-slate-400'}`}>{overdue ? 'OVERDUE - ' : ''}Due {formatDate(invoice.dueDate)}</p>}
         </div>

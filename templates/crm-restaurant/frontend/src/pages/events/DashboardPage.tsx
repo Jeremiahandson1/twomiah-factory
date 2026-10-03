@@ -159,7 +159,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {stages.map((s) => (
             <Link key={s.key} to="/crm/events" className="border rounded-lg p-3 hover:bg-gray-50">
-              <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[s.key] || 'bg-gray-100 text-gray-700'}`}>{s.label}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[s.key] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>{s.label}</span>
               <p className="text-2xl font-bold text-gray-900 mt-2 dark:text-slate-100">{pipeline[s.key] || 0}</p>
             </Link>
           ))}

@@ -15,7 +15,7 @@ class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode },
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
           <div className="max-w-md text-center">
-            <h1 className="text-2xl font-bold text-gray-900 mb-3">Something went wrong</h1>
+            <h1 className="text-2xl font-bold text-gray-900 mb-3 dark:text-slate-100">Something went wrong</h1>
             <p className="text-gray-600 mb-6">Please refresh the page.</p>
             <button onClick={() => window.location.reload()} className="px-6 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600">
               Refresh

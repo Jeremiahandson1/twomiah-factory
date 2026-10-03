@@ -309,7 +309,7 @@ export default function QuotesPage() {
               </button>
             </div>
 
-            <div className="border border-green-200 rounded-lg bg-green-50 p-4 text-gray-900">
+            <div className="border border-green-200 rounded-lg bg-green-50 p-4 text-gray-900 dark:text-slate-100">
               {certQuote.signature && (
                 <img src={certQuote.signature} alt="Customer signature" className="max-h-24 bg-white rounded dark:bg-slate-900" />
               )}

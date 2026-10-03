@@ -154,7 +154,7 @@ export default function DeliveryPage() {
                   statusFilter === s.value
                     ? 'bg-green-700 text-white'
                     : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-                }`}
+                } dark:bg-slate-900`}
               >
                 {s.label}
               </button>

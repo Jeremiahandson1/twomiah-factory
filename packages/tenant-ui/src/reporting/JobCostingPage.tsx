@@ -263,7 +263,7 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
         <div className="w-40"><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} aria-label="From date" /></div>
         <div className="w-40"><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputCls} aria-label="To date" /></div>
         {(status || startDate || endDate) && (
-          <button onClick={() => { setStatus(''); setStartDate(''); setEndDate('') }} className={`text-sm underline ${muted} hover:text-gray-700 dark:hover:text-slate-200`}>
+          <button onClick={() => { setStatus(''); setStartDate(''); setEndDate('') }} className={`text-sm underline ${muted} hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-200`}>
             Clear
           </button>
         )}

@@ -357,7 +357,7 @@ export default function ContactsPage() {
                           >
                             <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
                               selected.portalEnabled ? 'translate-x-6' : 'translate-x-1'
-                            }`} />
+                            } dark:bg-slate-900`} />
                           </button>
                         </div>
                         {selected.portalEnabled && (
@@ -409,9 +409,12 @@ export default function ContactsPage() {
                             key={msg.id || i}
                             className={`max-w-[80%] px-3 py-2 rounded-lg text-sm ${
                               msg.direction === 'inbound'
-                                ? 'bg-gray-100 text-gray-900 mr-auto'
+                                // The inbound bubble is light grey; the element gives its text
+                          // dark:text-slate-100, so the bubble needs its own dark ground or the
+                          // customer's words are near-white on light grey. (T41)
+                          ? 'bg-gray-100 dark:bg-slate-700 text-gray-900 mr-auto'
                                 : 'bg-blue-600 text-white ml-auto'
-                            }`}
+                            } dark:text-slate-100`}
                           >
                             <p>{msg.body || msg.message}</p>
                             <p className={`text-[10px] mt-1 ${msg.direction === 'inbound' ? 'text-gray-600' : 'text-blue-200'}`}>

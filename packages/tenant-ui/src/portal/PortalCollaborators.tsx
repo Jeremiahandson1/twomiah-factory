@@ -100,7 +100,7 @@ export function PortalLienWaivers() {
         </div>
         <div className="text-right shrink-0">
           {w.amountTotal !== undefined && w.amountTotal !== null && <p className="font-bold text-gray-900 dark:text-slate-100">{moneyShort(w.amountTotal)}</p>}
-          <span className={`${pill(WAIVER_STYLES[w.status] || 'bg-gray-100 text-gray-700')} mt-1`}>{w.status}</span>
+          <span className={`${pill(WAIVER_STYLES[w.status] || 'bg-gray-100 text-gray-700')} mt-1 dark:text-slate-200`}>{w.status}</span>
           {onSign && <div className="mt-2"><button onClick={onSign} className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700">Sign</button></div>}
         </div>
       </div>

@@ -111,7 +111,7 @@ export default function RecurringRoutesPage() {
             <div className="space-y-2">
               {day.routes.map((r: any) => (
                 <div key={r.id} onClick={() => openRoute(r.id)}
-                  className={`border rounded-lg p-2 bg-white cursor-pointer hover:shadow text-xs ${selected === r.id ? 'ring-2 ring-green-500' : ''}`}>
+                  className={`border rounded-lg p-2 bg-white cursor-pointer hover:shadow text-xs ${selected === r.id ? 'ring-2 ring-green-500' : ''} dark:bg-slate-900`}>
                   <div className="font-medium truncate">{r.name}</div>
                   <div className="text-gray-500 flex items-center gap-1 mt-1 dark:text-slate-400"><MapPin className="w-3 h-3" />{r.stopCount} stops</div>
                   <div className="text-gray-500 flex items-center gap-1 dark:text-slate-400"><Clock className="w-3 h-3" />{Math.round(r.estimatedMinutes / 60 * 10) / 10}h</div>

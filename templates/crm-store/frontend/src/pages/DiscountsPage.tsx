@@ -37,10 +37,10 @@ export default function DiscountsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-gray-900">Discount codes</h1>
+      <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100">Discount codes</h1>
 
       <div className="card p-5 space-y-4">
-        <h2 className="font-semibold text-gray-900">Create a code</h2>
+        <h2 className="font-semibold text-gray-900 dark:text-slate-100">Create a code</h2>
         <div className="grid grid-cols-2 gap-4">
           <div><label className="label">Code</label><input className="input uppercase" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="SAVE10" /></div>
           <div><label className="label">Type</label>
@@ -57,7 +57,7 @@ export default function DiscountsPage() {
       </div>
 
       <div className="card p-5">
-        <h2 className="font-semibold text-gray-900 mb-3">All codes</h2>
+        <h2 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">All codes</h2>
         {loading ? <p className="text-gray-400 text-sm">Loading…</p> : codes.length === 0 ? <p className="text-gray-400 text-sm">No codes yet.</p> : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

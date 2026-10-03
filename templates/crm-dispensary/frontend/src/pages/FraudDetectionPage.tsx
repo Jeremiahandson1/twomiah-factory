@@ -248,12 +248,12 @@ export default function FraudDetectionPage() {
                   {alerts.map(alert => (
                     <tr key={alert.id} className="border-t hover:bg-gray-50">
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${SEVERITY_STYLES[alert.severity] || 'bg-gray-100 text-gray-700'}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${SEVERITY_STYLES[alert.severity] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
                           {alert.severity}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${TYPE_STYLES[alert.type] || 'bg-gray-100 text-gray-700'}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${TYPE_STYLES[alert.type] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
                           {(alert.type || '').replace(/_/g, ' ')}
                         </span>
                       </td>
@@ -264,7 +264,7 @@ export default function FraudDetectionPage() {
                         ) : '-'}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${alert.status === 'open' ? 'bg-red-100 text-red-700' : alert.status === 'investigating' ? 'bg-yellow-100 text-yellow-700' : alert.status === 'resolved' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${alert.status === 'open' ? 'bg-red-100 text-red-700' : alert.status === 'investigating' ? 'bg-yellow-100 text-yellow-700' : alert.status === 'resolved' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
                           {alert.status}
                         </span>
                       </td>
@@ -319,7 +319,7 @@ export default function FraudDetectionPage() {
                   <div className="flex-1" onClick={() => openEditRule(rule)} role="button">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium">{rule.name}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${TYPE_STYLES[rule.type] || 'bg-gray-100 text-gray-700'}`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${TYPE_STYLES[rule.type] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
                         {(rule.type || '').replace(/_/g, ' ')}
                       </span>
                     </div>
@@ -332,7 +332,7 @@ export default function FraudDetectionPage() {
                     <span className="text-sm text-gray-500 dark:text-slate-400">{rule.active ? 'Active' : 'Inactive'}</span>
                     <div className={`relative w-10 h-5 rounded-full transition-colors ${rule.active ? 'bg-green-500' : 'bg-gray-300'}`}
                       onClick={() => toggleRule(rule.id, !rule.active)}>
-                      <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${rule.active ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                      <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${rule.active ? 'translate-x-5' : 'translate-x-0.5'} dark:bg-slate-900`} />
                     </div>
                   </label>
                 </div>

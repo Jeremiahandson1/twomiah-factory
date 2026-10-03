@@ -55,7 +55,7 @@ export default function QRScannerPage() {
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'
                 : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-            }`}
+            } dark:bg-slate-900`}
           >
             <tab.icon className="w-4 h-4" />
             {tab.label}
@@ -397,7 +397,7 @@ function InputResultCard({ result, context, toast }: { result: any; context: str
           <h4 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{input.name}</h4>
           {input.brand && <p className="text-sm text-gray-500 dark:text-slate-400">{input.brand}</p>}
           <div className="flex flex-wrap gap-2 mt-2">
-            <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[input.type] || 'bg-gray-100 text-gray-700'}`}>
+            <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[input.type] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
               {input.type?.replace(/_/g, ' ')}
             </span>
             {input.isOrganic && (
@@ -410,7 +410,7 @@ function InputResultCard({ result, context, toast }: { result: any; context: str
             )}
           </div>
           <div className="flex items-center gap-4 mt-2 text-sm">
-            <span className={`font-medium ${input.currentStock <= input.minStock ? 'text-red-600' : 'text-gray-700'}`}>
+            <span className={`font-medium ${input.currentStock <= input.minStock ? 'text-red-600' : 'text-gray-700'} dark:text-slate-200`}>
               Stock: {input.currentStock ?? 0} {input.unitOfMeasure}
               {input.currentStock <= input.minStock && <AlertTriangle className="w-3 h-3 inline ml-1" />}
             </span>
@@ -461,7 +461,7 @@ function BatchResultCard({ result, toast }: { result: any; toast: any }) {
         <h4 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Batch #{batch.batchNumber}</h4>
         {batch.productName && <p className="text-sm text-gray-500 dark:text-slate-400">{batch.productName}</p>}
         <div className="flex flex-wrap gap-2 mt-2">
-          <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${statusColors[batch.status] || 'bg-gray-100 text-gray-700'}`}>
+          <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${statusColors[batch.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
             {batch.status}
           </span>
         </div>

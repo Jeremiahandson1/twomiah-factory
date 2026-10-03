@@ -96,7 +96,7 @@ export function GlobalSearch({ api, placeholder = DEFAULT_SEARCH_PLACEHOLDER }: 
                   const Icon = TYPE_ICONS[item.type] || File
                   return (
                     <button type="button" key={`${item.type}-${item.id}`} onClick={() => select(item)} onMouseEnter={() => setSelectedIndex(index)} className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${index === selectedIndex ? 'bg-orange-50 dark:bg-orange-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
-                      <div className={`p-2 rounded-lg ${TYPE_COLORS[item.type] || 'bg-gray-100 text-gray-700'}`}><Icon className="w-4 h-4" /></div>
+                      <div className={`p-2 rounded-lg ${TYPE_COLORS[item.type] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}><Icon className="w-4 h-4" /></div>
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-gray-900 truncate dark:text-slate-100">{item.name}</div>
                         {item.description && <div className="text-sm text-gray-500 truncate dark:text-slate-400">{item.description}</div>}

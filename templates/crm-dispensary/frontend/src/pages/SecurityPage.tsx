@@ -692,7 +692,7 @@ export default function SecurityPage() {
                     >
                       <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
                         policy[toggle.key as keyof typeof policy] ? 'translate-x-5' : 'translate-x-0.5'
-                      }`} />
+                      } dark:bg-slate-900`} />
                     </button>
                   </label>
                 ))}
@@ -779,7 +779,7 @@ export default function SecurityPage() {
                   >
                     <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
                       policy.mfaRequired ? 'translate-x-5' : 'translate-x-0.5'
-                    }`} />
+                    } dark:bg-slate-900`} />
                   </button>
                 </label>
                 {!policy.mfaRequired && (

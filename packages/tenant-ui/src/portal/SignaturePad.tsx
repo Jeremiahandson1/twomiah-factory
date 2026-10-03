@@ -42,7 +42,7 @@ export function SignaturePad({ onSave, onCancel, width = 500, height = 200, penC
 
   return (
     <div className="inline-block w-full">
-      <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-white text-gray-900 dark:border-slate-700">
+      <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-white text-gray-900 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-900">
         <canvas ref={canvasRef} width={width} height={height} className="touch-none cursor-crosshair block" style={{ width: '100%', maxWidth: width, height: 'auto', aspectRatio: `${width}/${height}` }}
           onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} />
         <div className="border-t border-gray-300 px-4 py-2 bg-gray-50 flex items-center justify-between text-gray-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
@@ -66,7 +66,7 @@ export function SignatureDisplay({ signature, signedBy, signedAt, className = ''
   return (
     <div className={className}>
       <div className="border border-green-200 rounded-lg overflow-hidden bg-green-50 p-3 dark:bg-green-950/30 dark:border-green-900">
-        <img src={signature} alt="Signature" className="max-h-20 bg-white rounded" />
+        <img src={signature} alt="Signature" className="max-h-20 bg-white rounded dark:bg-slate-900" />
         <div className="mt-2 text-sm text-gray-600 dark:text-slate-300">
           <p className="font-medium">{signedBy}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">{signedAt ? new Date(signedAt).toLocaleString() : ''}</p>

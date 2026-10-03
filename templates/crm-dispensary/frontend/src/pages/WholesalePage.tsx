@@ -60,7 +60,7 @@ export default function WholesalePage() {
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'
                 : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-            }`}
+            } dark:bg-slate-900`}
           >
             <tab.icon className="w-4 h-4" />
             {tab.label}

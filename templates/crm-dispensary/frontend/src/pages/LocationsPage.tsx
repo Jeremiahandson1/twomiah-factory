@@ -506,7 +506,7 @@ export default function LocationsPage() {
                       <tr key={item.id} className={`hover:bg-gray-50 ${item.quantity <= (item.minQuantity || 0) ? 'bg-red-50' : ''}`}>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{item.productName || item.name || '—'}</td>
                         <td className="px-4 py-3 text-sm font-mono text-gray-600 dark:text-slate-400">{item.sku || '—'}</td>
-                        <td className={`px-4 py-3 text-sm text-right font-medium ${item.quantity <= (item.minQuantity || 0) ? 'text-red-600' : 'text-gray-900'}`}>
+                        <td className={`px-4 py-3 text-sm text-right font-medium ${item.quantity <= (item.minQuantity || 0) ? 'text-red-600' : 'text-gray-900'} dark:text-slate-100`}>
                           {item.quantity ?? 0}
                         </td>
                         <td className="px-4 py-3 text-sm text-right text-gray-500 dark:text-slate-400">{item.minQuantity ?? '—'}</td>
