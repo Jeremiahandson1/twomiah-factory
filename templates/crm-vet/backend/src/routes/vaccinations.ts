@@ -11,6 +11,42 @@ import { createId } from '@paralleldrive/cuid2'
 const app = new Hono()
 app.use('*', authenticate)
 
+/**
+ * A BOOSTER CANNOT BE DUE BEFORE THE SHOT THAT NEEDS IT. (T41)
+ *
+ *   "A vaccination due date before the given date is accepted."
+ *
+ * Both columns are plain dates: `given_date` is notNull and `due_date` drives the reminder list and
+ * the rabies certificate's expiry. A due date in front of the given date is not an unusual case, it
+ * is a typo — a year mistyped, or the two fields filled in the wrong order — and the practice pays
+ * for it twice: the reminder engine (routes/reminders.ts reads due_date) calls the owner in for a
+ * booster that is not due, and a rabies certificate prints an expiry that has already passed, which
+ * is the document a shelter or a groomer relies on.
+ *
+ * SAME DAY IS ALLOWED. A three-dose series can be written up with a due date of the same day for a
+ * puppy brought back that afternoon, and refusing equality would block a real entry to catch a
+ * typo. The rule is "not BEFORE", which is what the finding actually says.
+ *
+ * Validated on create AND on edit. (rule: any rule applied on create applies on edit — the edit
+ * form is exactly where a date gets corrected, and where it gets mistyped again.)
+ */
+const isDay = (v: unknown): v is string =>
+  typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`))
+/** The complaint, or null. Compares the date strings, which sort correctly in ISO form. */
+function vaccinationDateError(givenDate: unknown, dueDate: unknown): string | null {
+  if (givenDate !== undefined && givenDate !== null && givenDate !== '' && !isDay(givenDate)) {
+    return 'The date given must be a date (YYYY-MM-DD).'
+  }
+  if (dueDate === undefined || dueDate === null || dueDate === '') return null
+  if (!isDay(dueDate)) return 'The next-due date must be a date (YYYY-MM-DD).'
+  if (!isDay(givenDate)) return null  // nothing to compare against
+  if (dueDate < givenDate) {
+    return `The next dose is due on ${dueDate}, which is before the ${givenDate} this one was given. `
+      + 'Check the two dates — a booster cannot come due before the shot it follows.'
+  }
+  return null
+}
+
 // GET /vaccinations — ?patientId=
 app.get('/', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
@@ -30,6 +66,9 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
 app.post('/', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.json()
+
+  const dateError = vaccinationDateError(body.givenDate, body.dueDate)
+  if (dateError) return c.json({ error: dateError, code: 'vaccination_dates' }, 400)
 
   const [created] = await db.insert(vaccination).values({
     id: createId(),
@@ -70,6 +109,15 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const EDITABLE = ['patientId', 'visitId', 'providerId', 'vaccine', 'manufacturer', 'lotNumber', 'serialNumber', 'site', 'route', 'givenDate', 'dueDate', 'isRabies', 'rabiesTag', 'notes'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+
+  // The pair has to be judged TOGETHER and against what the row already holds: an edit that sends
+  // only `dueDate` must still be checked against the stored givenDate, or moving one date alone
+  // walks straight around the rule. Same the other way.
+  const dateError = vaccinationDateError(
+    'givenDate' in updates ? updates.givenDate : existing.givenDate,
+    'dueDate' in updates ? updates.dueDate : existing.dueDate,
+  )
+  if (dateError) return c.json({ error: dateError, code: 'vaccination_dates' }, 400)
 
   const [updated] = await db.update(vaccination).set(updates).where(eq(vaccination.id, id)).returning()
   await audit.log({ action: 'update', entity: 'vaccination', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })

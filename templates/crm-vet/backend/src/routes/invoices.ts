@@ -7,6 +7,7 @@ import { invoice, invoiceLineItem, contact, project, quote, payment, company, pa
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
+import audit from '../services/audit.ts'
 import emailService from '../services/email.ts'
 
 export default createInvoiceRoutes({
@@ -18,6 +19,9 @@ export default createInvoiceRoutes({
   EVENTS,
   sendInvoiceEmail: (to, data) => emailService.sendInvoice(to, data),
   loadPdf: () => import('../services/pdf.ts').then(m => m.generateInvoicePDF),
+  // Money movements go in the audit log: create, edit, send, payment, void, refund, credit, delete.
+  // Every write in this module used to log NOTHING — 1,889 rows and not one line about money. (T41)
+  audit,
   // minLineItems: an invoice needs at least one line — the invoice form already requires one, and the API created an empty $0 invoice when called directly (RV T19 L8; landscaping and events had it).
   // links: the owner pays, but the bill is for an animal — a multi-pet household's invoices said nothing
   // about which pet the charges were for, and the chart could not show what that animal had cost. (T12 M6)

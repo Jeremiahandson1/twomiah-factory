@@ -27,6 +27,8 @@ export interface Visit {
   treatments?: string;
   notes?: string;
   total?: number | string;
+  /** Set once the visit has been billed. The charge is then fixed — see the Total field below. (T41) */
+  invoiceId?: string | null;
 }
 
 interface VisitEditorModalProps {
@@ -63,6 +65,8 @@ export default function VisitEditorModal({ patientId, visit, onSave, onClose }: 
   });
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  // Already invoiced: the charge is the invoice's now. Only the money is locked. (T41)
+  const billed = !!visit?.invoiceId;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -182,10 +186,29 @@ export default function VisitEditorModal({ patientId, visit, onSave, onClose }: 
               <textarea value={form.treatments} onChange={(e) => set('treatments', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
 
+            {/* THE CHARGE IS FIXED ONCE THE BILL IS RAISED. (T41)
+                "A billed visit's total can still be edited after invoicing (PUT 999 → 200; the
+                invoice stays 125.50)." The server now refuses the change; this is the other half,
+                so the field does not invite an edit it will reject. The clinical fields above stay
+                editable on purpose — a write-up finished that evening belongs in the record. */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Total ($)</label>
-                <input type="number" step="any" value={form.total} onChange={(e) => set('total', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                <input
+                  type="number"
+                  step="any"
+                  value={form.total}
+                  onChange={(e) => set('total', e.target.value)}
+                  readOnly={billed}
+                  aria-readonly={billed || undefined}
+                  className={`w-full px-3 py-2 border rounded-lg ${billed ? 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400' : ''}`}
+                />
+                {billed && (
+                  <p className="mt-1 text-xs text-gray-600 dark:text-slate-400">
+                    This visit has been invoiced, so the charge is fixed. To change what the owner
+                    pays, credit or void the invoice and raise a new one.
+                  </p>
+                )}
               </div>
             </div>
             <div>

@@ -6,6 +6,7 @@ import { company, user } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { requirePermission, invalidateExtraPermissions, roleLabel, requireAnyPermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { CRM_TEMPLATE } from '../config/template.ts'
+import audit from '../services/audit.ts'
 import { adsConnector } from './ads.ts'
 
 export default createCompanyRoutes({
@@ -21,6 +22,8 @@ export default createCompanyRoutes({
     hasPermission(role, permission, await getExtraPermissions(userId)),
   invalidateExtraPermissions,
   roleLabel,
+  // Who changed the shop's settings, and which keys they touched. Nothing recorded it before. (T41)
+  audit,
   template: CRM_TEMPLATE,
   onFeaturesChanged: (features) => adsConnector.onFeaturesChanged(features),
 })

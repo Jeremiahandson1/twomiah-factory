@@ -10,10 +10,13 @@
 import { createMfaRoutes } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { authenticate } from '../middleware/auth.ts'
+import audit from '../services/audit.ts'
 
 export default createMfaRoutes({
   db,
   authenticate,
+  // Turning two-factor on or off goes in the audit log. Nothing recorded it before. (T41)
+  audit,
   // What the authenticator app lists the entry under. The company's own name would be better, but it
   // is per-tenant data and this is a module-level route factory — the vertical's name is honest and
   // stable, and the entry also carries the person's email.

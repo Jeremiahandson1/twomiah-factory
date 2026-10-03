@@ -7,6 +7,7 @@ import { invoice, invoiceLineItem, contact, project, quote, payment, company } f
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
+import audit from '../services/audit.ts'
 import emailService from '../services/email.ts'
 import { INVOICE_NUMBERING, syncEventInvoiceDueDate } from '../services/eventLedger.ts'
 import { bookOnDepositForInvoice } from '../services/eventBooking.ts'
@@ -26,6 +27,9 @@ export default createInvoiceRoutes({
   EVENTS,
   sendInvoiceEmail: (to, data) => emailService.sendInvoice(to, data),
   loadPdf: () => import('../services/pdf.ts').then(m => m.generateInvoicePDF),
+  // Money movements go in the audit log: create, edit, send, payment, void, refund, credit, delete.
+  // Every write in this module used to log NOTHING — 1,889 rows and not one line about money. (T41)
+  audit,
   // The same numbering constant event invoices are raised with (the shared default, stated once).
   // minLineItems: a hand-raised invoice needs a line — a $0 invoice with nothing on it saved as INV-00052 (T16 L6).
   // Event invoices are raised by the ledger service, not this route, so they are unaffected.

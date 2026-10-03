@@ -87,6 +87,11 @@ export interface InvoiceDeps {
   sendInvoiceEmail: (to: string, data: Record<string, unknown>) => Promise<unknown>
   /** Lazy so pdfkit is only loaded when a PDF is actually requested. */
   loadPdf: () => Promise<(invoice: any, company: any) => Promise<Buffer>>
+  /**
+   * The template's audit service — `{ log, ACTIONS, ENTITIES }`. Optional, because a template
+   * without one keeps working exactly as before rather than failing to start. (T41)
+   */
+  audit?: { log: (entry: any) => any; ACTIONS?: Record<string, string>; ENTITIES?: Record<string, string> }
   options?: InvoiceOptions
 }
 
@@ -493,6 +498,56 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
   const minLineItems = deps.options?.minLineItems ?? 0
   const derive = (inv: any) => deriveStatus(inv, openStatuses)
 
+  /**
+   * THE AUDIT LOG RECORDED NO MONEY. (T41, found on three verticals independently)
+   *
+   *   "The audit log doesn't record money movements or settings changes: no refund, payment,
+   *    credit, void, invoice-create, company-settings or 2FA entries across 1,889 rows." — salon
+   *   "The audit log misses invoice payments, refunds, credits, sends and settings changes (CO
+   *    signing is logged); there's no audit UI." — contractor
+   *   "Audit Log action filters return nothing for every option (Order Refunded, Cash Drawer
+   *    Opened/Closed, Login, Settings Changed, Inventory Adjusted)." — dispensary
+   *
+   * Every write in this module wrote NOTHING to the log — not one call. 1,889 rows of contacts and
+   * jobs being edited, and not a single line about money. The log was answering "who changed a
+   * record" and silently not answering "who took, returned or wrote off money", which is the only
+   * question anybody opens an audit log to ask.
+   *
+   * WHAT IS RECORDED IS THE FIGURE, not just the fact. "payment on INV-00204" is close to useless
+   * six weeks later; "$43.75 by card, balance 0.00" is the thing a disputed charge is settled with.
+   * Every entry carries the invoice number as its name, so the log reads in the shop's own language.
+   *
+   * Never throws, and never inside the transaction: a failed audit write must not roll back a
+   * payment that genuinely happened. An unlogged payment is bad; a refused one because the log was
+   * unavailable is worse. The template's own service already swallows its errors — this adds a
+   * second belt because the money paths are the ones that must never 500 for this reason.
+   */
+  const money2 = (v: unknown) => Number(v ?? 0).toFixed(2)
+  function logMoney(c: any, action: string, invoice: any, metadata: Record<string, unknown> = {}) {
+    if (!deps.audit?.log) return
+    try {
+      const u = c.get('user') as any
+      deps.audit.log({
+        action,
+        entity: deps.audit.ENTITIES?.INVOICE ?? 'invoice',
+        entityId: invoice?.id ?? null,
+        entityName: invoice?.number ?? null,
+        metadata: {
+          total: money2(invoice?.total),
+          balance: money2(invoice?.balance ?? invoiceBalance(invoice || {})),
+          status: invoice?.status ?? null,
+          ...metadata,
+        },
+        userId: u?.userId,
+        companyId: u?.companyId,
+        // The CONTEXT, not `{ user }`: every template's resolveActor is duck-typed to take a Hono
+        // context and reads the IP and user-agent off it. Handing it a bare object would record who
+        // and what and lose FROM WHERE, which is half of what an audit log is for.
+        req: c,
+      })
+    } catch { /* a log that cannot be written must not take the money path down with it */ }
+  }
+
   const app = new Hono()
   // Self-heal drifted invoice statuses on boot (see reconcileInvoiceStatuses). Fire-and-forget so it
   // can never delay or fail server startup; idempotent, so re-running is a no-op once statuses are clean.
@@ -709,6 +764,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       dueDate, issueDate, taxRate, discount: data.discount, extra: extra.values,
     }, lineItems))
     emitToCompany(cid, EVENTS.INVOICE_CREATED, result)
+    logMoney(c, deps.audit?.ACTIONS?.CREATE ?? 'create', result, { lineItems: lineItems.length, taxRate, discount: money2(data.discount) })
     return c.json(result, 201)
   })
 
@@ -769,6 +825,8 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       return { ...updated, lineItems: items }
     })
     emitToCompany(cid, EVENTS.INVOICE_UPDATED, result)
+    // The BEFORE total as well as the after: "edited INV-00204" says nothing, "900.00 → 125.50" does.
+    logMoney(c, deps.audit?.ACTIONS?.UPDATE ?? 'update', result, { totalBefore: money2(existing.total) })
     return c.json(result)
   })
 
@@ -781,6 +839,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     // Never delete an invoice that has taken money — it destroys the financial record. Void it instead.
     if (Number(existing.amountPaid) > 0 || existing.status === 'paid') return c.json({ error: 'Cannot delete an invoice with payments recorded. Void it instead.' }, 400)
     await db.delete(t.invoice).where(eq(t.invoice.id, id))
+    logMoney(c, deps.audit?.ACTIONS?.DELETE ?? 'delete', existing, { note: 'deleted before any payment was taken' })
     return c.body(null, 204)
   })
 
@@ -816,6 +875,8 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const status = found.status === 'draft' ? 'sent' : found.status
     const [updated] = await db.update(t.invoice).set({ status, sentAt: new Date(), updatedAt: new Date() }).where(and(eq(t.invoice.id, id), eq(t.invoice.companyId, cid))).returning()
     emitToCompany(cid, EVENTS.INVOICE_SENT, { id: updated.id, number: updated.number })
+    // WHO it went to is the point of logging a send — a dispute starts with "it was never sent".
+    logMoney(c, deps.audit?.ACTIONS?.SEND ?? 'send', updated, { to: recipientEmail })
     return c.json(updated)
   })
 
@@ -835,6 +896,10 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     if (!outcome.ok) return c.json({ error: outcome.error }, outcome.status)
     emitToCompany(currentUser.companyId, EVENTS.PAYMENT_RECEIVED, { invoiceId: id, invoiceNumber: outcome.row.number, amount, newBalance: outcome.newBalance, status: outcome.newStatus })
     if (outcome.newStatus === 'paid') emitToCompany(currentUser.companyId, EVENTS.INVOICE_PAID, { id, number: outcome.row.number, total: outcome.row.total })
+    logMoney(c, deps.audit?.ACTIONS?.PAYMENT ?? 'payment', { ...outcome.row, status: outcome.newStatus, balance: outcome.newBalance }, {
+      amount: money2(amount), method: data.method, reference: data.reference ?? null,
+      ...(tips && tipAmount > 0 ? { tip: money2(tipAmount) } : {}),
+    })
     return c.json(outcome.payment, 201)
   })
 
@@ -863,7 +928,11 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       const [updated] = await tx.update(t.invoice).set({ status: 'void', notes: row.notes ? `${row.notes}\n${note}` : note, updatedAt: new Date() }).where(eq(t.invoice.id, id)).returning()
       outcome = { status: 200, body: updated }
     })
-    if (outcome.status === 200) emitToCompany(currentUser.companyId, EVENTS.INVOICE_UPDATED, outcome.body)
+    if (outcome.status === 200) {
+      emitToCompany(currentUser.companyId, EVENTS.INVOICE_UPDATED, outcome.body)
+      // A void takes a number out of the ledger without deleting it. WHY is the whole record.
+      logMoney(c, 'void', outcome.body, { reason: body.reason ? String(body.reason).slice(0, 500) : null })
+    }
     return c.json(outcome.body, outcome.status as any)
   })
 
@@ -902,6 +971,10 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const outcome = await recordInvoiceRefund(db, t, { invoiceId: id, companyId: currentUser.companyId, amount, method: data.method, reference: data.reference, notes: why, creditToAccount: deps.options?.accountBalance?.credit })
     if (!outcome.ok) return c.json({ error: outcome.error }, outcome.status)
     emitToCompany(currentUser.companyId, EVENTS.INVOICE_UPDATED, outcome.invoice)
+    logMoney(c, 'refund', outcome.invoice, {
+      amount: money2(amount), method: data.method ?? null, reference: data.reference ?? null, reason: why ?? null,
+      refundedToDate: money2(outcome.invoice?.amountRefunded),
+    })
     return c.json({ refund: outcome.refund, invoice: outcome.invoice })
   })
 
@@ -924,6 +997,11 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const outcome = await applyInvoiceCredit(db, t, { invoiceId: id, companyId: currentUser.companyId, amount, reason: parsed.data.reason, by: currentUser.email || null })
     if (!outcome.ok) return c.json({ error: outcome.error }, outcome.status)
     emitToCompany(currentUser.companyId, EVENTS.INVOICE_UPDATED, outcome.invoice)
+    // A credit is money written off. The reason is mandatory on the way in, so it is recorded here.
+    logMoney(c, 'credit', outcome.invoice, {
+      amount: money2(amount), reason: parsed.data.reason,
+      balanceBefore: money2(outcome.balanceBefore), balanceAfter: money2(outcome.balanceAfter),
+    })
     return c.json({ invoice: outcome.invoice, balanceBefore: outcome.balanceBefore, balanceAfter: outcome.balanceAfter })
   })
 

@@ -402,5 +402,128 @@ console.log('\n══════════ the constraints under bill-once �
   await db.execute(sql`DELETE FROM invoice WHERE id IN ('t41-void-probe', 't41-dup-probe')`)
 }
 
+// ══════════ T41 — ONCE THE BILL IS RAISED, THE CHARGE IS WHAT THE BILL SAYS ══════════════════
+//
+//   "A billed visit's total can still be edited after invoicing (PUT 999 → 200; the invoice stays
+//    125.50)."
+//
+// The two figures simply stopped agreeing: the visit said 999, the invoice said 125.50, and the
+// owner is holding the 125.50 one. Every surface that totals visits then reads a number nobody was
+// asked to pay.
+//
+// ONLY THE MONEY IS FROZEN, and that half is asserted just as hard: a vet finishing the write-up
+// that evening, a lab result, a mistyped weight — all must still save on a billed visit, or the
+// work goes somewhere other than the medical record.
+console.log('\n══════════ editing a visit after it has been billed ══════════')
+{
+  const [billed] = await db.insert(visit).values({
+    companyId: co.id, patientId: pet.id, visitDate: new Date(), reason: 'Lame on the left fore',
+    total: '125.50', assessment: 'Soft-tissue strain', weightLb: '31.2',
+  } as any).returning()
+  const [inv] = await db.insert(invoice).values({
+    companyId: co.id, contactId: client.id, number: 'INV-T41-VIS', subtotal: '125.50', total: '125.50',
+    amountPaid: '0', taxAmount: '0', taxRate: '0', discount: '0', status: 'sent',
+  } as any).returning()
+  await db.execute(sql`UPDATE visit SET invoice_id = ${inv.id} WHERE id = ${billed.id}`)
+
+  const row = async () => {
+    const r: any = await db.execute(sql`SELECT total, assessment, weight_lb, notes FROM visit WHERE id = ${billed.id}`)
+    return ((r as any).rows || r)[0]
+  }
+
+  const raise = await asOwner('PUT', `/api/visits/${billed.id}`, { patientId: pet.id, total: 999 })
+  check('T41: raising the charge on an invoiced visit is REFUSED', raise.status === 400,
+    { status: raise.status, body: raise.text?.slice(0, 200) })
+  check('T41: …and the refusal says what to do instead — credit or void the invoice',
+    /credit or void/i.test(String(raise.json?.error)) && raise.json?.code === 'visit_already_invoiced',
+    raise.json)
+  check('T41: …the charge is untouched at 125.50', Number((await row())?.total) === 125.5, await row())
+
+  // Lowering it is the same fault in the other direction, and a test that only tried 999 would miss
+  // a fix written as `if (updates.total > existing.total)`.
+  const lower = await asOwner('PUT', `/api/visits/${billed.id}`, { patientId: pet.id, total: 1 })
+  check('T41: LOWERING it is refused too', lower.status === 400 && Number((await row())?.total) === 125.5,
+    { status: lower.status, total: (await row())?.total })
+
+  // The clinical half.
+  const clinical = await asOwner('PUT', `/api/visits/${billed.id}`, {
+    patientId: pet.id, assessment: 'Soft-tissue strain, improving; recheck in 10 days', notes: 'Owner rang Tuesday',
+  })
+  check('T41: the clinical write-up still saves on a billed visit', clinical.status === 200,
+    { status: clinical.status, body: clinical.text?.slice(0, 200) })
+  check('T41: …and it really changed', /recheck in 10 days/.test(String((await row())?.assessment)), await row())
+  check('T41: …without disturbing the charge', Number((await row())?.total) === 125.5, await row())
+
+  // The edit form posts every field back, including the total it was shown. That must not be a
+  // refusal — it is a save that changes nothing about the money.
+  const resave = await asOwner('PUT', `/api/visits/${billed.id}`, {
+    patientId: pet.id, total: 125.5, notes: 'Second call Thursday',
+  })
+  check('T41: re-saving the form with the SAME total is accepted, not refused', resave.status === 200,
+    { status: resave.status, body: resave.text?.slice(0, 200) })
+  check('T41: …and the note landed', /Thursday/.test(String((await row())?.notes)), await row())
+
+  // An UNbilled visit is still freely editable — the rule must be about the invoice, not about
+  // visits in general.
+  const [open] = await db.insert(visit).values({
+    companyId: co.id, patientId: pet.id, visitDate: new Date(), reason: 'Vaccination', total: '22.00',
+  } as any).returning()
+  const openEdit = await asOwner('PUT', `/api/visits/${open.id}`, { patientId: pet.id, total: 45 })
+  const openRow: any = await db.execute(sql`SELECT total FROM visit WHERE id = ${open.id}`)
+  check('T41: a visit that has NOT been billed can still have its charge corrected',
+    openEdit.status === 200 && Number((((openRow as any).rows || openRow)[0])?.total) === 45,
+    { status: openEdit.status, rows: (openRow as any).rows })
+}
+
+// ══════════ T41 — a booster cannot be due before the shot that needs it ══════════════════════
+//
+//   "A vaccination due date before the given date is accepted."
+//
+// Not an unusual case — a typo, a year mistyped or the two fields filled in the wrong order — and
+// the practice pays twice: the reminder engine calls the owner in for a booster that is not due, and
+// a rabies certificate prints an expiry that has already passed, which is the document a shelter or
+// a groomer relies on.
+console.log('\n══════════ vaccination dates ══════════')
+{
+  const mk = (givenDate: string, dueDate: string | null) =>
+    asOwner('POST', '/api/vaccinations', { patientId: pet.id, vaccine: 'Rabies 1yr', givenDate, dueDate, isRabies: true })
+
+  const backwards = await mk('2026-10-01', '2025-10-01')
+  check('T41: a due date BEFORE the date given is refused', backwards.status === 400,
+    { status: backwards.status, body: backwards.text?.slice(0, 200) })
+  check('T41: …and the message names both dates, so the typo is findable',
+    /2025-10-01/.test(String(backwards.json?.error)) && /2026-10-01/.test(String(backwards.json?.error)),
+    backwards.json)
+
+  const oneDayBefore = await mk('2026-10-01', '2026-09-30')
+  check('T41: one day before is refused too — this is not a tolerance', oneDayBefore.status === 400,
+    { status: oneDayBefore.status })
+
+  // Same day is a real entry: a puppy brought back that afternoon for the next of a series.
+  const sameDay = await mk('2026-10-01', '2026-10-01')
+  check('T41: the SAME day is allowed — a series can be written up that way', sameDay.status === 201,
+    { status: sameDay.status, body: sameDay.text?.slice(0, 200) })
+  const normal = await mk('2026-10-01', '2027-10-01')
+  check('a year later is of course allowed', normal.status === 201, { status: normal.status })
+  const noDue = await mk('2026-10-01', null)
+  check('…and so is no due date at all — not every vaccine has one', noDue.status === 201, { status: noDue.status })
+
+  // The edit form is exactly where a date gets corrected, and where it gets mistyped again.
+  const vaccId = normal.json?.id
+  const editBackwards = await asOwner('PUT', `/api/vaccinations/${vaccId}`, { dueDate: '2026-01-01' })
+  check('T41: the same rule applies on EDIT', editBackwards.status === 400,
+    { status: editBackwards.status, body: editBackwards.text?.slice(0, 200) })
+  // …and it has to compare against the STORED date, not only against a date in the same request.
+  const movedGiven = await asOwner('PUT', `/api/vaccinations/${vaccId}`, { givenDate: '2028-01-01' })
+  check('T41: …including when only the GIVEN date moves, past a due date already on the row',
+    movedGiven.status === 400, { status: movedGiven.status, body: movedGiven.text?.slice(0, 200) })
+  const r: any = await db.execute(sql`SELECT given_date, due_date FROM vaccination WHERE id = ${vaccId}`)
+  const kept = ((r as any).rows || r)[0]
+  check('T41: …and neither refusal wrote anything', String(kept?.given_date).startsWith('2026-10-01')
+    && String(kept?.due_date).startsWith('2027-10-01'), kept)
+  const goodEdit = await asOwner('PUT', `/api/vaccinations/${vaccId}`, { dueDate: '2027-12-01' })
+  check('a sensible correction still saves', goodEdit.status === 200, { status: goodEdit.status })
+}
+
 console.log(`\n${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

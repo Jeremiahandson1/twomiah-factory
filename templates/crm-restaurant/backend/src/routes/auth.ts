@@ -8,6 +8,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { getPermissions, normalizeRole, hasPermission, roleLabel, ROLE_HIERARCHY, getExtraPermissions } from '../middleware/permissions.ts'
 import emailService from '../services/email.ts'
 import logger from '../services/logger.ts'
+import audit from '../services/audit.ts'
 
 export default createAuthRoutes({
   db,
@@ -19,6 +20,9 @@ export default createAuthRoutes({
   permissions: { getPermissions, normalizeRole, hasPermission, roleLabel, ROLE_HIERARCHY, getExtraPermissions },
   emailService,
   logger,
+  // Sign-ins, failed sign-ins, sign-outs and password changes go in the audit log. An audit log
+  // with no sign-ins cannot answer when an account was last used, or from where. (T41)
+  audit,
   options: {
     vertical: 'restaurant',
   },

@@ -33,6 +33,17 @@ export interface CompanyDeps {
   /** The vertical's word for a rung (from createPermissions). Optional so a template that has not wired
    *  it yet still builds; the row simply carries no label rather than the wrong one. */
   roleLabel?: (role: string) => string
+  /**
+   * The template's audit service — `{ log, ACTIONS, ENTITIES }`. Optional: a template without one
+   * keeps working rather than failing to start. (T41)
+   *
+   * "The audit log doesn't record money movements or settings changes: no refund, payment, credit,
+   *  void, invoice-create, company-settings or 2FA entries across 1,889 rows." — salon
+   *
+   * A company's settings are its tax rate, its payment terms, its brand and its licence number.
+   * Every one of them changes what goes on an invoice, and nothing recorded who changed them.
+   */
+  audit?: { log: (entry: any) => any; ACTIONS?: Record<string, string>; ENTITIES?: Record<string, string> }
   /** drops the cached extra-permission grants for a user after they change */
   invalidateExtraPermissions?: (userId: string) => void
   /** this template's id in the feature registry, e.g. 'crm-salon' */
@@ -289,6 +300,32 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     }
     const [row] = await db.update(t.company).set(updates).where(eq(t.company.id, currentUser.companyId)).returning()
     if (!row) return c.json({ error: 'Company not found' }, 404)
+    /**
+     * WHO CHANGED THE SHOP'S SETTINGS. (T41)
+     *
+     * WHAT changed matters as much as that something did, so the entry carries the KEYS the request
+     * touched — `settings.defaultTaxRate`, `settings.paymentTermsDays`, `name`, `licenseNumber`
+     * — rather than the whole blob. The blob holds plan state, onboarding flags and per-vertical
+     * configuration across thirteen verticals; dumping it into every row would bury the one key
+     * somebody is looking for and copy settings into the log for ever.
+     *
+     * Values are NOT recorded. A settings change is "the tax rate was touched, by this person, from
+     * this address, at this time" — enough to find the change and ask; the value is on the record
+     * itself. Never throws: a settings save must not fail because the log was unavailable.
+     */
+    try {
+      if (deps.audit?.log) {
+        const touched = Object.keys(data).filter((k) => k !== 'settings')
+        const settingKeys = data.settings && typeof data.settings === 'object' ? Object.keys(data.settings) : []
+        deps.audit.log({
+          action: deps.audit.ACTIONS?.UPDATE ?? 'update',
+          entity: deps.audit.ENTITIES?.COMPANY ?? 'company',
+          entityId: row.id, entityName: row.name,
+          metadata: { fields: touched, settings: settingKeys },
+          userId: currentUser?.userId, companyId: currentUser?.companyId, req: c,
+        })
+      }
+    } catch { /* an unwritten log must not undo a saved setting */ }
     return c.json(sanitizeCompany(row))
   })
 
@@ -315,6 +352,25 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     const [row] = await db.update(t.company).set({ enabledFeatures: next, updatedAt: new Date() }).where(eq(t.company.id, currentUser.companyId)).returning()
     if (!row) return c.json({ error: 'Company not found' }, 404)
     try { deps.onFeaturesChanged?.(next) } catch (e: any) { console.warn('[Features] onFeaturesChanged failed:', e?.message || e) }
+    // Switching a module on or off changes what the whole tenant can do, so it is a security event
+    // as much as a settings one. Recorded as the DIFFERENCE, which is what anybody asking will want.
+    try {
+      if (deps.audit?.log) {
+        const was = new Set(((current?.enabledFeatures || []) as string[]))
+        const now = new Set(next)
+        deps.audit.log({
+          action: deps.audit.ACTIONS?.UPDATE ?? 'update',
+          entity: deps.audit.ENTITIES?.COMPANY ?? 'company',
+          entityId: row.id, entityName: row.name,
+          metadata: {
+            fields: ['enabledFeatures'],
+            switchedOn: next.filter((f) => !was.has(f)),
+            switchedOff: [...was].filter((f) => !now.has(f)),
+          },
+          userId: currentUser?.userId, companyId: currentUser?.companyId, req: c,
+        })
+      }
+    } catch { /* as above */ }
     return c.json(sanitizeCompany(row))
   })
 

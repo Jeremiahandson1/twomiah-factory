@@ -49,6 +49,19 @@ export interface MfaRoutesDeps {
   authenticate: any
   /** Shown in the authenticator app's entry, e.g. "Twomiah Contractor". */
   issuer: string
+  /**
+   * The template's audit service — `{ log, ACTIONS, ENTITIES }`. Optional, so a template that has
+   * not been rewired keeps working rather than failing to start. (T41)
+   *
+   * "The audit log doesn't record money movements or settings changes: no refund, payment, credit,
+   *  void, invoice-create, company-settings or 2FA entries across 1,889 rows." — salon
+   * "PIN changes, 2FA setup and logins are not audited." — dispensary
+   *
+   * Turning the second factor ON or OFF is the single most security-relevant thing a person does to
+   * their own account, and nothing recorded either. Never the SEED and never a code — only the event,
+   * who, and from where.
+   */
+  audit?: { log: (entry: any) => any; ACTIONS?: Record<string, string>; ENTITIES?: Record<string, string> }
 }
 
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex')
@@ -63,6 +76,27 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
   const { db, authenticate, issuer } = deps
   const app = new Hono()
   app.use('*', authenticate)
+
+  /**
+   * A security event on the person's own account. Never throws: a credential change that succeeded
+   * and went unlogged is bad; one rolled back because the log was unavailable is worse. The CONTEXT
+   * is passed, not a bare user, because every template's resolveActor reads the IP and user-agent
+   * off it — and "two-factor was removed" with no address answers nothing. (T41)
+   */
+  function logSecurity(c: any, action: string, description: string, metadata: Record<string, unknown> = {}) {
+    if (!deps.audit?.log) return
+    try {
+      const u = c.get('user') as any
+      deps.audit.log({
+        action,
+        entity: deps.audit.ENTITIES?.USER ?? 'user',
+        entityId: u?.userId ?? null,
+        entityName: u?.email ?? null,
+        metadata: { description, ...metadata },
+        userId: u?.userId, companyId: u?.companyId, req: c,
+      })
+    } catch { /* see above */ }
+  }
 
   const devicesOf = async (u: any) => rowsOf(await db.execute(sql`
     SELECT id, type, name, is_verified, is_primary, last_used_at, created_at,
@@ -163,6 +197,9 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
               ${JSON.stringify(codes.map(sha256))}::json, true, NOW())
     `)
 
+    // THE event: two-factor is now actually on. /setup alone is an abandoned enrolment and is not
+    // logged — it protects nothing and would bury this line in noise.
+    logSecurity(c, 'mfa_enabled', 'Turned two-factor on and took a set of recovery codes', { deviceId: device.id, type: device.type })
     return c.json({
       active: true,
       recoveryCodes: codes,
@@ -188,6 +225,8 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
       VALUES (gen_random_uuid(), ${u.userId}, ${u.companyId}, 'backup_codes', 'Recovery codes',
               ${JSON.stringify(codes.map(sha256))}::json, true, NOW())
     `)
+    // A fresh set voids the old paper, so somebody holding the previous codes has just lost access.
+    logSecurity(c, 'mfa_recovery_codes_reissued', 'Took a new set of recovery codes; the previous set stopped working')
     return c.json({ recoveryCodes: codes, message: 'A new set. The old codes no longer work.' })
   })
 
@@ -271,6 +310,12 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
         `)
       }
     }
+    // Removing a VERIFIED authenticator weakens the account, so the entry says which it was — an
+    // abandoned enrolment being cleaned up is a different event from a live factor being switched off.
+    logSecurity(c, 'mfa_removed', needsCode
+      ? 'Removed a verified authenticator, so two-factor is off'
+      : 'Cleaned up an unverified enrolment that was never a second factor',
+      { deviceId: device.id, type: device.type, wasVerified: needsCode })
     return c.json({ removed: true, message: 'Two-factor is off for your account.' })
   })
 

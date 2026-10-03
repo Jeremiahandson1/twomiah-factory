@@ -184,6 +184,43 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const EDITABLE = ['patientId', 'appointmentId', 'providerId', 'visitDate', 'reason', 'weightLb', 'temperatureF', 'heartRate', 'respRate', 'subjective', 'objective', 'assessment', 'plan', 'diagnoses', 'treatments', 'notes', 'total'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+
+  /**
+   * ONCE THE BILL IS RAISED, THE CHARGE IS WHAT THE BILL SAYS. (T41)
+   *
+   *   "A billed visit's total can still be edited after invoicing (PUT 999 → 200; the invoice stays
+   *    125.50)."
+   *
+   * That is the whole fault: the two figures simply stopped agreeing. The visit said $999, the
+   * invoice said $125.50, and the owner is holding the $125.50 one. Every surface that totals
+   * visits — the patient chart, the dashboard, a revenue report — then reads a number the practice
+   * never asked anyone to pay.
+   *
+   * ONLY THE MONEY IS FROZEN, and that distinction matters. The clinical record must stay editable
+   * after invoicing: a vet writes up the assessment properly that evening, a lab result comes back,
+   * a weight was typed wrong. Refusing the whole PUT would push that work out of the record
+   * altogether, which is the worse outcome in a medical note. So the charge is fixed and the
+   * medicine is not.
+   *
+   * The way to change what was charged is the invoice: credit it, void it, or raise another. That is
+   * the same answer routes/changeOrders.ts gives for an approved change order, and for the same
+   * reason — the document has left the building.
+   */
+  if (existing.invoiceId && 'total' in updates) {
+    const changed = Number(updates.total ?? 0).toFixed(2) !== Number(existing.total ?? 0).toFixed(2)
+    if (changed) {
+      return c.json({
+        error: `This visit has already been invoiced, so its charge is fixed at $${Number(existing.total ?? 0).toFixed(2)}. `
+          + 'To change what the owner pays, credit or void the invoice and raise a new one.',
+        code: 'visit_already_invoiced',
+        invoiceId: existing.invoiceId,
+        total: existing.total,
+      }, 400)
+    }
+    // Unchanged (the edit form posts every field back, including the total it was shown) — accept the
+    // rest of the edit and leave the figure alone rather than refusing a save that changes nothing.
+    delete updates.total
+  }
   if ('visitDate' in updates && updates.visitDate) updates.visitDate = new Date(updates.visitDate)
 
   const [updated] = await db.update(visit).set(updates).where(eq(visit.id, id)).returning()

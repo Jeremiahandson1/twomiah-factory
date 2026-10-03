@@ -47,6 +47,21 @@ export interface AuthDeps {
   }
   emailService: { sendPasswordReset: (to: string, data: Record<string, unknown>) => Promise<unknown> }
   logger: { info: (msg: string, meta?: any) => void; warn: (msg: string, meta?: any) => void; error: (msg: string, meta?: any) => void }
+  /**
+   * The template's audit service — `{ log, ACTIONS, ENTITIES }`. Optional, so a template that has
+   * not been rewired keeps working rather than failing to start. (T41)
+   *
+   * "PIN changes, 2FA setup and logins are not audited." — dispensary
+   * "Audit Log action filters return nothing for every option (… Login, Settings Changed …)." — the
+   *  filter offered Login because somebody expected sign-ins to be there. They were not.
+   *
+   * An audit log with no sign-ins cannot answer the first question anybody asks after a breach:
+   * when did this account last get used, and from where. A FAILED sign-in matters as much as a
+   * successful one — a run of them against one account is what an attack looks like from here.
+   *
+   * No password, no token and no reset code is ever recorded.
+   */
+  audit?: { log: (entry: any) => any; ACTIONS?: Record<string, string>; ENTITIES?: Record<string, string> }
   options: AuthOptions
 }
 
@@ -72,6 +87,30 @@ const stillValid = (token: string) => { try { jwt.verify(token, process.env.JWT_
 
 export function createAuthRoutes(deps: AuthDeps) {
   const { db, tables: { user, company }, authenticate, permissions, emailService, logger, options } = deps
+
+  /**
+   * A sign-in event. Never throws — an unlogged sign-in is bad, a refused one because the log was
+   * unavailable is worse, and this runs on the hottest path in the product.
+   *
+   * The CONTEXT is passed so resolveActor can read the IP and user-agent: "signed in" with no
+   * address is the one detail that makes the entry worth keeping. The acting user is given
+   * explicitly because on a failed attempt there IS no session to read it from.
+   */
+  function logAuth(c: any, action: string, who: { id?: string | null; email?: string | null; companyId?: string | null }, description: string, metadata: Record<string, unknown> = {}) {
+    if (!deps.audit?.log) return
+    try {
+      deps.audit.log({
+        action,
+        entity: deps.audit.ENTITIES?.USER ?? 'user',
+        entityId: who.id ?? null,
+        entityName: who.email ?? null,
+        metadata: { description, ...metadata },
+        userId: who.id ?? null,
+        companyId: who.companyId ?? null,
+        req: c,
+      })
+    } catch { /* see above */ }
+  }
   const LOCK_AFTER = options.lockAfter ?? 10, LOCK_MS = options.lockMs ?? 15 * 60 * 1000
   const app = new Hono()
 
@@ -159,6 +198,11 @@ export function createAuthRoutes(deps: AuthDeps) {
       const lock = fails >= LOCK_AFTER
       await db.update(user).set({ failedLoginCount: lock ? 0 : fails, lockedUntil: lock ? new Date(Date.now() + LOCK_MS) : null }).where(eq(user.id, foundUser.id))
       const mins = Math.round(LOCK_MS / 60000)
+      // A run of these against one account is what an attack looks like from the log's side, so the
+      // attempt NUMBER is recorded and the lock is called out when it trips.
+      logAuth(c, deps.audit?.ACTIONS?.LOGIN_FAILED ?? 'login_failed',
+        { id: foundUser.id, email: foundUser.email, companyId: foundUser.companyId },
+        lock ? 'Wrong password; the account is now locked' : 'Wrong password', { attempt: fails, locked: lock })
       return c.json({ error: lock ? `Too many failed sign-in attempts. Try again in ${mins} minutes.` : 'Invalid email or password' }, lock ? 423 : 401)
     }
     if ((Number(foundUser.failedLoginCount) || 0) > 0 || lockedUntilMs) await db.update(user).set({ failedLoginCount: 0, lockedUntil: null }).where(eq(user.id, foundUser.id))
@@ -193,6 +237,8 @@ export function createAuthRoutes(deps: AuthDeps) {
 
     const tokens = generateTokens(foundUser.id, foundUser.companyId, foundUser.email, foundUser.role)
     await storeRefreshToken(foundUser.id, tokens.refreshToken, { lastLogin: new Date() })
+    logAuth(c, deps.audit?.ACTIONS?.LOGIN ?? 'login',
+      { id: foundUser.id, email: foundUser.email, companyId: foundUser.companyId }, 'Signed in', { role: foundUser.role })
 
     /**
      * `permissions` on the LOGIN response too, not only on /me. (T32, found while closing M16)
@@ -246,6 +292,11 @@ export function createAuthRoutes(deps: AuthDeps) {
 
     const tokens = generateTokens(mfaUser.id, mfaUser.companyId, mfaUser.email, mfaUser.role)
     await storeRefreshToken(mfaUser.id, tokens.refreshToken, { lastLogin: new Date() })
+    // The same event, reached the other way: password, then a second factor. Recorded distinctly so
+    // the log says whether two-factor was actually used.
+    logAuth(c, deps.audit?.ACTIONS?.LOGIN ?? 'login',
+      { id: mfaUser.id, email: mfaUser.email, companyId: mfaUser.companyId }, 'Signed in with two-factor',
+      { role: mfaUser.role, secondFactor: true })
     return c.json({
       user: userPayload(mfaUser, mfaUser.role),
       company: companyPayload(mfaCompany, permissions.normalizeRole(mfaUser.role)),
@@ -277,6 +328,9 @@ export function createAuthRoutes(deps: AuthDeps) {
     const currentUser = c.get('user') as any
     const body = await c.req.json().catch(() => ({} as any))
     await revokeRefreshToken(currentUser.userId, typeof body?.refreshToken === 'string' ? body.refreshToken : null)
+    logAuth(c, deps.audit?.ACTIONS?.LOGOUT ?? 'logout',
+      { id: currentUser.userId, email: currentUser.email, companyId: currentUser.companyId },
+      typeof body?.refreshToken === 'string' ? 'Signed out of this device' : 'Signed out of every device')
     return c.json({ message: 'Logged out' })
   })
 
@@ -342,6 +396,8 @@ export function createAuthRoutes(deps: AuthDeps) {
     if (!valid) return c.json({ error: 'Current password is incorrect' }, 400)
     const passwordHash = await Bun.password.hash(data.newPassword, 'bcrypt')
     await db.update(user).set({ passwordHash, updatedAt: new Date() }).where(eq(user.id, foundUser.id))
+    logAuth(c, deps.audit?.ACTIONS?.PASSWORD_CHANGE ?? 'password_change',
+      { id: foundUser.id, email: foundUser.email, companyId: foundUser.companyId }, 'Changed their own password')
     return c.json({ message: 'Password changed successfully' })
   })
 

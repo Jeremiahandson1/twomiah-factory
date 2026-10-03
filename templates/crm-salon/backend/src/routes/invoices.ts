@@ -7,6 +7,7 @@ import { invoice, invoiceLineItem, contact, project, quote, payment, company, cl
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
+import audit from '../services/audit.ts'
 import emailService from '../services/email.ts'
 import { salonTimezone } from '../utils/salonDate.ts'
 
@@ -28,6 +29,9 @@ export default createInvoiceRoutes({
   EVENTS,
   sendInvoiceEmail: (to, data) => emailService.sendInvoice(to, data),
   loadPdf: () => import('../services/pdf.ts').then(m => m.generateInvoicePDF),
+  // Money movements go in the audit log: create, edit, send, payment, void, refund, credit, delete.
+  // Every write in this module used to log NOTHING — 1,889 rows and not one line about money. (T41)
+  audit,
   // minLineItems: an invoice needs at least one line — the invoice form already requires one, and the API created an empty $0 invoice when called directly (RV T19 L8; landscaping and events had it).
   // timeZoneFor: the shop's own clock decides what "today" is on a new invoice. Render runs UTC, so an
   // invoice raised at 19:00 Central was stamped with tomorrow's date and fell due a day late — the same

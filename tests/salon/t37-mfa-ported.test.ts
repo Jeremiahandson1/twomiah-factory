@@ -152,5 +152,87 @@ let deviceId = '', secret = ''
     { status: back.status, mfaRequired: back.json?.mfaRequired })
 }
 
+// ══════════ T41 — AND ALL OF THAT IS NOW IN THE AUDIT LOG ════════════════════════════════════
+//
+//   "PIN changes, 2FA setup and logins are not audited." — dispensary
+//   "The audit log doesn't record … or 2FA entries across 1,889 rows." — salon
+//   "Audit Log action filters return nothing for every option (… Login …)." — the filter offered
+//    Login because somebody expected sign-ins to be there. They were not.
+//
+// An audit log with no sign-ins cannot answer the first question anybody asks after a breach: when
+// did this account last get used, and from where. This file has already driven the whole flow above
+// — enrol, verify, sign in with the second factor, remove it, sign in again — so the assertions
+// here read back what that flow should have written.
+//
+// NO SECRET MAY BE IN THE LOG: not the seed, not a code, not a password, not a recovery code. That
+// is asserted as hard as the presence of the rows.
+console.log('\n══════════ the security trail ══════════')
+{
+  const trail = async (): Promise<any[]> => {
+    const r: any = await db.execute(sql`
+      SELECT action, entity, entity_name, metadata, user_id, user_email, ip_address
+        FROM audit_log WHERE company_id = ${co.id} ORDER BY created_at`)
+    return ((r as any).rows || r).map((row: any) => ({
+      ...row, metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
+    }))
+  }
+  const has = (action: string) => trail().then((all) => all.find((e) => e.action === action))
+
+  // A failed sign-in, which matters as much as a successful one: a run of them against one account
+  // is what an attack looks like from the log's side.
+  const wrongPw = await api('POST', '/api/auth/login', { email: owner.email, password: 'NotThePassword1!' })
+  check('T41: a wrong password is still refused', wrongPw.status === 401, { status: wrongPw.status })
+  const failEntry = await has('login_failed')
+  check('T41: …and the failed attempt is in the audit log', !!failEntry, (await trail()).map((e) => e.action))
+  check('T41: …naming the account and counting the attempt',
+    failEntry?.entity_name === owner.email && Number(failEntry?.metadata?.attempt) >= 1, failEntry?.metadata)
+  check('T41: …and NOT the password that was tried',
+    !/NotThePassword/.test(JSON.stringify(failEntry || {})), failEntry?.metadata)
+
+  /**
+   * The flow above signed in BOTH ways: password only (before and after two-factor existed), and
+   * password plus a second factor. Those are TWO code paths in shared auth, and both carry the same
+   * `login` action — so asking only "is there a login entry" passes with one of them missing. A
+   * mutation that deleted the password-only log did exactly that and the test went green, which is
+   * why each path is now named separately.
+   */
+  const all = await trail()
+  const plainLogins = all.filter((e) => e.action === 'login' && !e.metadata?.secondFactor)
+  const mfaLogins = all.filter((e) => e.action === 'login' && e.metadata?.secondFactor === true)
+  check('T41: THE SIGN-IN IS IN THE LOG — the finding, closed', plainLogins.length > 0,
+    all.filter((e) => e.action === 'login').map((e) => e.metadata))
+  check('T41: …with the account and its role', plainLogins[0]?.entity_name === owner.email
+    && plainLogins[0]?.metadata?.role === 'owner', plainLogins[0]?.metadata)
+  check('T41: …and a sign-in that used the second factor is logged too, and says so',
+    mfaLogins.length > 0, all.filter((e) => e.action === 'login').map((e) => e.metadata))
+
+  const enabled = await has('mfa_enabled')
+  check('T41: turning two-factor ON is logged', !!enabled, all.map((e) => e.action))
+  check('T41: …naming the device it was turned on with', !!enabled?.metadata?.deviceId, enabled?.metadata)
+  const removed = await has('mfa_removed')
+  check('T41: turning two-factor OFF is logged', !!removed, all.map((e) => e.action))
+  check('T41: …and says it was a VERIFIED factor being switched off, not an abandoned enrolment',
+    removed?.metadata?.wasVerified === true, removed?.metadata)
+
+  // Signing out and changing a password, the other two events on an account.
+  const out = await api('POST', '/api/auth/logout', {}, owner)
+  check('T41: signing out is accepted', out.status === 200, { status: out.status })
+  check('T41: …and logged', !!(await has('logout')), (await trail()).map((e) => e.action))
+  const changed = await api('PUT', '/api/auth/password', { currentPassword: PASSWORD, newPassword: 'ChairTwo456!' }, owner)
+  check('T41: a password change is accepted', changed.status === 200, { status: changed.status, body: changed.text?.slice(0, 160) })
+  const pwEntry = await has('password_change')
+  check('T41: …and logged', !!pwEntry, (await trail()).map((e) => e.action))
+  check('T41: …without either password in the entry',
+    !/ChairOne123|ChairTwo456/.test(JSON.stringify(pwEntry || {})), pwEntry?.metadata)
+
+  // The whole trail, swept once for anything that must never be in it.
+  const dump = JSON.stringify(await trail())
+  check('T41: the authenticator SEED is nowhere in the audit log', !dump.includes(secret), secret.slice(0, 6) + '…')
+  check('T41: …nor any password', !/ChairOne123|ChairTwo456|NotThePassword/.test(dump), 'see dump')
+  check('T41: …and every security entry names its actor',
+    (await trail()).every((e) => e.user_id === owner.id || e.entity_name === owner.email),
+    (await trail()).filter((e) => !e.user_id).map((e) => e.action))
+}
+
 console.log(`\n${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)
