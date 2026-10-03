@@ -3,7 +3,7 @@ import { db } from '../../db/index.ts'
 import { event, eventSpace, eventMenuItem, eventTimeline, eventPayment, menuPackage, contact, company, user } from '../../db/schema.ts'
 import { eq, and, gte, lte, ne, or, ilike, desc, asc, inArray, isNotNull, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
@@ -130,16 +130,31 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
   const ledger = await loadEventLedger(currentUser.companyId, id)
   const inv: any = ledger?.invoice
 
+  /**
+   * THE SAME RULE ON THE EVENT PAGE. (T41)
+   *
+   * "Staff sees event money that its role blocks elsewhere: the event page (F&B total, outstanding,
+   *  the invoice card), the BEO Payments section with amounts, and dashboard stats."
+   *
+   * The event itself stays — who, when, which room, how many covers, the menu lines and the run of
+   * show are the service team's own information and the page is useless without them. What goes is
+   * the money: the schedule, the invoice card, the totals, and the per-line prices (the kitchen
+   * needs "120 × plated dinner", not what it is charged at).
+   */
+  const maySeeMoney = hasPermission(currentUser?.role, 'invoices:read', await getExtraPermissions(currentUser?.userId))
+  const menuRows = ledger?.menu || []
   return c.json({
     event: ev,
     client: client || null,
     space: space || null,
-    menu: ledger?.menu || [],
+    menu: maySeeMoney ? menuRows : menuRows.map(({ unitPrice, ...rest }: any) => rest),
     timeline,
     // The schedule, each installment with what the invoice has covered of it (state/paidAmount).
-    payments: ledger?.payments || [],
-    invoice: inv ? { id: inv.id, number: inv.number, status: deriveStatus(inv), dueDate: inv.dueDate, total: inv.total, taxAmount: inv.taxAmount, amountPaid: inv.amountPaid, amountRefunded: inv.amountRefunded, sentAt: inv.sentAt } : null,
-    totals: ledger?.totals,
+    ...(maySeeMoney ? {
+      payments: ledger?.payments || [],
+      invoice: inv ? { id: inv.id, number: inv.number, status: deriveStatus(inv), dueDate: inv.dueDate, total: inv.total, taxAmount: inv.taxAmount, amountPaid: inv.amountPaid, amountRefunded: inv.amountRefunded, sentAt: inv.sentAt } : null,
+      totals: ledger?.totals,
+    } : { payments: [], invoice: null }),
   })
 })
 
@@ -694,6 +709,23 @@ app.get('/:id/beo', requirePermission('contacts:read'), async (c) => {
   const { menuTotal, fbTotal, paid, outstanding } = ledger!.totals
   const STATE_LABEL: Record<string, string> = { paid: 'Paid', part_paid: 'Part paid', unpaid: 'Due', refunded: 'Refunded', void: 'Void' }
 
+  /**
+   * THE KITCHEN/FLOOR BEO, which is what the report asked for. (T41)
+   *
+   * "Staff sees event money that its role blocks elsewhere: the event page (F&B total, outstanding,
+   *  the invoice card), the BEO Payments section with amounts, and dashboard stats. Hide it, or give
+   *  the BEO a kitchen/floor version without money."
+   *
+   * The BEO is a running sheet: the kitchen needs the items, the basis and the QUANTITIES — 120
+   * plated dinners — and the run of show. It has never needed the unit price, the food-and-beverage
+   * total or the payment schedule, and the floor seat is refused /api/invoices anyway.
+   *
+   * So the sheet is printed without the money columns and without the Payments section, rather than
+   * refused: a service team with no BEO cannot run the event, which would be the worse failure.
+   * `invoices:read` is the same permission the invoice routes use, so the two agree.
+   */
+  const beoMoney = hasPermission(u?.role, 'invoices:read', await getExtraPermissions(u?.userId))
+
   const esc = (s: any) => String(s ?? '').replace(/[<>&]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[ch] as string))
   const money = (n: any) => '$' + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const row = (label: string, val: string) => val ? `<tr><td class="l">${label}</td><td class="v">${esc(val)}</td></tr>` : ''
@@ -744,13 +776,16 @@ app.get('/:id/beo', requirePermission('contacts:read'), async (c) => {
   ${ev.dietaryRequirements ? `<div class="alert"><strong>Dietary requirements:</strong> ${esc(ev.dietaryRequirements)}</div>` : ''}
 
   <h2>Food &amp; Beverage</h2>
-  ${menu.length ? `<table class="grid">
+  ${menu.length ? (beoMoney ? `<table class="grid">
     <tr><th>Item</th><th>Basis</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Total</th></tr>
     ${menu.map(l => `<tr><td>${esc(l.name)}${l.notes ? `<br><span class="dept">${esc(l.notes)}</span>` : ''}</td><td>${l.perPerson ? 'per person' : 'flat'}</td><td class="num">${l.quantity}</td><td class="num">${money(l.unitPrice)}</td><td class="num">${money(lineTotal(l as any))}</td></tr>`).join('')}
     <tr><td colspan="4" class="num"><strong>Food &amp; beverage total</strong></td><td class="num"><strong>${money(fbTotal)}</strong></td></tr>${menuTotal > fbTotal + 0.005 ? `
     <tr><td colspan="4" class="num">Room hire</td><td class="num">${money(menuTotal - fbTotal)}</td></tr>
     <tr><td colspan="4" class="num"><strong>Menu total</strong></td><td class="num"><strong>${money(menuTotal)}</strong></td></tr>` : ''}
-  </table>` : '<p style="color:#888;font-size:13px;">No menu lines recorded.</p>'}
+  </table>` : `<table class="grid">
+    <tr><th>Item</th><th>Basis</th><th class="num">Qty</th></tr>
+    ${menu.map(l => `<tr><td>${esc(l.name)}${l.notes ? `<br><span class="dept">${esc(l.notes)}</span>` : ''}</td><td>${l.perPerson ? 'per person' : 'flat'}</td><td class="num">${l.quantity}</td></tr>`).join('')}
+  </table>`) : '<p style="color:#888;font-size:13px;">No menu lines recorded.</p>'}
 
   <h2>Run of Show</h2>
   ${timeline.length ? `<table class="grid">
@@ -760,13 +795,13 @@ app.get('/:id/beo', requirePermission('contacts:read'), async (c) => {
 
   ${ev.setupNotes ? `<h2>Setup</h2><p style="font-size:14px;white-space:pre-wrap;">${esc(ev.setupNotes)}</p>` : ''}
 
-  <h2>Payments</h2>
+  ${beoMoney ? `<h2>Payments</h2>
   ${payments.length ? `<table class="grid">
     <tr><th>Stage</th><th>Due</th><th>Status</th><th class="num">Amount</th></tr>
     ${payments.map(p => `<tr><td>${esc(p.label)}</td><td>${esc(p.dueDate || '—')}</td><td>${esc(STATE_LABEL[p.state] || p.state)}${p.state === 'part_paid' ? ` (${money(p.paidAmount)})` : ''}</td><td class="num">${money(p.amount)}</td></tr>`).join('')}
     <tr><td colspan="3" class="num"><strong>Paid to date</strong></td><td class="num"><strong>${money(paid)}</strong></td></tr>
     <tr><td colspan="3" class="num"><strong>Outstanding</strong></td><td class="num"><strong>${money(outstanding)}</strong></td></tr>
-  </table>` : '<p style="color:#888;font-size:13px;">No payment schedule recorded.</p>'}
+  </table>` : '<p style="color:#888;font-size:13px;">No payment schedule recorded.</p>'}` : ''}
 
   ${ev.notes ? `<h2>Notes</h2><p style="font-size:14px;white-space:pre-wrap;">${esc(ev.notes)}</p>` : ''}
 

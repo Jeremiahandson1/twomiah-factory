@@ -288,5 +288,63 @@ console.log('\n══════════ lowering the total cannot get unde
   check('T41: …with the schedule inside it', (await scheduled()) <= 10200, { scheduled: await scheduled() })
 }
 
+// ══════════ T41 · the service team gets the sheet, not the money ════════════════════════════════
+//
+// "Staff sees event money that its role blocks elsewhere: the event page (F&B total, outstanding,
+//  the invoice card), the BEO Payments section with amounts, and dashboard stats (outstanding
+//  $29,589, overdue $2,840). Hide it, or give the BEO a kitchen/floor version without money."
+//
+// The second option is the one taken, because a service team with no BEO cannot run the event —
+// refusing the sheet would be the worse failure. The kitchen keeps the items, the basis, the
+// QUANTITIES and the run of show; the unit prices, the totals and the Payments section go.
+//
+// `invoices:read` is the gate, which is the same permission /api/invoices already refuses this seat
+// with — the point being that the two now agree instead of contradicting each other.
+console.log('\n══════════ T41 · what the floor seat may read ══════════')
+{
+  const money = /11,?700|10,?200|11700|10200/
+
+  // The event page.
+  const byServer = await asServer('GET', `/api/events/${wedding.id}`)
+  check('T41: a server can still open the event', byServer.status === 200, { status: byServer.status })
+  check('T41: …and it still says who, when and which room',
+    /Hollings/.test(byServer.text) && !!byServer.json?.event?.eventDate, byServer.json?.event?.name)
+  check('T41: …with the menu lines and their QUANTITIES, which the kitchen needs',
+    (byServer.json?.menu || []).length >= 1 && Number((byServer.json?.menu || [])[0]?.quantity) > 0,
+    (byServer.json?.menu || []).map((l: any) => `${l.name} ×${l.quantity}`))
+  // THE ASSERTIONS.
+  check('T41: …and NO unit price on any line',
+    (byServer.json?.menu || []).every((l: any) => !('unitPrice' in l)),
+    Object.keys((byServer.json?.menu || [])[0] || {}))
+  check('T41: …no totals block', !byServer.json?.totals, byServer.json?.totals)
+  check('T41: …no invoice card', byServer.json?.invoice === null, byServer.json?.invoice)
+  check('T41: …and no payment schedule', (byServer.json?.payments || []).length === 0,
+    (byServer.json?.payments || []).length)
+  check('T41: …so none of the event money is in the payload at all', !money.test(byServer.text || ''),
+    (byServer.text || '').slice(0, 200))
+
+  // The owner's view is unchanged.
+  const byOwnerPage = await asOwner('GET', `/api/events/${wedding.id}`)
+  check('T41: the owner still sees the totals and the invoice',
+    !!byOwnerPage.json?.totals && !!byOwnerPage.json?.invoice?.id, { totals: byOwnerPage.json?.totals })
+  check('T41: …and the unit prices', (byOwnerPage.json?.menu || []).some((l: any) => 'unitPrice' in l),
+    Object.keys((byOwnerPage.json?.menu || [])[0] || {}))
+
+  // The BEO.
+  const beoServer = await asServer('GET', `/api/events/${wedding.id}/beo`)
+  check('T41: the BEO still prints for the floor — it is their running sheet', beoServer.status === 200,
+    { status: beoServer.status })
+  check('T41: …with the run of show and the menu items', /Run of Show/.test(beoServer.text)
+    && /Plated dinner/.test(beoServer.text), beoServer.text?.slice(0, 120))
+  check('T41: …and the quantity', /120/.test(beoServer.text), null)
+  check('T41: …but NO Payments section', !/<h2>Payments<\/h2>/.test(beoServer.text), null)
+  check('T41: …no food-and-beverage total', !/Food &amp; beverage total/.test(beoServer.text), null)
+  check('T41: …and no money anywhere on the sheet', !money.test(beoServer.text || ''), null)
+
+  const beoOwner = await asOwner('GET', `/api/events/${wedding.id}/beo`)
+  check('T41: the owner\'s BEO still carries the Payments section', /<h2>Payments<\/h2>/.test(beoOwner.text), null)
+  check('T41: …and the totals', /Food &amp; beverage total/.test(beoOwner.text), null)
+}
+
 console.log(`\n${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

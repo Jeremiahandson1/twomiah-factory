@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 
 // ── F&I (Finance & Insurance) ───────────────────────────────────────────────
 // Two pieces a DMS needs: (1) the F&I product MENU (menu selling), and (2) LENDER
@@ -19,7 +19,25 @@ const PRODUCTS = [
   { id: 'ppm', name: 'Prepaid Maintenance', desc: 'Scheduled service plan', price: 599, cost: 300 },
   { id: 'app', name: 'Appearance Protection', desc: 'Paint / upholstery / corrosion', price: 449, cost: 180 },
 ]
-app.get('/products', (c) => c.json({ products: PRODUCTS }))
+/**
+ * THE MENU GOES TO EVERYONE; THE DEALER COST DOES NOT. (T41)
+ *
+ * "Dealer cost sent to staff in the API: /api/units cost on 17 of 26 units;
+ *  /api/fi/products cost next to price (VSC 1895/1100). Not shown in the UI."
+ *
+ * Price is what the customer is sold — a salesperson presenting the menu needs it, so the menu
+ * itself stays open. `cost` is what the dealership pays for the product, which is the margin on
+ * every deal in the store, and "not shown in the UI" is not a defence: the API is the product.
+ *
+ * `invoices:read` is the fleet's "may see money" permission — manager and viewer hold it, `field`
+ * (the sales floor seat) does not, which is the seat the report read it from.
+ */
+app.get('/products', async (c) => {
+  const u = c.get('user') as any
+  const maySeeCost = hasPermission(u?.role, 'invoices:read', await getExtraPermissions(u?.userId))
+  if (maySeeCost) return c.json({ products: PRODUCTS })
+  return c.json({ products: PRODUCTS.map(({ cost, ...rest }) => rest) })
+})
 
 // Lender submission — provider-agnostic. NO real credit rail is connected, and we
 // must NOT fabricate an approval/APR (a fake "Approved 7.99% via Octane" is a

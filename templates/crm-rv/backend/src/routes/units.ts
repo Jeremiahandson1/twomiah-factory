@@ -4,7 +4,7 @@ import { db } from '../../db/index.ts'
 import { unit } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc, ne } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
@@ -100,6 +100,30 @@ function priceWarnings(u: { msrp?: unknown; internetPrice?: unknown; cost?: unkn
 }
 
 // GET /units — inventory list
+/**
+ * WHAT THE DEALERSHIP PAID is not part of reading the inventory. (T41)
+ *
+ * "Dealer cost sent to staff in the API: /api/units cost on 17 of 26 units ... Not shown in the UI."
+ *
+ * Both reads are `db.select().from(unit)` — the whole row — so both carried it. MSRP, listed price
+ * and internet price all stay: those are what the unit is SOLD at and the sales floor needs every
+ * one of them. `cost` is the margin on the unit, and the salesperson is the one negotiating against
+ * it.
+ *
+ * `invoices:read` is the fleet's money-read permission: manager and viewer hold it, `field` — the
+ * sales-floor seat the report read this from — does not. Writes are unaffected; a `cost` edit still
+ * goes through PUT, which requires contacts:update.
+ */
+const maySeeUnitCost = async (c: any): Promise<boolean> => {
+  const u = c.get('user') as any
+  return hasPermission(u?.role, 'invoices:read', await getExtraPermissions(u?.userId))
+}
+const hideUnitCost = <T extends Record<string, any>>(row: T): T => {
+  if (!row) return row
+  const { cost, ...rest } = row as any
+  return rest
+}
+
 app.get('/', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
   const status = c.req.query('status')
@@ -128,7 +152,11 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
     db.select({ value: count() }).from(unit).where(where),
   ])
 
-  return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
+  // What the dealership PAID for the unit is not part of reading the inventory. (T41)
+  return c.json({
+    data: (await maySeeUnitCost(c)) ? data : data.map(hideUnitCost),
+    pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) },
+  })
 })
 
 // GET /units/:id
@@ -137,7 +165,7 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
   const id = c.req.param('id')
   const [u] = await db.select().from(unit).where(and(eq(unit.id, id), eq(unit.companyId, currentUser.companyId))).limit(1)
   if (!u) return c.json({ error: 'Unit not found' }, 404)
-  return c.json(u)
+  return c.json((await maySeeUnitCost(c)) ? u : hideUnitCost(u))
 })
 
 // POST /units — add unit

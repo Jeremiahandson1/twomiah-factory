@@ -21,7 +21,22 @@ async function isConnected(companyId: string): Promise<boolean> {
   try { const qb: any = await quickbooks.getConnectionStatus(companyId); return !!qb?.connected } catch { return false }
 }
 
-app.get('/status', async (c) => {
+/**
+ * `invoices:read` — this is the INVOICE LEDGER, not a connection status. (T41)
+ *
+ * It was `authenticate` alone, and T41 read the whole thing as the staff seat:
+ *
+ *   "Staff can read the whole ledger: /crm/accounting shows 64 entries, $29,065, each invoice with
+ *    customer and amount (GET /api/accounting/status 200), plus Connect and Sync to QuickBooks
+ *    buttons. /api/invoices is correctly 403."
+ *
+ * That last sentence is the whole argument: the invoice routes already refuse this seat, and this
+ * endpoint handed over the same invoices — number, customer and amount — by a different door. The
+ * same permission the invoice routes ask for, so the two now agree.
+ *
+ * POST /sync below already required integrations:update, so the write was never the hole.
+ */
+app.get('/status', requirePermission('invoices:read'), async (c) => {
   const u = c.get('user') as any
   const connected = await isConnected(u.companyId)
   const configured = !!(process.env.QBO_CLIENT_ID && process.env.QBO_REDIRECT_URI)
