@@ -271,8 +271,25 @@ for (const t of terminal) {
   const uiWouldStillOffer = pairs.filter(([p, feat]) => !navFeatures.has(feat) && !gatedInAPage(feat) && !hasNoSurface(p))
   if (uiWouldStillOffer.length)
     fail(`${uiWouldStillOffer.length} module(s) are gated on the server but shown unconditionally in the nav — switching the feature off leaves a visible link that 403s: ${uiWouldStillOffer.map(([p, f]) => `${p} (${f})`).join(', ')}`)
-  if (!/const enabled = <T extends \{ feature\?: string \}>\(items: T\[\]\)/.test(layout))
-    fail('…and every nav group must be filtered, or a feature key added to one of them is silently ignored')
+  /**
+   * …and every nav group must go through ONE filter, or a feature key added to one of them is
+   * silently ignored (which is how a nav link that 403s got shipped: only fieldNavItems was filtered).
+   *
+   * This used to pin the helper's exact generic signature, `<T extends { feature?: string }>`, which
+   * made it fail the moment T41 widened the same helper to filter on `minRole` as well — a guard
+   * going red on a correct change. The property is what matters: there is one `enabled` helper, it
+   * consults hasFeature, and all three arrays pass through it. Pinning the expression instead of the
+   * property is the trap scripts/check-no-op-auth-middleware.ts's notes also warn about.
+   */
+  if (!/const enabled = <T extends \{[^}]*feature\?: string[^}]*\}>\(items: T\[\]\)/.test(layout))
+    fail('…and every nav group must be filtered by one `enabled` helper taking items with an optional `feature`')
+  if (!/\bhasFeature\(i\.feature\)/.test(layout))
+    fail('…and that helper must actually consult hasFeature, or the filter is decorative')
+  for (const group of ['baseNavItems', 'fieldNavItems', 'bottomNavItems']) {
+    if (!new RegExp(`const ${group}\\b`).test(layout)) continue  // roof renamed a group; nothing to check
+    if (!new RegExp(`enabled\\(${group}\\)`).test(layout))
+      fail(`…and ${group} must be wrapped in enabled(), or a feature key added to it is silently ignored`)
+  }
   // and the gate must never reach the product itself
   for (const core of ['/api/contacts', '/api/jobs', '/api/quotes', '/api/invoices', '/api/settings', '/api/users', '/api/company', '/api/auth']) {
     if (gated.includes(core)) fail(`${core} must NOT be feature-gated — a missing flag would lock a tenant out of their own CRM, which is worse than the bug being fixed`)

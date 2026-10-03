@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import { useTheme } from '../../shared'
+import { useTheme, meetsRole } from '../../shared'
 import { TrialBanner } from '../trial/TrialBanner'
 import {
   LayoutDashboard,
@@ -64,8 +64,24 @@ const fieldNavItems = [
 ]
 
 const bottomNavItems = [
-  { label: 'Email', icon: Mail, to: '/crm/email', feature: 'branded_email' },
-  { label: 'Google Reviews', icon: Star, to: '/crm/google-reviews', feature: 'google_business' },
+  // THESE TWO PAGES ARE ADMIN-ONLY ON THE SERVER, AND THE NAV DID NOT KNOW. (T41)
+  //
+  //   "Nav items that 403 for staff: Email ('Failed to load: 403'), Quotes (shows a misleading
+  //    '0 quotes'), Google Reviews, and Settings (renders but every save 403s)."
+  //
+  // Not a guess at a sensible rung — the routers behind them are mounted
+  // `app.use('*', authenticate, requireAdmin)`:
+  //   /crm/email          → InboundMessagesPage → routes/inboundMessages.ts
+  //   /crm/google-reviews → GbpReviewsPage      → routes/gbp.ts
+  // They are the ONLY two roof routers that require a rank; import, reports, ads, financing and the
+  // receptionist are all plain `authenticate`, so nothing else here is touched.
+  //
+  // Quotes and Invoices are the other half of that finding and are NOT fixed here: they need
+  // invoices:read / quotes:read, which `viewer` holds and `field` does not — a rank cannot express
+  // that, and roof's client has no permission list to ask yet (its /api/auth/me does not return
+  // one, and it mounts no PermissionsProvider). That is its own piece of work, not a rank fudge.
+  { label: 'Email', icon: Mail, to: '/crm/email', feature: 'branded_email', minRole: 'admin' },
+  { label: 'Google Reviews', icon: Star, to: '/crm/google-reviews', feature: 'google_business', minRole: 'admin' },
   { label: 'Documents', icon: FileText, to: '/crm/documents', feature: 'documents' },
   { label: 'Import', icon: Upload, to: '/crm/import' },
   { label: 'Reports', icon: BarChart3, to: '/crm/reports' },
@@ -81,7 +97,11 @@ export default function AppLayout() {
   // shown only when the tenant has it. Only fieldNavItems was being filtered, so a feature key added
   // to the other two lists would have been silently ignored — which is how a nav link that 403s gets
   // shipped.
-  const enabled = <T extends { feature?: string }>(items: T[]) => items.filter(i => !i.feature || hasFeature(i.feature))
+  // …and the same rule for the rank: an item with no `minRole` is always shown, one with it only to
+  // a role that meets it. `meetsRole` is the shell's own ladder (packages/tenant-ui/src/shell/types),
+  // so this cannot drift from the rung names the server uses. (T41)
+  const enabled = <T extends { feature?: string; minRole?: string }>(items: T[]) =>
+    items.filter(i => (!i.feature || hasFeature(i.feature)) && meetsRole(user?.role, i.minRole))
 
   const navItems = [
     ...enabled(baseNavItems),

@@ -2174,6 +2174,17 @@ jobs:
       - name: "check nav permission gates"
         run: bun run scripts/check-nav-permission-gates.ts
 
+  admin-nav-matches-api:
+    name: "A sidebar entry whose API requires a rank declares that rank"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "check admin nav matches api"
+        run: bun run scripts/check-admin-nav-matches-api.ts
+
   team-roster-includes-logins:
     name: "The Team page is one list: the roster plus everyone who can sign in"
     runs-on: ubuntu-latest

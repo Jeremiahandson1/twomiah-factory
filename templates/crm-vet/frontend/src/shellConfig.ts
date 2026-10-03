@@ -17,8 +17,8 @@ const NAV: NavItem[] = [
   { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['google_reviews'] },
   // The Marketing page is email marketing (campaigns, templates, drips); Reviews has its own item above. (T15 M5)
   { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['email_marketing'], permission: 'marketing:read' },
-  { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'] },
-  { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'] },
+  { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'], minRole: 'admin' },
+  { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'], minRole: 'admin' },
   { to: '/crm/tasks', icon: ListTodo, label: 'Tasks' },
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], permission: 'sms:send' },
   { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'reports:read' },

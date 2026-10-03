@@ -21,7 +21,7 @@ import ReportsPage from './pages/roofing/ReportsPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import EstimatorSettingsPage from './pages/settings/EstimatorSettingsPage'
 import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage'
-import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage, BillingPage } from './shared'
+import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage, BillingPage, meetsRole } from './shared'
 import InsuranceClaimPage from './pages/roofing/InsuranceClaimPage'
 import AdjusterDirectoryPage from './pages/roofing/AdjusterDirectoryPage'
 import CanvassingView from './pages/roofing/CanvassingView'
@@ -88,6 +88,28 @@ function FeatureRoute({ feature, children }: { feature: string; children: ReactN
   // rendering the children instead would flash a module the tenant may not have and 403 its API calls.
   if (!company) return null
   if (!hasFeature(feature)) return <Navigate to="/crm" replace />
+  return <>{children}</>
+}
+
+/**
+ * A route whose API requires a rank this person does not have sends them to the dashboard. (T41)
+ *
+ * The fourth side of the same gate FeatureRoute above describes. T41: "Nav items that 403 for staff:
+ * Email ('Failed to load: 403'), ... Google Reviews, and Settings". The sidebar now hides both (see
+ * components/layout/AppLayout.tsx) and that is the discoverability half — this is the URL half, so a
+ * bookmark or a typed address is not answered with the API's raw refusal either.
+ *
+ * Only pages whose routers are mounted `authenticate, requireAdmin` are wrapped, and all four of
+ * them are: emailAliases, emailDomain, inboundMessages and gbp. `meetsRole` is the shared shell's
+ * ladder, so the rung names cannot drift from the server's.
+ *
+ * Waits on `company` for exactly the reason FeatureRoute does: redirecting before /api/auth/me lands
+ * is how roof M7 made fifteen owned routes unreachable. `user` arrives in the same response.
+ */
+function RoleRoute({ minRole, children }: { minRole: string; children: ReactNode }) {
+  const { user, company } = useAuth()
+  if (!company) return null
+  if (!meetsRole((user as any)?.role, minRole)) return <Navigate to="/crm" replace />
   return <>{children}</>
 }
 
@@ -159,16 +181,16 @@ export default function App() {
                 <Route path="lead-sources" element={<FeatureRoute feature="lead_inbox"><LeadSourcesPage /></FeatureRoute>} />
                 <Route path="settings/estimator" element={<EstimatorSettingsPage />} />
                 <Route path="settings/features" element={<FeaturesSettingsPage />} />
-                <Route path="settings/email" element={<EmailAliasesPage />} />
-                <Route path="settings/email-domain" element={<EmailDomainPage />} />
+                <Route path="settings/email" element={<RoleRoute minRole="admin"><EmailAliasesPage /></RoleRoute>} />
+                <Route path="settings/email-domain" element={<RoleRoute minRole="admin"><EmailDomainPage /></RoleRoute>} />
                 <Route path="settings/billing" element={<BillingPage smsBilling />} />
-                <Route path="settings/email-inbox" element={<InboundMessagesPage />} />
-                <Route path="email" element={<InboundMessagesPage />} />
+                <Route path="settings/email-inbox" element={<RoleRoute minRole="admin"><InboundMessagesPage /></RoleRoute>} />
+                <Route path="email" element={<RoleRoute minRole="admin"><InboundMessagesPage /></RoleRoute>} />
                 {/* Google Business Profile, not the review-request module. This page calls /api/gbp only, and the
                     nav row beside it has always gated on google_business — M7 gated the ROUTE on google_reviews,
                     so a tenant with GBP on and review requests off saw the sidebar link and got bounced by it.
                     /crm/reviews below is the other one, and it really is google_reviews. (roof T18) */}
-                <Route path="google-reviews" element={<FeatureRoute feature="google_business"><GbpReviewsPage /></FeatureRoute>} />
+                <Route path="google-reviews" element={<RoleRoute minRole="admin"><FeatureRoute feature="google_business"><GbpReviewsPage /></FeatureRoute></RoleRoute>} />
                 <Route path="estimator" element={<EstimatorPage />} />
                 <Route path="ai-receptionist" element={<FeatureRoute feature="ai_receptionist"><AIReceptionistPage /></FeatureRoute>} />
                 <Route path="ads" element={<AdsPage />} />
