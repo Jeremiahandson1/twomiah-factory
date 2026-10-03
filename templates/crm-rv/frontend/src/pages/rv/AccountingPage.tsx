@@ -1,8 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Receipt, Loader2, RefreshCw, CheckCircle2, Link2 } from 'lucide-react';
 import api from '../../services/api';
+import { formatDate } from '../../utils/date';
 
-const money = (n: number) => '$' + (Math.round(n) || 0).toLocaleString();
+/**
+ * AN ACCOUNTING PAGE DOES NOT ROUND. (T41)
+ *
+ * This was `'$' + (Math.round(n) || 0).toLocaleString()` — the whole point of the page is what gets
+ * posted to the books, and it was showing every figure rounded to the nearest dollar with no cents
+ * at all. A $1,249.50 deal read $1,250 here and $1,249.50 in QuickBooks.
+ *
+ * (It also escaped the fleet money sweep, which looked for `$${…}` inside a template literal and
+ * not for a '$' concatenated with +. The guard now covers both forms.)
+ */
+const money = (n: number) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function AccountingPage() {
   const [data, setData] = useState<any>({ pending: [], connected: false, provider: 'QuickBooks Online', postedCount: 0 });
@@ -53,7 +64,8 @@ export default function AccountingPage() {
           <thead className="bg-gray-50 text-gray-500 dark:bg-slate-900 dark:text-slate-400"><tr><th className="px-4 py-2 text-left font-semibold">Type</th><th className="px-4 py-2 text-left font-semibold">Ref</th><th className="px-4 py-2 text-left font-semibold">Customer</th><th className="px-4 py-2 text-left font-semibold">Date</th><th className="px-4 py-2 text-right font-semibold">Amount</th></tr></thead>
           <tbody>
             {pending.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">{done ? 'All entries posted ✓' : 'Nothing pending.'}</td></tr>}
-            {pending.map((e: any, i: number) => (<tr key={i} className="border-t"><td className="px-4 py-2">{e.type}</td><td className="px-4 py-2 font-mono text-xs text-gray-500 dark:text-slate-400">{e.ref}</td><td className="px-4 py-2 text-gray-600 dark:text-slate-400">{e.customer}</td><td className="px-4 py-2 text-gray-500 text-xs dark:text-slate-400">{e.date}</td><td className="px-4 py-2 text-right font-medium">{money(e.amount)}</td></tr>))}
+            {pending.map((e: any, i: number) => (<tr key={i} className="border-t"><td className="px-4 py-2">{e.type}</td><td className="px-4 py-2 font-mono text-xs text-gray-500 dark:text-slate-400">{e.ref}</td><td className="px-4 py-2 text-gray-600 dark:text-slate-400">{e.customer}</td>{/* The entry's date, not the raw timestamp the API happens to send. (T41: "Accounting shows raw ISO dates") */}
+              <td className="px-4 py-2 text-gray-500 text-xs dark:text-slate-400">{formatDate(e.date) || '—'}</td><td className="px-4 py-2 text-right font-medium">{money(e.amount)}</td></tr>))}
           </tbody>
         </table>
       </div>

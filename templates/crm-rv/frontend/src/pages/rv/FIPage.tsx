@@ -4,7 +4,7 @@ import { CreditCard, Loader2, Send, CheckCircle2, XCircle, AlertCircle } from 'l
 import api from '../../services/api';
 import { DEAL_DEFAULTS, dealTotals, type Deal } from '../../lib/deal';
 
-const money = (n: number) => '$' + (Math.round(n) || 0).toLocaleString();
+const money = (n: number) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 function payment(principal: number, apr: number, months: number) {
   const r = apr / 100 / 12;
   if (!principal || !months) return 0;

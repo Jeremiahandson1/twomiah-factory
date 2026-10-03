@@ -82,8 +82,17 @@ for (const file of files) {
     if (!line.includes('.toLocaleString()')) continue
     const id = `${rel}:${i + 1}`
     if (ALLOWED.has(id)) continue
+    // A comment that QUOTES the old code is prose, not a money figure. (This guard flagged its own
+    // explanation of the crm-rv Accounting fix.)
+    if (/^\s*(?:\/\/|\*|\/\*)/.test(line)) continue
     if (/(?:new\s+Date|Date\.now|Date\))[^.]*\.toLocaleString\(\)/.test(line)) continue
-    if (!/\$\$?\{(?:[^{}]|\{[^{}]*\})*\.toLocaleString\(\)/.test(line)) continue
+    // Two ways to put a $ in front of a figure, and the first sweep only looked for one of them:
+    //   `$${x.toLocaleString()}`  — interpolated, in a template literal or JSX
+    //   '$' + x.toLocaleString()  — concatenated, which is how crm-rv's Accounting page wrote it
+    //                               and why it kept rounding every posting to the nearest dollar
+    const interpolated = /\$\$?\{(?:[^{}]|\{[^{}]*\})*\.toLocaleString\(\)/.test(line)
+    const concatenated = /['"`]\s*\$\s*['"`]\s*\+[^;]*\.toLocaleString\(\)/.test(line)
+    if (!interpolated && !concatenated) continue
     scanned++
     fail(`${id} prints money with a bare toLocaleString(), which drops the cents — $125.5 instead of $125.50.\n`
       + `       Pass { minimumFractionDigits: 2, maximumFractionDigits: 2 }, or use the portal's money() helper.\n`

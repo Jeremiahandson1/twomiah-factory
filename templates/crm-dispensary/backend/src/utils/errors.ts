@@ -104,15 +104,36 @@ function humanMessage(issue: any, field: string): string {
   return field ? `${subject}: ${raw}` : raw
 }
 
-export function zodRefusal(err: any): { error: string; field: string | null } {
+export function zodRefusal(err: any): { error: string; field: string | null; fields: Record<string, string> } {
   const issues = Array.isArray(err?.issues) ? err.issues : (Array.isArray(err?.errors) ? err.errors : [])
+  const pathOf = (i: any) => (Array.isArray(i?.path) ? i.path.filter((p: any) => typeof p === 'string' || typeof p === 'number') : [])
   const first = issues[0] || {}
-  const path = Array.isArray(first.path) ? first.path.filter((p: any) => typeof p === 'string' || typeof p === 'number') : []
+  const path = pathOf(first)
   // `field` keeps the machine-readable path, for a form that wants to highlight the input.
   const field = path.length ? path.join('.') : null
+  /**
+   * EVERY field that is wrong, not just the first. (T41, reported on crm-rv and true here too.)
+   *
+   * `error` and `field` are unchanged, so every caller keeps working and the sentence a person
+   * reads is still the one humanMessage writes about the first problem. `fields` is the addition:
+   * one humanised message per bad field, which is what lets a form mark all of its boxes in one
+   * round trip instead of teaching the operator one mistake at a time.
+   *
+   * It is still NOT the validator's issue list — each message goes through humanMessage, so the
+   * schema's codes and internal shape stay inside the server. That was a deliberate decision
+   * (T47 P12, below) and widening the response must not quietly undo it.
+   */
+  const fields: Record<string, string> = {}
+  for (const i of issues) {
+    const p = pathOf(i)
+    if (!p.length) continue
+    const key = p.join('.')
+    if (!fields[key]) fields[key] = humanMessage(i, humanField(p))
+  }
   return {
     error: humanMessage(first, humanField(path)),
     field,
+    fields,
     // `details` is gone. It shipped the validator's entire issue list on every refusal — the
     // schema's shape, its internal field names and its codes — to whoever asked, including a
     // customer at the public checkout. Nothing in the product ever read it. (T47 P12)

@@ -242,5 +242,47 @@ console.log('\n══════════ company scoping ══════
   check('…and the price is untouched', (await dealOf(lead.id))?.price === 41995, { price: (await dealOf(lead.id))?.price })
 }
 
+// ══════════ T41 · a refused save names EVERY bad field ════════════════════════════════════════
+//
+//   "the API names only the first invalid field"
+//
+// A deal sheet or a unit posts the whole record. The handler answered with issues[0], so three bad
+// values took three round trips to discover — and the second refusal reads as the first fix not
+// having worked. The sentence for a single issue is unchanged, byte for byte, so nothing that reads
+// `error` had to change; `fields` is the addition a form can mark its boxes from.
+console.log('\n══════════ a refusal names every bad field ══════════')
+{
+  const { z } = await import('zod')
+  const probe = new Hono()
+  probe.post('/probe', async (c: any) => {
+    z.object({ askingPrice: z.number(), tradeAllowance: z.number(), vin: z.string().min(17) }).parse(await c.req.json())
+    return c.json({ ok: true })
+  })
+  probe.onError((await import('./src/utils/errors.ts')).errorHandler)
+  const post = async (body: unknown) => {
+    const res = await probe.request('/probe', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+    const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+    return { status: res.status, json: j, text: t }
+  }
+
+  const three = await post({ askingPrice: 'lots', tradeAllowance: null, vin: 'TOO-SHORT' })
+  check('T41: a validation failure is still a 400', three.status === 400, { status: three.status })
+  check('T41: …and every bad field is named in one answer',
+    /askingPrice/.test(three.text) && /tradeAllowance/.test(three.text) && /vin/.test(three.text),
+    three.json?.error)
+  check('T41: …as a map the form can mark its boxes from',
+    !!three.json?.fields?.askingPrice && !!three.json?.fields?.tradeAllowance && !!three.json?.fields?.vin,
+    three.json?.fields)
+  check('T41: …under a code a client can switch on', three.json?.code === 'validation_failed', three.json?.code)
+
+  // One bad field still reads exactly as it did before this change.
+  const one = await post({ askingPrice: 41995, tradeAllowance: 5000, vin: 'SHORT' })
+  check('T41: a single bad field still reads "field: message"', /^vin: /.test(String(one.json?.error)), one.json?.error)
+  check('T41: …and names only that field', Object.keys(one.json?.fields || {}).join(',') === 'vin', one.json?.fields)
+
+  const good = await post({ askingPrice: 41995, tradeAllowance: 5000, vin: '1FDXE4FS8DDA12345' })
+  check('a valid body still passes', good.status === 200, { status: good.status, body: good.text?.slice(0, 120) })
+}
+
 console.log(`\n${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

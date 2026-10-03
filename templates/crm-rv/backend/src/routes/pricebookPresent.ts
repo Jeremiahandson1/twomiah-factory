@@ -433,7 +433,7 @@ app.get('/:itemId', async (c) => {
       // Show continue bar
       document.getElementById('continueBar').classList.add('visible');
       document.getElementById('selectedName').textContent = selectedTier.name;
-      document.getElementById('selectedPrice').textContent = '$' + Number(selectedTier.price).toLocaleString();
+      document.getElementById('selectedPrice').textContent = '$' + Number(selectedTier.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       // Scroll to show the bar
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     }

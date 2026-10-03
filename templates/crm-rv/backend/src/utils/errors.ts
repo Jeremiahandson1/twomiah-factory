@@ -9,9 +9,28 @@ export const errorHandler = (err: Error, c: Context) => {
   const zx = err as any
   const issues = Array.isArray(zx?.issues) ? zx.issues : (zx?.name === 'ZodError' && Array.isArray(zx?.errors) ? zx.errors : null)
   if (issues) {
-    const first = issues[0] || {}
-    const where = Array.isArray(first.path) && first.path.length ? first.path.join('.') + ': ' : ''
-    return c.json({ error: where + (first.message || 'Invalid input') }, 400)
+    /**
+     * EVERY FIELD THAT IS WRONG, NOT JUST THE FIRST. (T41)
+     *
+     *   RV: "the API names only the first invalid field"
+     *
+     * A form posts the whole record, so a save with three bad values answered with one of them.
+     * The operator fixes it, presses Save, and is told about the next one — three round trips to
+     * learn what one response knew all along, and on a long form (a unit, a deal, a patient) the
+     * second refusal reads as the fix not having worked.
+     *
+     * `fields` is a map the screen can mark its own boxes from; `error` stays one sentence, and
+     * with a single issue it is byte-for-byte what this returned before, so nothing that reads the
+     * message has to change.
+     */
+    const named = issues.map((i: any) => ({
+      field: Array.isArray(i.path) && i.path.length ? i.path.join('.') : '',
+      message: i.message || 'Invalid input',
+    }))
+    const fields: Record<string, string> = {}
+    for (const n of named) if (n.field && !fields[n.field]) fields[n.field] = n.message
+    const sentence = named.map((n: any) => (n.field ? `${n.field}: ${n.message}` : n.message)).join('; ')
+    return c.json({ error: sentence || 'Invalid input', code: 'validation_failed', fields }, 400)
   }
 
   // Postgres constraint violations are the user's bad input, not a server fault —

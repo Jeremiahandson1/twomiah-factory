@@ -28,7 +28,21 @@ if (!/eq\(salesLead\.source, 'adf_xml'\)[\s\S]*not in \('closed_won', 'closed_lo
 if (handler.indexOf('if (existing) return { duplicate: true') > handler.indexOf('tx.insert(salesLead)')) fail('the duplicate check must come before the lead insert')
 
 const page = read('templates/crm-rv/frontend/src/pages/rv/SalesPipelinePage.tsx')
-if (!/if \(r\?\.duplicate\) alert\(/.test(page)) fail('the import dialog must say when the lead was already imported')
+// It must SAY so, not specifically via alert(): T41 replaced the three alert() calls on this dialog
+// with a toast for the outcome and an inline error for the field, because window.alert is shimmed
+// into a toast whose severity is guessed from the words — and "already imported" is a successful
+// outcome that the shim painted red. The rule is the message, not the mechanism.
+if (!/if \(r\?\.duplicate\) (?:alert|toast\.(?:info|success))\(/.test(page)) fail('the import dialog must say when the lead was already imported')
+// The ADF MODAL only — the rest of the page still uses the app-wide alert() shim, which is a
+// separate question. Scanning the whole file flagged three unrelated calls.
+// The template sources are CRLF and `read` above does not normalise, so the newline has to be
+// matched as \r?\n or this slice silently finds nothing and the rule passes on everything.
+const adfModal = (page.replace(/\r\n/g, '\n').match(/function AdfImportModal[\s\S]*?\n\}\n/) || [''])[0]
+// Comments stripped first: the note explaining this fix quotes the old alert() calls, and the rule
+// matched its own explanation.
+const adfCode = adfModal.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+if (!adfModal) fail('AdfImportModal is missing')
+else if (/\balert\(/.test(adfCode)) fail('the ADF dialog must not use window.alert — a validation message belongs under the field and an outcome in a toast')
 
 if (failed) { console.error(`\nrv adf import: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('rv adf import: only real ADF leads are imported, from the <customer> block, and a resent lead returns the existing one')

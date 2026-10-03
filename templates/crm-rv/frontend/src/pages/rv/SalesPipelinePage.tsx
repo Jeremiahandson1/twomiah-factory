@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, Loader2, X, Upload, User, Phone, Mail, Calculator } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
 import { useMayWrite } from '../../shared';
 import { useNavigate } from 'react-router-dom';
 
@@ -350,20 +351,37 @@ function LeadFormModal({ onSave, onClose }: LeadFormModalProps) {
 interface AdfImportModalProps { onSave: () => void; onClose: () => void }
 
 function AdfImportModal({ onSave, onClose }: AdfImportModalProps) {
+  const toast = useToast();
   const [xml, setXml] = useState<string>('');
   const [saving, setSaving] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
 
+  /**
+   * THREE alert() CALLS, EACH SAYING THE WRONG KIND OF THING. (T41 RV: "ADF import uses alert()")
+   *
+   * window.alert is shimmed into a toast app-wide (contexts/ToastContext.tsx), so these were not
+   * native popups — but the shim has to GUESS the severity from the words, and it guessed wrong
+   * here in both directions:
+   *
+   *   · "Paste ADF/XML content" is a validation message about the box the operator is looking at.
+   *     A toast that floats away is the wrong place for it; it belongs under the field, and the
+   *     modal must stay open. It also matched the shim's "required" rule only by luck.
+   *   · "already imported — the existing lead was kept" is a SUCCESSFUL outcome: the provider
+   *     resent a lead and the CRM recognised it. The shim read "already" and painted it red.
+   *   · the failure is a real failure, and now says so explicitly rather than by regex.
+   */
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!xml.trim()) { alert('Paste ADF/XML content'); return; }
-    setSaving(true);
+    if (!xml.trim()) { setError('Paste the ADF/XML your lead provider sent.'); return; }
+    setSaving(true); setError('');
     try {
       const r = await api.post('/api/sales-leads/import-adf', { xml });
-      // a resent lead is recognised and the existing lead kept — say so rather than closing silently
-      if (r?.duplicate) alert(r.message || 'This ADF lead was already imported — the existing lead was kept.');
+      // A resent lead is recognised and the existing lead kept — say so rather than closing silently.
+      if (r?.duplicate) toast.info(r.message || 'This ADF lead was already imported — the existing lead was kept.');
+      else toast.success('Lead imported');
       onSave();
     } catch (err) {
-      alert((err as Error).message || 'Failed to import ADF');
+      setError((err as Error).message || 'That ADF could not be imported. Check the XML and try again.');
     } finally {
       setSaving(false);
     }
@@ -382,11 +400,14 @@ function AdfImportModal({ onSave, onClose }: AdfImportModalProps) {
             <p className="text-sm text-gray-500 dark:text-slate-400">Paste ADF/XML from your lead provider to auto-create a contact and lead.</p>
             <textarea
               value={xml}
-              onChange={(e) => setXml(e.target.value)}
+              onChange={(e) => { setXml(e.target.value); if (error) setError(''); }}
               rows={10}
-              className="w-full px-3 py-2 border rounded-lg font-mono text-xs"
+              aria-invalid={!!error}
+              aria-describedby={error ? 'adf-error' : undefined}
+              className={`w-full px-3 py-2 border rounded-lg font-mono text-xs ${error ? 'border-red-500' : ''}`}
               placeholder="<?adf?><adf><prospect>...</prospect></adf>"
             />
+            {error && <p id="adf-error" role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg disabled:opacity-50">

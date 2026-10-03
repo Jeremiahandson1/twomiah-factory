@@ -138,6 +138,29 @@ export default function ReportsPage() {
   });
   const maxPipelineValue = Math.max(...Object.values(pipelineByStage), 1);
 
+  /**
+   * THE STAGE COUNTS DID NOT ADD UP TO THE JOB COUNT. (T41)
+   *
+   *   "Reports stage counts total 56 of 62 jobs"
+   *
+   * The chart draws a row per PIPELINE stage — the eleven in STAGE_LABELS — and a roofing job also
+   * has two terminal statuses, `lost` and `cancelled` (backend/src/lib/validation.ts). Those six
+   * jobs were in the headline count and in no bar, so anybody adding up the rows found six missing
+   * and no explanation.
+   *
+   * They are NOT added as bars: a lost job has no pipeline value, and putting it in a chart headed
+   * "Pipeline Value by Stage" would overstate the pipeline, which is the more expensive mistake.
+   * Instead the chart says what it covers and what it leaves out, and names the leftovers.
+   */
+  const TERMINAL: Record<string, string> = { lost: 'lost', cancelled: 'cancelled' };
+  const inPipeline = jobs.filter((j) => Object.prototype.hasOwnProperty.call(STAGE_LABELS, j.status || 'lead')).length;
+  const terminalCounts = Object.keys(TERMINAL)
+    .map((s) => ({ label: TERMINAL[s], n: pipelineCountByStage[s] || 0 }))
+    .filter((x) => x.n > 0);
+  // Anything that is neither a pipeline stage nor a known terminal status — a value added to the
+  // enum without this chart being told. Counted, so it can never silently vanish again.
+  const unaccounted = jobs.length - inPipeline - terminalCounts.reduce((s, x) => s + x.n, 0);
+
   // Jobs by type
   const jobsByType: Record<string, number> = {};
   jobs.forEach((j) => {
@@ -259,7 +282,13 @@ export default function ReportsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Pipeline Value by Stage */}
           <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4 dark:text-slate-100">Pipeline Value by Stage</h2>
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Pipeline Value by Stage</h2>
+            {/* What the bars below add up to, and what they leave out. (T41) */}
+            <p className="text-xs text-gray-500 mb-4 mt-1 dark:text-slate-400">
+              {`${inPipeline} of ${jobs.length} job${jobs.length === 1 ? '' : 's'} in the pipeline`}
+              {terminalCounts.length > 0 && ` · ${terminalCounts.map((x) => `${x.n} ${x.label}`).join(', ')}, which carry no pipeline value`}
+              {unaccounted > 0 && ` · ${unaccounted} at a status this chart does not know`}
+            </p>
             <div className="space-y-2">
               {Object.keys(STAGE_LABELS).map((stage) => {
                 const value = pipelineByStage[stage] || 0;

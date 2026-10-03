@@ -22,6 +22,25 @@ type AuthState = { user: User | null; company: Company | null; permissions: stri
 const AuthContext = createContext<AuthState>(null as any)
 export const useAuth = () => useContext(AuthContext)
 
+/**
+ * How long this access token has left, in seconds. 0 if it cannot be read, which makes an
+ * unreadable token behave exactly as the old unconditional refresh did. (T41)
+ *
+ * Reads the `exp` claim only — no signature check, which is the server's job. The payload is
+ * base64url, so the padding and the two substituted characters have to be put back before atob.
+ */
+export function secondsUntilExpiry(jwt?: string | null): number {
+  const part = String(jwt || '').split('.')[1]
+  if (!part) return 0
+  try {
+    const b64 = part.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4)
+    const exp = Number(JSON.parse(atob(padded))?.exp)
+    if (!Number.isFinite(exp)) return 0
+    return Math.max(0, Math.floor(exp - Date.now() / 1000))
+  } catch { return 0 }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(getAccessToken() || null)
   const [user, setUser] = useState<User | null>(null)
@@ -37,11 +56,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Keep the access token alive. It expires after 15 minutes; most pages call
   // the API with a raw fetch using the token from this context, so if it lapses
-  // every save silently 401s until a full reload. Refresh once on mount and then
-  // every 12 minutes so the token — and every consumer reading it — stays valid.
+  // every save silently 401s until a full reload. Refresh on mount if it is near
+  // expiry, and every 12 minutes after that.
+  /**
+   * WHY EVERY PAGE FETCHED ITSELF TWICE. (T41)
+   *
+   *   "duplicate API calls on Storm Leads and Canvassing"
+   *
+   * This refreshed UNCONDITIONALLY on mount, and /api/auth/refresh always issues a new access
+   * token, so `setToken` ran on every page load with a different string. Pages in this template
+   * load through `useCallback(load, [token])` + `useEffect(load, [load])` — which is the correct
+   * shape — so the new token identity re-ran every one of those loaders. Each page therefore
+   * fetched its data twice on every visit: once with the stored token and once, milliseconds
+   * later, with the replacement. It is on every page built that way, not only the two the report
+   * happened to watch, and it doubled the API load of the whole app.
+   *
+   * The refresh is still what keeps a long-open tab working, so it stays. It just no longer
+   * replaces a token that has twelve good minutes left — which also removes a pointless
+   * /api/auth/refresh round trip from every single page load.
+   */
   useEffect(() => {
     if (!token) return
-    refreshAccessToken()
+    if (secondsUntilExpiry(token) < 3 * 60) refreshAccessToken()
     const iv = setInterval(() => { refreshAccessToken() }, 12 * 60 * 1000)
     return () => clearInterval(iv)
     // eslint-disable-next-line react-hooks/exhaustive-deps

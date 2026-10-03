@@ -91,13 +91,47 @@ export function createBookingRoutes(deps: BookingDeps) {
 
   // ---------------------------------------------------------------- public (the widget)
 
+  /**
+   * A LOGO SENT TO ANOTHER ORIGIN HAS TO BE ABSOLUTE. (T41)
+   *
+   *   showcase: "the booking logo is https:///logo.svg"
+   *
+   * `company.logo` is stored root-relative — generator.ts seeds '/logo.svg' and writes the file
+   * into the CRM's own frontend/public — which is correct for every screen inside the CRM. This
+   * endpoint is the one that is NOT inside it: the booking widget runs on the customer's own
+   * website, so '/logo.svg' resolves against THEIR host and 404s, and anything that absolutises it
+   * against an empty base produces exactly the "https:///logo.svg" the report saw.
+   *
+   * So the public payload — the only cross-origin one — sends an absolute URL. The host is the
+   * same one the embed code uses (the service's own live origin, which is where the file is), and
+   * the request's own Host header is the last resort so a locally run tenant still works.
+   * A data: URI or an already-absolute URL is passed through untouched.
+   */
+  const publicLogo = (c: any, logo?: string | null): string | null => {
+    const raw = String(logo || '').trim()
+    if (!raw) return null
+    if (/^(?:https?:|data:)/i.test(raw)) return raw
+    if (!raw.startsWith('/')) return raw
+    const embedHost = deps.options?.embedHost
+    const configured = (embedHost ? embedHost() : (process.env.RENDER_EXTERNAL_URL || process.env.FRONTEND_URL || process.env.BACKEND_URL || '')).replace(/\/+$/, '')
+    let base = configured
+    if (!base) {
+      const host = c.req.header('x-forwarded-host') || c.req.header('host') || ''
+      const proto = c.req.header('x-forwarded-proto') || 'https'
+      base = host ? `${proto}://${host}` : ''
+    }
+    // No host to build on — send the relative path rather than a URL with an empty authority,
+    // which is the malformed string this is here to prevent.
+    return base ? `${base}${raw}` : raw
+  }
+
   app.get('/public/:companySlug', async (c) => {
     const found = await companyBySlug(c.req.param('companySlug'))
     if (!found) return c.json({ error: 'Company not found' }, 404)
     const [settings, services] = await Promise.all([svc.getSettings(found.id), svc.publicServices(found.id)])
     if (!settings.enabled) return c.json({ error: 'Online booking is not enabled' }, 403)
     return c.json({
-      company: { name: found.name, logo: found.logo || settings.logoUrl, primaryColor: found.primaryColor || settings.primaryColor },
+      company: { name: found.name, logo: publicLogo(c, found.logo || settings.logoUrl), primaryColor: found.primaryColor || settings.primaryColor },
       // confirmationMessage: the salon types one on the Online Booking page and the widget never received
       // it, so every customer saw the built-in wording instead. (Salon T28 L6)
       settings: { title: settings.title, description: settings.description, confirmationMessage: settings.confirmationMessage, requirePhone: settings.requirePhone, requireAddress: settings.requireAddress, timezone: settings.timezone, slotDurationMinutes: settings.slotDurationMinutes },

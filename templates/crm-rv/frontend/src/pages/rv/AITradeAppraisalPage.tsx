@@ -4,7 +4,7 @@ import api from '../../services/api';
 
 const CATEGORIES = ['motorcycle', 'atv', 'utv', 'snowmobile', 'pwc', 'boat', 'motorhome', 'towable'];
 const CONDITIONS = ['excellent', 'good', 'fair', 'rough'];
-const money = (n?: number) => (typeof n === 'number' ? '$' + n.toLocaleString() : '—');
+const money = (n?: number) => (typeof n === 'number' ? `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—');
 
 export default function AITradeAppraisalPage() {
   const [f, setF] = useState<any>({ year: '2022', make: 'Bennington', model: '22 SSBX', category: 'boat', mileageHours: '50 hrs', condition: 'good' });

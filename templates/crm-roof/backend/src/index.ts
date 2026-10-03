@@ -480,9 +480,16 @@ app.onError((err, c) => {
     // Name the offending field in the message so the UI can show something
     // useful instead of a bare "Validation error".
     const issues = (err as any).issues || []
-    const first = issues[0] || {}
-    const where = Array.isArray(first.path) && first.path.length ? first.path.join('.') + ': ' : ''
-    return c.json({ error: where + (first.message || 'Validation error'), details: issues }, 400)
+    // EVERY field that is wrong, not just the first — see the note in the other templates'
+    // utils/errors.ts. One response, every bad value, and a map the screen can mark boxes from. (T41)
+    const named = issues.map((i: any) => ({
+      field: Array.isArray(i.path) && i.path.length ? i.path.join('.') : '',
+      message: i.message || 'Validation error',
+    }))
+    const fields: Record<string, string> = {}
+    for (const n of named) if (n.field && !fields[n.field]) fields[n.field] = n.message
+    const sentence = named.map((n: any) => (n.field ? `${n.field}: ${n.message}` : n.message)).join('; ')
+    return c.json({ error: sentence || 'Validation error', code: 'validation_failed', fields, details: issues }, 400)
   }
 
   // An error that names its own status keeps it. Every other template's handler already did this

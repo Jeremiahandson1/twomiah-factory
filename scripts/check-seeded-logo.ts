@@ -50,5 +50,41 @@ for (const t of ALL) {
 // crm-automotive is parked (CLAUDE.md): it must not be dragged into this
 if (/COMPANY_LOGO/.test(read('templates/crm-automotive/backend/db/seed.template.ts'))) fail('crm-automotive is parked and must not be modified')
 
+/**
+ * …AND THE TAB ICON IS THE TENANT'S TOO. (T41)
+ *
+ *   showcase: "the favicon is Vite's logo"
+ *
+ * Reading the generator made that bigger: no CRM's favicon link resolved for an ordinary tenant.
+ * Four templates linked /vite.svg (Vite's placeholder, which exists in no public/ but one), and six
+ * linked /favicon.ico — which writeBrandingAssets DELETES for any tenant without an uploaded icon,
+ * writing a per-tenant favicon.svg instead. So the link 404'd on every test tenant and on every
+ * customer who never uploaded one.
+ *
+ * The rule: both are declared, SVG first, and the generator keeps exactly one of the two on disk —
+ * the generated mark when nothing was uploaded, the uploaded raster otherwise (it removes the
+ * generic SVG in that branch, or the browser would prefer it over the customer's own file).
+ */
+const FAVICON_TEMPLATES = [...ALL, 'crm-basic', 'crm-store']
+for (const t of FAVICON_TEMPLATES) {
+  const html = read(`templates/${t}/frontend/index.html`)
+  if (!html) { fail(`templates/${t}/frontend/index.html is missing`); continue }
+  if (/vite\.svg/.test(html)) fail(`${t}/frontend/index.html still links Vite's placeholder icon`)
+  if (!/<link rel="icon" type="image\/svg\+xml" href="\/favicon\.svg" \/>/.test(html)) {
+    fail(`${t}/frontend/index.html must link /favicon.svg — the per-tenant mark the generator writes`)
+  }
+  if (!/<link rel="icon" href="\/favicon\.ico" sizes="any" \/>/.test(html)) {
+    fail(`${t}/frontend/index.html must also link /favicon.ico, for a tenant who uploaded a raster icon`)
+  }
+  if (html.indexOf('favicon.svg') > html.indexOf('favicon.ico')) {
+    fail(`${t}/frontend/index.html must declare favicon.svg BEFORE favicon.ico`)
+  }
+}
+if (!/for \(const d of \[buildDir, targetDir, path\.join\(targetDir, 'dist'\), crmPublicDir\]\)/.test(gen)
+  || !/favicon\.svg'\); if \(fs\.existsSync\(f\)\) fs\.rmSync\(f\)/.test(gen)) {
+  fail('an uploaded favicon must remove the generated favicon.svg, or the generic mark shadows the customer\'s own')
+}
+if (!/write\(path\.join\(d, 'favicon\.svg'\), favSvg\)/.test(gen)) fail('the generator must write the per-tenant favicon.svg')
+
 if (failed) { console.error(`\nseeded logo: ${failed} check(s) FAILED`); process.exit(1) }
-console.log('seeded logo: a new CRM points at the logo it was given')
+console.log(`seeded logo: a new CRM points at the logo it was given, and all ${FAVICON_TEMPLATES.length} CRM tabs wear the tenant's own icon`)

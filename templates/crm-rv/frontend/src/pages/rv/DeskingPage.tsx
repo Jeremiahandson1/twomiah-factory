@@ -5,7 +5,7 @@ import api from '../../services/api';
 import { useMayWrite } from '../../shared';
 import { DEAL_DEFAULTS, DEAL_KEYS, dealToText, dealTotals, parseDeal, type Deal } from '../../lib/deal';
 
-const money = (n: number) => '$' + (Math.round(n) || 0).toLocaleString();
+const money = (n: number) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 function payment(p: number, apr: number, m: number) {
   const r = apr / 100 / 12;
   if (!p || !m) return 0;
@@ -118,17 +118,26 @@ export default function DeskingPage() {
       <div className="grid md:grid-cols-2 gap-4 mt-4">
         <div className="bg-white text-gray-900 rounded-xl border shadow-sm p-4 space-y-2.5 dark:bg-slate-900 dark:text-slate-100">
           <div className="text-sm font-semibold text-gray-700 mb-1 dark:text-slate-200">Deal inputs</div>
+          {/*
+            A REJECTED FIGURE HAS TO SAY SO TO MORE THAN THE EYE. (T41: "desk inputs are missing
+            aria-invalid")
+            The page already works out which field is wrong and paints its border red with a message
+            underneath — but a red border is the one cue a screen reader cannot pass on, and this is
+            the screen where somebody types the price of a motorhome. `aria-invalid` marks the box,
+            `aria-describedby` ties the message to it, and `role="alert"` reads it out when it
+            appears. Nothing visual changes.
+          */}
           {inputs.map(([label, key]) => (
             <div key={key}>
               <label className="flex items-center justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">{label}</span>
-                <span className="flex items-center"><span className="text-gray-500 dark:text-slate-400 mr-1">$</span><input type="number" min="0" inputMode="decimal" value={raw[key]} onChange={(e) => setField(key, e.target.value)} className={`w-28 p-1.5 border rounded text-right text-sm ${errors[key] ? 'border-red-500' : ''}`} /></span></label>
-              {errors[key] && <p className="text-xs text-red-600 text-right mt-0.5">{errors[key]}</p>}
+                <span className="flex items-center"><span className="text-gray-500 dark:text-slate-400 mr-1">$</span><input type="number" min="0" inputMode="decimal" value={raw[key]} onChange={(e) => setField(key, e.target.value)} aria-invalid={!!errors[key]} aria-describedby={errors[key] ? `desk-err-${key}` : undefined} className={`w-28 p-1.5 border rounded text-right text-sm ${errors[key] ? 'border-red-500' : ''}`} /></span></label>
+              {errors[key] && <p id={`desk-err-${key}`} role="alert" className="text-xs text-red-600 text-right mt-0.5 dark:text-red-400">{errors[key]}</p>}
             </div>
           ))}
           <div>
             <label className="flex items-center justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Tax rate</span>
-              <span className="flex items-center"><input type="number" min="0" max="25" step="0.1" inputMode="decimal" value={raw.taxRate} onChange={(e) => setField('taxRate', e.target.value)} className={`w-20 p-1.5 border rounded text-right text-sm ${errors.taxRate ? 'border-red-500' : ''}`} /><span className="text-gray-500 dark:text-slate-400 ml-1">%</span></span></label>
-            {errors.taxRate && <p className="text-xs text-red-600 text-right mt-0.5">{errors.taxRate}</p>}
+              <span className="flex items-center"><input type="number" min="0" max="25" step="0.1" inputMode="decimal" value={raw.taxRate} onChange={(e) => setField('taxRate', e.target.value)} aria-invalid={!!errors.taxRate} aria-describedby={errors.taxRate ? 'desk-err-taxRate' : undefined} className={`w-20 p-1.5 border rounded text-right text-sm ${errors.taxRate ? 'border-red-500' : ''}`} /><span className="text-gray-500 dark:text-slate-400 ml-1">%</span></span></label>
+            {errors.taxRate && <p id="desk-err-taxRate" role="alert" className="text-xs text-red-600 text-right mt-0.5 dark:text-red-400">{errors.taxRate}</p>}
           </div>
         </div>
 

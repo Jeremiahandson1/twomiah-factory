@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { DollarSign, AlertTriangle } from 'lucide-react';
 import api from '../../services/api';
 
-const money = (n: number) => '$' + (Math.round(n) || 0).toLocaleString();
+const money = (n: number) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function FloorplanPage() {
   const [units, setUnits] = useState<any[]>([]);

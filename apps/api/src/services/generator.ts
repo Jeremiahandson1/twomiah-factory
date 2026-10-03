@@ -1405,6 +1405,19 @@ async function writeBrandingAssets(targetDir: string, branding: GenerateConfig['
       writeDataUrl(branding.favicon, path.join(crmPublicDir, 'favicon.ico'))
       writeDataUrl(branding.favicon, path.join(crmPublicDir, 'favicon.png'))
     }
+    /**
+     * AN UPLOADED ICON MUST NOT BE SHADOWED BY THE GENERATED ONE. (T41)
+     *
+     * Every CRM's index.html now declares favicon.svg BEFORE favicon.ico, because for a tenant
+     * with no uploaded icon the .svg is the only one that exists (the branch below writes it and
+     * deletes the rasters). This branch is the other case — the customer uploaded their own mark —
+     * and the templates ship a generic favicon.svg of their own, which the browser would prefer
+     * over the customer's file purely because it is declared first. So when an icon is uploaded,
+     * the generic SVG goes.
+     */
+    for (const d of [buildDir, targetDir, path.join(targetDir, 'dist'), crmPublicDir]) {
+      try { const f = path.join(d, 'favicon.svg'); if (fs.existsSync(f)) fs.rmSync(f) } catch { /* noop */ }
+    }
     updateSettingsField(targetDir, 'favicon', '/favicon.png')
   }
 

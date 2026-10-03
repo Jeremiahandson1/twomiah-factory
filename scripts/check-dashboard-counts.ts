@@ -11,11 +11,38 @@ const d = read('packages/tenant-backend/src/reporting/jobsDashboard.ts')
 if (!/open: sumCounts\(jobsByStatus\) - \(byStatus\(jobsByStatus\)\.completed \|\| 0\) - \(byStatus\(jobsByStatus\)\.cancelled \|\| 0\)/.test(d)) fail('dashboard stats must return jobs.open = everything not completed or cancelled')
 if (!/if \(inv\.status === 'draft' \|\| inv\.status === 'void'\) continue/.test(d)) fail('only draft and void are left out of what was billed')
 if (!/invoiceStats\.totalValue = r2\(invoiceStats\.totalValue \+ num\(inv\.total\)\)\s*\n\s*if \(ISSUED\.includes\(inv\.status\)\) continue/.test(d)) fail('a refunded sale must be counted as billed, then skipped for owed/paid')
-for (const t of ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-vet']) {
+/**
+ * The job verticals. crm-vet is NOT one of them. (T41)
+ *
+ * This list used to include crm-vet, which pinned a contractor's tile into a veterinary clinic —
+ * and T41 reported exactly that: "the staff portal home shows contractor tiles". The vet
+ * dashboard returns contacts / patients / appointments / reminders and has never returned a `jobs`
+ * key, so the Open Jobs tile read an absent figure, `?? 0` turned it into a confident zero, and
+ * this guard was holding that in place. A clinic's tiles are checked below, against the keys its
+ * own endpoint actually sends.
+ */
+for (const t of ['crm', 'crm-fieldservice', 'crm-landscaping']) {
   const p = read(`templates/${t}/frontend/src/pages/CustomerPortal.tsx`)
   const tile = (p.match(/\{ label: 'Open Jobs'[^\n]*/) || [''])[0]
   if (!tile) fail(`${t}: the portal has no Open Jobs tile`)
   else if (!/\?\.open \?\? 0/.test(tile) || /\?\.total \?\? 0/.test(tile) || /\?\.today \?\? 0/.test(tile)) fail(`${t}: the Open Jobs tile must read jobs.open (not total, not today) — ${tile.trim().slice(0, 90)}`)
+}
+
+// A clinic's portal tiles come from the clinic's own dashboard. Both halves are checked, so neither
+// can drift back: the tiles must not name a job or a quote, and the keys they read must be ones
+// GET /api/dashboard/stats returns.
+{
+  const vet = read('templates/crm-vet/frontend/src/pages/CustomerPortal.tsx')
+  const tiles = (vet.match(/\{\(\[[\s\S]*?\] as unknown as StatCard\[\]\)/) || [''])[0]
+  if (!tiles) fail('crm-vet: the portal stat tiles could not be found')
+  else {
+    if (/Open Jobs|Pending Quotes|stats\.jobs|stats\.quotes/.test(tiles)) fail("crm-vet: the clinic's portal must not show a contractor's job or quote tiles")
+    const vetStats = read('templates/crm-vet/backend/src/routes/dashboard.ts')
+    for (const key of ['patients', 'appointments', 'reminders']) {
+      if (!new RegExp(`stats\\.${key}`).test(tiles)) fail(`crm-vet: the portal should show the clinic's ${key}, which its dashboard returns`)
+      if (!new RegExp(`${key}: \\{`).test(vetStats)) fail(`crm-vet: the dashboard no longer returns ${key} — the portal tile reading it would print a zero it never measured`)
+    }
+  }
 }
 // Reports' job status bar charts every job in the period: the eight statuses a job can hold, plus "Other" for
 // whatever is left (a status from an older build). It charted four, so 98 jobs showed as 94. (Landscaping T21 M2)

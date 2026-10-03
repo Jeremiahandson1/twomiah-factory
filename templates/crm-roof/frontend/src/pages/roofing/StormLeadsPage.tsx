@@ -62,8 +62,16 @@ export default function StormLeadsPage() {
 
   useEffect(() => { loadEvents() }, [loadEvents])
 
-  const loadLeads = async (eventId: string, page = 1) => {
-    const statusParam = filterStatus ? `&status=${filterStatus}` : ''
+  /**
+   * `status` is passed in, not read off state. (T41, found while reading this page)
+   *
+   * The status chips called `setFilterStatus(next)` and `loadLeads(event.id)` in the same handler,
+   * and this function read `filterStatus` out of its closure — which still held the PREVIOUS
+   * value, because React has not re-rendered yet. So clicking "contacted" fetched the list for
+   * whatever filter was selected before, and the chips were always one click behind.
+   */
+  const loadLeads = async (eventId: string, page = 1, status: string = filterStatus) => {
+    const statusParam = status ? `&status=${status}` : ''
     const res = await fetch(`/api/storms/events/${eventId}/leads?page=${page}&limit=50${statusParam}`, { headers })
     const data = await res.json()
     setLeads(data.data || [])
@@ -276,7 +284,7 @@ export default function StormLeadsPage() {
             {/* Stats Bar */}
             <div className="flex gap-2 px-4 py-2 bg-gray-50 border-b flex-shrink-0 dark:bg-slate-900">
               {Object.entries(stats).map(([k, v]) => (
-                <button key={k} onClick={() => { setFilterStatus(filterStatus === k ? '' : k); loadLeads(selectedEvent.id) }}
+                <button key={k} onClick={() => { const next = filterStatus === k ? '' : k; setFilterStatus(next); loadLeads(selectedEvent.id, 1, next) }}
                   className={`text-xs px-3 py-1 rounded-full font-medium ${filterStatus === k ? 'bg-blue-600 text-white' : STATUS_COLORS[k] || 'bg-gray-100'}`}>
                   {k}: {v}
                 </button>

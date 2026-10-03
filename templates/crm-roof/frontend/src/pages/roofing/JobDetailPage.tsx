@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { displayName } from '../../utils/user';
+import { supplierName } from '../../utils/supplier';
 import { useToast } from '../../contexts/ToastContext';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -623,7 +624,7 @@ export default function JobDetailPage() {
                       <div className="grid grid-cols-2 gap-4 text-sm mb-4">
                         <div>
                           <p className="text-gray-500 dark:text-slate-400">Supplier</p>
-                          <p className="font-medium">{order.supplier || '—'}</p>
+                          <p className="font-medium">{supplierName(order.supplier) || '—'}</p>
                         </div>
                         <div>
                           <p className="text-gray-500 dark:text-slate-400">Status</p>

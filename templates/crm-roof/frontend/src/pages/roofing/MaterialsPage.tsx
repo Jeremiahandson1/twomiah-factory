@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '../../utils/date';
+import { supplierName } from '../../utils/supplier';
 import { useNavigate } from 'react-router-dom';
 import { Truck, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -83,7 +84,9 @@ export default function MaterialsPage() {
           <Filter className="w-4 h-4 text-gray-400" />
           <select value={supplierFilter} onChange={(e) => setSupplierFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
             <option value="">All Suppliers</option>
-            {suppliers.map((s) => <option key={s} value={s}>{s}</option>)}
+            {/* The value stays the stored slug — the server filters on it — and only the label is
+                the supplier's name. (T41) */}
+            {suppliers.map((s) => <option key={s} value={s}>{supplierName(s)}</option>)}
           </select>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
             <option value="">All Statuses</option>
@@ -129,7 +132,7 @@ export default function MaterialsPage() {
                             record id onto a "ROOF-" prefix as a fallback. */}
                         {order.jobNumber || '—'}
                       </td>
-                      <td className="px-4 py-3 text-gray-900 dark:text-slate-100">{order.supplier || '—'}</td>
+                      <td className="px-4 py-3 text-gray-900 dark:text-slate-100">{supplierName(order.supplier) || '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_COLORS[order.status] || 'bg-gray-100 text-gray-600'}`}>
                           {formatStatus(order.status) || 'Ordered'}

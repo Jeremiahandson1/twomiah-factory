@@ -8,7 +8,7 @@ type Lead = {
   unitYear?: number; unitMake?: string; unitModel?: string; unitPrice?: string; unitCategory?: string; unitStatus?: string;
 };
 
-function money(v?: string) { const n = Number(v); return n ? '$' + n.toLocaleString() : ''; }
+function money(v?: string) { const n = Number(v); return n ? `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''; }
 function interestLabel(l: Lead) { return l.unitMake ? `${l.unitYear || ''} ${l.unitMake} ${l.unitModel || ''}`.trim() : '—'; }
 // a unit that can't be offered (the draft offers an available alternative instead)
 const UNIT_STATUS_LABEL: Record<string, string> = { sold: 'Unit sold', pending: 'Sale pending', on_order: 'On order', in_service: 'In service' };
