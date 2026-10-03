@@ -52,7 +52,11 @@ export default function RentalsPage() {
     finally { setBusyId(null); }
   }
 
-  const cards = [['Active (out)', summary.active ?? 0], ['Reserved', summary.reserved ?? 0], ['Rental revenue', money(summary.revenue || 0)]];
+  // The server omits summary.revenue for a seat without invoices:read (routes/rentals.ts), so the
+  // tile goes rather than showing $0 — "the rental side made nothing" is a worse answer than none.
+  // Keyed off the field's absence so the card cannot disagree with the payload. (T41)
+  const cards: [string, string | number][] = [['Active (out)', summary.active ?? 0], ['Reserved', summary.reserved ?? 0]];
+  if (summary.revenue !== undefined) cards.push(['Rental revenue', money(summary.revenue)]);
   const unitName = (u: any) => [[u.year, u.make, u.modelName].filter(Boolean).join(' '), u.stockNumber ? `(${u.stockNumber})` : ''].filter(Boolean).join(' ');
 
   return (

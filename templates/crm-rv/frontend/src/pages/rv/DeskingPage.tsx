@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ClipboardList, Loader2, Save } from 'lucide-react';
 import api from '../../services/api';
+import { useMayWrite } from '../../shared';
 import { DEAL_DEFAULTS, DEAL_KEYS, dealToText, dealTotals, parseDeal, type Deal } from '../../lib/deal';
 
 const money = (n: number) => '$' + (Math.round(n) || 0).toLocaleString();
@@ -15,6 +16,8 @@ function payment(p: number, apr: number, m: number) {
 // The desk is saved on the lead (PUT /api/sales-leads/:id/deal) and reloads with it; F&I finances what is saved
 // here. Inputs are kept as typed text, so a minus sign or a half-typed number is never rewritten. (RV T19 H1, M5)
 export default function DeskingPage() {
+  // PUT /api/sales-leads/:id/deal asks contacts:update. (T41)
+  const maySaveDeal = useMayWrite('contacts:update');
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [leads, setLeads] = useState<any[]>([]);
@@ -136,13 +139,24 @@ export default function DeskingPage() {
               {otdRows.map(([l, v]) => (<div key={l} className="flex justify-between py-1.5"><span className="text-gray-600 dark:text-slate-400">{l}</span><span>{shown(v)}</span></div>))}
               <div className="flex justify-between py-2 font-bold text-base"><span>Out-the-door</span><span>{shown(t.outTheDoor)}</span></div>
               <div className="flex justify-between py-1.5"><span className="text-gray-600 dark:text-slate-400">Down payment</span><span className="text-green-700">{hasErrors ? '—' : `-${money(d.down)}`}</span></div>
-              {!hasErrors && t.netTrade !== 0 && <div className="flex justify-between py-1.5"><span className="text-gray-600 dark:text-slate-400">Net trade equity</span><span className={t.netTrade > 0 ? 'text-green-700' : ''}>{t.netTrade > 0 ? '-' : '+'}{money(Math.abs(t.netTrade))}</span></div>}
+              {/* "'Net trade equity +$2,200' shows positive when equity is −$2,200." (T41 RV)
+                  netTrade is tradeAllow − tradePayoff, and the SIGN shown is its effect on the
+                  amount financed: equity comes off the deal (−), negative equity is rolled into it
+                  (+). That arithmetic was right and the WORDS were not — a customer $2,200 upside
+                  down was shown "Net trade equity +$2,200", which reads as $2,200 in their favour.
+                  The row now names which of the two it is, so the label and the sign agree. */}
+              {!hasErrors && t.netTrade !== 0 && <div className="flex justify-between py-1.5"><span className="text-gray-600 dark:text-slate-400">{t.netTrade > 0 ? 'Net trade equity' : 'Negative trade equity'}</span><span className={t.netTrade > 0 ? 'text-green-700' : ''}>{t.netTrade > 0 ? '-' : '+'}{money(Math.abs(t.netTrade))}</span></div>}
               <div className="flex justify-between py-2 font-bold text-lg text-blue-800"><span>Amount to finance</span><span>{shown(t.financed)}</span></div>
             </div>
             {hasErrors && <p className="mt-2 text-xs text-red-600">Totals and payments show once the highlighted fields are fixed.</p>}
             {leadId && (
               <div className="mt-3 flex items-center gap-2 flex-wrap">
-                <button type="button" onClick={save} disabled={saving || loadingDeal || hasErrors || !dirty} className="px-3 py-1.5 rounded-lg bg-blue-700 text-white text-sm font-medium hover:bg-blue-800 disabled:opacity-50 inline-flex items-center gap-1.5">
+                {/* "Save deal stays enabled for staff with a bare 'Permission denied' toast."
+                    (T41 RV) PUT /api/leads/:id/deal asks contacts:update; the field rung holds
+                    contacts:read only. DISABLED rather than hidden, with the reason in the tooltip:
+                    the desk is a worksheet a salesperson is encouraged to play with, and a Save
+                    button that vanishes reads as the page being broken. */}
+                <button type="button" onClick={save} disabled={saving || loadingDeal || hasErrors || !dirty || !maySaveDeal} title={!maySaveDeal ? 'Saving a desked deal needs permission to edit the lead.' : undefined} className="px-3 py-1.5 rounded-lg bg-blue-700 text-white text-sm font-medium hover:bg-blue-800 disabled:opacity-50 inline-flex items-center gap-1.5">
                   {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}{dirty ? 'Save deal' : 'Saved'}
                 </button>
                 <button type="button" onClick={sendToFi} disabled={saving || loadingDeal || hasErrors} className="px-3 py-1.5 rounded-lg border text-sm text-blue-700 hover:bg-blue-50 disabled:opacity-50 dark:hover:bg-slate-800">Send to F&I →</button>

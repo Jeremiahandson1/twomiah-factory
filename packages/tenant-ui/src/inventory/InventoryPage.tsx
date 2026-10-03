@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
 import type { InventoryApi, InventoryPageProps } from './types';
+import { useMayWrite } from '../auth/PermissionsContext';
 
 // api is injected once at the page root; child components read it via useInventory().
 const InventoryCtx = createContext<{ api: InventoryApi }>({ api: null as any });
@@ -60,7 +61,8 @@ interface StatCardProps {
 
 interface LocationsTabProps {
   locations: InventoryLocation[];
-  onAddLocation: () => void;
+  /** Absent when this seat holds no inventory:create — the tab then has no Add Location button. (T41) */
+  onAddLocation?: () => void;
   onRefresh: () => void;
 }
 
@@ -110,6 +112,25 @@ export default function InventoryPage({ api }: InventoryPageProps) {
   const [showTransfer, setShowTransfer] = useState<boolean>(false);
   const [showAdjust, setShowAdjust] = useState<boolean>(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  /**
+   * The write controls, each asking what its own route asks (inventory.ts): Add Item and Add
+   * Location are inventory:create; Transfer, Adjust Stock and Edit are inventory:update. The field
+   * rung holds no inventory permission at all, so every one of these was a button that 403'd. The
+   * LIST stays open, deliberately — a technician needs to know there are four of a part on the van.
+   * (T41)
+   */
+  /**
+   * Does this payload carry cost at all? (T41, RV: "Staff also sees Parts Inventory cost and value")
+   *
+   * The server now strips unitCost for a seat without `inventory:read`, and
+   * `Number(undefined).toFixed(2)` is "NaN" while the Total Value tile would sum to $0.00 — so the
+   * fix would have read on screen as either a broken column or "the whole parts bin is worthless".
+   * Read off the rows rather than from a second permission check, so the tile, the column heading
+   * and the cells cannot disagree with each other or with the server.
+   */
+  const showCost = items.some((i) => (i as any).unitCost !== undefined);
+  const mayCreate = useMayWrite('inventory:create');
+  const mayUpdate = useMayWrite('inventory:update');
 
   useEffect(() => {
     loadData();
@@ -143,25 +164,31 @@ export default function InventoryPage({ api }: InventoryPageProps) {
           <p className="text-gray-500 dark:text-slate-400">Track parts and materials</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowTransfer(true)}
-            className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50"
-          >
-            <ArrowRightLeft className="w-4 h-4" />
-            Transfer
-          </button>
-          <button
-            onClick={() => { setSelectedItem(null); setShowItemForm(true); }}
-            className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
-          >
-            <Plus className="w-4 h-4" />
-            Add Item
-          </button>
+          {mayUpdate && (
+            <button
+              onClick={() => setShowTransfer(true)}
+              className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50"
+            >
+              <ArrowRightLeft className="w-4 h-4" />
+              Transfer
+            </button>
+          )}
+          {mayCreate && (
+            <button
+              onClick={() => { setSelectedItem(null); setShowItemForm(true); }}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+            >
+              <Plus className="w-4 h-4" />
+              Add Item
+            </button>
+          )}
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-4 gap-4">
+      {/* One column per tile actually shown: with Total Value withheld, a four-column grid leaves a
+          gap that reads as a figure failing to load. */}
+      <div className={`grid ${showCost ? 'grid-cols-4' : 'grid-cols-3'} gap-4`}>
         <StatCard
           icon={Package}
           label="Total Items"
@@ -178,12 +205,14 @@ export default function InventoryPage({ api }: InventoryPageProps) {
           value={items.filter((i: InventoryItem) => i.isLowStock).length}
           color="red"
         />
-        <StatCard
-          icon={BarChart3}
-          label="Total Value"
-          value={`$${items.reduce((sum: number, i: InventoryItem) => sum + (Number(i.unitCost) || 0) * (Number(i.totalStock) || 0), 0).toFixed(2)}`}
-          color="green"
-        />
+        {showCost && (
+          <StatCard
+            icon={BarChart3}
+            label="Total Value"
+            value={`$${items.reduce((sum: number, i: InventoryItem) => sum + (Number(i.unitCost) || 0) * (Number(i.totalStock) || 0), 0).toFixed(2)}`}
+            color="green"
+          />
+        )}
       </div>
 
       {/* Tabs */}
@@ -258,7 +287,7 @@ export default function InventoryPage({ api }: InventoryPageProps) {
                     <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">SKU</th>
                     <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Category</th>
                     <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">In Stock</th>
-                    <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Cost</th>
+                    {showCost && <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Cost</th>}
                     <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Price</th>
                     <th className="px-4 py-3"></th>
                   </tr>
@@ -286,27 +315,34 @@ export default function InventoryPage({ api }: InventoryPageProps) {
                           {item.totalStock} {item.unit}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right text-sm text-gray-500 dark:text-slate-400">
-                        ${Number(item.unitCost).toFixed(2)}
-                      </td>
+                      {showCost && (
+                        <td className="px-4 py-3 text-right text-sm text-gray-500 dark:text-slate-400">
+                          ${Number(item.unitCost).toFixed(2)}
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-right text-sm text-gray-900 dark:text-slate-100">
                         ${Number(item.unitPrice).toFixed(2)}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2 justify-end">
-                          <button
-                            onClick={() => { setSelectedItem(item); setShowAdjust(true); }}
-                            className="p-1 text-gray-400 hover:text-gray-600"
-                            title="Adjust Stock"
-                          >
-                            <Minus className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => { setSelectedItem(item); setShowItemForm(true); }}
-                            className="p-1 text-gray-400 hover:text-gray-600"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
+                          {mayUpdate && (
+                            <button
+                              onClick={() => { setSelectedItem(item); setShowAdjust(true); }}
+                              className="p-1 text-gray-400 hover:text-gray-600"
+                              title="Adjust Stock"
+                            >
+                              <Minus className="w-4 h-4" />
+                            </button>
+                          )}
+                          {mayUpdate && (
+                            <button
+                              onClick={() => { setSelectedItem(item); setShowItemForm(true); }}
+                              className="p-1 text-gray-400 hover:text-gray-600"
+                              aria-label={`Edit ${item.name}`}
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -327,7 +363,7 @@ export default function InventoryPage({ api }: InventoryPageProps) {
       {tab === 'locations' && (
         <LocationsTab
           locations={locations}
-          onAddLocation={() => setShowLocationForm(true)}
+          onAddLocation={mayCreate ? () => setShowLocationForm(true) : undefined}
           onRefresh={loadData}
         />
       )}
@@ -416,12 +452,14 @@ function LocationsTab({ locations, onAddLocation, onRefresh }: LocationsTabProps
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="font-medium text-gray-900 dark:text-slate-100">Locations</h3>
-          <button
-            onClick={onAddLocation}
-            className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200"
-          >
-            + Add
-          </button>
+          {onAddLocation && (
+            <button
+              onClick={onAddLocation}
+              className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200"
+            >
+              + Add
+            </button>
+          )}
         </div>
 
         {locations.map((loc: InventoryLocation) => (

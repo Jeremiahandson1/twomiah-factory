@@ -46,7 +46,13 @@ const NAV: NavItem[] = [
   { to: '/crm/pricebook-rates', icon: BookMarked, label: 'Service Pricebook', section: 'Operations', features: ['flat_rate_pricebook'] },
   { to: '/crm/recurring-routes', icon: Route, label: 'Route Board', section: 'Operations', features: ['recurring_routes'] },
   { to: '/crm/area-pricing', icon: Ruler, label: 'Area Pricing', section: 'Operations', features: ['area_pricing'] },
-  { to: '/crm/snow-billing', icon: Snowflake, label: 'Snow Billing', section: 'Operations', features: ['snow_billing'] },
+  // EVERY endpoint behind this page is an `invoices:*` one — contracts carry the rates, an event
+  // stores the billable amount it computes, and there is a Bill button. T41: "The Snow page tells
+  // staff 'No snow contracts yet' instead of 'no access', and still shows New Contract." A 403 read
+  // as an empty list, so the page lied twice. Declaring the permission the page's own reads need
+  // means the crew never lands here: AppShell hides the link and refuses the URL with its own "your
+  // role cannot open this" page. (T41)
+  { to: '/crm/snow-billing', icon: Snowflake, label: 'Snow Billing', section: 'Operations', features: ['snow_billing'], permission: 'invoices:read' },
   { to: '/website-cms', external: true, id: 'website-cms', icon: ExternalLink, label: 'Website CMS', section: 'Operations' },
   { to: '/crm/help', icon: BookOpen, label: 'Help' },
 

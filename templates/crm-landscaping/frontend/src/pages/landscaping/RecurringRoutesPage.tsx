@@ -2,11 +2,30 @@ import { useState, useEffect } from 'react';
 import { Plus, Trash2, MapPin, Loader2, Clock, DollarSign } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
+import { useMayWrite } from '../../shared';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export default function RecurringRoutesPage() {
   const toast = useToast();
+  /**
+   * "Staff are shown Add Service/Edit, Add Equipment and New Route, which 403." (T41 landscaping)
+   *
+   * The route board's own API decides this, and it does not use a `routes:` resource — a mow route
+   * IS recurring work, so src/routes/recurringRoutes.ts gates on the jobs verbs:
+   *
+   *   New Route     POST /                      jobs:create   ← staff do not hold this
+   *   Delete route  DELETE /:id                 jobs:delete   ← nor this
+   *   Add Stop      POST /:id/stops             jobs:update   ← staff DO hold it, and keep it
+   *   Remove stop   DELETE /:id/stops/:stopId   jobs:update   ← likewise
+   *
+   * So the crew can still work the board they are standing on — reorder the day, drop a stop that
+   * has been cancelled — and only building or scrapping a whole route goes. Hiding Add Stop as well
+   * would have been the easy over-correction and would have made the page read-only for the people
+   * who actually run the route.
+   */
+  const mayCreateRoute = useMayWrite('jobs:create');
+  const mayDeleteRoute = useMayWrite('jobs:delete');
   const [board, setBoard] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any>(null);
@@ -71,7 +90,7 @@ export default function RecurringRoutesPage() {
           <h1 className="text-2xl font-bold flex items-center gap-2"><MapPin className="w-6 h-6" /> Recurring Route Board</h1>
           <p className="text-gray-500 text-sm dark:text-slate-400">Weekly mow routes grouped by day. Build a route, add property stops in visit order.</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 bg-green-600 text-white rounded-lg px-4 py-2 text-sm"><Plus className="w-4 h-4" /> New Route</button>
+        {mayCreateRoute && <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 bg-green-600 text-white rounded-lg px-4 py-2 text-sm"><Plus className="w-4 h-4" /> New Route</button>}
       </div>
 
       {showForm && (
@@ -112,7 +131,7 @@ export default function RecurringRoutesPage() {
               <h2 className="font-semibold">{detail.name} <span className="text-sm text-gray-500 dark:text-slate-400">· {detail.dayName}</span></h2>
               <p className="text-xs text-gray-500 dark:text-slate-400">{detail.stops?.length || 0} stops</p>
             </div>
-            <button onClick={() => deleteRoute(detail.id)} className="text-red-600 flex items-center gap-1 text-sm"><Trash2 className="w-4 h-4" /> Delete route</button>
+            {mayDeleteRoute && <button onClick={() => deleteRoute(detail.id)} className="text-red-600 flex items-center gap-1 text-sm"><Trash2 className="w-4 h-4" /> Delete route</button>}
           </div>
 
           <div className="space-y-1 mb-4">

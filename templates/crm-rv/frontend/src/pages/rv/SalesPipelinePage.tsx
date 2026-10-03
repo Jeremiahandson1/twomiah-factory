@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, Loader2, X, Upload, User, Phone, Mail, Calculator } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { useMayWrite } from '../../shared';
 import { useNavigate } from 'react-router-dom';
 
 /**
@@ -62,6 +63,8 @@ function unitDesc(row: LeadRow): string {
 }
 
 export default function SalesPipelinePage() {
+  // New Lead and Import ADF both POST a lead, so both ask contacts:create. (T41)
+  const mayCreateLead = useMayWrite('contacts:create');
   const { hasFeature } = useAuth();
   const [rows, setRows] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -115,13 +118,19 @@ export default function SalesPipelinePage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Sales Pipeline</h1>
           <p className="text-gray-500 dark:text-slate-400">Track deals from first contact to delivery</p>
         </div>
+        {/* Both POST a lead (POST /api/leads and /api/leads/import-adf), so both ask
+            contacts:create, which the field rung does not hold. (T41 RV) */}
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowAdf(true)} className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50">
-            <Upload className="w-4 h-4" /> Import ADF
-          </button>
-          <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">
-            <Plus className="w-4 h-4" /> New Lead
-          </button>
+          {mayCreateLead && (
+            <button onClick={() => setShowAdf(true)} className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50">
+              <Upload className="w-4 h-4" /> Import ADF
+            </button>
+          )}
+          {mayCreateLead && (
+            <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">
+              <Plus className="w-4 h-4" /> New Lead
+            </button>
+          )}
         </div>
       </div>
 

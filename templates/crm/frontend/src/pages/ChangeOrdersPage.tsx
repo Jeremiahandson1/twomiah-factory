@@ -46,6 +46,30 @@ interface PaginationData {
   totalPages: number;
 }
 
+/**
+ * WHICH STATUS EACH ACTION IS ACTUALLY ALLOWED FROM. (T41 contractor)
+ *
+ *   "Signed or approved COs still show Edit, Submit, Approve, Reject and Delete for owner and
+ *    manager (the server refuses each with 400)."
+ *
+ * The permission was already asked — `can('change-orders:update')` — and that is the wrong question
+ * on its own: an owner holds the permission for an approved change order too, and the server still
+ * refuses, correctly, because an approved change order is a signed agreement. So five menu items sat
+ * on every row for a row where none of them could work, and the only feedback was a toast.
+ *
+ * These four lists are COPIES of backend/src/routes/changeOrders.ts lines 45-48, which is the
+ * authority — and `scripts/check-change-order-status-lists.ts` fails the build if the two ever
+ * disagree, so the copy cannot rot. Delete uses EDITABLE, the same list the server's delete checks.
+ *
+ * The lists are the server's, including `pending` as a synonym for `submitted` (what the selections
+ * flow used to stamp) — the file over there explains why.
+ */
+const EDITABLE = ['draft', 'submitted', 'rejected', 'pending'];
+const SUBMITTABLE = ['draft', 'rejected'];
+const APPROVABLE = ['submitted', 'pending'];
+const REJECTABLE = ['draft', 'submitted', 'pending'];
+const statusOf = (row: Record<string, unknown>) => String(row.status ?? '');
+
 export default function ChangeOrdersPage() {
   const toast = useToast();
   const { can } = useAuth();
@@ -146,11 +170,11 @@ export default function ChangeOrdersPage() {
       <DataTable data={data} emptyMessage="No change orders yet. Raise one when the scope changes — including a credit, if work is coming out." columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[
         // Mirrors routes/changeOrders.ts: edit, submit, approve and reject are all
         // change-orders:update; the delete is its own verb. (T32 M9)
-        { label: 'Edit', icon: Edit, show: () => can('change-orders:update'), onClick: openEdit },
-        { label: 'Submit', icon: Send, show: () => can('change-orders:update'), onClick: handleSubmit },
-        { label: 'Approve', icon: Check, show: () => can('change-orders:update'), onClick: handleApprove },
-        { label: 'Reject', icon: XIcon, show: () => can('change-orders:update'), onClick: handleReject },
-        { label: 'Delete', icon: Trash2, show: () => can('change-orders:delete'), onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },
+        { label: 'Edit', icon: Edit, show: (r: Record<string, unknown>) => can('change-orders:update') && EDITABLE.includes(statusOf(r)), onClick: openEdit },
+        { label: 'Submit', icon: Send, show: (r: Record<string, unknown>) => can('change-orders:update') && SUBMITTABLE.includes(statusOf(r)), onClick: handleSubmit },
+        { label: 'Approve', icon: Check, show: (r: Record<string, unknown>) => can('change-orders:update') && APPROVABLE.includes(statusOf(r)), onClick: handleApprove },
+        { label: 'Reject', icon: XIcon, show: (r: Record<string, unknown>) => can('change-orders:update') && REJECTABLE.includes(statusOf(r)), onClick: handleReject },
+        { label: 'Delete', icon: Trash2, show: (r: Record<string, unknown>) => can('change-orders:delete') && EDITABLE.includes(statusOf(r)), onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },
       ]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Change Order' : 'New Change Order'} size="lg">
         <div className="space-y-4">

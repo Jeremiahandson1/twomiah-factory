@@ -2185,6 +2185,17 @@ jobs:
       - name: "check admin nav matches api"
         run: bun run scripts/check-admin-nav-matches-api.ts
 
+  change-order-status-lists:
+    name: "The change-order menu, the API and the client portal agree on each status"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "check change order status lists"
+        run: bun run scripts/check-change-order-status-lists.ts
+
   team-roster-includes-logins:
     name: "The Team page is one list: the roster plus everyone who can sign in"
     runs-on: ubuntu-latest

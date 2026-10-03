@@ -4,6 +4,7 @@ import { Plus, Trash2, Snowflake, Loader2, CloudSnow } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { SitePicker, useSites } from './SitePicker';
+import { useMayWrite } from '../../shared';
 
 const MODES = [
   { value: 'per_push', label: 'Per Push' },
@@ -30,6 +31,29 @@ function Field({ id, label, children, className = '' }: { id: string; label: str
 
 export default function SnowBillingPage() {
   const toast = useToast();
+  /**
+   * The nav now keeps a seat without `invoices:read` off this page entirely (shellConfig.ts). These
+   * are for the seat that gets IN and still cannot do everything on it — the manager, who holds
+   * invoices:read/create/update and not invoices:delete. T41 landscaping found exactly that:
+   * "contract delete 403 (invoices:delete)", and "Cleanup for owner: probe contract … could not be
+   * deleted; the manager lacks permission" — they were shown the bin and then refused.
+   *
+   *   New Contract   POST /contracts         invoices:create
+   *   Log Event      POST /events            invoices:create
+   *   Bill $…        POST /contracts/:id/bill invoices:create
+   *   Delete         DELETE /contracts/:id   invoices:delete
+   *
+   * LOGGING A STORM VISIT STAYS AN OFFICE ACT, deliberately. The report asked: "Crews can't log snow
+   * visits: POST /api/snow/events needs invoices:create. Please confirm whether crews should log
+   * storm visits." The answer written into the code is no, because logging a push is not recording
+   * work — computeSnowEventCharge runs inside that endpoint and stores a billableAmount — and the
+   * operator would have to pick from a contract list that carries the shop's per-inch and seasonal
+   * rates. Letting the plough truck in means handing it the price list. A crew records storm work
+   * the way they record any work, on their job and their timesheet, and the office turns that into
+   * pushes. Changing that is a product decision, not a permission tweak.
+   */
+  const mayBill = useMayWrite('invoices:create');
+  const mayDelete = useMayWrite('invoices:delete');
   const [contracts, setContracts] = useState<any[]>([]);
   const [summary, setSummary] = useState<any[]>([]);
   const [events, setEvents] = useState<any[]>([]);
@@ -111,7 +135,7 @@ export default function SnowBillingPage() {
           <h1 className="text-2xl font-bold flex items-center gap-2"><Snowflake className="w-6 h-6" /> Snow &amp; Ice Billing</h1>
           <p className="text-gray-500 text-sm dark:text-slate-400">Per-push, per-event, per-inch, or seasonal — log storms and the charge is computed automatically.</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 bg-blue-600 text-white rounded-lg px-4 py-2 text-sm"><Plus className="w-4 h-4" /> New Contract</button>
+        {mayBill && <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 bg-blue-600 text-white rounded-lg px-4 py-2 text-sm"><Plus className="w-4 h-4" /> New Contract</button>}
       </div>
 
       {showForm && (
@@ -163,13 +187,13 @@ export default function SnowBillingPage() {
                   <div className="text-right">
                     <div className="text-sm font-semibold text-green-700">${Number(sm.unbilledTotal || 0).toFixed(2)}</div>
                     <div className="text-xs text-gray-500 dark:text-slate-400">unbilled • {sm.events || 0} events</div>
-                    {Number(sm.unbilledTotal || 0) > 0 && (
+                    {Number(sm.unbilledTotal || 0) > 0 && mayBill && (
                       <button onClick={(e) => { e.stopPropagation(); billContract(ct, Number(sm.unbilledTotal)); }} disabled={billing === ct.id}
                         className="mt-1 mr-2 text-xs bg-green-600 text-white rounded px-2 py-1 disabled:opacity-50">
                         {billing === ct.id ? 'Billing…' : `Bill $${Number(sm.unbilledTotal).toFixed(2)}`}
                       </button>
                     )}
-                    <button onClick={(e) => { e.stopPropagation(); removeContract(ct.id); }} className="text-red-500 mt-1"><Trash2 className="w-4 h-4" /></button>
+                    {mayDelete && <button onClick={(e) => { e.stopPropagation(); removeContract(ct.id); }} className="text-red-500 mt-1" aria-label="Delete contract"><Trash2 className="w-4 h-4" /></button>}
                   </div>
                 </div>
               </div>
@@ -196,7 +220,7 @@ export default function SnowBillingPage() {
                   <input id="snow-notes" className="w-full border rounded px-2 py-1.5 text-sm" placeholder="Notes" value={evForm.notes} onChange={e => setEvForm({ ...evForm, notes: e.target.value })} />
                 </Field>
               </div>
-              <button onClick={logEvent} className="mt-3 w-full bg-blue-600 text-white rounded px-3 py-2 text-sm">Log Event</button>
+              {mayBill && <button onClick={logEvent} className="mt-3 w-full bg-blue-600 text-white rounded px-3 py-2 text-sm">Log Event</button>}
 
               <h3 className="font-semibold mt-5 mb-2 text-sm">Recent Events</h3>
               <div className="space-y-1 max-h-72 overflow-y-auto">

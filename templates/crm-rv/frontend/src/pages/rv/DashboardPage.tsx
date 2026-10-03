@@ -225,15 +225,20 @@ export default function DashboardPage() {
           </div>
           <div className="mt-3 text-3xl font-bold text-gray-900 dark:text-slate-100">{num(service.openRepairOrders)}</div>
           <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">open repair orders</p>
-          <div className="mt-3 grid grid-cols-2 gap-2 text-center text-xs">
+          {/* The server omits service.revenueThisMonth for a seat without invoices:read
+              (routes/dashboard.ts). The workload figure stays; the month's takings leave the tile
+              rather than reading $0, and the row closes up to one column. (T41) */}
+          <div className={`mt-3 grid ${service.revenueThisMonth === undefined ? 'grid-cols-1' : 'grid-cols-2'} gap-2 text-center text-xs`}>
             <div>
               <div className="font-semibold text-gray-900 dark:text-slate-100">{num(service.repairOrdersThisMonth)}</div>
               <div className="text-gray-500 dark:text-slate-400">ROs (mo)</div>
             </div>
-            <div>
-              <div className="font-semibold text-gray-900 dark:text-slate-100">{money(service.revenueThisMonth)}</div>
-              <div className="text-gray-500 dark:text-slate-400">rev (mo)</div>
-            </div>
+            {service.revenueThisMonth !== undefined && (
+              <div>
+                <div className="font-semibold text-gray-900 dark:text-slate-100">{money(service.revenueThisMonth)}</div>
+                <div className="text-gray-500 dark:text-slate-400">rev (mo)</div>
+              </div>
+            )}
           </div>
         </Link>
 

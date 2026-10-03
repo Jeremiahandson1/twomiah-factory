@@ -588,13 +588,38 @@ export function createPortalRoutes(deps: PortalDeps) {
 
   // ---- change orders
   if (has.changeOrders) {
+    /**
+     * A CHANGE ORDER THE CRM SENT COULD NEVER BE SIGNED. (T41 contractor, HIGH)
+     *
+     *   "Change orders submitted from the CRM can't be signed by the client: CRM Submit sets status
+     *    'submitted', the portal lists and approves only 'pending' (400 'can no longer be
+     *    approved'), and the CO doesn't appear in the client's portal list. Only API-created
+     *    'pending' COs can be signed."
+     *
+     * That is the whole feature broken by one word. The office raises a change order, clicks Submit,
+     * tells the homeowner to go and sign it — and the portal does not list it, and refuses it if they
+     * reach the URL. The only COs that worked were ones created directly through the API, which
+     * default to 'pending'.
+     *
+     * The CRM side already knows these two words mean the same thing. routes/changeOrders.ts holds
+     * `APPROVABLE = ['submitted', 'pending']` and says so in a comment: "`pending` is what the
+     * selections flow used to stamp. It is accepted here as a synonym for `submitted` so that any
+     * row already carrying it still moves." The portal is the copy that never got that memo — so the
+     * set is named here, once, and all three places read it.
+     *
+     * From the client's side both words mean exactly one thing: this is in front of you, and nobody
+     * has answered it yet. Approving and declining are the two answers.
+     */
+    const AWAITING_CLIENT = ['submitted', 'pending']
+    /** What a client may see at all: waiting on them, or already decided — never a draft. */
+    const CLIENT_VISIBLE = [...AWAITING_CLIENT, 'approved', 'rejected']
     const coSelect = () => ({ id: t.changeOrder.id, number: t.changeOrder.number, title: t.changeOrder.title, description: t.changeOrder.description, status: t.changeOrder.status, reason: t.changeOrder.reason, amount: t.changeOrder.amount, daysAdded: t.changeOrder.daysAdded, submittedDate: t.changeOrder.submittedDate, approvedDate: t.changeOrder.approvedDate, approvedBy: t.changeOrder.approvedBy, createdAt: t.changeOrder.createdAt, projectId: t.changeOrder.projectId, projectName: t.project.name, projectNumber: t.project.number })
     app.get('/p/:token/change-orders', portalAuth, gate('changeOrders'), async (c) => {
       const { contact } = P(c)
       const projectIds = await contactProjectIds(contact.id)
       if (projectIds.length === 0) return c.json([])
       const rows = await db.select(coSelect()).from(t.changeOrder).leftJoin(t.project, eq(t.changeOrder.projectId, t.project.id))
-        .where(and(inArray(t.changeOrder.projectId, projectIds), inArray(t.changeOrder.status, ['pending', 'approved', 'rejected']))).orderBy(desc(t.changeOrder.createdAt))
+        .where(and(inArray(t.changeOrder.projectId, projectIds), inArray(t.changeOrder.status, CLIENT_VISIBLE))).orderBy(desc(t.changeOrder.createdAt))
       return c.json(rows)
     })
     const ownCo = async (changeOrderId: string, contactId: string) => {
@@ -608,8 +633,13 @@ export function createPortalRoutes(deps: PortalDeps) {
       const changeOrderId = c.req.param('changeOrderId')
       const projectIds = await contactProjectIds(contact.id)
       if (projectIds.length === 0) return c.json({ error: 'Change order not found' }, 404)
+      // …and the DETAIL applies the same visibility the list does. It only ever checked that the
+      // change order belonged to one of this contact's projects, so a DRAFT — the office still
+      // writing it, with whatever numbers are in it mid-thought — was one URL away from the client
+      // the whole time. Found while fixing the list above: the same rule, in the place that was
+      // quietly missing it. (T41)
       const [found] = await db.select(coSelect()).from(t.changeOrder).leftJoin(t.project, eq(t.changeOrder.projectId, t.project.id))
-        .where(and(eq(t.changeOrder.id, changeOrderId), inArray(t.changeOrder.projectId, projectIds))).limit(1)
+        .where(and(eq(t.changeOrder.id, changeOrderId), inArray(t.changeOrder.projectId, projectIds), inArray(t.changeOrder.status, CLIENT_VISIBLE))).limit(1)
       if (!found) return c.json({ error: 'Change order not found' }, 404)
       return c.json({ ...found, project: { name: found.projectName, number: found.projectNumber }, company: { name: company.name, email: company.email, phone: company.phone } })
     })
@@ -622,7 +652,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       const found = await ownCo(changeOrderId, contact.id)
       if (!found) return c.json({ error: 'Change order not found' }, 404)
       if (found.status === 'approved') return c.json({ error: 'Change order already approved' }, 400)
-      if (found.status !== 'pending') return c.json({ error: `This change order is ${found.status} and can no longer be approved` }, 400)
+      if (!AWAITING_CLIENT.includes(found.status)) return c.json({ error: `This change order is ${found.status} and can no longer be approved` }, 400)
       const lineItems = t.changeOrderLineItem ? await db.select().from(t.changeOrderLineItem).where(eq(t.changeOrderLineItem.changeOrderId, changeOrderId)) : []
       const signedAt = new Date(), ip = signerIp(c), userAgent = c.req.header('user-agent') || null
       const documentHash = documentFingerprint({ id: found.id, number: found.number, title: found.title, description: found.description || '', reason: found.reason || '', amount: found.amount, daysAdded: found.daysAdded, lineItems: lineItems.map((li: any) => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice, total: li.total })) })
@@ -637,7 +667,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       const { reason } = await c.req.json().catch(() => ({}))
       const found = await ownCo(changeOrderId, contact.id)
       if (!found) return c.json({ error: 'Change order not found' }, 404)
-      if (found.status !== 'pending') return c.json({ error: `This change order is ${found.status} and can no longer be declined` }, 400)
+      if (!AWAITING_CLIENT.includes(found.status)) return c.json({ error: `This change order is ${found.status} and can no longer be declined` }, 400)
       const [updated] = await db.update(t.changeOrder).set({ status: 'rejected', updatedAt: new Date() }).where(eq(t.changeOrder.id, changeOrderId)).returning()
       notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'change_order', entityId: changeOrderId, action: 'rejected', actorName: contact.name, actorRole: contact.type || 'client', summary: `rejected change order ${found.number} "${found.title}"`, details: { reason: reason || null } })
       return c.json({ success: true, changeOrder: updated })

@@ -136,5 +136,153 @@ console.log('\n── the F&I menu ──')
     (floorMenu.text || '').slice(0, 240))
 }
 
+// ══════════ THE THREE MEDIUMS FROM THE SAME SECTION ═════════════════════════════════════════════
+//
+//   "Staff also sees Parts Inventory cost and value, Rentals revenue $2,125, and service revenue on
+//    the dashboard."
+//
+// Same shape as the highs above, three more doors. The line each one draws is the same line: what
+// the person SELLS WITH stays, what the business PAID or TOOK goes.
+console.log('\n── the parts bin ──')
+{
+  const { inventoryItem, inventoryLocation, stockLevel } = await import('./db/schema.ts')
+  const [loc] = await db.insert(inventoryLocation).values({
+    companyId: co.id, name: 'Main Warehouse', type: 'warehouse',
+  } as any).returning()
+  // Figures chosen so each one is distinct and none can be mistaken for another:
+  //   cost 41.25, retail 89.99, eight on the shelf → stock value 330.00
+  const [part] = await db.insert(inventoryItem).values({
+    companyId: co.id, sku: 'PART-T41', name: 'Slide-out seal kit', category: 'chassis',
+    unitCost: '41.25', unitPrice: '89.99', unit: 'each', vendor: 'Lippert',
+  } as any).returning()
+  await db.insert(stockLevel).values({ itemId: part.id, locationId: loc.id, quantity: 8 } as any)
+
+  const inv = new Hono()
+  inv.route('/api/inventory', (await import('./src/routes/inventory.ts')).default)
+  inv.onError((await import('./src/utils/errors.ts')).errorHandler)
+  const invAs = (who: any) => async (path: string) => {
+    const res = await inv.request(path, { headers: { 'x-test-user': who.id } })
+    const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+    return { status: res.status, json: j, text: t }
+  }
+
+  const ownerParts = await invAs(owner)('/api/inventory/items')
+  check('the owner sees the part with its cost',
+    ownerParts.status === 200 && /41\.25/.test(ownerParts.text || ''), { status: ownerParts.status, body: ownerParts.text?.slice(0, 200) })
+
+  const floorParts = await invAs(salesperson)('/api/inventory/items')
+  const row = (floorParts.json?.data || [])[0]
+  check('T41: the floor still gets the parts list — knowing there are eight on the shelf is the work',
+    floorParts.status === 200 && row?.sku === 'PART-T41' && Number(row?.totalStock) === 8,
+    { status: floorParts.status, row })
+  check('T41: …with the RETAIL price, which is what they quote', Number(row?.unitPrice) === 89.99, row?.unitPrice)
+  check('T41: …and no unitCost key at all', !('unitCost' in (row || {})), row)
+  check('T41: …and 41.25 appears nowhere in the payload', !/41\.25/.test(floorParts.text || ''),
+    (floorParts.text || '').slice(0, 300))
+  check('T41: …the supplier and the part number survive — that is how a part gets ordered',
+    row?.vendor === 'Lippert' && 'sku' in (row || {}), { vendor: row?.vendor })
+
+  const floorLoc = await invAs(salesperson)(`/api/inventory/locations/${loc.id}/inventory`)
+  check('T41: a location\'s stock carries no cost either', floorLoc.status === 200 && !/41\.25/.test(floorLoc.text || ''),
+    { status: floorLoc.status, body: (floorLoc.text || '').slice(0, 200) })
+
+  // The valuation report is nothing BUT money, so it is refused rather than emptied.
+  const ownerValue = await invAs(owner)('/api/inventory/reports/value')
+  check('the owner can still run the inventory valuation', ownerValue.status === 200,
+    { status: ownerValue.status, body: (ownerValue.text || '').slice(0, 160) })
+  check('…and it says 330.00 of stock at cost', /330/.test(ownerValue.text || ''), (ownerValue.text || '').slice(0, 200))
+  const floorValue = await invAs(salesperson)('/api/inventory/reports/value')
+  check('T41: the floor is REFUSED the valuation report — there is nothing left of it without the money',
+    floorValue.status === 403, { status: floorValue.status, body: (floorValue.text || '').slice(0, 160) })
+}
+
+console.log('\n── the rental fleet ──')
+{
+  const { rentalReservation } = await import('./db/schema.ts')
+  // $1,400 + $725 = $2,125, the figure the report quotes, plus a cancelled one that must not count.
+  const mkRental = (label: string, rate: string, days: number, total: string, status: string) =>
+    db.insert(rentalReservation).values({
+      companyId: co.id, unitId: rig.id, unitLabel: label, customerName: 'Rental Customer',
+      startDate: '2026-07-01', endDate: '2026-07-08', days, dailyRate: rate, total, status,
+    } as any)
+  await mkRental('Vista A', '200.00', 7, '1400.00', 'out')
+  await mkRental('Vista B', '145.00', 5, '725.00', 'reserved')
+  await mkRental('Vista C', '500.00', 2, '1000.00', 'cancelled')
+
+  const rent = new Hono()
+  rent.route('/api/rentals', (await import('./src/routes/rentals.ts')).default)
+  rent.onError((await import('./src/utils/errors.ts')).errorHandler)
+  const rentAs = (who: any) => async (path: string) => {
+    const res = await rent.request(path, { headers: { 'x-test-user': who.id } })
+    const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+    return { status: res.status, json: j, text: t }
+  }
+
+  const ownerRent = await rentAs(owner)('/api/rentals/list')
+  check('the owner sees rental revenue of 2,125 — the cancelled booking is not in it',
+    ownerRent.status === 200 && Number(ownerRent.json?.summary?.revenue) === 2125,
+    { status: ownerRent.status, summary: ownerRent.json?.summary })
+
+  const floorRent = await rentAs(salesperson)('/api/rentals/list')
+  check('T41: the floor still gets the reservations', floorRent.status === 200 && (floorRent.json?.rentals || []).length === 3,
+    { status: floorRent.status, n: (floorRent.json?.rentals || []).length })
+  check('T41: …with the daily rate and the total on each one — that is the quote they give',
+    (floorRent.json?.rentals || []).some((r: any) => Number(r.rate) === 200 && Number(r.total) === 1400),
+    (floorRent.json?.rentals || []).map((r: any) => [r.unit, r.rate, r.total]))
+  check('T41: …and the availability counts', floorRent.json?.summary?.active === 1 && floorRent.json?.summary?.reserved === 1,
+    floorRent.json?.summary)
+  check('T41: …but NO revenue key on the summary', !('revenue' in (floorRent.json?.summary || {})),
+    floorRent.json?.summary)
+  check('T41: …absent rather than zeroed', !/"revenue"/.test(JSON.stringify(floorRent.json?.summary || {})),
+    floorRent.json?.summary)
+
+  const mgrRent = await rentAs(manager)('/api/rentals/list')
+  check('…and the manager still sees it — a permission, not a rank',
+    Number(mgrRent.json?.summary?.revenue) === 2125, mgrRent.json?.summary)
+}
+
+console.log('\n── the dashboard ──')
+{
+  const { repairOrder } = await import('./db/schema.ts')
+  // Completed inside this month, so it lands in the month's service revenue.
+  const now = new Date()
+  const inMonth = new Date(now.getFullYear(), now.getMonth(), Math.min(15, now.getDate()))
+  await db.insert(repairOrder).values({
+    companyId: co.id, customerId: buyer.id, roNumber: 'RO-T41', status: 'closed',
+    services: [], actualTotal: '1845.50', completedAt: inMonth,
+  } as any)
+  await db.insert(repairOrder).values({
+    companyId: co.id, customerId: buyer.id, roNumber: 'RO-T41-OPEN', status: 'in_progress', services: [],
+  } as any)
+
+  const dash = new Hono()
+  dash.route('/api/dashboard', (await import('./src/routes/dashboard.ts')).default)
+  dash.onError((await import('./src/utils/errors.ts')).errorHandler)
+  const dashAs = (who: any) => async () => {
+    const res = await dash.request('/api/dashboard/stats', { headers: { 'x-test-user': who.id } })
+    const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+    return { status: res.status, json: j, text: t }
+  }
+
+  const ownerDash = await dashAs(owner)()
+  check('the owner\'s dashboard carries the month\'s service revenue',
+    ownerDash.status === 200 && Number(ownerDash.json?.service?.revenueThisMonth) === 1845.5,
+    { status: ownerDash.status, service: ownerDash.json?.service })
+
+  const floorDash = await dashAs(salesperson)()
+  check('T41: the floor still gets the service WORKLOAD — that is how the day is run',
+    floorDash.status === 200 && Number(floorDash.json?.service?.openRepairOrders) === 1
+    && Number(floorDash.json?.service?.repairOrdersThisMonth) >= 1,
+    { status: floorDash.status, service: floorDash.json?.service })
+  check('T41: …and no revenueThisMonth key', !('revenueThisMonth' in (floorDash.json?.service || {})),
+    floorDash.json?.service)
+  check('T41: …1845.5 appears nowhere in the payload', !/1845/.test(floorDash.text || ''),
+    (floorDash.text || '').slice(0, 300))
+  // The rest of the dashboard is the floor's own work and must survive.
+  check('T41: …while inventory counts and the sales pipeline are untouched',
+    typeof floorDash.json?.inventory?.total === 'number' && typeof floorDash.json?.sales?.openLeads === 'number',
+    { inventory: floorDash.json?.inventory?.total, sales: floorDash.json?.sales?.openLeads })
+}
+
 console.log(`\n  ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

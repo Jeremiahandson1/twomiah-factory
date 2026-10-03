@@ -7,6 +7,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { AgreementsApi, AgreementsPageProps } from './types';
 import { useConfirm } from '../ui/ConfirmProvider'
+import { useMayWrite } from '../auth/PermissionsContext'
 
 // UTC-safe date formatting (carried from templates' utils/date). Date-only values stored as UTC midnight
 // are parsed at LOCAL midnight so viewers west of UTC don't shift a day back.
@@ -130,6 +131,32 @@ interface AgreementFormModalProps {
  * Service Agreements / Memberships Page
  */
 export default function AgreementsPage({ api, config }: AgreementsPageProps) {
+  /**
+   * THREE BUTTONS THAT ONLY EVER LED TO A 403. (T41)
+   *
+   *   "Field service and Showcase (New Plan, Bill due agreements, New Agreement)." … "The server is
+   *    right every time. The UI just doesn't hide what the role can't do."
+   *   "Email shown in the staff nav but says no access; Agreements buttons 403 for staff."
+   *
+   * Each asks the permission ITS OWN endpoint asks, read off
+   * packages/tenant-backend/src/agreements/agreements.ts — not a plausible guess:
+   *
+   *   New Plan              POST /plans         agreements:create
+   *   New Agreement         POST /              agreements:create
+   *   Bill due agreements   POST /billing/run   invoices:create   ← raises real invoices, so it is
+   *                                                                 the INVOICING right, not this
+   *                                                                 module's. A manager holds both;
+   *                                                                 a technician holds neither.
+   *   Edit plan             PUT /plans/:id      agreements:update
+   *   Renew                 POST /:id/renew     agreements:update
+   *
+   * `useMayWrite` offers a control unless we KNOW the person would be refused — crm-roof and
+   * crm-store mount no permissions provider, and hiding these from everybody there, the owner
+   * included, would be a worse bug than the one being fixed.
+   */
+  const mayCreate = useMayWrite('agreements:create')
+  const mayUpdate = useMayWrite('agreements:update')
+  const mayBill = useMayWrite('invoices:create')
   const confirm = useConfirm()
   const [tab, setTab] = useState<string>('agreements'); // agreements, plans, visits
   const [agreements, setAgreements] = useState<Agreement[]>([]);
@@ -192,25 +219,31 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
           <p className="text-gray-500 dark:text-slate-400">Manage maintenance memberships</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => { setSelectedPlan(null); setShowPlanForm(true); }}
-            className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50"
-          >
-            <FileText className="w-4 h-4" />
-            New Plan
-          </button>
-          <button onClick={runBilling} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200">
+          {mayCreate && (
+            <button
+              onClick={() => { setSelectedPlan(null); setShowPlanForm(true); }}
+              className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50"
+            >
+              <FileText className="w-4 h-4" />
+              New Plan
+            </button>
+          )}
+          {mayBill && (
+            <button onClick={runBilling} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200">
 
-            Bill due agreements
+              Bill due agreements
 
-          </button>
-          <button
-            onClick={() => { setSelectedAgreement(null); setShowAgreementForm(true); }}
-            className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
-          >
-            <Plus className="w-4 h-4" />
-            New Agreement
-          </button>
+            </button>
+          )}
+          {mayCreate && (
+            <button
+              onClick={() => { setSelectedAgreement(null); setShowAgreementForm(true); }}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+            >
+              <Plus className="w-4 h-4" />
+              New Agreement
+            </button>
+          )}
         </div>
       </div>
 
@@ -410,6 +443,10 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
  */
 function AutopayToggle({ agreement, onChanged }: { agreement: Agreement; onChanged?: () => void }) {
   const { api } = useAgreements();
+  // PUT /:id/autopay asks agreements:update. DISABLED rather than hidden, unlike the buttons above:
+  // the switch is also the only place the page SHOWS whether autopay is on, and a technician looking
+  // at an agreement should still be able to see that. Hiding it would remove the fact, not the write.
+  const mayUpdate = useMayWrite('agreements:update');
   const [busy, setBusy] = useState(false);
   const on = (agreement as unknown as { autopay?: boolean }).autopay === true;
   const lastError = (agreement as unknown as { autopayLastError?: string | null }).autopayLastError;
@@ -433,8 +470,9 @@ function AutopayToggle({ agreement, onChanged }: { agreement: Agreement; onChang
       <button
         type="button"
         onClick={toggle}
-        disabled={busy || agreement.status !== 'active'}
-        title={agreement.status !== 'active' ? 'Only active agreements can autopay' : 'Charge the customer automatically each billing period'}
+        disabled={busy || agreement.status !== 'active' || !mayUpdate}
+        title={!mayUpdate ? (on ? 'Autopay is on. Changing it needs permission to edit agreements.' : 'Autopay is off. Changing it needs permission to edit agreements.')
+          : agreement.status !== 'active' ? 'Only active agreements can autopay' : 'Charge the customer automatically each billing period'}
         className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${on ? 'bg-green-500' : 'bg-gray-300'}`}
       >
         <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${on ? 'translate-x-5' : 'translate-x-1'}`} />
@@ -448,6 +486,8 @@ function AutopayToggle({ agreement, onChanged }: { agreement: Agreement; onChang
 
 function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowProps & { onChanged?: () => void }) {
   const { api } = useAgreements();
+  // POST /:id/renew asks agreements:update, and so does the autopay toggle below (PUT /:id/autopay).
+  const mayUpdate = useMayWrite('agreements:update');
   const endingSoon = agreement.status === 'active' && new Date(agreement.endDate) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   const isExpiringSoon = endingSoon && agreement.renewalType !== 'auto'; // auto-renew agreements renew instead
   const renewsSoon = endingSoon && agreement.renewalType === 'auto';
@@ -496,7 +536,7 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowPro
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-1 justify-end">
-          {agreement.status === 'active' && (
+          {agreement.status === 'active' && mayUpdate && (
             <button
               onClick={onRenew}
               className="p-1.5 text-green-600 hover:bg-green-50 rounded"
@@ -519,6 +559,9 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowPro
 
 function PlansTab({ plans, onEdit, onRefresh }: PlansTabProps) {
   const { api } = useAgreements();
+  // Asked here rather than threaded down from the page: useMayWrite is a hook, so the component that
+  // draws the control asks the question itself and there is no prop to forget. (T41)
+  const mayUpdate = useMayWrite('agreements:update');
   return (
     <div className="grid grid-cols-3 gap-6">
       {plans.map((plan: Plan) => (
@@ -528,12 +571,15 @@ function PlansTab({ plans, onEdit, onRefresh }: PlansTabProps) {
               <h3 className="text-lg font-bold text-gray-900 dark:text-slate-100">{plan.name}</h3>
               <p className="text-sm text-gray-500 dark:text-slate-400">{plan._count?.agreements || 0} active</p>
             </div>
-            <button
-              onClick={() => onEdit(plan)}
-              className="p-1 text-gray-400 hover:text-gray-600"
-            >
-              <Edit2 className="w-4 h-4" />
-            </button>
+            {mayUpdate && (
+              <button
+                onClick={() => onEdit(plan)}
+                className="p-1 text-gray-400 hover:text-gray-600"
+                aria-label={`Edit ${plan.name}`}
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           <div className="text-3xl font-bold text-gray-900 mb-4 dark:text-slate-100">

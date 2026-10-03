@@ -3,7 +3,7 @@ import { and, eq, desc, notInArray, sql } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { rentalReservation, unit, contact } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 
 // ── Rentals ─────────────────────────────────────────────────────────────────
 // Reservations on inventory units, stored per company. The server works out the days and total from the dates,
@@ -47,7 +47,25 @@ app.get('/list', requirePermission('contacts:read'), async (c) => {
     .where(eq(rentalReservation.companyId, user.companyId))
     .orderBy(desc(rentalReservation.startDate), desc(rentalReservation.createdAt))
     .limit(500)
-  return c.json({ rentals: rows.map(shape), summary: await summary(user.companyId) })
+  /**
+   * THE RENTAL FLEET'S TAKINGS ARE NOT THE COUNTER STAFF'S BUSINESS. (T41)
+   *
+   *   "Staff also sees Parts Inventory cost and value, Rentals revenue $2,125, and service revenue
+   *    on the dashboard."
+   *
+   * The line this draws is the same one the F&I menu and the unit list draw (see routes/units.ts and
+   * routes/fi.ts): what the person SELLS WITH stays, what the business TOOK goes.
+   *
+   *   stays  the daily rate and the total on each reservation — that is the quote the counter gives
+   *          the customer, and the active/reserved counts, which are the fleet's availability
+   *   goes   `summary.revenue`, the sum across every rental ever booked
+   *
+   * Deleted, not zeroed: a 0 would read as "the rental side made nothing".
+   */
+  const maySeeRevenue = hasPermission(user?.role, 'invoices:read', await getExtraPermissions(user?.userId))
+  const s = await summary(user.companyId)
+  const { revenue, ...rest } = s
+  return c.json({ rentals: rows.map(shape), summary: maySeeRevenue ? s : rest })
 })
 
 app.post('/create', requirePermission('contacts:create'), async (c) => {

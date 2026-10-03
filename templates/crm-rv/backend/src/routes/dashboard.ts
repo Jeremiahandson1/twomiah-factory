@@ -3,6 +3,7 @@ import { db } from '../../db/index.ts'
 import { contact, unit, salesLead, repairOrder } from '../../db/schema.ts'
 import { eq, and, gte, lt, count, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 
 /**
  * RV / Powersports dealership dashboard — inventory, sales pipeline and service
@@ -53,6 +54,7 @@ app.get('/stats', async (c) => {
     ? Math.min(100, Math.round((Number(closedWonThisMonth) / decidedThisMonth) * 1000) / 10)
     : 0
   const revenueThisMonth = revenueRows.reduce((s: number, r: any) => s + Number(r.amt || 0), 0)
+  const maySeeRevenue = hasPermission(user?.role, 'invoices:read', await getExtraPermissions(user?.userId))
 
   const availableByCategory = Object.fromEntries(availableByCategoryRows.map(u => [u.category, Number(u.c)]))
 
@@ -61,7 +63,24 @@ app.get('/stats', async (c) => {
     inventory: { total: totalUnits, available: byStatus['available'] || 0, byStatus, byCategory, availableByCategory },
     // closeRate is this month's; the lost count is sent so the card can say so (RV T19 L9)
     sales: { openLeads: openLeadRows[0]?.value ?? 0, leadsThisMonth, closedWonThisMonth, closedLostThisMonth: Number(closedLostThisMonth), closeRate },
-    service: { openRepairOrders: openRoRows[0]?.value ?? 0, repairOrdersThisMonth: rosThisMonthRows[0]?.value ?? 0, revenueThisMonth },
+    /**
+     * THE SHOP'S TAKINGS COME OFF THE STAFF DASHBOARD. (T41)
+     *
+     *   "Staff also sees Parts Inventory cost and value, Rentals revenue $2,125, and service revenue
+     *    on the dashboard."
+     *
+     * The service WORKLOAD stays — open repair orders and how many came in this month are what a
+     * service writer runs their day on. What goes is the month's service revenue, which is the
+     * business's income and nothing a seat refused /api/invoices should be told by another door.
+     *
+     * The key is omitted rather than zeroed: a 0 here would read as a shop that billed nothing all
+     * month, which is a worse answer than no answer.
+     */
+    service: {
+      openRepairOrders: openRoRows[0]?.value ?? 0,
+      repairOrdersThisMonth: rosThisMonthRows[0]?.value ?? 0,
+      ...(maySeeRevenue ? { revenueThisMonth } : {}),
+    },
   })
 })
 

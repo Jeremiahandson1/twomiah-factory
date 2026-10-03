@@ -7,6 +7,7 @@ import { BookOpen, Plus, Search, Edit2, Copy, Trash2, Loader2, DollarSign, Clock
 import { Button, Modal, ConfirmModal, Field, inputCls, errMsg, selectCls } from '../invoicing/ui'
 import type { PricebookApi, PricebookToast, PricebookConfig, TierPreset } from './types'
 import { usePrompt } from '../ui/ConfirmProvider'
+import { useMayWrite } from '../auth/PermissionsContext'
 
 type Item = Record<string, any>
 type Category = { id: string; name: string; _count?: { items?: number } }
@@ -18,6 +19,27 @@ const DEFAULT_TIERS: TierPreset[] = [
 const usd = (v: unknown) => '$' + Number(v || 0).toFixed(2)
 
 export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast: PricebookToast; config?: PricebookConfig }) {
+  /**
+   * TWO FINDINGS ON ONE SCREEN. (T41 landscaping)
+   *
+   *   "Staff are shown Add Service/Edit, Add Equipment and New Route, which 403."
+   *   "Staff pricebook cards show 'Cost $0.00' and a blank margin."
+   *   …and the RV report, on the same page: "API returns price only; cost and margin omitted;
+   *    writes 403. UI shows 'Cost $0.00' placeholder (low)."
+   *
+   * The second one is this page misreading a CORRECT server. T32 H1 stopped sending `cost`,
+   * `totalCost` and `margin` to a seat without `pricebook:read` — "a field technician reading the
+   * pricebook got cost and a computed margin on every line" — and `usd(undefined)` prints "$0.00",
+   * so the fix read on screen as "every service costs us nothing", with a 100% margin beside it. A
+   * figure the server deliberately withheld must LEAVE THE SCREEN, not render as zero.
+   *
+   * Keyed off the absence of the field rather than a second permission check here, so the card
+   * tracks the server exactly and there is no separate rule to drift. The permissions below are the
+   * ones each route asks for, read off packages/tenant-backend/src/pricebook/pricebook.ts.
+   */
+  const mayCreate = useMayWrite('pricebook:create')
+  const mayUpdate = useMayWrite('pricebook:update')
+  const mayDelete = useMayWrite('pricebook:delete')
   const itemWord = config?.itemLabel || 'Service'
   const [items, setItems] = useState<Item[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -28,6 +50,13 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
   const [catsOpen, setCatsOpen] = useState(false)
   const [tiersFor, setTiersFor] = useState<Item | null>(null)
   const [toDelete, setToDelete] = useState<Item | null>(null)
+  /**
+   * Does this payload carry cost at all? Read off the rows rather than from a permission, so the
+   * cards and the Avg margin tile cannot disagree with each other or with the server. `cost` is the
+   * column; `totalCost` and `margin` are computed from it and the server strips all three together,
+   * so any one of them arriving means the whole set did.
+   */
+  const showCost = items.some((i) => i.cost !== undefined || i.totalCost !== undefined || i.margin !== undefined)
 
   const load = useCallback(async () => {
     try {
@@ -53,8 +82,9 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
           <p className="text-gray-500 dark:text-slate-400">{config?.subtitle || 'Flat-rate service catalog'}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => setCatsOpen(true)}><FolderTree className="w-4 h-4" />Categories</Button>
-          <Button onClick={() => setEditing({ open: true, item: null })}><Plus className="w-4 h-4" />Add {itemWord}</Button>
+          {/* The Categories drawer is rename + hide, both pricebook:update. */}
+          {mayUpdate && <Button variant="secondary" onClick={() => setCatsOpen(true)}><FolderTree className="w-4 h-4" />Categories</Button>}
+          {mayCreate && <Button onClick={() => setEditing({ open: true, item: null })}><Plus className="w-4 h-4" />Add {itemWord}</Button>}
         </div>
       </div>
 
@@ -62,7 +92,8 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
         <Stat icon={BookOpen} label={`${itemWord}s`} value={items.length} />
         <Stat icon={FolderTree} label="Categories" value={categories.length} />
         <Stat icon={DollarSign} label="Avg price" value={usd(avg((i) => Number(i.price)))} />
-        <Stat icon={Percent} label="Avg margin" value={`${Math.round(avg((i) => Number(i.margin || 0)))}%`} tone="green" />
+        {/* No margin in the payload means the server withheld it; an average of nothing is not 0%. */}
+        {showCost && <Stat icon={Percent} label="Avg margin" value={`${Math.round(avg((i) => Number(i.margin || 0)))}%`} tone="green" />}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -80,7 +111,7 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
         <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
           <BookOpen className="w-12 h-12 mx-auto text-gray-400 mb-3" />
           <p className="text-gray-500 dark:text-slate-400">No {itemWord.toLowerCase()}s found</p>
-          <button onClick={() => setEditing({ open: true, item: null })} className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200">Add your first {itemWord.toLowerCase()}</button>
+          {mayCreate && <button onClick={() => setEditing({ open: true, item: null })} className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200">Add your first {itemWord.toLowerCase()}</button>}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -95,19 +126,26 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
                 </div>
               </div>
               {item.description && <p className="mt-3 text-sm text-gray-600 line-clamp-2 dark:text-slate-400">{item.description}</p>}
-              <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
+              {/* One column per figure actually shown — Price alone in a three-column grid leaves
+                  two empty tracks and reads as something failing to load. */}
+              <div className={`mt-4 grid ${showCost ? 'grid-cols-3' : 'grid-cols-1'} gap-2 text-sm`}>
                 <div><p className="text-gray-500 dark:text-slate-400">Price</p><p className="font-bold text-gray-900 dark:text-slate-100">{usd(item.price)}</p></div>
-                <div><p className="text-gray-500 dark:text-slate-400">Cost</p><p className="font-medium text-gray-700 dark:text-slate-200">{usd(item.totalCost ?? item.cost)}</p></div>
-                <div><p className="text-gray-500 dark:text-slate-400">Margin</p><p className={`font-medium ${Number(item.margin) > 30 ? 'text-green-600' : 'text-orange-600'}`}>{item.margin}%</p></div>
+                {showCost && <div><p className="text-gray-500 dark:text-slate-400">Cost</p><p className="font-medium text-gray-700 dark:text-slate-200">{usd(item.totalCost ?? item.cost)}</p></div>}
+                {showCost && <div><p className="text-gray-500 dark:text-slate-400">Margin</p><p className={`font-medium ${Number(item.margin) > 30 ? 'text-green-600' : 'text-orange-600'}`}>{item.margin}%</p></div>}
               </div>
               {Number(item.laborHours) > 0 && <div className="mt-2 flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400"><Clock className="w-4 h-4" />{Number(item.laborHours)} hours</div>}
               {Number(item._count?.goodBetterBest) > 0 && <div className="mt-2 flex items-center gap-1 text-sm text-blue-600"><Star className="w-4 h-4" />{item._count.goodBetterBest} {config?.tiersTitle || 'pricing tier'}{item._count.goodBetterBest === 1 ? '' : 's'}</div>}
-              <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800 flex items-center gap-1">
-                <button onClick={() => setEditing({ open: true, item })} className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg dark:text-slate-400 dark:hover:bg-slate-800"><Edit2 className="w-4 h-4" />Edit</button>
-                <button onClick={() => setTiersFor(item)} className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg"><Star className="w-4 h-4" />{config?.tiersButton || 'Options'}</button>
-                <button onClick={() => duplicate(item)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg" title="Duplicate" aria-label="Duplicate"><Copy className="w-4 h-4" /></button>
-                <button onClick={() => setToDelete(item)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Delete" aria-label="Delete"><Trash2 className="w-4 h-4" /></button>
-              </div>
+              {/* Options is PUT /items/:id/options (pricebook:update); Duplicate is a POST that
+                  creates (pricebook:create); Delete is pricebook:delete. With none of the three the
+                  footer has nothing in it, so the divider goes too. */}
+              {(mayUpdate || mayCreate || mayDelete) && (
+                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800 flex items-center gap-1">
+                  {mayUpdate && <button onClick={() => setEditing({ open: true, item })} className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg dark:text-slate-400 dark:hover:bg-slate-800"><Edit2 className="w-4 h-4" />Edit</button>}
+                  {mayUpdate && <button onClick={() => setTiersFor(item)} className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg"><Star className="w-4 h-4" />{config?.tiersButton || 'Options'}</button>}
+                  {mayCreate && <button onClick={() => duplicate(item)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg" title="Duplicate" aria-label="Duplicate"><Copy className="w-4 h-4" /></button>}
+                  {mayDelete && <button onClick={() => setToDelete(item)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Delete" aria-label="Delete"><Trash2 className="w-4 h-4" /></button>}
+                </div>
+              )}
             </div>
           ))}
         </div>

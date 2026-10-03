@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { EquipmentApi, EquipmentPageProps } from './types';
+import { useMayWrite } from '../auth/PermissionsContext';
 
 // UTC-safe date formatting (carried from templates' utils/date). Date-only values stored as UTC midnight
 // are parsed at LOCAL midnight so viewers west of UTC don't shift a day back.
@@ -118,6 +119,21 @@ interface ServiceHistoryModalProps {
  * Equipment Tracking Page
  */
 export default function EquipmentPage({ api, config }: EquipmentPageProps) {
+  /**
+   * "Staff are shown Add Service/Edit, Add Equipment and New Route, which 403." (T41 landscaping)
+   *
+   * Each permission is the one its own route asks for, read off
+   * packages/tenant-backend/src/equipment/equipment.ts:
+   *
+   *   Add Equipment       POST /                 equipment:create
+   *   Edit                PUT /:id               equipment:update
+   *   Add Service Record  POST /:id/history      equipment:update
+   *   Needs Repair        POST /:id/needs-repair equipment:update
+   *
+   * Reading stays open to everyone, deliberately: a crew needs the equipment list and the service
+   * history of the machine in front of them, and hiding those is the more expensive mistake.
+   */
+  const mayCreate = useMayWrite('equipment:create');
   const cfg = { contacts: !!config?.contacts, sites: !!config?.sites, linkedJobs: !!config?.linkedJobs };
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [stats, setStats] = useState<EquipmentStats | null>(null);
@@ -163,13 +179,15 @@ export default function EquipmentPage({ api, config }: EquipmentPageProps) {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Equipment</h1>
           <p className="text-gray-500 dark:text-slate-400">Track customer equipment and service history</p>
         </div>
-        <button
-          onClick={() => { setSelectedEquipment(null); setShowForm(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
-        >
-          <Plus className="w-4 h-4" />
-          Add Equipment
-        </button>
+        {mayCreate && (
+          <button
+            onClick={() => { setSelectedEquipment(null); setShowForm(true); }}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+          >
+            <Plus className="w-4 h-4" />
+            Add Equipment
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -323,6 +341,9 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
 }
 
 function EquipmentRow({ equipment, onEdit, onHistory }: EquipmentRowProps) {
+  // Service History stays open to everyone — a crew reads the history of the machine they are
+  // standing next to. Edit is PUT /:id, equipment:update. (T41)
+  const mayUpdate = useMayWrite('equipment:update');
   const CategoryIcon = CATEGORIES.find((c: CategoryDef) => c.id === equipment.category)?.icon || Wrench;
 
   return (
@@ -392,12 +413,15 @@ function EquipmentRow({ equipment, onEdit, onHistory }: EquipmentRowProps) {
           >
             <History className="w-4 h-4" />
           </button>
-          <button
-            onClick={onEdit}
-            className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
-          >
-            <Edit2 className="w-4 h-4" />
-          </button>
+          {mayUpdate && (
+            <button
+              onClick={onEdit}
+              className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+              aria-label={`Edit ${equipment.name}`}
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </td>
     </tr>
@@ -676,6 +700,8 @@ interface LinkedJob {
 }
 
 function ServiceHistoryModal({ equipment, api, config, onClose, onRefresh }: ServiceHistoryModalProps) {
+  // Reading the history is open; adding a line is POST /:id/history, equipment:update. (T41)
+  const mayUpdate = useMayWrite('equipment:update');
   const [history, setHistory] = useState<ServiceRecord[]>([]);
   const [linkedJobs, setLinkedJobs] = useState<LinkedJob[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -794,12 +820,14 @@ function ServiceHistoryModal({ equipment, api, config, onClose, onRefresh }: Ser
                 {config.linkedJobs ? `${equipment.manufacturer ? ` — ${equipment.manufacturer}` : ''}${equipment.model ? ` ${equipment.model}` : ''}` : ''}
               </p>
             </div>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="px-4 py-2 bg-orange-500 text-white rounded-lg"
-            >
-              Add Service Record
-            </button>
+            {mayUpdate && (
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="px-4 py-2 bg-orange-500 text-white rounded-lg"
+              >
+                Add Service Record
+              </button>
+            )}
           </div>
 
           {config.linkedJobs && (

@@ -108,7 +108,10 @@ export default function FIPage() {
               ] as [string, number][]).map(([l, v]) => <div key={l} className="flex justify-between py-1"><span className="text-gray-600 dark:text-slate-400">{l}</span><span>{money(v)}</span></div>)}
               <div className="flex justify-between py-1 font-semibold"><span>Out-the-door</span><span>{money(totals.outTheDoor)}</span></div>
               <div className="flex justify-between py-1"><span className="text-gray-600 dark:text-slate-400">Down payment</span><span>-{money(desked.down)}</span></div>
-              {totals.netTrade !== 0 && <div className="flex justify-between py-1"><span className="text-gray-600 dark:text-slate-400">Net trade equity</span><span>{totals.netTrade > 0 ? '-' : '+'}{money(Math.abs(totals.netTrade))}</span></div>}
+              {/* The same row as the desk worksheet, and it had the same fault — see the comment in
+                  DeskingPage.tsx. A report naming one screen is not a reason to leave its sibling
+                  saying "+$2,200 of equity" to a customer who is $2,200 upside down. (T41) */}
+              {totals.netTrade !== 0 && <div className="flex justify-between py-1"><span className="text-gray-600 dark:text-slate-400">{totals.netTrade > 0 ? 'Net trade equity' : 'Negative trade equity'}</span><span>{totals.netTrade > 0 ? '-' : '+'}{money(Math.abs(totals.netTrade))}</span></div>}
               <div className="flex justify-between py-1 font-semibold"><span>Desked amount to finance</span><span>{money(totals.financed)}</span></div>
             </div>
             <label className="flex items-center justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Term (months)</span>

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { useMayWrite } from '../../shared';
 
 /**
  * RV / Powersports Inventory — dealership unit inventory backed by /api/units.
@@ -119,6 +120,9 @@ function keySpec(u: Unit): string {
 }
 
 export default function InventoryPage() {
+  // POST /api/units asks contacts:create — crm-rv reuses the contacts verbs for its sales-floor
+  // records — and the field rung holds contacts:read only. (T41)
+  const mayAddUnit = useMayWrite('contacts:create');
   const { hasFeature } = useAuth();
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -221,13 +225,18 @@ export default function InventoryPage() {
               </button>
             </>
           )}
-          <button
-            onClick={() => { setEditing(null); setShowForm(true); }}
-            className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
-          >
-            <Plus className="w-4 h-4" />
-            Add Unit
-          </button>
+          {/* "Add Unit, Import ADF and New Lead are offered to staff and 403." (T41 RV)
+              POST /api/units asks contacts:create — crm-rv reuses the contacts verbs for its
+              sales-floor records — and the field rung holds contacts:read only. */}
+          {mayAddUnit && (
+            <button
+              onClick={() => { setEditing(null); setShowForm(true); }}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+            >
+              <Plus className="w-4 h-4" />
+              Add Unit
+            </button>
+          )}
         </div>
       </div>
 

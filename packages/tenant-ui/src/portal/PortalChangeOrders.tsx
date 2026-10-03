@@ -6,7 +6,23 @@ import { usePortal } from './PortalContext'
 import { SignatureModal, SignatureDisplay, type SignatureData } from './SignaturePad'
 import { PLink, Spinner, PageTitle, Empty, Section, card, pill, btnSuccess, btnSecondary, formatDate, moneyShort, PortalModal, inputCls, labelCls } from './common'
 
-const STATUS_STYLES: Record<string, string> = { draft: 'bg-gray-100 text-gray-700', pending: 'bg-yellow-100 text-yellow-700', approved: 'bg-green-100 text-green-700', rejected: 'bg-red-100 text-red-700' }
+const STATUS_STYLES: Record<string, string> = { draft: 'bg-gray-100 text-gray-700', pending: 'bg-yellow-100 text-yellow-700', submitted: 'bg-yellow-100 text-yellow-700', approved: 'bg-green-100 text-green-700', rejected: 'bg-red-100 text-red-700' }
+
+/**
+ * 'submitted' AND 'pending' BOTH MEAN "WAITING FOR YOU". (T41 contractor, HIGH)
+ *
+ * The office clicks Submit in the CRM and the row becomes 'submitted'; a change order created
+ * straight through the API starts as 'pending'. From this side of the screen they are the same
+ * thing: here it is, nobody has answered yet. See the set of the same name in
+ * packages/tenant-backend/src/portal/portal.ts, which is where the finding actually bit — the
+ * server would not even list a 'submitted' row.
+ *
+ * Three places on this page read it, and all three had to change together. Fixing the server alone
+ * would have put a submitted change order in the "Previous" pile with an unstyled badge and no
+ * buttons on its detail: visible, and still unsignable.
+ */
+const AWAITING_CLIENT = ['submitted', 'pending']
+const awaitingClient = (status: string) => AWAITING_CLIENT.includes(status)
 
 interface ChangeOrderData {
   id: string; title?: string | null; number: string; status: string; amount: string | number; description?: string | null; reason?: string | null
@@ -22,7 +38,7 @@ export function PortalChangeOrders() {
   const [error, setError] = useState('')
   useEffect(() => { portalFetch('/change-orders').then((d) => setRows(Array.isArray(d) ? d : [])).catch((e) => setError((e as Error).message)).finally(() => setLoading(false)) }, [portalFetch])
   if (loading) return <Spinner />
-  const pending = rows.filter((co) => co.status === 'pending'), others = rows.filter((co) => co.status !== 'pending')
+  const pending = rows.filter((co) => awaitingClient(co.status)), others = rows.filter((co) => !awaitingClient(co.status))
   return (
     <div>
       <PageTitle title="Change Orders" subtitle="Review and approve change orders for your projects." />
@@ -78,7 +94,7 @@ export function PortalChangeOrderDetail() {
 
   if (loading) return <Spinner />
   if (!co) return <div className="text-center py-12 text-gray-500 dark:text-slate-400">{error || 'Change order not found.'}</div>
-  const canRespond = co.status === 'pending', isAddition = Number(co.amount) > 0
+  const canRespond = awaitingClient(co.status), isAddition = Number(co.amount) > 0
   const approvedOn = co.approvedDate || co.approvedAt
 
   return (

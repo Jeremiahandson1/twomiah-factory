@@ -9,7 +9,7 @@ import { STATUSES, STATUS_COLORS, EVENT_TYPES, fmtEventDate, money, prettyType, 
 import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
 import { confirmEventRisks } from '../../lib/eventWarnings';
 import { openPrintable } from '../../lib/printable';
-import { PAYMENT_METHODS } from '../../shared';
+import { PAYMENT_METHODS, useMayWrite } from '../../shared';
 
 /**
  * The event file — GET /api/events/:id returns
@@ -84,6 +84,27 @@ function isOverdue(p: PaymentLine): boolean {
 type Tab = 'menu' | 'runsheet' | 'money';
 
 export default function EventDetailPage() {
+  /**
+   * "Staff are shown Edit, Add Line, Schedule Payment and Record payment buttons, which 403."
+   * (T41 events)
+   *
+   * Each asks what its own route asks, read off src/routes/events.ts. crm-restaurant runs its event
+   * book on the contacts verbs and its money on the invoicing ones, which is the line the server
+   * already draws:
+   *
+   *   Edit event        PUT /:id                      contacts:update
+   *   Add Line          POST /:id/menu                contacts:update
+   *   Remove line       DELETE /:id/menu/:lineId      contacts:update
+   *   Timeline edits    POST|PUT|DELETE /:id/timeline contacts:update
+   *   Schedule Payment  POST /:id/payments            invoices:update
+   *   Record payment    PUT /:id/payments/:paymentId  invoices:update
+   *   Remove from schedule DELETE /:id/payments/:id   invoices:update
+   *
+   * The field rung holds contacts:read only and no invoices right at all, so a service team could
+   * read the event — which is their job — and every control on it refused them.
+   */
+  const mayEdit = useMayWrite('contacts:update');
+  const mayTakeMoney = useMayWrite('invoices:update');
   const { id } = useParams<{ id: string }>();
   const [detail, setDetail] = useState<Detail>({});
   const [loading, setLoading] = useState<boolean>(true);
@@ -202,14 +223,19 @@ export default function EventDetailPage() {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {/* PUT /:id, contacts:update. DISABLED rather than hidden: this control is also the
+                only place the page shows WHICH STAGE the event is at, and the floor team needs to
+                read that even when they cannot change it. (T41) */}
             <select
               value={ev.status || 'enquiry'}
               onChange={(e) => setStatus(e.target.value)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize border ${STATUS_COLORS[ev.status || ''] || 'bg-gray-100 text-gray-700'}`}
+              disabled={!mayEdit}
+              title={!mayEdit ? 'Changing the stage needs permission to edit the event.' : undefined}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize border disabled:opacity-100 disabled:cursor-default ${STATUS_COLORS[ev.status || ''] || 'bg-gray-100 text-gray-700'}`}
             >
               {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
-            <button onClick={() => setShowEdit(true)} className="px-3 py-1.5 border rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-700">Edit</button>
+            {mayEdit && <button onClick={() => setShowEdit(true)} className="px-3 py-1.5 border rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-700">Edit</button>}
             <button
               onClick={() => openPrintable(`/api/events/${ev.id}/beo`)}
               className="flex items-center gap-1 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm"
@@ -339,11 +365,13 @@ export default function EventDetailPage() {
       {/* Food & beverage */}
       {tab === 'menu' && (
         <div className="space-y-3">
-          <div className="flex justify-end">
-            <button onClick={() => setShowMenu(true)} className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm">
-              <Plus className="w-4 h-4" /> Add Line
-            </button>
-          </div>
+          {mayEdit && (
+            <div className="flex justify-end">
+              <button onClick={() => setShowMenu(true)} className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm">
+                <Plus className="w-4 h-4" /> Add Line
+              </button>
+            </div>
+          )}
           {menu.length === 0 ? (
             <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">Nothing on the menu yet</div>
           ) : (
@@ -371,7 +399,7 @@ export default function EventDetailPage() {
                       <td className="px-4 py-3 text-gray-600 text-right dark:text-slate-400">{money2(l.unitPrice)}</td>
                       <td className="px-4 py-3 text-gray-900 font-medium text-right dark:text-slate-100">{money2(lineTotal(l))}</td>
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => removeLine('menu', l.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300" title="Remove"><Trash2 className="w-4 h-4" /></button>
+                        {mayEdit && <button onClick={() => removeLine('menu', l.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300" title="Remove"><Trash2 className="w-4 h-4" /></button>}
                       </td>
                     </tr>
                   ))}
@@ -390,11 +418,13 @@ export default function EventDetailPage() {
       {/* Run of show */}
       {tab === 'runsheet' && (
         <div className="space-y-3">
-          <div className="flex justify-end">
-            <button onClick={() => setShowTimeline(true)} className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm">
-              <Plus className="w-4 h-4" /> Add Step
-            </button>
-          </div>
+          {mayEdit && (
+            <div className="flex justify-end">
+              <button onClick={() => setShowTimeline(true)} className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm">
+                <Plus className="w-4 h-4" /> Add Step
+              </button>
+            </div>
+          )}
           {timeline.length === 0 ? (
             <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">No run of show yet</div>
           ) : (
@@ -407,7 +437,7 @@ export default function EventDetailPage() {
                     {t.details && <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{t.details}</p>}
                   </div>
                   <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{t.department}</span>
-                  <button onClick={() => removeLine('timeline', t.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300" title="Remove"><Trash2 className="w-4 h-4" /></button>
+                  {mayEdit && <button onClick={() => removeLine('timeline', t.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300" title="Remove"><Trash2 className="w-4 h-4" /></button>}
                 </div>
               ))}
             </div>
@@ -418,11 +448,13 @@ export default function EventDetailPage() {
       {/* Payments */}
       {tab === 'money' && (
         <div className="space-y-3">
-          <div className="flex justify-end">
-            <button onClick={() => setShowPayment(true)} className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm">
-              <Plus className="w-4 h-4" /> Schedule Payment
-            </button>
-          </div>
+          {mayTakeMoney && (
+            <div className="flex justify-end">
+              <button onClick={() => setShowPayment(true)} className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm">
+                <Plus className="w-4 h-4" /> Schedule Payment
+              </button>
+            </div>
+          )}
           {detail.invoice && (
             <div className="bg-white rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3 dark:bg-slate-900">
               <div>
@@ -477,12 +509,12 @@ export default function EventDetailPage() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
-                        {detail.invoice && (p.state === 'unpaid' || p.state === 'part_paid') && (
+                        {mayTakeMoney && detail.invoice && (p.state === 'unpaid' || p.state === 'part_paid') && (
                           <button onClick={() => setRecordFor(p)} className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 mr-3">
                             <Check className="w-3 h-3" /> Record payment
                           </button>
                         )}
-                        <button onClick={() => removeLine('payments', p.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300" title="Remove from schedule"><Trash2 className="w-4 h-4" /></button>
+                        {mayTakeMoney && <button onClick={() => removeLine('payments', p.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300" title="Remove from schedule"><Trash2 className="w-4 h-4" /></button>}
                       </td>
                     </tr>
                   ))}

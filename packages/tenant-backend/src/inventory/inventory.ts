@@ -34,6 +34,12 @@ export interface InventoryRoutesDeps {
   authenticate: any
   requirePermission: (permission: string) => any
   audit: InventoryAudit
+  /**
+   * May this person see what the company PAID? Optional, and open when absent, so a template that
+   * has not been wired keeps today's behaviour rather than silently withholding figures from its
+   * owner. Same convention as the pricebook, jobs and agreements modules. (T41)
+   */
+  canSee?: (role: string, permission: string, userId?: string) => Promise<boolean> | boolean
 }
 
 // A refused stock movement: bad input (400), an item/location/record not in this company (404), or not enough on
@@ -983,6 +989,49 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
     throw err
   }
 
+  /**
+   * THE PARTS BIN IS NOT THE COST LIST. (T41)
+   *
+   *   "Staff also sees Parts Inventory cost and value." — RV
+   *
+   * Every read on this router was open — `authenticate` and nothing else, by design, because the
+   * stock list is operational: a technician needs to know there are four of a part on the van
+   * before they drive to a job. What they do not need is what the company paid for it, and this
+   * module was handing over `unitCost`, the stock value per location and the whole inventory
+   * valuation report to any seat that could sign in.
+   *
+   * SAME SHAPE AS THE PRICEBOOK, and for the same stated reason (see pricebook.ts T32 H1): the read
+   * is NOT refused, because refusing it would stop the work and a refused real need is worse than
+   * the leak. The quantity, the part, the location, the supplier and the RETAIL price all stay —
+   * unitPrice is what a technician quotes a customer and withholding it would be the same mistake.
+   * What goes is cost, and anything computed from cost.
+   *
+   * The one read that IS gated is /reports/value: it is nothing but money (totalCost, totalRetail,
+   * cost and retail per location), so there would be nothing left of it after stripping.
+   */
+  const COST_KEYS = new Set(['unitCost', 'totalCost', 'totalValue', 'totalRetail', 'cost', 'retail', 'costValue'])
+  const stripCost = (v: any): any => {
+    if (Array.isArray(v)) return v.map(stripCost)
+    if (v && typeof v === 'object' && !(v instanceof Date)) {
+      const out: Record<string, any> = {}
+      for (const [k, val] of Object.entries(v)) if (!COST_KEYS.has(k)) out[k] = stripCost(val)
+      return out
+    }
+    return v
+  }
+  /**
+   * Open when the template has not wired `canSee`: five CRMs mount this module and a module that
+   * silently starts withholding figures from the owner would be the worse bug. Asked with
+   * `inventory:read`, which manager and up hold (`inventory:*`) and the field rung does not.
+   */
+  const maySeeCost = async (c: any) => {
+    if (!deps.canSee) return true
+    const u = c.get('user') as any
+    try { return await deps.canSee(u?.role, 'inventory:read', u?.userId) } catch { return true }
+  }
+  /** Answer a read, minus the cost figures when this seat may not see them. */
+  const costed = async (c: any, data: any) => c.json(await maySeeCost(c) ? data : stripCost(data))
+
   // ============================================
   // ITEMS
   // ============================================
@@ -1004,7 +1053,7 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
       page: parseInt(page || '0') || 1,
       limit: parseInt(limit || '0') || 50,
     })
-    return c.json(items)
+    return costed(c, items)
   })
 
   // Get categories
@@ -1020,7 +1069,7 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
     const id = c.req.param('id')
     const item = await service.getItem(id, user.companyId)
     if (!item) return c.json({ error: 'Item not found' }, 404)
-    return c.json(item)
+    return costed(c, item)
   })
 
   // Create item
@@ -1057,7 +1106,7 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
   app.get('/low-stock', async (c) => {
     const user = c.get('user') as any
     const items = await service.getLowStockItems(user.companyId)
-    return c.json(items)
+    return costed(c, items)
   })
 
   // ============================================
@@ -1090,7 +1139,7 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
     const id = c.req.param('id')
     const location = await service.getLocationInventory(id, user.companyId)
     if (!location) return c.json({ error: 'Location not found' }, 404)
-    return c.json(location)
+    return costed(c, location)
   })
 
   // ============================================
@@ -1281,7 +1330,7 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
   // ============================================
 
   // Inventory value
-  app.get('/reports/value', async (c) => {
+  app.get('/reports/value', requirePermission('inventory:read'), async (c) => {
     const user = c.get('user') as any
     const report = await service.getInventoryValue(user.companyId)
     return c.json(report)
