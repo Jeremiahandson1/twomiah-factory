@@ -16,6 +16,20 @@ export interface CompanyDeps {
   /** admin | owner */
   requireAdmin: any
   requirePermission: (permission: string) => any
+  /**
+   * Gate that passes if the caller holds ANY of the permissions. Used by GET /users so the roster
+   * read can accept `team:read` as well as `users:read`. (T41)
+   *
+   * Optional, and falls back to requirePermission('users:read') — so a template that has not been
+   * rewired keeps exactly the behaviour it has today rather than silently opening up.
+   */
+  requireAnyPermission?: (permissions: string[]) => any
+  /**
+   * May this caller see the FULL user record (email, last login, extra grants), as opposed to the
+   * reduced roster? Asked with `users:read`. The same convention the pricebook, jobs and team
+   * modules use for `canSee`: not wired → not asked → today's behaviour.
+   */
+  canSee?: (role: string, permission: string, userId?: string) => Promise<boolean> | boolean
   /** The vertical's word for a rung (from createPermissions). Optional so a template that has not wired
    *  it yet still builds; the row simply carries no label rather than the wrong one. */
   roleLabel?: (role: string) => string
@@ -94,7 +108,7 @@ const DEFAULT_ROLES = ['admin', 'manager', 'user', 'field', 'viewer']
 const USER_COLUMNS = (user: any) => ({ id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role, isActive: user.isActive })
 
 export function createCompanyRoutes(deps: CompanyDeps) {
-  const { db, tables: t, authenticate, requireAdmin, requirePermission, invalidateExtraPermissions, template, roleLabel } = deps
+  const { db, tables: t, authenticate, requireAdmin, requirePermission, requireAnyPermission, canSee, invalidateExtraPermissions, template, roleLabel } = deps
   const roles = (deps.options?.roles && deps.options.roles.length ? deps.options.roles : DEFAULT_ROLES) as [string, ...string[]]
   const app = new Hono()
   app.use('*', authenticate)
@@ -264,8 +278,32 @@ export function createCompanyRoutes(deps: CompanyDeps) {
   })
 
   // ---------------------------------------------------------------- users
-  // Who may see the login-user list: the OWNER, plus anyone the owner grants 'users:read' to.
-  app.get('/users', requirePermission('users:read'), async (c) => {
+  /**
+   * TWO QUESTIONS, ONE ENDPOINT: "who manages the logins here" and "who works here". (T41)
+   *
+   * This was `users:read` only — the OWNER plus anyone granted it. But the roster is what every
+   * assignment picker and rep filter is built from, and those screens belong to the manager:
+   *
+   *   · "The manager's Dispatch Board is always empty: /api/jobs returns 9 jobs, but
+   *     /api/company/users 403s for the manager and the board shows '0 Total Jobs' with no assign
+   *     list. The owner sees the jobs." — Landscaping, reported as a HIGH
+   *   · "/api/users 403s in the background, so rep filters come up empty." — Roofing
+   *   · Events, Showcase and RV all reported the same background 403 on Settings.
+   *
+   * So a manager could not assign work, and the refusal was the bug. The read now accepts
+   * `team:read` as well — which is the permission for "see the roster", and which manager holds on
+   * every vertical — while the WRITE routes below stay requireAdmin, unchanged.
+   *
+   * WHAT A team:read CALLER GETS IS NARROWER. The full row carries email, lastLogin and
+   * extraPermissions: that is user ADMINISTRATION, not the roster, and opening it to everyone who
+   * can see colleagues would have traded one leak for another. A team:read caller gets the fields a
+   * picker needs — id, name, role, roleLabel, active — and nothing else.
+   */
+  const rosterGate = requireAnyPermission
+    ? requireAnyPermission(['users:read', 'team:read'])
+    : requirePermission('users:read')
+
+  app.get('/users', rosterGate, async (c) => {
     const currentUser = c.get('user') as any
     const rows = await db.select({
       id: t.user.id, email: t.user.email, firstName: t.user.firstName, lastName: t.user.lastName, phone: t.user.phone, role: t.user.role,
@@ -273,7 +311,21 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     }).from(t.user).where(eq(t.user.companyId, currentUser.companyId))
     // Send the word alongside the id. The Users table used to map the id itself, which is a second
     // definition of the vocabulary and drifts from this one the moment a vertical renames a rung.
-    return c.json(roleLabel ? rows.map((r: any) => ({ ...r, roleLabel: roleLabel(String(r.role || '')) })) : rows)
+    const labelled = roleLabel ? rows.map((r: any) => ({ ...r, roleLabel: roleLabel(String(r.role || '')) })) : rows
+
+    // Not wired → not asked → the full row, which is what the only callers who could get here used
+    // to receive anyway.
+    if (!canSee) return c.json(labelled)
+    if (await canSee(currentUser.role, 'users:read', currentUser.userId)) return c.json(labelled)
+
+    return c.json(labelled.map((r: any) => ({
+      id: r.id,
+      firstName: r.firstName,
+      lastName: r.lastName,
+      role: r.role,
+      ...(r.roleLabel !== undefined ? { roleLabel: r.roleLabel } : {}),
+      isActive: r.isActive,
+    })))
   })
 
   app.post('/users', requireAdmin, async (c) => {

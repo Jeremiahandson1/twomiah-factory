@@ -4,7 +4,7 @@ import { db } from '../../db/index.ts'
 import { company, user } from '../../db/schema.ts'
 import { eq, and } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, requireAnyPermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { passwordSchema } from '../shared/index.ts'
 
 const app = new Hono()
@@ -16,8 +16,22 @@ app.use('*', authenticate)
 // Pass ?includeInactive=1 for the Settings list, which has to show revoked
 // people so they can be reactivated — otherwise deactivating someone hides them
 // forever and the action is one-way.
-// Owner + owner-granted 'users:read' only (Wrench QA decision).
-app.get('/', requirePermission('users:read'), async (c) => {
+/**
+ * `users:read` OR `team:read`. (T41)
+ *
+ * It was "Owner + owner-granted 'users:read' only (Wrench QA decision)" — and the comment directly
+ * above explains why that could not hold: this list IS the assignment dropdowns. Five screens read
+ * it (Canvassing, Jobs, Job detail, Pipeline, Reports), and T41 found the consequence:
+ * "/api/users 403s in the background, so rep filters come up empty."
+ *
+ * The Wrench decision was about who may MANAGE seats, and the write routes below still say
+ * requireAdmin. Knowing who your colleagues are, so you can assign work to one of them, is a
+ * different question — and it is the one `team:read` exists to answer.
+ *
+ * A team:read caller gets the fields a dropdown needs and not the contact details: email and phone
+ * are staff PII and belong to the Settings list, which is read with users:read.
+ */
+app.get('/', requireAnyPermission(['users:read', 'team:read']), async (c) => {
   const currentUser = c.get('user') as any
   const includeInactive = c.req.query('includeInactive') === '1'
   const where = includeInactive
@@ -36,7 +50,12 @@ app.get('/', requirePermission('users:read'), async (c) => {
     .from(user)
     .where(where)
 
-  return c.json({ data: users })
+  const full = hasPermission(currentUser.role, 'users:read', await getExtraPermissions(currentUser.userId))
+  if (full) return c.json({ data: users })
+
+  return c.json({
+    data: users.map(({ email, phone, ...rest }) => rest),
+  })
 })
 
 // POST / — add a teammate (a real login seat).
