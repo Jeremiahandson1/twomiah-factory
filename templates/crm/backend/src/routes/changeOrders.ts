@@ -86,6 +86,27 @@ const changeOrderSchema = z.object({
   lineItems: z.array(lineItemSchema).default([]),
 })
 
+/**
+ * A LIST DOES NOT CARRY SIGNATURE EVIDENCE. (T41)
+ *
+ *   "Change-order API sends signedIp, user agent and the base64 signature, including in list rows."
+ *
+ * The signature is an image of somebody's handwriting, and signedIp plus signedUserAgent say where
+ * a named person was and what they were using when they signed. That is evidence: it belongs on the
+ * ONE document it proves, read by someone who opened that document — not broadcast fifty rows at a
+ * time to every screen that lists change orders, where it is also fifty times the payload.
+ *
+ * The list keeps what a list is for: that it IS signed, by whom, and when. `signatureHash` stays
+ * too — it is the tamper check and reveals nothing by itself. The detail read below is unchanged
+ * and still carries everything.
+ */
+const SIGNATURE_EVIDENCE = ['signature', 'signedIp', 'signedUserAgent'] as const
+const signatureSummary = (co: any) => {
+  const out: any = { ...co, signed: !!co.signature }
+  for (const k of SIGNATURE_EVIDENCE) delete out[k]
+  return out
+}
+
 app.get('/', async (c) => {
   const currentUser = c.get('user') as any
   const status = c.req.query('status')
@@ -124,7 +145,7 @@ app.get('/', async (c) => {
   lineItems.forEach(li => { (lineItemMap[li.changeOrderId] ||= []).push(li) })
 
   const dataWithRelations = data.map(co => ({
-    ...co,
+    ...signatureSummary(co),
     project: projectMap[co.projectId] || null,
     lineItems: lineItemMap[co.id] || [],
   }))
@@ -147,10 +168,41 @@ app.get('/:id', async (c) => {
   return c.json({ ...foundCo, project: coProject[0] || null, lineItems })
 })
 
+/**
+ * A CHANGE ORDER IS NOT BORN APPROVED. (T41)
+ *
+ *   "A change order can be created directly as 'approved' with no signature (201), and it counts
+ *    toward approved COs."
+ *
+ * `status` is accepted on this schema so PUT can move one (API-02 added it for that reason), and
+ * create spreads the same object — so a caller could post `status: 'approved'` and mint a signed
+ * agreement that nobody signed. It then counts in the approved total on the project page, and the
+ * revised budget with it, which is money the client never agreed to.
+ *
+ * An approval is a DECISION recorded against a document: POST /:id/approve is where it happens, and
+ * it is the path that captures who signed, from where, and a hash of what they saw. There is no
+ * honest way to arrive at 'approved' without that, so create accepts only the two states a new
+ * change order can legitimately be in — being written, or sent.
+ *
+ * `pending` is in the list as the synonym for `submitted` that the selections flow stamps (see the
+ * note on EDITABLE above).
+ */
+const CREATABLE = ['draft', 'submitted', 'pending']
+
 app.post('/', requirePermission('change-orders:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = changeOrderSchema.parse(await c.req.json())
   const { lineItems, ...coData } = data
+
+  if (coData.status !== undefined && !CREATABLE.includes(coData.status)) {
+    return c.json({
+      error: `A new change order cannot start as "${coData.status}". Raise it as a draft or submit it to the `
+        + 'client, and record their answer with Approve or Reject — an approval carries the signature and '
+        + 'cannot be set by hand.',
+      code: 'change_order_bad_initial_status',
+      allowed: CREATABLE,
+    }, 400)
+  }
 
   const amount = lineItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
   const [{ value: cnt }] = await db.select({ value: count() }).from(changeOrder).where(and(eq(changeOrder.companyId, currentUser.companyId), eq(changeOrder.projectId, data.projectId)))

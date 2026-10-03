@@ -22,12 +22,37 @@ app.use('*', authenticate)
 // COMMISSION PLANS
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * A COMMISSION RATE IS A PERCENTAGE, AND PAY IS NOT NEGATIVE. (T41)
+ *
+ *   "Commission percentRate −50 and 500 are accepted."
+ *
+ * These numbers are what somebody is paid. 500 pays five times the invoice on every job the plan
+ * covers; −50 takes money off a technician for doing the work. Both saved happily, and the earnings
+ * engine multiplies by them without asking — so the first anybody hears of it is a pay run.
+ *
+ * 0 is allowed deliberately: a plan can exist with its rate not yet decided, and refusing zero would
+ * block setting one up. 100 is the ceiling, because a plan paying the whole invoice is at least
+ * arguable (a sole trader's own jobs) while 101 is not.
+ *
+ * `flatRateAmount` gets the same treatment, for the same reason: a negative flat fee is a deduction
+ * dressed as a commission. No upper bound — a flat rate is money, and a big job pays a big fee.
+ *
+ * The TIERS carry rates too, and a plan is only as sound as its worst tier, so each is held to the
+ * same rule — a report naming the header field is not a reason to leave the rows open.
+ */
+const percentRate = z.number({ invalid_type_error: 'A commission rate must be a number' })
+  .min(0, 'A commission rate cannot be negative — that is a deduction, not a commission')
+  .max(100, 'A commission rate is a percentage, so it cannot be more than 100')
+const money = z.number({ invalid_type_error: 'An amount must be a number' })
+  .min(0, 'A commission amount cannot be negative')
+
 const planSchema = z.object({
   name: z.string().min(1),
   planType: z.enum(['flat_rate', 'percent_of_invoice', 'percent_of_margin', 'tiered']),
-  flatRateAmount: z.number().optional(),
-  percentRate: z.number().optional(),
-  tiers: z.array(z.object({ min: z.number(), max: z.number(), rate: z.number() })).optional(),
+  flatRateAmount: money.optional(),
+  percentRate: percentRate.optional(),
+  tiers: z.array(z.object({ min: money, max: money, rate: percentRate })).optional(),
   appliesToRole: z.enum(['technician', 'sales_rep', 'manager', 'all']).default('all'),
   effectiveFrom: z.string().optional(),
   effectiveTo: z.string().optional(),

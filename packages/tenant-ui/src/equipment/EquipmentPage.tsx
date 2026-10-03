@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import {
   Wrench, Plus, Search, Filter, AlertTriangle, Shield,
   Calendar, Clock, Edit2, History, Loader2, ChevronRight,
-  ThermometerSun, Droplets, Zap, Home
+  ThermometerSun, Droplets, Zap, Home, Tractor, Truck, Snowflake, Trees
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { EquipmentApi, EquipmentPageProps } from './types';
+import type { EquipmentApi, EquipmentCategory, EquipmentPageProps } from './types';
 import { useMayWrite } from '../auth/PermissionsContext';
 
 // UTC-safe date formatting (carried from templates' utils/date). Date-only values stored as UTC midnight
@@ -22,19 +22,57 @@ function formatDate(value?: string | number | Date | null): string {
   return isNaN(d.getTime()) ? '' : d.toLocaleDateString();
 }
 
-interface CategoryDef {
-  id: string;
-  name: string;
-  icon: LucideIcon;
-  color: string;
+/**
+ * THE CATEGORY CONTROL WAS DECORATIVE. (T41)
+ *
+ *   landscaping: "Equipment category filter offers HVAC / Plumbing / Electrical / Appliance."
+ *
+ * The reported fault is the vocabulary — a lawn-care company filing a stand-on mower as an
+ * "Appliance". Reading the server to fix it turned up something worse: NOTHING on this control
+ * worked anywhere. Equipment is categorised by `categoryId`, a foreign key into the company's own
+ * `equipment_category` table (there is no text `category` column in any of the four templates), and
+ * GET /api/equipment/types has always served that list. This page knew none of it:
+ *
+ *   · the filter sent ?category=HVAC, which the route forwards as categoryId — a name where an id
+ *     belongs, so the filter matched NOTHING and emptied the table on every vertical;
+ *   · the form posted `category: 'HVAC'`, which createEquipment does not read, so the category the
+ *     operator picked was dropped on the floor at every save;
+ *   · the Category column read `equipment.category`, which the list has never returned, so it was
+ *     blank in every row of every tenant.
+ *
+ * Three silent failures behind one hard-coded array. The categories are now the company's own, by
+ * id, and `config.categories` is what a brand-new company is OFFERED — a trade's starter list, one
+ * click each, instead of a blank select on day one.
+ *
+ * Icons are matched on the category's own words, so a company that types "Mowers" or "Snow & ice"
+ * gets a sensible glyph without any configuration, and anything unrecognised gets the wrench.
+ */
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  hvac: ThermometerSun, plumbing: Droplets, electrical: Zap, appliance: Home,
+  mower: Tractor, truck: Truck, snow: Snowflake, tree: Trees, tool: Wrench,
+};
+
+const ICON_WORDS: Array<[RegExp, LucideIcon]> = [
+  [/hvac|furnace|boiler|air.?con|heat|cooling|a\/c/i, ThermometerSun],
+  [/plumb|water|irrigat|sprinkler|drain|pump|hose/i, Droplets],
+  [/electric|generator|wiring|panel|battery/i, Zap],
+  [/applian|washer|dryer|fridge|refrigerat|oven/i, Home],
+  [/mow|mower|tractor|aerat|seeder|spreader/i, Tractor],
+  [/truck|trailer|vehicle|van|fleet/i, Truck],
+  [/snow|plow|plough|salt|ice/i, Snowflake],
+  [/tree|chainsaw|saw|stump|chipper|trim|hedge|blower/i, Trees],
+];
+
+/** The glyph for a category, from its own name. Unrecognised → the wrench. */
+export function equipmentCategoryIcon(name?: string | null, icon?: EquipmentCategory['icon']): LucideIcon {
+  if (icon && CATEGORY_ICONS[icon]) return CATEGORY_ICONS[icon];
+  const s = String(name || '');
+  for (const [re, Ico] of ICON_WORDS) if (re.test(s)) return Ico;
+  return Wrench;
 }
 
-const CATEGORIES: CategoryDef[] = [
-  { id: 'HVAC', name: 'HVAC', icon: ThermometerSun, color: 'blue' },
-  { id: 'Plumbing', name: 'Plumbing', icon: Droplets, color: 'cyan' },
-  { id: 'Electrical', name: 'Electrical', icon: Zap, color: 'yellow' },
-  { id: 'Appliance', name: 'Appliance', icon: Home, color: 'gray' },
-];
+/** A category as the server keeps it: the company's own row. */
+interface CategoryRow { id: string; name: string }
 
 interface EquipmentContact {
   name?: string;
@@ -48,7 +86,9 @@ interface Equipment {
   model?: string;
   serialNumber?: string;
   location?: string;
-  category: string;
+  /** The company's own category row, as the list and the detail both return it. */
+  category?: CategoryRow | null;
+  categoryId?: string | null;
   installDate?: string;
   age?: number | null;
   warrantyMonths?: number;
@@ -102,6 +142,10 @@ interface EquipmentRowProps {
 interface EquipmentFormModalProps {
   equipment: Equipment | null;
   api: EquipmentApi;
+  /** The company's categories, and the trade's starter list for a company with none. */
+  types: CategoryRow[];
+  suggestions: EquipmentCategory[];
+  onTypesChanged: () => void;
   config: { contacts: boolean; sites: boolean; linkedJobs: boolean };
   onSave: () => void;
   onClose: () => void;
@@ -135,6 +179,7 @@ export default function EquipmentPage({ api, config }: EquipmentPageProps) {
    */
   const mayCreate = useMayWrite('equipment:create');
   const cfg = { contacts: !!config?.contacts, sites: !!config?.sites, linkedJobs: !!config?.linkedJobs };
+  const [types, setTypes] = useState<CategoryRow[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [stats, setStats] = useState<EquipmentStats | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -149,12 +194,24 @@ export default function EquipmentPage({ api, config }: EquipmentPageProps) {
     loadData();
   }, [search, category, filter]);
 
+  // The company's own categories, which is what the filter and the form have to be built from.
+  const loadTypes = async () => {
+    try {
+      const res = await api.get('/api/equipment/types');
+      setTypes(Array.isArray(res) ? res : res?.data || []);
+    } catch (error) {
+      console.error('Failed to load equipment categories:', error);
+    }
+  };
+  useEffect(() => { loadTypes(); }, []);
+
   const loadData = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (search) params.set('search', search);
-      if (category) params.set('category', category);
+      // categoryId, not category: the id is what the row stores and what the route filters on.
+      if (category) params.set('categoryId', category);
       if (filter === 'needsMaintenance') params.set('needsMaintenance', 'true');
       if (filter === 'warrantyExpiring') params.set('warrantyExpiring', 'true');
 
@@ -240,7 +297,7 @@ export default function EquipmentPage({ api, config }: EquipmentPageProps) {
           className="px-4 py-2 border rounded-lg"
         >
           <option value="">All Categories</option>
-          {CATEGORIES.map((cat: CategoryDef) => (
+          {types.map((cat: CategoryRow) => (
             <option key={cat.id} value={cat.id}>{cat.name}</option>
           ))}
         </select>
@@ -297,6 +354,9 @@ export default function EquipmentPage({ api, config }: EquipmentPageProps) {
         <EquipmentFormModal
           equipment={selectedEquipment}
           api={api}
+          types={types}
+          suggestions={config?.categories || []}
+          onTypesChanged={loadTypes}
           config={cfg}
           onSave={() => { setShowForm(false); loadData(); }}
           onClose={() => setShowForm(false)}
@@ -344,7 +404,7 @@ function EquipmentRow({ equipment, onEdit, onHistory }: EquipmentRowProps) {
   // Service History stays open to everyone — a crew reads the history of the machine they are
   // standing next to. Edit is PUT /:id, equipment:update. (T41)
   const mayUpdate = useMayWrite('equipment:update');
-  const CategoryIcon = CATEGORIES.find((c: CategoryDef) => c.id === equipment.category)?.icon || Wrench;
+  const CategoryIcon = equipmentCategoryIcon(equipment.category?.name);
 
   return (
     <tr className="hover:bg-gray-50 dark:hover:bg-slate-800">
@@ -365,7 +425,9 @@ function EquipmentRow({ equipment, onEdit, onHistory }: EquipmentRowProps) {
           <p className="text-sm text-gray-500 dark:text-slate-400">{equipment.location}</p>
         )}
       </td>
-      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{equipment.category}</td>
+      {/* The category's NAME. This read `equipment.category` as a string, which the list has never
+          returned — so the column was blank in every row until the server started sending it. */}
+      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{equipment.category?.name || '—'}</td>
       <td className="px-4 py-3">
         {equipment.installDate ? (
           <div>
@@ -428,10 +490,10 @@ function EquipmentRow({ equipment, onEdit, onHistory }: EquipmentRowProps) {
   );
 }
 
-function EquipmentFormModal({ equipment, api, config, onSave, onClose }: EquipmentFormModalProps) {
+function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged, config, onSave, onClose }: EquipmentFormModalProps) {
   const [form, setForm] = useState<{
     name: string;
-    category: string;
+    categoryId: string;
     brand: string;
     model: string;
     serialNumber: string;
@@ -445,7 +507,9 @@ function EquipmentFormModal({ equipment, api, config, onSave, onClose }: Equipme
     notes: string;
   }>({
     name: equipment?.name || '',
-    category: equipment?.category || 'HVAC',
+    // The category's ID, which is what the server stores. The form used to hold the NAME of a
+    // hard-coded 'HVAC' and post it under a key createEquipment does not read. (T41)
+    categoryId: equipment?.category?.id || equipment?.categoryId || '',
     brand: equipment?.brand || '',
     model: equipment?.model || '',
     serialNumber: equipment?.serialNumber || '',
@@ -486,6 +550,39 @@ function EquipmentFormModal({ equipment, api, config, onSave, onClose }: Equipme
       setSites(Array.isArray(data) ? data : []);
     } catch { setSites([]); }
   };
+
+  /**
+   * Categories are the company's own rows, so the screen that uses them is also the screen that
+   * creates them — POST /api/equipment/types has existed all along with nothing calling it. A new
+   * company starts with none, which is why the trade's suggestions are offered as one-click adds
+   * rather than leaving an empty select and no way out of it. (T41)
+   */
+  const [newCategory, setNewCategory] = useState<string>('');
+  const [addingCategory, setAddingCategory] = useState<boolean>(false);
+  const [categoryError, setCategoryError] = useState<string>('');
+  const mayAddCategory = useMayWrite('equipment:create');
+  const addCategory = async (name: string) => {
+    const label = name.trim();
+    if (!label) return;
+    if (types.some((t) => t.name.trim().toLowerCase() === label.toLowerCase())) {
+      setCategoryError(`"${label}" is already a category.`);
+      return;
+    }
+    setAddingCategory(true); setCategoryError('');
+    try {
+      const made = await api.post('/api/equipment/types', { name: label });
+      const id = made?.id || made?.data?.id;
+      if (id) setForm((f) => ({ ...f, categoryId: id }));
+      setNewCategory('');
+      onTypesChanged();
+    } catch {
+      setCategoryError('Could not add that category.');
+    } finally {
+      setAddingCategory(false);
+    }
+  };
+  // Only the ones they do not already have — a starter list that re-offers "Mowers" is noise.
+  const unused = suggestions.filter((s) => !types.some((t) => t.name.trim().toLowerCase() === s.name.trim().toLowerCase()));
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -566,14 +663,55 @@ function EquipmentFormModal({ equipment, api, config, onSave, onClose }: Equipme
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Category</label>
                 <select
-                  value={form.category}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, category: e.target.value })}
+                  value={form.categoryId}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, categoryId: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
-                  {CATEGORIES.map((cat: CategoryDef) => (
+                  <option value="">No category</option>
+                  {types.map((cat: CategoryRow) => (
                     <option key={cat.id} value={cat.id}>{cat.name}</option>
                   ))}
                 </select>
+                {mayAddCategory && (
+                  <div className="mt-2 space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newCategory}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setNewCategory(e.target.value); setCategoryError(''); }}
+                        onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') { e.preventDefault(); addCategory(newCategory); } }}
+                        placeholder="Add a category…"
+                        className="flex-1 px-3 py-1.5 border rounded-lg text-sm"
+                        aria-label="New equipment category"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => addCategory(newCategory)}
+                        disabled={addingCategory || !newCategory.trim()}
+                        className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-50"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    {unused.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
+                        <span>{types.length === 0 ? 'Start with:' : 'Also common:'}</span>
+                        {unused.map((s) => (
+                          <button
+                            key={s.name}
+                            type="button"
+                            onClick={() => addCategory(s.name)}
+                            disabled={addingCategory}
+                            className="px-2 py-0.5 border rounded-full hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50"
+                          >
+                            + {s.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {categoryError && <p className="text-xs text-red-600 dark:text-red-400">{categoryError}</p>}
+                  </div>
+                )}
               </div>
 
               <div>

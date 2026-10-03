@@ -7,7 +7,8 @@ import type { NavItem, ShellConfig } from './shared';
 const NAV: NavItem[] = [
   { to: '/crm', icon: Home, label: 'Dashboard', exact: true },
   { to: '/crm/contacts', icon: Users, label: 'Contacts' },
-  { to: '/crm/jobs', icon: Briefcase, label: 'Service Calls' },
+  // 'Jobs', matching jobsConfig.ts and reportingConfig.ts — see the note in jobsConfig.ts. (T41)
+  { to: '/crm/jobs', icon: Briefcase, label: 'Jobs' },
   { to: '/crm/quotes', icon: FileText, label: 'Quotes', permission: 'quotes:read' },
   { to: '/crm/invoices', icon: Receipt, label: 'Invoices', permission: 'invoices:read' },
   { to: '/crm/schedule', icon: Calendar, label: 'Schedule', features: ['scheduling'] },
@@ -61,7 +62,7 @@ const NAV: NavItem[] = [
 
 export const SHELL: ShellConfig = {
   nav: NAV,
-  searchPlaceholder: 'Search contacts, service calls, invoices...',
+  searchPlaceholder: 'Search contacts, jobs, invoices...',
   routeGates: {
     '/crm/reviews': ['google_reviews'],
     // The Pricebook trial page is deliberately NOT gated on `pricebook` — it exists to sell Pricebook to a

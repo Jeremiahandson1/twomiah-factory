@@ -197,18 +197,58 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
 
   // Contact + plan for each row, from this company only — the list pages show the customer, the plan and the
   // amount. (Landscaping T14 H2: rows rendered no customer, no plan and $0.00)
+  /**
+   * THE VISITS COLUMN HAD NOTHING TO SHOW. (T41)
+   *
+   *   landscaping: "Agreements Visits column shows 'remaining' with no number."
+   *
+   * The page renders `{agreement.visitsRemaining} remaining`, and nothing has ever computed
+   * visitsRemaining — so React rendered `undefined` as nothing and the column read " remaining" in
+   * every row of every vertical that sells maintenance agreements. The figure exists in pieces: the
+   * PLAN says how many visits a term includes, and `agreement_visit` records the ones booked and
+   * done. It was never put together.
+   *
+   * The term is the boundary: `renewAgreement` moves startDate forward on the same row, so visits
+   * from last year's term must not count against this year's allowance — counting every visit ever
+   * would show a renewed customer as having nothing left.
+   *
+   * A booked-but-not-yet-done visit counts as SPENT. The question this column answers is "how many
+   * more can I book", and a visit on next Tuesday's board is already promised.
+   */
   async function withRelations(companyId: string, rows: any[]) {
     const contactIds = [...new Set(rows.map((r) => r.contactId).filter(Boolean))]
     const planIds = [...new Set(rows.map((r) => r.planId).filter(Boolean))]
-    const [contacts, plans] = await Promise.all([
+    const agreementIds = rows.map((r) => r.id).filter(Boolean)
+    const [contacts, plans, visitRows] = await Promise.all([
       contactIds.length ? db.select({ id: contact.id, name: contact.name, email: contact.email, phone: contact.phone }).from(contact)
         .where(and(eq(contact.companyId, companyId), inArray(contact.id, contactIds))) : [],
-      planIds.length ? db.select({ id: agreementPlan.id, name: agreementPlan.name, price: agreementPlan.price, billingFrequency: agreementPlan.billingFrequency }).from(agreementPlan)
+      planIds.length ? db.select({ id: agreementPlan.id, name: agreementPlan.name, price: agreementPlan.price, billingFrequency: agreementPlan.billingFrequency, visitsIncluded: agreementPlan.visitsIncluded }).from(agreementPlan)
         .where(and(eq(agreementPlan.companyId, companyId), inArray(agreementPlan.id, planIds))) : [],
+      agreementIds.length ? db.select({ agreementId: agreementVisit.agreementId, status: agreementVisit.status, scheduledDate: agreementVisit.scheduledDate }).from(agreementVisit)
+        .where(inArray(agreementVisit.agreementId, agreementIds)) : [],
     ])
     const contactById = new Map(contacts.map((x: any) => [x.id, x]))
     const planById = new Map(plans.map((x: any) => [x.id, x]))
-    return rows.map((r) => ({ ...r, contact: contactById.get(r.contactId) || null, plan: (r.planId && planById.get(r.planId)) || null }))
+    return rows.map((r) => {
+      const plan = (r.planId && planById.get(r.planId)) || null
+      const termStart = r.startDate ? new Date(r.startDate).getTime() : 0
+      const thisTerm = (visitRows as any[]).filter((v) => v.agreementId === r.id
+        && (!v.scheduledDate || new Date(v.scheduledDate).getTime() >= termStart))
+      const visitsCompleted = thisTerm.filter((v) => v.status === 'completed').length
+      const visitsScheduled = thisTerm.filter((v) => v.status === 'scheduled').length
+      const visitsIncluded = Number((plan as any)?.visitsIncluded || 0)
+      return {
+        ...r,
+        contact: contactById.get(r.contactId) || null,
+        plan,
+        visitsIncluded,
+        visitsCompleted,
+        visitsScheduled,
+        // null, not 0, when the plan sets no allowance: "unlimited" and "none left" are not the same
+        // answer, and a 0 here would have the screen tell the customer their plan is used up.
+        visitsRemaining: visitsIncluded > 0 ? Math.max(0, visitsIncluded - visitsCompleted - visitsScheduled) : null,
+      }
+    })
   }
 
   const dateOrError = (v: unknown, label: string): Date => {

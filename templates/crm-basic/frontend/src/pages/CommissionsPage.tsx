@@ -123,9 +123,24 @@ export default function CommissionsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {plans.length === 0 ? <div className="col-span-full bg-white rounded-lg border p-12 text-center text-gray-500 dark:text-slate-400 dark:bg-slate-900">No commission plans yet. Create one to start tracking commissions.</div> :
             plans.map((p) => (
-              <div key={p.id} className="bg-white rounded-lg border p-5 dark:bg-slate-900">
-                <h3 className="font-bold text-lg">{p.name}</h3>
-                <div className="text-sm text-gray-500 mb-3 dark:text-slate-400">{p.planType.replace(/_/g, ' ')} · {p.appliesToRole}</div>
+              /* A RETIRED PLAN LOOKS EXACTLY LIKE A LIVE ONE. (T41)
+                 "deactivated plans still listed with no marker."
+                 DELETE /plans/:id does not delete — it sets isActive false, which is right, because
+                 earnings already calculated under a plan have to keep pointing at it. But the list
+                 returns every plan and the card said nothing, so a retired 15%-of-invoice plan sat
+                 beside the live one looking equally in force. Anyone reading this page to answer
+                 "what do we pay?" could read the wrong card. */
+              <div key={p.id} className={`bg-white rounded-lg border p-5 dark:bg-slate-900 ${p.isActive === false ? 'opacity-60 border-dashed' : ''}`}>
+                <h3 className="font-bold text-lg flex items-center gap-2">
+                  {p.name}
+                  {p.isActive === false && (
+                    <span className="text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-200">Retired</span>
+                  )}
+                </h3>
+                <div className="text-sm text-gray-500 mb-3 dark:text-slate-400">
+                  {p.planType.replace(/_/g, ' ')} · {p.appliesToRole}
+                  {p.isActive === false && ' · no longer applied to new work'}
+                </div>
                 <div className="font-mono text-sm">
                   {p.planType === 'flat_rate' && <>${Number(p.flatRateAmount || 0).toFixed(2)} per job</>}
                   {(p.planType === 'percent_of_invoice' || p.planType === 'percent_of_margin') && <>{Number(p.percentRate || 0)}% of {p.planType === 'percent_of_invoice' ? 'invoice' : 'margin'}</>}

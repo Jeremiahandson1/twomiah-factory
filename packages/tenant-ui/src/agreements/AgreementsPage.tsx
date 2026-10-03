@@ -42,7 +42,11 @@ interface Agreement {
   status: string;
   contact?: AgreementContact;
   plan?: AgreementPlan;
-  visitsRemaining: number;
+  /** null when the plan sets no visit allowance — not the same as none left. (T41) */
+  visitsRemaining?: number | null;
+  visitsIncluded?: number;
+  visitsCompleted?: number;
+  visitsScheduled?: number;
   endDate: string;
   amount: string | number; // the agreement's billed amount per period (the API field; there is no "price")
   billingFrequency: string;
@@ -484,6 +488,22 @@ function AutopayToggle({ agreement, onChanged }: { agreement: Agreement; onChang
   );
 }
 
+/** What the Visits column says: the allowance left this term, else what has been done. (T41) */
+function visitsLabel(a: Agreement): string {
+  const included = Number(a.visitsIncluded || 0);
+  if (included > 0) return `${a.visitsRemaining ?? 0} of ${included} left`;
+  const done = Number(a.visitsCompleted || 0) + Number(a.visitsScheduled || 0);
+  return done > 0 ? `${done} booked` : 'No visit cap';
+}
+
+/** The breakdown behind that figure, so the number is never the only thing on offer. */
+function visitsDetail(a: Agreement): string {
+  const parts = [`${Number(a.visitsCompleted || 0)} done`, `${Number(a.visitsScheduled || 0)} booked`];
+  if (Number(a.visitsIncluded || 0) > 0) parts.push(`${a.visitsIncluded} included each term`);
+  else parts.push('this plan sets no visit allowance');
+  return `This term: ${parts.join(', ')}`;
+}
+
 function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowProps & { onChanged?: () => void }) {
   const { api } = useAgreements();
   // POST /:id/renew asks agreements:update, and so does the autopay toggle below (PUT /:id/autopay).
@@ -513,8 +533,16 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowPro
           {agreement.status}
         </span>
       </td>
-      <td className="px-4 py-3 text-sm">
-        {agreement.visitsRemaining} remaining
+      {/*
+        THIS CELL READ " remaining". (T41)
+
+        `{agreement.visitsRemaining} remaining` — and nothing computed visitsRemaining, so React
+        rendered the undefined as nothing and every row in every tenant said the word with no figure
+        in front of it. The server now sends the allowance, what is booked and what is done; this
+        says which, and says "no visit cap" rather than "0 remaining" when the plan sets none.
+      */}
+      <td className="px-4 py-3 text-sm" title={visitsDetail(agreement)}>
+        {visitsLabel(agreement)}
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-1">
@@ -803,7 +831,9 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
 
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Visits/Year</label>
+                {/* Per TERM, not per year — the term is this plan's own Duration below, and the
+                    allowance the Visits column counts against is the term's. (T41) */}
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Visits per term</label>
                 <input
                   type="number"
                   value={form.visitsIncluded}

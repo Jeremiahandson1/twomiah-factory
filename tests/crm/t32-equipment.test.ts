@@ -163,6 +163,61 @@ const api = async (method: string, path: string, body?: unknown) => {
   void expiring
 }
 
+// ══════════ T41 · the category control, which did nothing at all ═══════════════════════════════
+//
+// The report named the vocabulary: "Equipment category filter offers HVAC / Plumbing / Electrical /
+// Appliance" on a LANDSCAPING tenant. Reading the server to fix it found that none of this control
+// worked on any vertical. Equipment is categorised by `categoryId`, a foreign key into the company's
+// own equipment_category table, and the page knew nothing about it: it sent ?category=HVAC (a name
+// where an id goes, so the filter matched nothing), posted `category: 'HVAC'` (a key createEquipment
+// does not read, so the pick was dropped at every save), and rendered `row.category` (a key the list
+// has never carried, so the column was blank in every row).
+//
+// What is pinned here is the SERVER half — the name travelling with the row, and the endpoint the
+// screen now calls to create a category, which until now had no caller and therefore no rules.
+{
+  const rows = (r: any) => r.json?.data || []
+  const list = await api('GET', '/api/equipment?limit=200')
+  const carrier = rows(list).find((r: any) => r.name === 'Carrier 59SC5A')
+  check('T41: a list row carries its category, not just the id',
+    carrier?.category?.id === cat.id && carrier?.category?.name === 'Furnaces', carrier?.category)
+  check('T41: …and a row with no category says so, rather than being absent',
+    'category' in (rows(list).find((r: any) => r.name === 'Month end') || {}), rows(list).find((r: any) => r.name === 'Month end'))
+
+  // The detail read already shaped it this way; the list now matches it instead of a second shape.
+  const detail = await api('GET', `/api/equipment/${carrier.id}`)
+  check('T41: the list and the detail agree on the shape',
+    detail.json?.category?.id === carrier.category.id && detail.json?.category?.name === carrier.category.name,
+    { list: carrier?.category, detail: detail.json?.category })
+
+  // POST /types had no caller, so nothing had ever checked what it accepts.
+  const blank = await api('POST', '/api/equipment/types', { name: '   ' })
+  check('T41: a blank category name is refused', blank.status === 400, { status: blank.status, body: blank.text?.slice(0, 160) })
+  const nameless = await api('POST', '/api/equipment/types', {})
+  check('T41: …and so is no name at all', nameless.status === 400, { status: nameless.status, body: nameless.text?.slice(0, 160) })
+
+  const mowers = await api('POST', '/api/equipment/types', { name: '  Mowers  ' })
+  check('T41: a category is created, trimmed', mowers.status === 201 && mowers.json?.name === 'Mowers',
+    { status: mowers.status, name: mowers.json?.name })
+  const again = await api('POST', '/api/equipment/types', { name: 'mowers' })
+  check('T41: asking again for the same name hands back the SAME row, it does not split the yard in two',
+    again.json?.id === mowers.json?.id, { first: mowers.json?.id, second: again.json?.id })
+
+  const types = await api('GET', '/api/equipment/types')
+  const mowerRows = (types.json || []).filter((t: any) => String(t.name).toLowerCase() === 'mowers')
+  check('T41: …so the company has exactly one "Mowers"', mowerRows.length === 1, types.json)
+  check('T41: the list the screen builds its picker from carries both categories',
+    (types.json || []).some((t: any) => t.id === cat.id) && (types.json || []).some((t: any) => t.id === mowers.json?.id),
+    types.json)
+
+  // And the category actually sticks now — the form sends categoryId.
+  const filed = await api('POST', '/api/equipment', { name: 'Toro 60in', categoryId: mowers.json?.id })
+  const refetched = rows(await api('GET', `/api/equipment?categoryId=${mowers.json?.id}&limit=100`))
+  check('T41: a machine filed under the new category is found by it',
+    refetched.length === 1 && refetched[0]?.id === filed.json?.id, { got: refetched.map((r: any) => r.name) })
+  check('T41: …and reads its name back', refetched[0]?.category?.name === 'Mowers', refetched[0]?.category)
+}
+
 // ══════════ T41 · the four tiles, and what marking a machine broken does to them ════════════════
 //
 // Two faults, one shared module (crm, crm-fieldservice, crm-basic, crm-landscaping all run this):

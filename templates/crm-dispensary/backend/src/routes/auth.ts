@@ -374,6 +374,57 @@ app.put('/pin', authenticate, async (c) => {
   const data = pinSchema.parse(await c.req.json())
 
   /**
+   * A READ-ONLY SEAT HAS NO TILL TO SIGN IN TO. (T41)
+   *
+   *   "PUT /api/auth/pin succeeds for the viewer (and accepted a weak '4141')."
+   *
+   * Quick sign-in exists so somebody standing at a counter — a budtender, a driver at the van, a
+   * manager covering the floor — can get in with four digits instead of a password. A `viewer` is
+   * the read-only reporting seat: it rings nothing, opens no drawer and has no shift. Letting it
+   * hold a PIN only does one thing, which is reduce that account from a password to four digits.
+   */
+  if (currentUser?.role === 'viewer') {
+    return c.json({
+      error: 'Quick sign-in is for the people who work the counter. A read-only account signs in with its password.',
+      code: 'pin_not_for_role',
+    }, 403)
+  }
+
+  /**
+   * …AND NOT A PIN ANYBODY WOULD TRY FIRST. (T41)
+   *
+   * `/pin-login` has only the digits to go on: it walks every PIN-enabled user and the first match
+   * wins. That makes a guessable PIN worse here than on a phone — a stranger at the counter does not
+   * need to know WHOSE PIN it is, only that somebody in the shop used 1234. Five wrong taps lock one
+   * account, and the lockout counts per account, so trying one popular PIN against a shop of twelve
+   * people costs an attacker nothing.
+   *
+   * Refused: one repeated digit (1111), a straight run up or down (1234, 4321, 9876), and a repeated
+   * pair, which is how '4141' got in. Not a dictionary — just the handful a person tries first.
+   */
+  const pin = data.pin
+  const weak = (() => {
+    if (/^(\d)\1+$/.test(pin)) return 'the same digit over and over'
+    const digits = [...pin].map(Number)
+    const run = (step: number) => digits.every((d, i) => i === 0 || d === digits[i - 1] + step)
+    if (run(1) || run(-1)) return 'digits in a straight run'
+    // A repeated pair or triple: 4141, 123123. Only when the block genuinely repeats to the end.
+    for (const size of [2, 3]) {
+      if (pin.length % size !== 0 || pin.length === size) continue
+      const block = pin.slice(0, size)
+      if (pin === block.repeat(pin.length / size)) return 'a short pattern repeated'
+    }
+    return null
+  })()
+  if (weak) {
+    return c.json({
+      error: `That PIN is ${weak}, which is one of the first a stranger would try at the counter. `
+        + 'Quick sign-in matches on the digits alone, so pick something that is not a pattern.',
+      code: 'pin_too_weak',
+    }, 400)
+  }
+
+  /**
    * A PIN IDENTIFIES ONE PERSON. (T57)
    *
    * `/pin-login` has only the digits to go on: it walks the PIN-enabled users and the first match

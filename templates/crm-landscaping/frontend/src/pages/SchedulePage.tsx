@@ -16,5 +16,5 @@ export default function SchedulePage() {
   // a page you own. Only the three templates the registry actually offers this to consult the flag — the
   // other SchedulePage consumers (salon, restaurant, RV) are not sold it and keep the default.
   const { hasFeature } = useAuth();
-  return <SharedSchedulePage api={api as any} toast={toast} config={{ jobLabel: 'Service Call', dragDrop: hasFeature('drag_drop_calendar') }} />;
+  return <SharedSchedulePage api={api as any} toast={toast} config={{ jobLabel: 'Job', dragDrop: hasFeature('drag_drop_calendar') }} />;
 }

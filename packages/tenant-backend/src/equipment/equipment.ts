@@ -70,8 +70,25 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
   const opt = { contacts: !!deps.options?.contacts, sites: !!deps.options?.sites, linkedJobs: !!deps.options?.linkedJobs }
 
   // ---- categories ----
-  async function createEquipmentType(companyId: string, data: { name: string }) {
-    const [result] = await db.insert(equipmentCategory).values({ companyId, name: data.name }).returning()
+  /**
+   * A CATEGORY THE SCREEN CAN NOW ACTUALLY CREATE. (T41)
+   *
+   * This endpoint had no caller until the Equipment page started building its Category control from
+   * the company's own rows, so nothing had ever tested what it accepts: `{}` inserted a row whose
+   * name was `undefined`, `{ name: '  ' }` inserted a blank one, and adding "Mowers" twice gave the
+   * company two identical categories with different ids — which then split its equipment across
+   * both in the filter. All three are now refused, and asking again for a name they already have
+   * hands back the row they already have rather than a duplicate.
+   */
+  async function createEquipmentType(companyId: string, data: { name?: unknown }) {
+    const name = String(data?.name ?? '').trim()
+    if (!name) throw Object.assign(new Error('A category name is required'), { status: 400 })
+    if (name.length > 80) throw Object.assign(new Error('A category name is at most 80 characters'), { status: 400 })
+    const existing = await db.select().from(equipmentCategory)
+      .where(and(eq(equipmentCategory.companyId, companyId), sql`lower(${equipmentCategory.name}) = lower(${name})`))
+      .limit(1)
+    if (existing[0]) return existing[0]
+    const [result] = await db.insert(equipmentCategory).values({ companyId, name }).returning()
     return result
   }
   async function getEquipmentTypes(companyId: string) {
@@ -231,6 +248,22 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
       contactMap = Object.fromEntries((contacts as any[]).map((c) => [c.id, c]))
     }
 
+    /**
+     * THE CATEGORY NAME TRAVELS WITH THE ROW. (T41)
+     *
+     * The list returned `categoryId` and nothing else, while the Equipment page's Category column
+     * read `row.category` — a key no list has ever carried — so that column was blank in every row
+     * of every tenant, and the page had no way to show the filter's own vocabulary. The detail read
+     * already returns `category` as the row, so the list now matches it rather than inventing a
+     * second shape.
+     */
+    let categoryMap: Record<string, any> = {}
+    if ((data as any[]).some((e) => e.categoryId)) {
+      const cats = await db.select({ id: equipmentCategory.id, name: equipmentCategory.name })
+        .from(equipmentCategory).where(eq(equipmentCategory.companyId, companyId))
+      categoryMap = Object.fromEntries((cats as any[]).map((r) => [r.id, r]))
+    }
+
     const enriched = (data as any[]).map((eq_item) => ({
       // `shape` adds installDate / warrantyMonths / warrantyActive — the words the form asks in, so
       // opening Edit shows the stored values instead of blanks over them.
@@ -238,6 +271,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
       age: eq_item.purchaseDate
         ? Math.floor((Date.now() - new Date(eq_item.purchaseDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
         : null,
+      category: eq_item.categoryId ? categoryMap[eq_item.categoryId] || null : null,
       ...(opt.contacts ? { contact: eq_item.contactId ? contactMap[eq_item.contactId] || null : null } : {}),
     }))
 

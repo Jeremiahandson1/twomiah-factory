@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import VisitEditorModal, { Visit } from '../../components/vet/VisitEditorModal';
+import { useMayWrite } from '../../shared';
 import { openPrintable } from '../../lib/printable';
 import { ageFromDob, NewPatientModal } from './PatientsPage';
 import { ConfirmDialog } from '../../components/ui/Modal';
@@ -166,6 +167,9 @@ const fileSize = (n?: number): string => {
 };
 
 export default function PatientDetailPage() {
+  // DELETE /api/patients/:id asks contacts:delete now, not contacts:update — a receptionist holds
+  // the latter by grant and could put an animal's record out of existence. (T41)
+  const mayDeletePatient = useMayWrite('contacts:delete');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [detail, setDetail] = useState<Detail>({});
@@ -343,9 +347,11 @@ export default function PatientDetailPage() {
             <button onClick={() => setShowEdit(true)} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">
               <Edit className="w-4 h-4" /> Edit
             </button>
-            <button onClick={() => setDeleteOpen(true)} className="flex items-center gap-1 px-3 py-1.5 border border-red-200 text-red-700 dark:text-red-400 rounded-lg text-sm hover:bg-red-50 dark:hover:bg-red-500/10">
-              <Trash2 className="w-4 h-4" /> Delete
-            </button>
+            {mayDeletePatient && (
+              <button onClick={() => setDeleteOpen(true)} className="flex items-center gap-1 px-3 py-1.5 border border-red-200 text-red-700 dark:text-red-400 rounded-lg text-sm hover:bg-red-50 dark:hover:bg-red-500/10">
+                <Trash2 className="w-4 h-4" /> Delete
+              </button>
+            )}
           </div>
         </div>
 

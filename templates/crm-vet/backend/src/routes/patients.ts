@@ -184,7 +184,21 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
 // That's a liability for a clinic, so a patient with any clinical history is
 // protected: use the "deceased" flag to retire it instead. Only an empty
 // record (a mis-created pet) can be hard-deleted.
-app.delete('/:id', requirePermission('contacts:update'), async (c) => {
+/**
+ * DELETING A PATIENT IS NOT AN EDIT. (T41)
+ *
+ *   "DELETE /api/patients passes the permission check for staff and the Delete button shows."
+ *
+ * It asked for `contacts:update`, and crm-vet grants its receptionist seat exactly that (see
+ * extraRolePermissions in middleware/permissions.ts) so a receptionist could put an animal's record
+ * out of existence. Removing a patient is destructive and final in a way that correcting a weight or
+ * a phone number is not, so it asks the DELETE right, which that grant does not include.
+ *
+ * The guard below stays and is the more important one: a patient with any medical history cannot be
+ * deleted at all, whoever is asking — it is retired by marking it deceased, which keeps the history.
+ * This gate is about the remaining case, a record created by mistake with nothing on it yet.
+ */
+app.delete('/:id', requirePermission('contacts:delete'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

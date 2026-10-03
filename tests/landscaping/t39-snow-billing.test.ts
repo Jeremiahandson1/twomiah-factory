@@ -38,7 +38,7 @@ await setupSchema()
 const { db } = await import('./db/index.ts')
 const { company, user, contact, site, snowContract, snowEvent } = await import('./db/schema.ts')
 const snow = await import('./src/routes/snowBilling.ts')
-const { computeSnowEventCharge, snowContractInputError, snowEventInputError } = snow as any
+const { computeSnowEventCharge, snowContractInputError, snowEventInputError, snowEventChargeError } = snow as any
 
 // ══════════ 1 · the four modes, asserted where the rule lives ════════════════════════════════
 console.log('\n══════════ what a visit is worth ══════════')
@@ -94,13 +94,71 @@ console.log('\n══════════ "per_banana" is not a billing mode
   check('a valid per_push contract with the other rates BLANK is accepted — they mean "not set"',
     snowContractInputError({ billingMode: 'per_push', perPushRate: '65', perEventRate: '', perInchRate: '', saltRate: '' }) === null,
     snowContractInputError({ billingMode: 'per_push', perPushRate: '65', perEventRate: '', perInchRate: '', saltRate: '' }))
-  check('…and all four modes are accepted',
-    ['per_push', 'per_event', 'per_inch', 'seasonal'].every((m) => snowContractInputError({ billingMode: m }) === null),
-    ['per_push', 'per_event', 'per_inch', 'seasonal'].map((m) => [m, snowContractInputError({ billingMode: m })]))
+  // Each mode is accepted WITH its own rate. It used to be accepted without one, which is the T41
+  // finding below — so this assertion now carries the rate, deliberately.
+  const OWN = [['per_push', 'perPushRate'], ['per_event', 'perEventRate'], ['per_inch', 'perInchRate'], ['seasonal', 'seasonalRate']] as const
+  check('…and all four modes are accepted when the rate they bill by is set',
+    OWN.every(([m, f]) => snowContractInputError({ billingMode: m, [f]: '50' }) === null),
+    OWN.map(([m, f]) => [m, snowContractInputError({ billingMode: m, [f]: '50' })]))
 
   check('a negative snowfall on a logged visit is refused', !!snowEventInputError({ snowfallInches: -2 }),
     snowEventInputError({ snowfallInches: -2 }))
   check('…and a non-numeric push count', !!snowEventInputError({ pushes: 'three' }), snowEventInputError({ pushes: 'three' }))
+}
+
+// ══════════ 2b · T41 · the figure the invoice multiplies by cannot be missing ═════════════════
+//
+// Three findings, one fault: a rate or a measure of zero sails through and the winter is billed at
+// nothing. The contract with no per-push rate charges $0 every push; the edit that clears perInchRate
+// with '' does the same to a live contract; and a visit with no pushes stores $0.00 and then sits in
+// the unbilled list for ever, because POST /contracts/:id/bill skips it AND tells the biller it is
+// "covered by the seasonal fee" — on a per-push contract, a flat untruth.
+console.log('\n══════════ a rate of nothing is not a rate ══════════')
+{
+  check('a per_push contract with NO per-push rate is refused',
+    /per-push rate/i.test(String(snowContractInputError({ billingMode: 'per_push', perPushRate: '' }))),
+    snowContractInputError({ billingMode: 'per_push', perPushRate: '' }))
+  check('…and so is one that spells it zero',
+    !!snowContractInputError({ billingMode: 'per_push', perPushRate: '0' }),
+    snowContractInputError({ billingMode: 'per_push', perPushRate: '0' }))
+  check('…and a per_inch contract with no per-inch rate',
+    !!snowContractInputError({ billingMode: 'per_inch', perInchRate: '' }),
+    snowContractInputError({ billingMode: 'per_inch', perInchRate: '' }))
+  check('…and a seasonal contract with no seasonal fee',
+    !!snowContractInputError({ billingMode: 'seasonal' }),
+    snowContractInputError({ billingMode: 'seasonal' }))
+  check('the OTHER rates are still free to be blank — that is what "not set" means',
+    snowContractInputError({ billingMode: 'per_push', perPushRate: '65', perInchRate: '', seasonalRate: '0', saltRate: '' }) === null,
+    snowContractInputError({ billingMode: 'per_push', perPushRate: '65', perInchRate: '', seasonalRate: '0', saltRate: '' }))
+
+  // The EDIT is judged against the stored row, so one field sent alone cannot slip past.
+  const live = { billingMode: 'per_inch', perPushRate: '0', perEventRate: '0', perInchRate: '22.50', seasonalRate: '0' }
+  check("clearing the live rate with '' is refused, not stored as 0.00",
+    !!snowContractInputError({ perInchRate: '' }, live), snowContractInputError({ perInchRate: '' }, live))
+  check('…and so is zeroing it outright', !!snowContractInputError({ perInchRate: '0' }, live),
+    snowContractInputError({ perInchRate: '0' }, live))
+  check('an edit that touches only the notes is fine — the stored rate still stands',
+    snowContractInputError({ notes: 'gate code 4417' }, live) === null,
+    snowContractInputError({ notes: 'gate code 4417' }, live))
+  check('switching a contract to a mode whose rate was never set is refused',
+    !!snowContractInputError({ billingMode: 'per_push' }, live), snowContractInputError({ billingMode: 'per_push' }, live))
+  check('…and switching to one that WAS set is allowed',
+    snowContractInputError({ billingMode: 'per_inch' }, { ...live, billingMode: 'seasonal', seasonalRate: '9000' }) === null,
+    snowContractInputError({ billingMode: 'per_inch' }, { ...live, billingMode: 'seasonal', seasonalRate: '9000' }))
+
+  // A visit with nothing to price it from.
+  const ev = (o: any = {}) => ({ pushes: 1, snowfallInches: 0, saltApplied: false, ...o })
+  check('a per_push visit with 0 pushes is refused', !!snowEventChargeError('per_push', ev({ pushes: 0 })),
+    snowEventChargeError('per_push', ev({ pushes: 0 })))
+  check('a per_inch visit with no snowfall is refused', !!snowEventChargeError('per_inch', ev({ snowfallInches: 0 })),
+    snowEventChargeError('per_inch', ev({ snowfallInches: 0 })))
+  check('…but a SALT-ONLY run is a real visit and is allowed',
+    snowEventChargeError('per_push', ev({ pushes: 0, saltApplied: true })) === null,
+    snowEventChargeError('per_push', ev({ pushes: 0, saltApplied: true })))
+  check('a per_event visit needs no measure — the charge is the flat rate',
+    snowEventChargeError('per_event', ev({ pushes: 0 })) === null, snowEventChargeError('per_event', ev({ pushes: 0 })))
+  check('…nor does a seasonal one',
+    snowEventChargeError('seasonal', ev({ pushes: 0 })) === null, snowEventChargeError('seasonal', ev({ pushes: 0 })))
 }
 
 // ══════════ the fixture ══════════════════════════════════════════════════════════════════════
@@ -157,8 +215,25 @@ let perPushId = ''
     Number((await one(sql`SELECT per_event_rate FROM snow_contract WHERE id = ${perPushId}`))?.per_event_rate) === 0,
     await one(sql`SELECT per_event_rate, per_inch_rate FROM snow_contract WHERE id = ${perPushId}`))
 
+  // T41: the contract the shop bills by carries the site's customer, written down at signing rather
+  // than re-derived at billing time (reassign the site mid-season and the old visits would follow it).
+  check('…and the contract stored the site\'s customer, not null',
+    (await one(sql`SELECT contact_id FROM snow_contract WHERE id = ${perPushId}`))?.contact_id === client.id,
+    await one(sql`SELECT contact_id FROM snow_contract WHERE id = ${perPushId}`))
+
+  // T41: the rate this contract is billed BY cannot be the blank one.
+  const noRate = await asOwner('POST', '/api/snow/contracts', { siteId: plaza.id, billingMode: 'per_push', perPushRate: '' })
+  check('a per_push contract with no per-push rate is refused over HTTP', noRate.status === 400,
+    { status: noRate.status, body: noRate.text?.slice(0, 200) })
+  const zeroed = await asOwner('PUT', `/api/snow/contracts/${perPushId}`, { perPushRate: '' })
+  check("…and PUT perPushRate '' does not quietly zero a live contract", zeroed.status === 400,
+    { status: zeroed.status, body: zeroed.text?.slice(0, 200) })
+  check('…so the stored rate is still 65.00',
+    Number((await one(sql`SELECT per_push_rate FROM snow_contract WHERE id = ${perPushId}`))?.per_push_rate) === 65,
+    await one(sql`SELECT per_push_rate FROM snow_contract WHERE id = ${perPushId}`))
+
   const n = await one(sql`SELECT COUNT(*)::int AS n FROM snow_contract WHERE company_id = ${co.id}`)
-  check('…and the two refusals saved nothing', Number(n?.n) === 1, n)
+  check('…and the refusals saved nothing', Number(n?.n) === 1, n)
 }
 
 // ══════════ 4 · logging visits and billing them once ═════════════════════════════════════════
@@ -176,10 +251,23 @@ console.log('\n══════════ billing the winter ═════
   })
   check('a second visit is priced on its own merits: 65.00', Number(e2.json?.billableAmount) === 65, { billableAmount: e2.json?.billableAmount })
 
+  // T41: a visit with nothing to price it from used to store $0.00 and then sit unbillable for ever.
+  const zeroPush = await asOwner('POST', '/api/snow/events', {
+    snowContractId: perPushId, siteId: plaza.id, pushes: 0, saltApplied: false, servicedAt: '2027-01-09T06:00:00Z',
+  })
+  check('a per-push visit with 0 pushes is refused, not logged at $0.00', zeroPush.status === 400,
+    { status: zeroPush.status, body: zeroPush.text?.slice(0, 200) })
+  const saltOnly = await asOwner('POST', '/api/snow/events', {
+    snowContractId: perPushId, siteId: plaza.id, pushes: 0, saltApplied: true, servicedAt: '2027-01-10T06:00:00Z',
+  })
+  check('…but a salt-only run logs, at the salt rate: 40.00', saltOnly.status === 201 && Number(saltOnly.json?.billableAmount) === 40,
+    { status: saltOnly.status, billableAmount: saltOnly.json?.billableAmount })
+
   const billed = await asOwner('POST', `/api/snow/contracts/${perPushId}/bill`)
   check('the contract bills', billed.status === 201, { status: billed.status, body: billed.text?.slice(0, 200) })
-  check('…for both visits', billed.json?.billedVisits === 2, { billedVisits: billed.json?.billedVisits })
-  check('…and the invoice total is 300.00', Number(billed.json?.invoice?.total) === 300 || Number(billed.json?.invoice?.subtotal) === 300,
+  // Three visits now: 235 (3 pushes + salt) + 65 (1 push) + 40 (salt only) = 340.
+  check('…for all three visits', billed.json?.billedVisits === 3, { billedVisits: billed.json?.billedVisits })
+  check('…and the invoice total is 340.00', Number(billed.json?.invoice?.total) === 340 || Number(billed.json?.invoice?.subtotal) === 340,
     { total: billed.json?.invoice?.total, subtotal: billed.json?.invoice?.subtotal })
 
   // Billing again must find nothing — the visits are on an invoice now.

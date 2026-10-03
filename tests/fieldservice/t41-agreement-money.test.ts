@@ -215,5 +215,76 @@ console.log('\n── what the work is worth ──')
   check('T41: a manager still sees the value', /11183/.test(mgrOne.text || ''), (mgrOne.text || '').slice(0, 120))
 }
 
+// ══════════ T41 · the Visits column that said " remaining" ══════════════════════════════════════
+//
+//   landscaping: "Agreements Visits column shows 'remaining' with no number."
+//
+// The page rendered `{agreement.visitsRemaining} remaining` and nothing had ever computed
+// visitsRemaining, so React printed the undefined as nothing: every row of every vertical that sells
+// maintenance agreements said the word with no figure in front of it. The pieces were all there —
+// the plan's allowance, and the agreement_visit rows — and were never put together.
+//
+// Pinned here: the arithmetic, that a BOOKED visit counts as spent (it is already promised), and the
+// term boundary, because renewAgreement moves startDate forward on the same row and last year's
+// visits must not eat this year's allowance.
+console.log('\n── how many visits are left ──')
+{
+  const { agreementVisit } = await import('./db/schema.ts')
+  const listed = async (who: any) => {
+    const r = await as(who)('GET', '/api/agreements?limit=50')
+    return (r.json?.data || []).find((a: any) => a.id === agreement.id)
+  }
+
+  const fresh = await listed(owner)
+  check('T41: the figure is SENT at all — it simply did not exist before', fresh?.visitsRemaining === 4,
+    { visitsRemaining: fresh?.visitsRemaining, included: fresh?.visitsIncluded })
+  check('T41: …with the plan\'s allowance beside it, so the screen can say "4 of 4"', fresh?.visitsIncluded === 4, fresh)
+
+  // Book two and complete one of them, through the endpoints the screen uses.
+  const v1 = await as(owner)('POST', `/api/agreements/${agreement.id}/visits`, { scheduledDate: '2026-03-10T09:00:00Z' })
+  const v2 = await as(owner)('POST', `/api/agreements/${agreement.id}/visits`, { scheduledDate: '2026-06-10T09:00:00Z' })
+  check('T41: two visits are booked', v1.status === 201 && v2.status === 201, { v1: v1.status, v2: v2.status })
+  const done = await as(owner)('POST', `/api/agreements/visits/${v1.json?.id}/complete`, {})
+  check('T41: …and one completed', done.status === 200, { status: done.status, body: done.text?.slice(0, 160) })
+
+  const after = await listed(owner)
+  check('T41: one done, one booked, so TWO of the four are left', after?.visitsRemaining === 2,
+    { remaining: after?.visitsRemaining, completed: after?.visitsCompleted, scheduled: after?.visitsScheduled })
+  check('T41: …and the breakdown is sent, not just the total',
+    after?.visitsCompleted === 1 && after?.visitsScheduled === 1, after)
+
+  // A visit before this term started belongs to the term before it.
+  await db.insert(agreementVisit).values({
+    agreementId: agreement.id, scheduledDate: new Date('2025-06-01T09:00:00Z'), status: 'completed', completedAt: new Date('2025-06-01T11:00:00Z'),
+  } as any)
+  const stillTwo = await listed(owner)
+  check('T41: a visit from the PREVIOUS term does not eat this term\'s allowance', stillTwo?.visitsRemaining === 2,
+    { remaining: stillTwo?.visitsRemaining, completed: stillTwo?.visitsCompleted })
+
+  // The detail read shapes it the same way — the screen must not have to ask twice.
+  const detail = await as(owner)('GET', `/api/agreements/${agreement.id}`)
+  check('T41: the detail read agrees with the list', detail.json?.visitsRemaining === 2 && detail.json?.visitsIncluded === 4,
+    { remaining: detail.json?.visitsRemaining, included: detail.json?.visitsIncluded })
+
+  // A plan with no allowance must read "no cap", not "0 left" — so the server sends null, not 0.
+  const [openPlan] = await db.insert(agreementPlan).values({
+    companyId: co.id, name: 'As needed', price: '0.00', billingFrequency: 'monthly', visitsIncluded: 0, active: true,
+  } as any).returning()
+  const [openAgreement] = await db.insert(serviceAgreement).values({
+    companyId: co.id, contactId: client.id, planId: openPlan.id, number: 'AGR-T41-2',
+    name: 'Beechwood as-needed', status: 'active', renewalType: 'manual',
+    startDate: new Date('2026-01-01'), endDate: soon, billingFrequency: 'monthly', amount: '0.00',
+  } as any).returning()
+  const open = (((await as(owner)('GET', '/api/agreements?limit=50')).json?.data) || []).find((a: any) => a.id === openAgreement.id)
+  check('T41: a plan with no visit allowance reports null, not 0 — "unlimited" is not "used up"',
+    open?.visitsRemaining === null && open?.visitsIncluded === 0,
+    { remaining: open?.visitsRemaining, included: open?.visitsIncluded })
+
+  // And a technician, who may not see the money, still sees how many visits are left: that is the work.
+  const techRow = await listed(tech)
+  check('T41: a technician still sees the visits left — operational, not financial', techRow?.visitsRemaining === 2,
+    { remaining: techRow?.visitsRemaining, money: moneyKeys(techRow) })
+}
+
 console.log(`\n  ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

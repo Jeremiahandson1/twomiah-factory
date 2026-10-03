@@ -13,6 +13,22 @@ const MODES = [
   { value: 'seasonal', label: 'Seasonal' },
 ];
 
+/**
+ * Which rate the contract is actually billed by. (T41)
+ *
+ * Mirrors MODE_RATE in backend/src/routes/snowBilling.ts, which refuses a contract whose own rate is
+ * blank or zero — "a per-push contract saves with no per-push rate" was accepted and then charged
+ * $0.00 for the season. The form shows all four boxes because switching modes mid-setup is normal, so
+ * it has to say WHICH one is the one that matters, and catch it here rather than let the server's
+ * refusal arrive as a toast after the operator has moved on.
+ */
+const MODE_RATE: Record<string, { field: string; label: string }> = {
+  per_push: { field: 'perPushRate', label: 'Per push' },
+  per_event: { field: 'perEventRate', label: 'Per event' },
+  per_inch: { field: 'perInchRate', label: 'Per inch' },
+  seasonal: { field: 'seasonalRate', label: 'Seasonal' },
+};
+
 const EMPTY_CONTRACT = {
   siteId: '', billingMode: 'per_push', perPushRate: '', perEventRate: '', perInchRate: '',
   seasonalRate: '', triggerDepthInches: '2', saltRate: '', notes: '',
@@ -85,8 +101,14 @@ export default function SnowBillingPage() {
     } catch { setEvents([]); }
   };
 
+  const needed = MODE_RATE[form.billingMode];
+
   const createContract = async () => {
     if (!form.siteId) { toast.error('Pick the property this contract covers'); return; }
+    if (needed && !(Number(form[needed.field]) > 0)) {
+      toast.error(`This contract is billed ${needed.label.toLowerCase()}, so set the "${needed.label} ($)" rate above zero.`);
+      return;
+    }
     try {
       await api.post('/api/snow/contracts', form);
       toast.success('Contract created');
@@ -102,6 +124,18 @@ export default function SnowBillingPage() {
 
   const logEvent = async () => {
     if (!selected) return;
+    // The measure this contract's charge is calculated from. Without it the visit stores $0.00 and
+    // then sits unbillable for ever, which is what the server now refuses. (T41)
+    if (!evForm.saltApplied) {
+      if (selected.billingMode === 'per_push' && !(Number(evForm.pushes) > 0)) {
+        toast.error('This contract is billed per push — enter how many pushes, or tick Salt applied if that is all that was done.');
+        return;
+      }
+      if (selected.billingMode === 'per_inch' && !(Number(evForm.snowfallInches) > 0)) {
+        toast.error('This contract is billed per inch — enter the snowfall, or tick Salt applied if that is all that was done.');
+        return;
+      }
+    }
     try {
       const res = await api.post('/api/snow/events', { snowContractId: selected.id, ...evForm });
       toast.success(`Logged — billed $${Number(res.billableAmount).toFixed(2)}`);
@@ -166,6 +200,13 @@ export default function SnowBillingPage() {
           <Field id="snow-salt" label="Salt ($)">
             <input id="snow-salt" className="w-full border rounded px-2 py-1.5 text-sm" type="number" placeholder="Salt $" value={form.saltRate} onChange={e => setForm({ ...form, saltRate: e.target.value })} />
           </Field>
+          {/* Four rate boxes, one of which the invoice is actually calculated from. Say which. (T41) */}
+          {needed && (
+            <p className="col-span-2 md:col-span-4 text-xs text-gray-600 dark:text-slate-400">
+              Billed <strong>{needed.label.toLowerCase()}</strong>, so <strong>{needed.label} ($)</strong> is required — the other rates can stay blank.
+              Salt is charged on top in every mode.
+            </p>
+          )}
           <button onClick={createContract} className="col-span-2 bg-blue-600 text-white rounded px-3 py-1.5 text-sm">Create Contract</button>
         </div>
       )}
@@ -226,7 +267,13 @@ export default function SnowBillingPage() {
               <div className="space-y-1 max-h-72 overflow-y-auto">
                 {events.map(ev => (
                   <div key={ev.id} className="flex justify-between text-sm border-b py-1.5">
-                    <span>{formatDate(ev.servicedAt)} · {ev.pushes} push · {Number(ev.snowfallInches)}"{ev.saltApplied ? ' · salt' : ''}</span>
+                    {/* A salt-only run has no pushes and no snowfall; it reads "salt", not "0 push · 0"". */}
+                    <span>{[
+                      formatDate(ev.servicedAt),
+                      Number(ev.pushes) > 0 ? `${ev.pushes} push` : '',
+                      Number(ev.snowfallInches) > 0 ? `${Number(ev.snowfallInches)}"` : '',
+                      ev.saltApplied ? 'salt' : '',
+                    ].filter(Boolean).join(' · ')}</span>
                     <span className="font-semibold">${Number(ev.billableAmount).toFixed(2)}</span>
                   </div>
                 ))}

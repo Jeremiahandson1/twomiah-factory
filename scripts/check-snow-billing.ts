@@ -33,10 +33,57 @@ if (!/export function snowContractInputError/.test(r) || !/export function snowE
 if (!/Billing mode must be one of: \$\{BILLING_MODES\.join\(', '\)\}\./.test(r)) fail('an unknown billing mode must be refused by name')
 if (!/must be a number from 0 to 1,000,000\./.test(r) || !/if \(v === undefined \|\| v === null \|\| String\(v\)\.trim\(\) === ''\) continue/.test(r)) fail('rates: blank stays "not set", junk is refused')
 if (!/Pushes must be a whole number from 0 to 100\./.test(r) || !/Snowfall must be a number of inches from 0 to 120\./.test(r) || !/Serviced date must be a valid date\./.test(r)) fail('visit fields must be checked')
-for (const [route, fn] of [["app.post('/contracts'", 'snowContractInputError'], ["app.put('/contracts/:id'", 'snowContractInputError'], ["app.post('/events'", 'snowEventInputError']] as const) {
+const handler = (route: string) => {
   const i = r.indexOf(route)
-  const body = i < 0 ? '' : r.slice(i, r.indexOf('\n})\n', i))
-  if (!body.includes(`${fn}(body)`) || !/return c\.json\(\{ error: bad/.test(body)) fail(`${route} must refuse bad input with 400`)
+  return i < 0 ? '' : r.slice(i, r.indexOf('\n})\n', i))
+}
+for (const [route, fn] of [["app.post('/contracts'", 'snowContractInputError'], ["app.put('/contracts/:id'", 'snowContractInputError'], ["app.post('/events'", 'snowEventInputError']] as const) {
+  const body = handler(route)
+  // The edit passes the STORED row as well, so match the call by name + first argument.
+  if (!new RegExp(`${fn}\\(body[,)]`).test(body) || !/return c\.json\(\{ error: bad/.test(body)) fail(`${route} must refuse bad input with 400`)
+}
+
+/**
+ * The money rules T41 found, each pinned to the PROPERTY and not to my wording. (T41)
+ *
+ *   a per-push contract saved with no per-push rate · PUT perInchRate '' zeroed the live rate ·
+ *   pushes 0 logged a $0 visit that can never be billed · contactId stored null
+ *
+ * These are all one fault wearing four hats: a figure the invoice multiplies by was allowed to be
+ * absent. The guard checks the rule can still SEE the stored row (without it, a PATCH that sends one
+ * field alone slips through), that the four modes each name their own rate, and that a visit's base
+ * measure is required unless it was a salt-only run.
+ */
+{
+  const v = r.slice(r.indexOf('export function snowContractInputError'), r.indexOf('export function snowEventInputError'))
+  if (!/snowContractInputError\(body: any, existing\?: any\)/.test(r)) fail('snowContractInputError must accept the stored row, or an edit sending one field cannot be judged')
+  for (const [mode, field] of [['per_push', 'perPushRate'], ['per_event', 'perEventRate'], ['per_inch', 'perInchRate'], ['seasonal', 'seasonalRate']]) {
+    if (!new RegExp(`${mode}: \\['${field}'`).test(v)) fail(`the billing mode ${mode} must require its own rate (${field})`)
+  }
+  if (!/const mode = body\.billingMode \?\? existing\?\.billingMode/.test(v)) fail('the mode judged must be the one the row will HOLD: the sent one, else the stored one')
+  if (!/sent !== undefined \? String\(sent \?\? ''\)\.trim\(\) : String\(existing\?\.\[field\] \?\? ''\)\.trim\(\)/.test(v)) fail("the rate judged must be the one the row will HOLD, so clearing it with '' is caught")
+  if (!/effective === '' \|\| !Number\.isFinite\(n\) \|\| n <= 0/.test(v)) fail("a billing mode's own rate must be above zero — blank and 0 both bill the season at nothing")
+
+  const put = handler("app.put('/contracts/:id'")
+  if (!/const \[before\] = await db\.select\(\)\.from\(snowContract\)/.test(put) || put.indexOf('const [before]') > put.indexOf('snowContractInputError(body, before)')) {
+    fail('PUT /contracts/:id must read the stored contract BEFORE validating, and pass it in')
+  }
+
+  const ec = r.slice(r.indexOf('export function snowEventChargeError'), r.indexOf('// ---- Contracts ----'))
+  if (!ec) fail('snowEventChargeError is missing — a per-push visit with no pushes bills nothing, for ever')
+  else {
+    if (!/if \(ev\.saltApplied\) return null/.test(ec)) fail('a salt-only run is a real visit and must stay loggable')
+    if (!/billingMode === 'per_push' && !\(Number\(ev\.pushes\) > 0\)/.test(ec)) fail('a per_push visit must have at least one push')
+    if (!/billingMode === 'per_inch' && !\(Number\(ev\.snowfallInches\) > 0\)/.test(ec)) fail('a per_inch visit must have the snowfall measured')
+  }
+  const ev = handler("app.post('/events'")
+  if (!/snowEventChargeError\(contract\.billingMode, ev\)/.test(ev) || ev.indexOf('snowEventChargeError') > ev.indexOf('computeSnowEventCharge')) {
+    fail('POST /events must refuse an unchargeable visit before pricing it')
+  }
+  const post = handler("app.post('/contracts'")
+  if (!/contactId: body\.contactId \?\? siteRow\.contactId \?\? null/.test(post) || !/contactId: site\.contactId/.test(post)) {
+    fail("a new contract must store the site's customer, not leave the biller to re-derive it later")
+  }
 }
 if (!/eq\(site\.id, String\(body\.siteId\)\), eq\(site\.companyId, user\.companyId\)/.test(r) || !/'Site not found' \}, 404\)/.test(r)) fail("a contract's site must belong to the company")
 

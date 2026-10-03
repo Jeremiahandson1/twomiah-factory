@@ -34,7 +34,8 @@ const SERVICE_ICONS = {
 };
 
 /**
- * Dispatch Board — Today's service call scheduling and assignment
+ * Dispatch Board — today's job scheduling and assignment. (T41: this vertical runs jobs, not
+ * service calls; see the note in jobsConfig.ts.)
  */
 export default function DispatchBoard() {
   const toast = useToast();
@@ -86,7 +87,7 @@ export default function DispatchBoard() {
   const handleStatusChange = async (jobId, status) => {
     try {
       await api.put(`/api/jobs/${jobId}`, { status });
-      toast.success(`Service call ${status === 'in_progress' ? 'started' : 'completed'}`);
+      toast.success(`Job ${status === 'in_progress' ? 'started' : 'completed'}`);
       loadData();
     } catch (error) {
       toast.error('Failed to update job status');
@@ -294,7 +295,7 @@ function DispatchCard({ job, techs, onAssign, onStatusChange }) {
 
       {/* Customer */}
       <p className="font-semibold text-gray-900 dark:text-white truncate">
-        {job.contact?.name || job.customerName || job.title || 'Unnamed Service Call'}
+        {job.contact?.name || job.customerName || job.title || 'Unnamed job'}
       </p>
 
       {/* Address */}
