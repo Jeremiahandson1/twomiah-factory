@@ -54,6 +54,39 @@ export const meetsRole = (role: string | undefined, minRole: string | undefined)
   return need < 0 ? true : have >= need
 }
 
+/**
+ * "May this person open this route at all?" — the ONE rule, so a link cannot disagree with the URL.
+ *
+ * AppShell already applies both halves of this when it decides whether to blank a page the person
+ * typed their way into: the rank from `routeRoles` (or the nav item's `minRole`) and then the
+ * permission from `routePermissions` (or the item's `permission`). Links drawn from `config.nav` get
+ * it for free. Two places do not:
+ *
+ *   - the shell's own Settings links (sidebar foot and account menu), which are not nav items; and
+ *   - the Account Settings tile on the portal home, in every vertical's CustomerPortal.
+ *
+ * T41, on the salon: "the portal home offers an 'Account Settings' tile whose APIs 403". Salon
+ * declares `routeRoles['/crm/settings'] = 'admin'`, so a stylist was being handed a tile to a screen
+ * the shell then blanked — an offer with a refusal behind it. Salon T29 L1 had already fixed the
+ * sidebar half by hand; this is the same rule, named once, so the next surface that needs it asks
+ * the question instead of re-deriving the answer.
+ *
+ * `can` is optional and OPEN when absent: two verticals mount no permissions provider at all, and a
+ * link hidden from everybody — the owner included — is a worse bug than a link that 403s. A template
+ * that declares no requirement for a route is likewise not second-guessed.
+ */
+export const maySeeRoute = (
+  config: { routeRoles?: Record<string, string>; routePermissions?: Record<string, string>; nav?: NavItem[] },
+  to: string,
+  role: string | undefined,
+  can?: (permission: string) => boolean,
+): boolean => {
+  const item = config.nav?.find((i) => i.to === to)
+  if (!meetsRole(role, config.routeRoles?.[to] ?? item?.minRole)) return false
+  const permission = config.routePermissions?.[to] ?? item?.permission
+  return !permission || !can || can(permission)
+}
+
 export interface ShellAuth {
   user: any
   company: any

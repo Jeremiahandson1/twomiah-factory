@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
-import { brandSurfaceUnderWhite } from '../shared';
+import { brandSurfaceUnderWhite, maySeeRoute } from '../shared';
+import { SHELL } from '../shellConfig';
 
 interface DashboardStats {
   contacts?: number;
@@ -35,6 +36,11 @@ interface StatCard {
 export default function CustomerPortal() {
   const { user, company, logout, loading: authLoading, checkAuth, hasFeature } = useAuth();
   const navigate = useNavigate();
+  // The shell blanks /crm/settings for a role its vertical does not let in (shellConfig.routeRoles /
+  // routePermissions), and this tile was handing that role the door anyway — an offer with a refusal
+  // behind it. Same question the sidebar's Settings link asks, from the same declaration, so the two
+  // cannot drift. Verticals that declare no rule are unaffected: maySeeRoute says yes. (T41)
+  const maySeeSettings = maySeeRoute(SHELL, '/crm/settings', user?.role);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [activity, setActivity] = useState<ActivityData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -247,6 +253,7 @@ export default function CustomerPortal() {
           )}
 
           {/* Settings */}
+          {maySeeSettings && (
           <div
             onClick={() => navigate('/crm/settings')}
             className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden dark:bg-slate-900"
@@ -263,6 +270,7 @@ export default function CustomerPortal() {
               Company info, users, integrations, billing
             </p>
           </div>
+          )}
         </div>
 
         {/* Recent Activity */}

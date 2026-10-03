@@ -172,6 +172,11 @@ export default function RemindersPage() {
   };
 
   const rows: { contactId?: string }[] = tab === 'due' ? dueRows : tab === 'lapsed' ? lapsedRows : bdayRows;
+  // /reminders/lapsed omits lifetimeValue for a seat without invoices:read (see routes/reminders.ts).
+  // Read off the rows rather than from a second permission check, so the header and the cells cannot
+  // disagree and shift the whole table by one column. The win-back order is unaffected — the server
+  // sorts by the figure before dropping it. (T41)
+  const showLifetime = lapsedRows.some((r) => r.lifetimeValue !== undefined);
   const allIds = Array.from(new Set(rows.map((r) => r.contactId).filter(Boolean))) as string[];
   const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
 
@@ -322,7 +327,7 @@ export default function RemindersPage() {
                   <>
                     <th className="px-4 py-3 font-medium">Last Visit</th>
                     <th className="px-4 py-3 font-medium">Visits</th>
-                    <th className="px-4 py-3 font-medium">Lifetime</th>
+                    {showLifetime && <th className="px-4 py-3 font-medium">Lifetime</th>}
                   </>
                 )}
                 {tab === 'birthdays' && (
@@ -379,7 +384,7 @@ export default function RemindersPage() {
                   <td className="px-4 py-3 text-gray-600 text-xs dark:text-slate-400">{contactLine(r)}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{fmtDate(r.lastVisit)}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{r.visits ?? 0}</td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{money(r.lifetimeValue)}</td>
+                  {showLifetime && <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{money(r.lifetimeValue)}</td>}
                 </tr>
               ))}
 

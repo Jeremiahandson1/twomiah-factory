@@ -5,7 +5,7 @@ import { createAccountBalanceStore, balanceFrom, describeBalance } from '../shar
 import { listFormulas, keepFormula, forgetFormula, keepFromRecord, recordForKeeping, hasSubstance } from '../services/clientFormulas.ts'
 import { eq, and, or, ilike, count, desc, ne , sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { isClient } from '../utils/clientTypes.ts'
@@ -198,6 +198,33 @@ app.get('/:contactId', requirePermission('contacts:read'), async (c) => {
   const accountBalance = balanceFrom(await db.select({ amount: clientAccountEntry.amount }).from(clientAccountEntry)
     .where(and(eq(clientAccountEntry.contactId, contactId), eq(clientAccountEntry.companyId, currentUser.companyId))))
 
+  /**
+   * LIFETIME VALUE IS THE SALON'S MONEY, AND THE STYLIST IS NOT GIVEN THE SALON'S MONEY. (T41)
+   *
+   *   "Stylist sees client Lifetime Value $43.40 while invoice endpoints are 403."
+   *
+   * The permission file one directory over already decided this in writing — `extraRolePermissions`
+   * lists what a stylist gets and then says "Not here, deliberately: ... invoices:* / reports:*
+   * (the salon's money)". This figure is computed straight off the invoice table: SUM(amountPaid −
+   * amountRefunded) across every live invoice the client has. It is the invoice total the stylist is
+   * refused, added up, arriving through the client chart.
+   *
+   * It goes to anyone holding `invoices:read` — owner, manager, and Front Desk (`viewer`), which is
+   * the till. The same rule is applied to GET /reminders/lapsed, which sorts a win-back list BY this
+   * figure; a report naming one surface is not a reason to leave the sibling leaking.
+   *
+   * WHAT STAYS FOR EVERYONE, and why it is not the same thing:
+   *   accountBalance  Money the client is HOLDING WITH THE SALON. A stylist holds loyalty:redeem
+   *                   precisely because they check their own client out, and a credit nobody can see
+   *                   is a credit nobody spends — withhold it and they take a card for money already
+   *                   paid. It is the client's own position, not the shop's takings.
+   *   visits/lastVisit/dueBackAt   When they were last in and when they are due. The retention job.
+   *
+   * Deleted, not zeroed: `money(0)` renders "$0.00", which tells a stylist their best client has
+   * never spent anything. The absent key is what lets the tile disappear instead of lying.
+   */
+  const maySeeClientMoney = hasPermission(currentUser?.role, 'invoices:read', await getExtraPermissions(currentUser?.userId))
+
   return c.json({
     contact: ct,
     profile: profile || null,
@@ -205,7 +232,8 @@ app.get('/:contactId', requirePermission('contacts:read'), async (c) => {
     appointments,
     memberships,
     stats: {
-      visits: serviceRecords.length, lifetimeValue, dueBackAt,
+      visits: serviceRecords.length, dueBackAt,
+      ...(maySeeClientMoney ? { lifetimeValue } : {}),
       lastVisit: serviceRecords[0]?.performedAt ?? null,
       accountBalance,
       accountBalanceLabel: describeBalance(accountBalance),

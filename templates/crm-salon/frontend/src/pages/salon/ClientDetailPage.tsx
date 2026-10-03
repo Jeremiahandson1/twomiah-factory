@@ -285,10 +285,17 @@ export default function ClientDetailPage() {
             <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Visits</p>
             <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{stats.visits ?? 0}</p>
           </div>
-          <div className="border rounded-lg p-3">
-            <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Lifetime Value</p>
-            <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{money(stats.lifetimeValue)}</p>
-          </div>
+          {/* The server omits lifetimeValue for a seat without invoices:read (see
+              routes/clients.ts). Keyed off the ABSENCE of the field rather than a permission check
+              here, so the tile tracks the server exactly and there is no second rule to drift:
+              money(undefined) would print "$0.00" and tell a stylist their best client has never
+              spent a penny. The remaining tiles are a grid, so the row simply closes up. (T41) */}
+          {stats.lifetimeValue !== undefined && (
+            <div className="border rounded-lg p-3">
+              <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Lifetime Value</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{money(stats.lifetimeValue)}</p>
+            </div>
+          )}
           <div className="border rounded-lg p-3">
             <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Last Visit</p>
             <p className="text-sm font-medium text-gray-900 mt-1 dark:text-slate-100">{fmtDate(stats.lastVisit)}</p>

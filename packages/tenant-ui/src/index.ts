@@ -79,6 +79,9 @@ export { SkipLink, FocusTrap, RouteAnnouncer } from './shell/Accessibility'
 export { applyStoredTheme, useTheme, useIsDark, useMediaQuery, useIsMobile, useIsTablet, useIsDesktop, usePrefersDarkMode, usePrefersReducedMotion } from './shell/hooks'
 export type { NavItem, ShellConfig, ShellAuth, AppShellProps, SettingsConfig, SettingsPageProps, FeaturesSettingsPageProps, RoleOption } from './shell/types'
 export { DEFAULT_ROLES, ROLE_LABELS } from './shell/types'
+// The shell's own route rules, so a link drawn OUTSIDE the shell (the portal home's Account Settings
+// tile) asks the same question the URL guard asks instead of carrying a second copy of it. (T41)
+export { meetsRole, maySeeRoute, ROLE_RANK } from './shell/types'
 export { EMAIL_ALIAS_DEFAULTS, getAliasDefaultsForProduct } from './config/emailDefaults'
 // Auth — session provider + sign-in / forgot / reset pages + route guards, one implementation for every CRM.
 export { AuthProvider, useAuth } from './auth/AuthContext'

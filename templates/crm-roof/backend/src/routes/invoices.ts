@@ -64,7 +64,25 @@ const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: n
  *
  * Declared before '/:id' so the path is not swallowed as an invoice id.
  */
-app.get('/summary', async (c) => {
+/**
+ * ALL FOUR INVOICE READS NEEDED `invoices:read`, and none of them had it. (T41)
+ *
+ * Every WRITE on this router was gated (create, update, send, mark-paid, payment) and every READ
+ * was open — `authenticate` and nothing else. T41 read them as the staff seat:
+ *
+ *   "Staff sees money: Reports (Invoiced, Collected, Outstanding, revenue by rep and by crew), all
+ *    76 invoices with balances, and estimatedRevenue/materialCost/laborCost in the GET /api/jobs
+ *    list (the single-job GET hides them). /api/quotes is 403, so access is inconsistent."
+ *
+ * "Inconsistent" is the diagnosis: the quote routes refused this seat while the invoices beside them
+ * did not. Roof keeps its own invoicing because its schema differs (line items are JSON on the row,
+ * no payment table) — and that fork is how it missed the permission the rest of the fleet applies.
+ *
+ * The Reports page is built in the browser from /api/invoices/summary plus /api/jobs, so gating the
+ * summary is what empties the Invoiced / Collected / Outstanding tiles for a seat that should not
+ * have them; the job figures behind "revenue by rep and by crew" are handled in routes/jobs.ts.
+ */
+app.get('/summary', requirePermission('invoices:read'), async (c) => {
   const currentUser = c.get('user') as any
   const BILLED = ['void', 'draft']
   const billed = sql`${invoice.status} NOT IN ('void', 'draft')`
@@ -89,7 +107,7 @@ app.get('/summary', async (c) => {
   })
 })
 
-app.get('/', async (c) => {
+app.get('/', requirePermission('invoices:read'), async (c) => {
   const currentUser = c.get('user') as any
   const status = c.req.query('status')
   const unpaid = c.req.query('unpaid')
@@ -184,7 +202,7 @@ app.post('/', requirePermission('invoices:create'), async (c) => {
 })
 
 // Get invoice detail
-app.get('/:id', async (c) => {
+app.get('/:id', requirePermission('invoices:read'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -322,7 +340,7 @@ app.post('/:id/payment', requirePermission('invoices:update'), async (c) => {
  * same company. The one difference is what an invoice is FOR: it carries what has been paid and what
  * is still owed, which a quote has no concept of.
  */
-app.get('/:id/pdf', async (c) => {
+app.get('/:id/pdf', requirePermission('invoices:read'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

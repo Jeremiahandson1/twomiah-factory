@@ -4,7 +4,7 @@ import { serviceRecord, serviceMenu, contact, clientProfile, user, appointment, 
 import { rebookInterval, describeInterval, categoryKey, preferredCategoryLabel } from '../shared/index.ts'
 import { eq, and, inArray, isNotNull, sql, gt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { sendSMS } from '../services/sms.ts'
 import { salonToday } from '../utils/salonDate.ts'
 
@@ -294,9 +294,28 @@ app.get('/lapsed', requirePermission('contacts:read'), async (c) => {
     .groupBy(contact.id)
     .having(sql`max(${serviceRecord.performedAt}) < ${cutoffIso}`)
 
+  /**
+   * THE SIBLING OF THE CLIENT CHART'S LIFETIME VALUE. (T41)
+   *
+   * The report named routes/clients.ts; this list emits the same fact per row, behind
+   * contacts:read, which every stylist holds. Same rule, applied here because a report naming one
+   * place is not a reason to leave the other one open.
+   *
+   * THE ORDER IS KEPT EITHER WAY. The win-back list is sorted highest-spend-first, because that is
+   * what makes it a work queue rather than an alphabet — so the sort happens on the real figure and
+   * only then is the column dropped. A stylist still gets the best clients to call first; they just
+   * are not told what each one is worth.
+   *
+   * (This one sums serviceRecord.priceCharged, not the invoice table, so the two figures can
+   * disagree — the chart's is what was actually paid. The per-visit price stays on the visit card
+   * regardless: the stylist typed it.)
+   */
+  const maySeeClientMoney = hasPermission(u?.role, 'invoices:read', await getExtraPermissions(u?.userId))
+
   const data = rows
     .map(r => ({ ...r, visits: Number(r.visits), lifetimeValue: Number(r.lifetimeValue) }))
     .sort((a, b) => b.lifetimeValue - a.lifetimeValue)
+    .map(r => { if (maySeeClientMoney) return r; const { lifetimeValue, ...rest } = r; return rest })
 
   return c.json({ count: data.length, months, data })
 })

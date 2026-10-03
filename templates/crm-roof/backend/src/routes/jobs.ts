@@ -6,7 +6,7 @@ import { db } from '../../db/index.ts'
 import { job, contact, crew, measurementReport, jobPhoto, jobNote, quote, invoice, smsMessage, company } from '../../db/schema.ts'
 import { eq, and, desc, asc, like, ilike, or, count, sql, inArray } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { uploadFile, deleteFile, keyFromMediaUrl } from '../services/storage.ts'
 import { createId } from '@paralleldrive/cuid2'
 import { normalizeDateInput } from '../shared/index.ts'
@@ -149,7 +149,27 @@ app.get('/', async (c) => {
     contact: j.contactId ? contactMap[j.contactId] || null : null,
   }))
 
-  return c.json({ data: dataWithRelations, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
+  /**
+   * THE JOB'S MONEY IS NOT PART OF READING THE JOB LIST. (T41)
+   *
+   * "Staff sees money: Reports (Invoiced, Collected, Outstanding, revenue by rep and by crew) ...
+   *  and estimatedRevenue/materialCost/laborCost in the GET /api/jobs list."
+   *
+   * The Reports page builds "revenue by rep" and "revenue by crew" IN THE BROWSER from this list,
+   * so the figures never had to appear on a screen to be disclosed — fetching 500 jobs was enough.
+   * Gating /api/invoices/summary alone would have emptied the tiles and left the per-job money
+   * sitting in the payload the page was aggregating.
+   *
+   * Everything a crew or a rep needs stays: the job, the address, the status, the dates, the
+   * contact, the crew. What goes is what the job is worth and what it costs to deliver.
+   */
+  const maySeeMoney = hasPermission(currentUser?.role, 'invoices:read', await getExtraPermissions(currentUser?.userId))
+  const JOB_MONEY = ['estimatedRevenue', 'materialCost', 'laborCost', 'deductible'] as const
+  const shaped = maySeeMoney
+    ? dataWithRelations
+    : dataWithRelations.map((j: any) => { const o = { ...j }; for (const f of JOB_MONEY) delete o[f]; return o })
+
+  return c.json({ data: shaped, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
 })
 
 // Create job with auto-generated jobNumber
@@ -229,15 +249,33 @@ app.get('/:id', async (c) => {
     db.select().from(invoice).where(and(eq(invoice.jobId, id), eq(invoice.companyId, currentUser.companyId))).orderBy(desc(invoice.createdAt)),
   ])
 
+  /**
+   * THE SAME RULE HERE, and the report was wrong about this one. (T41)
+   *
+   * It says "estimatedRevenue/materialCost/laborCost in the GET /api/jobs list (the single-job GET
+   * hides them)". The single-job GET does not hide them: it spreads `...foundJob`, the whole row,
+   * exactly as the list did. What hides them is the detail SCREEN, which does not render those
+   * fields — so the tester's observation was about the page, not the payload.
+   *
+   * Following the report literally would have fixed the list and left the detail leaking the same
+   * three figures, one request away. It also returns the job's QUOTES and INVOICES, which are money
+   * in their own right and go with them — roof's own invoice routes now require invoices:read, and
+   * handing the same rows over through a job would walk straight around that.
+   */
+  const maySeeJobMoney = hasPermission(currentUser?.role, 'invoices:read', await getExtraPermissions(currentUser?.userId))
+  const DETAIL_MONEY = ['estimatedRevenue', 'materialCost', 'laborCost', 'deductible', 'rcv', 'acv'] as const
+  const jobRow: any = { ...foundJob }
+  if (!maySeeJobMoney) for (const f of DETAIL_MONEY) delete jobRow[f]
+
   return c.json({
-    ...foundJob,
+    ...jobRow,
     contact: jobContact[0] || null,
     crew: jobCrew[0] || null,
     measurementReport: measurement[0] || null,
     photos,
     notes,
-    quotes: jobQuotes,
-    invoices: jobInvoices,
+    quotes: maySeeJobMoney ? jobQuotes : [],
+    invoices: maySeeJobMoney ? jobInvoices : [],
   })
 })
 

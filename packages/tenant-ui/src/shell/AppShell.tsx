@@ -10,7 +10,7 @@ import { GlobalSearch } from './GlobalSearch'
 import { TrialBanner } from './TrialBanner'
 import { ErrorBoundary } from './ErrorBoundary'
 import type { AppShellProps, NavItem } from './types'
-import { meetsRole } from './types'
+import { meetsRole, maySeeRoute } from './types'
 
 import { blockedRoute } from './routeGate'
 
@@ -274,8 +274,10 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
         <div className="border-t dark:border-slate-800 p-3">
           {/* Settings is rendered by the shell, not from config.nav, so routeRoles gated the URL and left
               both links in place — a manager and a stylist could only click through to the blocked
-              screen. Same rule, applied where the link is drawn. (Salon T29 L1) */}
-          {meetsRole(user?.role, config.routeRoles?.['/crm/settings']) && (
+              screen. Same rule, applied where the link is drawn. (Salon T29 L1)
+              Now through maySeeRoute, which also honours routePermissions — the rank was only half
+              the gate the URL applies, and the portal tile needed the identical question. (T41) */}
+          {maySeeRoute(config, '/crm/settings', user?.role, can) && (
             <RouterLink to="/crm/settings" className={({ isActive }) => linkCls(isActive)}>
               <Settings className="w-5 h-5" aria-hidden="true" /><span>Settings</span>
             </RouterLink>
@@ -313,7 +315,7 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
                         <p className="text-sm text-gray-500 dark:text-slate-400 truncate">{user?.email}</p>
                       </div>
                       <div className="py-1">
-                        {meetsRole(user?.role, config.routeRoles?.['/crm/settings']) && (
+                        {maySeeRoute(config, '/crm/settings', user?.role, can) && (
                           <RouterLink to="/crm/settings" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700" role="menuitem" onClick={() => setUserMenuOpen(false)}>
                             <Settings className="w-4 h-4" aria-hidden="true" />Settings
                           </RouterLink>
