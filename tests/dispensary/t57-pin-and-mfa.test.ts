@@ -149,7 +149,7 @@ console.log('\n══════════ 1 · the till door and the second 
 console.log('\n══════════ 2 · five wrong taps and the whole counter ══════════')
 {
   await setPin(bud1.id, '1111')
-  await setPin(bud2.id, '2222')
+  await setPin(bud2.id, '2719')
   for (const u of [bud1, bud2]) {
     const a = await attemptsOf(u.id)
     check(`${u.firstName} starts clean`, a.attempts === 0 && !a.lockedUntil, a)
@@ -166,7 +166,7 @@ console.log('\n══════════ 2 · five wrong taps and the whole
   const still1 = await api('POST', '/api/auth/pin-login', { companyId: co.id, pin: '1111' })
   check('…and bud1 can still sign in at the till', still1.status === 200 && !!still1.json?.accessToken,
     { status: still1.status, error: still1.json?.error })
-  const still2 = await api('POST', '/api/auth/pin-login', { companyId: co.id, pin: '2222' })
+  const still2 = await api('POST', '/api/auth/pin-login', { companyId: co.id, pin: '2719' })
   check('…and so can bud2', still2.status === 200 && !!still2.json?.accessToken,
     { status: still2.status, error: still2.json?.error })
 
@@ -179,11 +179,20 @@ console.log('\n══════════ 3 · two budtenders, one PIN ═�
 {
   const token = (await api('POST', '/api/auth/login', { email: bud1.email, password: PASSWORD })).json?.accessToken
   check('bud1 can sign in with a password to set a PIN', !!token, { hasToken: !!token })
-  const clash = await api('PUT', '/api/auth/pin', { pin: '2222' }, token)   // 2222 is bud2's
+  /**
+   * The digits in this block are deliberately arbitrary-looking. (T41)
+   *
+   * It used to clash on '2222' and then set '3333', and PUT /api/auth/pin now refuses a PIN that is
+   * the same digit over and over — so the uniqueness check was passing for the wrong reason: both
+   * calls were being refused as WEAK, and the test could no longer tell a clash from a weak PIN.
+   * setPin() above writes the hash straight to the row, so it is unaffected and the pin-login
+   * assertions keep their own digits.
+   */
+  const clash = await api('PUT', '/api/auth/pin', { pin: '2719' }, token)   // 2719 is bud2's
   check('a PIN already in use in this shop is refused', clash.status === 400 || clash.status === 409,
     { status: clash.status, body: clash.text?.slice(0, 160) })
   check('…and says why, in terms a manager can act on', /already|in use|different/i.test(JSON.stringify(clash.json)), clash.json)
-  const ownPin = await api('PUT', '/api/auth/pin', { pin: '3333' }, token)
+  const ownPin = await api('PUT', '/api/auth/pin', { pin: '4836' }, token)
   check('…while an unused PIN is accepted', ownPin.status === 200, { status: ownPin.status, body: ownPin.text?.slice(0, 120) })
 }
 

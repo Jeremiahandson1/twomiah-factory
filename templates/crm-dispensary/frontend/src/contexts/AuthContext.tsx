@@ -133,6 +133,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isAdmin = user?.role === 'admin' || user?.role === 'owner';
   const isManager = ['admin', 'manager', 'owner'].includes(user?.role);
 
+  /**
+   * "At least this rank", on the server's own ladder. (T41)
+   *
+   * The dispensary's routes gate on requireRole('budtender') to ring a sale, requireRole('driver')
+   * to move a delivery and requireRole('manager') to refund one — and this context offered only
+   * isManager and isAdmin, so a screen that wanted to hide a till button from a viewer had nothing
+   * correct to ask. That is why "viewer sees write buttons": not a missing check, a missing helper.
+   *
+   * The ladder and the legacy mapping are copied from backend/src/middleware/permissions.ts
+   * (ROLE_HIERARCHY / ROLE_MAPPING). An unknown rank is a NO, so a typo hides a control rather than
+   * offering it to everybody — which is what comparing indexOf values used to do.
+   */
+  const ROLE_LADDER = ['viewer', 'driver', 'budtender', 'manager', 'admin', 'owner'];
+  const LEGACY_ROLE = { user: 'budtender', field: 'budtender' };
+  const isAtLeast = (minRole) => {
+    const want = ROLE_LADDER.indexOf(String(minRole || ''));
+    if (want < 0) return false;
+    const role = LEGACY_ROLE[user?.role] || user?.role || 'viewer';
+    const have = ROLE_LADDER.indexOf(role);
+    return have >= 0 && have >= want;
+  };
+
   const hasFeature = (featureId) => {
     return company?.enabledFeatures?.includes(featureId) ?? false;
   };
@@ -161,6 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated,
       isAdmin,
       isManager,
+      isAtLeast,
       permissions,
       can,
       token: localStorage.getItem('accessToken'),

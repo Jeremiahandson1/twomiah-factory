@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Package, AlertTriangle, CheckCircle, RefreshCw, BarChart3, ShoppingCart, XCircle } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { Button } from '../components/ui/DataTable';
 
@@ -19,6 +20,16 @@ function daysUntilStockoutColor(days: number): string {
 }
 
 export default function PredictiveInventoryPage() {
+  /**
+   * WHAT THIS SEAT MAY ACTUALLY DO. (T41: "a viewer is shown write buttons")
+   *
+   * The rank is the one this screen's own routes ask for with requireRole(), not a guess — see
+   * templates/crm-dispensary/backend/src/routes. isAtLeast walks the server's ladder
+   * ['viewer','driver','budtender','manager','admin','owner'] and answers NO to a rank it does not
+   * recognise, so a typo hides a control instead of offering it to everybody.
+   */
+  const { isAtLeast } = useAuth();
+  const mayWrite = isAtLeast('manager');
   const toast = useToast();
   const [tab, setTab] = useState('forecasts');
   const [forecasts, setForecasts] = useState<any[]>([]);
@@ -156,10 +167,10 @@ export default function PredictiveInventoryPage() {
       {tab === 'forecasts' && (
         <div>
           <div className="flex justify-end mb-4">
-            <Button onClick={runForecast} disabled={runningForecast}>
+            {mayWrite && <Button onClick={runForecast} disabled={runningForecast}>
               <RefreshCw className={`w-4 h-4 mr-2 inline ${runningForecast ? 'animate-spin' : ''}`} />
               {runningForecast ? 'Running...' : 'Run Forecast'}
-            </Button>
+            </Button>}
           </div>
 
           {loading ? (

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Shield, Search, Filter, Calendar, User, ChevronDown } from 'lucide-react';
 import api from '../services/api';
+import { formatDateTime } from '../utils/date';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 
@@ -45,7 +46,23 @@ const actionColors: Record<string, string> = {
 };
 
 export default function AuditLogPage() {
-  const { isManager, can } = useAuth();
+  const { isManager, can, company } = useAuth();
+  /**
+   * ONE CLOCK FOR THE WHOLE SHOP. (T41)
+   *
+   *   "an order stores store time and the audit entry shows browser time"
+   *
+   * Every other screen that prints an instant uses formatDateTime(value, storeTz) — Orders, the
+   * order detail, Cash, the EOD report, the offline queue — because a dispensary reconciles its day
+   * against the till, and the till runs on the shop's clock. This page used
+   * `new Date(createdAt).toLocaleString()`, the BROWSER's zone. So the same sale read 14:32 on the
+   * order and 19:32 in the audit log for anyone whose laptop was not in the shop's timezone, and
+   * nobody could line up an event with the sale it belongs to.
+   *
+   * The stored value was never wrong: both are the same UTC instant. Only this page rendered it
+   * against a different clock.
+   */
+  const storeTz = (company as any)?.timeZone as string | undefined;
   const toast = useToast();
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -233,7 +250,7 @@ export default function AuditLogPage() {
               {logs.map((log: any, idx: number) => (
                 <tr key={log.id || idx} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap dark:text-slate-200">
-                    {log.createdAt ? new Date(log.createdAt).toLocaleString() : '—'}
+                    {log.createdAt ? formatDateTime(log.createdAt, storeTz) : '—'}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">

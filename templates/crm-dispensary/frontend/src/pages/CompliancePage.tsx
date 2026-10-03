@@ -210,12 +210,33 @@ export default function CompliancePage() {
     setLicenseModal(true);
   };
 
+  /**
+   * THE LICENCE'S TYPE AND AUTHORITY, BY THE NAMES THE SERVER USES. (T41)
+   *
+   *   "the licence TYPE column is blank"
+   *
+   * The columns are `license_type` and `issuing_authority`, which the route camelCases to
+   * `licenseType` and `issuingAuthority` before answering. This screen read `license.type` and
+   * `license.issuedBy` — neither of which the API has ever returned — so the Type column was blank
+   * in every row.
+   *
+   * And the blank was the smaller half. openEditLicense prefilled the SAME two keys, so opening a
+   * cultivation licence to correct its expiry date showed Type = Retail (the `|| 'Retail'` default)
+   * and Issued By empty, and pressing Save wrote both: a licence relabelled and its issuing
+   * authority erased, in a compliance record, by someone who only meant to change a date.
+   *
+   * Both spellings are accepted because the write path takes both (`issuedBy ?? issuingAuthority`),
+   * so a row created through either one reads back correctly.
+   */
+  const licenceType = (license: any): string => String(license?.licenseType || license?.type || '');
+  const licenceAuthority = (license: any): string => String(license?.issuingAuthority || license?.issuedBy || '');
+
   const openEditLicense = (license: any) => {
     setEditingLicense(license);
     setLicenseForm({
-      type: license.type || 'Retail',
+      type: licenceType(license) || 'Retail',
       licenseNumber: license.licenseNumber || '',
-      issuedBy: license.issuedBy || '',
+      issuedBy: licenceAuthority(license),
       issuedDate: license.issuedDate ? license.issuedDate.slice(0, 10) : '',
       expirationDate: license.expirationDate ? license.expirationDate.slice(0, 10) : '',
       status: license.status || 'active',
@@ -461,9 +482,9 @@ export default function CompliancePage() {
                   </tr>
                 ) : licenses.map(license => (
                   <tr key={license.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{license.type}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{licenceType(license) || '—'}</td>
                     <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-slate-100">{license.licenseNumber}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{license.issuedBy || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{licenceAuthority(license) || '—'}</td>
                     <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                       {license.issuedDate ? formatDate(license.issuedDate) : '—'}
                     </td>

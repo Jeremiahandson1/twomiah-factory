@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { formatDate } from '../utils/date';
 import { Activity, CheckSquare, Cpu, Server, Database, Shield, CreditCard, Wifi, ShoppingCart, Package, Clock, User, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { Button } from '../components/ui/DataTable';
 
@@ -18,6 +19,16 @@ const serviceStatusLabels: Record<string, string> = {
 };
 
 export default function PlatformPage() {
+  /**
+   * WHAT THIS SEAT MAY ACTUALLY DO. (T41: "a viewer is shown write buttons")
+   *
+   * The rank is the one this screen's own routes ask for with requireRole(), not a guess — see
+   * templates/crm-dispensary/backend/src/routes. isAtLeast walks the server's ladder
+   * ['viewer','driver','budtender','manager','admin','owner'] and answers NO to a rank it does not
+   * recognise, so a typo hides a control instead of offering it to everybody.
+   */
+  const { isAtLeast } = useAuth();
+  const mayWrite = isAtLeast('manager');
   const toast = useToast();
   const [tab, setTab] = useState('health');
 
@@ -363,9 +374,9 @@ export default function PlatformPage() {
                     >
                       Clear
                     </button>
-                    <Button onClick={handleOrder}>
+                    {mayWrite && <Button onClick={handleOrder}>
                       Place Order
-                    </Button>
+                    </Button>}
                   </div>
                 </div>
               )}

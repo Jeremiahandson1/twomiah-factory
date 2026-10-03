@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '../utils/date';
 import { Plus, Search, Users, ShoppingCart, FlaskConical, Truck, FileCheck, DollarSign, ExternalLink, Trash2 } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
@@ -76,6 +77,8 @@ export default function WholesalePage() {
 
 /* ─── Customers Tab ─── */
 function CustomersTab() {
+  const { isAtLeast } = useAuth();
+  const mayWrite = isAtLeast('manager');
   const toast = useToast();
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -185,10 +188,10 @@ function CustomersTab() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input type="text" placeholder="Search customers..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100" />
         </div>
-        <Button onClick={openCreate} className="ml-auto"><Plus className="w-4 h-4 mr-2 inline" />Add Customer</Button>
+        {mayWrite && <Button onClick={openCreate} className="ml-auto"><Plus className="w-4 h-4 mr-2 inline" />Add Customer</Button>}
       </div>
 
-      <DataTable data={customers} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={openEdit} actions={[{ label: 'Delete', icon: Trash2, onClick: (row: any) => handleDelete(row.id), className: 'text-red-600' }]} emptyMessage="No wholesale customers" />
+      <DataTable data={customers} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={openEdit} actions={[{ label: 'Delete', icon: Trash2, onClick: (row: any) => handleDelete(row.id), className: 'text-red-600', show: () => mayWrite }]} emptyMessage="No wholesale customers" />
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingCustomer ? 'Edit Customer' : 'Add Customer'} size="lg">
         <div className="grid md:grid-cols-2 gap-4">
@@ -238,6 +241,8 @@ function CustomersTab() {
 
 /* ─── Orders Tab ─── */
 function OrdersTab() {
+  const { isAtLeast } = useAuth();
+  const mayWrite = isAtLeast('manager');
   const toast = useToast();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -390,11 +395,11 @@ function OrdersTab() {
   ];
 
   const actions = [
-    { label: 'Confirm', icon: FileCheck, onClick: (row: any) => handleAction(row.id, 'confirm') },
-    { label: 'Ship', icon: Truck, onClick: (row: any) => { setSelectedOrder(row); setShipModalOpen(true); } },
-    { label: 'Deliver', icon: FileCheck, onClick: (row: any) => handleAction(row.id, 'deliver') },
-    { label: 'Invoice', icon: DollarSign, onClick: (row: any) => handleAction(row.id, 'invoice') },
-    { label: 'Record Payment', icon: DollarSign, onClick: (row: any) => { setSelectedOrder(row); setPaymentAmount(''); setPaymentModalOpen(true); } },
+    { label: 'Confirm', icon: FileCheck, onClick: (row: any) => handleAction(row.id, 'confirm'), show: () => mayWrite },
+    { label: 'Ship', icon: Truck, onClick: (row: any) => { setSelectedOrder(row); setShipModalOpen(true); }, show: () => mayWrite },
+    { label: 'Deliver', icon: FileCheck, onClick: (row: any) => handleAction(row.id, 'deliver'), show: () => mayWrite },
+    { label: 'Invoice', icon: DollarSign, onClick: (row: any) => handleAction(row.id, 'invoice'), show: () => mayWrite },
+    { label: 'Record Payment', icon: DollarSign, onClick: (row: any) => { setSelectedOrder(row); setPaymentAmount(''); setPaymentModalOpen(true); }, show: () => mayWrite },
   ];
 
   return (
@@ -404,7 +409,7 @@ function OrdersTab() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input type="text" placeholder="Search orders..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100" />
         </div>
-        <Button onClick={() => setCreateModalOpen(true)} className="ml-auto"><Plus className="w-4 h-4 mr-2 inline" />Create Order</Button>
+        {mayWrite && <Button onClick={() => setCreateModalOpen(true)} className="ml-auto"><Plus className="w-4 h-4 mr-2 inline" />Create Order</Button>}
       </div>
 
       <DataTable data={orders} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={actions} emptyMessage="No wholesale orders" />
@@ -521,6 +526,8 @@ function OrdersTab() {
 
 /* ─── Lab Tests Tab ─── */
 function LabTestsTab() {
+  const { isAtLeast } = useAuth();
+  const mayWrite = isAtLeast('manager');
   const toast = useToast();
   const [tests, setTests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -625,7 +632,7 @@ function LabTestsTab() {
   ];
 
   const tableActions = [
-    { label: 'Enter Results', icon: FlaskConical, onClick: openResults },
+    { label: 'Enter Results', icon: FlaskConical, onClick: openResults, show: () => mayWrite },
     { label: 'View CoA', icon: ExternalLink, onClick: (row: any) => { if (row.coaUrl) window.open(row.coaUrl, '_blank'); else toast.error('No CoA available'); } },
   ];
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '../utils/date';
 import { Plus, Search, Radio, Scan, ClipboardList, History, Tag, MapPin, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
@@ -37,6 +38,16 @@ const tabs = [
 ];
 
 export default function RFIDPage() {
+  /**
+   * WHAT THIS SEAT MAY ACTUALLY DO. (T41: "a viewer is shown write buttons")
+   *
+   * The rank is the one this screen's own routes ask for with requireRole(), not a guess — see
+   * templates/crm-dispensary/backend/src/routes. isAtLeast walks the server's ladder
+   * ['viewer','driver','budtender','manager','admin','owner'] and answers NO to a rank it does not
+   * recognise, so a typo hides a control instead of offering it to everybody.
+   */
+  const { isAtLeast } = useAuth();
+  const mayRegister = isAtLeast('manager');
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('tags');
 
@@ -209,9 +220,9 @@ function TagsTab() {
         <LocationSelect value={locationFilter} onChange={setLocationFilter} locations={locations} emptyLabel="All locations" className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200 dark:bg-slate-900" />
         <div className="flex gap-2 ml-auto">
           <Button variant="secondary" onClick={() => setBulkModalOpen(true)}>Bulk Register</Button>
-          <Button onClick={() => { setFormData({ epc: '', tid: '', productId: '', batchId: '', location: '' }); setModalOpen(true); }}>
+          {mayRegister && <Button onClick={() => { setFormData({ epc: '', tid: '', productId: '', batchId: '', location: '' }); setModalOpen(true); }}>
             <Plus className="w-4 h-4 mr-2 inline" />Register Tag
-          </Button>
+          </Button>}
         </div>
       </div>
 

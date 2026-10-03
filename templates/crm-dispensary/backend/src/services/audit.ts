@@ -59,6 +59,26 @@ interface AuditLogInput {
  * Create audit log entry
  */
 /**
+ * The originating client address from a proxied request, or null.
+ *
+ * The left-most x-forwarded-for entry is what the first proxy saw. It is also the one a client can
+ * claim for itself — which is a limit of the header, not of this function: an audit row records
+ * what was reported, and the alternative (storing the whole chain) made the column useless for the
+ * thing it exists for. (T41)
+ */
+function clientIp(req: any, header: (name: string) => string | null): string | null {
+  const direct = header('cf-connecting-ip') || header('x-real-ip')
+  if (direct && String(direct).trim()) return String(direct).trim()
+  const fwd = header('x-forwarded-for')
+  if (fwd) {
+    const first = String(fwd).split(',')[0]?.trim()
+    if (first) return first
+  }
+  const own = req?.ip
+  return own ? String(own).split(',')[0].trim() : null
+}
+
+/**
  * Who did it, from whatever the caller handed over.
  *
  * Nearly every route passed the Hono REQUEST (`c.req`) while this service read req.user.*. Hono keeps
@@ -77,7 +97,21 @@ function resolveActor(req: any): { userId: string | null; email: string | null; 
     userId: user?.userId || user?.id || null,
     email: user?.email || null,
     companyId: user?.companyId || null,
-    ip: req?.ip || header('x-forwarded-for'),
+    /**
+     * THE CLIENT'S ADDRESS, NOT THE WHOLE CHAIN. (T41)
+     *
+     *   dispensary: "the audit log's IP column shows the proxy chain"
+     *
+     * Behind Render's edge, x-forwarded-for is "client, hop, hop" — so every audit row read
+     * "203.0.113.9, 10.214.3.4" and sometimes a third hop that varies per request. Nobody can match
+     * that against a till, and two events from the same person did not even look the same.
+     *
+     * Left-most entry, trimmed, which is the client as reported by the first proxy and what the
+     * rest of the fleet already uses (packages/tenant-backend/src/portal/portal.ts signerIp,
+     * crm-roof's rate limiter, the Factory's shared helper). cf-connecting-ip and x-real-ip are
+     * single-value headers, so they are taken as they are.
+     */
+    ip: clientIp(req, header),
     userAgent: header('user-agent'),
   }
 }

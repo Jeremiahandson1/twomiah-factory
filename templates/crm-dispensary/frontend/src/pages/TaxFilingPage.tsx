@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { formatDate } from '../utils/date';
 import { FileText, Calendar, DollarSign, RefreshCw, Plus, Eye, Clock, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
@@ -32,6 +33,16 @@ const filingData = (f: any): any => {
 };
 
 export default function TaxFilingPage() {
+  /**
+   * WHAT THIS SEAT MAY ACTUALLY DO. (T41: "a viewer is shown write buttons")
+   *
+   * The rank is the one this screen's own routes ask for with requireRole(), not a guess — see
+   * templates/crm-dispensary/backend/src/routes. isAtLeast walks the server's ladder
+   * ['viewer','driver','budtender','manager','admin','owner'] and answers NO to a rank it does not
+   * recognise, so a typo hides a control instead of offering it to everybody.
+   */
+  const { isAtLeast } = useAuth();
+  const mayWrite = isAtLeast('manager');
   const toast = useToast();
   const [tab, setTab] = useState('filings');
 
@@ -201,10 +212,10 @@ export default function TaxFilingPage() {
       {tab === 'filings' && (
         <div>
           <div className="flex justify-end mb-4">
-            <Button onClick={() => setGenerateModal(true)}>
+            {mayWrite && <Button onClick={() => setGenerateModal(true)}>
               <Plus className="w-4 h-4 mr-2 inline" />
               Generate Filing
-            </Button>
+            </Button>}
           </div>
 
           {loadingFilings ? (

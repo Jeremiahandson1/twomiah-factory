@@ -5,6 +5,7 @@ import {
   ChevronDown, ChevronRight, FileText, Sparkles, Trash2, Send
 } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { Button, PageHeader } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
@@ -20,6 +21,16 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default function PurchaseOrdersPage() {
+  /**
+   * WHAT THIS SEAT MAY ACTUALLY DO. (T41: "a viewer is shown write buttons")
+   *
+   * The rank is the one this screen's own routes ask for with requireRole(), not a guess — see
+   * templates/crm-dispensary/backend/src/routes. isAtLeast walks the server's ladder
+   * ['viewer','driver','budtender','manager','admin','owner'] and answers NO to a rank it does not
+   * recognise, so a typo hides a control instead of offering it to everybody.
+   */
+  const { isAtLeast } = useAuth();
+  const mayWrite = isAtLeast('manager');
   const toast = useToast();
   const [tab, setTab] = useState('orders');
   const [loading, setLoading] = useState(true);
@@ -234,7 +245,7 @@ export default function PurchaseOrdersPage() {
             className="flex items-center gap-1 px-3 py-2 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50">
             <Sparkles className="w-4 h-4" />{creatingSuggested ? 'Creating...' : 'From Suggestions'}
           </button>
-          <Button onClick={() => setOrderModal(true)}><Plus className="w-4 h-4 mr-2 inline" />Create PO</Button>
+          {mayWrite && <Button onClick={() => setOrderModal(true)}><Plus className="w-4 h-4 mr-2 inline" />Create PO</Button>}
         </div>
       } />
 

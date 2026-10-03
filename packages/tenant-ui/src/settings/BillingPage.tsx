@@ -13,7 +13,12 @@ interface Subscription {
   monthlyAmount: number | null
   billingCycle: string | null
   billingType: string | null
-  status: 'active' | 'trialing' | 'past_due' | 'canceled'
+  /**
+   * The four tenantSubscription.ts narrows to today, and `string` for honesty: this type claimed a
+   * closed union while the Factory is free to send another word, and badgeFor() has to cope with
+   * one rather than render nothing. (T41)
+   */
+  status: 'active' | 'trialing' | 'past_due' | 'canceled' | (string & {})
   billingStatus: string | null
   nextBillingDate: string | null
   trialEndsAt: string | null
@@ -46,11 +51,37 @@ function authHeaders(): Record<string, string> {
 const money = (n: number | null) => (n == null ? null : '$' + (Number.isInteger(n) ? n.toString() : n.toFixed(2)))
 const date = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : null)
 
-const STATUS: Record<Subscription['status'], { label: string; cls: string }> = {
+const STATUS: Record<string, { label: string; cls: string }> = {
   active:   { label: 'Active',    cls: 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200' },
   trialing: { label: 'Trial',     cls: 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200' },
   past_due: { label: 'Past due',  cls: 'bg-amber-100 text-amber-800' },
   canceled: { label: 'Canceled',  cls: 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200' },
+  pending:  { label: 'Setup pending', cls: 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200' },
+}
+
+/**
+ * THE BADGE SAID "ACTIVE" WHILE BILLING WAS PENDING. (T41 dispensary)
+ *
+ * `status` is the ENTITLEMENT, and tenantSubscription.ts ends with `else status = 'active'` on
+ * purpose: a tenant provisioned without a checkout (a platform admin, a manual onboarding) must
+ * not be locked out on the tenant's own guess, because only the Factory may suspend. That is right,
+ * and it is not what a badge on the Billing page is answering. The owner reading it wants to know
+ * whether their subscription is settled — and `billingStatus` still said `pending`.
+ *
+ * So the badge prefers the BILLING state where the two disagree, and the body of the page still
+ * works off `status`, so nothing is switched off.
+ *
+ * An unrecognised status now shows the word itself instead of no badge at all: `STATUS[sub.status]`
+ * returned undefined for anything outside the four, and the render was `{status && …}` — so a state
+ * this screen had not been taught simply vanished, which is the worst of the three outcomes.
+ */
+function badgeFor(sub: Subscription): { label: string; cls: string } {
+  const billing = String(sub.billingStatus || '').toLowerCase()
+  if (sub.status === 'active' && billing === 'pending') return STATUS.pending
+  return STATUS[sub.status] || {
+    label: String(sub.status || 'Unknown').replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase()),
+    cls: 'bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-200',
+  }
 }
 
 export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): React.ReactElement {
@@ -115,7 +146,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
   }
 
   const sub = data?.subscription || null
-  const status = sub ? STATUS[sub.status] : null
+  const status = sub ? badgeFor(sub) : null
   const seatLimit = data?.seatLimit ?? null
   const seatsUsed = data?.seatsUsed ?? 0
   const seatPct = seatLimit ? Math.min(100, Math.round((seatsUsed / seatLimit) * 100)) : 0

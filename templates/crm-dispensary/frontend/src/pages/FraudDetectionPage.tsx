@@ -4,6 +4,7 @@ import {
   Play, RefreshCw, TrendingUp, DollarSign, Users, Clock, Plus
 } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { Button, PageHeader } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
@@ -25,6 +26,16 @@ const TYPE_STYLES: Record<string, string> = {
 };
 
 export default function FraudDetectionPage() {
+  /**
+   * WHAT THIS SEAT MAY ACTUALLY DO. (T41: "a viewer is shown write buttons")
+   *
+   * The rank is the one this screen's own routes ask for with requireRole(), not a guess — see
+   * templates/crm-dispensary/backend/src/routes. isAtLeast walks the server's ladder
+   * ['viewer','driver','budtender','manager','admin','owner'] and answers NO to a rank it does not
+   * recognise, so a typo hides a control instead of offering it to everybody.
+   */
+  const { isAtLeast } = useAuth();
+  const mayWrite = isAtLeast('manager');
   const toast = useToast();
   const [tab, setTab] = useState('alerts');
   const [loading, setLoading] = useState(true);
@@ -172,10 +183,13 @@ export default function FraudDetectionPage() {
 
   return (
     <div>
+      {/* Inside an attribute expression, so no extra braces — this is already a JS context. */}
       <PageHeader title="Fraud & Theft Detection" action={
-        <Button onClick={runScan} disabled={scanning}>
-          <Play className="w-4 h-4 mr-2 inline" />{scanning ? 'Scanning...' : 'Run Scan'}
-        </Button>
+        mayWrite ? (
+          <Button onClick={runScan} disabled={scanning}>
+            <Play className="w-4 h-4 mr-2 inline" />{scanning ? 'Scanning...' : 'Run Scan'}
+          </Button>
+        ) : undefined
       } />
 
       {scanResults && (
@@ -290,7 +304,7 @@ export default function FraudDetectionPage() {
       {tab === 'rules' && (
         <div>
           <div className="flex justify-end mb-4">
-            <Button onClick={openCreateRule}><Plus className="w-4 h-4 mr-2 inline" />Add Rule</Button>
+            {mayWrite && <Button onClick={openCreateRule}><Plus className="w-4 h-4 mr-2 inline" />Add Rule</Button>}
           </div>
           {loading ? (
             <div className="flex items-center justify-center h-64">

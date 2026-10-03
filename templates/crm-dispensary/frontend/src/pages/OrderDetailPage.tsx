@@ -16,8 +16,31 @@ const statusIcons: Record<string, any> = {
   processing: ShoppingBag,
   completed: CheckCircle,
   cancelled: XCircle,
+  refunded: RotateCcw,
+  partially_refunded: RotateCcw,
   delivery: Truck,
 };
+
+/**
+ * THE TIMELINE FOR AN ORDER THAT LEFT THE FORWARD PATH. (T41)
+ *
+ *   "a refunded order shows the Pending → Completed stepper"
+ *
+ * The three steps are the forward path, and `statusSteps.indexOf('refunded')` is -1 — so for a
+ * refunded or cancelled order NO step was active and the panel drew a grey
+ * Pending → Processing → Completed, which reads as a sale that has not started. For a refund that
+ * is the opposite of the truth: the sale completed, the customer paid, and then money went back.
+ *
+ * So the path shown is the one the order actually took. A refund keeps the completed steps, because
+ * they happened, and adds the refund as the step it is now on. A cancellation did NOT complete, so
+ * it does not claim to have.
+ */
+export function timelineFor(status: string): string[] {
+  const s = String(status || '');
+  if (s === 'cancelled') return ['pending', 'cancelled'];
+  if (s === 'refunded' || s === 'partially_refunded') return [...statusSteps, s];
+  return statusSteps;
+}
 
 export default function OrderDetailPage() {
   const { id } = useParams();
@@ -216,7 +239,9 @@ export default function OrderDetailPage() {
 
   if (!order) return null;
 
-  const currentStepIndex = statusSteps.indexOf(order.status);
+  // The path this order actually took, not the forward one it may have left. (T41)
+  const steps = timelineFor(order.status);
+  const currentStepIndex = steps.indexOf(order.status);
 
   return (
     <div className="space-y-6">
@@ -291,24 +316,30 @@ export default function OrderDetailPage() {
       <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
         <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Order Status</h2>
         <div className="flex items-center gap-4">
-          {statusSteps.map((step, idx) => {
+          {steps.map((step, idx) => {
             const isActive = idx <= currentStepIndex;
             const isCurrent = step === order.status;
             const Icon = statusIcons[step] || Clock;
+            // A refund or a cancellation is not a green milestone: the last step of an order that
+            // ended that way is marked in red, so the panel reads as what happened. (T41)
+            const ended = step === 'refunded' || step === 'partially_refunded' || step === 'cancelled';
+            const onTone = ended ? 'text-red-700 dark:text-red-300' : 'text-green-600';
             return (
               <div key={step} className="flex items-center gap-2 flex-1">
-                <div className={`flex items-center gap-2 ${isActive ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}`}>
+                <div className={`flex items-center gap-2 ${isActive ? onTone : 'text-gray-500 dark:text-slate-400'}`}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    isCurrent ? 'bg-green-700 text-white' : isActive ? 'bg-green-100' : 'bg-gray-100'
+                    isCurrent
+                      ? (ended ? 'bg-red-600 text-white' : 'bg-green-700 text-white')
+                      : isActive ? (ended ? 'bg-red-100 dark:bg-red-950/40' : 'bg-green-100') : 'bg-gray-100'
                   }`}>
                     <Icon className="w-4 h-4" />
                   </div>
-                  <span className={`text-sm font-medium capitalize ${isCurrent ? 'text-green-700' : ''}`}>
-                    {step}
+                  <span className={`text-sm font-medium capitalize ${isCurrent ? (ended ? 'text-red-700 dark:text-red-300' : 'text-green-700') : ''}`}>
+                    {step.replace(/_/g, ' ')}
                   </span>
                 </div>
-                {idx < statusSteps.length - 1 && (
-                  <div className={`flex-1 h-0.5 ${isActive ? 'bg-green-400' : 'bg-gray-200'}`} />
+                {idx < steps.length - 1 && (
+                  <div className={`flex-1 h-0.5 ${isActive ? (ended ? 'bg-red-300' : 'bg-green-400') : 'bg-gray-200'}`} />
                 )}
               </div>
             );

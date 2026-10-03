@@ -13,6 +13,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { formatDate } from '../utils/date';
 import { FileText, Upload, Search, Trash2, Download, Pencil } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, Button } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
@@ -29,6 +30,16 @@ const fmtSize = (n: any) => {
 };
 
 export default function DocumentsPage() {
+  /**
+   * WHAT THIS SEAT MAY ACTUALLY DO. (T41: "a viewer is shown write buttons")
+   *
+   * The rank is the one this screen's own routes ask for with requireRole(), not a guess — see
+   * templates/crm-dispensary/backend/src/routes. isAtLeast walks the server's ladder
+   * ['viewer','driver','budtender','manager','admin','owner'] and answers NO to a rank it does not
+   * recognise, so a typo hides a control instead of offering it to everybody.
+   */
+  const { isAtLeast } = useAuth();
+  const mayWrite = isAtLeast('manager');
   const toast = useToast();
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -180,7 +191,7 @@ export default function DocumentsPage() {
             Licences, lab COAs, transport manifests and SOPs
           </p>
         </div>
-        <Button onClick={() => setUploadOpen(true)}><Upload className="w-4 h-4 mr-2 inline" />Upload</Button>
+        {mayWrite && <Button onClick={() => setUploadOpen(true)}><Upload className="w-4 h-4 mr-2 inline" />Upload</Button>}
       </div>
 
       <div className="flex flex-wrap gap-3 mb-4">
@@ -217,7 +228,7 @@ export default function DocumentsPage() {
             icon: Pencil,
             onClick: (r: any) => { setEditing(r); setEditForm({ name: r.name || '', type: r.type || 'general' }); },
           },
-          { label: 'Delete', icon: Trash2, onClick: (r: any) => setToDelete(r), className: 'text-red-600' },
+          { label: 'Delete', icon: Trash2, onClick: (r: any) => setToDelete(r), className: 'text-red-600', show: () => mayWrite },
         ]}
       />
 

@@ -6,11 +6,22 @@ import {
   TrendingUp, Award, X
 } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { Button, PageHeader } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
 
 export default function ReportsPage() {
+  /**
+   * WHAT THIS SEAT MAY ACTUALLY DO. (T41: "a viewer is shown write buttons")
+   *
+   * The rank is the one this screen's own routes ask for with requireRole(), not a guess — see
+   * templates/crm-dispensary/backend/src/routes. isAtLeast walks the server's ladder
+   * ['viewer','driver','budtender','manager','admin','owner'] and answers NO to a rank it does not
+   * recognise, so a typo hides a control instead of offering it to everybody.
+   */
+  const { isAtLeast } = useAuth();
+  const mayWrite = isAtLeast('manager');
   const toast = useToast();
   const [tab, setTab] = useState('dashboard');
   const [loading, setLoading] = useState(false);
@@ -273,10 +284,10 @@ export default function ReportsPage() {
       {tab === 'dashboard' && (
         <div>
           <div className="flex justify-end mb-4">
-            <Button onClick={() => { setWidgetForm({ title: '', type: 'kpi', dataSource: 'sales', config: '' }); setWidgetModal(true); }}>
+            {mayWrite && <Button onClick={() => { setWidgetForm({ title: '', type: 'kpi', dataSource: 'sales', config: '' }); setWidgetModal(true); }}>
               <Plus className="w-4 h-4 mr-2 inline" />
               Add Widget
-            </Button>
+            </Button>}
           </div>
 
           {loading ? (
@@ -397,10 +408,10 @@ export default function ReportsPage() {
       {tab === 'saved' && (
         <div>
           <div className="flex justify-end mb-4">
-            <Button onClick={() => { setReportForm({ name: '', type: 'sales_summary', metrics: '', dateRange: '30d', groupBy: 'day' }); setReportModal(true); }}>
+            {mayWrite && <Button onClick={() => { setReportForm({ name: '', type: 'sales_summary', metrics: '', dateRange: '30d', groupBy: 'day' }); setReportModal(true); }}>
               <Plus className="w-4 h-4 mr-2 inline" />
               Create Report
-            </Button>
+            </Button>}
           </div>
 
           {/* Report results viewer */}

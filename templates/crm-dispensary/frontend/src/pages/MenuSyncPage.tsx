@@ -4,6 +4,7 @@ import {
   X, AlertTriangle, ExternalLink, Zap, List, Package
 } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { Button, PageHeader } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
@@ -23,6 +24,16 @@ const SYNC_STATUS_STYLES: Record<string, string> = {
 };
 
 export default function MenuSyncPage() {
+  /**
+   * WHAT THIS SEAT MAY ACTUALLY DO. (T41: "a viewer is shown write buttons")
+   *
+   * The rank is the one this screen's own routes ask for with requireRole(), not a guess — see
+   * templates/crm-dispensary/backend/src/routes. isAtLeast walks the server's ladder
+   * ['viewer','driver','budtender','manager','admin','owner'] and answers NO to a rank it does not
+   * recognise, so a typo hides a control instead of offering it to everybody.
+   */
+  const { isAtLeast } = useAuth();
+  const mayWrite = isAtLeast('manager');
   const toast = useToast();
   const [tab, setTab] = useState('platforms');
   const [loading, setLoading] = useState(true);
@@ -230,9 +241,12 @@ export default function MenuSyncPage() {
                           </button>
                         </>
                       ) : (
-                        <Button onClick={() => openConfig(platform)}>
-                          <Link className="w-4 h-4 mr-1 inline" />Connect
-                        </Button>
+                        // The ternary's branch is already an expression — no extra braces.
+                        mayWrite ? (
+                          <Button onClick={() => openConfig(platform)}>
+                            <Link className="w-4 h-4 mr-1 inline" />Connect
+                          </Button>
+                        ) : null
                       )}
                     </div>
                   </div>
