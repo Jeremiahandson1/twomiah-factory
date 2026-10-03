@@ -145,7 +145,17 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
                   {customers.length === 0 ? <p className={`text-sm ${muted}`}>No paid invoices in this period.</p> : customers.map((c, i) => (
                     <div key={i} className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 shrink-0 rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center text-sm font-medium">{i + 1}</div>
+                        {/*
+                          THE RANK BADGE MEASURED 1.21:1. (T41, reported on the events venue, the
+                          clinic and the dealership — one shared page, three tenants.)
+
+                          The circle paired its own ground (bg-gray-100 dark:bg-slate-800) and
+                          stated no ink at all, so the NUMBER inherited whatever colour an ancestor
+                          happened to set — dark, on the dark circle. A badge that exists to show a
+                          figure has to name the figure's colour; inheriting is what made it depend
+                          on an ancestor nobody was looking at.
+                        */}
+                        <div className="w-8 h-8 shrink-0 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-900 dark:text-slate-100 flex items-center justify-center text-sm font-medium">{i + 1}</div>
                         <div className="min-w-0">
                           <p className="font-medium text-sm text-gray-900 dark:text-slate-100 truncate">{c.contact?.name || 'Unknown'}</p>
                           <p className={`text-xs ${muted}`}>{c.invoiceCount} invoice{c.invoiceCount === 1 ? '' : 's'}{c.invoiced !== undefined ? ` · ${money(c.invoiced)} invoiced` : ''}</p>

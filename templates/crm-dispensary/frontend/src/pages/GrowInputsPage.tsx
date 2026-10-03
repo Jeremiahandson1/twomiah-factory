@@ -461,7 +461,7 @@ function InventoryTab() {
           <span className={daysLeft <= 30 ? 'text-red-600 font-medium' : 'text-gray-700'}>
             {d.toLocaleDateString()}
             {daysLeft <= 30 && daysLeft > 0 && <span className="text-xs ml-1">({daysLeft}d)</span>}
-            {daysLeft <= 0 && <span className="text-xs ml-1 text-red-700">(expired)</span>}
+            {daysLeft <= 0 && <span className="text-xs ml-1 text-red-700 dark:text-red-300">(expired)</span>}
           </span>
         );
       },
@@ -1692,7 +1692,7 @@ function TraceabilityTab() {
                   <div className="relative">
                     <div className="absolute -left-[2.35rem] w-4 h-4 bg-blue-500 rounded-full border-2 border-white" />
                     <div className="bg-blue-50 rounded-lg p-4">
-                      <h4 className="font-semibold text-blue-900 mb-1">Batch Information</h4>
+                      <h4 className="font-semibold text-blue-900 mb-1 dark:text-blue-300">Batch Information</h4>
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <p><span className="text-blue-600">Batch #:</span> {traceData.batch.batchNumber}</p>
                         <p><span className="text-blue-600">Received:</span> {traceData.batch.receivedDate ? formatDate(traceData.batch.receivedDate) : '--'}</p>
@@ -1708,7 +1708,7 @@ function TraceabilityTab() {
                   <div className="relative">
                     <div className="absolute -left-[2.35rem] w-4 h-4 bg-purple-500 rounded-full border-2 border-white" />
                     <div className="bg-purple-50 rounded-lg p-4">
-                      <h4 className="font-semibold text-purple-900 mb-2">Lab Results</h4>
+                      <h4 className="font-semibold text-purple-900 mb-2 dark:text-purple-300">Lab Results</h4>
                       <div className="flex flex-wrap gap-3 text-sm mb-2">
                         <span className="px-3 py-1 bg-white rounded-lg font-medium text-gray-900 dark:bg-slate-900 dark:text-slate-100">THC: {traceData.labResults.thcPercent}%</span>
                         <span className="px-3 py-1 bg-white rounded-lg font-medium text-gray-900 dark:bg-slate-900 dark:text-slate-100">CBD: {traceData.labResults.cbdPercent}%</span>
@@ -1738,7 +1738,7 @@ function TraceabilityTab() {
                   <div className="relative">
                     <div className="absolute -left-[2.35rem] w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
                     <div className="bg-green-50 rounded-lg p-4 text-gray-900 dark:text-slate-100">
-                      <h4 className="font-semibold text-green-900 mb-2">Inputs Applied ({traceData.inputs.length})</h4>
+                      <h4 className="font-semibold text-green-900 mb-2 dark:text-green-300">Inputs Applied ({traceData.inputs.length})</h4>
                       <div className="space-y-2">
                         {traceData.inputs.map((inp: any, i: number) => (
                           <div key={i} className="flex items-center justify-between text-sm bg-white rounded-lg p-2 dark:bg-slate-900">
@@ -1768,7 +1768,7 @@ function TraceabilityTab() {
                   <div className="relative">
                     <div className="absolute -left-[2.35rem] w-4 h-4 bg-amber-500 rounded-full border-2 border-white" />
                     <div className="bg-amber-50 rounded-lg p-4">
-                      <h4 className="font-semibold text-amber-900 mb-1">Grow Details</h4>
+                      <h4 className="font-semibold text-amber-900 mb-1 dark:text-amber-300">Grow Details</h4>
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         {traceData.room && <p><span className="text-amber-600">Room:</span> {traceData.room.name}</p>}
                         {traceData.plant && <p><span className="text-amber-600">Plant Tag:</span> {traceData.plant.metrcTag}</p>}

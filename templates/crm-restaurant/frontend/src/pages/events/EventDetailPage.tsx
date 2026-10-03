@@ -342,7 +342,7 @@ export default function EventDetailPage() {
         )}
         {ev.notes && <p className="text-sm text-gray-500 mt-3 whitespace-pre-wrap dark:text-slate-400">{ev.notes}</p>}
         {ev.status === 'lost' && ev.lostReason && (
-          <p className="text-sm text-red-700 mt-3"><span className="font-medium">Lost:</span> {ev.lostReason}</p>
+          <p className="text-sm text-red-700 mt-3 dark:text-red-300"><span className="font-medium">Lost:</span> {ev.lostReason}</p>
         )}
       </div>
 
@@ -353,7 +353,7 @@ export default function EventDetailPage() {
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
-              tab === t.id ? 'border-orange-600 text-orange-700' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+              tab === t.id ? 'border-orange-600 text-orange-700 dark:text-orange-300' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             {t.icon} {t.label}
@@ -493,7 +493,7 @@ export default function EventDetailPage() {
                   {payments.map((p) => (
                     <tr key={p.id} className={isOverdue(p) ? 'bg-red-50 dark:bg-red-900/20' : ''}>
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{p.label}</td>
-                      <td className={`px-4 py-3 ${isOverdue(p) ? 'text-red-700 font-medium' : 'text-gray-600 dark:text-slate-400'}`}>
+                      <td className={`px-4 py-3 ${isOverdue(p) ? 'text-red-700 font-medium dark:text-red-300' : 'text-gray-600 dark:text-slate-400'}`}>
                         {p.dueDate || '—'}{isOverdue(p) ? ' (overdue)' : ''}
                       </td>
                       <td className="px-4 py-3 text-gray-900 font-medium text-right dark:text-slate-100">{money2(p.amount)}</td>
@@ -812,7 +812,7 @@ function MenuLineModal({ eventId, heads, onSave, onClose }: { eventId: string; h
             ))}
           </select>
           {selected?.minGuests && Number(form.quantity || 0) > 0 && Number(form.quantity) < selected.minGuests && (
-            <p className="text-xs text-amber-700 mt-1">
+            <p className="text-xs text-amber-700 mt-1 dark:text-amber-300">
               This package's minimum is {selected.minGuests} guests and you've entered {form.quantity} — the line will be billed at {selected.minGuests}.
             </p>
           )}

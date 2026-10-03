@@ -319,7 +319,7 @@ function JobCard({ job, onTap, onNavigate }: { job: Job; onTap: () => void; onNa
     <div className="bg-white px-4 py-4 active:bg-gray-50 transition-colors dark:bg-slate-900">
       <div className="flex items-start gap-3" onClick={onTap}>
         <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-          <TypeIcon className="w-5 h-5 text-blue-700" />
+          <TypeIcon className="w-5 h-5 text-blue-700 dark:text-blue-300" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">

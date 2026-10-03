@@ -1096,10 +1096,10 @@ export default function InsuranceClaimPage() {
                         </table>
                       )}
                       {sup.status === 'approved' && sup.approvedAmount && (
-                        <p className="text-xs text-green-700 font-medium">Approved: {fmt$(sup.approvedAmount)}</p>
+                        <p className="text-xs text-green-700 font-medium dark:text-green-300">Approved: {fmt$(sup.approvedAmount)}</p>
                       )}
                       {sup.status === 'denied' && sup.denialReason && (
-                        <p className="text-xs text-red-700">Denied: {sup.denialReason}</p>
+                        <p className="text-xs text-red-700 dark:text-red-300">Denied: {sup.denialReason}</p>
                       )}
                       {sup.status === 'draft' && mayWriteClaim && (
                         <div className="mt-2 flex items-center gap-4">

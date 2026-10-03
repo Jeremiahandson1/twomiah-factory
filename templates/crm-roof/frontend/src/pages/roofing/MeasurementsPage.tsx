@@ -364,7 +364,7 @@ export default function MeasurementsPage() {
                   <div>
                     <p className="font-medium">Low quality imagery</p>
                     <p className="text-xs mt-0.5">Satellite data for this area is limited. Consider entering measurements manually for more accurate results.</p>
-                    <button onClick={() => { setManualOpen(true); setManualSquares(selectedReport.totalSquares || ''); }} className="flex items-center gap-1 mt-2 text-xs font-medium text-yellow-900 underline">
+                    <button onClick={() => { setManualOpen(true); setManualSquares(selectedReport.totalSquares || ''); }} className="flex items-center gap-1 mt-2 text-xs font-medium text-yellow-900 underline dark:text-yellow-300">
                       <Edit3 className="w-3 h-3" /> Enter manually
                     </button>
                   </div>
@@ -388,11 +388,11 @@ export default function MeasurementsPage() {
               {selectedReport.status === 'complete' && (
                 <div className="grid grid-cols-3 gap-3">
                   <div className="bg-purple-50 rounded-lg p-3 text-center">
-                    <p className="text-2xl font-bold text-purple-700">{selectedReport.totalSquares || '—'}</p>
+                    <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">{selectedReport.totalSquares || '—'}</p>
                     <p className="text-xs text-purple-600">Total Squares</p>
                   </div>
                   <div className="bg-blue-50 rounded-lg p-3 text-center">
-                    <p className="text-2xl font-bold text-blue-700">{selectedReport.totalArea ? Number(selectedReport.totalArea).toLocaleString() : '—'}</p>
+                    <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{selectedReport.totalArea ? Number(selectedReport.totalArea).toLocaleString() : '—'}</p>
                     <p className="text-xs text-blue-600">Total Sqft</p>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-3 text-center dark:bg-slate-900">

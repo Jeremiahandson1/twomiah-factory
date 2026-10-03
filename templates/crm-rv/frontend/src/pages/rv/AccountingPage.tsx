@@ -50,7 +50,7 @@ export default function AccountingPage() {
         <Link2 size={18} className={data.connected ? 'text-green-600' : 'text-amber-600'} />
         <div className="flex-1 text-sm">
           <span className="font-semibold">{data.provider}</span> — {data.connected ? 'Connected' : 'Not connected'}
-          {!data.connected && <span className="block text-xs text-amber-700">Connect your books to post automatically. Demo — OAuth on integration; native GL is the upgrade path.</span>}
+          {!data.connected && <span className="block text-xs text-amber-700 dark:text-amber-300">Connect your books to post automatically. Demo — OAuth on integration; native GL is the upgrade path.</span>}
         </div>
         {!data.connected && <button onClick={connect} className="px-3 py-1.5 rounded-lg bg-white border text-sm font-medium hover:bg-gray-50 dark:bg-slate-900">Connect</button>}
       </div>

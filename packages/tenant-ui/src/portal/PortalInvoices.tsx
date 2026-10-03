@@ -142,7 +142,7 @@ export function PortalInvoiceDetail() {
             {Number(invoice.discount || 0) > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Discount</span><span>-{moneyShort(invoice.discount)}</span></div>}
             <div className="flex justify-between font-medium border-t pt-2 dark:border-slate-700"><span>Total</span><span>{moneyShort(invoice.total)}</span></div>
             {Number(invoice.amountPaid || 0) > 0 && <div className="flex justify-between text-sm text-green-600"><span>Paid</span><span>-{moneyShort(invoice.amountPaid)}</span></div>}
-            {Number(invoice.amountRefunded || 0) > 0 && <div className="flex justify-between text-sm text-amber-700"><span>Refunded</span><span>{moneyShort(invoice.amountRefunded)}</span></div>}
+            {Number(invoice.amountRefunded || 0) > 0 && <div className="flex justify-between text-sm text-amber-700 dark:text-amber-300"><span>Refunded</span><span>{moneyShort(invoice.amountRefunded)}</span></div>}
             <div className="flex justify-between text-lg font-bold border-t pt-2 dark:border-slate-700"><span>Balance Due</span><span className={Number(invoice.balance) > 0 ? 'text-orange-600' : 'text-green-600'}>{moneyShort(invoice.balance)}</span></div>
           </div>
         </div>

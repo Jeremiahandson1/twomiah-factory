@@ -126,7 +126,7 @@ export default function OEMPartsPage() {
               {importing ? <Loader2 className="animate-spin" size={15} /> : <Upload size={15} />} Import
             </button>
             {importMsg && (
-              <span className={`text-xs font-medium ${importMsg.ok ? 'text-green-700' : 'text-red-600'}`}>{importMsg.text}</span>
+              <span className={`text-xs font-medium ${importMsg.ok ? 'text-green-700 dark:text-green-300' : 'text-red-600'}`}>{importMsg.text}</span>
             )}
           </div>
         </div>
@@ -171,7 +171,7 @@ export default function OEMPartsPage() {
                   <td className="px-4 py-2 text-gray-500 text-xs align-top dark:text-slate-400">{p.fitment || '—'}</td>
                   <td className="px-4 py-2 text-right font-semibold align-top">{money(p.price)}{p.msrp && p.msrp > p.price ? <span className="block text-[10px] text-gray-500 dark:text-slate-400 line-through font-normal">{money(p.msrp)}</span> : null}</td>
                   <td className="px-4 py-2 align-top"><span className={`text-xs px-2 py-0.5 rounded-full ${/in stock/i.test(p.availability) ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{p.availability}</span></td>
-                  <td className="px-4 py-2 align-top">{ordered[p.partNumber] ? <span className="text-xs text-green-700 font-medium whitespace-nowrap">✓ {ordered[p.partNumber]}</span> : <button onClick={() => order(p)} className="text-xs px-2.5 py-1 rounded border border-slate-300 hover:bg-slate-50">Order</button>}</td>
+                  <td className="px-4 py-2 align-top">{ordered[p.partNumber] ? <span className="text-xs text-green-700 font-medium whitespace-nowrap dark:text-green-300">✓ {ordered[p.partNumber]}</span> : <button onClick={() => order(p)} className="text-xs px-2.5 py-1 rounded border border-slate-300 hover:bg-slate-50">Order</button>}</td>
                 </tr>
               ))}
             </tbody>

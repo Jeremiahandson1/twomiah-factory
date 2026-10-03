@@ -344,7 +344,7 @@ export default function ProductDetailPage() {
               </div>
               {form.price && form.costPrice && (
                 <div className="md:col-span-2 p-3 bg-green-50 rounded-lg">
-                  <p className="text-sm text-green-700">
+                  <p className="text-sm text-green-700 dark:text-green-300">
                     Margin: ${(parseFloat(form.price) - parseFloat(form.costPrice)).toFixed(2)} ({((1 - parseFloat(form.costPrice) / parseFloat(form.price)) * 100).toFixed(1)}%)
                   </p>
                 </div>

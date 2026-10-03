@@ -144,8 +144,8 @@ export default function CashPage() {
                 <p className="text-xl font-bold text-red-700 dark:text-red-300">${Number(currentSession.cashRefunds || 0).toFixed(2)}</p>
               </div>
               <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                <p className="text-sm text-green-700">Expected in Drawer</p>
-                <p className="text-xl font-bold text-green-700">${Number(expectedClosing).toFixed(2)}</p>
+                <p className="text-sm text-green-700 dark:text-green-300">Expected in Drawer</p>
+                <p className="text-xl font-bold text-green-700 dark:text-green-300">${Number(expectedClosing).toFixed(2)}</p>
               </div>
             </div>
 

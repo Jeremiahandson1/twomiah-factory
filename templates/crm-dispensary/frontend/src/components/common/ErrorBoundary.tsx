@@ -53,13 +53,13 @@ class ErrorBoundary extends React.Component<any, any> {
             
             {import.meta.env.DEV && this.state.error && (
               <div className="mb-6 p-4 bg-red-50 rounded-lg text-left">
-                <p className="font-mono text-sm text-red-800 break-all">
+                <p className="font-mono text-sm text-red-800 break-all dark:text-red-300">
                   {this.state.error.toString()}
                 </p>
                 {this.state.errorInfo && (
                   <details className="mt-2">
                     <summary className="text-sm text-red-600 cursor-pointer">Stack trace</summary>
-                    <pre className="mt-2 text-xs text-red-700 overflow-auto max-h-40">
+                    <pre className="mt-2 text-xs text-red-700 overflow-auto max-h-40 dark:text-red-300">
                       {this.state.errorInfo.componentStack}
                     </pre>
                   </details>

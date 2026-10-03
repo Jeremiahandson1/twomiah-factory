@@ -159,7 +159,7 @@ export default function RemindersPage() {
         <button
           onClick={() => { setTab('due'); setSelected(new Set()); }}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-            tab === 'due' ? 'border-teal-600 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+            tab === 'due' ? 'border-teal-600 text-teal-700 dark:text-teal-300' : 'border-transparent text-gray-500 hover:text-gray-700'
           } dark:text-slate-200`}
         >
           <Syringe className="w-4 h-4" /> Vaccines Due
@@ -167,7 +167,7 @@ export default function RemindersPage() {
         <button
           onClick={() => { setTab('lapsed'); setSelected(new Set()); }}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-            tab === 'lapsed' ? 'border-teal-600 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+            tab === 'lapsed' ? 'border-teal-600 text-teal-700 dark:text-teal-300' : 'border-transparent text-gray-500 hover:text-gray-700'
           } dark:text-slate-200`}
         >
           <UserX className="w-4 h-4" /> Lapsed Clients
@@ -246,8 +246,16 @@ export default function RemindersPage() {
             </thead>
             <tbody className="divide-y">
               {tab === 'due'
+                /*
+                 * THE OVERDUE ROW MEASURED 1.00:1. (T41)
+                 *
+                 * `bg-red-50` with no dark partner stays pale pink in dark mode while the table's
+                 * own text goes near-white — so the rows the clinic most needs to see were the only
+                 * invisible ones on the page. The ground goes dark-red and the ink is pinned light,
+                 * so the row still reads as a warning in both themes.
+                 */
                 ? dueRows.map((r) => (
-                    <tr key={r.vaccinationId} className={r.overdue ? 'bg-red-50' : ''}>
+                    <tr key={r.vaccinationId} className={r.overdue ? 'bg-red-50 dark:bg-red-950/40' : ''}>
                       <td className="px-4 py-3">
                         <input type="checkbox" checked={selected.has(r.vaccinationId)} onChange={() => toggle(r.vaccinationId)} disabled={!r.ownerId} className="w-4 h-4" />
                       </td>
@@ -259,12 +267,12 @@ export default function RemindersPage() {
                         {[r.ownerMobile || r.ownerPhone, r.ownerEmail].filter(Boolean).join(' · ') || '—'}
                       </td>
                       <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{r.vaccine || '—'}</td>
-                      <td className={`px-4 py-3 ${r.overdue ? 'text-red-700 font-medium' : 'text-gray-600'}`}>
+                      <td className={`px-4 py-3 ${r.overdue ? 'text-red-700 dark:text-red-300 font-medium' : 'text-gray-600 dark:text-slate-400'}`}>
                         {fmtDate(r.dueDate)}{r.overdue ? ' (overdue)' : ''}
                       </td>
                       <td className="px-4 py-3 text-xs">
                         {r.lastRemindedAt ? (
-                          <span className={r.remindedRecently ? 'text-amber-700' : 'text-gray-500 dark:text-slate-400'}>
+                          <span className={r.remindedRecently ? 'text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-slate-400'}>
                             {ago(r.lastRemindedAt)}{(r.reminderCount || 0) > 1 ? ` · ${r.reminderCount}×` : ''}
                           </span>
                         ) : (
@@ -352,18 +360,18 @@ function SendReminderModal({ contactIds, vaccinationIds, onDone, onClose }: { co
                   on an empty usage wallet, say — say it, instead of reporting "0 reminders sent" in green
                   next to a row that claims it was reminded. (T24 M9) */}
               {(result.sent || 0) > 0 ? (
-                <div className="flex items-center gap-2 text-green-700">
+                <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
                   <CheckCircle2 className="w-5 h-5" />
                   <span className="font-medium">{result.sent} reminder{result.sent === 1 ? '' : 's'} sent</span>
                 </div>
               ) : (
-                <div role="alert" className="flex items-start gap-2 text-red-700">
+                <div role="alert" className="flex items-start gap-2 text-red-700 dark:text-red-300">
                   <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                   <span className="font-medium">{result.error || 'Nothing was sent.'}</span>
                 </div>
               )}
               {(result.failed || 0) > 0 && (
-                <div className="flex items-center gap-2 text-amber-700">
+                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
                   <AlertCircle className="w-5 h-5" />
                   <span>{result.failed} could not be reached{(result.sent || 0) > 0 && result.error ? ` — ${result.error}` : ''}</span>
                 </div>

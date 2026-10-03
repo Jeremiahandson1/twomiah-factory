@@ -226,7 +226,7 @@ export default function SnowBillingPage() {
                     <span className="inline-block mt-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{MODES.find(m => m.value === ct.billingMode)?.label}</span>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-semibold text-green-700">${Number(sm.unbilledTotal || 0).toFixed(2)}</div>
+                    <div className="text-sm font-semibold text-green-700 dark:text-green-300">${Number(sm.unbilledTotal || 0).toFixed(2)}</div>
                     <div className="text-xs text-gray-500 dark:text-slate-400">unbilled • {sm.events || 0} events</div>
                     {Number(sm.unbilledTotal || 0) > 0 && mayBill && (
                       <button onClick={(e) => { e.stopPropagation(); billContract(ct, Number(sm.unbilledTotal)); }} disabled={billing === ct.id}

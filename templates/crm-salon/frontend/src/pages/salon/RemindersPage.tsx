@@ -462,12 +462,12 @@ function SendReminderModal({ contactIds, defaultMessage, onDone, onClose }: { co
 
           {result ? (
             <div className="space-y-4">
-              <div className={`flex items-center gap-2 ${(result.sent || 0) > 0 ? 'text-green-700' : 'text-gray-600'}`}>
+              <div className={`flex items-center gap-2 ${(result.sent || 0) > 0 ? 'text-green-700 dark:text-green-300' : 'text-gray-600'}`}>
                 <CheckCircle2 className="w-5 h-5" />
                 <span className="font-medium">{result.sent} text{result.sent === 1 ? '' : 's'} sent</span>
               </div>
               {(result.failed || 0) > 0 && (
-                <div className="flex items-center gap-2 text-amber-700">
+                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
                   <AlertCircle className="w-5 h-5" />
                   <span>{result.failed} failed{result.reason ? ` — ${result.reason}` : (result.noPhone || 0) > 0 ? ' — no mobile number on file' : ''}</span>
                 </div>

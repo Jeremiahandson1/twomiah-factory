@@ -11,10 +11,10 @@ import { useToast } from '../../contexts/ToastContext'
 
 const OUTCOME_CONFIG: Record<string, { label: string; emoji: string; color: string; bgColor: string }> = {
   no_answer: { label: 'No Answer', emoji: '🚪', color: 'text-gray-600', bgColor: 'bg-gray-100 border-gray-300' },
-  not_interested: { label: 'Not Interested', emoji: '👋', color: 'text-red-700', bgColor: 'bg-red-50 border-red-300' },
-  interested: { label: 'Interested', emoji: '⭐', color: 'text-yellow-700', bgColor: 'bg-yellow-50 border-yellow-300' },
-  appointment_set: { label: 'Appointment Set', emoji: '📅', color: 'text-green-700', bgColor: 'bg-green-50 border-green-300' },
-  already_has_contractor: { label: 'Has Contractor', emoji: '🔨', color: 'text-orange-700', bgColor: 'bg-orange-50 border-orange-300' },
+  not_interested: { label: 'Not Interested', emoji: '👋', color: 'text-red-700 dark:text-red-300', bgColor: 'bg-red-50 border-red-300' },
+  interested: { label: 'Interested', emoji: '⭐', color: 'text-yellow-700 dark:text-yellow-300', bgColor: 'bg-yellow-50 border-yellow-300' },
+  appointment_set: { label: 'Appointment Set', emoji: '📅', color: 'text-green-700 dark:text-green-300', bgColor: 'bg-green-50 border-green-300' },
+  already_has_contractor: { label: 'Has Contractor', emoji: '🔨', color: 'text-orange-700 dark:text-orange-300', bgColor: 'bg-orange-50 border-orange-300' },
   vacant: { label: 'Vacant', emoji: '🏚️', color: 'text-gray-500', bgColor: 'bg-gray-50 border-gray-300' },
 }
 
@@ -426,7 +426,7 @@ export default function CanvassingView() {
           {/* Grouped stops */}
           {appointments.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-green-700 mb-2">Appointments ({appointments.length})</h3>
+              <h3 className="text-sm font-semibold text-green-700 mb-2 dark:text-green-300">Appointments ({appointments.length})</h3>
               {appointments.map((st: Stop) => (
                 <div key={st.id} className="bg-green-50 border border-green-200 rounded-lg p-3 mb-2 text-gray-900 dark:text-slate-100">
                   <p className="text-sm font-medium">{st.address}</p>
@@ -443,7 +443,7 @@ export default function CanvassingView() {
 
           {interested.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-yellow-700 mb-2">Interested ({interested.length})</h3>
+              <h3 className="text-sm font-semibold text-yellow-700 mb-2 dark:text-yellow-300">Interested ({interested.length})</h3>
               {interested.map((st: Stop) => (
                 <div key={st.id} className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-2 text-gray-900 dark:text-slate-100">
                   <p className="text-sm font-medium">{st.address}</p>
@@ -459,7 +459,7 @@ export default function CanvassingView() {
 
           {followUps.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-blue-700 mb-2">Follow-Ups ({followUps.length})</h3>
+              <h3 className="text-sm font-semibold text-blue-700 mb-2 dark:text-blue-300">Follow-Ups ({followUps.length})</h3>
               {followUps.map((st: Stop) => (
                 <div key={st.id} className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2 text-gray-900 dark:text-slate-100">
                   <p className="text-sm font-medium">{st.address}</p>
@@ -645,8 +645,8 @@ export default function CanvassingView() {
                     <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap dark:text-slate-200">{step.body}</p>
                     {step.tips && (
                       <div className="mt-4 bg-yellow-50 rounded-lg p-3">
-                        <p className="text-xs font-semibold text-yellow-800 mb-1">Tips</p>
-                        <p className="text-xs text-yellow-700">{step.tips}</p>
+                        <p className="text-xs font-semibold text-yellow-800 mb-1 dark:text-yellow-300">Tips</p>
+                        <p className="text-xs text-yellow-700 dark:text-yellow-300">{step.tips}</p>
                       </div>
                     )}
                   </div>
@@ -738,7 +738,7 @@ export default function CanvassingView() {
                 {logGpsStatus === 'loading' && (
                   <div className="bg-blue-50 rounded-xl p-4 flex items-center gap-3">
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600" />
-                    <p className="text-sm text-blue-700">Getting your location...</p>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">Getting your location...</p>
                   </div>
                 )}
 
@@ -746,7 +746,7 @@ export default function CanvassingView() {
                   <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-1">
                       <Navigation size={16} className="text-green-600" />
-                      <p className="text-sm font-medium text-green-800">GPS Location Found</p>
+                      <p className="text-sm font-medium text-green-800 dark:text-green-300">GPS Location Found</p>
                     </div>
                     <p className="text-sm text-gray-700 dark:text-slate-200">{logAddress}{logCity ? `, ${logCity}` : ''}{logState ? `, ${logState}` : ''} {logZip}</p>
                   </div>
@@ -754,7 +754,7 @@ export default function CanvassingView() {
 
                 {logGpsStatus === 'denied' && (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
-                    <p className="text-sm text-yellow-800">GPS unavailable — enter address manually</p>
+                    <p className="text-sm text-yellow-800 dark:text-yellow-300">GPS unavailable — enter address manually</p>
                   </div>
                 )}
 
@@ -960,7 +960,7 @@ export default function CanvassingView() {
 
                 {(logOutcome === 'interested' || logOutcome === 'appointment_set') && logPhone && (
                   <div className="bg-green-50 border border-green-200 rounded-xl p-3">
-                    <p className="text-sm text-green-800 font-medium">This will create a new lead in your CRM</p>
+                    <p className="text-sm text-green-800 font-medium dark:text-green-300">This will create a new lead in your CRM</p>
                   </div>
                 )}
 

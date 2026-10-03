@@ -158,7 +158,7 @@ export default function FIPage() {
             {decision.result?.stipulations?.length > 0 && <div className="mt-3 text-xs text-gray-500 dark:text-slate-400"><span className="font-semibold">Stipulations:</span> {decision.result.stipulations.join(', ')}</div>}
           </div>)}
         {decision?.result?.decision && decision.result.decision !== 'declined' && (
-          <a href={`/crm/title-reg?lead=${leadId}`} className="mt-3 inline-block text-xs text-violet-700 hover:underline">Approved — send to Title &amp; Registration →</a>
+          <a href={`/crm/title-reg?lead=${leadId}`} className="mt-3 inline-block text-xs text-violet-700 hover:underline dark:text-violet-300">Approved — send to Title &amp; Registration →</a>
         )}
       </>}
     </div>

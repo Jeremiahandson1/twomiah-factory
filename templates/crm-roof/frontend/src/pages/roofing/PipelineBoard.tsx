@@ -364,7 +364,7 @@ export default function PipelineBoard() {
                         {job.jobType === 'insurance' && (
                           <div className="flex items-center gap-2 mt-1">
                             {job.rcv && (
-                              <span className="flex items-center gap-0.5 text-[10px] text-green-700 font-medium">
+                              <span className="flex items-center gap-0.5 text-[10px] text-green-700 font-medium dark:text-green-300">
                                 <DollarSign className="w-3 h-3" />
                                 {Number(job.rcv).toLocaleString()} RCV
                               </span>

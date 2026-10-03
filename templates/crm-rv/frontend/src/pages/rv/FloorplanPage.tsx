@@ -16,7 +16,7 @@ export default function FloorplanPage() {
   const cards = [
     ['Units floored', summary.count ?? 0, ''],
     ['Total floored', money(summary.totalFloored || 0), ''],
-    ['Interest accrued', money(summary.totalInterest || 0), 'text-amber-700'],
+    ['Interest accrued', money(summary.totalInterest || 0), 'text-amber-700 dark:text-amber-300'],
     ['Curtailment due', summary.dueCount ?? 0, (summary.dueCount || 0) > 0 ? 'text-red-600' : ''],
   ];
 
@@ -58,7 +58,7 @@ export default function FloorplanPage() {
                   <td className="px-4 py-2 text-gray-600 dark:text-slate-400">{u.lender}</td>
                   <td className="px-4 py-2 text-right font-medium">{money(u.amount)}</td>
                   <td className="px-4 py-2 text-right text-gray-600 dark:text-slate-400">{u.flooredDays}</td>
-                  <td className="px-4 py-2 text-right text-amber-700">{money(u.interest)}</td>
+                  <td className="px-4 py-2 text-right text-amber-700 dark:text-amber-300">{money(u.interest)}</td>
                   <td className="px-4 py-2">{u.curtailmentDue
                     ? <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700"><AlertTriangle size={12} />{u.status}</span>
                     : <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">{u.status}</span>}</td>

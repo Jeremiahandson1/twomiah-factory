@@ -147,15 +147,17 @@ export default function DeskingPage() {
             <div className="text-sm divide-y">
               {otdRows.map(([l, v]) => (<div key={l} className="flex justify-between py-1.5"><span className="text-gray-600 dark:text-slate-400">{l}</span><span>{shown(v)}</span></div>))}
               <div className="flex justify-between py-2 font-bold text-base"><span>Out-the-door</span><span>{shown(t.outTheDoor)}</span></div>
-              <div className="flex justify-between py-1.5"><span className="text-gray-600 dark:text-slate-400">Down payment</span><span className="text-green-700">{hasErrors ? '—' : `-${money(d.down)}`}</span></div>
+              <div className="flex justify-between py-1.5"><span className="text-gray-600 dark:text-slate-400">Down payment</span><span className="text-green-700 dark:text-green-300">{hasErrors ? '—' : `-${money(d.down)}`}</span></div>
               {/* "'Net trade equity +$2,200' shows positive when equity is −$2,200." (T41 RV)
                   netTrade is tradeAllow − tradePayoff, and the SIGN shown is its effect on the
                   amount financed: equity comes off the deal (−), negative equity is rolled into it
                   (+). That arithmetic was right and the WORDS were not — a customer $2,200 upside
                   down was shown "Net trade equity +$2,200", which reads as $2,200 in their favour.
                   The row now names which of the two it is, so the label and the sign agree. */}
-              {!hasErrors && t.netTrade !== 0 && <div className="flex justify-between py-1.5"><span className="text-gray-600 dark:text-slate-400">{t.netTrade > 0 ? 'Net trade equity' : 'Negative trade equity'}</span><span className={t.netTrade > 0 ? 'text-green-700' : ''}>{t.netTrade > 0 ? '-' : '+'}{money(Math.abs(t.netTrade))}</span></div>}
-              <div className="flex justify-between py-2 font-bold text-lg text-blue-800"><span>Amount to finance</span><span>{shown(t.financed)}</span></div>
+              {!hasErrors && t.netTrade !== 0 && <div className="flex justify-between py-1.5"><span className="text-gray-600 dark:text-slate-400">{t.netTrade > 0 ? 'Net trade equity' : 'Negative trade equity'}</span><span className={t.netTrade > 0 ? 'text-green-700 dark:text-green-300' : ''}>{t.netTrade > 0 ? '-' : '+'}{money(Math.abs(t.netTrade))}</span></div>}
+              {/* 2.05:1 in dark mode (T41): blue-800 is nearly the ground. The deal's single most
+                  important figure, and the only row on the desk with no dark-mode answer. */}
+              <div className="flex justify-between py-2 font-bold text-lg text-blue-800 dark:text-blue-300"><span>Amount to finance</span><span>{shown(t.financed)}</span></div>
             </div>
             {hasErrors && <p className="mt-2 text-xs text-red-600">Totals and payments show once the highlighted fields are fixed.</p>}
             {leadId && (

@@ -24,7 +24,7 @@ function Card({ card }: { card: LoyaltyPunchCard }) {
       {Array.from({ length: card.visitsRequired }).map((_, i) => (
         <span key={i} className={`inline-block w-2.5 h-2.5 rounded-full ${i < filled ? 'bg-indigo-500' : 'bg-gray-200'}`} />
       ))}
-      {card.unclaimed > 0 && <span className="ml-1 text-xs font-medium text-indigo-700">Reward ready</span>}
+      {card.unclaimed > 0 && <span className="ml-1 text-xs font-medium text-indigo-700 dark:text-indigo-300">Reward ready</span>}
     </span>
   )
 }
@@ -124,7 +124,7 @@ export default function LoyaltyPage() {
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 capitalize ${
-              tab === t ? 'border-indigo-500 text-indigo-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+              tab === t ? 'border-indigo-500 text-indigo-700 dark:text-indigo-300' : 'border-transparent text-gray-500 hover:text-gray-700'
             } dark:text-slate-200`}
           >{t}</button>
         ))}
@@ -187,7 +187,7 @@ export default function LoyaltyPage() {
                         {!r.active && <div className="text-xs text-gray-500">Not currently available</div>}
                       </td>
                       <td className="px-4 py-2.5 tabular-nums text-gray-900 dark:text-slate-100">
-                        {r.pointsCost > 0 ? `${r.pointsCost} pts` : <span className="text-indigo-700">A full card</span>}
+                        {r.pointsCost > 0 ? `${r.pointsCost} pts` : <span className="text-indigo-700 dark:text-indigo-300">A full card</span>}
                       </td>
                       <td className="px-4 py-2.5 text-gray-900 dark:text-slate-100">{describe(r)}</td>
                       <td className="px-4 py-2.5 tabular-nums text-gray-600">
@@ -207,7 +207,7 @@ export default function LoyaltyPage() {
                               active: r.active,
                             })
                           }}
-                          className="px-2 py-1 text-indigo-700 hover:underline"
+                          className="px-2 py-1 text-indigo-700 hover:underline dark:text-indigo-300"
                         >Edit</button>
                         <button onClick={() => removeReward(r)} className="px-2 py-1 text-red-600 hover:underline">Delete</button>
                       </td>

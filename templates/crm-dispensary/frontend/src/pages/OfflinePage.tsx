@@ -400,10 +400,10 @@ export default function OfflinePage() {
             </div>
 
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-gray-900 dark:text-slate-100">
-              <h4 className="font-medium text-yellow-800 flex items-center gap-2 mb-2">
+              <h4 className="font-medium text-yellow-800 flex items-center gap-2 mb-2 dark:text-yellow-300">
                 <AlertTriangle className="w-4 h-4" />If Sync Fails
               </h4>
-              <ol className="space-y-1 text-sm text-yellow-700 list-decimal list-inside">
+              <ol className="space-y-1 text-sm text-yellow-700 list-decimal list-inside dark:text-yellow-300">
                 <li>Check your internet connection</li>
                 <li>Go to the Queue tab to see failed transactions</li>
                 <li>Use "Retry" for individual items or "Force Sync" for all</li>

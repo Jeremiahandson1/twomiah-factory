@@ -335,7 +335,7 @@ export default function LoyaltyPage() {
                             ><Edit2 className="w-4 h-4" /></button>
                             <button
                               onClick={() => removeReward(r)}
-                              className="p-2 text-red-600 hover:text-red-700"
+                              className="p-2 text-red-600 hover:text-red-700 dark:text-red-300"
                               aria-label={`Delete ${r.name}`}
                             ><Trash2 className="w-4 h-4" /></button>
                           </>

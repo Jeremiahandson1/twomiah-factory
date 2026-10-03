@@ -253,7 +253,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
               {msg && msg.enabled && msg.walletCents <= 0 && (
                 <div className="mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-md p-3 text-sm text-red-800 dark:text-red-200">Your texting wallet is empty — reminders and replies will not send until you add funds.</div>
               )}
-              {msg?.error && <div className="mt-4 text-sm text-amber-700">Could not reach billing right now: {msg.error}</div>}
+              {msg?.error && <div className="mt-4 text-sm text-amber-700 dark:text-amber-300">Could not reach billing right now: {msg.error}</div>}
               <div className="flex flex-wrap gap-3 mt-6">
                 <button onClick={openSmsBilling} disabled={openingSms} className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900">
                   {openingSms ? 'Opening…' : msg && msg.enabled ? 'Add funds / manage texting' : 'Enable texting'}

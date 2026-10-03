@@ -424,12 +424,24 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
   }
 }
 
+/**
+ * THE TILES STAYED LIGHT-COLOURED IN DARK MODE. (T41: "Agreements tiles stay light (3.57:1)")
+ *
+ * Each entry set only `bg-X-50 text-X-700` — a pale tint with mid-dark ink, which is a correct
+ * pairing on a white page and a near-white block on a dark one. It is the same defect the shared
+ * Equipment page's tiles had (T32 M14) and the fix is the same shape: each tint names its dark
+ * counterpart, so the tile stays a tint OF ITS OWN HUE rather than turning grey, and the ink moves
+ * to the light end of that hue.
+ *
+ * This is the shared Agreements page, so it is every vertical that sells maintenance plans, not
+ * just the one the report happened to open.
+ */
 function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
   const colors: Record<string, string> = {
-    gray: 'bg-gray-50 text-gray-700',
-    orange: 'bg-orange-50 text-orange-700',
-    green: 'bg-green-50 text-green-700',
-    blue: 'bg-blue-50 text-blue-700',
+    gray: 'bg-gray-50 text-gray-700 dark:bg-slate-800 dark:text-slate-200',
+    orange: 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300',
+    green: 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300',
+    blue: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
   };
 
   return (

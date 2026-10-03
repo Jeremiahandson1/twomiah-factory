@@ -513,7 +513,7 @@ export function LineItemsEditor({ items, onChange, pricebook }: {
               )}
               <td className="px-3 py-2"><NumberInput min="0" step="0.01" aria-label="Unit price" value={li.unitPrice} onValue={n => update(i, { unitPrice: n })} className={inputCls} /></td>
               <td className="px-3 py-2 text-right text-gray-900 dark:text-slate-100">{money(round2((Number(li.quantity) || 0) * (Number(li.unitPrice) || 0)))}</td>
-              <td className="px-1"><button type="button" onClick={() => onChange(items.filter((_, idx) => idx !== i))} className="p-1 text-red-500 hover:text-red-700" aria-label="Remove line"><X className="w-4 h-4" /></button></td>
+              <td className="px-1"><button type="button" onClick={() => onChange(items.filter((_, idx) => idx !== i))} className="p-1 text-red-500 hover:text-red-700 dark:text-red-300" aria-label="Remove line"><X className="w-4 h-4" /></button></td>
             </tr>
           ))}
         </tbody>

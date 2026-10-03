@@ -186,7 +186,7 @@ export default function BillsPage() {
     { key: 'amount', label: 'Amount', render: (v: unknown) => `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
     { key: 'amountPaid', label: 'Paid', render: (v: unknown) => `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
     { key: 'dueDate', label: 'Due', render: (v: unknown) => v ? formatDate(v as string) : '-' },
-    { key: 'source', label: 'Source', render: (v: unknown) => v === 'vendor_portal' ? <span className="text-xs text-teal-700">vendor portal</span> : <span className="text-xs text-gray-500 dark:text-slate-400">manual</span> },
+    { key: 'source', label: 'Source', render: (v: unknown) => v === 'vendor_portal' ? <span className="text-xs text-teal-700 dark:text-teal-300">vendor portal</span> : <span className="text-xs text-gray-500 dark:text-slate-400">manual</span> },
   ];
 
   // T32 M9. The tester asked whether AP payments being admin-only is deliberate. It is — the

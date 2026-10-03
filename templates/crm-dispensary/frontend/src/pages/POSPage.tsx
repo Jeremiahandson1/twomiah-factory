@@ -887,7 +887,7 @@ export default function POSPage() {
                       <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">{cost} pts</span>
                       {problem && <span className="ml-2 text-xs text-red-500">{problem}</span>}
                     </span>
-                    <span className="text-green-700 font-medium">{problem ? '' : `-$${discount.toFixed(2)}`}</span>
+                    <span className="text-green-700 font-medium dark:text-green-300">{problem ? '' : `-$${discount.toFixed(2)}`}</span>
                   </button>
                 );
               })}

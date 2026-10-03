@@ -383,12 +383,12 @@ function AttributionTab({ report }: AttributionTabProps) {
             <span className="font-bold">{formatDuration(report.totals?.totalDuration || 0)}</span>
           </div>
           <div className="flex justify-between p-3 bg-green-50 rounded-lg">
-            <span className="text-green-700">Leads Generated</span>
-            <span className="font-bold text-green-700">{report.totals?.leads || 0}</span>
+            <span className="text-green-700 dark:text-green-300">Leads Generated</span>
+            <span className="font-bold text-green-700 dark:text-green-300">{report.totals?.leads || 0}</span>
           </div>
           <div className="flex justify-between p-3 bg-orange-50 rounded-lg">
-            <span className="text-orange-700">Lead Value</span>
-            <span className="font-bold text-orange-700">${report.totals?.leadValue || 0}</span>
+            <span className="text-orange-700 dark:text-orange-300">Lead Value</span>
+            <span className="font-bold text-orange-700 dark:text-orange-300">${report.totals?.leadValue || 0}</span>
           </div>
         </div>
       </div>

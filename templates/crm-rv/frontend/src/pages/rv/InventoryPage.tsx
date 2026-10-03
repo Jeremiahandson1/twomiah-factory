@@ -943,9 +943,9 @@ function RecallModal({ unit, onClose }: RecallModalProps) {
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
                 {count > 0 ? (
-                  <p className="text-sm font-medium text-amber-700">{count} open recall{count === 1 ? '' : 's'} found</p>
+                  <p className="text-sm font-medium text-amber-700 dark:text-amber-300">{count} open recall{count === 1 ? '' : 's'} found</p>
                 ) : (
-                  <p className="text-sm font-medium text-green-700">No open recalls</p>
+                  <p className="text-sm font-medium text-green-700 dark:text-green-300">No open recalls</p>
                 )}
                 {source && (
                   <span className="inline-flex items-center text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full dark:text-slate-400 dark:bg-slate-800">

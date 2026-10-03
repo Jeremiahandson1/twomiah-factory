@@ -94,8 +94,8 @@ export default function StormRadarPage() {
         <div className="mb-6 bg-yellow-50 border border-yellow-300 rounded-lg p-4 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
           <div>
-            <div className="font-semibold text-yellow-900">Storm Radar isn't turned on yet</div>
-            <div className="text-sm text-yellow-800 mt-1">Live storm tracking for your area isn't enabled on your account yet. Contact support to switch it on and start generating storm-season leads.</div>
+            <div className="font-semibold text-yellow-900 dark:text-yellow-300">Storm Radar isn't turned on yet</div>
+            <div className="text-sm text-yellow-800 mt-1 dark:text-yellow-300">Live storm tracking for your area isn't enabled on your account yet. Contact support to switch it on and start generating storm-season leads.</div>
           </div>
         </div>
       )}

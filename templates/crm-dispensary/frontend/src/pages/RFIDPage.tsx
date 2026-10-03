@@ -358,7 +358,7 @@ function ScanTab() {
           <div className={`mt-6 p-4 rounded-lg border ${result.matched ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
             <div className="flex items-center gap-2 mb-3">
               {result.matched ? <CheckCircle className="w-5 h-5 text-green-600" /> : <AlertTriangle className="w-5 h-5 text-amber-600" />}
-              <span className={`font-semibold ${result.matched ? 'text-green-800' : 'text-amber-800'}`}>
+              <span className={`font-semibold ${result.matched ? 'text-green-800 dark:text-green-300' : 'text-amber-800 dark:text-amber-300'}`}>
                 {result.matched ? 'Tag Matched' : 'Unknown Tag'}
               </span>
             </div>
@@ -371,7 +371,7 @@ function ScanTab() {
               </div>
             )}
             {!result.matched && (
-              <p className="text-sm text-amber-700">This EPC is not registered in the system. Register it in the Tags tab.</p>
+              <p className="text-sm text-amber-700 dark:text-amber-300">This EPC is not registered in the system. Register it in the Tags tab.</p>
             )}
           </div>
         )}
@@ -478,15 +478,15 @@ function InventoryCountTab() {
           <h3 className="text-lg font-semibold text-gray-900 mb-4 dark:text-slate-100">Count Results</h3>
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div className="p-4 bg-green-50 rounded-lg text-center">
-              <p className="text-2xl font-bold text-green-700">{results.matched || 0}</p>
+              <p className="text-2xl font-bold text-green-700 dark:text-green-300">{results.matched || 0}</p>
               <p className="text-sm text-green-600">Matched</p>
             </div>
             <div className="p-4 bg-amber-50 rounded-lg text-center">
-              <p className="text-2xl font-bold text-amber-700">{results.unmatched || 0}</p>
+              <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{results.unmatched || 0}</p>
               <p className="text-sm text-amber-600">Unmatched</p>
             </div>
             <div className="p-4 bg-red-50 rounded-lg text-center">
-              <p className="text-2xl font-bold text-red-700">{results.missing || 0}</p>
+              <p className="text-2xl font-bold text-red-700 dark:text-red-300">{results.missing || 0}</p>
               <p className="text-sm text-red-600">Missing (Shrinkage)</p>
             </div>
           </div>
@@ -496,7 +496,7 @@ function InventoryCountTab() {
               <p className="text-sm font-medium text-gray-700 mb-2 dark:text-slate-200">Missing Tags (Expected but not scanned)</p>
               <div className="max-h-32 overflow-y-auto border border-red-200 rounded-lg bg-red-50 p-3 text-gray-900 dark:text-slate-100">
                 {results.missingTags.map((tag: any) => (
-                  <div key={tag.epc} className="flex items-center gap-2 text-sm text-red-700 py-1">
+                  <div key={tag.epc} className="flex items-center gap-2 text-sm text-red-700 py-1 dark:text-red-300">
                     <AlertTriangle className="w-3 h-3" />
                     <span className="font-mono">{tag.epc}</span>
                     {tag.productName && <span className="text-red-500">({tag.productName})</span>}

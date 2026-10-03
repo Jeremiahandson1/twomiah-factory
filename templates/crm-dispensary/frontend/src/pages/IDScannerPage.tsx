@@ -383,7 +383,7 @@ export default function IDScannerPage() {
                 {/* Customer Match */}
                 {scanResult.customerId && (
                   <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm text-blue-700">
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
                       <User className="w-4 h-4 inline mr-1" />
                       Matched to existing customer profile
                     </p>

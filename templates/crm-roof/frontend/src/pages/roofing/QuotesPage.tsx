@@ -227,7 +227,7 @@ export default function QuotesPage() {
                         {q.signedBy ? (
                           <button
                             onClick={() => setCertQuote(q)}
-                            className="text-green-700 hover:underline text-left"
+                            className="text-green-700 hover:underline text-left dark:text-green-300"
                             title="View signature certificate"
                           >
                             {q.signedBy}

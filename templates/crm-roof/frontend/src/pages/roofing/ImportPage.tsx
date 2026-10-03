@@ -155,8 +155,8 @@ export default function ImportPage() {
 
       {/* How it works */}
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-gray-900 dark:text-slate-100">
-        <h3 className="font-semibold text-blue-900 mb-2">How cross-referencing works</h3>
-        <div className="flex items-center gap-2 text-sm text-blue-800 flex-wrap">
+        <h3 className="font-semibold text-blue-900 mb-2 dark:text-blue-300">How cross-referencing works</h3>
+        <div className="flex items-center gap-2 text-sm text-blue-800 flex-wrap dark:text-blue-300">
           <span className="flex items-center gap-1"><Users size={14} /> Clients CSV</span>
           <ArrowRight size={14} />
           <span className="flex items-center gap-1"><Briefcase size={14} /> Jobs CSV</span>
@@ -167,7 +167,7 @@ export default function ImportPage() {
           <ArrowRight size={14} />
           <span className="flex items-center gap-1 font-semibold"><Link2 size={14} /> All linked</span>
         </div>
-        <ul className="text-sm text-blue-700 mt-2 space-y-1">
+        <ul className="text-sm text-blue-700 mt-2 space-y-1 dark:text-blue-300">
           <li>- Same person with multiple properties is deduplicated into one contact</li>
           <li>- Jobs match to contacts by name, email, or service address</li>
           <li>- Quote and invoice numbers from jobs CSV create linked records</li>
@@ -340,11 +340,11 @@ export default function ImportPage() {
           {/* Errors */}
           {(results.summary.contacts.errors.length > 0 || results.summary.jobs.errors.length > 0) && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-gray-900 dark:text-slate-100">
-              <h3 className="font-semibold text-red-800 mb-2">
+              <h3 className="font-semibold text-red-800 mb-2 dark:text-red-300">
                 <AlertCircle size={16} className="inline mr-1" />
                 Errors ({results.summary.contacts.errors.length + results.summary.jobs.errors.length})
               </h3>
-              <ul className="text-sm text-red-700 space-y-1 max-h-40 overflow-y-auto">
+              <ul className="text-sm text-red-700 space-y-1 max-h-40 overflow-y-auto dark:text-red-300">
                 {[...results.summary.contacts.errors, ...results.summary.jobs.errors].map((err, i) => (
                   <li key={i}>Line {err.line}: {err.error}</li>
                 ))}

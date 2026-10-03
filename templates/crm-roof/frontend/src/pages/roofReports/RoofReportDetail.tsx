@@ -231,7 +231,7 @@ export default function RoofReportDetail() {
       {/* AI Insights — Nearmap-detected roof properties */}
       {(report.roofCondition != null || report.roofMaterial || report.treeOverhangPct != null) && (
         <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl border border-purple-100 p-4">
-          <h2 className="text-sm font-semibold text-purple-900 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-purple-900 uppercase tracking-wider mb-3 flex items-center gap-2 dark:text-purple-300">
             <span className="w-2 h-2 bg-purple-500 rounded-full" />
             AI Roof Analysis
           </h2>

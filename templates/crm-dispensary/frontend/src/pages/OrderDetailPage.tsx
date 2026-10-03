@@ -334,7 +334,7 @@ export default function OrderDetailPage() {
                   }`}>
                     <Icon className="w-4 h-4" />
                   </div>
-                  <span className={`text-sm font-medium capitalize ${isCurrent ? (ended ? 'text-red-700 dark:text-red-300' : 'text-green-700') : ''}`}>
+                  <span className={`text-sm font-medium capitalize ${isCurrent ? (ended ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300') : ''}`}>
                     {step.replace(/_/g, ' ')}
                   </span>
                 </div>

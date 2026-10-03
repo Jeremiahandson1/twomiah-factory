@@ -555,11 +555,11 @@ export default function JobDetailPage() {
                     <>
                       <div className="grid grid-cols-3 gap-3">
                         <div className="bg-purple-50 rounded-lg p-2.5 text-center">
-                          <p className="text-lg font-bold text-purple-700">{measurement.totalSquares}</p>
+                          <p className="text-lg font-bold text-purple-700 dark:text-purple-300">{measurement.totalSquares}</p>
                           <p className="text-[10px] text-purple-600">Squares</p>
                         </div>
                         <div className="bg-blue-50 rounded-lg p-2.5 text-center">
-                          <p className="text-lg font-bold text-blue-700">{measurement.totalArea ? Number(measurement.totalArea).toLocaleString() : '—'}</p>
+                          <p className="text-lg font-bold text-blue-700 dark:text-blue-300">{measurement.totalArea ? Number(measurement.totalArea).toLocaleString() : '—'}</p>
                           <p className="text-[10px] text-blue-600">Sqft</p>
                         </div>
                         <div className="bg-gray-50 rounded-lg p-2.5 text-center dark:bg-slate-900">

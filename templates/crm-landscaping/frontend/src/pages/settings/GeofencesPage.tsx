@@ -86,8 +86,8 @@ export default function GeofencesPage() {
 
       {/* Info Card */}
       <div className="bg-blue-50 rounded-xl p-4">
-        <h3 className="font-medium text-blue-900 mb-2">How Geofencing Works</h3>
-        <p className="text-sm text-blue-700">
+        <h3 className="font-medium text-blue-900 mb-2 dark:text-blue-300">How Geofencing Works</h3>
+        <p className="text-sm text-blue-700 dark:text-blue-300">
           When team members enter a geofenced area, they're automatically clocked in to the associated job.
           When they leave, they're automatically clocked out. This creates accurate timesheets without manual entry.
         </p>

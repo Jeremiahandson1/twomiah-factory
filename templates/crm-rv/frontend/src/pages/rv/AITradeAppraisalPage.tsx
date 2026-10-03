@@ -59,7 +59,7 @@ export default function AITradeAppraisalPage() {
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="bg-white rounded-xl border shadow-sm p-5 dark:bg-slate-900">
               <div className="text-xs uppercase tracking-wide text-gray-500 mb-1 dark:text-slate-400">Trade-in (wholesale)</div>
-              <div className="text-3xl font-bold text-emerald-700">{money(res.appraisal?.tradeIn?.avg)}</div>
+              <div className="text-3xl font-bold text-emerald-700 dark:text-emerald-300">{money(res.appraisal?.tradeIn?.avg)}</div>
               <div className="text-sm text-gray-500 mt-1 dark:text-slate-400">range {money(res.appraisal?.tradeIn?.low)} – {money(res.appraisal?.tradeIn?.high)}</div>
             </div>
             <div className="bg-white rounded-xl border shadow-sm p-5 dark:bg-slate-900">

@@ -393,7 +393,7 @@ export default function RoofReportsPage() {
                   disabled={purchasing}
                   className="flex flex-col items-center gap-1 p-4 border-2 border-blue-200 bg-blue-50 rounded-xl hover:border-blue-400 hover:bg-blue-100 transition-colors disabled:opacity-50"
                 >
-                  <span className="text-sm font-semibold text-blue-700">Professional Report</span>
+                  <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">Professional Report</span>
                   <span className="text-xs text-blue-500">Verified measurements, delivered fast</span>
                   <span className="mt-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full uppercase">$9.99</span>
                 </button>

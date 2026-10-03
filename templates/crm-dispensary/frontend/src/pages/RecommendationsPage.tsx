@@ -201,7 +201,7 @@ export default function RecommendationsPage() {
                       )}
                     </div>
                     <div className="flex items-center justify-between text-sm">
-                      <span className="font-bold text-green-700 text-lg">${Number(product.price || 0).toFixed(2)}</span>
+                      <span className="font-bold text-green-700 text-lg dark:text-green-300">${Number(product.price || 0).toFixed(2)}</span>
                       <span className="text-gray-500 dark:text-slate-400">{product.orderCount ?? 0} orders</span>
                     </div>
                   </div>
@@ -273,7 +273,7 @@ export default function RecommendationsPage() {
             <div className="mb-4">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between">
                 <div>
-                  <p className="font-semibold text-green-800">
+                  <p className="font-semibold text-green-800 dark:text-green-300">
                     Recommendations for {selectedCustomer.name || selectedCustomer.firstName + ' ' + selectedCustomer.lastName}
                   </p>
                   <p className="text-sm text-green-600">{selectedCustomer.email || ''}</p>
@@ -304,7 +304,7 @@ export default function RecommendationsPage() {
                     <p className="text-sm text-gray-500 dark:text-slate-400">{rec.reason || 'Recommended based on purchase history'}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-green-700">${Number(rec.price || 0).toFixed(2)}</p>
+                    <p className="font-bold text-green-700 dark:text-green-300">${Number(rec.price || 0).toFixed(2)}</p>
                     {rec.relevanceScore != null && (
                       <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400">
                         <Star className="w-3 h-3 text-yellow-500" />
@@ -373,7 +373,7 @@ export default function RecommendationsPage() {
             <div className="mb-4">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between">
                 <div>
-                  <p className="font-semibold text-green-800">Similar to: {selectedProduct.name}</p>
+                  <p className="font-semibold text-green-800 dark:text-green-300">Similar to: {selectedProduct.name}</p>
                   <p className="text-sm text-green-600">{selectedProduct.category} | ${Number(selectedProduct.price || 0).toFixed(2)}</p>
                 </div>
                 <button
@@ -408,7 +408,7 @@ export default function RecommendationsPage() {
                     )}
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-green-700">${Number(product.price || 0).toFixed(2)}</span>
+                    <span className="font-bold text-green-700 dark:text-green-300">${Number(product.price || 0).toFixed(2)}</span>
                     {product.similarityScore != null && (
                       <span className="text-sm text-gray-500 dark:text-slate-400">{Number(product.similarityScore * 100).toFixed(0)}% similar</span>
                     )}
@@ -452,7 +452,7 @@ export default function RecommendationsPage() {
                 </div>
                 <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                   <p className="text-sm text-gray-500 mb-1 dark:text-slate-400">Revenue Attributed</p>
-                  <p className="text-2xl font-bold text-green-700">${Number(performance.revenueAttributed || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <p className="text-2xl font-bold text-green-700 dark:text-green-300">${Number(performance.revenueAttributed || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
                 <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                   <p className="text-sm text-gray-500 mb-1 dark:text-slate-400">Total Impressions</p>

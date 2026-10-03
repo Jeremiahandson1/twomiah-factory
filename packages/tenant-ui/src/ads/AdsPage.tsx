@@ -208,7 +208,7 @@ function CampaignsTab({ api, toast, can, profile }: { api: AdsApi; toast: AdsToa
                 <tr key={c.id} className="text-gray-900 dark:text-slate-100">
                   <td className="px-4 py-3"><p className="font-medium">{c.name}</p><p className="text-xs text-gray-500 dark:text-slate-400">{when(c.created_at)}</p></td>
                   <td className="px-4 py-3">{PLATFORM_LABEL[c.platform] || c.platform}</td>
-                  <td className="px-4 py-3"><Badge s={c.status} />{c.status === 'balance_paused' && <p className="text-xs text-amber-700 mt-1">Paused: prepaid balance ran out</p>}</td>
+                  <td className="px-4 py-3"><Badge s={c.status} />{c.status === 'balance_paused' && <p className="text-xs text-amber-700 mt-1 dark:text-amber-300">Paused: prepaid balance ran out</p>}</td>
                   <td className="px-4 py-3 text-right">{c.budget_cents != null ? usd(c.budget_cents) : '-'}</td>
                   <td className="px-4 py-3 text-right">{usd(c.total_spend_cents)}</td>
                   <td className="px-4 py-3 text-right">{num(c.total_clicks)}</td>

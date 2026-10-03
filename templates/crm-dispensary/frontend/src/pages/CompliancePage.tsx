@@ -417,11 +417,11 @@ export default function CompliancePage() {
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 text-gray-900 dark:text-slate-100">
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle className="w-5 h-5 text-yellow-600" />
-            <h3 className="font-semibold text-yellow-800">Licenses Expiring Soon</h3>
+            <h3 className="font-semibold text-yellow-800 dark:text-yellow-300">Licenses Expiring Soon</h3>
           </div>
           <div className="space-y-1">
             {expiringLicenses.map(l => (
-              <p key={l.id} className="text-sm text-yellow-700">
+              <p key={l.id} className="text-sm text-yellow-700 dark:text-yellow-300">
                 <span className="font-medium">{l.type}</span> ({l.licenseNumber}) expires in {daysUntilExpiration(l.expirationDate)} days
               </p>
             ))}

@@ -676,7 +676,7 @@ export default function ReportsPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-right text-gray-900 font-medium dark:text-slate-100">{bt.orders ?? 0}</td>
-                        <td className="px-4 py-3 text-right text-green-700 font-bold">${Number(bt.revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        <td className="px-4 py-3 text-right text-green-700 font-bold dark:text-green-300">${Number(bt.revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                         <td className="px-4 py-3 text-right text-gray-600 dark:text-slate-400">${Number(bt.avgOrder || 0).toFixed(2)}</td>
                         <td className="px-4 py-3 text-gray-600 capitalize dark:text-slate-400">{bt.topCategory || '--'}</td>
                         <td className="px-4 py-3 text-right text-gray-600 dark:text-slate-400">${Number(bt.tips || 0).toFixed(2)}</td>

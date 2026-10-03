@@ -337,7 +337,7 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
             {conflictMsg && (
               <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
                 <p className="font-medium">{conflictMsg}</p>
-                <p className="mt-1 text-amber-700">Book this appointment anyway, or change the time or provider.</p>
+                <p className="mt-1 text-amber-700 dark:text-amber-300">Book this appointment anyway, or change the time or provider.</p>
                 <div className="flex gap-2 mt-2">
                   <button type="button" disabled={saving} onClick={() => { setConflictMsg(null); submit(undefined, true); }} className="px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50">Book anyway</button>
                   <button type="button" onClick={() => setConflictMsg(null)} className="px-3 py-1.5 border border-amber-300 rounded-lg hover:bg-amber-100">Change time</button>

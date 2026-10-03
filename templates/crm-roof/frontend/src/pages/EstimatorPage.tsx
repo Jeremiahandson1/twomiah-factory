@@ -133,8 +133,8 @@ export default function EstimatorPage() {
 
       {/* How it works */}
       <div className="bg-blue-50 rounded-xl border border-blue-200 p-5 text-gray-900 dark:text-slate-100">
-        <h2 className="text-sm font-semibold text-blue-900 mb-2">How It Works</h2>
-        <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+        <h2 className="text-sm font-semibold text-blue-900 mb-2 dark:text-blue-300">How It Works</h2>
+        <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside dark:text-blue-300">
           <li>Homeowner visits the "Free Estimate" page on your website</li>
           <li>They enter their address</li>
           <li>Google Solar API measures their roof via satellite imagery</li>

@@ -195,7 +195,7 @@ export default function FraudDetectionPage() {
       {scanResults && (
         <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
           <div>
-            <div className="font-medium text-green-800">Scan Complete</div>
+            <div className="font-medium text-green-800 dark:text-green-300">Scan Complete</div>
             <div className="text-sm text-green-600">
               {scanResults.alertsGenerated || 0} new alerts &middot; {scanResults.transactionsScanned || 0} transactions scanned &middot; {scanResults.duration || '0s'}
             </div>

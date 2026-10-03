@@ -192,7 +192,7 @@ export default function MarketplacePage() {
                         <img src={integration.logoUrl} alt={integration.name} className="w-10 h-10 rounded-lg object-contain" />
                       ) : (
                         <div className="w-10 h-10 bg-green-200 rounded-lg flex items-center justify-center">
-                          <Zap className="w-5 h-5 text-green-700" />
+                          <Zap className="w-5 h-5 text-green-700 dark:text-green-300" />
                         </div>
                       )}
                       <div className="flex-1">

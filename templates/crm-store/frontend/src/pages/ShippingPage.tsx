@@ -76,7 +76,7 @@ export default function ShippingPage() {
 
       {cfg?.connected && (
         <div className="card p-4 flex items-center justify-between">
-          <span className="flex items-center gap-2 text-green-700"><CheckCircle2 className="h-4 w-4" /> Connected to {cfg.provider} ({cfg.mode})</span>
+          <span className="flex items-center gap-2 text-green-700 dark:text-green-300"><CheckCircle2 className="h-4 w-4" /> Connected to {cfg.provider} ({cfg.mode})</span>
           <button onClick={disconnect} className="btn-secondary">Disconnect</button>
         </div>
       )}

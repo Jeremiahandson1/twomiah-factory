@@ -84,7 +84,7 @@ export default function ReviewsPage() {
                       ))}
                     </span>
                     {r.verifiedPurchase && (
-                      <span className="text-xs text-green-700 flex items-center gap-1"><ShieldCheck className="h-3 w-3" /> Verified buyer</span>
+                      <span className="text-xs text-green-700 flex items-center gap-1 dark:text-green-300"><ShieldCheck className="h-3 w-3" /> Verified buyer</span>
                     )}
                   </div>
                   {r.title && <p className="font-medium text-gray-900 mt-1 dark:text-slate-100">{r.title}</p>}

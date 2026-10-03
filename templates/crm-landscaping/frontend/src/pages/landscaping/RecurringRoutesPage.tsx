@@ -115,7 +115,7 @@ export default function RecurringRoutesPage() {
                   <div className="font-medium truncate">{r.name}</div>
                   <div className="text-gray-500 flex items-center gap-1 mt-1 dark:text-slate-400"><MapPin className="w-3 h-3" />{r.stopCount} stops</div>
                   <div className="text-gray-500 flex items-center gap-1 dark:text-slate-400"><Clock className="w-3 h-3" />{Math.round(r.estimatedMinutes / 60 * 10) / 10}h</div>
-                  <div className="text-green-700 flex items-center gap-1"><DollarSign className="w-3 h-3" />{r.weeklyRevenue}</div>
+                  <div className="text-green-700 flex items-center gap-1 dark:text-green-300"><DollarSign className="w-3 h-3" />{r.weeklyRevenue}</div>
                 </div>
               ))}
               {day.routes.length === 0 && <div className="text-[11px] text-gray-300">—</div>}

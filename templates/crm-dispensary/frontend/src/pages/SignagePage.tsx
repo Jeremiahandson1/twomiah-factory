@@ -331,11 +331,11 @@ export default function SignagePage() {
                       <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">Automatically updates from the queue system.</p>
                       <div className="grid grid-cols-2 gap-4 mt-4">
                         <div className="bg-green-50 rounded-lg p-4 text-center">
-                          <p className="text-3xl font-bold text-green-700">{contentItems[0]?.currentWait || '—'}</p>
+                          <p className="text-3xl font-bold text-green-700 dark:text-green-300">{contentItems[0]?.currentWait || '—'}</p>
                           <p className="text-sm text-green-600 mt-1">Current Wait</p>
                         </div>
                         <div className="bg-blue-50 rounded-lg p-4 text-center">
-                          <p className="text-3xl font-bold text-blue-700">{contentItems[0]?.queueSize || '—'}</p>
+                          <p className="text-3xl font-bold text-blue-700 dark:text-blue-300">{contentItems[0]?.queueSize || '—'}</p>
                           <p className="text-sm text-blue-600 mt-1">In Queue</p>
                         </div>
                       </div>
