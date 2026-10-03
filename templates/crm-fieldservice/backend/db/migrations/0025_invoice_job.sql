@@ -16,10 +16,10 @@
 -- visits and quotes, where two clicks on one button raised two invoices for the same work.
 -- A partial index, so the many invoices with no job at all do not collide with each other.
 ALTER TABLE "invoice" ADD COLUMN IF NOT EXISTS "job_id" text;
-
+--> statement-breakpoint
 DO $$ BEGIN
   ALTER TABLE "invoice" ADD CONSTRAINT "invoice_job_id_fk"
     FOREIGN KEY ("job_id") REFERENCES "job"("id") ON DELETE SET NULL;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
+--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "invoice_job_id_unique_idx" ON "invoice" ("job_id") WHERE "job_id" IS NOT NULL;

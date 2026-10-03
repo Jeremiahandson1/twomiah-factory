@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Edit, Trash2, Send, Check, X, FileText, Briefcase, Search } from 'lucide-react'
 import type { InvoicingPageProps, LineItemInput } from './types'
 import { resolveConfig } from './types'
+import { useMayWrite } from '../auth/PermissionsContext'
 import { todayKey } from '../time/day'
 import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PageHeader, StatusBadge, TotalsBox, calcTotals, dateOnly, errMsg, inputCls, money, moneyInputError, selectCls } from './ui'
 
@@ -16,6 +17,8 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const defaultTaxRate = Number(settings?.defaultTaxRate) || 0
+  /** What the company PAYS is not for whoever can raise a quote. Same permission the Pricebook screen asks. (T41) */
+  const maySeeCost = useMayWrite('pricebook:update')
   const statuses = ['draft', 'sent', 'approved', cfg.quoteDecline ? 'declined' : 'rejected', 'expired']
   const emptyForm = (): QuoteForm => ({ name: '', contactId: '', projectId: '', siteId: '', equipmentId: '', expiryDate: '', taxRate: defaultTaxRate, discount: 0, notes: '', customerMessage: '', terms: '', lineItems: [blankLine()] })
 
@@ -176,8 +179,14 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
                * editor exactly as it was. canSeeCost follows the same permission the Pricebook
                * screen uses to decide whether to show what the company PAYS — and when cost is
                * withheld, lines are left uncosted rather than costed at zero. (T41)
+               *
+               * useMayWrite, NOT cfg.can: `can` is declared optional on InvoicingConfig and almost
+               * no vertical sets it, so `cfg.can ? … : true` is a gate that cannot close — the note
+               * on InvoiceDetailPage says exactly this about the QuickBooks button, which was
+               * written that way. This hook asks the permissions context directly, so the gate holds
+               * on every template that mounts the page with no wiring in the wrapper at all.
                */
-              pricebook={cfg.pricebook ? { items: pricebook as any, canSeeCost: cfg.can ? cfg.can('pricebook:update') : true } : undefined}
+              pricebook={cfg.pricebook ? { items: pricebook as any, canSeeCost: maySeeCost } : undefined}
             />
           </Field>
           <div className="grid md:grid-cols-3 gap-4">

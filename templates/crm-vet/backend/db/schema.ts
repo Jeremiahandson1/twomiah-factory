@@ -326,6 +326,18 @@ export const invoice = pgTable('invoice', {
   index('invoice_company_id_idx').on(t.companyId),
   index('invoice_status_idx').on(t.status),
   index('invoice_patient_id_idx').on(t.patientId),
+  /**
+   * NOT DECLARED HERE, ON PURPOSE: invoice_company_number_live_unique_idx.
+   *
+   * Migration 0029 adds `UNIQUE (company_id, number) WHERE status <> 'void'` — the backstop under
+   * the T41 bill-once blocker, which produced two invoices sharing a number (INV-00061, INV-00070).
+   * The predicate is what makes it applicable at all: those duplicates still exist on the live
+   * tenant as VOIDED orphans, so a constraint over every row could not be created there.
+   *
+   * It is left out of this list rather than written as a plain uniqueIndex because a plain one would
+   * be a different (and uncreatable) constraint, and claiming it here would describe a database that
+   * does not exist. The migration is the truth for this one; nothing queries by it.
+   */
 ])
 
 export const invoiceLineItem = pgTable('invoice_line_item', {
@@ -3809,6 +3821,9 @@ export const visit = pgTable('visit', {
 }, (t) => [
   index('visit_company_id_idx').on(t.companyId),
   index('visit_patient_id_idx').on(t.patientId),
+  // ONE VISIT BILLS ONCE, enforced by the database and not only by the route. The T41 blocker raced
+  // POST /visits/:id/invoice and got two 201s on the same visit. (migration 0029)
+  uniqueIndex('visit_invoice_id_unique_idx').on(t.invoiceId),
 ])
 
 export const vaccination = pgTable('vaccination', {

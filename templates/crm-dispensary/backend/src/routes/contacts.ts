@@ -6,6 +6,9 @@ import { eq, and, or, ilike, count, desc, sql } from 'drizzle-orm'
 import { settledSale, netExprBare } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
+// Who may see a customer's DOB / medical card, and how to strip them. Shared with orders.ts, which
+// leaks the same two facts through its own columns and through the linked contact. (T41)
+import { canSeeCustomerIdentity, redactCustomerIdentity, redactCustomerIdentityAll } from '../utils/customerIdentity.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { stripHtml } from '../utils/sanitize.ts'
@@ -126,6 +129,9 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
 
   const safeData = data.map(({ portalToken, portalTokenExp, ...rest }) => rest) // strip portal token (VET-29)
 
+  // …and the regulated identity fields, for a caller who is not allowed to work with them. (T41)
+  if (!(await canSeeCustomerIdentity(currentUser))) redactCustomerIdentityAll(safeData as any[])
+
   // The customers list showed Total Spent $0 and a blank tier for patients with orders,
   // because the list omitted totalSpent/loyaltyTier/loyaltyPoints (only the detail had
   // them). Attach per-contact spend + loyalty so the columns populate. (retest#5 N2)
@@ -213,6 +219,8 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
   ])
 
   const { portalToken, portalTokenExp, ...safeContact } = foundContact // (VET-29)
+  // Same redaction as the list. The detail is the easier one to forget and the richer one to leak.
+  if (!(await canSeeCustomerIdentity(currentUser))) redactCustomerIdentity(safeContact)
   return c.json({ ...safeContact, orders, loyalty: loyaltyMembers[0] || null })
 })
 

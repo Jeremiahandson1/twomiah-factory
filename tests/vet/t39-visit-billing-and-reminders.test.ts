@@ -329,5 +329,78 @@ console.log('\n══════════ company scoping ══════
     { before })
 }
 
+// ══════════ T41 · the DATABASE refuses a second bill, not just the route ════════════════════════
+//
+// The T41 blocker asked for four things: a transactional check, a row lock, a unique visit→invoice
+// constraint and a unique invoice number. The first two are in the route and are what actually stops
+// the race; these are the other two, from migration 0029, and they are asserted here because a
+// constraint nobody tests is a constraint that quietly fails to be created.
+//
+// This is also the only part of the blocker a suite CAN prove. PGlite serialises requests, so the
+// race itself is unobservable here — the block above says so, and guard #196 is what holds the lock
+// in place. A constraint, by contrast, either exists or does not.
+console.log('\n══════════ the constraints under bill-once ══════════')
+{
+  const oneRow = async (q: any) => { const r: any = await db.execute(q); return ((r.rows || r) as any[])[0] }
+
+  // Both indexes must EXIST. Asserted by name against pg_indexes, because a CREATE INDEX that fails
+  // during setup is only logged, and a constraint nobody checks for is one that quietly isn't there.
+  const idx = async (name: string) =>
+    !!(await oneRow(sql`SELECT indexname FROM pg_indexes WHERE indexname = ${name}`))
+  check('T41: visit_invoice_id_unique_idx exists', await idx('visit_invoice_id_unique_idx'))
+  check('T41: invoice_company_number_live_unique_idx exists', await idx('invoice_company_number_live_unique_idx'))
+
+  // ── one visit bills once ──
+  const [v] = await db.insert(visit).values({
+    companyId: co.id, patientId: pet.id, visitDate: new Date('2026-09-28T09:00:00Z'),
+    reason: 'Constraint probe', total: '60.00',
+  } as any).returning()
+  const billed = await asOwner('POST', `/api/visits/${v.id}/invoice`)
+  check('T41: the probe visit bills once', billed.status === 201, { status: billed.status })
+  const invId = billed.json?.id
+
+  // Point a SECOND visit at the same invoice by hand. The route would never do this; the index must
+  // refuse it anyway, because that is the invariant — one invoice, one visit.
+  const [v2] = await db.insert(visit).values({
+    companyId: co.id, patientId: pet.id, visitDate: new Date('2026-09-28T10:00:00Z'),
+    reason: 'Second visit, same invoice', total: '60.00',
+  } as any).returning()
+  let refusedVisit = false
+  try {
+    await db.execute(sql`UPDATE visit SET invoice_id = ${invId} WHERE id = ${v2.id}`)
+  } catch { refusedVisit = true }
+  check('T41: two visits CANNOT share one invoice — visit_invoice_id_unique_idx exists', refusedVisit,
+    { invoiceId: invId })
+
+  // ── one live invoice number per practice ──
+  const dup = await oneRow(sql`SELECT number FROM invoice WHERE id = ${invId}`)
+  let refusedNumber = false
+  try {
+    await db.execute(sql`
+      INSERT INTO invoice (id, number, status, issue_date, due_date, subtotal, tax_rate, tax_amount,
+                           discount, total, amount_paid, company_id, contact_id)
+      VALUES ('t41-dup-probe', ${dup.number}, 'draft', NOW(), NOW(), '1', '0', '0', '0', '1', '0',
+              ${co.id}, ${client.id})
+    `)
+  } catch { refusedNumber = true }
+  check('T41: a SECOND live invoice cannot reuse a number — the duplicate INV-00061/70 shape is refused',
+    refusedNumber, { number: dup.number })
+
+  // …but a VOIDED invoice may keep a duplicated number, which is what let the constraint be added to
+  // a tenant where the race had already happened and the orphans were voided.
+  let voidedAllowed = true
+  try {
+    await db.execute(sql`
+      INSERT INTO invoice (id, number, status, issue_date, due_date, subtotal, tax_rate, tax_amount,
+                           discount, total, amount_paid, company_id, contact_id)
+      VALUES ('t41-void-probe', ${dup.number}, 'void', NOW(), NOW(), '1', '0', '0', '0', '1', '0',
+              ${co.id}, ${client.id})
+    `)
+  } catch { voidedAllowed = false }
+  check('T41: …while a VOIDED duplicate is allowed, so the index could go on a tenant that already raced',
+    voidedAllowed, { number: dup.number })
+  await db.execute(sql`DELETE FROM invoice WHERE id IN ('t41-void-probe', 't41-dup-probe')`)
+}
+
 console.log(`\n${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

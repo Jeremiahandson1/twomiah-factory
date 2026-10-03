@@ -250,14 +250,31 @@ export default function PatientDetailPage() {
     }
   };
 
-  // Turn a visit's charge into a draft invoice and jump to it. (VET-15)
+  /**
+   * Turn a visit's charge into a draft invoice and jump to it. (VET-15)
+   *
+   * THE BUTTON IS DISABLED WHILE THE REQUEST IS IN FLIGHT. (T41 blocker, the fourth ask)
+   *
+   * The server is the real fix — the handler takes a row lock and re-checks inside it, and
+   * migration 0029 puts a unique index under that. But this button could be pressed twice before
+   * the first answer came back, which is how the race was reached in the first place: T41 got two
+   * 201s on 5 of 5 attempts and a four-way press produced three invoices. Disabling it removes the
+   * ordinary way a person triggers it, and the server removes the rest.
+   *
+   * Keyed by visit id rather than a single flag, so billing one visit does not freeze the others.
+   */
+  const [billingVisitId, setBillingVisitId] = useState<string | null>(null);
   const billVisit = async (visitId: string) => {
+    if (billingVisitId) return;
+    setBillingVisitId(visitId);
     try {
       const inv = await api.post(`/api/visits/${visitId}/invoice`);
       if (inv?.id) navigate(`/crm/invoices/${inv.id}`);
       else load();
     } catch (err) {
       alert((err as Error).message || 'Failed to bill this visit');
+    } finally {
+      setBillingVisitId(null);
     }
   };
 
@@ -429,7 +446,13 @@ export default function PatientDetailPage() {
                       {(v as Record<string, unknown>).invoiceId ? (
                         <Link to={`/crm/invoices/${(v as Record<string, unknown>).invoiceId as string}`} className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300">Billed →</Link>
                       ) : Number(v.total) > 0 ? (
-                        <button onClick={() => billVisit(v.id)} className="text-sm text-teal-600 hover:text-teal-700 dark:hover:text-teal-300">Bill this visit</button>
+                        <button
+                          onClick={() => billVisit(v.id)}
+                          disabled={billingVisitId === v.id}
+                          className="text-sm text-teal-600 hover:text-teal-700 dark:hover:text-teal-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {billingVisitId === v.id ? 'Billing…' : 'Bill this visit'}
+                        </button>
                       ) : null}
                       <button onClick={() => { setEditVisit(v); setShowVisit(true); }} className="text-sm text-teal-600 hover:text-teal-700 dark:hover:text-teal-300">Edit</button>
                     </div>

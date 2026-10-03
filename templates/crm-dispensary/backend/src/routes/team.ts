@@ -4,7 +4,7 @@ import { db } from '../../db/index.ts'
 import { teamMember, user as userTable } from '../../db/schema.ts'
 import { eq, and, count, asc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission, requireRole } from '../middleware/permissions.ts'
+import { requirePermission, requireRole, meetsRole } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -68,14 +68,41 @@ app.get('/', requirePermission('team:read'), async (c) => {
   const start = (pageNum - 1) * limitNum
   const data = combined.slice(start, start + limitNum)
 
+  /**
+   * WHAT PEOPLE ARE PAID IS NOT PART OF READING THE ROSTER. (T41)
+   *
+   * T41 as the read-only VIEWER seat: "Viewer can read staff pay rates, shifts and time entries
+   * through the API (/api/team, /api/scheduling/*) while the Team and Scheduling pages are blocked."
+   * The viewer holds team:read, the roster is a `select()` over every column, and hourlyRate is
+   * selected explicitly for login accounts as well — so compensation went out to a seat that cannot
+   * even open the page it appears on.
+   *
+   * Manager and up, matching the two places the product had already decided this: the Team nav
+   * entry is minRole 'manager', and the page renders a 'Rate' column. So the fix is the API agreeing
+   * with the screen rather than a new policy.
+   *
+   * By RANK and not by permission, exceptionally and deliberately: manager and viewer hold exactly
+   * the same team permissions in this template's matrix ('team:read', nothing else), so there is no
+   * permission that separates them. Gating on team:update would have taken the Rate column off the
+   * manager's own working screen — refusing a real setting is its own bug. See meetsRole.
+   */
+  if (!meetsRole(user?.role, 'manager')) for (const row of data as any[]) { delete row.hourlyRate; delete row.hourly_rate }
+
   return c.json({ data, pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) || 1 } })
 })
 
 app.get('/:id', requirePermission('team:read'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
+  // Same pay-rate rule as the list. Three routes over one union, and the third one has historically
+  // been the one that misses the message (see the note below) — so it is applied on both exits. (T41)
+  const hidePay = !meetsRole(user?.role, 'manager')
+
   const [member] = await db.select().from(teamMember).where(and(eq(teamMember.id, id), eq(teamMember.companyId, user.companyId))).limit(1)
-  if (member) return c.json(member)
+  if (member) {
+    if (hidePay) { delete (member as any).hourlyRate; delete (member as any).hourly_rate }
+    return c.json(member)
+  }
 
   // The row might be a LOGIN, not a roster entry — the same union GET / and PUT /:id already do.
   //
@@ -96,7 +123,7 @@ app.get('/:id', requirePermission('team:read'), async (c) => {
     role: account.role,
     department: null,
     hireDate: null,
-    hourlyRate: account.hourlyRate,
+    ...(hidePay ? {} : { hourlyRate: account.hourlyRate }),
     active: account.isActive,
     _source: 'user' as const,
   })

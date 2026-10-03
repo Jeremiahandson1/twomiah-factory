@@ -814,7 +814,25 @@ app.post('/quickbooks/sync', authenticate, requireRole('manager'), async (c) => 
 
 // ─── STRIPE CONNECT ───────────────────────────────────────────────────────────
 
-app.get('/stripe/connect-url', authenticate, async (c) => {
+/**
+ * MANAGER AND UP — the same rung as /stripe/disconnect below and /status above. (T41)
+ *
+ * This was `authenticate` alone, so every signed-in role could reach it. T41 proved it as a VIEWER:
+ * "GET /api/integrations/stripe/connect-url returns 200 with a live connect.stripe.com setup link,
+ * while /integrations/status is 403 for the role" — the read-only seat could obtain the onboarding
+ * link for the company's payment processing while being refused the page that shows its state.
+ *
+ * It is worse than a leaked link, because this GET WRITES. With no stripeAccountId on the company it
+ * calls stripe.accounts.create and saves the new account id to the company row (below) — so the
+ * lowest role in the shop could provision the business's Stripe account as a side effect of a read.
+ * The side effect is left as it is, because the Connect button depends on it; what changes is who
+ * can reach it.
+ *
+ * The note on /stripe/disconnect says "this was `authenticate` alone, so a budtender could do it".
+ * That round fixed disconnect and left connect — one of a pair, which is how both of them have to
+ * be checked.
+ */
+app.get('/stripe/connect-url', authenticate, requireRole('manager'), async (c) => {
   const user = c.get('user') as any
   // No STRIPE_SECRET_KEY on this CRM → `stripe` is null and this used to crash with a 500 "null is not an object". (SALON-C5)
   if (!stripe) return c.json({ error: 'Card payments are not set up for this CRM yet. Twomiah support can connect Stripe for your account — email support@twomiah.com.' }, 503)

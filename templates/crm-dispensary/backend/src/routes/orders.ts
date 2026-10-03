@@ -5,6 +5,9 @@ import { order, orderItem, product, contact, company, user } from '../../db/sche
 import { eq, and, or, gte, lte, desc, count, sql, inArray, isNull } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
+// DOB and medical card are not part of reading an order. Shared with contacts.ts, which leaks the
+// same two facts from the customer record. (T41)
+import { canSeeCustomerIdentity, redactCustomerIdentity, redactCustomerIdentityAll } from '../utils/customerIdentity.ts'
 import audit from '../services/audit.ts'
 import { getApprovalConfig, requireApproval, linkApprovalToOrder, ApprovalRequiredError } from '../services/approvals.ts'
 import { escapeHtml } from '../utils/sanitize.ts'
@@ -225,6 +228,10 @@ app.get('/', async (c) => {
     for (const o of data as any[]) if (o.contactId && !o.customerName) o.customerName = nmap.get(o.contactId) || null
   }
 
+  // The buyer's DOB and medical card, taken at the till and stored on the order, are not part of
+  // reading the order list. Same rule and same helper as /api/contacts. (T41)
+  if (!(await canSeeCustomerIdentity(currentUser))) redactCustomerIdentityAll(data as any[])
+
   return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
 })
 
@@ -261,6 +268,18 @@ app.get('/:id', async (c) => {
     const [u] = await db.select({ firstName: user.firstName, lastName: user.lastName, email: user.email })
       .from(user).where(eq(user.id, (foundOrder as any).budtenderId)).limit(1)
     if (u) processedBy = [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.email || null
+  }
+
+  /**
+   * TWO redactions, because this response carries the buyer's identity twice: once on the order
+   * itself (customerDob, medicalCardNumber, taken at the till) and once on the nested `customer`,
+   * which is a bare `select()` of the whole contact row. (T41)
+   *
+   * Redacting one and not the other would have left the leak exactly where it was.
+   */
+  if (!(await canSeeCustomerIdentity(currentUser))) {
+    redactCustomerIdentity(foundOrder as any)
+    redactCustomerIdentity(customer as any)
   }
 
   return c.json({ ...foundOrder, customerName, processedBy, items, customer })

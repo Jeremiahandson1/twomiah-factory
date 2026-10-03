@@ -117,6 +117,23 @@ export function requireAnyPermission(permissions: string[]) {
   }
 }
 
+/**
+ * Is this person at or above `minRole`? The predicate behind requireRole, for the cases that need to
+ * decide about a FIELD rather than a whole route. (T41)
+ *
+ * Use it sparingly, and only where a permission genuinely cannot express the rule — a rank is not a
+ * permission, and gating on rank is how pages came to be hidden from people the API served happily.
+ * The case it exists for is `hourlyRate` on /api/team: manager and viewer hold the IDENTICAL team
+ * permissions here ('team:read' and nothing else), so no permission can tell them apart, while the
+ * product has already decided the question twice over — the Team nav entry is minRole 'manager' and
+ * the page renders a Rate column. The API simply did not agree with the screen.
+ */
+export function meetsRole(role: string | undefined | null, minRole: string): boolean {
+  const userRole = normalizeRole(role)
+  if (!userRole) return false
+  return ROLE_HIERARCHY.indexOf(userRole) >= ROLE_HIERARCHY.indexOf(minRole)
+}
+
 export function requireRole(minRole: string) {
   return async (c: Context, next: Next) => {
     const userRole = normalizeRole((c.get('user') as any)?.role)

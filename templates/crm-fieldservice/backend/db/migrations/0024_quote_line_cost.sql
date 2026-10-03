@@ -17,8 +17,9 @@
 -- exactly as it did before, and every quote already in the system keeps its current meaning rather
 -- than suddenly reporting a 100% margin as a 0% one.
 ALTER TABLE "quote_line_item" ADD COLUMN IF NOT EXISTS "unit_cost" numeric(12, 2);
+--> statement-breakpoint
 ALTER TABLE "quote_line_item" ADD COLUMN IF NOT EXISTS "pricebook_item_id" text;
-
+--> statement-breakpoint
 -- No FK on pricebook_item_id, deliberately: retiring a catalogue item must not be blocked by, or
 -- cascade into, quotes that were priced from it. The id is kept as provenance.
 CREATE INDEX IF NOT EXISTS "quote_line_item_pricebook_item_id_idx" ON "quote_line_item" ("pricebook_item_id");

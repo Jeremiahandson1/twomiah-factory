@@ -5,6 +5,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Edit, Trash2, MapPin, Calendar, Clock, User, Play, CheckCircle, Wrench, Camera, X, FileText } from 'lucide-react'
 import { StatusBadge, ConfirmModal, Button, NavLink, dateOnly, errMsg } from '../invoicing/ui'
 import { resolveJobsConfig, PRIORITY_COLORS } from './types'
+import { useMayWrite } from '../auth/PermissionsContext'
 import type { JobsPageProps, JobRow, JobPhoto } from './types'
 
 const card = 'bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6'
@@ -19,6 +20,8 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [photos, setPhotos] = useState<JobPhoto[]>([])
   const [fullscreen, setFullscreen] = useState<JobPhoto | null>(null)
+  /** The permission POST /api/jobs/:id/invoice asks for. (T41) */
+  const mayInvoice = useMayWrite('invoices:create')
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -105,8 +108,12 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
             Invoicing the job. Gated on the vertical having the path AND the person holding
             invoices:create — the permission the server asks — so the button is not offered to
             somebody who would be refused. (T41)
+
+            useMayWrite, not cfg.can: `can` defaults to () => true on JobsConfig and most wrappers
+            never set it, so a cfg.can gate on a sensitive control is one that cannot close. The
+            hook asks the permissions context, so this holds with nothing wired in the wrapper.
           */}
-          {cfg.billing && cfg.can('invoices:create') && (
+          {cfg.billing && mayInvoice && (
             <Button variant="secondary" onClick={invoiceJob} disabled={billing}>
               <FileText className="w-4 h-4 inline mr-2" />{billing ? 'Raising…' : 'Invoice'}
             </Button>
