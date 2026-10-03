@@ -127,7 +127,7 @@ export default function MembershipsPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-            <CreditCard className="w-6 h-6 text-rose-500" /> Memberships
+            <CreditCard className="w-6 h-6 text-rose-500 dark:text-rose-300" /> Memberships
           </h1>
           <p className="text-gray-500 dark:text-slate-400">Recurring plans and prepaid packages</p>
         </div>
@@ -163,7 +163,7 @@ export default function MembershipsPage() {
                 <div key={p.id} className={`bg-white rounded-xl border p-5 flex flex-col dark:bg-slate-900 dark:border-slate-700 ${p.active ? '' : 'opacity-60'}`}>
                   <div className="flex items-start justify-between">
                     <p className="font-semibold text-gray-900 dark:text-slate-100">{p.name || 'Untitled Plan'}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${p.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${p.active ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                       {p.active ? 'Active' : 'Retired'}
                     </span>
                   </div>
@@ -173,7 +173,7 @@ export default function MembershipsPage() {
                     <span className="text-sm text-gray-500 dark:text-slate-400">{cycleLabel(p.billingCycle)}</span>
                   </div>
                   <p className="text-sm text-gray-500 mt-2 flex items-center gap-2 dark:text-slate-400">
-                    <Check className="w-4 h-4 text-teal-500 flex-shrink-0" />
+                    <Check className="w-4 h-4 text-teal-500 flex-shrink-0 dark:text-teal-300" />
                     {p.creditsTotal ? `${p.creditsTotal} visit${p.creditsTotal === 1 ? '' : 's'} included` : 'Unlimited / recurring'}
                   </p>
                   <div className="mt-auto pt-3 flex items-center justify-between border-t mt-4">
@@ -195,7 +195,7 @@ export default function MembershipsPage() {
           {/* Enrollments */}
           <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
             <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-              <Users className="w-4 h-4 text-teal-500" /> Members
+              <Users className="w-4 h-4 text-teal-500 dark:text-teal-300" /> Members
               <span className="text-xs bg-gray-100 text-gray-600 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{enrollments.length}</span>
             </h2>
             {enrollments.length === 0 ? (
@@ -227,7 +227,7 @@ export default function MembershipsPage() {
                           {e.creditsRemaining === null || e.creditsRemaining === undefined ? 'Unlimited' : e.creditsRemaining}
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${e.status === 'active' && e.creditsRemaining === 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400'}`}>{e.status === 'active' && e.creditsRemaining === 0 ? 'used up' : (e.status || 'active')}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${e.status === 'active' && e.creditsRemaining === 0 ? 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40' : 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400'}`}>{e.status === 'active' && e.creditsRemaining === 0 ? 'used up' : (e.status || 'active')}</span>
                         </td>
                         <td className="px-4 py-3 text-right">
                           {e.status === 'active' && e.creditsRemaining !== null && e.creditsRemaining !== undefined && e.creditsRemaining > 0 && (
@@ -331,7 +331,7 @@ function PlanModal({ plan, onSave, onClose }: { plan: Plan | null; onSave: () =>
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500 dark:text-red-400">*</span></label>
               <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
             </div>
             <div>
@@ -425,11 +425,11 @@ function EnrollModal({ plans, onSave, onClose }: { plans: Plan[]; onSave: () => 
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Client <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Client <span className="text-red-500 dark:text-red-400">*</span></label>
               <ClientPicker value={contactId} onChange={(id) => setContactId(id)} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Plan <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Plan <span className="text-red-500 dark:text-red-400">*</span></label>
               <select value={planId} onChange={(e) => setPlanId(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
                 {plans.map((p) => <option key={p.id} value={p.id}>{p.name || 'Untitled'}</option>)}
               </select>

@@ -71,7 +71,7 @@ export default function DiscountsPage() {
                     <td className="pr-4">{c.minSubtotalCents ? `$${centsToDollars(c.minSubtotalCents)}` : '—'}</td>
                     <td className="pr-4">{c.expiresAt ? new Date(c.expiresAt).toLocaleDateString() : '—'}</td>
                     <td className="text-right whitespace-nowrap">
-                      <button onClick={() => toggle(c)} className={`text-xs px-2 py-1 rounded ${c.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{c.active ? 'Active' : 'Inactive'}</button>
+                      <button onClick={() => toggle(c)} className={`text-xs px-2 py-1 rounded ${c.active ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>{c.active ? 'Active' : 'Inactive'}</button>
                       <button onClick={() => del(c)} className="text-xs text-red-600 ml-2 dark:text-red-400">Delete</button>
                     </td>
                   </tr>

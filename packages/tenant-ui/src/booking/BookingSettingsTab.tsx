@@ -77,7 +77,7 @@ export function BookingSettingsTab({ api, toast, config, onSaved }: { api: Booki
   }
 
   if (loading) return <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-12 text-center text-gray-500 dark:text-slate-400">Loading settings…</div>
-  if (!settings) return <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-12 text-center text-red-500">{loadError || 'Could not load booking settings.'}</div>
+  if (!settings) return <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-12 text-center text-red-500 dark:text-red-400">{loadError || 'Could not load booking settings.'}</div>
 
   const tzOptions = TIMEZONES.some(z => z.value === settings.timezone) ? TIMEZONES : [{ value: settings.timezone, label: settings.timezone }, ...TIMEZONES]
   const card = 'bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-5'

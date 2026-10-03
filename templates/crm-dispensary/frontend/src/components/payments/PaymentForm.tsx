@@ -67,7 +67,7 @@ export default function PaymentForm({ invoiceId, amount, onSuccess, onCancel, po
 
   if (error) {
     return (
-      <div className="bg-red-50 text-red-700 p-4 rounded-lg flex items-center gap-3">
+      <div className="bg-red-50 text-red-700 p-4 rounded-lg flex items-center gap-3 dark:text-red-400 dark:bg-red-950/40">
         <AlertCircle className="w-5 h-5" />
         <span>{error}</span>
       </div>
@@ -188,7 +188,7 @@ function CheckoutForm({ amount, onSuccess, onCancel }) {
 
       {/* Error message */}
       {error && (
-        <div className="bg-red-50 text-red-700 p-3 rounded-lg flex items-center gap-2 text-sm">
+        <div className="bg-red-50 text-red-700 p-3 rounded-lg flex items-center gap-2 text-sm dark:text-red-400 dark:bg-red-950/40">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           {error}
         </div>

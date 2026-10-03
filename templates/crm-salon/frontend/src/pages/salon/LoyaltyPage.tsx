@@ -199,7 +199,7 @@ export default function LoyaltyPage() {
         : `${fmtMoney(r.value)} off`;
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 animate-spin text-pink-500" /></div>;
+    return <div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 animate-spin text-pink-500 dark:text-pink-300" /></div>;
   }
 
   const tabs: [typeof tab, string, any][] = [
@@ -213,7 +213,7 @@ export default function LoyaltyPage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2">
-            <Gift className="w-6 h-6 text-pink-500" />
+            <Gift className="w-6 h-6 text-pink-500 dark:text-pink-300" />
             Loyalty
           </h1>
           <p className="text-gray-600 dark:text-slate-400">

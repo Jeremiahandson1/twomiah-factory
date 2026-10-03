@@ -17,10 +17,10 @@ const PLATFORMS = [
 ];
 
 const SYNC_STATUS_STYLES: Record<string, string> = {
-  success: 'bg-green-100 text-green-700',
-  failed: 'bg-red-100 text-red-700',
-  in_progress: 'bg-blue-100 text-blue-700',
-  partial: 'bg-yellow-100 text-yellow-700',
+  success: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  failed: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  in_progress: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  partial: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
 };
 
 export default function MenuSyncPage() {
@@ -205,7 +205,7 @@ export default function MenuSyncPage() {
                           <p className="text-sm text-gray-500 dark:text-slate-400">{platform.description}</p>
                         </div>
                       </div>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1 ${isConnected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1 ${isConnected ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                         {isConnected ? <><Link className="w-3 h-3" />Connected</> : <><Unlink className="w-3 h-3" />Disconnected</>}
                       </span>
                     </div>
@@ -296,7 +296,7 @@ export default function MenuSyncPage() {
                     <tr key={log.id} className="border-t">
                       <td className="px-4 py-3 text-sm font-medium">{log.platformName || log.platformId}</td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${SYNC_STATUS_STYLES[log.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${SYNC_STATUS_STYLES[log.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                           {log.status}
                         </span>
                       </td>
@@ -364,10 +364,10 @@ export default function MenuSyncPage() {
                       </div>
                       <div className="flex gap-2 mb-2">
                         {product.category && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">{product.category}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40">{product.category}</span>
                         )}
                         {product.strain && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">{product.strain}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40">{product.strain}</span>
                         )}
                       </div>
                       {product.thc && <div className="text-xs text-gray-500 dark:text-slate-400">THC: {product.thc}%{product.cbd ? ` | CBD: ${product.cbd}%` : ''}</div>}

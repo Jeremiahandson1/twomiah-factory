@@ -379,9 +379,9 @@ export default function CompliancePage() {
   const licenseStatusBadge = (license: any) => {
     const days = daysUntilExpiration(license.expirationDate);
     if (license.status === 'expired' || days < 0) return 'bg-red-100 text-red-700';
-    if (license.status === 'suspended') return 'bg-red-100 text-red-700';
-    if (days <= 60) return 'bg-yellow-100 text-yellow-700';
-    return 'bg-green-100 text-green-700';
+    if (license.status === 'suspended') return 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40';
+    if (days <= 60) return 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40';
+    return 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40';
   };
 
   const licenseStatusText = (license: any) => {
@@ -591,9 +591,9 @@ export default function CompliancePage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 text-xs rounded-full ${
-                        report.status === 'submitted' ? 'bg-green-100 text-green-700' :
-                        report.status === 'draft' ? 'bg-gray-100 text-gray-600' :
-                        'bg-blue-100 text-blue-700'
+                        report.status === 'submitted' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
+                        report.status === 'draft' ? 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800' :
+                        'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40'
                       }`}>
                         {report.status || 'draft'}
                       </span>
@@ -671,7 +671,7 @@ export default function CompliancePage() {
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{entry.witness || '—'}</td>
                       <td className="px-4 py-3">
                         {entry.metrcReported ? (
-                          <span className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700">Reported</span>
+                          <span className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40">Reported</span>
                         ) : (
                           <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400">Pending</span>
                         )}

@@ -13,10 +13,10 @@ function formatWaitTime(checkinTime: string): string {
 }
 
 const statusColors: Record<string, string> = {
-  waiting: 'bg-yellow-100 text-yellow-700',
-  assigned: 'bg-blue-100 text-blue-700',
-  bringing_out: 'bg-purple-100 text-purple-700',
-  completed: 'bg-green-100 text-green-700',
+  waiting: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  assigned: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  bringing_out: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  completed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
 };
 
 export default function CurbsidePage() {
@@ -146,7 +146,7 @@ export default function CurbsidePage() {
                         <User className="w-4 h-4 text-green-600 dark:text-green-300" />
                         {pickup.customerName || 'Unknown'}
                       </h3>
-                      <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[pickup.status] || 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[pickup.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                         {(pickup.status || 'waiting').replace('_', ' ')}
                       </span>
                     </div>

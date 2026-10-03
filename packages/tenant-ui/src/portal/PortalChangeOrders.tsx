@@ -6,7 +6,7 @@ import { usePortal } from './PortalContext'
 import { SignatureModal, SignatureDisplay, type SignatureData } from './SignaturePad'
 import { PLink, Spinner, PageTitle, Empty, Section, card, pill, btnSuccess, btnSecondary, formatDate, moneyShort, PortalModal, inputCls, labelCls } from './common'
 
-const STATUS_STYLES: Record<string, string> = { draft: 'bg-gray-100 text-gray-700', pending: 'bg-yellow-100 text-yellow-700', submitted: 'bg-yellow-100 text-yellow-700', approved: 'bg-green-100 text-green-700', rejected: 'bg-red-100 text-red-700' }
+const STATUS_STYLES: Record<string, string> = { draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800', pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', submitted: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', approved: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', rejected: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' }
 
 /**
  * 'submitted' AND 'pending' BOTH MEAN "WAITING FOR YOU". (T41 contractor, HIGH)
@@ -45,7 +45,7 @@ export function PortalChangeOrders() {
       {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {rows.length === 0 ? <Empty icon={ClipboardList} text="No change orders." /> : (
         <div className="space-y-6">
-          {pending.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500" /> Awaiting Your Approval ({pending.length})</>}>{pending.map((co) => <ChangeOrderCard key={co.id} co={co} token={token} highlight />)}</Section>}
+          {pending.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500 dark:text-orange-300" /> Awaiting Your Approval ({pending.length})</>}>{pending.map((co) => <ChangeOrderCard key={co.id} co={co} token={token} highlight />)}</Section>}
           {others.length > 0 && <Section title="All Change Orders">{others.map((co) => <ChangeOrderCard key={co.id} co={co} token={token} />)}</Section>}
         </div>
       )}
@@ -60,10 +60,10 @@ function ChangeOrderCard({ co, token, highlight }: { co: ChangeOrderData; token?
     <PLink to={`/portal/${token}/change-orders/${co.id}`} className={`block bg-white rounded-xl border p-4 hover:shadow-md transition-all dark:bg-slate-900 ${highlight ? 'border-orange-300 ring-2 ring-orange-100 dark:ring-orange-900/40' : 'border-gray-200 dark:border-slate-700'}`}>
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <div className={`p-2 rounded-lg shrink-0 ${isAddition ? 'bg-red-100' : 'bg-green-100'}`}><ClipboardList className={`w-5 h-5 ${isAddition ? 'text-red-600' : 'text-green-600'}`} /></div>
+          <div className={`p-2 rounded-lg shrink-0 ${isAddition ? 'bg-red-100' : 'bg-green-100'}`}><ClipboardList className={`w-5 h-5 ${isAddition ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`} /></div>
           <div className="min-w-0"><p className="font-medium text-gray-900 truncate dark:text-slate-100">{co.title || co.number}</p><p className="text-sm text-gray-500 dark:text-slate-400">{co.number}{projectName ? ` - ${projectName}` : ''}</p></div>
         </div>
-        <div className="text-right shrink-0"><p className={`text-lg font-bold ${isAddition ? 'text-red-600' : 'text-green-600'}`}>{isAddition ? '+' : '-'}{moneyShort(Math.abs(Number(co.amount)))}</p><span className={pill(STATUS_STYLES[co.status] || 'bg-gray-100 text-gray-700')}>{co.status}</span></div>
+        <div className="text-right shrink-0"><p className={`text-lg font-bold ${isAddition ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>{isAddition ? '+' : '-'}{moneyShort(Math.abs(Number(co.amount)))}</p><span className={pill(STATUS_STYLES[co.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{co.status}</span></div>
       </div>
     </PLink>
   )
@@ -105,13 +105,13 @@ export function PortalChangeOrderDetail() {
         <div className="p-6 border-b dark:border-slate-700">
           <div className="flex items-start justify-between gap-4">
             <div><h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{co.title || co.number}</h1><p className="text-gray-500 dark:text-slate-400">{co.number}</p>{co.project?.name && <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Project: {co.project.name}</p>}</div>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[co.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>{co.status}</span>
+            <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[co.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>{co.status}</span>
           </div>
         </div>
         <div className={`p-6 ${isAddition ? 'bg-red-50 dark:bg-red-950/20' : 'bg-green-50 dark:bg-green-950/20'}`}>
           <div className="flex items-center gap-3">
-            <AlertTriangle className={`w-6 h-6 ${isAddition ? 'text-red-600' : 'text-green-600'}`} />
-            <div><p className="text-sm text-gray-600 dark:text-slate-400">{isAddition ? 'This change order will ADD to your project cost' : 'This change order will REDUCE your project cost'}</p><p className={`text-2xl font-bold ${isAddition ? 'text-red-600' : 'text-green-600'}`}>{isAddition ? '+' : '-'}{moneyShort(Math.abs(Number(co.amount)))}</p>{!!co.daysAdded && <p className="text-sm text-gray-600 dark:text-slate-400">Schedule impact: {co.daysAdded} day{co.daysAdded === 1 ? '' : 's'}</p>}</div>
+            <AlertTriangle className={`w-6 h-6 ${isAddition ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`} />
+            <div><p className="text-sm text-gray-600 dark:text-slate-400">{isAddition ? 'This change order will ADD to your project cost' : 'This change order will REDUCE your project cost'}</p><p className={`text-2xl font-bold ${isAddition ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>{isAddition ? '+' : '-'}{moneyShort(Math.abs(Number(co.amount)))}</p>{!!co.daysAdded && <p className="text-sm text-gray-600 dark:text-slate-400">Schedule impact: {co.daysAdded} day{co.daysAdded === 1 ? '' : 's'}</p>}</div>
           </div>
         </div>
         <div className="p-6 border-b dark:border-slate-700"><h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">Description</h3><p className="text-gray-700 whitespace-pre-wrap dark:text-slate-200">{co.description || 'No description provided.'}</p></div>

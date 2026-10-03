@@ -9,17 +9,17 @@ import { useToast } from '../contexts/ToastContext';
 import { Button, PageHeader } from '../components/ui/DataTable';
 
 const TYPE_STYLES: Record<string, { bg: string; icon: any; label: string }> = {
-  void: { bg: 'bg-red-100 text-red-700', icon: XCircle, label: 'Void' },
-  discount: { bg: 'bg-orange-100 text-orange-700', icon: Percent, label: 'Discount' },
-  refund: { bg: 'bg-purple-100 text-purple-700', icon: RotateCcw, label: 'Refund' },
-  price_override: { bg: 'bg-blue-100 text-blue-700', icon: Tag, label: 'Price Override' },
+  void: { bg: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40', icon: XCircle, label: 'Void' },
+  discount: { bg: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40', icon: Percent, label: 'Discount' },
+  refund: { bg: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40', icon: RotateCcw, label: 'Refund' },
+  price_override: { bg: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', icon: Tag, label: 'Price Override' },
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  approved: 'bg-green-100 text-green-700',
-  rejected: 'bg-red-100 text-red-700',
-  expired: 'bg-gray-100 text-gray-600',
+  pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  approved: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  rejected: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  expired: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800',
 };
 
 function CountdownTimer({ expiresAt }: { expiresAt: string }) {
@@ -48,7 +48,7 @@ function CountdownTimer({ expiresAt }: { expiresAt: string }) {
   const isUrgent = timeLeft !== 'Expired' && parseInt(timeLeft) < 5;
 
   return (
-    <span className={`text-xs font-mono ${timeLeft === 'Expired' ? 'text-gray-500 dark:text-slate-400' : isUrgent ? 'text-red-600 font-bold' : 'text-yellow-600'}`}>
+    <span className={`text-xs font-mono ${timeLeft === 'Expired' ? 'text-gray-500 dark:text-slate-400' : isUrgent ? 'text-red-600 font-bold dark:text-red-400' : 'text-yellow-600 dark:text-yellow-300'}`}>
       {timeLeft === 'Expired' ? 'Expired' : `Expires in ${timeLeft}`}
     </span>
   );
@@ -274,7 +274,7 @@ export default function ApprovalsPage() {
                         <td className="px-4 py-3 text-sm">{req.requesterName}</td>
                         <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate dark:text-slate-400">{req.reason || '-'}</td>
                         <td className="px-4 py-3">
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[req.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[req.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                             {req.status}
                           </span>
                         </td>

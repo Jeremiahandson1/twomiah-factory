@@ -16,11 +16,11 @@ interface VendorTicket {
 }
 
 const TICKET_STATUS_STYLE: Record<string, string> = {
-  open: 'bg-blue-100 text-blue-700',
-  in_progress: 'bg-yellow-100 text-yellow-700',
-  waiting_customer: 'bg-purple-100 text-purple-700',
-  resolved: 'bg-green-100 text-green-700',
-  closed: 'bg-gray-100 text-gray-600',
+  open: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  in_progress: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  waiting_customer: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  resolved: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  closed: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800',
 };
 
 export default function ContactSupportPage() {
@@ -85,16 +85,16 @@ export default function ContactSupportPage() {
       </div>
 
       {sentNumber && (
-        <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800 flex items-start gap-2">
+        <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800 flex items-start gap-2 dark:text-green-300 dark:bg-green-950/40">
           <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
           <span>Sent — {sentNumber}. We reply to the email on your account.</span>
         </div>
       )}
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:text-red-400 dark:bg-red-950/40">{error}</div>
       )}
       {unavailable && (
-        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:text-amber-300 dark:bg-amber-950/40">
           In-app messaging is not connected for this account yet — email support@twomiah.com and we will pick it up.
         </div>
       )}
@@ -156,7 +156,7 @@ export default function ContactSupportPage() {
                     {t.number} - {formatDate(t.created_at)}
                   </p>
                 </div>
-                <span className={'text-xs font-medium px-2 py-0.5 rounded ' + (TICKET_STATUS_STYLE[t.status] || 'bg-gray-100 text-gray-600')}>
+                <span className={'text-xs font-medium px-2 py-0.5 rounded ' + (TICKET_STATUS_STYLE[t.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800')}>
                   {String(t.status).replace(/_/g, ' ')}
                 </span>
               </div>

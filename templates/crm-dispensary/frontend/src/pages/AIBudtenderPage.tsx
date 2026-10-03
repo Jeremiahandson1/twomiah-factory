@@ -201,7 +201,7 @@ export default function AIBudtenderPage() {
                 onChange={(e) => setConfig({ ...config, enabled: e.target.checked })}
                 className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
               />
-              <span className={`text-sm font-medium ${config.enabled ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}`}>
+              <span className={`text-sm font-medium ${config.enabled ? 'text-green-600 dark:text-green-300' : 'text-gray-500 dark:text-slate-400'}`}>
                 {config.enabled ? 'Enabled' : 'Disabled'}
               </span>
             </label>
@@ -322,15 +322,15 @@ export default function AIBudtenderPage() {
                       </td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{session.customerName || 'Anonymous'}</td>
                       <td className="px-4 py-3">
-                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
+                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40">
                           {(session.channel || 'unknown').replace(/_/g, ' ')}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                          session.status === 'active' ? 'bg-green-100 text-green-700' :
-                          session.status === 'completed' ? 'bg-gray-100 text-gray-600' :
-                          'bg-yellow-100 text-yellow-700'
+                          session.status === 'active' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
+                          session.status === 'completed' ? 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800' :
+                          'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40'
                         }`}>
                           {session.status || 'unknown'}
                         </span>
@@ -338,7 +338,7 @@ export default function AIBudtenderPage() {
                       <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-slate-400">{session.messageCount || 0}</td>
                       <td className="px-4 py-3 text-sm">
                         {session.convertedToOrder ? (
-                          <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700">Yes</span>
+                          <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40">Yes</span>
                         ) : (
                           <span className="text-gray-500 dark:text-slate-400">No</span>
                         )}
@@ -346,7 +346,7 @@ export default function AIBudtenderPage() {
                       <td className="px-4 py-3 text-sm">
                         {session.satisfaction ? (
                           <div className="flex items-center gap-1">
-                            <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                            <Star className="w-3 h-3 text-yellow-500 fill-yellow-500 dark:text-yellow-300" />
                             <span className="text-gray-900 dark:text-slate-100">{session.satisfaction}/5</span>
                           </div>
                         ) : (

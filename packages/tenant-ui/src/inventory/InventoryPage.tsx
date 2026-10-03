@@ -227,7 +227,7 @@ export default function InventoryPage({ api }: InventoryPageProps) {
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2 border-b-2 -mb-px ${
               tab === t.id
-                ? 'border-orange-500 text-orange-600'
+                ? 'border-orange-500 text-orange-600 dark:text-orange-300'
                 : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
@@ -267,7 +267,7 @@ export default function InventoryPage({ api }: InventoryPageProps) {
                 type="checkbox"
                 checked={showLowStock}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowLowStock(e.target.checked)}
-                className="w-4 h-4 rounded text-orange-500"
+                className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
               />
               <span className="text-sm text-gray-600 dark:text-slate-400">Low Stock Only</span>
             </label>
@@ -298,7 +298,7 @@ export default function InventoryPage({ api }: InventoryPageProps) {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           {item.isLowStock && (
-                            <AlertTriangle className="w-4 h-4 text-red-500" />
+                            <AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400" />
                           )}
                           <div>
                             <p className="font-medium text-gray-900 dark:text-slate-100">{item.name}</p>
@@ -413,9 +413,9 @@ export default function InventoryPage({ api }: InventoryPageProps) {
 
 function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
   const colors: Record<string, string> = {
-    gray: 'bg-gray-50 text-gray-700',
-    red: 'bg-red-50 text-red-700',
-    green: 'bg-green-50 text-green-700',
+    gray: 'bg-gray-50 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+    red: 'bg-red-50 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+    green: 'bg-green-50 text-green-700 dark:text-green-300 dark:bg-green-950/40',
   };
 
   return (
@@ -474,7 +474,7 @@ function LocationsTab({ locations, onAddLocation, onRefresh }: LocationsTabProps
           >
             <div className="flex items-center gap-3">
               {loc.type === 'truck' ? (
-                <Truck className="w-5 h-5 text-blue-500" />
+                <Truck className="w-5 h-5 text-blue-500 dark:text-blue-300" />
               ) : (
                 <Warehouse className="w-5 h-5 text-gray-500 dark:text-slate-400" />
               )}
@@ -579,9 +579,9 @@ function PurchaseOrdersTab({ locations }: PurchaseOrdersTabProps) {
                 <p className="text-sm text-gray-500 dark:text-slate-400">{order.vendor}</p>
               </div>
               <span className={`px-2 py-1 rounded-full text-xs ${
-                order.status === 'received' ? 'bg-green-100 text-green-700' :
-                order.status === 'partial' ? 'bg-yellow-100 text-yellow-700' :
-                'bg-gray-100 text-gray-700'
+                order.status === 'received' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
+                order.status === 'partial' ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' :
+                'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'
               } dark:text-slate-200`}>
                 {order.status}
               </span>
@@ -957,7 +957,7 @@ function AdjustStockModal({ item, locations, onSave, onClose }: AdjustStockModal
                 type="button"
                 onClick={() => setAdjustType('add')}
                 className={`flex-1 py-2 rounded-lg border ${
-                  adjustType === 'add' ? 'bg-green-100 border-green-300 text-green-700' : ''
+                  adjustType === 'add' ? 'bg-green-100 border-green-300 text-green-700 dark:text-green-300 dark:bg-green-950/40' : ''
                 }`}
               >
                 Add Stock
@@ -966,7 +966,7 @@ function AdjustStockModal({ item, locations, onSave, onClose }: AdjustStockModal
                 type="button"
                 onClick={() => setAdjustType('remove')}
                 className={`flex-1 py-2 rounded-lg border ${
-                  adjustType === 'remove' ? 'bg-red-100 border-red-300 text-red-700' : ''
+                  adjustType === 'remove' ? 'bg-red-100 border-red-300 text-red-700 dark:text-red-400 dark:bg-red-950/40' : ''
                 }`}
               >
                 Remove Stock

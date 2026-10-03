@@ -7,16 +7,16 @@ import { DollarSign, Plus, Check, Loader2 } from 'lucide-react';
 import api from '../services/api';
 
 const STATUS_COLORS: Record<string, string> = {
-  active: 'bg-green-100 text-green-700',
-  completed: 'bg-gray-100 text-gray-700',
-  cancelled: 'bg-red-100 text-red-700',
+  active: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  completed: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 const REQ_STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-gray-100 text-gray-700',
-  submitted: 'bg-blue-100 text-blue-700',
-  approved: 'bg-green-100 text-green-700',
-  paid: 'bg-emerald-100 text-emerald-700',
-  rejected: 'bg-red-100 text-red-700',
+  pending: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  submitted: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  approved: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  paid: 'bg-emerald-100 text-emerald-700 dark:text-emerald-300 dark:bg-emerald-950/40',
+  rejected: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 export default function DrawSchedulesPage() {
@@ -60,12 +60,12 @@ export default function DrawSchedulesPage() {
     if (selected) loadDetail(selected.id);
   };
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500" /></div>;
+  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500 dark:text-orange-300" /></div>;
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <div><h1 className="text-2xl font-bold flex items-center gap-2"><DollarSign className="w-6 h-6 text-orange-500" />Draw Schedules</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Track construction loan draws against project milestones</p></div>
+        <div><h1 className="text-2xl font-bold flex items-center gap-2"><DollarSign className="w-6 h-6 text-orange-500 dark:text-orange-300" />Draw Schedules</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Track construction loan draws against project milestones</p></div>
         <button onClick={() => setShowCreate(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Schedule</button>
       </div>
 

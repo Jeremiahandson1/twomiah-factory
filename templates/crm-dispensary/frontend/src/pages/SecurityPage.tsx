@@ -827,7 +827,7 @@ export default function SecurityPage() {
                     type="checkbox"
                     checked={showAllSessions}
                     onChange={(e) => setShowAllSessions(e.target.checked)}
-                    className="rounded border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-emerald-500 focus:ring-emerald-500"
+                    className="rounded border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 text-emerald-500 focus:ring-emerald-500 dark:text-emerald-300"
                   />
                   Show all company sessions
                 </label>
@@ -1056,7 +1056,7 @@ export default function SecurityPage() {
                           type="checkbox"
                           checked={event.acknowledged || false}
                           onChange={(e) => acknowledgeEvent(event.id, e.target.checked)}
-                          className="rounded border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-emerald-500 focus:ring-emerald-500"
+                          className="rounded border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-emerald-500 focus:ring-emerald-500 dark:text-emerald-300"
                         />
                       </td>
                     </tr>

@@ -10,11 +10,11 @@ import { displayName } from '../../utils/user'
 import { useToast } from '../../contexts/ToastContext'
 
 const OUTCOME_LABELS: Record<string, { label: string; color: string }> = {
-  no_answer: { label: 'No Answer', color: 'bg-gray-100 text-gray-700' },
-  not_interested: { label: 'Not Interested', color: 'bg-red-100 text-red-700' },
-  interested: { label: 'Interested', color: 'bg-yellow-100 text-yellow-700' },
-  appointment_set: { label: 'Appointment', color: 'bg-green-100 text-green-700' },
-  already_has_contractor: { label: 'Has Contractor', color: 'bg-orange-100 text-orange-700' },
+  no_answer: { label: 'No Answer', color: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800' },
+  not_interested: { label: 'Not Interested', color: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' },
+  interested: { label: 'Interested', color: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' },
+  appointment_set: { label: 'Appointment', color: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' },
+  already_has_contractor: { label: 'Has Contractor', color: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40' },
   vacant: { label: 'Vacant', color: 'bg-gray-100 text-gray-600' },
 }
 
@@ -239,7 +239,7 @@ export default function CanvassingDashboard() {
             </div>
           </div>
           <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
-            s.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+            s.status === 'active' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
           }`}>{s.status}</span>
         </div>
 
@@ -361,9 +361,9 @@ export default function CanvassingDashboard() {
                     <td className="px-4 py-3 font-semibold text-green-600 dark:text-green-300">{s.leadsCreated || 0}</td>
                     <td className="px-4 py-3">
                       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                        s.status === 'active' ? 'bg-green-100 text-green-700' :
-                        s.status === 'paused' ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-gray-100 text-gray-600'
+                        s.status === 'active' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
+                        s.status === 'paused' ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' :
+                        'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
                       }`}>{s.status}</span>
                     </td>
                     <td className="px-4 py-3"><ChevronRight size={16} className="text-gray-500 dark:text-slate-400" /></td>
@@ -382,7 +382,7 @@ export default function CanvassingDashboard() {
           {/* Leaderboard */}
           <div className="bg-white rounded-xl border p-4 dark:bg-slate-900">
             <div className="flex items-center gap-2 mb-3">
-              <Trophy size={16} className="text-yellow-500" />
+              <Trophy size={16} className="text-yellow-500 dark:text-yellow-300" />
               <h3 className="text-sm font-semibold">This Month's Leaderboard</h3>
             </div>
             {leaderboard.length > 0 ? (
@@ -391,10 +391,10 @@ export default function CanvassingDashboard() {
                   <div key={i} className="flex items-center justify-between py-1.5">
                     <div className="flex items-center gap-2">
                       <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                        i === 0 ? 'bg-yellow-100 text-yellow-700' :
-                        i === 1 ? 'bg-gray-100 text-gray-600' :
-                        i === 2 ? 'bg-orange-100 text-orange-700' :
-                        'bg-gray-50 text-gray-600'
+                        i === 0 ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' :
+                        i === 1 ? 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800' :
+                        i === 2 ? 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40' :
+                        'bg-gray-50 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
                       }`}>{i + 1}</span>
                       <span className="text-sm font-medium truncate">{rep.name}</span>
                     </div>
@@ -475,7 +475,7 @@ export default function CanvassingDashboard() {
                         <span className="text-xs font-semibold text-gray-500 dark:text-slate-400">Step {i + 1}</span>
                         {scriptSteps.length > 1 && (
                           <button onClick={() => setScriptSteps(prev => prev.filter((_, j) => j !== i))}
-                            className="text-xs text-red-500"><Trash2 size={12} /></button>
+                            className="text-xs text-red-500 dark:text-red-400"><Trash2 size={12} /></button>
                         )}
                       </div>
                       <input value={step.title} onChange={(e) => {

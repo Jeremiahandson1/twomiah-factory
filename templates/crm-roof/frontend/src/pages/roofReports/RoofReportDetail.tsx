@@ -175,13 +175,13 @@ export default function RoofReportDetail() {
       <div className="flex items-center gap-1 bg-white rounded-lg border shadow-sm p-1 w-fit dark:bg-slate-900">
         <button
           onClick={() => setViewTab('2d')}
-          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md transition-colors ${viewTab === '2d' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}
+          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md transition-colors ${viewTab === '2d' ? 'bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'text-gray-600 hover:bg-gray-50 dark:text-slate-300'}`}
         >
           <Eye className="w-4 h-4" /> 2D Report
         </button>
         <button
           onClick={() => setViewTab('3d')}
-          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md transition-colors ${viewTab === '3d' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}
+          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md transition-colors ${viewTab === '3d' ? 'bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'text-gray-600 hover:bg-gray-50 dark:text-slate-300'}`}
         >
           <Box className="w-4 h-4" /> 3D View
         </button>

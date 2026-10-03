@@ -18,12 +18,12 @@ export const STATUSES = ['enquiry', 'tentative', 'confirmed', 'completed', 'lost
 export type EventStatus = typeof STATUSES[number];
 
 export const STATUS_COLORS: Record<string, string> = {
-  enquiry: 'bg-amber-100 text-amber-700',
-  tentative: 'bg-blue-100 text-blue-700',
-  confirmed: 'bg-green-100 text-green-700',
-  completed: 'bg-gray-100 text-gray-700',
-  lost: 'bg-red-100 text-red-700',
-  cancelled: 'bg-red-100 text-red-700',
+  enquiry: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
+  tentative: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  confirmed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  completed: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  lost: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 export const EVENT_TYPES = ['private_dining', 'wedding', 'corporate', 'birthday', 'anniversary', 'funeral', 'christmas_party', 'other'];
@@ -133,13 +133,13 @@ export default function EventsPage() {
         <div className="flex border rounded-lg overflow-hidden">
           <button
             onClick={() => setView('pipeline')}
-            className={`flex items-center gap-1 px-3 py-2 text-sm ${view === 'pipeline' ? 'bg-orange-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'} dark:bg-slate-900 dark:text-slate-300`}
+            className={`flex items-center gap-1 px-3 py-2 text-sm ${view === 'pipeline' ? 'bg-orange-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:bg-slate-800'} dark:bg-slate-900 dark:text-slate-300`}
           >
             <LayoutGrid className="w-4 h-4" /> Pipeline
           </button>
           <button
             onClick={() => setView('list')}
-            className={`flex items-center gap-1 px-3 py-2 text-sm ${view === 'list' ? 'bg-orange-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'} dark:bg-slate-900 dark:text-slate-300`}
+            className={`flex items-center gap-1 px-3 py-2 text-sm ${view === 'list' ? 'bg-orange-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:bg-slate-800'} dark:bg-slate-900 dark:text-slate-300`}
           >
             <List className="w-4 h-4" /> List
           </button>
@@ -241,7 +241,7 @@ function ListView({ events }: { events: EventRow[] }) {
               <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{e.guestCountFinal ?? e.guestCount ?? '—'}</td>
               <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{money(e.quotedTotal)}</td>
               <td className="px-4 py-3">
-                <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${STATUS_COLORS[e.status || ''] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+                <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${STATUS_COLORS[e.status || ''] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                   {e.status || 'enquiry'}
                 </span>
               </td>
@@ -324,7 +324,7 @@ function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => vo
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Event name <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Event name <span className="text-red-500 dark:text-red-400">*</span></label>
               <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Harper / Diaz wedding" required />
             </div>
             <div>
@@ -345,7 +345,7 @@ function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => vo
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date <span className="text-red-500 dark:text-red-400">*</span></label>
                 <input type="date" value={form.eventDate} onChange={(e) => set('eventDate', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
               </div>
               <div>

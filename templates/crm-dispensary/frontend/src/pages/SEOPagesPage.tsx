@@ -166,7 +166,7 @@ export default function SEOPagesPage() {
                       <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate dark:text-slate-400">{page.metaTitle || '—'}</td>
                       <td className="px-4 py-3 text-center">
                         {page.published ? (
-                          <CheckCircle className="w-4 h-4 text-green-500 mx-auto" />
+                          <CheckCircle className="w-4 h-4 text-green-500 mx-auto dark:text-green-300" />
                         ) : (
                           <XCircle className="w-4 h-4 text-gray-300 mx-auto" />
                         )}
@@ -219,7 +219,7 @@ export default function SEOPagesPage() {
                 href="/api/seo-pages/sitemap"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 dark:text-green-300 dark:bg-green-950/40"
               >
                 <ExternalLink className="w-4 h-4" />
                 View Sitemap

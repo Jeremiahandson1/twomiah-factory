@@ -124,7 +124,7 @@ export default function LoyaltyPage() {
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 capitalize ${
-              tab === t ? 'border-indigo-500 text-indigo-700 dark:text-indigo-300' : 'border-transparent text-gray-500 hover:text-gray-700'
+              tab === t ? 'border-indigo-500 text-indigo-700 dark:text-indigo-300' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-slate-400'
             } dark:text-slate-200`}
           >{t}</button>
         ))}
@@ -138,13 +138,13 @@ export default function LoyaltyPage() {
             className="w-full max-w-sm rounded border border-gray-300 px-3 py-2 text-gray-900 dark:text-slate-100"
           />
           {members.length === 0 ? (
-            <p className="rounded border border-gray-200 bg-white p-8 text-center text-gray-600 dark:bg-slate-900">
+            <p className="rounded border border-gray-200 bg-white p-8 text-center text-gray-600 dark:bg-slate-900 dark:text-slate-300">
               Nobody is on the programme yet. Shoppers join automatically the first time an order is paid.
             </p>
           ) : (
             <div className="overflow-x-auto rounded border border-gray-200 bg-white dark:bg-slate-900">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-left text-gray-600">
+                <thead className="bg-gray-50 text-left text-gray-600 dark:text-slate-300 dark:bg-slate-800">
                   <tr>{['Email', 'Points', 'Earned to date', 'Orders', 'Punch card'].map((h) => (
                     <th key={h} className="px-4 py-2.5 font-medium">{h}</th>
                   ))}</tr>
@@ -173,7 +173,7 @@ export default function LoyaltyPage() {
               <p className="p-8 text-center text-gray-600 dark:text-slate-300">No rewards yet. Add one so points are worth something.</p>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-left text-gray-600">
+                <thead className="bg-gray-50 text-left text-gray-600 dark:text-slate-300 dark:bg-slate-800">
                   <tr>{['Reward', 'Costs', 'Gives', 'Min spend', 'Used', ''].map((h) => (
                     <th key={h} className="px-4 py-2.5 font-medium">{h}</th>
                   ))}</tr>

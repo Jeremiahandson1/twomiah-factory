@@ -12,34 +12,34 @@ import { supplierName } from '../../utils/supplier';
 import { useToast } from '../../contexts/ToastContext';
 
 const STATUS_COLORS: Record<string, string> = {
-  lead: 'bg-gray-100 text-gray-700',
-  inspection_scheduled: 'bg-blue-100 text-blue-700',
-  inspected: 'bg-indigo-100 text-indigo-700',
-  measurement_ordered: 'bg-purple-100 text-purple-700',
-  proposal_sent: 'bg-yellow-100 text-yellow-700',
-  signed: 'bg-green-100 text-green-700',
-  material_ordered: 'bg-orange-100 text-orange-700',
-  in_production: 'bg-cyan-100 text-cyan-700',
-  final_inspection: 'bg-teal-100 text-teal-700',
-  invoiced: 'bg-pink-100 text-pink-700',
-  collected: 'bg-emerald-100 text-emerald-700',
+  lead: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  inspection_scheduled: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  inspected: 'bg-indigo-100 text-indigo-700 dark:text-indigo-300 dark:bg-indigo-950/40',
+  measurement_ordered: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  proposal_sent: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  signed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  material_ordered: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  in_production: 'bg-cyan-100 text-cyan-700 dark:text-cyan-300 dark:bg-cyan-950/40',
+  final_inspection: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40',
+  invoiced: 'bg-pink-100 text-pink-700 dark:text-pink-300 dark:bg-pink-950/40',
+  collected: 'bg-emerald-100 text-emerald-700 dark:text-emerald-300 dark:bg-emerald-950/40',
 };
 
 const JOB_TYPE_COLORS: Record<string, string> = {
-  insurance: 'bg-orange-100 text-orange-700',
-  retail: 'bg-blue-100 text-blue-700',
-  commercial: 'bg-gray-100 text-gray-700',
-  new_construction: 'bg-green-100 text-green-700',
-  emergency: 'bg-red-100 text-red-700',
+  insurance: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  retail: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  commercial: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  new_construction: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  emergency: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 const PHOTO_TABS = ['before', 'damage', 'during', 'after'] as const;
 
 const MEASUREMENT_STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  processing: 'bg-blue-100 text-blue-700',
-  complete: 'bg-green-100 text-green-700',
-  failed: 'bg-red-100 text-red-700',
+  pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  processing: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  complete: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  failed: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 function formatStatus(status: string): string {
@@ -306,8 +306,8 @@ export default function JobDetailPage() {
   }
 
   const daysOpen = daysSince(job.createdAt);
-  const statusColor = STATUS_COLORS[job.status] || 'bg-gray-100 text-gray-700';
-  const typeColor = JOB_TYPE_COLORS[job.jobType] || 'bg-gray-100 text-gray-700';
+  const statusColor = STATUS_COLORS[job.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800';
+  const typeColor = JOB_TYPE_COLORS[job.jobType] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800';
   const filteredPhotos = photos.filter((p) => (p.photoType ?? p.category) === photoTab);
 
   return (
@@ -471,7 +471,7 @@ export default function JobDetailPage() {
             {job.jobType === 'insurance' && hasInsurance && (
               <div className="bg-white rounded-xl shadow-sm border border-yellow-300 p-6 dark:bg-slate-900">
                 <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
-                  <Shield className="w-4 h-4 text-yellow-500" /> Insurance
+                  <Shield className="w-4 h-4 text-yellow-500 dark:text-yellow-300" /> Insurance
                 </h2>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
@@ -538,14 +538,14 @@ export default function JobDetailPage() {
               {measurement ? (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${MEASUREMENT_STATUS_COLORS[measurement.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${MEASUREMENT_STATUS_COLORS[measurement.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                       {formatStatus(measurement.status)}
                     </span>
                     {measurement.imageryQuality && (
                       <span className={`text-xs font-medium px-2 py-0.5 rounded ${
-                        measurement.imageryQuality === 'HIGH' ? 'bg-green-100 text-green-700' :
-                        measurement.imageryQuality === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-red-100 text-red-700'
+                        measurement.imageryQuality === 'HIGH' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
+                        measurement.imageryQuality === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' :
+                        'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40'
                       }`}>
                         {measurement.imageryQuality}
                       </span>
@@ -629,9 +629,9 @@ export default function JobDetailPage() {
                         <div>
                           <p className="text-gray-500 dark:text-slate-400">Status</p>
                           <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                            order.status === 'delivered' ? 'bg-green-100 text-green-700' :
-                            order.status === 'ordered' ? 'bg-blue-100 text-blue-700' :
-                            'bg-gray-100 text-gray-700'
+                            order.status === 'delivered' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
+                            order.status === 'ordered' ? 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' :
+                            'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'
                           } dark:text-slate-200`}>
                             {formatStatus(order.status)}
                           </span>
@@ -869,10 +869,10 @@ export default function JobDetailPage() {
                       <div>
                         <p className="text-sm font-medium">Quote #{q.quoteNumber || q.id}</p>
                         <span className={`text-xs px-1.5 py-0.5 rounded ${
-                          q.status === 'approved' ? 'bg-green-100 text-green-700' :
-                          q.status === 'sent' ? 'bg-blue-100 text-blue-700' :
-                          q.status === 'declined' ? 'bg-red-100 text-red-700' :
-                          'bg-gray-100 text-gray-600'
+                          q.status === 'approved' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
+                          q.status === 'sent' ? 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' :
+                          q.status === 'declined' ? 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' :
+                          'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
                         }`}>
                           {formatStatus(q.status)}
                         </span>
@@ -904,10 +904,10 @@ export default function JobDetailPage() {
                       <div>
                         <p className="text-sm font-medium">Invoice #{inv.invoiceNumber || inv.id}</p>
                         <span className={`text-xs px-1.5 py-0.5 rounded ${
-                          inv.status === 'paid' ? 'bg-green-100 text-green-700' :
-                          inv.status === 'overdue' ? 'bg-red-100 text-red-700' :
-                          inv.status === 'sent' ? 'bg-blue-100 text-blue-700' :
-                          'bg-gray-100 text-gray-600'
+                          inv.status === 'paid' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
+                          inv.status === 'overdue' ? 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' :
+                          inv.status === 'sent' ? 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' :
+                          'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
                         }`}>
                           {formatStatus(inv.status)}
                         </span>

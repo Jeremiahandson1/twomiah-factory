@@ -10,9 +10,9 @@ import { useToast } from '../contexts/ToastContext';
 import { Button, PageHeader } from '../components/ui/DataTable';
 
 const STATUS_STYLES: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-600',
-  reviewed: 'bg-blue-100 text-blue-700',
-  submitted: 'bg-green-100 text-green-700',
+  draft: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800',
+  reviewed: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  submitted: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
 };
 
 export default function EODReportPage() {
@@ -240,9 +240,9 @@ export default function EODReportPage() {
                       {drawerOpen ? (
                         <div className="text-xl font-bold text-gray-500 dark:text-slate-400">Pending count</div>
                       ) : (
-                        <div className={`text-xl font-bold ${Math.abs(cashVariance) > 5 ? 'text-red-600' : 'text-green-600'}`}>
+                        <div className={`text-xl font-bold ${Math.abs(cashVariance) > 5 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>
                           {cashVariance >= 0 ? '+' : ''}${Number(cashVariance).toFixed(2)}
-                          {Math.abs(cashVariance) > 5 && <AlertTriangle className="w-4 h-4 inline ml-1 text-red-500" />}
+                          {Math.abs(cashVariance) > 5 && <AlertTriangle className="w-4 h-4 inline ml-1 text-red-500 dark:text-red-400" />}
                         </div>
                       )}
                     </div>
@@ -276,7 +276,7 @@ export default function EODReportPage() {
                                 <td className="py-1.5 pr-4 text-gray-700 dark:text-slate-200">{d.status === 'open' ? 'Open' : 'Closed'}</td>
                                 <td className="py-1.5 pr-4 text-right tabular-nums text-gray-700 dark:text-slate-200">${Number(d.expected || 0).toFixed(2)}</td>
                                 <td className="py-1.5 pr-4 text-right tabular-nums text-gray-700 dark:text-slate-200">{d.counted == null ? '—' : `$${Number(d.counted).toFixed(2)}`}</td>
-                                <td className={`py-1.5 text-right tabular-nums font-medium ${d.variance == null ? 'text-gray-500 dark:text-slate-400' : Math.abs(Number(d.variance)) > 5 ? 'text-red-600' : 'text-green-600'}`}>
+                                <td className={`py-1.5 text-right tabular-nums font-medium ${d.variance == null ? 'text-gray-500 dark:text-slate-400' : Math.abs(Number(d.variance)) > 5 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>
                                   {d.variance == null ? 'Pending' : `${Number(d.variance) >= 0 ? '+' : ''}$${Number(d.variance).toFixed(2)}`}
                                 </td>
                               </tr>
@@ -374,7 +374,7 @@ export default function EODReportPage() {
                     </div>
                     <div>
                       <div className="text-sm text-gray-500 dark:text-slate-400">Shrinkage Value</div>
-                      <div className={`text-xl font-bold ${(report.shrinkageValue || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      <div className={`text-xl font-bold ${(report.shrinkageValue || 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>
                         ${Number(report.shrinkageValue || 0).toFixed(2)}
                       </div>
                     </div>
@@ -428,7 +428,7 @@ export default function EODReportPage() {
 
               {/* Loyalty */}
               <div>
-                <h4 className="font-semibold flex items-center gap-2 mb-3"><Star className="w-5 h-5 text-yellow-500" />Loyalty</h4>
+                <h4 className="font-semibold flex items-center gap-2 mb-3"><Star className="w-5 h-5 text-yellow-500 dark:text-yellow-300" />Loyalty</h4>
                 <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
                   <div className="grid grid-cols-3 gap-4">
                     <div>

@@ -109,7 +109,7 @@ export default function InspectionsPage() {
     { key: 'number', label: '#', render: (v: unknown) => <span className="font-mono text-sm">{v as string}</span> },
     { key: 'type', label: 'Type', render: (v: unknown) => <span className="font-medium">{v as string}</span> },
     { key: 'project', label: 'Project', render: (v: unknown) => (v as Record<string, unknown>)?.name as string || '-' },
-    { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} statusColors={{ scheduled: 'bg-blue-100 text-blue-700', passed: 'bg-green-100 text-green-700', failed: 'bg-red-100 text-red-700' }} /> },
+    { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} statusColors={{ scheduled: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', passed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', failed: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' }} /> },
     { key: 'scheduledDate', label: 'Scheduled', render: (v: unknown) => v ? formatDate(v as string) : '-' },
     { key: 'inspector', label: 'Inspector' },
   ];

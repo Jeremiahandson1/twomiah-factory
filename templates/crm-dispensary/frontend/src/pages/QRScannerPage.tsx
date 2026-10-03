@@ -54,7 +54,7 @@ export default function QRScannerPage() {
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
             } dark:bg-slate-900 dark:text-slate-300`}
           >
             <tab.icon className="w-4 h-4" />
@@ -221,7 +221,7 @@ function ScannerTab() {
                 className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                   context === ctx.value
                     ? 'bg-orange-500 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:text-slate-300 dark:bg-slate-800'
                 } dark:text-slate-300`}
               >
                 <ctx.icon className="w-4 h-4" />
@@ -338,8 +338,8 @@ function ProductResultCard({ result, context, toast }: { result: any; context: s
         <div className="flex flex-wrap gap-3 mt-2 text-sm">
           {lab && (
             <>
-              <span className="px-2 py-0.5 bg-green-50 text-green-700 rounded-full font-medium">THC: {lab.thcPercent}%</span>
-              <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full font-medium">CBD: {lab.cbdPercent}%</span>
+              <span className="px-2 py-0.5 bg-green-50 text-green-700 rounded-full font-medium dark:text-green-300 dark:bg-green-950/40">THC: {lab.thcPercent}%</span>
+              <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full font-medium dark:text-blue-300 dark:bg-blue-950/40">CBD: {lab.cbdPercent}%</span>
             </>
           )}
           {product.price != null && (
@@ -352,11 +352,11 @@ function ProductResultCard({ result, context, toast }: { result: any; context: s
         {lab && (
           <div className="flex items-center gap-2 mt-2">
             {lab.passed ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40">
                 <CheckCircle className="w-3 h-3" /> Lab Passed
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40">
                 <XCircle className="w-3 h-3" /> Lab Issues
               </span>
             )}
@@ -381,10 +381,10 @@ function InputResultCard({ result, context, toast }: { result: any; context: str
   const navigate = useNavigate();
   const input = result.input || result;
   const typeColors: Record<string, string> = {
-    nutrient: 'bg-green-100 text-green-700',
-    pesticide: 'bg-red-100 text-red-700',
+    nutrient: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+    pesticide: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
     soil: 'bg-amber-700/20 text-amber-800',
-    amendment: 'bg-blue-100 text-blue-700',
+    amendment: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
   };
 
   return (
@@ -397,11 +397,11 @@ function InputResultCard({ result, context, toast }: { result: any; context: str
           <h4 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{input.name}</h4>
           {input.brand && <p className="text-sm text-gray-500 dark:text-slate-400">{input.brand}</p>}
           <div className="flex flex-wrap gap-2 mt-2">
-            <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[input.type] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+            <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[input.type] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
               {input.type?.replace(/_/g, ' ')}
             </span>
             {input.isOrganic && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40">
                 <Leaf className="w-3 h-3" /> Organic
               </span>
             )}
@@ -410,7 +410,7 @@ function InputResultCard({ result, context, toast }: { result: any; context: str
             )}
           </div>
           <div className="flex items-center gap-4 mt-2 text-sm">
-            <span className={`font-medium ${input.currentStock <= input.minStock ? 'text-red-600' : 'text-gray-700'} dark:text-slate-200`}>
+            <span className={`font-medium ${input.currentStock <= input.minStock ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-slate-200'} dark:text-slate-200`}>
               Stock: {input.currentStock ?? 0} {input.unitOfMeasure}
               {input.currentStock <= input.minStock && <AlertTriangle className="w-3 h-3 inline ml-1" />}
             </span>
@@ -418,11 +418,11 @@ function InputResultCard({ result, context, toast }: { result: any; context: str
           {result.complianceStatus && (
             <div className="mt-2">
               {result.complianceStatus === 'compliant' ? (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40">
                   <CheckCircle className="w-3 h-3" /> Compliant
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40">
                   <XCircle className="w-3 h-3" /> Non-Compliant
                 </span>
               )}
@@ -446,10 +446,10 @@ function InputResultCard({ result, context, toast }: { result: any; context: str
 function BatchResultCard({ result, toast }: { result: any; toast: any }) {
   const batch = result.batch || result;
   const statusColors: Record<string, string> = {
-    active: 'bg-green-100 text-green-700',
-    quarantine: 'bg-yellow-100 text-yellow-700',
-    depleted: 'bg-gray-100 text-gray-600',
-    recalled: 'bg-red-100 text-red-700',
+    active: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+    quarantine: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+    depleted: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800',
+    recalled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
   };
 
   return (
@@ -461,7 +461,7 @@ function BatchResultCard({ result, toast }: { result: any; toast: any }) {
         <h4 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Batch #{batch.batchNumber}</h4>
         {batch.productName && <p className="text-sm text-gray-500 dark:text-slate-400">{batch.productName}</p>}
         <div className="flex flex-wrap gap-2 mt-2">
-          <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${statusColors[batch.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+          <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${statusColors[batch.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
             {batch.status}
           </span>
         </div>

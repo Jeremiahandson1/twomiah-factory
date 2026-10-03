@@ -97,10 +97,10 @@ function SettingsTab({ api, toast, copy }: { api: SettingsApi; toast?: SettingsT
     <div className="max-w-3xl space-y-6">
       <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-6">
         <label className="flex items-center justify-between cursor-pointer"><div><p className="font-semibold text-gray-900 dark:text-white">Auto-Request Reviews</p><p className="text-sm text-gray-500 dark:text-slate-400">{copy.autoRequestHelp}</p></div>
-          <input type="checkbox" checked={settings?.reviewRequestEnabled ?? false} onChange={(e) => setSettings({ ...settings, reviewRequestEnabled: e.target.checked })} className="w-5 h-5 rounded text-orange-500" /></label>
+          <input type="checkbox" checked={settings?.reviewRequestEnabled ?? false} onChange={(e) => setSettings({ ...settings, reviewRequestEnabled: e.target.checked })} className="w-5 h-5 rounded text-orange-500 dark:text-orange-300" /></label>
       </div>
       <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-6 space-y-4">
-        <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2"><Star className="w-5 h-5 text-yellow-500" />Google Review Link</h2>
+        <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2"><Star className="w-5 h-5 text-yellow-500 dark:text-yellow-300" />Google Review Link</h2>
         <div><label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Google Review URL</label><input type="url" value={settings?.googleReviewUrl || ''} onChange={(e) => setSettings({ ...settings, googleReviewUrl: e.target.value })} placeholder="https://g.page/r/your-business/review" className={field} /><p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Paste your Google review link, or enter a Place ID below</p></div>
         <div><label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Google Place ID (alternative)</label><input type="text" value={settings?.googlePlaceId || ''} onChange={(e) => setSettings({ ...settings, googlePlaceId: e.target.value })} placeholder="ChIJ..." className={field} />
           <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Find your Place ID at <a href="https://developers.google.com/maps/documentation/javascript/examples/places-placeid-finder" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline dark:text-orange-300">Google's Place ID Finder</a></p></div>

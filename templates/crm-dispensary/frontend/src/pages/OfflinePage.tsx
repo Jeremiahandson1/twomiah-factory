@@ -10,11 +10,11 @@ import { formatDateTime } from '../utils/date';
 import { Button, PageHeader } from '../components/ui/DataTable';
 
 const SYNC_STATUS_STYLES: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  syncing: 'bg-blue-100 text-blue-700',
-  synced: 'bg-green-100 text-green-700',
-  failed: 'bg-red-100 text-red-700',
-  skipped: 'bg-gray-100 text-gray-600',
+  pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  syncing: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  synced: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  failed: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  skipped: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800',
 };
 
 export default function OfflinePage() {
@@ -193,9 +193,9 @@ export default function OfflinePage() {
           <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm text-gray-500 dark:text-slate-400">Connection</span>
-              {status.online ? <Wifi className="w-5 h-5 text-green-500" /> : <WifiOff className="w-5 h-5 text-red-500" />}
+              {status.online ? <Wifi className="w-5 h-5 text-green-500 dark:text-green-300" /> : <WifiOff className="w-5 h-5 text-red-500 dark:text-red-400" />}
             </div>
-            <div className={`text-xl font-bold ${status.online ? 'text-green-600' : 'text-red-600'}`}>
+            <div className={`text-xl font-bold ${status.online ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-400'}`}>
               {status.online ? 'Online' : 'Offline'}
             </div>
             <div className={`w-3 h-3 rounded-full mt-2 ${status.online ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
@@ -214,7 +214,7 @@ export default function OfflinePage() {
           <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm text-gray-500 dark:text-slate-400">Pending Queue</span>
-              <AlertTriangle className="w-5 h-5 text-yellow-500" />
+              <AlertTriangle className="w-5 h-5 text-yellow-500 dark:text-yellow-300" />
             </div>
             <div className="text-2xl font-bold">{status.pendingCount}</div>
             <div className="text-sm text-gray-500 dark:text-slate-400">transactions waiting</div>
@@ -223,7 +223,7 @@ export default function OfflinePage() {
           <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm text-gray-500 dark:text-slate-400">Failed Syncs</span>
-              <XCircle className="w-5 h-5 text-red-500" />
+              <XCircle className="w-5 h-5 text-red-500 dark:text-red-400" />
             </div>
             <div className="text-2xl font-bold text-red-600 dark:text-red-400">{status.failedCount}</div>
             <div className="text-sm text-gray-500 dark:text-slate-400">need attention</div>
@@ -340,17 +340,17 @@ export default function OfflinePage() {
                           along. (T47 P16) */}
                       <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{item.createdOfflineAt || item.createdAt ? formatDateTime(item.createdOfflineAt || item.createdAt, storeTz) : '-'}</td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${SYNC_STATUS_STYLES[item.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${SYNC_STATUS_STYLES[item.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                           {item.status}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm">{item.retries || 0}</td>
-                      <td className="px-4 py-3 text-sm text-red-500 max-w-xs truncate">{item.syncError || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-red-500 max-w-xs truncate dark:text-red-400">{item.syncError || '-'}</td>
                       <td className="px-4 py-3">
                         {item.status === 'failed' && (
                           <div className="flex gap-2">
                             <button onClick={() => retryItem(item.id)}
-                              className="flex items-center gap-1 text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200">
+                              className="flex items-center gap-1 text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 dark:text-blue-300 dark:bg-blue-950/40">
                               <RotateCcw className="w-3 h-3" />Retry
                             </button>
                             <button onClick={() => skipItem(item.id)}
@@ -384,18 +384,18 @@ export default function OfflinePage() {
             <div>
               <h4 className="font-medium mb-2">What works offline:</h4>
               <ul className="space-y-2 text-sm text-gray-600 dark:text-slate-400">
-                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />POS transactions are queued and processed when back online</li>
-                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />Customer check-ins are stored locally with timestamps</li>
-                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />Inventory counts can be performed and synced later</li>
+                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 mt-0.5 shrink-0 dark:text-green-300" />POS transactions are queued and processed when back online</li>
+                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 mt-0.5 shrink-0 dark:text-green-300" />Customer check-ins are stored locally with timestamps</li>
+                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 mt-0.5 shrink-0 dark:text-green-300" />Inventory counts can be performed and synced later</li>
               </ul>
             </div>
 
             <div>
               <h4 className="font-medium mb-2">What requires internet:</h4>
               <ul className="space-y-2 text-sm text-gray-600 dark:text-slate-400">
-                <li className="flex items-start gap-2"><XCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />METRC/BioTrack compliance reporting</li>
-                <li className="flex items-start gap-2"><XCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />Payment processing (card transactions)</li>
-                <li className="flex items-start gap-2"><XCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />ID verification / age check scans</li>
+                <li className="flex items-start gap-2"><XCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0 dark:text-red-400" />METRC/BioTrack compliance reporting</li>
+                <li className="flex items-start gap-2"><XCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0 dark:text-red-400" />Payment processing (card transactions)</li>
+                <li className="flex items-start gap-2"><XCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0 dark:text-red-400" />ID verification / age check scans</li>
               </ul>
             </div>
 

@@ -667,10 +667,10 @@ export default function POSPage() {
                   <div className="flex items-center gap-1 mt-1">
                     {product.strainType && product.strainType !== 'na' && (
                       <span className={`text-xs px-1.5 py-0.5 rounded ${
-                        product.strainType === 'sativa' ? 'bg-orange-100 text-orange-700' :
-                        product.strainType === 'indica' ? 'bg-purple-100 text-purple-700' :
-                        product.strainType === 'cbd' ? 'bg-blue-100 text-blue-700' :
-                        'bg-green-100 text-green-700'
+                        product.strainType === 'sativa' ? 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40' :
+                        product.strainType === 'indica' ? 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40' :
+                        product.strainType === 'cbd' ? 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' :
+                        'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40'
                       }`}>
                         {product.strainType}
                       </span>
@@ -865,7 +865,7 @@ export default function POSPage() {
           {customer && !loyaltyApplied && !rewardPickerOpen && (
             <button
               onClick={applyLoyalty}
-              className="w-full px-3 py-2 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-sm font-medium hover:bg-amber-100 flex items-center justify-center gap-2"
+              className="w-full px-3 py-2 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-sm font-medium hover:bg-amber-100 flex items-center justify-center gap-2 dark:text-amber-300 dark:bg-amber-950/40"
             >
               <Gift className="w-4 h-4" /> {rewards.length ? 'Redeem a Reward' : 'Apply Loyalty Reward'}
             </button>
@@ -894,7 +894,7 @@ export default function POSPage() {
                     <span>
                       <span className="font-medium">{r.name}</span>
                       <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">{cost} pts</span>
-                      {problem && <span className="ml-2 text-xs text-red-500">{problem}</span>}
+                      {problem && <span className="ml-2 text-xs text-red-500 dark:text-red-400">{problem}</span>}
                     </span>
                     <span className="text-green-700 font-medium dark:text-green-300">{problem ? '' : `-$${discount.toFixed(2)}`}</span>
                   </button>
@@ -980,7 +980,7 @@ export default function POSPage() {
             disabled={processing || cart.length === 0 || !idVerified || overWeight || overStock}
             className={`w-full py-3 rounded-lg font-bold text-lg flex items-center justify-center gap-2 transition-colors ${
               processing || cart.length === 0 || !idVerified || overWeight || overStock
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed dark:text-slate-300 dark:bg-slate-700'
                 : 'bg-green-700 text-white hover:bg-green-800'
             } dark:text-slate-400`}
           >

@@ -116,7 +116,7 @@ export default function PatientsPage() {
                 <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3">
                     <Link to={`/crm/patients/${p.id}`} className="flex items-center gap-2 font-medium text-gray-900 hover:text-teal-600 dark:hover:text-teal-300 dark:text-slate-100">
-                      <PawPrint className="w-4 h-4 text-teal-500" />
+                      <PawPrint className="w-4 h-4 text-teal-500 dark:text-teal-300" />
                       {p.name || 'Unnamed'}
                       {p.deceased && <span className="text-xs text-gray-500 dark:text-slate-400">(deceased)</span>}
                     </Link>
@@ -131,7 +131,7 @@ export default function PatientsPage() {
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{ageFromDob(p.dob) || '—'}</td>
                   <td className="px-4 py-3">
                     {p.alerts && (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full" title={p.alerts}>
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full dark:text-red-400 dark:bg-red-950/40" title={p.alerts}>
                         <AlertTriangle className="w-3 h-3" /> Alert
                       </span>
                     )}
@@ -233,13 +233,13 @@ export function NewPatientModal({ onSave, onClose, patient }: NewPatientModalPro
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Owner <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Owner <span className="text-red-500 dark:text-red-400">*</span></label>
               <OwnerPicker value={ownerId} onChange={(id, c) => { setOwnerId(id); setOwner(c); }} />
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500 dark:text-red-400">*</span></label>
                 <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
               </div>
               <div>

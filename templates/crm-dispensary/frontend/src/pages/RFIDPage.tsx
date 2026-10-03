@@ -24,10 +24,10 @@ const scanTypes = [
 ];
 
 const statusColors: Record<string, string> = {
-  active: 'bg-green-100 text-green-700',
-  inactive: 'bg-gray-100 text-gray-700',
-  lost: 'bg-red-100 text-red-700',
-  damaged: 'bg-amber-100 text-amber-700',
+  active: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  inactive: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  lost: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  damaged: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
 };
 
 const tabs = [
@@ -64,7 +64,7 @@ export default function RFIDPage() {
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
             } dark:bg-slate-900 dark:text-slate-300`}
           >
             <tab.icon className="w-4 h-4" />
@@ -499,7 +499,7 @@ function InventoryCountTab() {
                   <div key={tag.epc} className="flex items-center gap-2 text-sm text-red-700 py-1 dark:text-red-300">
                     <AlertTriangle className="w-3 h-3" />
                     <span className="font-mono">{tag.epc}</span>
-                    {tag.productName && <span className="text-red-500">({tag.productName})</span>}
+                    {tag.productName && <span className="text-red-500 dark:text-red-400">({tag.productName})</span>}
                   </div>
                 ))}
               </div>
@@ -550,7 +550,7 @@ function ScanHistoryTab() {
 
   const columns = [
     { key: 'epc', label: 'EPC', render: (val: string) => <span className="font-mono text-sm text-gray-900 dark:text-slate-100">{val}</span> },
-    { key: 'scanType', label: 'Type', render: (val: string) => <StatusBadge status={val} statusColors={{ inventory_count: 'bg-blue-100 text-blue-700', receiving: 'bg-green-100 text-green-700', transfer: 'bg-purple-100 text-purple-700', sale: 'bg-orange-100 text-orange-700', audit: 'bg-gray-100 text-gray-700' }} /> },
+    { key: 'scanType', label: 'Type', render: (val: string) => <StatusBadge status={val} statusColors={{ inventory_count: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', receiving: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', transfer: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40', sale: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40', audit: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800' }} /> },
     { key: 'locationName', label: 'Location', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
     { key: 'productName', label: 'Product', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
     // scannedBy is the raw user id; the readable name is scannedByName.

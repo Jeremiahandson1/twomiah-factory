@@ -111,7 +111,7 @@ export default function CrewsPage() {
                   <div>
                     <h3 className="font-semibold text-gray-900 dark:text-slate-100">{crew.name}</h3>
                     {crew.isSubcontractor && (
-                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Subcontractor</span>
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40">Subcontractor</span>
                     )}
                   </div>
                 </div>

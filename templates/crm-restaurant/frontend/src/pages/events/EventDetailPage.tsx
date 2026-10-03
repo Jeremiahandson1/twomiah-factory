@@ -231,7 +231,7 @@ export default function EventDetailPage() {
               onChange={(e) => setStatus(e.target.value)}
               disabled={!mayEdit}
               title={!mayEdit ? 'Changing the stage needs permission to edit the event.' : undefined}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize border disabled:opacity-100 disabled:cursor-default ${STATUS_COLORS[ev.status || ''] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize border disabled:opacity-100 disabled:cursor-default ${STATUS_COLORS[ev.status || ''] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}
             >
               {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -246,7 +246,7 @@ export default function EventDetailPage() {
         </div>
 
         {ev.dietaryRequirements && (
-          <div className="mt-4 flex items-start gap-2 bg-red-50 border border-red-200 text-red-800 rounded-lg p-3">
+          <div className="mt-4 flex items-start gap-2 bg-red-50 border border-red-200 text-red-800 rounded-lg p-3 dark:text-red-400 dark:bg-red-950/40">
             <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold">Dietary requirements</p>
@@ -256,7 +256,7 @@ export default function EventDetailPage() {
         )}
 
         {belowMinimum && (
-          <div className="mt-4 flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3">
+          <div className="mt-4 flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 dark:text-amber-300 dark:bg-amber-950/40">
             <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold">Below minimum spend</p>
@@ -269,7 +269,7 @@ export default function EventDetailPage() {
         )}
 
         {overCapacity && (
-          <div className="mt-4 flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3">
+          <div className="mt-4 flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 dark:text-amber-300 dark:bg-amber-950/40">
             <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold">Over capacity</p>
@@ -499,9 +499,9 @@ export default function EventDetailPage() {
                       <td className="px-4 py-3 text-gray-900 font-medium text-right dark:text-slate-100">{money2(p.amount)}</td>
                       <td className="px-4 py-3">
                         {p.state === 'paid' ? (
-                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Paid</span>
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full dark:text-green-300 dark:bg-green-950/40">Paid</span>
                         ) : p.state === 'part_paid' ? (
-                          <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">{money2(p.paidAmount)} paid</span>
+                          <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full dark:text-amber-300 dark:bg-amber-950/40">{money2(p.paidAmount)} paid</span>
                         ) : p.state === 'refunded' || p.state === 'void' ? (
                           <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{p.state}</span>
                         ) : (
@@ -659,7 +659,7 @@ function EditEventModal({ event: ev, onSave, onClose }: { event: EventFull; onSa
     <ModalShell title="Edit Event" onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Event name <span className="text-red-500">*</span></label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Event name <span className="text-red-500 dark:text-red-400">*</span></label>
           <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
         </div>
         <div className="grid grid-cols-3 gap-4">
@@ -879,7 +879,7 @@ function TimelineModal({ eventId, nextOrder, onSave, onClose }: { eventId: strin
       <form onSubmit={submit} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Time <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Time <span className="text-red-500 dark:text-red-400">*</span></label>
             <input type="time" value={form.time} onChange={(e) => set('time', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
           </div>
           <div>
@@ -890,7 +890,7 @@ function TimelineModal({ eventId, nextOrder, onSave, onClose }: { eventId: strin
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">What happens <span className="text-red-500">*</span></label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">What happens <span className="text-red-500 dark:text-red-400">*</span></label>
           <input type="text" value={form.title} onChange={(e) => set('title', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Guests arrive — canapes passed" required />
         </div>
         <div>
@@ -942,7 +942,7 @@ function PaymentModal({ eventId, suggested, onSave, onClose }: { eventId: string
             <input type="text" value={form.label} onChange={(e) => set('label', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Deposit, Final balance..." />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Amount ($) <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Amount ($) <span className="text-red-500 dark:text-red-400">*</span></label>
             <input type="number" step="any" value={form.amount} onChange={(e) => set('amount', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
           </div>
         </div>
@@ -991,7 +991,7 @@ function RecordPaymentModal({ invoiceId, installment, balance, onSave, onClose }
       <form onSubmit={submit} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Amount received ($) <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Amount received ($) <span className="text-red-500 dark:text-red-400">*</span></label>
             <input type="number" step="any" min="0" value={form.amount} onChange={(e) => set('amount', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
             <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{money2(balance)} outstanding on the invoice</p>
           </div>

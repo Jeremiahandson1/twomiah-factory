@@ -32,11 +32,11 @@ const ACTIVITY_ICONS: Record<string, string> = {
 };
 
 const SUP_STATUS_COLORS: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-600',
-  submitted: 'bg-blue-100 text-blue-700',
-  approved: 'bg-green-100 text-green-700',
-  denied: 'bg-red-100 text-red-700',
-  partial: 'bg-yellow-100 text-yellow-700',
+  draft: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800',
+  submitted: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  approved: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  denied: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  partial: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
 };
 
 function formatStatus(s: string) {
@@ -696,10 +696,10 @@ export default function InsuranceClaimPage() {
           <ArrowLeft className="w-4 h-4" /> Back to Job
         </button>
         <div className="flex items-center gap-3">
-          <Shield className="w-5 h-5 text-orange-500" />
+          <Shield className="w-5 h-5 text-orange-500 dark:text-orange-300" />
           <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">Insurance Claim — {claim.claimNumber}</h1>
           {claim.claimStatus === 'denied' && (
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-100 text-red-700">DENIED</span>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40">DENIED</span>
           )}
           {daysSinceLoss !== null && daysSinceLoss > 45 && (
             <span className="flex items-center gap-1 text-xs font-semibold text-red-600 dark:text-red-400">
@@ -740,11 +740,11 @@ export default function InsuranceClaimPage() {
                     return (
                       <div key={a.id || i} className="flex gap-3">
                         <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center dark:bg-slate-800">
-                          {iconType === 'phone' && <Phone className="w-3.5 h-3.5 text-blue-500" />}
-                          {iconType === 'mail' && <Mail className="w-3.5 h-3.5 text-purple-500" />}
-                          {iconType === 'check' && <CheckCircle className="w-3.5 h-3.5 text-green-500" />}
-                          {iconType === 'x' && <XCircle className="w-3.5 h-3.5 text-red-500" />}
-                          {iconType === 'doc' && <FileText className="w-3.5 h-3.5 text-orange-500" />}
+                          {iconType === 'phone' && <Phone className="w-3.5 h-3.5 text-blue-500 dark:text-blue-300" />}
+                          {iconType === 'mail' && <Mail className="w-3.5 h-3.5 text-purple-500 dark:text-purple-300" />}
+                          {iconType === 'check' && <CheckCircle className="w-3.5 h-3.5 text-green-500 dark:text-green-300" />}
+                          {iconType === 'x' && <XCircle className="w-3.5 h-3.5 text-red-500 dark:text-red-400" />}
+                          {iconType === 'doc' && <FileText className="w-3.5 h-3.5 text-orange-500 dark:text-orange-300" />}
                           {iconType === 'upload' && <Upload className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" />}
                           {iconType === 'clock' && <Clock className="w-3.5 h-3.5 text-gray-400" />}
                           {iconType === 'msg' && <MessageSquare className="w-3.5 h-3.5 text-blue-400" />}
@@ -783,15 +783,15 @@ export default function InsuranceClaimPage() {
                       <button
                         onClick={() => updateStatus(stage)}
                         className={`flex flex-col items-center px-2 py-1.5 rounded-lg text-[10px] font-medium transition min-w-[80px] ${
-                          isActive ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-300' :
-                          isPast ? 'bg-green-50 text-green-700' :
-                          'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                        } ${isDenied && isActive ? 'bg-red-100 text-red-700 ring-red-300' : ''} dark:text-blue-300`}
+                          isActive ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-300 dark:text-blue-300 dark:bg-blue-950/40' :
+                          isPast ? 'bg-green-50 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
+                          'bg-gray-50 text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:bg-slate-800'
+                        } ${isDenied && isActive ? 'bg-red-100 text-red-700 ring-red-300 dark:text-red-400 dark:bg-red-950/40' : ''} dark:text-blue-300`}
                       >
                         <div className={`w-5 h-5 rounded-full flex items-center justify-center mb-1 ${
                           isActive ? 'bg-blue-600 text-white' :
                           isPast ? 'bg-green-700 text-white' :
-                          'bg-gray-200 text-gray-600'
+                          'bg-gray-200 text-gray-600 dark:text-slate-300 dark:bg-slate-700'
                         }`}>
                           {isPast ? <CheckCircle className="w-3 h-3" /> : <span className="text-[8px]">{i + 1}</span>}
                         </div>
@@ -805,7 +805,7 @@ export default function InsuranceClaimPage() {
                 })}
               </div>
               {claim.claimStatus === 'denied' && claim.denialReason && (
-                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 dark:text-red-400 dark:bg-red-950/40">
                   <strong>Denial Reason:</strong> {claim.denialReason}
                 </div>
               )}
@@ -876,7 +876,7 @@ export default function InsuranceClaimPage() {
             {/* Financials */}
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
               <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
-                <DollarSign className="w-4 h-4 text-green-500" /> Financials
+                <DollarSign className="w-4 h-4 text-green-500 dark:text-green-300" /> Financials
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
                 <div>
@@ -987,12 +987,12 @@ export default function InsuranceClaimPage() {
                     closing the hole on the server without changing this would have broken the
                     button. Same rule as everywhere else: a new refusal needs its client. */}
                 {claim.xactimateScopeUrl && (
-                  <button type="button" onClick={() => openDocument(claim.xactimateScopeUrl!, `scope-${claim.claimNumber || claim.id}.pdf`)} disabled={!!fetchingDoc} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 disabled:opacity-50">
+                  <button type="button" onClick={() => openDocument(claim.xactimateScopeUrl!, `scope-${claim.claimNumber || claim.id}.pdf`)} disabled={!!fetchingDoc} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 disabled:opacity-50 dark:text-purple-300 dark:bg-purple-950/40">
                     {fetchingDoc === claim.xactimateScopeUrl ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} Scope PDF
                   </button>
                 )}
                 {claim.xactimateExportUrl && (
-                  <button type="button" onClick={() => openDocument(claim.xactimateExportUrl!, `scope-${claim.claimNumber || claim.id}.csv`)} disabled={!!fetchingDoc} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded-lg hover:bg-green-200 disabled:opacity-50">
+                  <button type="button" onClick={() => openDocument(claim.xactimateExportUrl!, `scope-${claim.claimNumber || claim.id}.csv`)} disabled={!!fetchingDoc} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded-lg hover:bg-green-200 disabled:opacity-50 dark:text-green-300 dark:bg-green-950/40">
                     {fetchingDoc === claim.xactimateExportUrl ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} CSV Export
                   </button>
                 )}

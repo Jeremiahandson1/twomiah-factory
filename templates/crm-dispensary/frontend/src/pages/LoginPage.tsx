@@ -93,7 +93,7 @@ export default function LoginPage() {
 
         <div className="bg-white rounded-lg shadow-md p-8 dark:bg-slate-900">
           {(localError || error) && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm dark:text-red-400 dark:bg-red-950/40">
               {localError || error}
             </div>
           )}

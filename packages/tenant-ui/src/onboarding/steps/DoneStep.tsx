@@ -26,7 +26,7 @@ export function DoneStep({ onComplete }: { onComplete: () => void }): React.Reac
       <h2 className="text-2xl font-bold mb-2">You're set up</h2>
       <p className="text-sm text-gray-600 mb-6 dark:text-slate-300">Your CRM is ready. You can tune anything later in Settings.</p>
 
-      {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700 text-left">{error}</div>}
+      {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700 text-left dark:text-red-400 dark:bg-red-950/40">{error}</div>}
 
       <button onClick={finish} disabled={finishing} className="px-6 py-3 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white rounded-md text-base font-semibold">
         {finishing ? 'Finishing…' : 'Go to my dashboard'}

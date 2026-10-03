@@ -491,7 +491,7 @@ export default function ProductsPage() {
               ) : (
                 <div className="w-16 h-16 rounded-lg border border-dashed border-gray-300 flex items-center justify-center text-gray-500 dark:text-slate-400 text-xs dark:border-slate-700">No image</div>
               )}
-              <label className={`px-3 py-2 rounded-lg font-medium cursor-pointer text-sm ${uploadingImage ? 'bg-gray-100 text-gray-400 pointer-events-none' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'} dark:text-slate-200`}>
+              <label className={`px-3 py-2 rounded-lg font-medium cursor-pointer text-sm ${uploadingImage ? 'bg-gray-100 text-gray-400 pointer-events-none' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                 {uploadingImage ? 'Uploading…' : (formData.imageUrl ? 'Replace' : 'Upload image')}
                 <input
                   type="file" accept="image/*" className="hidden" disabled={uploadingImage}

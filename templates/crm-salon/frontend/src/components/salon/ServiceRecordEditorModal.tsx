@@ -220,7 +220,7 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
           </div>
 
           {visitWarnings(profile, services.find((s) => s.id === form.serviceId)).length > 0 && (
-            <div className="mb-4 flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-sm">
+            <div className="mb-4 flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-sm dark:text-amber-300 dark:bg-amber-950/40">
               <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
               <ul className="space-y-1">{visitWarnings(profile, services.find((s) => s.id === form.serviceId)).map((w) => <li key={w}>{w}</li>)}</ul>
             </div>

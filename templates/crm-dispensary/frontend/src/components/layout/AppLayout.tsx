@@ -295,7 +295,7 @@ export default function AppLayout() {
         {/* Logo */}
         <div className="h-16 flex items-center justify-between px-4 border-b dark:border-slate-800">
           <div className="flex items-center gap-2">
-            <Building className="w-8 h-8 text-orange-500" aria-hidden="true" />
+            <Building className="w-8 h-8 text-orange-500 dark:text-orange-300" aria-hidden="true" />
             <span className="font-bold text-lg text-gray-900 dark:text-white">{company?.name || 'CRM'}</span>
           </div>
           <button

@@ -26,7 +26,7 @@ const AccessibleSelect = forwardRef<HTMLSelectElement, any>(({
           className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200"
         >
           {label}
-          {required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
+          {required && <span className="text-red-500 ml-1 dark:text-red-400" aria-hidden="true">*</span>}
           {required && <span className="sr-only">(required)</span>}
         </label>
       )}
@@ -66,7 +66,7 @@ const AccessibleSelect = forwardRef<HTMLSelectElement, any>(({
         
         <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true">
           {hasError ? (
-            <AlertCircle className="w-5 h-5 text-red-500" />
+            <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400" />
           ) : (
             <ChevronDown className="w-5 h-5 text-gray-400" />
           )}

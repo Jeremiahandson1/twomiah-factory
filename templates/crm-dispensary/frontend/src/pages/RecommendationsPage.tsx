@@ -8,10 +8,10 @@ import { useToast } from '../contexts/ToastContext';
 import { Button, PageHeader } from '../components/ui/DataTable';
 
 const strainColors: Record<string, string> = {
-  sativa: 'bg-orange-100 text-orange-700',
-  indica: 'bg-purple-100 text-purple-700',
-  hybrid: 'bg-green-100 text-green-700',
-  cbd: 'bg-blue-100 text-blue-700',
+  sativa: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  indica: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  hybrid: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  cbd: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
 };
 
 export default function RecommendationsPage() {
@@ -126,8 +126,8 @@ export default function RecommendationsPage() {
   };
 
   const getTrendIcon = (direction: string) => {
-    if (direction === 'up') return <ArrowUpRight className="w-4 h-4 text-green-500" />;
-    if (direction === 'down') return <ArrowDownRight className="w-4 h-4 text-red-500" />;
+    if (direction === 'up') return <ArrowUpRight className="w-4 h-4 text-green-500 dark:text-green-300" />;
+    if (direction === 'down') return <ArrowDownRight className="w-4 h-4 text-red-500 dark:text-red-400" />;
     return <Minus className="w-4 h-4 text-gray-400" />;
   };
 
@@ -195,7 +195,7 @@ export default function RecommendationsPage() {
                     </div>
                     <div className="flex flex-wrap gap-1 mb-3">
                       {product.strainType && (
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${strainColors[product.strainType?.toLowerCase()] || 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${strainColors[product.strainType?.toLowerCase()] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                           {product.strainType}
                         </span>
                       )}
@@ -307,7 +307,7 @@ export default function RecommendationsPage() {
                     <p className="font-bold text-green-700 dark:text-green-300">${Number(rec.price || 0).toFixed(2)}</p>
                     {rec.relevanceScore != null && (
                       <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400">
-                        <Star className="w-3 h-3 text-yellow-500" />
+                        <Star className="w-3 h-3 text-yellow-500 dark:text-yellow-300" />
                         {Number(rec.relevanceScore * 100).toFixed(0)}% match
                       </div>
                     )}
@@ -397,7 +397,7 @@ export default function RecommendationsPage() {
                   <h3 className="font-semibold text-gray-900 mb-1 dark:text-slate-100">{product.name}</h3>
                   <div className="flex flex-wrap gap-1 mb-2">
                     {product.strainType && (
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${strainColors[product.strainType?.toLowerCase()] || 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${strainColors[product.strainType?.toLowerCase()] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                         {product.strainType}
                       </span>
                     )}

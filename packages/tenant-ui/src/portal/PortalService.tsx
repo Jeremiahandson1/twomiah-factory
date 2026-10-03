@@ -32,7 +32,7 @@ export function PortalEquipment() {
                     <h3 className="font-semibold text-gray-900 dark:text-slate-100">{u.name}</h3>
                     <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{[u.manufacturer, u.model].filter(Boolean).join(' ') || 'No model info'}</p>
                     <div className="flex items-center gap-3 mt-2 flex-wrap">
-                      <span className={`inline-flex items-center gap-1 ${pill(w === null ? 'bg-gray-100 text-gray-600' : w ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}`}><Shield className="w-3 h-3" />{w === null ? 'Warranty unknown' : w ? 'Warranty active' : 'Warranty expired'}</span>
+                      <span className={`inline-flex items-center gap-1 ${pill(w === null ? 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800' : w ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40')}`}><Shield className="w-3 h-3" />{w === null ? 'Warranty unknown' : w ? 'Warranty active' : 'Warranty expired'}</span>
                       {u.purchaseDate && <span className="text-xs text-gray-500 dark:text-slate-400">Installed {formatDate(u.purchaseDate)}</span>}
                     </div>
                     {u.lastServiceDate && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Last serviced {formatDate(u.lastServiceDate)}</p>}
@@ -94,7 +94,7 @@ function VisitCard({ visit }: { visit: any }) {
             <p className="font-medium text-gray-900 dark:text-slate-100">{visit.title}</p>
             <div className="flex items-center gap-2 mt-1 text-sm"><span className="text-gray-500 dark:text-slate-400">{formatDate(visit.completedAt || visit.scheduledDate)}</span>{visit.jobType && <span className={pill('bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-200')}>{JOB_TYPE_LABELS[visit.jobType] || visit.jobType}</span>}</div>
           </div>
-          <span className={pill(visit.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700')}>{visit.status === 'completed' ? 'Completed' : 'Scheduled'}</span>
+          <span className={pill(visit.status === 'completed' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40')}>{visit.status === 'completed' ? 'Completed' : 'Scheduled'}</span>
         </div>
         {visit.techName && <p className="text-sm text-gray-500 mt-2 dark:text-slate-400">Technician: {visit.techName}</p>}
         {visit.notes && <p className="text-sm text-gray-600 mt-2 dark:text-slate-400">{visit.notes}</p>}
@@ -109,7 +109,7 @@ function VisitCard({ visit }: { visit: any }) {
             <div className="px-4 pb-3 space-y-2">
               {items.map((item, i) => (
                 <div key={item.id || i} className="flex items-start gap-2 text-sm">
-                  {item.status === 'pass' && <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />}{item.status === 'fail' && <X className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />}{item.status === 'attention' && <AlertTriangle className="w-4 h-4 text-yellow-500 mt-0.5 shrink-0" />}
+                  {item.status === 'pass' && <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 shrink-0 dark:text-green-300" />}{item.status === 'fail' && <X className="w-4 h-4 text-red-500 mt-0.5 shrink-0 dark:text-red-400" />}{item.status === 'attention' && <AlertTriangle className="w-4 h-4 text-yellow-500 mt-0.5 shrink-0 dark:text-yellow-300" />}
                   <div><span className="text-gray-700 dark:text-slate-200">{item.label}</span>{item.notes && <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{item.notes}</p>}</div>
                 </div>
               ))}
@@ -149,7 +149,7 @@ export function PortalAgreements() {
             <div key={a.id} className={`${card} p-5`}>
               <div className="flex items-start justify-between gap-4">
                 <div><h3 className="font-semibold text-gray-900 text-lg dark:text-slate-100">{a.name}</h3><p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{freq(a.billingFrequency)}{a.amount ? ` — ${moneyShort(a.amount)}` : ''}</p></div>
-                <span className={pill('bg-green-100 text-green-700 capitalize')}>{a.status}</span>
+                <span className={pill('bg-green-100 text-green-700 capitalize dark:text-green-300 dark:bg-green-950/40')}>{a.status}</span>
               </div>
               {a.nextVisitDate && <div className="mt-4 flex items-center gap-3 bg-blue-50 rounded-lg px-4 py-3 dark:bg-blue-950/30"><Calendar className="w-5 h-5 text-blue-600 dark:text-blue-300" /><div><p className="text-sm font-medium text-blue-900 dark:text-blue-200">Next Scheduled Visit</p><p className="text-sm text-blue-700 dark:text-blue-300">{formatDate(a.nextVisitDate)}</p></div></div>}
               <dl className="mt-4 space-y-2 text-sm">
@@ -241,7 +241,7 @@ export function PortalServiceRequest() {
         </div>
         <div>
           <p className={labelCls}>How should we reach you?</p>
-          <div className="flex gap-2">{(['call', 'text', 'email'] as const).map((m) => <button key={m} type="button" onClick={() => setForm((f) => ({ ...f, preferredContact: m }))} className={`flex-1 py-2.5 rounded-lg border text-sm font-medium capitalize transition-colors ${form.preferredContact === m ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/30' : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-slate-700 dark:text-slate-300'}`}>{m}</button>)}</div>
+          <div className="flex gap-2">{(['call', 'text', 'email'] as const).map((m) => <button key={m} type="button" onClick={() => setForm((f) => ({ ...f, preferredContact: m }))} className={`flex-1 py-2.5 rounded-lg border text-sm font-medium capitalize transition-colors ${form.preferredContact === m ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300' : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-slate-700 dark:text-slate-300'}`}>{m}</button>)}</div>
         </div>
         {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <button type="submit" disabled={submitting} className={`w-full justify-center py-3 font-bold ${btnPrimary}`}>{submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <LifeBuoy className="w-5 h-5" />} Submit Request</button>

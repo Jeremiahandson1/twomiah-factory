@@ -120,7 +120,7 @@ export default function PartsInventory() {
             type="checkbox"
             checked={showLowStock}
             onChange={(e) => setShowLowStock(e.target.checked)}
-            className="w-4 h-4 rounded text-orange-500"
+            className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
           />
           <span className="text-sm text-gray-600 dark:text-slate-400">Low Stock Only</span>
         </label>
@@ -156,7 +156,7 @@ export default function PartsInventory() {
                   <tr key={part.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        {isLow && <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />}
+                        {isLow && <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 dark:text-red-400" />}
                         <div>
                           <p className="font-medium text-gray-900 dark:text-white">{part.name}</p>
                           {part.description && (
@@ -176,11 +176,11 @@ export default function PartsInventory() {
                       ) : '-'}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <span className={`font-medium ${isLow ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
+                      <span className={`font-medium ${isLow ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
                         {qty}
                       </span>
                       {isLow && (
-                        <span className="ml-2 px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded-full font-medium">
+                        <span className="ml-2 px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded-full font-medium dark:text-red-400 dark:bg-red-950/40">
                           LOW
                         </span>
                       )}

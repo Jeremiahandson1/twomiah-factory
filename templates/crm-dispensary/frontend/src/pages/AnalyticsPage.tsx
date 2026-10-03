@@ -166,7 +166,7 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-lg bg-green-50 text-green-700 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-green-50 text-green-700 flex items-center justify-center dark:text-green-300 dark:bg-green-950/40">
               <DollarSign className="w-5 h-5" />
             </div>
             <span className="text-sm text-gray-500 dark:text-slate-400">Total Revenue</span>
@@ -175,7 +175,7 @@ export default function AnalyticsPage() {
             ${Number(metrics?.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </p>
           {metrics?.revenueChange != null && (
-            <p className={`text-sm mt-1 ${metrics.revenueChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <p className={`text-sm mt-1 ${metrics.revenueChange >= 0 ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-400'}`}>
               {metrics.revenueChange >= 0 ? '+' : ''}{Number(metrics.revenueChange).toFixed(1)}% vs prior
             </p>
           )}
@@ -183,7 +183,7 @@ export default function AnalyticsPage() {
 
         <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center dark:text-blue-300 dark:bg-blue-950/40">
               <Package className="w-5 h-5" />
             </div>
             {/* THE LABEL, NOT THE FIGURE, WAS WRONG. (T41)
@@ -201,7 +201,7 @@ export default function AnalyticsPage() {
           </div>
           <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{metrics?.totalOrders || 0}</p>
           {metrics?.ordersChange != null && (
-            <p className={`text-sm mt-1 ${metrics.ordersChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <p className={`text-sm mt-1 ${metrics.ordersChange >= 0 ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-400'}`}>
               {metrics.ordersChange >= 0 ? '+' : ''}{Number(metrics.ordersChange).toFixed(1)}% vs prior
             </p>
           )}
@@ -209,7 +209,7 @@ export default function AnalyticsPage() {
 
         <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center dark:text-purple-300 dark:bg-purple-950/40">
               <TrendingUp className="w-5 h-5" />
             </div>
             <span className="text-sm text-gray-500 dark:text-slate-400">Avg Order Value</span>
@@ -219,7 +219,7 @@ export default function AnalyticsPage() {
 
         <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center dark:text-amber-300 dark:bg-amber-950/40">
               <Users className="w-5 h-5" />
             </div>
             <span className="text-sm text-gray-500 dark:text-slate-400">Unique Customers</span>

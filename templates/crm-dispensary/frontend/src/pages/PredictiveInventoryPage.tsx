@@ -6,10 +6,10 @@ import { useToast } from '../contexts/ToastContext';
 import { Button } from '../components/ui/DataTable';
 
 const urgencyColors: Record<string, string> = {
-  critical: 'bg-red-100 text-red-700',
-  high: 'bg-orange-100 text-orange-700',
-  normal: 'bg-yellow-100 text-yellow-700',
-  low: 'bg-green-100 text-green-700',
+  critical: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  high: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  normal: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  low: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
 };
 
 function daysUntilStockoutColor(days: number): string {
@@ -224,7 +224,7 @@ export default function PredictiveInventoryPage() {
         <div>
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-gray-600 dark:text-slate-400">
-              <CheckCircle className="w-4 h-4 inline mr-1 text-green-500" />
+              <CheckCircle className="w-4 h-4 inline mr-1 text-green-500 dark:text-green-300" />
               {approvedCount} approved
             </p>
           </div>
@@ -251,7 +251,7 @@ export default function PredictiveInventoryPage() {
                     <tr key={s.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{s.productName || s.product || '—'}</td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${urgencyColors[s.urgency] || 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${urgencyColors[s.urgency] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                           {s.urgency || 'normal'}
                         </span>
                       </td>
@@ -281,7 +281,7 @@ export default function PredictiveInventoryPage() {
                             </button>
                             <button
                               onClick={() => handleDismissSuggestion(s.id)}
-                              className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 dark:text-slate-200"
+                              className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 dark:text-slate-200 dark:bg-slate-700"
                             >
                               Dismiss
                             </button>
@@ -328,7 +328,7 @@ export default function PredictiveInventoryPage() {
                         <span className="text-sm font-medium text-gray-900 dark:text-slate-100">{t.productName || t.product}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <TrendingUp className="w-3 h-3 text-green-500" />
+                        <TrendingUp className="w-3 h-3 text-green-500 dark:text-green-300" />
                         <span className="text-sm text-green-600 font-medium dark:text-green-300">
                           {t.dailySales ? `${Number(t.dailySales).toFixed(1)}/day` : t.velocity || '—'}
                         </span>
@@ -344,7 +344,7 @@ export default function PredictiveInventoryPage() {
               {/* Declining Products */}
               <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
                 <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
-                  <TrendingDown className="w-5 h-5 text-red-500" />
+                  <TrendingDown className="w-5 h-5 text-red-500 dark:text-red-400" />
                   Declining Products
                 </h3>
                 <div className="space-y-3">
@@ -355,7 +355,7 @@ export default function PredictiveInventoryPage() {
                         <span className="text-sm font-medium text-gray-900 dark:text-slate-100">{t.productName || t.product}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <TrendingDown className="w-3 h-3 text-red-500" />
+                        <TrendingDown className="w-3 h-3 text-red-500 dark:text-red-400" />
                         <span className="text-sm text-red-600 font-medium dark:text-red-400">
                           {t.dailySales ? `${Number(t.dailySales).toFixed(1)}/day` : t.velocity || '—'}
                         </span>

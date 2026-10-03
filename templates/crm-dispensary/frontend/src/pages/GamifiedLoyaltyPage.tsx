@@ -8,12 +8,12 @@ import { Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
 
 const challengeTypes = [
-  { value: 'visit_streak', label: 'Visit Streak', color: 'bg-blue-100 text-blue-700' },
-  { value: 'spending_goal', label: 'Spending Goal', color: 'bg-green-100 text-green-700' },
-  { value: 'category_explorer', label: 'Category Explorer', color: 'bg-purple-100 text-purple-700' },
-  { value: 'punch_card', label: 'Punch Card', color: 'bg-orange-100 text-orange-700' },
-  { value: 'daily_spin', label: 'Daily Spin', color: 'bg-pink-100 text-pink-700' },
-  { value: 'bonus_multiplier', label: 'Bonus Multiplier', color: 'bg-yellow-100 text-yellow-700' },
+  { value: 'visit_streak', label: 'Visit Streak', color: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' },
+  { value: 'spending_goal', label: 'Spending Goal', color: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' },
+  { value: 'category_explorer', label: 'Category Explorer', color: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40' },
+  { value: 'punch_card', label: 'Punch Card', color: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40' },
+  { value: 'daily_spin', label: 'Daily Spin', color: 'bg-pink-100 text-pink-700 dark:text-pink-300 dark:bg-pink-950/40' },
+  { value: 'bonus_multiplier', label: 'Bonus Multiplier', color: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' },
 ];
 
 const rewardTypes = ['points', 'discount_percent', 'discount_fixed', 'free_product', 'tier_upgrade'];
@@ -230,7 +230,7 @@ export default function GamifiedLoyaltyPage() {
   };
 
   const getChallengeTypeInfo = (type: string) => {
-    return challengeTypes.find(ct => ct.value === type) || { label: type, color: 'bg-gray-100 text-gray-700' };
+    return challengeTypes.find(ct => ct.value === type) || { label: type, color: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800' };
   };
 
   const tabs = [
@@ -558,7 +558,7 @@ export default function GamifiedLoyaltyPage() {
                       </td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                          entry.completed ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                          entry.completed ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40'
                         }`}>
                           {entry.completed ? 'Completed' : 'In Progress'}
                         </span>
@@ -605,11 +605,11 @@ export default function GamifiedLoyaltyPage() {
                   <div key={event.id} className={`bg-white dark:bg-slate-900 rounded-lg shadow-sm p-5 border-2 ${isActive ? 'border-yellow-300' : 'border-gray-100'}`}>
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-                        <Zap className={`w-4 h-4 ${isActive ? 'text-yellow-500' : 'text-gray-400'}`} />
+                        <Zap className={`w-4 h-4 ${isActive ? 'text-yellow-500 dark:text-yellow-300' : 'text-gray-400'}`} />
                         {event.name}
                       </h3>
                       <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${
-                        isActive ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'
+                        isActive ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
                       }`}>
                         {isActive
                           ? 'RUNNING'
@@ -807,7 +807,7 @@ export default function GamifiedLoyaltyPage() {
                             </span>
                           </div>
                           <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                            cp.completed ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                            cp.completed ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40'
                           }`}>
                             {cp.completed ? 'Completed' : 'In Progress'}
                           </span>

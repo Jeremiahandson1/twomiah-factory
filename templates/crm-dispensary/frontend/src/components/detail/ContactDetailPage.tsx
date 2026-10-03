@@ -116,8 +116,8 @@ export default function ContactDetailPage() {
   if (!contact) return <EmptyState title="Customer not found" />;
 
   const typeColors: Record<string, string> = {
-    lead: 'bg-yellow-100 text-yellow-700',
-    customer: 'bg-green-100 text-green-700',
+    lead: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+    customer: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
   };
 
   /**
@@ -153,7 +153,7 @@ export default function ContactDetailPage() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{contact.name}</h1>
-              <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${typeColors[contact.type] || 'bg-gray-100 text-gray-600'}`}>
+              <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${typeColors[contact.type] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                 {contact.type}
               </span>
             </div>
@@ -182,7 +182,7 @@ export default function ContactDetailPage() {
           {can('contacts:delete') && (
             <button
               onClick={() => setDeleteOpen(true)}
-              className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 flex items-center gap-2"
+              className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 flex items-center gap-2 dark:text-red-400 dark:bg-red-950/40"
             >
               <Trash2 className="w-4 h-4" />
               Delete
@@ -202,7 +202,7 @@ export default function ContactDetailPage() {
               {contact.email && (
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center dark:bg-blue-950/40">
-                    <Mail className="w-5 h-5 text-blue-500" />
+                    <Mail className="w-5 h-5 text-blue-500 dark:text-blue-300" />
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Email</p>
@@ -215,7 +215,7 @@ export default function ContactDetailPage() {
               {contact.phone && (
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center dark:bg-green-950/40">
-                    <Phone className="w-5 h-5 text-green-500" />
+                    <Phone className="w-5 h-5 text-green-500 dark:text-green-300" />
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Phone</p>
@@ -228,7 +228,7 @@ export default function ContactDetailPage() {
               {contact.mobile && (
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center dark:bg-purple-950/40">
-                    <Phone className="w-5 h-5 text-purple-500" />
+                    <Phone className="w-5 h-5 text-purple-500 dark:text-purple-300" />
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Mobile</p>
@@ -241,7 +241,7 @@ export default function ContactDetailPage() {
               {(contact.address || contact.city) && (
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center dark:bg-orange-950/40">
-                    <MapPin className="w-5 h-5 text-orange-500" />
+                    <MapPin className="w-5 h-5 text-orange-500 dark:text-orange-300" />
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Address</p>
@@ -306,7 +306,7 @@ export default function ContactDetailPage() {
           {/* Loyalty Status */}
           <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
             <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
-              <Award className="w-5 h-5 text-amber-500" />
+              <Award className="w-5 h-5 text-amber-500 dark:text-amber-300" />
               Loyalty Status
             </h2>
             {loyalty ? (
@@ -314,7 +314,7 @@ export default function ContactDetailPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-gray-500 dark:text-slate-400">Tier</span>
                   <span className="font-medium flex items-center gap-1">
-                    <Star className="w-4 h-4 text-amber-500" />
+                    <Star className="w-4 h-4 text-amber-500 dark:text-amber-300" />
                     {loyalty.tier || 'Standard'}
                   </span>
                 </div>

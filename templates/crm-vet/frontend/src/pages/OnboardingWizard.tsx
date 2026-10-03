@@ -340,7 +340,7 @@ function StepVerifyInfo({ profile, onChange, companyName }: { profile: any; onCh
     <div>
       <div className="text-center mb-8">
         <div className="w-16 h-16 bg-orange-100 dark:bg-orange-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <Sparkles className="w-8 h-8 text-orange-500" />
+          <Sparkles className="w-8 h-8 text-orange-500 dark:text-orange-300" />
         </div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
           Welcome, {companyName || 'there'}!

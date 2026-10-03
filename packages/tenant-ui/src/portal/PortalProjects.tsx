@@ -5,7 +5,7 @@ import { FolderKanban, MapPin, Calendar, ArrowRight } from 'lucide-react'
 import { usePortal } from './PortalContext'
 import { PLink, Spinner, PageTitle, Empty, Section, card, pill, btnSecondary, formatDate } from './common'
 
-const STATUS_STYLES: Record<string, string> = { planning: 'bg-gray-100 text-gray-700', active: 'bg-green-100 text-green-700', on_hold: 'bg-yellow-100 text-yellow-700', completed: 'bg-blue-100 text-blue-700', cancelled: 'bg-red-100 text-red-700' }
+const STATUS_STYLES: Record<string, string> = { planning: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800', active: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', on_hold: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', completed: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' }
 
 export interface PortalProjectData {
   id: string; name: string; number: string; status: string; progress?: number | null
@@ -96,7 +96,7 @@ export function PortalProjectDetail() {
             {project.jobs!.map((job) => (
               <div key={job.id} className="flex items-center justify-between py-2 border-b last:border-0 dark:border-slate-800">
                 <div><p className="font-medium text-gray-900 dark:text-slate-100">{job.title}</p><p className="text-sm text-gray-500 dark:text-slate-400">{job.number}</p></div>
-                <div className="text-right"><span className={pill(job.status === 'completed' ? 'bg-green-100 text-green-700' : job.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700')}>{job.status?.replace('_', ' ')}</span>{job.scheduledDate && <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">{formatDate(job.scheduledDate)}</p>}</div>
+                <div className="text-right"><span className={pill(job.status === 'completed' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : job.status === 'in_progress' ? 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{job.status?.replace('_', ' ')}</span>{job.scheduledDate && <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">{formatDate(job.scheduledDate)}</p>}</div>
               </div>
             ))}
           </div></div>

@@ -11,10 +11,10 @@ import api from '../services/api';
 import { usePermissions } from '../contexts/PermissionsContext';
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-gray-100 text-gray-700',
-  approved: 'bg-blue-100 text-blue-700',
-  paid: 'bg-green-100 text-green-700',
-  disputed: 'bg-red-100 text-red-700',
+  pending: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  approved: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  paid: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  disputed: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 export default function CommissionsPage() {
@@ -80,18 +80,18 @@ export default function CommissionsPage() {
 
   const act = async (id: string, action: string) => { await api.post(`/api/commissions/${id}/${action}`, {}); load(); };
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-sky-500" /></div>;
+  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-sky-500 dark:text-sky-300" /></div>;
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <div><h1 className="text-2xl font-bold flex items-center gap-2"><DollarSign className="w-6 h-6 text-sky-500" />Commissions</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">How commission is calculated, and what has been earned</p></div>
+        <div><h1 className="text-2xl font-bold flex items-center gap-2"><DollarSign className="w-6 h-6 text-sky-500 dark:text-sky-300" />Commissions</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">How commission is calculated, and what has been earned</p></div>
         {tab === 'plans' && mayCreatePlans && <button onClick={() => setShowPlan(true)} className="bg-sky-700 hover:bg-sky-800 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Plan</button>}
       </div>
 
       <div className="flex gap-2 mb-4 border-b">
-        <button onClick={() => setTab('records')} className={`px-4 py-2 border-b-2 ${tab === 'records' ? 'border-sky-500 text-sky-600 font-semibold' : 'border-transparent text-gray-500 dark:text-slate-400'}`}>Earnings</button>
-        {mayReadPlans && <button onClick={() => setTab('plans')} className={`px-4 py-2 border-b-2 ${tab === 'plans' ? 'border-sky-500 text-sky-600 font-semibold' : 'border-transparent text-gray-500 dark:text-slate-400'}`}>Plans</button>}
+        <button onClick={() => setTab('records')} className={`px-4 py-2 border-b-2 ${tab === 'records' ? 'border-sky-500 text-sky-600 font-semibold dark:text-sky-300' : 'border-transparent text-gray-500 dark:text-slate-400'}`}>Earnings</button>
+        {mayReadPlans && <button onClick={() => setTab('plans')} className={`px-4 py-2 border-b-2 ${tab === 'plans' ? 'border-sky-500 text-sky-600 font-semibold dark:text-sky-300' : 'border-transparent text-gray-500 dark:text-slate-400'}`}>Plans</button>}
       </div>
 
       {tab === 'records' ? (

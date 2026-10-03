@@ -136,11 +136,11 @@ export default function ProjectDetailPage() {
   if (!project) return <EmptyState title="Project not found" />;
 
   const statusColors: Record<string, string> = {
-    planning: 'bg-gray-100 text-gray-700',
-    active: 'bg-blue-100 text-blue-700',
-    on_hold: 'bg-yellow-100 text-yellow-700',
-    completed: 'bg-green-100 text-green-700',
-    cancelled: 'bg-red-100 text-red-700',
+    planning: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+    active: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+    on_hold: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+    completed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+    cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
   };
 
   return (
@@ -182,7 +182,7 @@ export default function ProjectDetailPage() {
           {can('projects:delete') && (
             <button
               onClick={() => setDeleteOpen(true)}
-              className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 flex items-center gap-2"
+              className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 flex items-center gap-2 dark:text-red-400 dark:bg-red-950/40"
             >
               <Trash2 className="w-4 h-4" />
               Delete
@@ -216,7 +216,7 @@ export default function ProjectDetailPage() {
               {(project.address || project.city) && (
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0 dark:bg-orange-950/40">
-                    <MapPin className="w-5 h-5 text-orange-500" />
+                    <MapPin className="w-5 h-5 text-orange-500 dark:text-orange-300" />
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Location</p>
@@ -230,7 +230,7 @@ export default function ProjectDetailPage() {
               {(project.startDate || project.endDate) && (
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0 dark:bg-blue-950/40">
-                    <Calendar className="w-5 h-5 text-blue-500" />
+                    <Calendar className="w-5 h-5 text-blue-500 dark:text-blue-300" />
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Timeline</p>
@@ -245,7 +245,7 @@ export default function ProjectDetailPage() {
               {(project.estimatedValue || project.budget) && (
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center flex-shrink-0 dark:bg-green-950/40">
-                    <DollarSign className="w-5 h-5 text-green-500" />
+                    <DollarSign className="w-5 h-5 text-green-500 dark:text-green-300" />
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Budget</p>

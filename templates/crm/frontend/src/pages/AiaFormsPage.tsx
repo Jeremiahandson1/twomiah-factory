@@ -8,10 +8,10 @@ import { FileText, Plus, Loader2 } from 'lucide-react';
 import api from '../services/api';
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-700',
-  signed: 'bg-blue-100 text-blue-700',
-  submitted: 'bg-purple-100 text-purple-700',
-  paid: 'bg-green-100 text-green-700',
+  draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  signed: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  submitted: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  paid: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
 };
 
 export default function AiaFormsPage() {
@@ -60,12 +60,12 @@ export default function AiaFormsPage() {
 
   const sign = async (id: string) => { const signedBy = prompt('Signed by:'); if (signedBy) { await api.post(`/api/aia-forms/${id}/sign`, { signedBy }); load(); } };
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500" /></div>;
+  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500 dark:text-orange-300" /></div>;
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <div><h1 className="text-2xl font-bold flex items-center gap-2"><FileText className="w-6 h-6 text-orange-500" />AIA G702/G703 Forms</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Application and Certificate for Payment — standard AIA forms</p></div>
+        <div><h1 className="text-2xl font-bold flex items-center gap-2"><FileText className="w-6 h-6 text-orange-500 dark:text-orange-300" />AIA G702/G703 Forms</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Application and Certificate for Payment — standard AIA forms</p></div>
         <button onClick={() => setShowCreate(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Pay App</button>
       </div>
 

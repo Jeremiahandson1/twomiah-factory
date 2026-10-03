@@ -140,7 +140,7 @@ export default function RecurringRoutesPage() {
                 <span><span className="text-gray-500 dark:text-slate-400 mr-2">{i + 1}.</span>{s.siteName || s.siteId} <span className="text-gray-500 dark:text-slate-400">· {s.serviceType} · {s.estimatedMinutes}min</span></span>
                 <span className="flex items-center gap-3">
                   <span className="font-medium">${Number(s.pricePerVisit).toFixed(2)}</span>
-                  <button onClick={() => removeStop(s.id)} className="text-red-500"><Trash2 className="w-4 h-4" /></button>
+                  <button onClick={() => removeStop(s.id)} className="text-red-500 dark:text-red-400"><Trash2 className="w-4 h-4" /></button>
                 </span>
               </div>
             ))}

@@ -225,10 +225,10 @@ export default function ChangeOrdersPage() {
                     <td className="px-4 py-2"><input type="number" value={li.quantity} disabled={readOnly} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'quantity', e.target.value)} className="w-full px-2 py-1 border rounded disabled:bg-gray-50 disabled:text-gray-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-300" /></td>
                     <td className="px-4 py-2"><input type="number" value={li.unitPrice} disabled={readOnly} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'unitPrice', e.target.value)} className="w-full px-2 py-1 border rounded disabled:bg-gray-50 disabled:text-gray-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-300" /></td>
                     <td className="px-4 py-2 text-right">{asMoney(num0(li.quantity) * num0(li.unitPrice))}</td>
-                    <td>{!readOnly && <button onClick={() => removeLineItem(idx)} className="p-1 text-red-500"><Trash2 className="w-4 h-4" /></button>}</td></tr>
+                    <td>{!readOnly && <button onClick={() => removeLineItem(idx)} className="p-1 text-red-500 dark:text-red-400"><Trash2 className="w-4 h-4" /></button>}</td></tr>
                 ))}</tbody>
               </table>
-              <div className="p-2 border-t flex justify-between items-center">{readOnly ? <span /> : <button onClick={addLineItem} className="text-sm text-orange-500">+ Add Line</button>}<span className="font-bold">Total: {asMoney(calcTotal())}</span></div>
+              <div className="p-2 border-t flex justify-between items-center">{readOnly ? <span /> : <button onClick={addLineItem} className="text-sm text-orange-500 dark:text-orange-300">+ Add Line</button>}<span className="font-bold">Total: {asMoney(calcTotal())}</span></div>
             </div>
           </div>
           {/*

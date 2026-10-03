@@ -456,7 +456,7 @@ function SelectionRow({ selection, onSelect, onRefresh }: SelectionRowProps) {
 
           {/* Due date */}
           {selection.dueDate && (
-            <p className={`mt-1 text-xs ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-500 dark:text-slate-400'}`}>
+            <p className={`mt-1 text-xs ${isOverdue ? 'text-red-600 font-medium dark:text-red-400' : 'text-gray-500 dark:text-slate-400'}`}>
               {isOverdue ? 'Overdue: ' : 'Due: '}
               {formatDate(selection.dueDate)}
             </p>

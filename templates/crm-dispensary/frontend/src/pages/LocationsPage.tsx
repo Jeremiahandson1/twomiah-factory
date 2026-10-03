@@ -398,7 +398,7 @@ export default function LocationsPage() {
                       <h3 className="font-semibold text-gray-900 dark:text-slate-100">{loc.name}</h3>
                     </div>
                     <span className={`px-2 py-0.5 text-xs rounded-full capitalize ${
-                      loc.isActive !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                      loc.isActive !== false ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
                     }`}>
                       {loc.isActive !== false ? 'Active' : 'Inactive'}
                     </span>
@@ -506,7 +506,7 @@ export default function LocationsPage() {
                       <tr key={item.id} className={`hover:bg-gray-50 ${item.quantity <= (item.minQuantity || 0) ? 'bg-red-50' : ''}`}>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{item.productName || item.name || '—'}</td>
                         <td className="px-4 py-3 text-sm font-mono text-gray-600 dark:text-slate-400">{item.sku || '—'}</td>
-                        <td className={`px-4 py-3 text-sm text-right font-medium ${item.quantity <= (item.minQuantity || 0) ? 'text-red-600' : 'text-gray-900'} dark:text-slate-100`}>
+                        <td className={`px-4 py-3 text-sm text-right font-medium ${item.quantity <= (item.minQuantity || 0) ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-slate-200'} dark:text-slate-100`}>
                           {item.quantity ?? 0}
                         </td>
                         <td className="px-4 py-3 text-sm text-right text-gray-500 dark:text-slate-400">{item.minQuantity ?? '—'}</td>
@@ -570,10 +570,10 @@ export default function LocationsPage() {
                       <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-slate-400">{transfer.items?.length || transfer.itemCount || 0}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 text-xs rounded-full ${
-                          transfer.status === 'received' ? 'bg-green-100 text-green-700' :
-                          transfer.status === 'in_transit' ? 'bg-blue-100 text-blue-700' :
-                          transfer.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                          'bg-yellow-100 text-yellow-700'
+                          transfer.status === 'received' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
+                          transfer.status === 'in_transit' ? 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' :
+                          transfer.status === 'cancelled' ? 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' :
+                          'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40'
                         }`}>
                           {transfer.status || 'pending'}
                         </span>
@@ -670,7 +670,7 @@ export default function LocationsPage() {
                         <td className="px-4 py-2 text-sm font-mono text-gray-900 dark:text-slate-100">{item.sku}</td>
                         <td className="px-4 py-2 text-sm text-right text-gray-900 dark:text-slate-100">{item.counted}</td>
                         <td className="px-4 py-2 text-center">
-                          <button onClick={() => removeCountItem(idx)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300">
+                          <button onClick={() => removeCountItem(idx)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400">
                             <Trash2 className="w-3 h-3" />
                           </button>
                         </td>
@@ -707,7 +707,7 @@ export default function LocationsPage() {
                           <td className="px-4 py-2 text-sm font-mono text-gray-900 dark:text-slate-100">{d.sku}</td>
                           <td className="px-4 py-2 text-sm text-right text-gray-600 dark:text-slate-400">{d.expected}</td>
                           <td className="px-4 py-2 text-sm text-right text-gray-600 dark:text-slate-400">{d.counted}</td>
-                          <td className={`px-4 py-2 text-sm text-right font-medium ${(d.counted - d.expected) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          <td className={`px-4 py-2 text-sm text-right font-medium ${(d.counted - d.expected) < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>
                             {d.counted - d.expected > 0 ? '+' : ''}{d.counted - d.expected}
                           </td>
                         </tr>

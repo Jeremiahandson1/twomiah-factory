@@ -312,25 +312,25 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
             <div className="grid md:grid-cols-2 gap-4">
               {contact.email && (
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center"><Mail className="w-5 h-5 text-blue-500" /></div>
+                  <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center"><Mail className="w-5 h-5 text-blue-500 dark:text-blue-300" /></div>
                   <div><p className="text-sm text-gray-500 dark:text-slate-400">Email</p><a href={`mailto:${contact.email}`} className="text-blue-600 dark:text-blue-400 hover:underline break-all">{contact.email}</a></div>
                 </div>
               )}
               {contact.phone && (
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-green-50 dark:bg-green-900/30 rounded-lg flex items-center justify-center"><Phone className="w-5 h-5 text-green-500" /></div>
+                  <div className="w-10 h-10 bg-green-50 dark:bg-green-900/30 rounded-lg flex items-center justify-center"><Phone className="w-5 h-5 text-green-500 dark:text-green-300" /></div>
                   <div><p className="text-sm text-gray-500 dark:text-slate-400">Phone</p><a href={`tel:${contact.phone}`} className="text-gray-900 hover:underline dark:text-slate-100">{contact.phone}</a></div>
                 </div>
               )}
               {contact.mobile && (
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-purple-50 dark:bg-purple-900/30 rounded-lg flex items-center justify-center"><Phone className="w-5 h-5 text-purple-500" /></div>
+                  <div className="w-10 h-10 bg-purple-50 dark:bg-purple-900/30 rounded-lg flex items-center justify-center"><Phone className="w-5 h-5 text-purple-500 dark:text-purple-300" /></div>
                   <div><p className="text-sm text-gray-500 dark:text-slate-400">Mobile</p><a href={`tel:${contact.mobile}`} className="text-gray-900 hover:underline dark:text-slate-100">{contact.mobile}</a></div>
                 </div>
               )}
               {(contact.address || contact.city) && (
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/30 rounded-lg flex items-center justify-center"><MapPin className="w-5 h-5 text-orange-500" /></div>
+                  <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/30 rounded-lg flex items-center justify-center"><MapPin className="w-5 h-5 text-orange-500 dark:text-orange-300" /></div>
                   <div>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Address</p>
                     <p className="text-gray-900 dark:text-slate-100">
@@ -379,7 +379,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                   {contact.patients.map((p) => (
                     <NavLink key={p.id} to={`/crm/patients/${p.id}`} className={rowLink}>
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/30 rounded-lg flex items-center justify-center"><PawPrint className="w-5 h-5 text-orange-500" /></div>
+                        <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/30 rounded-lg flex items-center justify-center"><PawPrint className="w-5 h-5 text-orange-500 dark:text-orange-300" /></div>
                         <div>
                           <p className="font-medium text-gray-900 dark:text-slate-100">{p.name}</p>
                           <p className="text-sm text-gray-500 dark:text-slate-400 capitalize">{[p.species, p.breed].filter(Boolean).join(' · ') || 'No species on file'}</p>
@@ -460,7 +460,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                     return (
                       <NavLink key={eq.id} to="/crm/equipment" className={rowLink}>
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/30 rounded-lg flex items-center justify-center"><Wrench className="w-5 h-5 text-orange-500" /></div>
+                          <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/30 rounded-lg flex items-center justify-center"><Wrench className="w-5 h-5 text-orange-500 dark:text-orange-300" /></div>
                           <div>
                             <p className="font-medium text-gray-900 dark:text-slate-100">{eq.name}</p>
                             <p className="text-sm text-gray-500 dark:text-slate-400">
@@ -472,7 +472,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                         <div className="text-right text-sm">
                           {eq.warrantyExpiry && (
                             <div className="flex items-center gap-1 justify-end">
-                              <Shield className={`w-3.5 h-3.5 ${active ? 'text-green-500' : 'text-gray-400'}`} />
+                              <Shield className={`w-3.5 h-3.5 ${active ? 'text-green-500 dark:text-green-300' : 'text-gray-400'}`} />
                               <span className={active ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}>Warranty {active ? 'active' : 'expired'}</span>
                             </div>
                           )}
@@ -503,7 +503,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                   {contact.sites.map((s) => (
                     <button type="button" key={s.id} onClick={() => openSiteDetail(s.id)} className={`w-full text-left ${rowLink}`}>
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center"><MapPinned className="w-5 h-5 text-blue-500" /></div>
+                        <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center"><MapPinned className="w-5 h-5 text-blue-500 dark:text-blue-300" /></div>
                         <div>
                           <p className="font-medium text-gray-900 dark:text-slate-100">{s.name}</p>
                           <p className="text-sm text-gray-500 dark:text-slate-400">{[s.address, s.city].filter(Boolean).join(', ') || 'No address'}</p>
@@ -606,7 +606,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
             const noEmail = !contact.email
             return (
               <div className={cardPad}>
-                <h2 className={`${h2} mb-4 flex items-center gap-2`}><Globe className="w-4 h-4 text-blue-500" />{kind}</h2>
+                <h2 className={`${h2} mb-4 flex items-center gap-2`}><Globe className="w-4 h-4 text-blue-500 dark:text-blue-300" />{kind}</h2>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-500 dark:text-slate-400">Status</span>
@@ -614,8 +614,8 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                       title={noEmail ? 'Add an email address first' : undefined}
                       className={`flex items-center gap-1.5 ${noEmail ? 'cursor-not-allowed opacity-60' : ''}`}
                       aria-label={portalStatus?.enabled ? 'Disable portal access' : 'Enable portal access'}>
-                      {portalStatus?.enabled ? <ToggleRight className="w-6 h-6 text-green-500" /> : <ToggleLeft className="w-6 h-6 text-gray-400" />}
-                      <span className={`text-sm font-medium ${portalStatus?.enabled ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}`}>{portalStatus?.enabled ? 'Enabled' : 'Disabled'}</span>
+                      {portalStatus?.enabled ? <ToggleRight className="w-6 h-6 text-green-500 dark:text-green-300" /> : <ToggleLeft className="w-6 h-6 text-gray-400" />}
+                      <span className={`text-sm font-medium ${portalStatus?.enabled ? 'text-green-600 dark:text-green-300' : 'text-gray-500 dark:text-slate-400'}`}>{portalStatus?.enabled ? 'Enabled' : 'Disabled'}</span>
                     </button>
                   </div>
                   {noEmail
@@ -670,7 +670,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
 
       {siteDetail && (
         <Modal isOpen onClose={() => setSiteDetail(null)} title={siteDetail.name} size="lg">
-          <p className="text-sm text-gray-500 dark:text-slate-400 -mt-2 mb-4 flex items-center gap-2"><MapPinned className="w-4 h-4 text-blue-500" />{[siteDetail.address, siteDetail.city, siteDetail.state, siteDetail.zip].filter(Boolean).join(', ') || 'No address'}</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400 -mt-2 mb-4 flex items-center gap-2"><MapPinned className="w-4 h-4 text-blue-500 dark:text-blue-300" />{[siteDetail.address, siteDetail.city, siteDetail.state, siteDetail.zip].filter(Boolean).join(', ') || 'No address'}</p>
           {siteDetail.accessNotes && (
             <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
               <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-300 uppercase mb-1">Access Notes</p>
@@ -684,7 +684,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                 <div className="divide-y dark:divide-slate-800 border dark:border-slate-800 rounded-lg">
                   {siteDetail.equipment.map((eq) => (
                     <div key={eq.id} className="p-3 flex items-center gap-3">
-                      <Wrench className="w-4 h-4 text-orange-500" />
+                      <Wrench className="w-4 h-4 text-orange-500 dark:text-orange-300" />
                       <div><p className="font-medium text-gray-900 text-sm dark:text-slate-100">{eq.name}</p><p className="text-xs text-gray-500 dark:text-slate-400">{[eq.manufacturer, eq.model].filter(Boolean).join(' ')}</p></div>
                     </div>
                   ))}

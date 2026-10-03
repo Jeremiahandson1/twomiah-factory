@@ -83,7 +83,7 @@ export function TillPinCard({ user, toast }: { user: any; toast: any }) {
 
       <div className="flex items-center justify-between mb-4">
         <span className="text-sm text-gray-500 dark:text-slate-400">Status</span>
-        <span className={`text-sm font-medium ${pinSet ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}`}>
+        <span className={`text-sm font-medium ${pinSet ? 'text-green-600 dark:text-green-300' : 'text-gray-500 dark:text-slate-400'}`}>
           {pinSet ? 'Set' : 'Not set'}
         </span>
       </div>

@@ -23,7 +23,7 @@ export default function OrdersPage() {
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <button key={f} onClick={() => setFilter(f)}
-            className={`rounded-full px-3 py-1 text-sm capitalize ${filter === f ? 'bg-primary-500 text-white' : 'bg-white border text-gray-600 hover:bg-gray-50'} dark:bg-slate-900 dark:text-slate-300`}>
+            className={`rounded-full px-3 py-1 text-sm capitalize ${filter === f ? 'bg-primary-500 text-white' : 'bg-white border text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:bg-slate-800'} dark:bg-slate-900 dark:text-slate-300`}>
             {f}
           </button>
         ))}

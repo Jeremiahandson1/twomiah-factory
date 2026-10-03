@@ -6,7 +6,7 @@ import { Spinner, PageTitle, Empty, Section, card, pill, btnSecondary, inputCls,
 
 // ---------------------------------------------------------------- My Jobs
 interface SubJob { id: string; number: string; title: string; description?: string | null; status: string; priority?: string; scheduledDate?: string | null; scheduledTime?: string | null; address?: string | null; city?: string | null; state?: string | null; zip?: string | null; notes?: string | null; completedAt?: string | null; projectName?: string | null; projectNumber?: string | null }
-const JOB_STYLES: Record<string, string> = { scheduled: 'bg-blue-100 text-blue-700', in_progress: 'bg-yellow-100 text-yellow-700', completed: 'bg-green-100 text-green-700', cancelled: 'bg-gray-100 text-gray-700' }
+const JOB_STYLES: Record<string, string> = { scheduled: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', in_progress: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', completed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', cancelled: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800' }
 
 export function PortalMyJobs() {
   const { fetch: portalFetch, config, role } = usePortal()
@@ -55,7 +55,7 @@ function JobCard({ job, busy, onComplete }: { job: SubJob; busy: boolean; onComp
           </div>
         </div>
         <div className="text-right shrink-0">
-          <span className={pill(JOB_STYLES[job.status] || 'bg-gray-100 text-gray-700')}>{job.status.replace('_', ' ')}</span>
+          <span className={pill(JOB_STYLES[job.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{job.status.replace('_', ' ')}</span>
           {onComplete && <button onClick={onComplete} disabled={busy} className="mt-2 flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-green-700 text-white rounded-lg hover:bg-green-800 disabled:opacity-50"><CheckCircle2 className="w-3.5 h-3.5" />{busy ? 'Saving…' : 'Mark Complete'}</button>}
         </div>
       </div>
@@ -65,7 +65,7 @@ function JobCard({ job, busy, onComplete }: { job: SubJob; busy: boolean; onComp
 
 // ---------------------------------------------------------------- Lien waivers
 interface Waiver { id: string; projectName?: string | null; projectNumber?: string | null; waiverType: string; throughDate?: string | null; amountTotal?: string | number | null; status: string; dueDate?: string | null; signedDate?: string | null; documentUrl?: string | null; notes?: string | null }
-const WAIVER_STYLES: Record<string, string> = { draft: 'bg-gray-100 text-gray-700', requested: 'bg-blue-100 text-blue-700', received: 'bg-yellow-100 text-yellow-700', approved: 'bg-green-100 text-green-700', rejected: 'bg-red-100 text-red-700' }
+const WAIVER_STYLES: Record<string, string> = { draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800', requested: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', received: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', approved: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', rejected: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' }
 const WAIVER_LABELS: Record<string, string> = { conditional_progress: 'Conditional — Progress', unconditional_progress: 'Unconditional — Progress', conditional_final: 'Conditional — Final', unconditional_final: 'Unconditional — Final' }
 
 export function PortalLienWaivers() {
@@ -100,7 +100,7 @@ export function PortalLienWaivers() {
         </div>
         <div className="text-right shrink-0">
           {w.amountTotal !== undefined && w.amountTotal !== null && <p className="font-bold text-gray-900 dark:text-slate-100">{moneyShort(w.amountTotal)}</p>}
-          <span className={`${pill(WAIVER_STYLES[w.status] || 'bg-gray-100 text-gray-700')} mt-1 dark:text-slate-200`}>{w.status}</span>
+          <span className={`${pill(WAIVER_STYLES[w.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')} mt-1 dark:text-slate-200`}>{w.status}</span>
           {onSign && <div className="mt-2"><button onClick={onSign} className="px-3 py-1.5 text-xs font-medium bg-green-700 text-white rounded-lg hover:bg-green-800">Sign</button></div>}
         </div>
       </div>
@@ -112,8 +112,8 @@ export function PortalLienWaivers() {
       {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {waivers.length === 0 ? <Empty icon={FileSignature} text="No lien waivers yet." /> : (
         <div className="space-y-6">
-          {pending.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500" /> Pending ({pending.length})</>}>{pending.map((w) => <WaiverCard key={w.id} w={w} onSign={() => { setSigning(w); setDocumentUrl(w.documentUrl || ''); setNotes('') }} />)}</Section>}
-          {done.length > 0 && <Section title={<><CheckCircle2 className="w-5 h-5 text-green-500" /> Signed ({done.length})</>}>{done.map((w) => <WaiverCard key={w.id} w={w} onSign={null} />)}</Section>}
+          {pending.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500 dark:text-orange-300" /> Pending ({pending.length})</>}>{pending.map((w) => <WaiverCard key={w.id} w={w} onSign={() => { setSigning(w); setDocumentUrl(w.documentUrl || ''); setNotes('') }} />)}</Section>}
+          {done.length > 0 && <Section title={<><CheckCircle2 className="w-5 h-5 text-green-500 dark:text-green-300" /> Signed ({done.length})</>}>{done.map((w) => <WaiverCard key={w.id} w={w} onSign={null} />)}</Section>}
         </div>
       )}
       {signing && (
@@ -131,7 +131,7 @@ export function PortalLienWaivers() {
 
 // ---------------------------------------------------------------- Submittals
 interface Submittal { id: string; number: string; title: string; description?: string | null; status: string; specSection?: string | null; dueDate?: string | null; submittedDate?: string | null; approvedDate?: string | null; notes?: string | null; projectName?: string | null; projectNumber?: string | null }
-const SUB_STYLES: Record<string, string> = { pending: 'bg-blue-100 text-blue-700', approved: 'bg-green-100 text-green-700', revise: 'bg-yellow-100 text-yellow-700', rejected: 'bg-red-100 text-red-700' }
+const SUB_STYLES: Record<string, string> = { pending: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', approved: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', revise: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', rejected: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' }
 
 export function PortalSubmittalReview() {
   const { fetch: portalFetch, contact, config } = usePortal()
@@ -169,7 +169,7 @@ export function PortalSubmittalReview() {
           </div>
         </div>
         <div className="text-right shrink-0">
-          <span className={pill(SUB_STYLES[s.status] || 'bg-gray-100 text-gray-700')}>{s.status}</span>
+          <span className={pill(SUB_STYLES[s.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{s.status}</span>
           {actions && <div className="mt-2 flex flex-col gap-1.5"><button onClick={() => { setModal({ kind: 'approve', submittal: s }); setNotes('') }} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-green-700 text-white rounded-lg hover:bg-green-800"><CheckCircle2 className="w-3.5 h-3.5" /> Approve</button><button onClick={() => { setModal({ kind: 'revise', submittal: s }); setNotes('') }} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-yellow-700 text-white rounded-lg hover:bg-yellow-800"><RotateCcw className="w-3.5 h-3.5" /> Revise</button></div>}
         </div>
       </div>
@@ -181,8 +181,8 @@ export function PortalSubmittalReview() {
       {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {subs.length === 0 ? <Empty icon={FileCheck2} text="No submittals yet." /> : (
         <div className="space-y-6">
-          {pending.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500" /> Pending Review ({pending.length})</>}>{pending.map((s) => <SubCard key={s.id} s={s} actions />)}</Section>}
-          {reviewed.length > 0 && <Section title={<><CheckCircle2 className="w-5 h-5 text-green-500" /> Reviewed ({reviewed.length})</>}>{reviewed.map((s) => <SubCard key={s.id} s={s} actions={false} />)}</Section>}
+          {pending.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500 dark:text-orange-300" /> Pending Review ({pending.length})</>}>{pending.map((s) => <SubCard key={s.id} s={s} actions />)}</Section>}
+          {reviewed.length > 0 && <Section title={<><CheckCircle2 className="w-5 h-5 text-green-500 dark:text-green-300" /> Reviewed ({reviewed.length})</>}>{reviewed.map((s) => <SubCard key={s.id} s={s} actions={false} />)}</Section>}
         </div>
       )}
       {modal && (
@@ -198,7 +198,7 @@ export function PortalSubmittalReview() {
 
 // ---------------------------------------------------------------- RFIs
 interface AssignedRfi { id: string; number: string; subject: string; question: string; status: string; dueDate?: string | null; response?: string | null; respondedAt?: string | null; createdAt: string; projectName?: string | null; projectNumber?: string | null }
-const RFI_STYLES: Record<string, string> = { open: 'bg-blue-100 text-blue-700', answered: 'bg-green-100 text-green-700', closed: 'bg-gray-100 text-gray-700' }
+const RFI_STYLES: Record<string, string> = { open: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', answered: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', closed: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800' }
 
 export function PortalAssignedRfis() {
   const { fetch: portalFetch } = usePortal()
@@ -231,7 +231,7 @@ export function PortalAssignedRfis() {
             <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500 dark:text-slate-400">{r.dueDate && <span>Due {formatDate(r.dueDate)}</span>}<span>Opened {formatDate(r.createdAt)}</span>{r.respondedAt && <span>Answered {formatDate(r.respondedAt)}</span>}</div>
           </div>
         </div>
-        <div className="text-right shrink-0"><span className={pill(RFI_STYLES[r.status] || 'bg-gray-100 text-gray-700')}>{r.status}</span>{onRespond && <div className="mt-2"><button onClick={onRespond} className="px-3 py-1.5 text-xs font-medium bg-green-700 text-white rounded-lg hover:bg-green-800">Respond</button></div>}</div>
+        <div className="text-right shrink-0"><span className={pill(RFI_STYLES[r.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{r.status}</span>{onRespond && <div className="mt-2"><button onClick={onRespond} className="px-3 py-1.5 text-xs font-medium bg-green-700 text-white rounded-lg hover:bg-green-800">Respond</button></div>}</div>
       </div>
     </div>
   )
@@ -241,8 +241,8 @@ export function PortalAssignedRfis() {
       {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {rfis.length === 0 ? <Empty icon={HelpCircle} text="No RFIs assigned to you yet." /> : (
         <div className="space-y-6">
-          {open.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500" /> Awaiting Response ({open.length})</>}>{open.map((r) => <RfiCard key={r.id} r={r} onRespond={() => { setResponding(r); setResponse('') }} />)}</Section>}
-          {answered.length > 0 && <Section title={<><CheckCircle2 className="w-5 h-5 text-green-500" /> Answered ({answered.length})</>}>{answered.map((r) => <RfiCard key={r.id} r={r} onRespond={null} />)}</Section>}
+          {open.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500 dark:text-orange-300" /> Awaiting Response ({open.length})</>}>{open.map((r) => <RfiCard key={r.id} r={r} onRespond={() => { setResponding(r); setResponse('') }} />)}</Section>}
+          {answered.length > 0 && <Section title={<><CheckCircle2 className="w-5 h-5 text-green-500 dark:text-green-300" /> Answered ({answered.length})</>}>{answered.map((r) => <RfiCard key={r.id} r={r} onRespond={null} />)}</Section>}
         </div>
       )}
       {responding && (

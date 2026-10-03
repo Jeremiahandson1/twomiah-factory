@@ -583,7 +583,7 @@ export default function CanvassingView() {
           )}
         </div>
         <button onClick={() => setShowEndConfirm(true)}
-          className="text-xs font-semibold text-red-700 bg-red-50 px-3 py-1.5 rounded-lg active:bg-red-100">
+          className="text-xs font-semibold text-red-700 bg-red-50 px-3 py-1.5 rounded-lg active:bg-red-100 dark:text-red-400 dark:bg-red-950/40">
           End Session
         </button>
       </div>
@@ -680,9 +680,9 @@ export default function CanvassingView() {
                 <div className="flex items-center justify-between">
                   <p className="font-medium text-sm truncate">{s.name}</p>
                   <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                    s.status === 'active' ? 'bg-green-100 text-green-700' :
-                    s.status === 'paused' ? 'bg-yellow-100 text-yellow-700' :
-                    'bg-gray-100 text-gray-600'
+                    s.status === 'active' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
+                    s.status === 'paused' ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' :
+                    'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
                   }`}>{s.status}</span>
                 </div>
                 <div className="flex gap-4 mt-1 text-xs text-gray-500 dark:text-slate-400">
@@ -827,7 +827,7 @@ export default function CanvassingView() {
                           prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
                         )}
                         className={`text-xs px-3 py-1.5 rounded-full border font-medium ${
-                          logDamageTags.includes(tag) ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-white dark:bg-slate-900 border-gray-300 text-gray-600'
+                          logDamageTags.includes(tag) ? 'bg-blue-100 border-blue-300 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'bg-white dark:bg-slate-900 border-gray-300 text-gray-600 dark:text-slate-300'
                         }`}>
                         {tag}
                       </button>
@@ -857,7 +857,7 @@ export default function CanvassingView() {
                         logOutcome === key ? cfg.bgColor + ' border-2' : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700'
                       } dark:bg-slate-900`}>
                       <span className="text-2xl">{cfg.emoji}</span>
-                      <p className={`text-sm font-semibold mt-1 ${logOutcome === key ? cfg.color : 'text-gray-700'} dark:text-slate-200`}>
+                      <p className={`text-sm font-semibold mt-1 ${logOutcome === key ? cfg.color : 'text-gray-700 dark:text-slate-200'} dark:text-slate-200`}>
                         {cfg.label}
                       </p>
                     </button>

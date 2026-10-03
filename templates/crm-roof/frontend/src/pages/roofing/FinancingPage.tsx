@@ -7,11 +7,11 @@ import { CreditCard, Plus, Check, X } from 'lucide-react';
 import api from '../../api/client';
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-gray-100 text-gray-700',
-  sent: 'bg-blue-100 text-blue-700',
-  approved: 'bg-green-100 text-green-700',
-  declined: 'bg-red-100 text-red-700',
-  funded: 'bg-emerald-100 text-emerald-700',
+  pending: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  sent: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  approved: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  declined: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  funded: 'bg-emerald-100 text-emerald-700 dark:text-emerald-300 dark:bg-emerald-950/40',
   expired: 'bg-gray-100 text-gray-400',
 };
 
@@ -42,7 +42,7 @@ export default function FinancingPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <div><h1 className="text-2xl font-bold flex items-center gap-2"><CreditCard className="w-6 h-6 text-orange-500" />Consumer Financing</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Track financing applications across Wisetack, GreenSky, and other lenders</p></div>
+        <div><h1 className="text-2xl font-bold flex items-center gap-2"><CreditCard className="w-6 h-6 text-orange-500 dark:text-orange-300" />Consumer Financing</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Track financing applications across Wisetack, GreenSky, and other lenders</p></div>
         <button onClick={() => setShowCreate(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Application</button>
       </div>
 

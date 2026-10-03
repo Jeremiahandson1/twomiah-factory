@@ -99,7 +99,7 @@ export function EmailAliasesStep({ productId, onBack, onNext, defaultForwardTo }
       <h2 className="text-xl font-semibold mb-2">Email addresses</h2>
       <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">We've pre-checked the most common ones for your business type. All forward to your email below by default — you can split them out per-alias later in Settings.</p>
 
-      {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700">{error}</div>}
+      {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700 dark:text-red-400 dark:bg-red-950/40">{error}</div>}
 
       <div className="mb-4">
         <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 mb-1">Forward all messages to</label>
@@ -141,7 +141,7 @@ export function EmailAliasesStep({ productId, onBack, onNext, defaultForwardTo }
       </div>
 
       <div className="flex justify-between">
-        <button onClick={onBack} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm dark:text-slate-200">Back</button>
+        <button onClick={onBack} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm dark:text-slate-200 dark:bg-slate-800">Back</button>
         <button onClick={saveAndContinue} disabled={saving} className="px-5 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white rounded-md text-sm font-semibold">
           {saving ? 'Saving…' : 'Save & Continue'}
         </button>

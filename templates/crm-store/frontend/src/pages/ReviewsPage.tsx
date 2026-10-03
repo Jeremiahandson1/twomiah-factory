@@ -57,7 +57,7 @@ export default function ReviewsPage() {
       <div className="flex gap-2">
         {(['pending', 'approved', 'rejected', 'all'] as const).map((s) => (
           <button key={s} onClick={() => setStatus(s)}
-            className={`px-3 py-1.5 rounded-lg text-sm capitalize ${status === s ? 'bg-gray-900 text-white' : 'bg-white border text-gray-600'} dark:bg-slate-900`}>
+            className={`px-3 py-1.5 rounded-lg text-sm capitalize ${status === s ? 'bg-gray-900 text-white' : 'bg-white border text-gray-600 dark:text-slate-300 dark:bg-slate-800'} dark:bg-slate-900`}>
             {s}{s !== 'all' ? ` (${counts[s] ?? 0})` : ''}
           </button>
         ))}

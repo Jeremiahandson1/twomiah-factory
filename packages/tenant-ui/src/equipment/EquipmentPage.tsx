@@ -446,17 +446,17 @@ function EquipmentRow({ equipment, onEdit, onHistory }: EquipmentRowProps) {
       <td className="px-4 py-3">
         <div className="flex flex-wrap gap-1">
           {equipment.maintenanceDue && (
-            <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full">
+            <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full dark:text-orange-300 dark:bg-orange-950/40">
               Maintenance Due
             </span>
           )}
           {equipment.warrantyActive && (
-            <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
+            <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full dark:text-green-300 dark:bg-green-950/40">
               Under Warranty
             </span>
           )}
           {equipment.status === 'needs_repair' && (
-            <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full">
+            <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full dark:text-red-400 dark:bg-red-950/40">
               Needs Repair
             </span>
           )}

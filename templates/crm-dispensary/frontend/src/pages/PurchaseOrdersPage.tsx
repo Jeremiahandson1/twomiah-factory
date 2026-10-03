@@ -11,13 +11,13 @@ import { Button, PageHeader } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
 
 const STATUS_STYLES: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-600',
-  submitted: 'bg-blue-100 text-blue-700',
-  confirmed: 'bg-purple-100 text-purple-700',
-  shipped: 'bg-yellow-100 text-yellow-700',
-  received: 'bg-green-100 text-green-700',
-  cancelled: 'bg-red-100 text-red-700',
-  partial: 'bg-orange-100 text-orange-700',
+  draft: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800',
+  submitted: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  confirmed: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  shipped: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  received: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  partial: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
 };
 
 export default function PurchaseOrdersPage() {
@@ -290,7 +290,7 @@ export default function PurchaseOrdersPage() {
                       <td className="px-4 py-3 text-sm">{po.itemCount || 0}</td>
                       <td className="px-4 py-3 text-sm font-medium">${(po.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[po.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[po.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                           {po.status}
                         </span>
                       </td>
@@ -524,7 +524,7 @@ export default function PurchaseOrdersPage() {
                         </td>
                         <td className="px-3 py-2 font-medium">${((parseFloat(li.quantity) || 0) * (parseFloat(li.unitCost) || 0)).toFixed(2)}</td>
                         <td className="px-3 py-2">
-                          <button onClick={() => removeLineItem(i)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300"><X className="w-4 h-4" /></button>
+                          <button onClick={() => removeLineItem(i)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400"><X className="w-4 h-4" /></button>
                         </td>
                       </tr>
                     ))}

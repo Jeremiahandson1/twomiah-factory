@@ -716,7 +716,11 @@ export default function SettingsPage() {
                 </h3>
                 <div className="space-y-2">
                   {DAYS.map(day => (
-                    <div key={day} className="flex items-center gap-4 py-2 border-b border-gray-100 last:border-0">
+                    /* Day name, an Open/Closed switch and two time pickers: 96 + 70 + 264px of
+                       controls in a 390px screen, which is what was left of the 79px still
+                       overflowing after the nav was stacked. The row wraps now, and the time group
+                       keeps its `ml-auto` only once there is room for it on the right. (T41) */
+                    <div key={day} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-2 border-b border-gray-100 last:border-0">
                       <span className="w-24 text-sm font-medium text-gray-700 dark:text-slate-200">{DAY_LABELS[day]}</span>
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -1072,10 +1076,10 @@ export default function SettingsPage() {
                         </td>
                         <td className="px-4 py-3 text-sm">
                           {k.status === 'active'
-                            ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Paired</span>
+                            ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:text-green-300 dark:bg-green-950/40">Paired</span>
                             : k.status === 'revoked'
-                              ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Revoked</span>
-                              : <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Awaiting pairing</span>}
+                              ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:text-red-400 dark:bg-red-950/40">Revoked</span>
+                              : <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:text-yellow-300 dark:bg-yellow-950/40">Awaiting pairing</span>}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                           {/* On the STORE's clock, not the browser's. An owner checking a tablet from
@@ -1199,7 +1203,7 @@ export default function SettingsPage() {
                         <td className="px-4 py-3 text-sm capitalize">{u.role}</td>
                         <td className="px-4 py-3 text-sm">
                           {u.isActive
-                            ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+                            ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:text-green-300 dark:bg-green-950/40">Active</span>
                             : <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400">Inactive</span>}
                         </td>
                         <td className="px-4 py-3 text-sm text-right">
@@ -1211,7 +1215,7 @@ export default function SettingsPage() {
                           <input type="checkbox" checked={(u.extraPermissions || []).includes('users:read')} onChange={() => handleToggleUserListGrant(u)} /> can view user list
                         </label>
                       )}
-                      <button onClick={() => handleToggleUserAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700 dark:hover:text-red-300' : 'text-green-600 hover:text-green-700 dark:hover:text-green-300'}`}>
+                      <button onClick={() => handleToggleUserAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400' : 'text-green-600 hover:text-green-700 dark:hover:text-green-300 dark:text-green-300'}`}>
                                 {u.isActive ? 'Revoke access' : 'Restore access'}
                               </button></>
                             ) : null}

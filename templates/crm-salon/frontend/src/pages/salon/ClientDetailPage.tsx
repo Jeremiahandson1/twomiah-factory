@@ -245,7 +245,7 @@ export default function ClientDetailPage() {
         </div>
 
         {profile.allergies && (
-          <div className="mt-4 flex items-start gap-2 bg-red-50 border border-red-200 text-red-800 rounded-lg p-3">
+          <div className="mt-4 flex items-start gap-2 bg-red-50 border border-red-200 text-red-800 rounded-lg p-3 dark:text-red-400 dark:bg-red-950/40">
             <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold">Allergy / sensitivity</p>
@@ -526,7 +526,7 @@ export default function ClientDetailPage() {
                     {m.creditsRemaining !== null && m.creditsRemaining !== undefined && (
                       <span className="text-sm text-gray-600 dark:text-slate-400">{m.creditsRemaining} credit{m.creditsRemaining === 1 ? '' : 's'} left</span>
                     )}
-                    <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${m.status === 'active' && m.creditsRemaining === 0 ? 'bg-amber-100 text-amber-700' : m.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${m.status === 'active' && m.creditsRemaining === 0 ? 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40' : m.status === 'active' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                       {m.status === 'active' && m.creditsRemaining === 0 ? 'used up' : (m.status || 'active')}
                     </span>
                   </div>
@@ -623,7 +623,7 @@ function ProfileModal({ contactId, contact, profile, onSave, onClose }: { contac
           <form onSubmit={submit} className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500 dark:text-red-400">*</span></label>
                 <input type="text" value={contactForm.name} onChange={(e) => setC('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>

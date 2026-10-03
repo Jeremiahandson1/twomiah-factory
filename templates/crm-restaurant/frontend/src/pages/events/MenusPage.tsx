@@ -240,7 +240,7 @@ function PackageModal({ pkg, onSave, onClose }: { pkg: Package | null; onSave: (
           <form onSubmit={submit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500 dark:text-red-400">*</span></label>
                 <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
               </div>
               <div>

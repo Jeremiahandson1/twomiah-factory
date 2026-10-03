@@ -10,22 +10,22 @@ import { SECTION_PATH } from './types'
 interface StatCard { key: string; label: string; value: string | number; icon: React.ComponentType<{ className?: string }>; color: string; link: string }
 
 const CARD_STYLE: Record<PortalSection, { color: string; value: string }> = {
-  projects: { color: 'bg-purple-100 text-purple-600', value: 'View' },
-  quotes: { color: 'bg-blue-100 text-blue-600', value: 'Review' },
-  invoices: { color: 'bg-green-100 text-green-600', value: 'View' },
-  paymentMethods: { color: 'bg-blue-100 text-blue-600', value: 'Manage' },
-  changeOrders: { color: 'bg-yellow-100 text-yellow-600', value: 'Review' },
-  selections: { color: 'bg-purple-100 text-purple-600', value: 'Choose' },
-  messages: { color: 'bg-gray-100 text-gray-600', value: 'Open' },
-  myJobs: { color: 'bg-orange-100 text-orange-600', value: 'View' },
-  pets: { color: 'bg-teal-100 text-teal-600', value: 'View' },
-  lienWaivers: { color: 'bg-blue-100 text-blue-600', value: 'Review & Sign' },
-  submittals: { color: 'bg-purple-100 text-purple-600', value: 'Review' },
-  rfis: { color: 'bg-indigo-100 text-indigo-600', value: 'Respond' },
-  sharedDocuments: { color: 'bg-gray-100 text-gray-600', value: 'Browse' },
-  equipment: { color: 'bg-blue-100 text-blue-600', value: 'View' },
-  agreements: { color: 'bg-emerald-100 text-emerald-600', value: 'View' },
-  serviceRequest: { color: 'bg-orange-100 text-orange-600', value: 'Request' },
+  projects: { color: 'bg-purple-100 text-purple-600 dark:text-purple-300 dark:bg-purple-950/40', value: 'View' },
+  quotes: { color: 'bg-blue-100 text-blue-600 dark:text-blue-300 dark:bg-blue-950/40', value: 'Review' },
+  invoices: { color: 'bg-green-100 text-green-600 dark:text-green-300 dark:bg-green-950/40', value: 'View' },
+  paymentMethods: { color: 'bg-blue-100 text-blue-600 dark:text-blue-300 dark:bg-blue-950/40', value: 'Manage' },
+  changeOrders: { color: 'bg-yellow-100 text-yellow-600 dark:text-yellow-300 dark:bg-yellow-950/40', value: 'Review' },
+  selections: { color: 'bg-purple-100 text-purple-600 dark:text-purple-300 dark:bg-purple-950/40', value: 'Choose' },
+  messages: { color: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800', value: 'Open' },
+  myJobs: { color: 'bg-orange-100 text-orange-600 dark:text-orange-300 dark:bg-orange-950/40', value: 'View' },
+  pets: { color: 'bg-teal-100 text-teal-600 dark:text-teal-300 dark:bg-teal-950/40', value: 'View' },
+  lienWaivers: { color: 'bg-blue-100 text-blue-600 dark:text-blue-300 dark:bg-blue-950/40', value: 'Review & Sign' },
+  submittals: { color: 'bg-purple-100 text-purple-600 dark:text-purple-300 dark:bg-purple-950/40', value: 'Review' },
+  rfis: { color: 'bg-indigo-100 text-indigo-600 dark:text-indigo-300 dark:bg-indigo-950/40', value: 'Respond' },
+  sharedDocuments: { color: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800', value: 'Browse' },
+  equipment: { color: 'bg-blue-100 text-blue-600 dark:text-blue-300 dark:bg-blue-950/40', value: 'View' },
+  agreements: { color: 'bg-emerald-100 text-emerald-600 dark:text-emerald-300 dark:bg-emerald-950/40', value: 'View' },
+  serviceRequest: { color: 'bg-orange-100 text-orange-600 dark:text-orange-300 dark:bg-orange-950/40', value: 'Request' },
 }
 
 export function PortalDashboard() {
@@ -63,18 +63,18 @@ export function PortalDashboard() {
       const due = summary?.vaccinationsDue ?? 0
       stats.push({
         key: 'vaccinationsDue', label: due === 1 ? 'Vaccination Due' : 'Vaccinations Due', value: due,
-        icon: SECTION_ICONS.pets, color: due > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600', link: link('pets'),
+        icon: SECTION_ICONS.pets, color: due > 0 ? 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800', link: link('pets'),
       })
       if (summary?.nextAppointment) {
         stats.push({
           key: 'nextAppointment', label: 'Next Appointment', value: formatDate(summary.nextAppointment),
-          icon: CalendarCheck, color: 'bg-teal-100 text-teal-600', link: link('pets'),
+          icon: CalendarCheck, color: 'bg-teal-100 text-teal-600 dark:text-teal-300 dark:bg-teal-950/40', link: link('pets'),
         })
       }
     }
     if (s === 'invoices') {
       const balance = summary?.outstandingBalance ?? 0
-      stats.push({ key: 'balance', label: 'Outstanding Balance', value: moneyShort(balance), icon: DollarSign, color: balance > 0 ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-600', link: link('invoices') })
+      stats.push({ key: 'balance', label: 'Outstanding Balance', value: moneyShort(balance), icon: DollarSign, color: balance > 0 ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800', link: link('invoices') })
     }
   }
 

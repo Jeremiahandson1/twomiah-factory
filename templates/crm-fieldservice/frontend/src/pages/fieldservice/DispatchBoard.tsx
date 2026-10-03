@@ -20,10 +20,10 @@ const PRIORITY_COLORS = {
 };
 
 const PRIORITY_BADGES = {
-  emergency: 'bg-red-100 text-red-700',
-  high: 'bg-orange-100 text-orange-700',
-  normal: 'bg-blue-100 text-blue-700',
-  low: 'bg-gray-100 text-gray-700',
+  emergency: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  high: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  normal: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  low: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
 };
 
 const SERVICE_ICONS = {

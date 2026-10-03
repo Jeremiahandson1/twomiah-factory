@@ -26,12 +26,12 @@ export default function LocationsPage() {
 
   const deactivate = async (id: string) => { if (confirm('Deactivate this location?')) { await api.delete(`/api/locations/${id}`); load(); } };
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-sky-500" /></div>;
+  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-sky-500 dark:text-sky-300" /></div>;
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <div><h1 className="text-2xl font-bold flex items-center gap-2"><MapPin className="w-6 h-6 text-sky-500" />Locations</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Multi-branch dispatch — assign techs and jobs per location</p></div>
+        <div><h1 className="text-2xl font-bold flex items-center gap-2"><MapPin className="w-6 h-6 text-sky-500 dark:text-sky-300" />Locations</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Multi-branch dispatch — assign techs and jobs per location</p></div>
         <button onClick={() => setShowCreate(true)} className="bg-sky-700 hover:bg-sky-800 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Location</button>
       </div>
 

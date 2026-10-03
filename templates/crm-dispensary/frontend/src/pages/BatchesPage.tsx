@@ -10,11 +10,11 @@ import { Modal, ConfirmModal } from '../components/ui/Modal';
 const BATCH_STATUSES = ['active', 'quarantine', 'depleted', 'recalled', 'expired'];
 
 const statusBadge: Record<string, string> = {
-  active: 'bg-green-100 text-green-700',
-  quarantine: 'bg-yellow-100 text-yellow-700',
-  depleted: 'bg-gray-100 text-gray-600',
-  recalled: 'bg-red-100 text-red-700',
-  expired: 'bg-orange-100 text-orange-700',
+  active: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  quarantine: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  depleted: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800',
+  recalled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  expired: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
 };
 
 const initialBatchForm = {
@@ -297,7 +297,7 @@ export default function BatchesPage() {
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Batch {detail.batchNumber}</h1>
                 <p className="text-gray-600 dark:text-slate-400">{detail.productName || 'Unknown Product'}</p>
               </div>
-              <span className={`px-3 py-1 text-sm font-medium rounded-full ${statusBadge[detail.status] || 'bg-gray-100 text-gray-600'}`}>
+              <span className={`px-3 py-1 text-sm font-medium rounded-full ${statusBadge[detail.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                 {detail.status || 'unknown'}
               </span>
             </div>
@@ -408,9 +408,9 @@ export default function BatchesPage() {
                       <p className="text-sm text-gray-600 dark:text-slate-400">Test ID: <span className="font-mono">{detail.labTestId}</span></p>
                       {detail.labTestStatus && (
                         <span className={`px-2 py-0.5 text-xs rounded-full ${
-                          detail.labTestStatus === 'passed' ? 'bg-green-100 text-green-700' :
-                          detail.labTestStatus === 'failed' ? 'bg-red-100 text-red-700' :
-                          'bg-gray-100 text-gray-600'
+                          detail.labTestStatus === 'passed' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
+                          detail.labTestStatus === 'failed' ? 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' :
+                          'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
                         }`}>
                           {detail.labTestStatus}
                         </span>
@@ -433,7 +433,7 @@ export default function BatchesPage() {
                   {detail.statusHistory.map((entry: any, idx: number) => (
                     <div key={idx} className="flex items-center gap-4 text-sm">
                       <span className="text-gray-500 w-40 dark:text-slate-400">{entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '—'}</span>
-                      <span className={`px-2 py-0.5 text-xs rounded-full ${statusBadge[entry.status] || 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`px-2 py-0.5 text-xs rounded-full ${statusBadge[entry.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                         {entry.status}
                       </span>
                       <span className="text-gray-600 dark:text-slate-400">{entry.note || entry.user || ''}</span>
@@ -462,7 +462,7 @@ export default function BatchesPage() {
                       <tr key={idx}>
                         <td className="px-4 py-2 text-sm text-gray-500 dark:text-slate-400">{adj.date ? formatDate(adj.date) : '—'}</td>
                         <td className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400">{adj.type}</td>
-                        <td className={`px-4 py-2 text-sm text-right font-medium ${adj.quantity < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        <td className={`px-4 py-2 text-sm text-right font-medium ${adj.quantity < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>
                           {adj.quantity > 0 ? '+' : ''}{adj.quantity}
                         </td>
                         <td className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400">{adj.reason || '—'}</td>
@@ -593,7 +593,7 @@ export default function BatchesPage() {
                   <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-slate-100">{batch.quantity} {batch.unit || ''}</td>
                   <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-slate-400">{batch.thcPercent != null ? `${batch.thcPercent}%` : '—'}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusBadge[batch.status] || 'bg-gray-100 text-gray-600'}`}>
+                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusBadge[batch.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                       {batch.status || 'unknown'}
                     </span>
                   </td>

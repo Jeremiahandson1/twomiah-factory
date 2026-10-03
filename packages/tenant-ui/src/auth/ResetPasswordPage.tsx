@@ -43,7 +43,7 @@ export function ResetPasswordPage({ api }: { api: Pick<AuthApi, 'resetPassword'>
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 dark:bg-slate-900">
         <div className="max-w-md w-full text-center">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 dark:bg-green-900/40">
-            <CheckCircle className="w-8 h-8 text-green-500" />
+            <CheckCircle className="w-8 h-8 text-green-500 dark:text-green-300" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Password reset successful</h1>
           <p className="text-gray-600 mb-6 dark:text-slate-400">Your password has been changed. Redirecting to login...</p>
@@ -58,7 +58,7 @@ export function ResetPasswordPage({ api }: { api: Pick<AuthApi, 'resetPassword'>
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 dark:bg-slate-900">
         <div className="max-w-md w-full text-center">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 dark:bg-red-900/40">
-            <XCircle className="w-8 h-8 text-red-500" />
+            <XCircle className="w-8 h-8 text-red-500 dark:text-red-400" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Invalid link</h1>
           <p className="text-gray-600 mb-6 dark:text-slate-400">This password reset link is invalid or has expired.</p>

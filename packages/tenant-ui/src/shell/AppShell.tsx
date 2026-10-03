@@ -208,7 +208,7 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
       >
         <div className="h-16 flex items-center justify-between px-4 border-b dark:border-slate-800">
           <div className="flex items-center gap-2 min-w-0">
-            <Brand className="w-8 h-8 text-orange-500 flex-shrink-0" aria-hidden="true" />
+            <Brand className="w-8 h-8 text-orange-500 flex-shrink-0 dark:text-orange-300" aria-hidden="true" />
             <span className="font-bold text-lg text-gray-900 dark:text-white truncate">{company?.name || fallbackName}</span>
           </div>
           <button type="button" onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg" aria-label="Close menu"><X className="w-5 h-5" /></button>

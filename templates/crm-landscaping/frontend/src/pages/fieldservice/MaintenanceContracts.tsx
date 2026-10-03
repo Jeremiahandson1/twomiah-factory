@@ -13,10 +13,10 @@ const BILLING_FREQUENCIES = ['monthly', 'quarterly', 'semi-annual', 'annual'] as
 const CONTRACT_STATUSES = ['active', 'expired', 'cancelled', 'pending'] as const;
 
 const STATUS_COLORS = {
-  active: 'bg-green-100 text-green-700',
-  expired: 'bg-red-100 text-red-700',
-  cancelled: 'bg-gray-100 text-gray-700',
-  pending: 'bg-yellow-100 text-yellow-700',
+  active: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  expired: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  cancelled: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
 };
 
 const INCLUDED_SERVICES = [
@@ -229,16 +229,16 @@ export default function MaintenanceContracts() {
                       </p>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[contract.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[contract.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                         {contract.status}
                       </span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
                         {isExpiringSoon && (
-                          <AlertTriangle className="w-4 h-4 text-orange-500" />
+                          <AlertTriangle className="w-4 h-4 text-orange-500 dark:text-orange-300" />
                         )}
-                        <span className={`text-sm ${isExpiringSoon ? 'text-orange-600' : 'text-gray-500 dark:text-slate-400'}`}>
+                        <span className={`text-sm ${isExpiringSoon ? 'text-orange-600 dark:text-orange-300' : 'text-gray-500 dark:text-slate-400'}`}>
                           {contract.endDate
                             ? formatDate(contract.endDate)
                             : '-'}
@@ -508,7 +508,7 @@ function ContractFormModal({ contract, onSave, onClose }) {
                       type="checkbox"
                       checked={form.includedServices.includes(service)}
                       onChange={() => toggleService(service)}
-                      className="w-4 h-4 rounded text-orange-500"
+                      className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
                     />
                     <span className="text-sm text-gray-700 dark:text-slate-300">{service}</span>
                   </label>
@@ -522,7 +522,7 @@ function ContractFormModal({ contract, onSave, onClose }) {
                 type="checkbox"
                 checked={form.autoRenew}
                 onChange={(e) => setForm({ ...form, autoRenew: e.target.checked })}
-                className="w-4 h-4 rounded text-orange-500"
+                className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
               />
               <span className="text-sm text-gray-700 dark:text-slate-300">Auto-renew when term ends</span>
             </label>

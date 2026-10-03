@@ -115,7 +115,7 @@ export default function AIReportsPage() {
         </div>
       </div>
 
-      {error && <div className="mt-5 bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 text-sm">{error}</div>}
+      {error && <div className="mt-5 bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 text-sm dark:text-red-400 dark:bg-red-950/40">{error}</div>}
 
       {loading && !report && (
         <div className="mt-5 bg-white rounded-xl border p-8 text-center text-gray-500 dark:bg-slate-900 dark:text-slate-400">

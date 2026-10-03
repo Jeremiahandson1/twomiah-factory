@@ -36,8 +36,8 @@ export function ImportContactsStep({ onBack, onNext }: { onBack: () => void; onN
       <h2 className="text-xl font-semibold mb-2">Import your contacts</h2>
       <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Got a CSV of contacts from another system? Drop it here and we'll get everyone imported. Otherwise skip and add them as you go.</p>
 
-      {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700">{error}</div>}
-      {result && <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-4 text-sm text-green-700">{result}</div>}
+      {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700 dark:text-red-400 dark:bg-red-950/40">{error}</div>}
+      {result && <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-4 text-sm text-green-700 dark:text-green-300 dark:bg-green-950/40">{result}</div>}
 
       <div className="border-2 border-dashed border-gray-300 rounded-md p-6 text-center mb-6">
         <input type="file" accept=".csv,text/csv" onChange={e => setFile(e.target.files?.[0] || null)} className="mb-3" />
@@ -50,7 +50,7 @@ export function ImportContactsStep({ onBack, onNext }: { onBack: () => void; onN
       </div>
 
       <div className="flex justify-between">
-        <button onClick={onBack} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm dark:text-slate-200">Back</button>
+        <button onClick={onBack} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm dark:text-slate-200 dark:bg-slate-800">Back</button>
         <button onClick={onNext} className="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-md text-sm font-semibold">
           {result ? 'Continue' : 'Skip for now'}
         </button>

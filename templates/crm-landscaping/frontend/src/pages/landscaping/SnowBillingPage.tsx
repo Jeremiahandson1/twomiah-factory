@@ -223,7 +223,7 @@ export default function SnowBillingPage() {
                   <div>
                     <div className="font-medium">{ct.siteName || ct.siteId}</div>
                     <div className="text-xs text-gray-500 dark:text-slate-400">{ct.siteAddress}</div>
-                    <span className="inline-block mt-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{MODES.find(m => m.value === ct.billingMode)?.label}</span>
+                    <span className="inline-block mt-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded dark:text-blue-300 dark:bg-blue-950/40">{MODES.find(m => m.value === ct.billingMode)?.label}</span>
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-semibold text-green-700 dark:text-green-300">${Number(sm.unbilledTotal || 0).toFixed(2)}</div>
@@ -234,7 +234,7 @@ export default function SnowBillingPage() {
                         {billing === ct.id ? 'Billing…' : `Bill $${Number(sm.unbilledTotal).toFixed(2)}`}
                       </button>
                     )}
-                    {mayDelete && <button onClick={(e) => { e.stopPropagation(); removeContract(ct.id); }} className="text-red-500 mt-1" aria-label="Delete contract"><Trash2 className="w-4 h-4" /></button>}
+                    {mayDelete && <button onClick={(e) => { e.stopPropagation(); removeContract(ct.id); }} className="text-red-500 mt-1 dark:text-red-400" aria-label="Delete contract"><Trash2 className="w-4 h-4" /></button>}
                   </div>
                 </div>
               </div>

@@ -31,7 +31,7 @@ export default function LaborGuidePage() {
       </div>
 
       {!live && (
-        <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex gap-2">
+        <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex gap-2 dark:text-amber-300 dark:bg-amber-950/40">
           <Info size={15} className="shrink-0 mt-0.5" />
           <span>Demo flat-rate data. Connects to Mitchell1 / MOTOR / OEM flat-rate feeds once licensed — the search and UI stay identical.</span>
         </div>
@@ -70,7 +70,7 @@ export default function LaborGuidePage() {
                   <td className="px-4 py-2 text-gray-500 text-xs align-top dark:text-slate-400">{o.applies}</td>
                   <td className="px-4 py-2 text-right align-top">{Number(o.hours).toFixed(1)}</td>
                   <td className="px-4 py-2 text-right font-semibold align-top">${o.price}</td>
-                  <td className="px-4 py-2 align-top">{o.warranty ? <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700"><ShieldCheck size={12} />Eligible</span> : <span className="text-xs text-gray-500 dark:text-slate-400">—</span>}</td>
+                  <td className="px-4 py-2 align-top">{o.warranty ? <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40"><ShieldCheck size={12} />Eligible</span> : <span className="text-xs text-gray-500 dark:text-slate-400">—</span>}</td>
                 </tr>
               ))}
             </tbody>

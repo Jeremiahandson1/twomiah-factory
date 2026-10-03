@@ -237,8 +237,8 @@ export default function PlatformPage() {
                   {incidents.length > 0 ? incidents.map((incident, i) => (
                     <div key={incident.id || i} className="px-6 py-4 flex items-start gap-3">
                       <AlertTriangle className={`w-4 h-4 mt-0.5 ${
-                        incident.severity === 'critical' ? 'text-red-500' :
-                        incident.severity === 'warning' ? 'text-yellow-500' : 'text-blue-500'
+                        incident.severity === 'critical' ? 'text-red-500 dark:text-red-400' :
+                        incident.severity === 'warning' ? 'text-yellow-500 dark:text-yellow-300' : 'text-blue-500 dark:text-blue-300'
                       }`} />
                       <div>
                         <p className="text-sm font-medium text-gray-900 dark:text-slate-100">{incident.title || incident.message}</p>
@@ -327,7 +327,7 @@ export default function PlatformPage() {
                       {!step.completed && (
                         <button
                           onClick={() => markStepComplete(step.id)}
-                          className="px-3 py-1 text-xs font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100"
+                          className="px-3 py-1 text-xs font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 dark:text-green-300 dark:bg-green-950/40"
                         >
                           Mark Complete
                         </button>
@@ -461,10 +461,10 @@ export default function PlatformPage() {
                             </td>
                             <td className="px-4 py-3">
                               <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                                order.status === 'shipped' ? 'bg-blue-100 text-blue-700' :
-                                order.status === 'delivered' ? 'bg-green-100 text-green-700' :
-                                order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                                'bg-yellow-100 text-yellow-700'
+                                order.status === 'shipped' ? 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' :
+                                order.status === 'delivered' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
+                                order.status === 'cancelled' ? 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' :
+                                'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40'
                               }`}>
                                 {order.status || 'pending'}
                               </span>

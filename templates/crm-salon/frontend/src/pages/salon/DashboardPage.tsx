@@ -174,7 +174,7 @@ export default function DashboardPage() {
         <Link to="/crm/clients" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Clients</p>
-            <Users className="w-5 h-5 text-teal-500" />
+            <Users className="w-5 h-5 text-teal-500 dark:text-teal-300" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{clients.total || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">In your book</p>
@@ -183,7 +183,7 @@ export default function DashboardPage() {
         <Link to="/crm/appointments" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Appointments Today</p>
-            <CalendarDays className="w-5 h-5 text-indigo-500" />
+            <CalendarDays className="w-5 h-5 text-indigo-500 dark:text-indigo-300" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{appts.today || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">{appts.upcoming7 || 0} in the next 7 days</p>
@@ -192,7 +192,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Services This Month</p>
-            <Scissors className="w-5 h-5 text-purple-500" />
+            <Scissors className="w-5 h-5 text-purple-500 dark:text-purple-300" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{services.thisMonth || 0}</p>
           {services.revenueThisMonth !== undefined && (
@@ -206,7 +206,7 @@ export default function DashboardPage() {
         <Link to="/crm/memberships" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Members</p>
-            <CreditCard className="w-5 h-5 text-rose-500" />
+            <CreditCard className="w-5 h-5 text-rose-500 dark:text-rose-300" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{memberships.activeEnrollments || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">Active memberships</p>
@@ -217,7 +217,7 @@ export default function DashboardPage() {
       {byStylist.length > 0 && (
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-            <Armchair className="w-4 h-4 text-teal-500" /> Chair Productivity
+            <Armchair className="w-4 h-4 text-teal-500 dark:text-teal-300" /> Chair Productivity
             <span className="text-xs text-gray-500 dark:text-slate-400 font-normal">this month</span>
           </h2>
           <ul className="space-y-3">
@@ -243,7 +243,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-            <Users className="w-4 h-4 text-teal-500" /> Recent Clients
+            <Users className="w-4 h-4 text-teal-500 dark:text-teal-300" /> Recent Clients
           </h2>
           {(activity.recentClients || []).length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">No clients yet</p>
@@ -263,7 +263,7 @@ export default function DashboardPage() {
 
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-            <Scissors className="w-4 h-4 text-purple-500" /> Recent Services
+            <Scissors className="w-4 h-4 text-purple-500 dark:text-purple-300" /> Recent Services
           </h2>
           {(activity.recentServices || []).length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">Nothing logged yet</p>
@@ -286,7 +286,7 @@ export default function DashboardPage() {
 
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-            <CalendarDays className="w-4 h-4 text-indigo-500" /> Upcoming Appointments
+            <CalendarDays className="w-4 h-4 text-indigo-500 dark:text-indigo-300" /> Upcoming Appointments
           </h2>
           {(activity.upcomingAppointments || []).length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">Nothing scheduled</p>

@@ -143,7 +143,7 @@ export default function ServiceMenuPage() {
                         <Clock className="w-3 h-3" /> {s.durationMin ?? 60} min
                       </span>
                       {s.rebookIntervalDays ? (
-                        <span className="inline-flex items-center gap-1 bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full">
+                        <span className="inline-flex items-center gap-1 bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full dark:text-teal-300 dark:bg-teal-950/40">
                           <RotateCcw className="w-3 h-3" /> rebook {s.rebookIntervalDays}d
                         </span>
                       ) : (
@@ -152,10 +152,10 @@ export default function ServiceMenuPage() {
                         </span>
                       )}
                       {s.bookableOnline && (
-                        <span className="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full">online</span>
+                        <span className="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full dark:text-sky-300 dark:bg-sky-950/40">online</span>
                       )}
                       {s.requiresPatchTest && (
-                        <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">
+                        <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full dark:text-amber-300 dark:bg-amber-950/40">
                           <AlertTriangle className="w-3 h-3" /> patch test
                         </span>
                       )}
@@ -246,7 +246,7 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
           <form onSubmit={submit} className="space-y-4">
             <div className="grid grid-cols-3 gap-4">
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500 dark:text-red-400">*</span></label>
                 <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
               </div>
               <div>

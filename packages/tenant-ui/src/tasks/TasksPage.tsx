@@ -182,8 +182,8 @@ export default function TasksPage({ api }: TasksPageProps) {
             onClick={() => setFilter(f)}
             className={`px-4 py-2 rounded-lg text-sm font-medium capitalize ${
               filter === f
-                ? 'bg-orange-100 text-orange-700'
-                : 'text-gray-600 hover:bg-gray-100'
+                ? 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40'
+                : 'text-gray-600 hover:bg-gray-100 dark:text-slate-300'
             }`}
           >
             {f}
@@ -281,7 +281,7 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }: TaskItem
         {/* Checkbox */}
         <button onClick={onToggle} className="mt-0.5">
           {task.status === 'completed' ? (
-            <CheckCircle2 className="w-5 h-5 text-green-500" />
+            <CheckCircle2 className="w-5 h-5 text-green-500 dark:text-green-300" />
           ) : (
             <Circle className="w-5 h-5 text-gray-300 hover:text-gray-400" />
           )}
@@ -302,7 +302,7 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }: TaskItem
 
           <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-slate-400">
             {task.dueDate && (
-              <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-500' : ''}`}>
+              <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-500 dark:text-red-400' : ''}`}>
                 <Calendar className="w-3 h-3" />
                 {formatDate(task.dueDate)}
                 {isOverdue && ' (Overdue)'}

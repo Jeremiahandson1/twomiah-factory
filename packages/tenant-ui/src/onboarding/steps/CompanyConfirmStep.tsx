@@ -52,7 +52,7 @@ export function CompanyConfirmStep({ onNext }: { onNext: () => void }): React.Re
       <h2 className="text-xl font-semibold mb-2">Confirm your business details</h2>
       <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">These show up on invoices, quotes, and your public site. Edit anything that isn't right.</p>
 
-      {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700">{error}</div>}
+      {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700 dark:text-red-400 dark:bg-red-950/40">{error}</div>}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
         <Field label="Company name" value={editing.name || ''} onChange={v => setEditing(e => ({ ...e, name: v }))} />

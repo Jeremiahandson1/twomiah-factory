@@ -10,19 +10,19 @@ import { Button, PageHeader } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
 
 const SEVERITY_STYLES: Record<string, string> = {
-  critical: 'bg-red-100 text-red-700 animate-pulse',
-  high: 'bg-red-100 text-red-700',
-  medium: 'bg-yellow-100 text-yellow-700',
-  low: 'bg-blue-100 text-blue-700',
+  critical: 'bg-red-100 text-red-700 animate-pulse dark:text-red-400 dark:bg-red-950/40',
+  high: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  medium: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  low: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
 };
 
 const TYPE_STYLES: Record<string, string> = {
-  void_pattern: 'bg-purple-100 text-purple-700',
-  discount_abuse: 'bg-orange-100 text-orange-700',
-  cash_variance: 'bg-red-100 text-red-700',
-  inventory_shrinkage: 'bg-yellow-100 text-yellow-700',
-  time_theft: 'bg-blue-100 text-blue-700',
-  refund_pattern: 'bg-pink-100 text-pink-700',
+  void_pattern: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  discount_abuse: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  cash_variance: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  inventory_shrinkage: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  time_theft: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  refund_pattern: 'bg-pink-100 text-pink-700 dark:text-pink-300 dark:bg-pink-950/40',
 };
 
 export default function FraudDetectionPage() {
@@ -219,7 +219,7 @@ export default function FraudDetectionPage() {
           <div className="flex gap-2 mb-4">
             {['all', 'critical', 'high', 'medium', 'low'].map(f => (
               <button key={f} onClick={() => setAlertFilter(f)}
-                className={`px-3 py-1 text-sm rounded-full ${alertFilter === f ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'} dark:text-slate-300`}>
+                className={`px-3 py-1 text-sm rounded-full ${alertFilter === f ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:text-slate-300 dark:bg-slate-800'} dark:text-slate-300`}>
                 {f.charAt(0).toUpperCase() + f.slice(1)}
               </button>
             ))}
@@ -248,12 +248,12 @@ export default function FraudDetectionPage() {
                   {alerts.map(alert => (
                     <tr key={alert.id} className="border-t hover:bg-gray-50">
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${SEVERITY_STYLES[alert.severity] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${SEVERITY_STYLES[alert.severity] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                           {alert.severity}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${TYPE_STYLES[alert.type] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${TYPE_STYLES[alert.type] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                           {(alert.type || '').replace(/_/g, ' ')}
                         </span>
                       </td>
@@ -264,7 +264,7 @@ export default function FraudDetectionPage() {
                         ) : '-'}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${alert.status === 'open' ? 'bg-red-100 text-red-700' : alert.status === 'investigating' ? 'bg-yellow-100 text-yellow-700' : alert.status === 'resolved' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${alert.status === 'open' ? 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' : alert.status === 'investigating' ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' : alert.status === 'resolved' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                           {alert.status}
                         </span>
                       </td>
@@ -273,14 +273,14 @@ export default function FraudDetectionPage() {
                         <div className="flex gap-1">
                           {alert.status === 'open' && (
                             <button onClick={() => handleAlertAction(alert.id, 'investigate')}
-                              className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200 flex items-center gap-1">
+                              className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200 flex items-center gap-1 dark:text-yellow-300 dark:bg-yellow-950/40">
                               <Eye className="w-3 h-3" />Investigate
                             </button>
                           )}
                           {(alert.status === 'open' || alert.status === 'investigating') && (
                             <>
                               <button onClick={() => handleAlertAction(alert.id, 'resolve')}
-                                className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 flex items-center gap-1">
+                                className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 flex items-center gap-1 dark:text-green-300 dark:bg-green-950/40">
                                 <CheckCircle className="w-3 h-3" />Resolve
                               </button>
                               <button onClick={() => handleAlertAction(alert.id, 'dismiss')}
@@ -319,7 +319,7 @@ export default function FraudDetectionPage() {
                   <div className="flex-1" onClick={() => openEditRule(rule)} role="button">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium">{rule.name}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${TYPE_STYLES[rule.type] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${TYPE_STYLES[rule.type] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                         {(rule.type || '').replace(/_/g, ' ')}
                       </span>
                     </div>
@@ -355,28 +355,28 @@ export default function FraudDetectionPage() {
                 <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm text-gray-500 dark:text-slate-400">Open Alerts</span>
-                    <AlertTriangle className="w-5 h-5 text-yellow-500" />
+                    <AlertTriangle className="w-5 h-5 text-yellow-500 dark:text-yellow-300" />
                   </div>
                   <div className="text-2xl font-bold">{dashboardData?.openAlerts || 0}</div>
                 </div>
                 <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm text-gray-500 dark:text-slate-400">Critical</span>
-                    <ShieldAlert className="w-5 h-5 text-red-500" />
+                    <ShieldAlert className="w-5 h-5 text-red-500 dark:text-red-400" />
                   </div>
                   <div className="text-2xl font-bold text-red-600 dark:text-red-400">{dashboardData?.criticalCount || 0}</div>
                 </div>
                 <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm text-gray-500 dark:text-slate-400">Est. Shrinkage</span>
-                    <DollarSign className="w-5 h-5 text-orange-500" />
+                    <DollarSign className="w-5 h-5 text-orange-500 dark:text-orange-300" />
                   </div>
                   <div className="text-2xl font-bold">${(dashboardData?.estimatedShrinkage || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 </div>
                 <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm text-gray-500 dark:text-slate-400">Top Flagged</span>
-                    <Users className="w-5 h-5 text-purple-500" />
+                    <Users className="w-5 h-5 text-purple-500 dark:text-purple-300" />
                   </div>
                   <div className="text-lg font-bold truncate">{dashboardData?.topFlaggedEmployee || 'None'}</div>
                 </div>

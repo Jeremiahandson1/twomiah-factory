@@ -40,12 +40,12 @@ export default function VendorPortalPage() {
   const money = (v: unknown) => `$${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
   const statusChip = (s: string) => {
     const styles: Record<string, string> = {
-      sent: 'bg-blue-100 text-blue-700', acknowledged: 'bg-teal-100 text-teal-700',
-      declined: 'bg-red-100 text-red-700', received: 'bg-amber-100 text-amber-700',
-      billed: 'bg-green-100 text-green-700', open: 'bg-blue-100 text-blue-700',
-      partial: 'bg-amber-100 text-amber-700', paid: 'bg-green-100 text-green-700',
+      sent: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', acknowledged: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40',
+      declined: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40', received: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
+      billed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', open: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+      partial: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40', paid: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
     };
-    return <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${styles[s] || 'bg-gray-100 text-gray-600'}`}>{s}</span>;
+    return <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${styles[s] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>{s}</span>;
   };
 
   const viewPo = async (id: string) => {
@@ -79,7 +79,7 @@ export default function VendorPortalPage() {
     finally { setBusy(false); }
   };
 
-  if (error && !data) return <div className="min-h-screen flex items-center justify-center bg-gray-50 text-red-600 dark:bg-slate-900">{error}</div>;
+  if (error && !data) return <div className="min-h-screen flex items-center justify-center bg-gray-50 text-red-600 dark:bg-slate-900 dark:text-red-400">{error}</div>;
   if (!data) return <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-500 dark:text-slate-400 dark:bg-slate-900">Loading…</div>;
 
   const accent = data.company?.primaryColor || '#2563eb';
@@ -95,7 +95,7 @@ export default function VendorPortalPage() {
           <div className="text-sm text-gray-500 dark:text-slate-400">{data.company?.phone}</div>
         </div>
       </header>
-      {error && <div className="max-w-4xl mx-auto mt-4 px-6"><div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-2 text-sm">{error}</div></div>}
+      {error && <div className="max-w-4xl mx-auto mt-4 px-6"><div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-2 text-sm dark:text-red-400 dark:bg-red-950/40">{error}</div></div>}
 
       <main className="max-w-4xl mx-auto p-6 space-y-8">
         <section>

@@ -11,10 +11,10 @@ import { Button, PageHeader, StatusBadge } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
 
 const stopStatusColors: Record<string, string> = {
-  pending: 'bg-gray-100 text-gray-700',
-  arrived: 'bg-blue-100 text-blue-700',
-  departed: 'bg-purple-100 text-purple-700',
-  delivered: 'bg-green-100 text-green-700',
+  pending: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  arrived: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  departed: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  delivered: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
 };
 
 export default function TrackingPage() {
@@ -197,7 +197,7 @@ export default function TrackingPage() {
                       <div className="flex items-center gap-3 mb-2">
                         <Route className="w-5 h-5 text-green-600 dark:text-green-300" />
                         <span className="font-semibold text-gray-900 dark:text-slate-100">Route #{route.id?.slice(0, 8)}</span>
-                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700">
+                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40">
                           Active
                         </span>
                       </div>
@@ -297,14 +297,14 @@ export default function TrackingPage() {
             <h3 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Stops</h3>
             {(selectedRoute.stops || []).map((stop: any, idx: number) => (
               <div key={stop.id || idx} className="bg-white rounded-lg shadow-sm p-4 border border-gray-100 flex items-center gap-4 dark:bg-slate-900">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-sm font-bold">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-sm font-bold dark:text-green-300 dark:bg-green-950/40">
                   {idx + 1}
                 </div>
                 <div className="flex-1">
                   <p className="font-medium text-gray-900 dark:text-slate-100">{stop.customerName || stop.address || `Stop ${idx + 1}`}</p>
                   <p className="text-sm text-gray-500 dark:text-slate-400">{stop.address || '--'}</p>
                 </div>
-                <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${stopStatusColors[stop.status] || 'bg-gray-100 text-gray-600'}`}>
+                <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${stopStatusColors[stop.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                   {(stop.status || 'pending').replace('_', ' ')}
                 </span>
               </div>
@@ -329,7 +329,7 @@ export default function TrackingPage() {
                 <div key={driver.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold">
+                      <div className="w-10 h-10 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold dark:text-green-300 dark:bg-green-950/40">
                         {(driver.name || 'D')[0].toUpperCase()}
                       </div>
                       <div>

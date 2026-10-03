@@ -126,7 +126,7 @@ export default function AdjusterDirectoryPage() {
                         ) : '—'}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-blue-700 text-xs font-bold">
+                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 text-blue-700 text-xs font-bold dark:text-blue-300 dark:bg-blue-950/40">
                           {adj.jobsWorkedTogether || 0}
                         </span>
                       </td>

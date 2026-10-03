@@ -92,7 +92,7 @@ export default function EstimatorPage() {
         </div>
         <button onClick={() => setSettings(s => ({ ...s, estimatorEnabled: !s.estimatorEnabled }))} className="flex items-center">
           {settings.estimatorEnabled
-            ? <ToggleRight className="w-10 h-10 text-green-500" />
+            ? <ToggleRight className="w-10 h-10 text-green-500 dark:text-green-300" />
             : <ToggleLeft className="w-10 h-10 text-gray-300" />}
         </button>
       </div>

@@ -112,7 +112,7 @@ export default function DeskingPage() {
           {leads.map((l) => <option key={l.id} value={l.id}>{leadLabel(l)}</option>)}
         </select>
         {loadingDeal && <p className="mt-2 text-xs text-gray-500 flex items-center gap-1 dark:text-slate-400"><Loader2 size={12} className="animate-spin" /> Loading the deal…</p>}
-        {status && <p className={`mt-2 text-sm ${status.kind === 'error' ? 'text-red-600' : 'text-green-700 dark:text-green-400'}`}>{status.text}</p>}
+        {status && <p className={`mt-2 text-sm ${status.kind === 'error' ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>{status.text}</p>}
       </div>
 
       <div className="grid md:grid-cols-2 gap-4 mt-4">

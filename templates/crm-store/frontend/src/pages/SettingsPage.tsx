@@ -211,11 +211,11 @@ export default function SettingsPage() {
             {staff.map((u) => (
               <div key={u.id} className="flex items-center justify-between px-4 py-3">
                 <div>
-                  <p className={`text-sm font-medium ${u.isActive === false ? 'text-gray-400 line-through' : 'text-gray-900'} dark:text-slate-100`}>{u.name || u.email}</p>
+                  <p className={`text-sm font-medium ${u.isActive === false ? 'text-gray-400 line-through' : 'text-gray-900 dark:text-slate-200'} dark:text-slate-100`}>{u.name || u.email}</p>
                   <p className="text-xs text-gray-500 dark:text-slate-400">{u.email}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 capitalize">{u.role}</span>
+                  <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 capitalize dark:text-slate-300 dark:bg-slate-800">{u.role}</span>
                   {u.id !== user?.id ? (
                     <button
                       onClick={() => toggleStaffAccess(u.id, u.isActive !== false)}

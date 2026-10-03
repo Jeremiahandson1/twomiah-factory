@@ -75,7 +75,7 @@ export function MessagesPage({ api, toast, config }: { api: MarketingApi; toast:
           </div>
           <div className="flex gap-2 mt-2">
             <button onClick={() => setUnreadOnly(false)} className={`flex-1 py-1.5 text-sm rounded-lg ${!unreadOnly ? 'bg-gray-100 text-gray-900 dark:bg-slate-800 dark:text-slate-100' : 'text-gray-500 dark:text-slate-400'}`}>All</button>
-            <button onClick={() => setUnreadOnly(true)} className={`flex-1 py-1.5 text-sm rounded-lg ${unreadOnly ? 'bg-orange-100 text-orange-700' : 'text-gray-500 dark:text-slate-400'}`}>Unread</button>
+            <button onClick={() => setUnreadOnly(true)} className={`flex-1 py-1.5 text-sm rounded-lg ${unreadOnly ? 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40' : 'text-gray-500 dark:text-slate-400'}`}>Unread</button>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -141,7 +141,7 @@ function Thread({ api, toast, messages, loading, conversationId, onSent }: { api
     catch (err) { toast.error(errMsg(err, 'Failed to send message')) }
     finally { setSending(false) }
   }
-  const icon = (status?: string) => status === 'delivered' ? <CheckCheck className="w-4 h-4 text-blue-500" /> : status === 'sent' ? <Check className="w-4 h-4 text-gray-400" /> : status === 'failed' ? <AlertCircle className="w-4 h-4 text-red-500" /> : <Clock className="w-4 h-4 text-gray-300" />
+  const icon = (status?: string) => status === 'delivered' ? <CheckCheck className="w-4 h-4 text-blue-500 dark:text-blue-300" /> : status === 'sent' ? <Check className="w-4 h-4 text-gray-400" /> : status === 'failed' ? <AlertCircle className="w-4 h-4 text-red-500 dark:text-red-400" /> : <Clock className="w-4 h-4 text-gray-300" />
   if (loading) return <div className="flex-1 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
   return (
     <>

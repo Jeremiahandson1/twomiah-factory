@@ -6,21 +6,21 @@ import { Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
 
 const categoryColors: Record<string, string> = {
-  pos: 'bg-blue-100 text-blue-700',
-  payments: 'bg-green-100 text-green-700',
-  compliance: 'bg-purple-100 text-purple-700',
-  delivery: 'bg-orange-100 text-orange-700',
-  marketing: 'bg-pink-100 text-pink-700',
-  analytics: 'bg-indigo-100 text-indigo-700',
-  inventory: 'bg-yellow-100 text-yellow-700',
-  ecommerce: 'bg-teal-100 text-teal-700',
+  pos: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  payments: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  compliance: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  delivery: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  marketing: 'bg-pink-100 text-pink-700 dark:text-pink-300 dark:bg-pink-950/40',
+  analytics: 'bg-indigo-100 text-indigo-700 dark:text-indigo-300 dark:bg-indigo-950/40',
+  inventory: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  ecommerce: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40',
 };
 
 const statusColors: Record<string, string> = {
-  active: 'bg-green-100 text-green-700',
-  configuring: 'bg-yellow-100 text-yellow-700',
-  error: 'bg-red-100 text-red-700',
-  disabled: 'bg-gray-100 text-gray-600',
+  active: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  configuring: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  error: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  disabled: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800',
 };
 
 export default function MarketplacePage() {
@@ -168,7 +168,7 @@ export default function MarketplacePage() {
             <t.icon className="w-4 h-4" />
             {t.label}
             {tab === 'installed' && t.id === 'installed' && installed.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">{installed.length}</span>
+              <span className="ml-1 px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded-full dark:text-green-300 dark:bg-green-950/40">{installed.length}</span>
             )}
           </button>
         ))}
@@ -181,7 +181,7 @@ export default function MarketplacePage() {
           {featured.length > 0 && (
             <div className="mb-8">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
-                <Star className="w-5 h-5 text-yellow-500" />
+                <Star className="w-5 h-5 text-yellow-500 dark:text-yellow-300" />
                 Featured Partners
               </h2>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -197,7 +197,7 @@ export default function MarketplacePage() {
                       )}
                       <div className="flex-1">
                         <h3 className="font-semibold text-gray-900 dark:text-slate-100">{integration.name}</h3>
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${categoryColors[integration.category] || 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${categoryColors[integration.category] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                           {integration.category || 'other'}
                         </span>
                       </div>
@@ -257,7 +257,7 @@ export default function MarketplacePage() {
                     )}
                     <div className="flex-1">
                       <h3 className="font-semibold text-gray-900 dark:text-slate-100">{integration.name}</h3>
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${categoryColors[integration.category] || 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${categoryColors[integration.category] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                         {integration.category || 'other'}
                       </span>
                     </div>
@@ -268,7 +268,7 @@ export default function MarketplacePage() {
                     disabled={installing === integration.id || integration.installed}
                     className={`w-full px-4 py-2 text-sm font-medium rounded-lg ${
                       integration.installed
-                        ? 'bg-gray-100 text-gray-600 cursor-default'
+                        ? 'bg-gray-100 text-gray-600 cursor-default dark:text-slate-300 dark:bg-slate-800'
                         : 'bg-green-700 text-white hover:bg-green-800 disabled:opacity-50'
                     } dark:text-slate-300`}
                   >
@@ -310,7 +310,7 @@ export default function MarketplacePage() {
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="font-semibold text-gray-900 dark:text-slate-100">{integration.name}</h3>
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[integration.status] || 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[integration.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                           {integration.status || 'active'}
                         </span>
                       </div>
@@ -326,21 +326,21 @@ export default function MarketplacePage() {
                     </button>
                     <button
                       onClick={() => handleSync(integration.id)}
-                      className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100"
+                      className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 dark:text-blue-300 dark:bg-blue-950/40"
                     >
                       <RefreshCw className="w-3 h-3 inline mr-1" />
                       Sync
                     </button>
                     <button
                       onClick={() => openConfig(integration)}
-                      className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100"
+                      className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 dark:text-green-300 dark:bg-green-950/40"
                     >
                       <Settings className="w-3 h-3 inline mr-1" />
                       Config
                     </button>
                     <button
                       onClick={() => handleDisable(integration.id)}
-                      className="px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100"
+                      className="px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100 dark:text-red-400 dark:bg-red-950/40"
                     >
                       Disable
                     </button>

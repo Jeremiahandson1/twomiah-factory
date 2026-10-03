@@ -7,10 +7,10 @@ import { Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
 
 const screenTypeColors: Record<string, string> = {
-  menu_board: 'bg-blue-100 text-blue-700',
-  promo: 'bg-purple-100 text-purple-700',
-  wait_time: 'bg-orange-100 text-orange-700',
-  custom: 'bg-gray-100 text-gray-700',
+  menu_board: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  promo: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  wait_time: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  custom: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
 };
 
 const screenTypeLabels: Record<string, string> = {
@@ -192,7 +192,7 @@ export default function SignagePage() {
                           Online
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1 text-xs text-red-500">
+                        <span className="flex items-center gap-1 text-xs text-red-500 dark:text-red-400">
                           <span className="w-2 h-2 bg-red-500 rounded-full" />
                           Offline
                         </span>
@@ -201,7 +201,7 @@ export default function SignagePage() {
                   </div>
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center gap-2">
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${screenTypeColors[screen.type] || 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${screenTypeColors[screen.type] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                         {screenTypeLabels[screen.type] || screen.type || 'Custom'}
                       </span>
                     </div>
@@ -313,7 +313,7 @@ export default function SignagePage() {
                                 <p className="text-xs text-gray-500 dark:text-slate-400">{item.description || '—'}</p>
                               </div>
                             </div>
-                            <span className={`px-2 py-0.5 text-xs rounded-full ${item.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                            <span className={`px-2 py-0.5 text-xs rounded-full ${item.active ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                               {item.active ? 'Active' : 'Inactive'}
                             </span>
                           </div>

@@ -133,7 +133,7 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className={`p-3 rounded-lg ${reminderTotal > 0 ? 'bg-red-100' : 'bg-gray-100'}`}>
-              <BellRing className={`w-6 h-6 ${reminderTotal > 0 ? 'text-red-600' : 'text-gray-500'}`} />
+              <BellRing className={`w-6 h-6 ${reminderTotal > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-slate-400'}`} />
             </div>
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-slate-400">Reminders Due</p>
@@ -154,7 +154,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Active Patients</p>
-            <PawPrint className="w-5 h-5 text-teal-500" />
+            <PawPrint className="w-5 h-5 text-teal-500 dark:text-teal-300" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{patients.active || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">{patients.total || 0} total in records</p>
@@ -173,7 +173,7 @@ export default function DashboardPage() {
         <Link to="/crm/appointments" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Appointments Today</p>
-            <CalendarDays className="w-5 h-5 text-indigo-500" />
+            <CalendarDays className="w-5 h-5 text-indigo-500 dark:text-indigo-300" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{appts.today || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">{appts.upcoming7 || 0} in the next 7 days</p>
@@ -183,7 +183,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Visits This Month</p>
-            <Stethoscope className="w-5 h-5 text-purple-500" />
+            <Stethoscope className="w-5 h-5 text-purple-500 dark:text-purple-300" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{visits.thisMonth || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1">
@@ -196,7 +196,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Wellness Enrollments</p>
-            <HeartPulse className="w-5 h-5 text-rose-500" />
+            <HeartPulse className="w-5 h-5 text-rose-500 dark:text-rose-300" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{wellness.activeEnrollments || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">Active plan members</p>
@@ -208,7 +208,7 @@ export default function DashboardPage() {
         {/* Recent patients */}
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-            <PawPrint className="w-4 h-4 text-teal-500" /> Recent Patients
+            <PawPrint className="w-4 h-4 text-teal-500 dark:text-teal-300" /> Recent Patients
           </h2>
           {(activity.recentPatients || []).length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">No patients yet</p>
@@ -232,7 +232,7 @@ export default function DashboardPage() {
         {/* Recent visits */}
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-            <Stethoscope className="w-4 h-4 text-purple-500" /> Recent Visits
+            <Stethoscope className="w-4 h-4 text-purple-500 dark:text-purple-300" /> Recent Visits
           </h2>
           {(activity.recentVisits || []).length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">No visits yet</p>
@@ -261,7 +261,7 @@ export default function DashboardPage() {
         {/* Upcoming appointments */}
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-            <CalendarDays className="w-4 h-4 text-indigo-500" /> Upcoming Appointments
+            <CalendarDays className="w-4 h-4 text-indigo-500 dark:text-indigo-300" /> Upcoming Appointments
           </h2>
           {(activity.upcomingAppointments || []).length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">Nothing scheduled</p>

@@ -83,15 +83,15 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
   const testSms = () => { if (!testPhone.trim()) { fail('Enter a phone number'); return } run('testsms', async () => { await api.post('/api/sms/test', { to: testPhone }); setTestPhone(''); flash('Test text sent') }, 'Failed to send the test text') }
   const copyWebhookUrl = async () => { try { await navigator.clipboard.writeText(`${window.location.origin}/api/sms/webhook/incoming`); flash('Webhook URL copied') } catch { fail('Could not copy — the URL is shown below the button') } }
 
-  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-orange-500 animate-spin" /></div>
+  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-orange-500 animate-spin dark:text-orange-300" /></div>
 
   return (
     <div className="max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Integrations</h1>
       <p className="text-gray-500 dark:text-slate-400 mb-6">{copy.intro}</p>
 
-      {error && <div role="alert" className="mb-6 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg flex items-center gap-2"><AlertCircle className="w-5 h-5 flex-shrink-0" />{error}<button onClick={() => setError('')} className="ml-auto text-red-500 hover:text-red-700 dark:hover:text-red-300">&times;</button></div>}
-      {success && <div role="status" className="mb-6 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 text-green-700 dark:text-green-400 px-4 py-3 rounded-lg flex items-center gap-2"><Check className="w-5 h-5 flex-shrink-0" />{success}<button onClick={() => setSuccess('')} className="ml-auto text-green-500 hover:text-green-700 dark:hover:text-green-300">&times;</button></div>}
+      {error && <div role="alert" className="mb-6 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg flex items-center gap-2"><AlertCircle className="w-5 h-5 flex-shrink-0" />{error}<button onClick={() => setError('')} className="ml-auto text-red-500 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400">&times;</button></div>}
+      {success && <div role="status" className="mb-6 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 text-green-700 dark:text-green-400 px-4 py-3 rounded-lg flex items-center gap-2"><Check className="w-5 h-5 flex-shrink-0" />{success}<button onClick={() => setSuccess('')} className="ml-auto text-green-500 hover:text-green-700 dark:hover:text-green-300 dark:text-green-300">&times;</button></div>}
 
       <div className="space-y-4">
         <SectionLabel label="Domain" />
@@ -111,7 +111,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
               <p className="text-green-600 dark:text-green-400 font-medium">Connected{status.quickbooks.companyName ? ` to ${status.quickbooks.companyName}` : ''}</p>
               {status.quickbooks.lastSync && <p className="text-gray-500 dark:text-slate-400">Last synced: {new Date(status.quickbooks.lastSync).toLocaleString()}</p>}
               <button onClick={qbAutoSync} disabled={saving === 'autosync'} className="flex items-center gap-2 text-gray-700 dark:text-slate-300" data-testid="qb-autosync">
-                {saving === 'autosync' ? <Loader2 className="w-8 h-8 text-gray-400 animate-spin" /> : status.quickbooks.syncEnabled ? <ToggleRight className="w-8 h-8 text-green-500" /> : <ToggleLeft className="w-8 h-8 text-gray-300 dark:text-slate-600" />}
+                {saving === 'autosync' ? <Loader2 className="w-8 h-8 text-gray-400 animate-spin" /> : status.quickbooks.syncEnabled ? <ToggleRight className="w-8 h-8 text-green-500 dark:text-green-300" /> : <ToggleLeft className="w-8 h-8 text-gray-300 dark:text-slate-600" />}
                 <span className="text-sm">Auto-sync new invoices and customers</span>
               </button>
             </div>

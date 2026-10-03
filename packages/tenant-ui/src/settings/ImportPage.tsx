@@ -72,7 +72,7 @@ export function ImportPage({ api, config }: { api: SettingsApi; config?: ImportC
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {types.map((type) => { const Icon = ICONS[type.id] || FileText; const active = selectedType === type.id; return (
             <button key={type.id} onClick={() => { setSelectedType(type.id); reset() }} aria-pressed={active} className={`p-4 rounded-lg border-2 text-left transition-all ${active ? 'border-orange-500 bg-orange-50 dark:bg-orange-500/10' : 'border-gray-200 dark:border-slate-700 hover:border-gray-300'}`}>
-              <Icon className={`w-6 h-6 mb-2 ${active ? 'text-orange-600' : 'text-gray-400'}`} />
+              <Icon className={`w-6 h-6 mb-2 ${active ? 'text-orange-600 dark:text-orange-300' : 'text-gray-400'}`} />
               <p className="font-medium text-gray-900 dark:text-slate-100">{type.label}</p>
               <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">{type.description}</p>
             </button>) })}
@@ -96,7 +96,7 @@ export function ImportPage({ api, config }: { api: SettingsApi; config?: ImportC
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg dark:bg-slate-800">
-              <div className="flex items-center gap-3"><FileText className="w-8 h-8 text-orange-500" /><div><p className="font-medium text-gray-900 dark:text-slate-100">{file.name}</p><p className="text-sm text-gray-500 dark:text-slate-400">{(file.size / 1024).toFixed(1)} KB{preview ? ` • ${preview.rowCount} rows` : ''}</p></div></div>
+              <div className="flex items-center gap-3"><FileText className="w-8 h-8 text-orange-500 dark:text-orange-300" /><div><p className="font-medium text-gray-900 dark:text-slate-100">{file.name}</p><p className="text-sm text-gray-500 dark:text-slate-400">{(file.size / 1024).toFixed(1)} KB{preview ? ` • ${preview.rowCount} rows` : ''}</p></div></div>
               <button onClick={reset} aria-label="Remove file" className="p-2 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             {preview && !results && (

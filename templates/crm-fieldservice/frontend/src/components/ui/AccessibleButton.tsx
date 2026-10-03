@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react';
 
 const variants = {
   primary: 'bg-orange-500 text-white hover:bg-orange-600 focus:ring-orange-500',
-  secondary: 'bg-gray-100 text-gray-700 hover:bg-gray-200 focus:ring-gray-400',
+  secondary: 'bg-gray-100 text-gray-700 hover:bg-gray-200 focus:ring-gray-400 dark:text-slate-200 dark:bg-slate-800',
   danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
   ghost: 'text-gray-600 hover:bg-gray-100 focus:ring-gray-400',
   link: 'text-orange-500 hover:text-orange-600 underline-offset-4 hover:underline focus:ring-orange-500',

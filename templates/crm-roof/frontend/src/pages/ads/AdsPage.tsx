@@ -122,7 +122,7 @@ function ExperimentsTab() {
         </button>
       </div>
 
-      {error && <div className="text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm">{error}</div>}
+      {error && <div className="text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm dark:text-red-400 dark:bg-red-950/40">{error}</div>}
 
       {experiments.length === 0 ? (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-8 text-center">
@@ -142,9 +142,9 @@ function ExperimentsTab() {
                     <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{e.path}</p>
                   </div>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
-                    e.status === 'running' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                    e.status === 'completed' ? 'bg-green-50 text-green-700 border-green-200' :
-                    'bg-gray-100 text-gray-600 border-gray-200'
+                    e.status === 'running' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:text-blue-300 dark:bg-blue-950/40' :
+                    e.status === 'completed' ? 'bg-green-50 text-green-700 border-green-200 dark:text-green-300 dark:bg-green-950/40' :
+                    'bg-gray-100 text-gray-600 border-gray-200 dark:text-slate-300 dark:bg-slate-800'
                   } dark:text-blue-300`}>{e.status}</span>
                 </div>
                 <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${e.variants.length}, 1fr)` }}>
@@ -156,12 +156,12 @@ function ExperimentsTab() {
                       <div key={v.key} className={`p-3 rounded border ${isWinner ? 'border-orange-500 bg-orange-50/40 dark:bg-orange-900/10' : 'border-gray-200 dark:border-slate-800'}`}>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-xs font-medium text-gray-600 dark:text-slate-400">{v.label}</span>
-                          {isWinner && <Trophy className="w-3.5 h-3.5 text-orange-500" />}
+                          {isWinner && <Trophy className="w-3.5 h-3.5 text-orange-500 dark:text-orange-300" />}
                         </div>
                         <div className="text-xl font-bold text-gray-900 dark:text-white">{c.toFixed(1)}%</div>
                         <div className="text-xs text-gray-500 dark:text-slate-400">{v.conversions}/{v.assignments}</div>
                         {i > 0 && (
-                          <div className={`text-xs font-medium mt-1 ${l >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <div className={`text-xs font-medium mt-1 ${l >= 0 ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-400'}`}>
                             {l >= 0 ? '+' : ''}{l.toFixed(1)}% vs control
                           </div>
                         )}
@@ -230,7 +230,7 @@ function NewExperimentModal({ onClose, onCreated }: { onClose: () => void; onCre
               <input className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-sm dark:bg-slate-800 dark:text-white" required value={variantB} onChange={e => setVariantB(e.target.value)} />
             </div>
           </div>
-          {error && <div className="text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm">{error}</div>}
+          {error && <div className="text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm dark:text-red-400 dark:bg-red-950/40">{error}</div>}
           <p className="text-xs text-gray-500 dark:text-slate-400">Traffic will split 50/50. You'll need to update the page itself with the two variants — we'll surface a code snippet on the experiment detail page.</p>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-lg">Cancel</button>
@@ -466,7 +466,7 @@ function CampaignsTab() {
                 <div className="flex items-center justify-between mt-3">
                   <button
                     onClick={() => setSelectedAd(ad)}
-                    className="text-xs font-medium text-orange-500 hover:text-orange-600 dark:hover:text-orange-200 flex items-center gap-1"
+                    className="text-xs font-medium text-orange-500 hover:text-orange-600 dark:hover:text-orange-200 flex items-center gap-1 dark:text-orange-300"
                   >
                     View Details <ExternalLink className="w-3 h-3" />
                   </button>
@@ -691,7 +691,7 @@ function StatusBadge({ status }: { status: string }) {
     draft: { label: 'Draft', className: 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400' },
     ended: { label: 'Ended', className: 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400' },
   };
-  const c = config[status] || { label: status, className: 'bg-gray-100 text-gray-600' };
+  const c = config[status] || { label: status, className: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800' };
   return <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${c.className}`}>{c.label}</span>;
 }
 

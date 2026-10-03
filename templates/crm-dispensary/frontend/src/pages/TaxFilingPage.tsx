@@ -8,12 +8,12 @@ import { Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
 
 const filingStatusColors: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-600',
-  pending: 'bg-yellow-100 text-yellow-700',
-  submitted: 'bg-blue-100 text-blue-700',
-  accepted: 'bg-green-100 text-green-700',
-  rejected: 'bg-red-100 text-red-700',
-  amended: 'bg-purple-100 text-purple-700',
+  draft: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800',
+  pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  submitted: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  accepted: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  rejected: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  amended: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
   calculated: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200',
   filed: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-200',
   confirmed: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-200',
@@ -249,7 +249,7 @@ export default function TaxFilingPage() {
                         {filing.totalAmount != null ? `$${Number(filing.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${filingStatusColors[filing.status] || 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${filingStatusColors[filing.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                           {filing.status || 'draft'}
                         </span>
                       </td>
@@ -323,7 +323,7 @@ export default function TaxFilingPage() {
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                         isOverdue ? 'bg-red-100' : isUrgent ? 'bg-orange-100' : 'bg-green-100'
                       }`}>
-                        <Calendar className={`w-5 h-5 ${isOverdue ? 'text-red-600' : isUrgent ? 'text-orange-600' : 'text-green-600'}`} />
+                        <Calendar className={`w-5 h-5 ${isOverdue ? 'text-red-600 dark:text-red-400' : isUrgent ? 'text-orange-600 dark:text-orange-300' : 'text-green-600 dark:text-green-300'}`} />
                       </div>
                       <div>
                         <p className="font-medium text-gray-900 dark:text-slate-100">
@@ -334,7 +334,7 @@ export default function TaxFilingPage() {
                     </div>
                     <div className="text-right">
                       <p className="font-medium text-gray-900 dark:text-slate-100">{dueDate.toLocaleDateString()}</p>
-                      <p className={`text-sm ${isOverdue ? 'text-red-600 font-medium' : isUrgent ? 'text-orange-600' : 'text-gray-500 dark:text-slate-400'}`}>
+                      <p className={`text-sm ${isOverdue ? 'text-red-600 font-medium dark:text-red-400' : isUrgent ? 'text-orange-600 dark:text-orange-300' : 'text-gray-500 dark:text-slate-400'}`}>
                         {isOverdue ? `${Math.abs(daysUntil)} days overdue` : daysUntil === 0 ? 'Due today' : `${daysUntil} days left`}
                       </p>
                     </div>
@@ -539,7 +539,7 @@ export default function TaxFilingPage() {
               </div>
               <div>
                 <p className="text-gray-500 dark:text-slate-400">Status</p>
-                <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${filingStatusColors[detailFiling.status] || 'bg-gray-100 text-gray-600'}`}>
+                <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${filingStatusColors[detailFiling.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                   {detailFiling.status || 'draft'}
                 </span>
               </div>

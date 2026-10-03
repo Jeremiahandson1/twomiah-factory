@@ -174,7 +174,7 @@ export default function IntegrationsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-orange-500 animate-spin dark:text-orange-300" />
       </div>
     );
   }
@@ -185,14 +185,14 @@ export default function IntegrationsPage() {
       <p className="text-gray-500 mb-6 dark:text-slate-400">Connect your accounts to sync data and enable features.</p>
 
       {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2">
+        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2 dark:text-red-400 dark:bg-red-950/40">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
           {error}
         </div>
       )}
 
       {success && (
-        <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg flex items-center gap-2">
+        <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg flex items-center gap-2 dark:text-green-300 dark:bg-green-950/40">
           <Check className="w-5 h-5 flex-shrink-0" />
           {success}
         </div>
@@ -395,7 +395,7 @@ export default function IntegrationsPage() {
               {saving === 'sms' ? (
                 <Loader2 className="w-10 h-10 text-gray-400 animate-spin" />
               ) : integrations.sms.enabled ? (
-                <ToggleRight className="w-10 h-10 text-blue-500" />
+                <ToggleRight className="w-10 h-10 text-blue-500 dark:text-blue-300" />
               ) : (
                 <ToggleLeft className="w-10 h-10 text-gray-300" />
               )}
@@ -430,7 +430,7 @@ export default function IntegrationsPage() {
               {saving === 'email' ? (
                 <Loader2 className="w-10 h-10 text-gray-400 animate-spin" />
               ) : integrations.email.enabled ? (
-                <ToggleRight className="w-10 h-10 text-orange-500" />
+                <ToggleRight className="w-10 h-10 text-orange-500 dark:text-orange-300" />
               ) : (
                 <ToggleLeft className="w-10 h-10 text-gray-300" />
               )}

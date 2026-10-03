@@ -60,8 +60,8 @@ export default function FloorplanPage() {
                   <td className="px-4 py-2 text-right text-gray-600 dark:text-slate-400">{u.flooredDays}</td>
                   <td className="px-4 py-2 text-right text-amber-700 dark:text-amber-300">{money(u.interest)}</td>
                   <td className="px-4 py-2">{u.curtailmentDue
-                    ? <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700"><AlertTriangle size={12} />{u.status}</span>
-                    : <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">{u.status}</span>}</td>
+                    ? <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40"><AlertTriangle size={12} />{u.status}</span>
+                    : <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40">{u.status}</span>}</td>
                 </tr>
               ))}
             </tbody>

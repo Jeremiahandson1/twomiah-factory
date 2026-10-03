@@ -290,8 +290,10 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b">
+      {/* Tabs — the row SCROLLS rather than pushing the page. Three tabs with icons come to 364px
+          inside a 358px column, so after the header was wrapped this strip was the last 6px of
+          sideways scroll left on Agreements in all three verticals that mount it. (T41) */}
+      <div className="flex gap-2 border-b overflow-x-auto">
         {[
           { id: 'agreements', label: 'Agreements', icon: FileText },
           { id: 'plans', label: 'Plans', icon: Star },
@@ -300,9 +302,9 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2 border-b-2 -mb-px ${
+            className={`flex items-center gap-2 px-4 py-2 border-b-2 -mb-px whitespace-nowrap flex-shrink-0 ${
               tab === t.id
-                ? 'border-orange-500 text-orange-600'
+                ? 'border-orange-500 text-orange-600 dark:text-orange-300'
                 : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
@@ -529,10 +531,10 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowPro
   const renewsSoon = endingSoon && agreement.renewalType === 'auto';
 
   const statusColors: Record<string, string> = {
-    active: 'bg-green-100 text-green-700',
-    pending: 'bg-yellow-100 text-yellow-700',
-    expired: 'bg-red-100 text-red-700',
-    cancelled: 'bg-gray-100 text-gray-700',
+    active: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+    pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+    expired: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+    cancelled: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
   };
 
   return (
@@ -563,9 +565,9 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowPro
       <td className="px-4 py-3">
         <div className="flex items-center gap-1">
           {isExpiringSoon && agreement.status === 'active' && (
-            <AlertTriangle className="w-4 h-4 text-orange-500" />
+            <AlertTriangle className="w-4 h-4 text-orange-500 dark:text-orange-300" />
           )}
-          <span className={`text-sm ${isExpiringSoon ? 'text-orange-600' : 'text-gray-500 dark:text-slate-400'}`}>
+          <span className={`text-sm ${isExpiringSoon ? 'text-orange-600 dark:text-orange-300' : 'text-gray-500 dark:text-slate-400'}`}>
             {formatDate(agreement.endDate)}
           </span>
           {renewsSoon && <span className="text-xs text-blue-600 dark:text-blue-400">Renews</span>}
@@ -637,23 +639,23 @@ function PlansTab({ plans, onEdit, onRefresh }: PlansTabProps) {
 
           <div className="space-y-2 text-sm">
             <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-green-500" />
+              <Check className="w-4 h-4 text-green-500 dark:text-green-300" />
               <span>{plan.visitsIncluded} visits included</span>
             </div>
             {plan.discountPercent > 0 && (
               <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-green-500" />
+                <Check className="w-4 h-4 text-green-500 dark:text-green-300" />
                 <span>{plan.discountPercent}% member discount</span>
               </div>
             )}
             {plan.priorityService && (
               <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-green-500" />
+                <Check className="w-4 h-4 text-green-500 dark:text-green-300" />
                 <span>Priority scheduling</span>
               </div>
             )}
             <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-green-500" />
+              <Check className="w-4 h-4 text-green-500 dark:text-green-300" />
               <span>{plan.durationMonths} month term</span>
             </div>
           </div>
@@ -883,7 +885,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
                   type="checkbox"
                   checked={form.priorityService}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, priorityService: e.target.checked })}
-                  className="w-4 h-4 rounded text-orange-500"
+                  className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
                 />
                 <span className="text-sm text-gray-700 dark:text-slate-200">Priority Service</span>
               </label>
@@ -892,7 +894,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
                   type="checkbox"
                   checked={form.autoRenew}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, autoRenew: e.target.checked })}
-                  className="w-4 h-4 rounded text-orange-500"
+                  className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
                 />
                 <span className="text-sm text-gray-700 dark:text-slate-200">Auto-Renew</span>
               </label>
@@ -1051,7 +1053,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                 type="checkbox"
                 checked={form.autoRenew}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, autoRenew: e.target.checked })}
-                className="w-4 h-4 rounded text-orange-500"
+                className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
               />
               <span className="text-sm text-gray-700 dark:text-slate-200">Auto-renew when term ends</span>
             </label>
@@ -1064,7 +1066,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                   type="checkbox"
                   checked={form.autoSchedule}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, autoSchedule: e.target.checked })}
-                  className="w-4 h-4 rounded text-orange-500"
+                  className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
                 />
                 <span className="text-sm font-medium text-gray-700 dark:text-slate-200">Auto-schedule recurring visits</span>
               </label>
@@ -1108,7 +1110,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                   </div>
 
                   {reminderDate && (
-                    <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800">
+                    <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800 dark:text-blue-300 dark:bg-blue-950/40">
                       <p>Next visit: <strong>{formatDate(form.nextServiceDate)}</strong></p>
                       <p>Job will be created on: <strong>{reminderDate}</strong></p>
                     </div>

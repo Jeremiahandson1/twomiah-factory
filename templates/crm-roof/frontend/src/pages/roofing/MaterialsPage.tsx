@@ -7,11 +7,11 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-700',
-  ordered: 'bg-blue-100 text-blue-700',
-  shipped: 'bg-purple-100 text-purple-700',
-  delivered: 'bg-green-100 text-green-700',
-  cancelled: 'bg-red-100 text-red-700',
+  draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  ordered: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  shipped: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  delivered: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 function formatStatus(s: string) {
@@ -134,7 +134,7 @@ export default function MaterialsPage() {
                       </td>
                       <td className="px-4 py-3 text-gray-900 dark:text-slate-100">{supplierName(order.supplier) || '—'}</td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_COLORS[order.status] || 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_COLORS[order.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                           {formatStatus(order.status) || 'Ordered'}
                         </span>
                       </td>

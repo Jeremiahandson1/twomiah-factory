@@ -19,12 +19,12 @@ interface PoForm {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-700',
-  sent: 'bg-blue-100 text-blue-700',
-  acknowledged: 'bg-teal-100 text-teal-700',
-  declined: 'bg-red-100 text-red-700',
-  received: 'bg-amber-100 text-amber-700',
-  billed: 'bg-green-100 text-green-700',
+  draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  sent: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  acknowledged: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40',
+  declined: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  received: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
+  billed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
   cancelled: 'bg-gray-100 text-gray-400 line-through',
 };
 
@@ -134,7 +134,7 @@ export default function PurchaseOrdersPage() {
     { key: 'number', label: 'PO #' },
     { key: 'vendor', label: 'Vendor', render: (v: unknown) => v ? contactName(v as Record<string, unknown>) : '-' },
     { key: 'job', label: 'Job', render: (v: unknown) => ((v as Record<string, unknown>)?.title as string) || '-' },
-    { key: 'status', label: 'Status', render: (v: unknown) => <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_STYLES[v as string] || 'bg-gray-100 text-gray-600'}`}>{v as string}</span> },
+    { key: 'status', label: 'Status', render: (v: unknown) => <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_STYLES[v as string] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>{v as string}</span> },
     { key: 'total', label: 'Total', render: (v: unknown) => `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
     { key: 'expectedDate', label: 'Expected', render: (v: unknown) => v ? formatDate(v as string) : '-' },
   ];

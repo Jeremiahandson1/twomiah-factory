@@ -11,10 +11,10 @@ const TYPE_ICONS: Record<string, React.ElementType> = {
   service: Scissors, patient: PawPrint, appointment: CalendarDays, event: CalendarDays, unit: Caravan,
 }
 const TYPE_COLORS: Record<string, string> = {
-  contact: 'bg-blue-100 text-blue-700', project: 'bg-purple-100 text-purple-700', job: 'bg-orange-100 text-orange-700',
-  quote: 'bg-green-100 text-green-700', invoice: 'bg-yellow-100 text-yellow-700', document: 'bg-gray-100 text-gray-700',
-  team: 'bg-pink-100 text-pink-700', rfi: 'bg-red-100 text-red-700', service: 'bg-teal-100 text-teal-700',
-  patient: 'bg-teal-100 text-teal-700', appointment: 'bg-indigo-100 text-indigo-700', event: 'bg-indigo-100 text-indigo-700', unit: 'bg-amber-100 text-amber-700',
+  contact: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', project: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40', job: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  quote: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', invoice: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', document: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  team: 'bg-pink-100 text-pink-700 dark:text-pink-300 dark:bg-pink-950/40', rfi: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40', service: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40',
+  patient: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40', appointment: 'bg-indigo-100 text-indigo-700 dark:text-indigo-300 dark:bg-indigo-950/40', event: 'bg-indigo-100 text-indigo-700 dark:text-indigo-300 dark:bg-indigo-950/40', unit: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
 }
 
 interface SearchItem { id: string; type: string; name: string; description?: string; url: string }
@@ -96,7 +96,7 @@ export function GlobalSearch({ api, placeholder = DEFAULT_SEARCH_PLACEHOLDER }: 
                   const Icon = TYPE_ICONS[item.type] || File
                   return (
                     <button type="button" key={`${item.type}-${item.id}`} onClick={() => select(item)} onMouseEnter={() => setSelectedIndex(index)} className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${index === selectedIndex ? 'bg-orange-50 dark:bg-orange-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
-                      <div className={`p-2 rounded-lg ${TYPE_COLORS[item.type] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}><Icon className="w-4 h-4" /></div>
+                      <div className={`p-2 rounded-lg ${TYPE_COLORS[item.type] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}><Icon className="w-4 h-4" /></div>
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-gray-900 truncate dark:text-slate-100">{item.name}</div>
                         {item.description && <div className="text-sm text-gray-500 truncate dark:text-slate-400">{item.description}</div>}

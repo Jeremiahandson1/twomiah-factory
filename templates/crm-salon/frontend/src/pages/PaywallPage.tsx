@@ -27,8 +27,8 @@ export default function PaywallPage() {
           <div className="flex gap-3 bg-green-50 border border-green-200 rounded-lg p-4 dark:bg-green-950/40">
             <Shield className="w-5 h-5 text-green-700 flex-shrink-0 mt-0.5 dark:text-green-300" />
             <div>
-              <p className="font-semibold text-green-900">Your data is safe</p>
-              <p className="text-sm text-green-800 mt-1">
+              <p className="font-semibold text-green-900 dark:text-green-300">Your data is safe</p>
+              <p className="text-sm text-green-800 mt-1 dark:text-green-300">
                 Every contact, job, quote, invoice, document, and file you created
                 during your trial is still here. Upgrade at any time and everything
                 unlocks exactly as you left it.

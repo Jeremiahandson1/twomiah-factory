@@ -109,7 +109,7 @@ export function EmailDomainPage(): React.ReactElement {
                 {/* no dark: text here on purpose — this header pins bg-gray-50 and never flips it, so a dark
                     text colour would put slate-400 on a light header (2.45:1). gray-500 reads 4.63:1 on
                     gray-50 in both themes. */}
-                <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
+                <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 dark:text-slate-400 dark:bg-slate-800">
                   <tr>
                     <th className="px-3 py-2 text-left">Type</th>
                     <th className="px-3 py-2 text-left">Host</th>

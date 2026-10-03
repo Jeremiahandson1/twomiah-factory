@@ -100,7 +100,7 @@ export default function AILeadResponderPage() {
                 </button>
               </div>
 
-              {error && <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 text-sm">{error}</div>}
+              {error && <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 text-sm dark:text-red-400 dark:bg-red-950/40">{error}</div>}
               {loading && !draft && <div className="bg-white rounded-xl border p-8 text-center text-gray-500 dark:bg-slate-900 dark:text-slate-400"><Loader2 className="animate-spin mx-auto mb-2" /> AI is reading the lead + your inventory and writing the response…</div>}
 
               {draft && (

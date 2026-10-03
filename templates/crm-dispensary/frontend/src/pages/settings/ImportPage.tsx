@@ -137,7 +137,7 @@ export default function ImportPage() {
                 : 'border-gray-200 hover:bg-gray-50 dark:border-slate-700 dark:hover:bg-slate-800'
             }`}
           >
-            <t.icon className={`w-5 h-5 ${type === t.id ? 'text-green-600' : 'text-gray-400'}`} />
+            <t.icon className={`w-5 h-5 ${type === t.id ? 'text-green-600 dark:text-green-300' : 'text-gray-400'}`} />
             <span className={`font-medium ${type === t.id ? 'text-green-700 dark:text-green-300' : 'text-gray-700 dark:text-slate-200'}`}>{t.label}</span>
           </button>
         ))}

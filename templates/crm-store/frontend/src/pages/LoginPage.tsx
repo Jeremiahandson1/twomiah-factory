@@ -35,7 +35,7 @@ export default function LoginPage() {
             <h1 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Store admin</h1>
             <p className="text-sm text-gray-500 dark:text-slate-400">Sign in to manage your store</p>
           </div>
-          {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+          {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:text-red-400 dark:bg-red-950/40">{error}</div>}
           <div>
             <label className="label">Email</label>
             <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />

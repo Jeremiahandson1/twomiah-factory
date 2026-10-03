@@ -186,7 +186,7 @@ export function MigrationPage({ api, config }: { api: SettingsApi; config?: Migr
             ) : (
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
-                  <div className="flex items-center gap-3"><FileSpreadsheet className="w-6 h-6 text-blue-500" /><div><p className="font-medium text-gray-900 dark:text-white text-sm">{csvFile.name}</p><p className="text-xs text-gray-500 dark:text-slate-400">{(csvFile.size / 1024).toFixed(1)} KB{csvPreview ? ` · ${csvPreview.rowCount} rows` : ''}</p></div></div>
+                  <div className="flex items-center gap-3"><FileSpreadsheet className="w-6 h-6 text-blue-500 dark:text-blue-300" /><div><p className="font-medium text-gray-900 dark:text-white text-sm">{csvFile.name}</p><p className="text-xs text-gray-500 dark:text-slate-400">{(csvFile.size / 1024).toFixed(1)} KB{csvPreview ? ` · ${csvPreview.rowCount} rows` : ''}</p></div></div>
                   <button onClick={clearCsv} aria-label="Remove file" className="p-1.5 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
                 </div>
                 {csvPreview && !csvResults && (

@@ -13,7 +13,7 @@ const loyaltyTiers = [
   { value: 'bronze', label: 'Bronze', color: 'bg-amber-100 text-amber-700' },
   { value: 'silver', label: 'Silver', color: 'bg-gray-200 text-gray-700' },
   { value: 'gold', label: 'Gold', color: 'bg-yellow-100 text-yellow-700' },
-  { value: 'platinum', label: 'Platinum', color: 'bg-indigo-100 text-indigo-700' },
+  { value: 'platinum', label: 'Platinum', color: 'bg-indigo-100 text-indigo-700 dark:text-indigo-300 dark:bg-indigo-950/40' },
 ];
 
 const initialFormData = {

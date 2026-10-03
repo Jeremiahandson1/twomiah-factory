@@ -97,7 +97,7 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className={`p-3 rounded-lg ${overdue > 0 ? 'bg-red-100' : 'bg-gray-100'}`}>
-              <Wallet className={`w-6 h-6 ${overdue > 0 ? 'text-red-600' : 'text-gray-500'}`} />
+              <Wallet className={`w-6 h-6 ${overdue > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-slate-400'}`} />
             </div>
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-slate-400">Payments Overdue</p>
@@ -119,7 +119,7 @@ export default function DashboardPage() {
         <Link to="/crm/events" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Open Enquiries</p>
-            <Inbox className="w-5 h-5 text-amber-500" />
+            <Inbox className="w-5 h-5 text-amber-500 dark:text-amber-300" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{pipeline.enquiry || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">Waiting on you</p>
@@ -128,7 +128,7 @@ export default function DashboardPage() {
         <Link to="/crm/events" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Next 30 Days</p>
-            <CalendarDays className="w-5 h-5 text-indigo-500" />
+            <CalendarDays className="w-5 h-5 text-indigo-500 dark:text-indigo-300" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{events.upcoming30 || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">{events.thisMonth || 0} this month</p>
@@ -146,7 +146,7 @@ export default function DashboardPage() {
         <Link to="/crm/spaces" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Confirmed</p>
-            <DoorOpen className="w-5 h-5 text-orange-500" />
+            <DoorOpen className="w-5 h-5 text-orange-500 dark:text-orange-300" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{pipeline.confirmed || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">{pipeline.tentative || 0} tentative</p>
@@ -159,7 +159,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {stages.map((s) => (
             <Link key={s.key} to="/crm/events" className="border rounded-lg p-3 hover:bg-gray-50">
-              <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[s.key] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>{s.label}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[s.key] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>{s.label}</span>
               <p className="text-2xl font-bold text-gray-900 mt-2 dark:text-slate-100">{pipeline[s.key] || 0}</p>
             </Link>
           ))}
@@ -175,7 +175,7 @@ export default function DashboardPage() {
       {bySpace.length > 0 && (
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-            <DoorOpen className="w-4 h-4 text-orange-500" /> Space Utilisation
+            <DoorOpen className="w-4 h-4 text-orange-500 dark:text-orange-300" /> Space Utilisation
             <span className="text-xs text-gray-500 dark:text-slate-400 font-normal">upcoming held events</span>
           </h2>
           <ul className="space-y-3">
@@ -198,7 +198,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-            <Inbox className="w-4 h-4 text-amber-500" /> New Enquiries
+            <Inbox className="w-4 h-4 text-amber-500 dark:text-amber-300" /> New Enquiries
           </h2>
           {(activity.newEnquiries || []).length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">Nothing waiting</p>
@@ -221,7 +221,7 @@ export default function DashboardPage() {
 
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-            <CalendarDays className="w-4 h-4 text-indigo-500" /> Coming Up
+            <CalendarDays className="w-4 h-4 text-indigo-500 dark:text-indigo-300" /> Coming Up
           </h2>
           {(activity.upcomingEvents || []).length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">Nothing booked</p>

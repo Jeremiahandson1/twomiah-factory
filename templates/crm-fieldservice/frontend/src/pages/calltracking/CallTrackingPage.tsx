@@ -81,7 +81,7 @@ export default function CallTrackingPage() {
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2 border-b-2 -mb-px ${
               tab === t.id
-                ? 'border-orange-500 text-orange-600'
+                ? 'border-orange-500 text-orange-600 dark:text-orange-300'
                 : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
@@ -120,11 +120,11 @@ export default function CallTrackingPage() {
 
 function StatCard({ icon: Icon, label, value, color = 'gray' }) {
   const colors = {
-    gray: 'bg-gray-50 text-gray-700',
-    blue: 'bg-blue-50 text-blue-700',
-    green: 'bg-green-50 text-green-700',
-    orange: 'bg-orange-50 text-orange-700',
-    purple: 'bg-purple-50 text-purple-700',
+    gray: 'bg-gray-50 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+    blue: 'bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+    green: 'bg-green-50 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+    orange: 'bg-orange-50 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+    purple: 'bg-purple-50 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
   };
 
   return (
@@ -239,7 +239,7 @@ function CallRow({ call }) {
           {call.source || 'unknown'}
         </span>
         {call.firstTimeCaller && (
-          <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">
+          <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded dark:text-blue-300 dark:bg-blue-950/40">
             New
           </span>
         )}
@@ -252,7 +252,7 @@ function CallRow({ call }) {
         {call.duration > 0 ? formatDuration(call.duration) : '-'}
       </td>
       <td className="px-4 py-3">
-        <span className={`px-2 py-1 text-xs rounded-full ${statusColors[call.status] || 'bg-gray-100 text-gray-600'}`}>
+        <span className={`px-2 py-1 text-xs rounded-full ${statusColors[call.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
           {call.status}
         </span>
       </td>

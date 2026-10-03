@@ -7,7 +7,7 @@ import { PortalPaymentModal } from './PaymentForm'
 import { PLink, Spinner, PageTitle, Empty, Section, card, pill, btnSecondary, formatDate, moneyShort } from './common'
 import { isPastDay } from '../invoicing/ui'
 
-const STATUS_STYLES: Record<string, string> = { sent: 'bg-blue-100 text-blue-700', open: 'bg-blue-100 text-blue-700', viewed: 'bg-blue-100 text-blue-700', partial: 'bg-yellow-100 text-yellow-700', paid: 'bg-green-100 text-green-700', overdue: 'bg-red-100 text-red-700' }
+const STATUS_STYLES: Record<string, string> = { sent: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', open: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', viewed: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', partial: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', paid: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', overdue: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' }
 const UNPAID = ['sent', 'open', 'viewed', 'partial', 'overdue']
 // The customer is shown plain English, not the value in the status column: the card used to read
 // "$250 of $250 overdue", "$100 of $100 sent" and "Paid paid". (Contractor T14 L5)
@@ -59,16 +59,16 @@ export function PortalInvoices() {
       {totalOutstanding > 0 && (
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6 dark:bg-orange-950/20 dark:border-orange-900">
           <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3"><AlertCircle className="w-6 h-6 text-orange-500" /><div><p className="font-medium text-gray-900 dark:text-slate-100">Outstanding Balance</p><p className="text-sm text-gray-600 dark:text-slate-400">{unpaid.length} unpaid invoice(s)</p></div></div>
+            <div className="flex items-center gap-3"><AlertCircle className="w-6 h-6 text-orange-500 dark:text-orange-300" /><div><p className="font-medium text-gray-900 dark:text-slate-100">Outstanding Balance</p><p className="text-sm text-gray-600 dark:text-slate-400">{unpaid.length} unpaid invoice(s)</p></div></div>
             <p className="text-2xl font-bold text-orange-600 dark:text-orange-300">{moneyShort(totalOutstanding)}</p>
           </div>
         </div>
       )}
       {invoices.length === 0 ? <Empty icon={Receipt} text="No invoices yet." /> : (
         <div className="space-y-6">
-          {unpaid.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500" /> Unpaid ({unpaid.length})</>}>{unpaid.map((inv) => <InvoiceCard key={inv.id} invoice={inv} token={token} />)}</Section>}
+          {unpaid.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500 dark:text-orange-300" /> Unpaid ({unpaid.length})</>}>{unpaid.map((inv) => <InvoiceCard key={inv.id} invoice={inv} token={token} />)}</Section>}
           {/* "Settled", not "Paid": a fully refunded invoice lives here too, and sat under a heading contradicting its own label. */}
-          {paid.length > 0 && <Section title={<><CheckCircle className="w-5 h-5 text-green-500" /> Settled ({paid.length})</>}>{paid.map((inv) => <InvoiceCard key={inv.id} invoice={inv} token={token} />)}</Section>}
+          {paid.length > 0 && <Section title={<><CheckCircle className="w-5 h-5 text-green-500 dark:text-green-300" /> Settled ({paid.length})</>}>{paid.map((inv) => <InvoiceCard key={inv.id} invoice={inv} token={token} />)}</Section>}
         </div>
       )}
     </div>
@@ -81,7 +81,7 @@ function InvoiceCard({ invoice, token }: { invoice: PortalInvoiceData; token?: s
     <PLink to={`/portal/${token}/invoices/${invoice.id}`} className={`block bg-white rounded-xl border p-4 hover:shadow-md transition-all dark:bg-slate-900 ${overdue ? 'border-red-200 dark:border-red-900' : 'border-gray-200 dark:border-slate-700'}`}>
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <div className={`p-2 rounded-lg shrink-0 ${overdue ? 'bg-red-100' : 'bg-green-100'}`}><Receipt className={`w-5 h-5 ${overdue ? 'text-red-600' : 'text-green-600'}`} /></div>
+          <div className={`p-2 rounded-lg shrink-0 ${overdue ? 'bg-red-100' : 'bg-green-100'}`}><Receipt className={`w-5 h-5 ${overdue ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`} /></div>
           <div className="min-w-0"><p className="font-medium text-gray-900 dark:text-slate-100">{invoice.number}</p><p className="text-sm text-gray-500 dark:text-slate-400">{invoice.dueDate ? `Due ${formatDate(invoice.dueDate)}` : 'No due date'}</p></div>
         </div>
         <div className="text-right shrink-0">
@@ -90,7 +90,7 @@ function InvoiceCard({ invoice, token }: { invoice: PortalInvoiceData; token?: s
             <>
               <p className="text-lg font-bold text-gray-900 dark:text-slate-100">{moneyShort(invoice.balance)}</p>
               <p className="text-xs text-gray-500 dark:text-slate-400">of {moneyShort(invoice.total)}</p>
-              <span className={`${pill(STATUS_STYLES[invoice.status] || 'bg-gray-100 text-gray-700')} mt-1 dark:text-slate-200`}>{invoiceStatusLabel(invoice.status)}</span>
+              <span className={`${pill(STATUS_STYLES[invoice.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')} mt-1 dark:text-slate-200`}>{invoiceStatusLabel(invoice.status)}</span>
             </>
           ) : <p className="text-lg font-bold text-green-600 dark:text-green-300">{settledLabel(invoice.status)}</p>}
         </div>
@@ -125,9 +125,9 @@ export function PortalInvoiceDetail() {
         <div className="p-6 border-b dark:border-slate-700">
           <div className="flex items-start justify-between gap-4">
             <div><h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Invoice {invoice.number}</h1>{invoice.project && <p className="text-gray-500 dark:text-slate-400">Project: {invoice.project.name}</p>}</div>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[invoice.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>{Number(invoice.balance) > 0 ? invoiceStatusLabel(invoice.status) : settledLabel(invoice.status)}</span>
+            <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[invoice.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>{Number(invoice.balance) > 0 ? invoiceStatusLabel(invoice.status) : settledLabel(invoice.status)}</span>
           </div>
-          {invoice.dueDate && <p className={`mt-2 ${overdue ? 'text-red-600 font-medium' : 'text-gray-500 dark:text-slate-400'}`}>{overdue ? 'OVERDUE - ' : ''}Due {formatDate(invoice.dueDate)}</p>}
+          {invoice.dueDate && <p className={`mt-2 ${overdue ? 'text-red-600 font-medium dark:text-red-400' : 'text-gray-500 dark:text-slate-400'}`}>{overdue ? 'OVERDUE - ' : ''}Due {formatDate(invoice.dueDate)}</p>}
         </div>
         <div className="p-6 border-b overflow-x-auto dark:border-slate-700">
           <table className="w-full">

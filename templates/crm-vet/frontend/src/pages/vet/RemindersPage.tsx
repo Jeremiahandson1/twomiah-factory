@@ -159,7 +159,7 @@ export default function RemindersPage() {
         <button
           onClick={() => { setTab('due'); setSelected(new Set()); }}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-            tab === 'due' ? 'border-teal-600 text-teal-700 dark:text-teal-300' : 'border-transparent text-gray-500 hover:text-gray-700'
+            tab === 'due' ? 'border-teal-600 text-teal-700 dark:text-teal-300' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-slate-400'
           } dark:text-slate-200`}
         >
           <Syringe className="w-4 h-4" /> Vaccines Due
@@ -167,7 +167,7 @@ export default function RemindersPage() {
         <button
           onClick={() => { setTab('lapsed'); setSelected(new Set()); }}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-            tab === 'lapsed' ? 'border-teal-600 text-teal-700 dark:text-teal-300' : 'border-transparent text-gray-500 hover:text-gray-700'
+            tab === 'lapsed' ? 'border-teal-600 text-teal-700 dark:text-teal-300' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-slate-400'
           } dark:text-slate-200`}
         >
           <UserX className="w-4 h-4" /> Lapsed Clients

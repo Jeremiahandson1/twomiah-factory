@@ -6,17 +6,17 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  processing: 'bg-blue-100 text-blue-700',
-  complete: 'bg-green-100 text-green-700',
-  failed: 'bg-red-100 text-red-700',
+  pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  processing: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  complete: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  failed: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 const QUALITY_COLORS: Record<string, string> = {
-  HIGH: 'bg-green-100 text-green-700',
-  MEDIUM: 'bg-yellow-100 text-yellow-700',
-  LOW: 'bg-red-100 text-red-700',
-  MANUAL: 'bg-gray-100 text-gray-600',
+  HIGH: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  MEDIUM: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  LOW: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  MANUAL: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800',
 };
 
 function formatStatus(s: string) {
@@ -229,14 +229,14 @@ export default function MeasurementsPage() {
                         {m.address}, {m.city}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_COLORS[m.status] || 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_COLORS[m.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                           {m.status === 'processing' && <Loader2 className="w-3 h-3 inline mr-1 animate-spin" />}
                           {formatStatus(m.status)}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         {m.imageryQuality && (
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded ${QUALITY_COLORS[m.imageryQuality] || 'bg-gray-100 text-gray-600'}`}>
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded ${QUALITY_COLORS[m.imageryQuality] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                             {m.imageryQuality}
                           </span>
                         )}
@@ -294,7 +294,7 @@ export default function MeasurementsPage() {
               <button onClick={() => setOrderOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
             </div>
             {credits !== null && credits <= 0 && (
-              <div className="flex items-start gap-2 p-3 mb-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+              <div className="flex items-start gap-2 p-3 mb-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800 dark:text-yellow-300 dark:bg-yellow-950/40">
                 <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                 <span>No credits remaining. <button onClick={() => { setOrderOpen(false); setBuyOpen(true); }} className="underline font-medium">Purchase credits</button> to order reports.</span>
               </div>
@@ -346,7 +346,7 @@ export default function MeasurementsPage() {
             <div className="space-y-4">
               {/* Status + quality */}
               <div className="flex items-center gap-2">
-                <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_COLORS[selectedReport.status] || 'bg-gray-100 text-gray-600'}`}>
+                <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_COLORS[selectedReport.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                   {selectedReport.status === 'processing' && <Loader2 className="w-3 h-3 inline mr-1 animate-spin" />}
                   {formatStatus(selectedReport.status)}
                 </span>
@@ -359,7 +359,7 @@ export default function MeasurementsPage() {
 
               {/* Low quality warning */}
               {selectedReport.imageryQuality === 'LOW' && selectedReport.status === 'complete' && (
-                <div className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+                <div className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800 dark:text-yellow-300 dark:bg-yellow-950/40">
                   <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="font-medium">Low quality imagery</p>
@@ -480,7 +480,7 @@ export default function MeasurementsPage() {
                   <button
                     key={q}
                     onClick={() => setBuyQty(q)}
-                    className={`px-3 py-1.5 text-sm rounded-lg border ${buyQty === q ? 'bg-purple-600 text-white border-purple-600' : 'bg-white dark:bg-slate-900 text-gray-700 hover:bg-gray-50'} dark:text-slate-200`}
+                    className={`px-3 py-1.5 text-sm rounded-lg border ${buyQty === q ? 'bg-purple-600 text-white border-purple-600' : 'bg-white dark:bg-slate-900 text-gray-700 hover:bg-gray-50 dark:text-slate-200'} dark:text-slate-200`}
                   >
                     {q}
                   </button>

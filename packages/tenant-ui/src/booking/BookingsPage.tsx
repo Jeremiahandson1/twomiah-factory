@@ -194,7 +194,7 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
                   <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{s.durationMinutes} min</span>
                   <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" />{money(s.price)}</span>
                   <span className={s.depositRequired ? 'text-orange-600 dark:text-orange-300' : ''}>{s.depositRequired ? `Deposit ${money(s.depositAmount)}` : 'No deposit'}</span>
-                  {s.active === false && <span className="text-red-500">Not bookable</span>}
+                  {s.active === false && <span className="text-red-500 dark:text-red-400">Not bookable</span>}
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">

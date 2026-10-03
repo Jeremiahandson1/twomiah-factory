@@ -48,7 +48,7 @@ export default function OnboardingWizard() {
   const Nav = ({ backTo, nextLabel, onNext }: { backTo: number | null; nextLabel: string; onNext: () => void }) => (
     <div className="flex justify-between mt-6">
       {backTo !== null
-        ? <button onClick={() => setCurrentStep(backTo)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm dark:text-slate-200">Back</button>
+        ? <button onClick={() => setCurrentStep(backTo)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm dark:text-slate-200 dark:bg-slate-800">Back</button>
         : <div />}
       <button onClick={onNext} className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg">
         {nextLabel} <ChevronRight className="w-4 h-4" />
@@ -66,10 +66,10 @@ export default function OnboardingWizard() {
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold
                   ${idx < currentStep ? 'bg-primary-600 text-white'
                     : idx === currentStep ? 'bg-primary-600 text-white ring-4 ring-primary-100'
-                    : 'bg-gray-200 text-gray-500'}`}>
+                    : 'bg-gray-200 text-gray-500 dark:text-slate-300 dark:bg-slate-700'}`}>
                   {idx < currentStep ? <Check className="w-4 h-4" /> : idx + 1}
                 </div>
-                <span className={`text-xs hidden sm:block ${idx <= currentStep ? 'text-gray-900 font-medium' : 'text-gray-400'} dark:text-slate-100`}>{label}</span>
+                <span className={`text-xs hidden sm:block ${idx <= currentStep ? 'text-gray-900 font-medium dark:text-slate-200' : 'text-gray-400'} dark:text-slate-100`}>{label}</span>
               </div>
               {idx < STEPS.length - 1 && <div className={`w-6 sm:w-12 h-0.5 ${idx < currentStep ? 'bg-primary-600' : 'bg-gray-200'}`} />}
             </div>

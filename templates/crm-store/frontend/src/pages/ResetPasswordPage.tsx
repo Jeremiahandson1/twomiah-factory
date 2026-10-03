@@ -52,7 +52,7 @@ export default function ResetPasswordPage() {
               <h1 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Set a new password</h1>
               <p className="text-sm text-gray-500 dark:text-slate-400">Minimum 8 characters</p>
             </div>
-            {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+            {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:text-red-400 dark:bg-red-950/40">{error}</div>}
             <div>
               <label className="label">New password</label>
               <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus />

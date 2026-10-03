@@ -48,10 +48,10 @@ type ChecklistItem = {
 // ═══════════════════════════════════════════════════════════════
 
 const PRIORITY_COLORS: Record<string, string> = {
-  emergency: 'bg-red-100 text-red-800 border-red-300',
-  high: 'bg-orange-100 text-orange-800 border-orange-300',
-  normal: 'bg-blue-100 text-blue-800 border-blue-300',
-  low: 'bg-gray-100 text-gray-700 border-gray-300',
+  emergency: 'bg-red-100 text-red-800 border-red-300 dark:text-red-400 dark:bg-red-950/40',
+  high: 'bg-orange-100 text-orange-800 border-orange-300 dark:text-orange-300 dark:bg-orange-950/40',
+  normal: 'bg-blue-100 text-blue-800 border-blue-300 dark:text-blue-300 dark:bg-blue-950/40',
+  low: 'bg-gray-100 text-gray-700 border-gray-300 dark:text-slate-200 dark:bg-slate-800',
 };
 
 const JOB_TYPE_ICONS: Record<string, any> = {
@@ -70,11 +70,11 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  scheduled: 'bg-blue-100 text-blue-800',
-  dispatched: 'bg-yellow-100 text-yellow-800',
-  in_progress: 'bg-green-100 text-green-800',
-  completed: 'bg-gray-100 text-gray-700',
-  cancelled: 'bg-red-100 text-red-700',
+  scheduled: 'bg-blue-100 text-blue-800 dark:text-blue-300 dark:bg-blue-950/40',
+  dispatched: 'bg-yellow-100 text-yellow-800 dark:text-yellow-300 dark:bg-yellow-950/40',
+  in_progress: 'bg-green-100 text-green-800 dark:text-green-300 dark:bg-green-950/40',
+  completed: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 const DEFAULT_CHECKLIST: Omit<ChecklistItem, 'notes' | 'status'>[] = [
@@ -258,7 +258,7 @@ export default function TechView() {
       <div className="flex-1 overflow-y-auto pb-20">
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            <Loader2 className="w-8 h-8 animate-spin text-blue-500 dark:text-blue-300" />
           </div>
         ) : filteredJobs.length === 0 ? (
           <div className="text-center py-20 text-gray-500 dark:text-slate-400">
@@ -298,12 +298,12 @@ function TabButton({ active, label, count, icon: Icon, onClick }: { active: bool
   return (
     <button
       onClick={onClick}
-      className={`flex-1 flex flex-col items-center py-3 text-xs font-medium transition-colors ${active ? 'text-blue-600 bg-blue-50' : 'text-gray-500'}`}
+      className={`flex-1 flex flex-col items-center py-3 text-xs font-medium transition-colors ${active ? 'text-blue-600 bg-blue-50 dark:text-blue-300 dark:bg-blue-950/40' : 'text-gray-500 dark:text-slate-400'}`}
     >
       <Icon className="w-5 h-5 mb-0.5" />
       {label}
       {count > 0 && (
-        <span className={`mt-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${active ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
+        <span className={`mt-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${active ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600 dark:text-slate-300 dark:bg-slate-700'}`}>
           {count}
         </span>
       )}
@@ -476,7 +476,7 @@ function JobDetailScreen({
             <h3 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">Customer</h3>
             <p className="font-semibold text-gray-900 text-lg dark:text-slate-100">{job.contact.name}</p>
             {job.contact.phone && (
-              <a href={`tel:${job.contact.phone}`} className="flex items-center gap-2 mt-2 py-2.5 px-4 bg-green-50 text-green-700 rounded-lg font-medium text-sm active:bg-green-100">
+              <a href={`tel:${job.contact.phone}`} className="flex items-center gap-2 mt-2 py-2.5 px-4 bg-green-50 text-green-700 rounded-lg font-medium text-sm active:bg-green-100 dark:text-green-300 dark:bg-green-950/40">
                 <Phone className="w-4 h-4" />
                 {job.contact.phone}
               </a>

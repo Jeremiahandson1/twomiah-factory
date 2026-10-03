@@ -317,7 +317,7 @@ export default function ReportsPage() {
                         <div>
                           <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">{widget.value ?? '--'}</p>
                           {widget.change != null && (
-                            <p className={`text-sm mt-1 ${widget.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            <p className={`text-sm mt-1 ${widget.change >= 0 ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-400'}`}>
                               {widget.change >= 0 ? '+' : ''}{widget.change}% vs prior period
                             </p>
                           )}
@@ -617,7 +617,7 @@ export default function ReportsPage() {
                   className={`px-3 py-1.5 text-sm font-medium rounded-lg whitespace-nowrap ${
                     dateRange === opt.value
                       ? 'bg-green-700 text-white'
-                      : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                      : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
                   } dark:bg-slate-900 dark:text-slate-300`}
                 >
                   {opt.label}
@@ -669,7 +669,7 @@ export default function ReportsPage() {
                       <tr key={bt.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                            <div className="w-8 h-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-sm font-bold flex-shrink-0 dark:text-green-300 dark:bg-green-950/40">
                               {(bt.name || 'B')[0].toUpperCase()}
                             </div>
                             <span className="font-medium text-gray-900 dark:text-slate-100">{bt.name || 'Unknown'}</span>

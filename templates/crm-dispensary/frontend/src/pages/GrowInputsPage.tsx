@@ -29,16 +29,16 @@ const inputTypes = [
 ];
 
 const typeColors: Record<string, string> = {
-  nutrient: 'bg-green-100 text-green-700',
-  pesticide: 'bg-red-100 text-red-700',
+  nutrient: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  pesticide: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
   soil: 'bg-amber-700/20 text-amber-800',
-  amendment: 'bg-blue-100 text-blue-700',
-  growth_regulator: 'bg-purple-100 text-purple-700',
-  fungicide: 'bg-orange-100 text-orange-700',
-  insecticide: 'bg-rose-100 text-rose-700',
-  adjuvant: 'bg-cyan-100 text-cyan-700',
-  ipm: 'bg-teal-100 text-teal-700',
-  other: 'bg-gray-100 text-gray-700',
+  amendment: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  growth_regulator: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  fungicide: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  insecticide: 'bg-rose-100 text-rose-700 dark:text-rose-300 dark:bg-rose-950/40',
+  adjuvant: 'bg-cyan-100 text-cyan-700 dark:text-cyan-300 dark:bg-cyan-950/40',
+  ipm: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40',
+  other: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
 };
 
 const categoryOptions = [
@@ -193,7 +193,7 @@ export default function GrowInputsPage() {
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
             } dark:bg-slate-900 dark:text-slate-300`}
           >
             <tab.icon className="w-4 h-4" />
@@ -406,7 +406,7 @@ function InventoryTab() {
       key: 'type',
       label: 'Type',
       render: (val: string) => (
-        <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[val] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+        <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[val] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
           {val?.replace(/_/g, ' ')}
         </span>
       ),
@@ -418,7 +418,7 @@ function InventoryTab() {
       render: (val: boolean, row: any) => (
         <div className="flex items-center gap-1">
           {val ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40">
               <Leaf className="w-3 h-3" /> Organic
             </span>
           ) : (
@@ -438,7 +438,7 @@ function InventoryTab() {
         return (
           <div className={isLow ? 'text-red-600 font-semibold' : 'text-gray-700'}>
             {val ?? 0} / {row.minStock ?? 0} {row.unitOfMeasure || ''}
-            {isLow && <AlertTriangle className="w-3 h-3 inline ml-1 text-red-500" />}
+            {isLow && <AlertTriangle className="w-3 h-3 inline ml-1 text-red-500 dark:text-red-400" />}
           </div>
         );
       },
@@ -478,13 +478,13 @@ function InventoryTab() {
     <>
       {/* Alert Banners */}
       {lowStockCount > 0 && (
-        <div className="mb-4 flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700">
+        <div className="mb-4 flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 dark:text-red-400 dark:bg-red-950/40">
           <AlertTriangle className="w-5 h-5 flex-shrink-0" />
           <span className="text-sm font-medium">{lowStockCount} input{lowStockCount > 1 ? 's' : ''} below minimum stock level</span>
         </div>
       )}
       {expiringCount > 0 && (
-        <div className="mb-4 flex items-center gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-700">
+        <div className="mb-4 flex items-center gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 dark:text-amber-300 dark:bg-amber-950/40">
           <Clock className="w-5 h-5 flex-shrink-0" />
           <span className="text-sm font-medium">{expiringCount} input{expiringCount > 1 ? 's' : ''} expiring within 30 days</span>
         </div>
@@ -514,7 +514,7 @@ function InventoryTab() {
         <button
           onClick={() => setOrganicOnly(!organicOnly)}
           className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-            organicOnly ? 'bg-green-50 border-green-300 text-green-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+            organicOnly ? 'bg-green-50 border-green-300 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'border-gray-300 text-gray-600 hover:bg-gray-50 dark:text-slate-300'
           } dark:text-slate-300`}
         >
           <Leaf className="w-4 h-4" />
@@ -567,11 +567,11 @@ function InventoryTab() {
           </div>
           <div className="flex items-center gap-6">
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={formData.isOrganic} onChange={(e) => setFormData({ ...formData, isOrganic: e.target.checked })} className="w-4 h-4 rounded border-slate-600 text-green-500 focus:ring-green-500 bg-slate-800" />
+              <input type="checkbox" checked={formData.isOrganic} onChange={(e) => setFormData({ ...formData, isOrganic: e.target.checked })} className="w-4 h-4 rounded border-slate-600 text-green-500 focus:ring-green-500 bg-slate-800 dark:text-green-300" />
               <span className="text-sm text-slate-300">Organic</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={formData.isOMRIListed} onChange={(e) => setFormData({ ...formData, isOMRIListed: e.target.checked })} className="w-4 h-4 rounded border-slate-600 text-green-500 focus:ring-green-500 bg-slate-800" />
+              <input type="checkbox" checked={formData.isOMRIListed} onChange={(e) => setFormData({ ...formData, isOMRIListed: e.target.checked })} className="w-4 h-4 rounded border-slate-600 text-green-500 focus:ring-green-500 bg-slate-800 dark:text-green-300" />
               <span className="text-sm text-slate-300">OMRI Listed</span>
             </label>
           </div>
@@ -863,7 +863,7 @@ function ApplicationsTab() {
       key: 'inputType',
       label: 'Type',
       render: (val: string) => (
-        <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[val] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+        <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[val] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
           {val?.replace(/_/g, ' ')}
         </span>
       ),
@@ -903,7 +903,7 @@ function ApplicationsTab() {
       label: '',
       render: (val: boolean) =>
         val ? (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40">
             <AlertTriangle className="w-3 h-3" /> Pre-Harvest
           </span>
         ) : null,
@@ -938,7 +938,7 @@ function ApplicationsTab() {
                       className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm text-gray-900 flex items-center justify-between dark:text-slate-100"
                     >
                       <span>{opt.name} <span className="text-gray-500 dark:text-slate-400">({opt.brand})</span></span>
-                      <span className={`px-1.5 py-0.5 text-[10px] rounded-full ${typeColors[opt.type] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>{opt.type}</span>
+                      <span className={`px-1.5 py-0.5 text-[10px] rounded-full ${typeColors[opt.type] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>{opt.type}</span>
                     </button>
                   ))}
                 </div>
@@ -953,13 +953,13 @@ function ApplicationsTab() {
                 <span className="text-sm text-gray-500 pb-2 dark:text-slate-400">Checking compliance...</span>
               ) : complianceResult ? (
                 complianceResult.compliant ? (
-                  <span className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg bg-green-50 text-green-700 border border-green-200">
+                  <span className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg bg-green-50 text-green-700 border border-green-200 dark:text-green-300 dark:bg-green-950/40">
                     <CheckCircle className="w-4 h-4" /> Compliant
                   </span>
                 ) : (
                   <div className="space-y-1">
                     {(complianceResult.violations || []).map((v: any, i: number) => (
-                      <span key={i} className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-lg bg-red-50 text-red-700 border border-red-200 block">
+                      <span key={i} className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-lg bg-red-50 text-red-700 border border-red-200 block dark:text-red-400 dark:bg-red-950/40">
                         <XCircle className="w-3 h-3" /> {v.message || v.rule}
                       </span>
                     ))}
@@ -978,7 +978,7 @@ function ApplicationsTab() {
                   key={t}
                   onClick={() => { setTargetTab(t); setFormData({ ...formData, targetId: '' }); }}
                   className={`px-3 py-1 text-xs font-medium rounded-lg capitalize transition-colors ${
-                    targetTab === t ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    targetTab === t ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:text-slate-300 dark:bg-slate-800'
                   } dark:text-slate-300`}
                 >
                   {t}
@@ -1333,7 +1333,7 @@ function PoliciesTab() {
                 </div>
                 <button onClick={() => toggleActive(policy)} className="ml-2 flex-shrink-0">
                   {policy.active ? (
-                    <ToggleRight className="w-8 h-8 text-green-500" />
+                    <ToggleRight className="w-8 h-8 text-green-500 dark:text-green-300" />
                   ) : (
                     <ToggleLeft className="w-8 h-8 text-gray-300" />
                   )}
@@ -1343,7 +1343,7 @@ function PoliciesTab() {
                 <span className="flex items-center gap-1">
                   <Shield className="w-4 h-4" /> {policy.rules?.length || 0} rules
                 </span>
-                <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${policy.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${policy.active ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                   {policy.active ? 'Active' : 'Inactive'}
                 </span>
               </div>
@@ -1450,7 +1450,7 @@ function PoliciesTab() {
                         setFormData({ ...formData, requiredCertifications: formData.requiredCertifications.filter((c) => c !== cert) });
                       }
                     }}
-                    className="w-4 h-4 rounded border-slate-600 text-orange-500 focus:ring-orange-500 bg-slate-800"
+                    className="w-4 h-4 rounded border-slate-600 text-orange-500 focus:ring-orange-500 bg-slate-800 dark:text-orange-300"
                   />
                   <span className="text-sm text-slate-300">{cert}</span>
                 </label>
@@ -1648,11 +1648,11 @@ function TraceabilityTab() {
                   </div>
                   <div className="mt-3 flex items-center gap-2">
                     {traceData.labResults.passed ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40">
                         <CheckCircle className="w-3 h-3" /> All Tests Passed
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40">
                         <XCircle className="w-3 h-3" /> See Full Report
                       </span>
                     )}
@@ -1721,7 +1721,7 @@ function TraceabilityTab() {
                           <span
                             key={i}
                             className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${
-                              c.passed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                              c.passed ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40'
                             }`}
                           >
                             {c.passed ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
@@ -1746,7 +1746,7 @@ function TraceabilityTab() {
                               <span className="font-medium text-gray-900 dark:text-slate-100">{inp.name}</span>
                               {inp.brand && <span className="text-gray-500 dark:text-slate-400">({inp.brand})</span>}
                               {inp.isOrganic && (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-green-100 text-green-700">
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40">
                                   <Leaf className="w-2.5 h-2.5" /> Organic
                                 </span>
                               )}

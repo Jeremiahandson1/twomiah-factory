@@ -129,7 +129,7 @@ export function AccountOffboardPage(): React.ReactElement {
             <button onClick={startOffboard} disabled={working} className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-md text-sm font-semibold">
               {working ? 'Working…' : 'Yes, offboard my account'}
             </button>
-            <button onClick={() => setConfirming(false)} disabled={working} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md text-sm dark:text-slate-200">
+            <button onClick={() => setConfirming(false)} disabled={working} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md text-sm dark:text-slate-200 dark:bg-slate-700">
               Cancel
             </button>
           </div>

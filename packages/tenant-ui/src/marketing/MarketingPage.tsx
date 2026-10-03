@@ -16,7 +16,7 @@ interface Step { delayDays: string | number; delayHours: string | number; subjec
 interface Sequence { id: string; name: string; description?: string | null; trigger?: string; active: boolean; steps: Step[]; enrollmentCount?: number; activeEnrollments?: number }
 type Tab = 'campaigns' | 'templates' | 'sequences'
 const TEMPLATE_CATEGORIES = ['general', 'followup', 'promotion', 'newsletter', 'reminder']
-const statusCls: Record<string, string> = { sent: 'bg-green-100 text-green-700', scheduled: 'bg-blue-100 text-blue-700', sending: 'bg-yellow-100 text-yellow-700', failed: 'bg-red-100 text-red-700', draft: 'bg-gray-100 text-gray-700' }
+const statusCls: Record<string, string> = { sent: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', scheduled: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', sending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', failed: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40', draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800' }
 const fmtWhen = (v?: string | null) => (v ? new Date(v).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '')
 
 export function MarketingPage({ api, toast, config, showCampaigns = true }: { api: MarketingApi; toast: MarketingToast; config?: MarketingConfig; showCampaigns?: boolean }) {
@@ -283,14 +283,14 @@ function SequencesTab({ api, toast, label, onChanged }: { api: MarketingApi; toa
         <div key={s.id} className="bg-white rounded-xl border p-4 dark:bg-slate-900 dark:border-slate-800">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${s.active ? 'bg-green-100' : 'bg-gray-100 dark:bg-slate-800'}`}><Zap className={`w-5 h-5 ${s.active ? 'text-green-600' : 'text-gray-400'}`} /></div>
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${s.active ? 'bg-green-100' : 'bg-gray-100 dark:bg-slate-800'}`}><Zap className={`w-5 h-5 ${s.active ? 'text-green-600 dark:text-green-300' : 'text-gray-400'}`} /></div>
               <div>
                 <p className="font-medium text-gray-900 dark:text-slate-100">{s.name}</p>
                 <p className="text-sm text-gray-500 dark:text-slate-400">{s.steps?.length || 0} step{s.steps?.length === 1 ? '' : 's'} · {s.activeEnrollments ?? 0} in progress · {s.enrollmentCount ?? 0} enrolled total</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className={`px-2 py-1 text-xs rounded-full ${s.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{s.active ? 'Active' : 'Paused'}</span>
+              <span className={`px-2 py-1 text-xs rounded-full ${s.active ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>{s.active ? 'Active' : 'Paused'}</span>
               <button onClick={() => setEnroll(s)} disabled={!s.active} className="flex items-center gap-1 px-2.5 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800" title={s.active ? 'Enroll a contact' : 'Resume the sequence to enroll'}><UserPlus className="w-4 h-4" /> Enroll</button>
               <button onClick={() => toggle(s)} className="p-1.5 text-gray-500 dark:text-slate-400 hover:bg-gray-100 rounded-lg dark:hover:bg-slate-800" title={s.active ? 'Pause' : 'Resume'}>{s.active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}</button>
               <button onClick={() => setForm({ open: true, sequence: s })} className="p-1.5 text-gray-500 dark:text-slate-400 hover:bg-gray-100 rounded-lg dark:hover:bg-slate-800" title="Edit"><Edit2 className="w-4 h-4" /></button>

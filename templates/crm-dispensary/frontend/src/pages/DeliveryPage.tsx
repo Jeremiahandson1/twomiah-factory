@@ -16,11 +16,11 @@ const deliveryStatuses = [
 ];
 
 const statusColors: Record<string, string> = {
-  queued: 'bg-yellow-100 text-yellow-700',
-  assigned: 'bg-blue-100 text-blue-700',
-  in_transit: 'bg-purple-100 text-purple-700',
-  delivered: 'bg-green-100 text-green-700',
-  cancelled: 'bg-red-100 text-red-700',
+  queued: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  assigned: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  in_transit: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  delivered: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 export default function DeliveryPage() {
@@ -153,7 +153,7 @@ export default function DeliveryPage() {
                 className={`px-3 py-1.5 text-sm font-medium rounded-lg whitespace-nowrap ${
                   statusFilter === s.value
                     ? 'bg-green-700 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
                 } dark:bg-slate-900 dark:text-slate-300`}
               >
                 {s.label}
@@ -173,7 +173,7 @@ export default function DeliveryPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <span className="font-semibold text-gray-900 dark:text-slate-100">#{delivery.orderNumber || delivery.id?.slice(0, 8)}</span>
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[delivery.status] || 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[delivery.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                           {(delivery.status || 'queued').replace('_', ' ')}
                         </span>
                       </div>
@@ -266,7 +266,7 @@ export default function DeliveryPage() {
                     fields the API has never returned — so an active $5/$50 zone rendered as
                     "Inactive, fee $0.00, min $0.00" while the till refused orders under $50
                     against it. (T46 N12) */}
-                <span className={`px-2 py-0.5 text-xs rounded-full ${zone.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                <span className={`px-2 py-0.5 text-xs rounded-full ${zone.active ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                   {zone.active ? 'Active' : 'Inactive'}
                 </span>
                 </div>

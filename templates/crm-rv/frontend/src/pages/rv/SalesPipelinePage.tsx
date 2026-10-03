@@ -285,7 +285,7 @@ function LeadFormModal({ onSave, onClose }: LeadFormModalProps) {
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Contact <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Contact <span className="text-red-500 dark:text-red-400">*</span></label>
               <select value={form.contactId} onChange={(e) => set('contactId', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
                 <option value="">Select contact...</option>
                 {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}

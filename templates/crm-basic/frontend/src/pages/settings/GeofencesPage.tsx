@@ -101,8 +101,8 @@ export default function GeofencesPage() {
             onClick={() => setFilter(f)}
             className={`px-4 py-2 rounded-lg text-sm ${
               filter === f
-                ? 'bg-orange-100 text-orange-700'
-                : 'text-gray-600 hover:bg-gray-100'
+                ? 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40'
+                : 'text-gray-600 hover:bg-gray-100 dark:text-slate-300'
             }`}
           >
             {f === 'active' ? 'Active' : f === 'all' ? 'All' : 'Inactive'}
@@ -157,7 +157,7 @@ function GeofenceCard({ geofence, onEdit, onDelete, onToggle }) {
           <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
             geofence.active ? 'bg-green-100' : 'bg-gray-100'
           }`}>
-            <Target className={`w-5 h-5 ${geofence.active ? 'text-green-600' : 'text-gray-400'}`} />
+            <Target className={`w-5 h-5 ${geofence.active ? 'text-green-600 dark:text-green-300' : 'text-gray-400'}`} />
           </div>
           <div>
             <h3 className="font-medium text-gray-900 dark:text-slate-100">{geofence.name}</h3>
@@ -166,7 +166,7 @@ function GeofenceCard({ geofence, onEdit, onDelete, onToggle }) {
         </div>
         <button
           onClick={onToggle}
-          className={`p-1 rounded ${geofence.active ? 'text-green-600' : 'text-gray-400'}`}
+          className={`p-1 rounded ${geofence.active ? 'text-green-600 dark:text-green-300' : 'text-gray-400'}`}
           title={geofence.active ? 'Disable' : 'Enable'}
         >
           {geofence.active ? <CheckCircle className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
@@ -185,12 +185,12 @@ function GeofenceCard({ geofence, onEdit, onDelete, onToggle }) {
       {(geofence.job || geofence.project) && (
         <div className="text-sm mb-3">
           {geofence.job && (
-            <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs mr-2">
+            <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs mr-2 dark:text-blue-300 dark:bg-blue-950/40">
               Job: {geofence.job.title}
             </span>
           )}
           {geofence.project && (
-            <span className="inline-block px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
+            <span className="inline-block px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs dark:text-purple-300 dark:bg-purple-950/40">
               Project: {geofence.project.name}
             </span>
           )}

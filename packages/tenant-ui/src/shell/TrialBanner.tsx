@@ -25,7 +25,7 @@ export function TrialBanner({ company }: { company: any }) {
   return (
     <div className={`border-b px-4 py-3 ${urgent ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'}`}>
       <div className="flex items-center justify-between gap-4 max-w-screen-2xl mx-auto">
-        <div className={`flex items-center gap-2 ${urgent ? 'text-red-900' : 'text-yellow-900'}`}>
+        <div className={`flex items-center gap-2 ${urgent ? 'text-red-900 dark:text-red-400' : 'text-yellow-900 dark:text-yellow-300'}`}>
           <Icon className="w-5 h-5 flex-shrink-0" />
           <div>
             <p className="font-semibold">{copy}</p>

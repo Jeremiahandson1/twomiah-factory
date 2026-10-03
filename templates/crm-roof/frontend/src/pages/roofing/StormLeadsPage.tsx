@@ -9,15 +9,15 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 
 const DAMAGE_COLORS: Record<string, string> = {
-  minor: 'bg-yellow-100 text-yellow-700',
-  moderate: 'bg-orange-100 text-orange-700',
-  severe: 'bg-red-100 text-red-700',
+  minor: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  moderate: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  severe: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 }
 const STATUS_COLORS: Record<string, string> = {
-  new: 'bg-blue-100 text-blue-700',
-  contacted: 'bg-yellow-100 text-yellow-700',
-  converted: 'bg-green-100 text-green-700',
-  dismissed: 'bg-gray-100 text-gray-600',
+  new: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  contacted: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  converted: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  dismissed: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800',
 }
 
 export default function StormLeadsPage() {
@@ -217,7 +217,7 @@ export default function StormLeadsPage() {
       {/* Events Sidebar */}
       <div className="w-80 border-r bg-white flex-shrink-0 flex flex-col dark:bg-slate-900">
         <div className="p-4 border-b flex items-center justify-between">
-          <h2 className="text-sm font-bold flex items-center gap-1.5"><Zap size={16} className="text-yellow-500" /> Storm Events</h2>
+          <h2 className="text-sm font-bold flex items-center gap-1.5"><Zap size={16} className="text-yellow-500 dark:text-yellow-300" /> Storm Events</h2>
           <button onClick={() => setShowNewEvent(true)} className="text-xs bg-blue-600 text-white px-2.5 py-1 rounded-lg font-medium flex items-center gap-1">
             <Plus size={12} /> New
           </button>
@@ -233,9 +233,9 @@ export default function StormLeadsPage() {
                   <span className="text-sm font-medium capitalize">{event.eventType}</span>
                 </div>
                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
-                  event.status === 'detected' ? 'bg-yellow-100 text-yellow-700' :
-                  event.status === 'leads_generated' ? 'bg-green-100 text-green-700' :
-                  'bg-gray-100 text-gray-600'
+                  event.status === 'detected' ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' :
+                  event.status === 'leads_generated' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
+                  'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
                 }`}>{event.status.replace('_', ' ')}</span>
               </div>
               <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">{formatDate(event.eventDate)}</p>
@@ -262,7 +262,7 @@ export default function StormLeadsPage() {
             <div className="p-4 bg-white border-b flex items-center justify-between flex-shrink-0 dark:bg-slate-900">
               <div>
                 <h2 className="text-lg font-bold capitalize flex items-center gap-2">
-                  <Zap size={18} className="text-yellow-500" />
+                  <Zap size={18} className="text-yellow-500 dark:text-yellow-300" />
                   {selectedEvent.eventType} — {formatDate(selectedEvent.eventDate)}
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-slate-400">
@@ -334,7 +334,7 @@ export default function StormLeadsPage() {
                         </td>
                         <td className="px-4 py-2">
                           <div className="flex items-center gap-1.5">
-                            {lead.isExistingCustomer && <Star size={12} className="text-yellow-500 flex-shrink-0" />}
+                            {lead.isExistingCustomer && <Star size={12} className="text-yellow-500 flex-shrink-0 dark:text-yellow-300" />}
                             <span className="font-medium">{lead.address || 'Unknown'}</span>
                           </div>
                         </td>

@@ -17,11 +17,11 @@ const phases = [
 ];
 
 const phaseColors: Record<string, string> = {
-  clone: 'bg-teal-100 text-teal-700',
-  vegetative: 'bg-green-100 text-green-700',
-  flowering: 'bg-purple-100 text-purple-700',
-  harvested: 'bg-amber-100 text-amber-700',
-  destroyed: 'bg-red-100 text-red-700',
+  clone: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40',
+  vegetative: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  flowering: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  harvested: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
+  destroyed: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 const roomTypes = [
@@ -35,20 +35,20 @@ const roomTypes = [
 ];
 
 const roomTypeColors: Record<string, string> = {
-  clone: 'bg-teal-100 text-teal-700',
-  vegetative: 'bg-green-100 text-green-700',
-  flowering: 'bg-purple-100 text-purple-700',
-  drying: 'bg-amber-100 text-amber-700',
-  curing: 'bg-orange-100 text-orange-700',
-  storage: 'bg-gray-100 text-gray-700',
-  mother: 'bg-pink-100 text-pink-700',
+  clone: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40',
+  vegetative: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  flowering: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  drying: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
+  curing: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  storage: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  mother: 'bg-pink-100 text-pink-700 dark:text-pink-300 dark:bg-pink-950/40',
 };
 
 const harvestStatuses: Record<string, string> = {
-  drying: 'bg-amber-100 text-amber-700',
-  curing: 'bg-orange-100 text-orange-700',
-  complete: 'bg-green-100 text-green-700',
-  packaged: 'bg-blue-100 text-blue-700',
+  drying: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
+  curing: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  complete: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  packaged: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
 };
 
 const plantTypes = [
@@ -107,7 +107,7 @@ export default function CultivationPage() {
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
             } dark:bg-slate-900 dark:text-slate-300`}
           >
             <tab.icon className="w-4 h-4" />
@@ -211,7 +211,7 @@ function PlantsTab() {
           value={val}
           onChange={(e) => { e.stopPropagation(); handlePhaseChange(row.id, e.target.value); }}
           onClick={(e) => e.stopPropagation()}
-          className={`px-2 py-1 text-xs font-medium rounded-full border-0 cursor-pointer ${phaseColors[val] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}
+          className={`px-2 py-1 text-xs font-medium rounded-full border-0 cursor-pointer ${phaseColors[val] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}
         >
           {phases.filter(p => p.value).map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
         </select>
@@ -397,7 +397,7 @@ function RoomsTab() {
               >
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-gray-900 dark:text-slate-100">{room.name}</h3>
-                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${roomTypeColors[room.type] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${roomTypeColors[room.type] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                     {room.type}
                   </span>
                 </div>

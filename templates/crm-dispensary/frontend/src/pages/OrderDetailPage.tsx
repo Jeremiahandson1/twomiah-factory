@@ -536,9 +536,9 @@ export default function OrderDetailPage() {
               <div className="flex justify-between">
                 <span className="text-gray-500 dark:text-slate-400">Status</span>
                 <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                  order.status === 'completed' ? 'bg-green-100 text-green-700' :
-                  order.status === 'refunded' ? 'bg-red-100 text-red-700' :
-                  'bg-yellow-100 text-yellow-700'
+                  order.status === 'completed' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
+                  order.status === 'refunded' ? 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' :
+                  'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40'
                 }`}>
                   {order.status}
                 </span>

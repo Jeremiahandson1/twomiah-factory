@@ -28,19 +28,19 @@ const jobStatuses = [
 ];
 
 const typeColors: Record<string, string> = {
-  extraction: 'bg-blue-100 text-blue-700',
-  infusion: 'bg-purple-100 text-purple-700',
-  distillation: 'bg-indigo-100 text-indigo-700',
-  pressing: 'bg-amber-100 text-amber-700',
-  packaging: 'bg-green-100 text-green-700',
-  other: 'bg-gray-100 text-gray-700',
+  extraction: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  infusion: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  distillation: 'bg-indigo-100 text-indigo-700 dark:text-indigo-300 dark:bg-indigo-950/40',
+  pressing: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
+  packaging: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  other: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
 };
 
 const statusColors: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  in_progress: 'bg-blue-100 text-blue-700',
-  completed: 'bg-green-100 text-green-700',
-  failed: 'bg-red-100 text-red-700',
+  pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  in_progress: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  completed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  failed: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 export default function ManufacturingPage() {
@@ -197,7 +197,7 @@ export default function ManufacturingPage() {
 
   const columns = [
     { key: 'jobNumber', label: 'Job #', render: (val: string) => <span className="font-mono font-medium text-gray-900 dark:text-slate-100">{val || '--'}</span> },
-    { key: 'type', label: 'Type', render: (val: string) => <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[val] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>{val}</span> },
+    { key: 'type', label: 'Type', render: (val: string) => <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[val] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>{val}</span> },
     { key: 'status', label: 'Status', render: (val: string) => <StatusBadge status={val} statusColors={statusColors} /> },
     { key: 'inputBatches', label: 'Input Batches', render: (val: any) => {
       const batches = Array.isArray(val) ? val : [];
@@ -346,7 +346,7 @@ export default function ManufacturingPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-slate-400">Type</p>
-                <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[selectedJob.type] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>{selectedJob.type}</span>
+                <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[selectedJob.type] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>{selectedJob.type}</span>
               </div>
               <div>
                 <p className="text-sm text-slate-400">Status</p>
@@ -417,13 +417,13 @@ export default function ManufacturingPage() {
                 </div>
                 {selectedJob.startedAt && (
                   <div className="flex items-center gap-2 text-slate-300">
-                    <Play className="w-4 h-4 text-blue-500" />
+                    <Play className="w-4 h-4 text-blue-500 dark:text-blue-300" />
                     <span>Started: {new Date(selectedJob.startedAt).toLocaleString()}</span>
                   </div>
                 )}
                 {selectedJob.completedAt && (
                   <div className="flex items-center gap-2 text-slate-300">
-                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <CheckCircle className="w-4 h-4 text-green-500 dark:text-green-300" />
                     <span>Completed: {new Date(selectedJob.completedAt).toLocaleString()}</span>
                   </div>
                 )}

@@ -462,7 +462,7 @@ function SendReminderModal({ contactIds, defaultMessage, onDone, onClose }: { co
 
           {result ? (
             <div className="space-y-4">
-              <div className={`flex items-center gap-2 ${(result.sent || 0) > 0 ? 'text-green-700 dark:text-green-300' : 'text-gray-600'}`}>
+              <div className={`flex items-center gap-2 ${(result.sent || 0) > 0 ? 'text-green-700 dark:text-green-300' : 'text-gray-600 dark:text-slate-300'}`}>
                 <CheckCircle2 className="w-5 h-5" />
                 <span className="font-medium">{result.sent} text{result.sent === 1 ? '' : 's'} sent</span>
               </div>
@@ -478,7 +478,7 @@ function SendReminderModal({ contactIds, defaultMessage, onDone, onClose }: { co
             <div className="space-y-4">
               <p className="text-sm text-gray-500 dark:text-slate-400">Sending to {contactIds.length} client{contactIds.length === 1 ? '' : 's'}.</p>
               {walletEmpty && (
-                <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm dark:text-amber-300 dark:bg-amber-950/40">
                   <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
                   <span>{wallet?.enabled ? 'Your texting wallet is empty — these texts will not send.' : 'Texting is not enabled for this account yet.'} <Link to="/crm/settings/billing" className="underline">Manage texting in Settings › Billing</Link>.</span>
                 </div>

@@ -228,23 +228,23 @@ interface StatusBadgeProps {
 
 export function StatusBadge({ status, statusColors }: StatusBadgeProps) {
   const colors: Record<string, string> = statusColors || {
-    draft: 'bg-gray-100 text-gray-700',
-    pending: 'bg-yellow-100 text-yellow-700',
-    active: 'bg-blue-100 text-blue-700',
-    in_progress: 'bg-blue-100 text-blue-700',
-    scheduled: 'bg-purple-100 text-purple-700',
-    completed: 'bg-green-100 text-green-700',
-    paid: 'bg-green-100 text-green-700',
-    approved: 'bg-green-100 text-green-700',
-    sent: 'bg-blue-100 text-blue-700',
-    rejected: 'bg-red-100 text-red-700',
-    overdue: 'bg-red-100 text-red-700',
-    cancelled: 'bg-red-100 text-red-700',
-    open: 'bg-yellow-100 text-yellow-700',
-    closed: 'bg-gray-100 text-gray-700',
+    draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+    pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+    active: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+    in_progress: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+    scheduled: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+    completed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+    paid: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+    approved: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+    sent: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+    rejected: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+    overdue: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+    cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+    open: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+    closed: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
   };
 
-  const colorClass = colors[status] || 'bg-gray-100 text-gray-700';
+  const colorClass = colors[status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800';
   const label = status?.replace(/_/g, ' ');
 
   return (
@@ -274,7 +274,7 @@ export function PageHeader({ title, subtitle, action }: PageHeaderProps) {
 
 const dtButtonVariants: Record<string, string> = {
   primary: 'bg-orange-500 hover:bg-orange-600 text-white',
-  secondary: 'bg-gray-100 hover:bg-gray-200 text-gray-700',
+  secondary: 'bg-gray-100 hover:bg-gray-200 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
   danger: 'bg-red-600 hover:bg-red-700 text-white',
   ghost: 'hover:bg-gray-100 text-gray-700',
 };

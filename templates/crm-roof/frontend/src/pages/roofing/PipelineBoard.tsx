@@ -40,11 +40,11 @@ const STAGE_THRESHOLDS: Record<string, number> = {
 };
 
 const JOB_TYPE_COLORS: Record<string, string> = {
-  insurance: 'bg-orange-100 text-orange-700',
-  retail: 'bg-blue-100 text-blue-700',
-  commercial: 'bg-gray-100 text-gray-700',
-  new_construction: 'bg-green-100 text-green-700',
-  emergency: 'bg-red-100 text-red-700',
+  insurance: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  retail: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  commercial: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  new_construction: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  emergency: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 function daysInStage(job: any): number {
@@ -234,7 +234,7 @@ export default function PipelineBoard() {
         <button
           onClick={() => setFilterCanvassing(!filterCanvassing)}
           className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border font-medium transition ${
-            filterCanvassing ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-white border-gray-300 text-gray-600'
+            filterCanvassing ? 'bg-blue-100 border-blue-300 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'bg-white border-gray-300 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
           } dark:bg-slate-900`}
         >
           <MapPin className="w-3.5 h-3.5" />
@@ -259,7 +259,7 @@ export default function PipelineBoard() {
                   <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wider truncate dark:text-slate-400">
                     {STAGE_LABELS[stage]}
                   </h3>
-                  <span className="text-xs font-bold bg-gray-200 text-gray-600 rounded-full px-2 py-0.5 ml-2 flex-shrink-0">
+                  <span className="text-xs font-bold bg-gray-200 text-gray-600 rounded-full px-2 py-0.5 ml-2 flex-shrink-0 dark:text-slate-300 dark:bg-slate-700">
                     {stageJobs.length}
                   </span>
                 </div>
@@ -270,7 +270,7 @@ export default function PipelineBoard() {
                     const days = daysInStage(job);
                     const threshold = STAGE_THRESHOLDS[stage];
                     const overdue = threshold && days > threshold;
-                    const typeColor = JOB_TYPE_COLORS[job.jobType] || 'bg-gray-100 text-gray-700';
+                    const typeColor = JOB_TYPE_COLORS[job.jobType] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800';
 
                     return (
                       <div
@@ -298,7 +298,7 @@ export default function PipelineBoard() {
 
                         <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                           {job.jobType === 'insurance' ? (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40">
                               INS
                             </span>
                           ) : (
@@ -355,7 +355,7 @@ export default function PipelineBoard() {
 
                         {/* Canvassing storm event name from notes */}
                         {job.source === 'canvassing' && job.notes && job.notes.startsWith('Canvassing lead') && (
-                          <p className="text-[10px] text-blue-500 truncate mt-0.5">
+                          <p className="text-[10px] text-blue-500 truncate mt-0.5 dark:text-blue-300">
                             {job.notes.split('—')[1]?.trim() || ''}
                           </p>
                         )}
@@ -383,7 +383,7 @@ export default function PipelineBoard() {
 
                         <div className="flex items-center gap-1 mt-1.5">
                           <Clock className="w-3 h-3 text-gray-400" />
-                          <span className={`text-[10px] ${overdue ? 'text-red-600 font-semibold' : 'text-gray-500 dark:text-slate-400'}`}>
+                          <span className={`text-[10px] ${overdue ? 'text-red-600 font-semibold dark:text-red-400' : 'text-gray-500 dark:text-slate-400'}`}>
                             {days}d in stage
                           </span>
                         </div>

@@ -32,7 +32,7 @@ export default function GanttChartsPage() {
     api.get('/api/gantt-charts').then(({ data }) => { setProjects(data || []); setLoading(false); }).catch((e) => { console.error(e); setLoading(false); });
   }, []);
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500" /></div>;
+  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500 dark:text-orange-300" /></div>;
 
   if (projects.length === 0) {
     return <div className="p-12 text-center"><BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-3" /><div className="text-gray-500 dark:text-slate-400">No projects to display. Create a project to see it on the Gantt chart.</div></div>;
@@ -60,7 +60,7 @@ export default function GanttChartsPage() {
   return (
     <div className="p-6 max-w-full mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold flex items-center gap-2"><BarChart3 className="w-6 h-6 text-orange-500" />Gantt Chart</h1>
+        <h1 className="text-2xl font-bold flex items-center gap-2"><BarChart3 className="w-6 h-6 text-orange-500 dark:text-orange-300" />Gantt Chart</h1>
         <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Timeline view of all projects — {projects.length} projects over {totalDays} days</p>
       </div>
 

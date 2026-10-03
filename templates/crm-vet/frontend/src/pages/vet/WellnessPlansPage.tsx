@@ -121,7 +121,7 @@ export default function WellnessPlansPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-            <HeartPulse className="w-6 h-6 text-rose-500" /> Wellness Plans
+            <HeartPulse className="w-6 h-6 text-rose-500 dark:text-rose-300" /> Wellness Plans
           </h1>
           <p className="text-gray-500 dark:text-slate-400">Recurring preventive-care memberships</p>
         </div>
@@ -150,7 +150,7 @@ export default function WellnessPlansPage() {
                       <p className="font-semibold text-gray-900 dark:text-slate-100">{p.name || 'Untitled Plan'}</p>
                       {p.species && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{p.species}</span>}
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${p.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${p.active ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                       {p.active ? 'Active' : 'Inactive'}
                     </span>
                   </div>
@@ -164,7 +164,7 @@ export default function WellnessPlansPage() {
                     <ul className="mt-3 space-y-1">
                       {(p.benefits || []).map((b, i) => (
                         <li key={i} className="flex items-start gap-2 text-sm text-gray-600 dark:text-slate-400">
-                          <Check className="w-4 h-4 text-teal-500 flex-shrink-0 mt-0.5" /> {b}
+                          <Check className="w-4 h-4 text-teal-500 flex-shrink-0 mt-0.5 dark:text-teal-300" /> {b}
                         </li>
                       ))}
                     </ul>
@@ -184,7 +184,7 @@ export default function WellnessPlansPage() {
           <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-                <Users className="w-4 h-4 text-teal-500" /> Enrollments
+                <Users className="w-4 h-4 text-teal-500 dark:text-teal-300" /> Enrollments
                 <span className="text-xs bg-gray-100 text-gray-600 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{enrollments.length}</span>
               </h2>
               {mayCreate && (
@@ -295,7 +295,7 @@ function EnrollModal({ plans, onSave, onClose }: { plans: WellnessPlan[]; onSave
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Patient <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Patient <span className="text-red-500 dark:text-red-400">*</span></label>
               <select value={patientId} onChange={(e) => setPatientId(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
                 <option value="">Select a patient…</option>
                 {patients.map((p) => (
@@ -304,7 +304,7 @@ function EnrollModal({ plans, onSave, onClose }: { plans: WellnessPlan[]; onSave
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Plan <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Plan <span className="text-red-500 dark:text-red-400">*</span></label>
               <select value={planId} onChange={(e) => setPlanId(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
                 <option value="">Select a plan…</option>
                 {plans.map((pl) => (
@@ -377,7 +377,7 @@ function PlanModal({ plan, onSave, onClose }: { plan: WellnessPlan | null; onSav
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500 dark:text-red-400">*</span></label>
               <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
             </div>
             <div>

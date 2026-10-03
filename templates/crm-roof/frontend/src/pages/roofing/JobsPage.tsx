@@ -29,25 +29,25 @@ const STATUSES = [
 ];
 
 const STATUS_COLORS: Record<string, string> = {
-  lead: 'bg-gray-100 text-gray-700',
-  inspection_scheduled: 'bg-blue-100 text-blue-700',
-  inspected: 'bg-indigo-100 text-indigo-700',
-  measurement_ordered: 'bg-purple-100 text-purple-700',
-  proposal_sent: 'bg-yellow-100 text-yellow-700',
-  signed: 'bg-green-100 text-green-700',
-  material_ordered: 'bg-orange-100 text-orange-700',
-  in_production: 'bg-cyan-100 text-cyan-700',
-  final_inspection: 'bg-teal-100 text-teal-700',
-  invoiced: 'bg-pink-100 text-pink-700',
-  collected: 'bg-emerald-100 text-emerald-700',
+  lead: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  inspection_scheduled: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  inspected: 'bg-indigo-100 text-indigo-700 dark:text-indigo-300 dark:bg-indigo-950/40',
+  measurement_ordered: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  proposal_sent: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  signed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  material_ordered: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  in_production: 'bg-cyan-100 text-cyan-700 dark:text-cyan-300 dark:bg-cyan-950/40',
+  final_inspection: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40',
+  invoiced: 'bg-pink-100 text-pink-700 dark:text-pink-300 dark:bg-pink-950/40',
+  collected: 'bg-emerald-100 text-emerald-700 dark:text-emerald-300 dark:bg-emerald-950/40',
 };
 
 const TYPE_COLORS: Record<string, string> = {
-  insurance: 'bg-orange-100 text-orange-700',
-  retail: 'bg-blue-100 text-blue-700',
-  commercial: 'bg-gray-100 text-gray-700',
-  new_construction: 'bg-green-100 text-green-700',
-  emergency: 'bg-red-100 text-red-700',
+  insurance: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  retail: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  commercial: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  new_construction: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  emergency: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 function formatStatus(s: string) {
@@ -252,12 +252,12 @@ export default function JobsPage() {
                     <td className="px-4 py-3 text-gray-900 dark:text-slate-100">{job.contact ? `${job.contact.firstName || ''} ${job.contact.lastName || ''}`.trim() : '—'}</td>
                     <td className="px-4 py-3 text-gray-600 max-w-[200px] truncate dark:text-slate-400">{job.address || job.propertyAddress || '—'}</td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded ${TYPE_COLORS[job.jobType] || 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded ${TYPE_COLORS[job.jobType] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                         {(job.jobType || 'retail').replace('_', ' ')}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_COLORS[job.status] || 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_COLORS[job.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                         {formatStatus(job.status)}
                       </span>
                     </td>

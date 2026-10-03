@@ -21,11 +21,11 @@ const CONFIG_FIELD_LABELS: Record<string, string> = {
 };
 
 const referralStatusColors: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  qualified: 'bg-blue-100 text-blue-700',
-  rewarded: 'bg-green-100 text-green-700',
-  expired: 'bg-gray-100 text-gray-600',
-  cancelled: 'bg-red-100 text-red-700',
+  pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  qualified: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  rewarded: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  expired: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800',
+  cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 export default function ReferralsPage() {
@@ -378,7 +378,7 @@ export default function ReferralsPage() {
                         <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{ref.referredName || '--'}</td>
                         <td className="px-4 py-3 font-mono text-gray-600 dark:text-slate-400">{ref.code || '--'}</td>
                         <td className="px-4 py-3">
-                          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${referralStatusColors[ref.status] || 'bg-gray-100 text-gray-600'}`}>
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${referralStatusColors[ref.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                             {ref.status || 'pending'}
                           </span>
                         </td>
@@ -478,7 +478,7 @@ export default function ReferralsPage() {
               <div className="bg-white rounded-lg shadow-sm border border-gray-100 dark:bg-slate-900">
                 <div className="px-5 py-4 border-b">
                   <h3 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-                    <Crown className="w-5 h-5 text-yellow-500" />
+                    <Crown className="w-5 h-5 text-yellow-500 dark:text-yellow-300" />
                     Top Referrers
                   </h3>
                 </div>
@@ -486,10 +486,10 @@ export default function ReferralsPage() {
                   {(stats.topReferrers || []).map((referrer: any, idx: number) => (
                     <div key={referrer.id || idx} className="px-5 py-4 flex items-center gap-4">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                        idx === 0 ? 'bg-yellow-100 text-yellow-700' :
-                        idx === 1 ? 'bg-gray-200 text-gray-700' :
-                        idx === 2 ? 'bg-orange-100 text-orange-700' :
-                        'bg-gray-100 text-gray-600'
+                        idx === 0 ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' :
+                        idx === 1 ? 'bg-gray-200 text-gray-700 dark:text-slate-200 dark:bg-slate-700' :
+                        idx === 2 ? 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40' :
+                        'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
                       } dark:text-slate-200`}>
                         {idx + 1}
                       </div>

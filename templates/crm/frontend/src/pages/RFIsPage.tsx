@@ -78,7 +78,7 @@ export default function RFIsPage() {
     { key: 'subject', label: 'Subject', render: (v: unknown) => <span className="font-medium">{v as string}</span> },
     { key: 'project', label: 'Project', render: (v: unknown) => (v as Record<string, unknown>)?.name as string || '-' },
     { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} /> },
-    { key: 'priority', label: 'Priority', render: (v: unknown) => <StatusBadge status={v as string} statusColors={{ low: 'bg-gray-100 text-gray-700', normal: 'bg-blue-100 text-blue-700', high: 'bg-orange-100 text-orange-700', urgent: 'bg-red-100 text-red-700' }} /> },
+    { key: 'priority', label: 'Priority', render: (v: unknown) => <StatusBadge status={v as string} statusColors={{ low: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800', normal: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', high: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40', urgent: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' }} /> },
     { key: 'dueDate', label: 'Due', render: (v: unknown) => v ? formatDate(v as string) : '-' },
   ];
 

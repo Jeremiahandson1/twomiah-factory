@@ -3,7 +3,7 @@ import { Repeat, Plus, Loader2 } from 'lucide-react';
 import api from '../../services/api';
 
 const money = (n: number) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const STATUS: any = { out: 'bg-blue-100 text-blue-700', reserved: 'bg-amber-100 text-amber-700', returned: 'bg-green-100 text-green-700', cancelled: 'bg-gray-100 text-gray-600' };
+const STATUS: any = { out: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', reserved: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40', returned: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', cancelled: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800' };
 // the status changes the server allows
 const ACTIONS: Record<string, [string, string][]> = { reserved: [['out', 'Check out'], ['cancelled', 'Cancel']], out: [['returned', 'Return']] };
 const EMPTY = { unitId: '', customer: '', start: '', end: '', rate: '' };
@@ -71,7 +71,7 @@ export default function RentalsPage() {
         {cards.map(([l, v]: any) => (<div key={l} className="bg-white rounded-xl border shadow-sm p-4 dark:bg-slate-900"><div className="text-xs text-gray-500 dark:text-slate-400">{l}</div><div className="text-2xl font-bold mt-1">{v}</div></div>))}
       </div>
 
-      {error && <div className="mt-4 bg-red-50 border border-red-200 text-red-800 rounded-lg p-3 text-sm">{error}</div>}
+      {error && <div className="mt-4 bg-red-50 border border-red-200 text-red-800 rounded-lg p-3 text-sm dark:text-red-400 dark:bg-red-950/40">{error}</div>}
 
       {show && <div className="mt-4 bg-white rounded-xl border shadow-sm p-4 grid sm:grid-cols-3 gap-3 dark:bg-slate-900">
         <select value={form.unitId} onChange={(e) => setForm((f: any) => ({ ...f, unitId: e.target.value }))} className="p-2 border rounded-lg text-sm sm:col-span-2">
@@ -98,7 +98,7 @@ export default function RentalsPage() {
               <td className="px-4 py-2">{r.unit}</td><td className="px-4 py-2 text-gray-600 dark:text-slate-400">{r.customer}</td>
               <td className="px-4 py-2 text-gray-500 text-xs dark:text-slate-400">{r.start} → {r.end} ({r.days}d)</td>
               <td className="px-4 py-2 text-right">{money(r.rate)}/day</td><td className="px-4 py-2 text-right font-medium">{money(r.total)}</td>
-              <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded-full ${STATUS[r.status] || 'bg-gray-100 text-gray-600'}`}>{r.status}</span></td>
+              <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded-full ${STATUS[r.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>{r.status}</span></td>
               <td className="px-4 py-2 text-right whitespace-nowrap">{(ACTIONS[r.status] || []).map(([s, label]) => (
                 <button key={s} onClick={() => changeStatus(r.id, s)} disabled={busyId === r.id} className="ml-2 text-xs text-indigo-700 hover:underline disabled:opacity-50 dark:text-indigo-300">{label}</button>
               ))}</td>

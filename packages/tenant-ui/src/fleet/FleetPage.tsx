@@ -187,7 +187,7 @@ export default function FleetPage({ api, config }: FleetPageProps) {
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2 border-b-2 -mb-px ${
               tab === t.id
-                ? 'border-orange-500 text-orange-600'
+                ? 'border-orange-500 text-orange-600 dark:text-orange-300'
                 : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
@@ -255,11 +255,11 @@ export default function FleetPage({ api, config }: FleetPageProps) {
 
 function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
   const colors: Record<string, string> = {
-    gray: 'bg-gray-50 text-gray-700',
-    blue: 'bg-blue-50 text-blue-700',
-    green: 'bg-green-50 text-green-700',
-    purple: 'bg-purple-50 text-purple-700',
-    cyan: 'bg-cyan-50 text-cyan-700',
+    gray: 'bg-gray-50 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+    blue: 'bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+    green: 'bg-green-50 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+    purple: 'bg-purple-50 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+    cyan: 'bg-cyan-50 text-cyan-700 dark:text-cyan-300 dark:bg-cyan-950/40',
   };
 
   return (
@@ -307,7 +307,7 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }: VehicleCardProp
           <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
             hasAlert ? 'bg-red-100' : 'bg-gray-100'
           }`}>
-            <Truck className={`w-6 h-6 ${hasAlert ? 'text-red-600' : 'text-gray-600'}`} />
+            <Truck className={`w-6 h-6 ${hasAlert ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-slate-300'}`} />
           </div>
           <div>
             <p className="font-medium text-gray-900 dark:text-slate-100">{vehicle.name}</p>
@@ -317,9 +317,9 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }: VehicleCardProp
           </div>
         </div>
         <span className={`px-2 py-1 text-xs rounded-full ${
-          vehicle.status === 'active' ? 'bg-green-100 text-green-700' :
-          vehicle.status === 'maintenance' ? 'bg-yellow-100 text-yellow-700' :
-          'bg-gray-100 text-gray-700'
+          vehicle.status === 'active' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
+          vehicle.status === 'maintenance' ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' :
+          'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'
         } dark:text-slate-200`}>
           {vehicle.status}
         </span>
@@ -349,7 +349,7 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }: VehicleCardProp
 
       {/* Alerts */}
       {hasAlert && (
-        <div className="mt-3 p-2 bg-orange-50 border border-orange-200 rounded-lg flex items-center gap-2 text-sm text-orange-700">
+        <div className="mt-3 p-2 bg-orange-50 border border-orange-200 rounded-lg flex items-center gap-2 text-sm text-orange-700 dark:text-orange-300 dark:bg-orange-950/40">
           <AlertTriangle className="w-4 h-4" />
           <span>Maintenance due soon</span>
         </div>

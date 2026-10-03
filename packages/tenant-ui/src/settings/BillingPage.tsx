@@ -54,7 +54,7 @@ const date = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(und
 const STATUS: Record<string, { label: string; cls: string }> = {
   active:   { label: 'Active',    cls: 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200' },
   trialing: { label: 'Trial',     cls: 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200' },
-  past_due: { label: 'Past due',  cls: 'bg-amber-100 text-amber-800' },
+  past_due: { label: 'Past due',  cls: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40' },
   canceled: { label: 'Canceled',  cls: 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200' },
   pending:  { label: 'Setup pending', cls: 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200' },
 }
@@ -204,7 +204,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
             </dl>
 
             {sub.status === 'past_due' && (
-              <div className="mt-4 bg-amber-50 border border-amber-200 rounded-md p-3 text-sm text-amber-800">Your last payment did not go through. Update your card in the billing portal to keep the account active.</div>
+              <div className="mt-4 bg-amber-50 border border-amber-200 rounded-md p-3 text-sm text-amber-800 dark:text-amber-300 dark:bg-amber-950/40">Your last payment did not go through. Update your card in the billing portal to keep the account active.</div>
             )}
             {sub.status === 'canceled' && (
               <div className="mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-md p-3 text-sm text-red-800 dark:text-red-200">This subscription is not active. Reactivate it in the billing portal or email support.</div>

@@ -4,7 +4,7 @@ import { Palette, Check, Clock, ChevronDown, ChevronUp, Loader2, ImageIcon, Stic
 import { usePortal } from './PortalContext'
 import { Spinner, PageTitle, Empty, card, pill, inputCls, labelCls, formatDate, moneyShort } from './common'
 
-const STATUS_STYLES: Record<string, string> = { pending: 'bg-yellow-100 text-yellow-700', selected: 'bg-blue-100 text-blue-700', approved: 'bg-green-100 text-green-700', ordered: 'bg-purple-100 text-purple-700', received: 'bg-gray-100 text-gray-700' }
+const STATUS_STYLES: Record<string, string> = { pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', selected: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', approved: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', ordered: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40', received: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800' }
 
 export function PortalSelections() {
   const { fetch: portalFetch } = usePortal()
@@ -59,7 +59,7 @@ function CategoryGroup({ category, items, projectId, onUpdate }: { category: str
         <div className="flex items-center gap-3"><div className="p-2 bg-purple-100 rounded-lg dark:bg-purple-950/40"><Palette className="w-5 h-5 text-purple-600 dark:text-purple-300" /></div><div className="text-left"><h2 className="font-semibold text-gray-900 dark:text-slate-100">{category}</h2><p className="text-sm text-gray-500 dark:text-slate-400">{items.length} selection{items.length !== 1 ? 's' : ''}{pendingCount > 0 && <span className="ml-2 text-orange-600 font-medium dark:text-orange-300">{pendingCount} awaiting your choice</span>}</p></div></div>
         <div className="flex items-center gap-4">
           {totalAllowance > 0 && <div className="text-right text-sm"><p className="text-gray-500 dark:text-slate-400">Allowance</p><p className="font-medium text-gray-900 dark:text-slate-100">{moneyShort(totalAllowance)}</p></div>}
-          {totalSelected > 0 && <div className="text-right text-sm"><p className="text-gray-500 dark:text-slate-400">Selected</p><p className={`font-medium ${totalSelected > totalAllowance ? 'text-red-600' : 'text-green-600'}`}>{moneyShort(totalSelected)}{totalAllowance > 0 && <span className="text-xs ml-1">({totalSelected - totalAllowance >= 0 ? '+' : ''}{moneyShort(totalSelected - totalAllowance)})</span>}</p></div>}
+          {totalSelected > 0 && <div className="text-right text-sm"><p className="text-gray-500 dark:text-slate-400">Selected</p><p className={`font-medium ${totalSelected > totalAllowance ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>{moneyShort(totalSelected)}{totalAllowance > 0 && <span className="text-xs ml-1">({totalSelected - totalAllowance >= 0 ? '+' : ''}{moneyShort(totalSelected - totalAllowance)})</span>}</p></div>}
           {expanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
         </div>
       </button>
@@ -91,14 +91,14 @@ function SelectionItem({ selection, projectId, onUpdate }: { selection: any; pro
     <div className="p-4">
       <div className="flex items-start justify-between gap-4 mb-2">
         <div>
-          <div className="flex items-center gap-2"><h3 className="font-medium text-gray-900 dark:text-slate-100">{selection.name}</h3><span className={pill(STATUS_STYLES[selection.status] || 'bg-gray-100 text-gray-700')}>{selection.status}</span></div>
+          <div className="flex items-center gap-2"><h3 className="font-medium text-gray-900 dark:text-slate-100">{selection.name}</h3><span className={pill(STATUS_STYLES[selection.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{selection.status}</span></div>
           {selection.description && <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">{selection.description}</p>}
           {selection.location && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Location: {selection.location}</p>}
-          {selection.due_date && <p className={`text-xs mt-1 ${new Date(selection.due_date) < new Date() && selection.status === 'pending' ? 'text-red-500 font-medium' : 'text-gray-500 dark:text-slate-400'}`}>Due: {formatDate(selection.due_date)}</p>}
+          {selection.due_date && <p className={`text-xs mt-1 ${new Date(selection.due_date) < new Date() && selection.status === 'pending' ? 'text-red-500 font-medium dark:text-red-400' : 'text-gray-500 dark:text-slate-400'}`}>Due: {formatDate(selection.due_date)}</p>}
         </div>
         <div className="text-right text-sm">
           {allowance > 0 && <p className="text-gray-500 dark:text-slate-400">Allowance: <span className="font-medium text-gray-700 dark:text-slate-200">{moneyShort(allowance)}</span></p>}
-          {selection.selected_option && <p className="text-gray-700 font-medium dark:text-slate-200">Selected: {moneyShort(Number(selection.selected_option.price) * quantity)}{allowance > 0 && <span className={`ml-1 text-xs ${Number(selection.selected_option.price) * quantity > allowance ? 'text-red-600' : 'text-green-600'}`}>({Number(selection.selected_option.price) * quantity - allowance >= 0 ? '+' : ''}{moneyShort(Number(selection.selected_option.price) * quantity - allowance)})</span>}</p>}
+          {selection.selected_option && <p className="text-gray-700 font-medium dark:text-slate-200">Selected: {moneyShort(Number(selection.selected_option.price) * quantity)}{allowance > 0 && <span className={`ml-1 text-xs ${Number(selection.selected_option.price) * quantity > allowance ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>({Number(selection.selected_option.price) * quantity - allowance >= 0 ? '+' : ''}{moneyShort(Number(selection.selected_option.price) * quantity - allowance)})</span>}</p>}
         </div>
       </div>
       {selection.selected_option && (
@@ -126,7 +126,7 @@ function SelectionItem({ selection, projectId, onUpdate }: { selection: any; pro
                       <p className="font-medium text-sm text-gray-900 dark:text-slate-100">{option.name}</p>
                       {option.manufacturer && <p className="text-xs text-gray-500 dark:text-slate-400">{option.manufacturer}{option.model ? ` - ${option.model}` : ''}</p>}
                       {option.description && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 line-clamp-2">{option.description}</p>}
-                      <div className="mt-2 flex items-center justify-between"><p className="text-sm font-bold text-gray-900 dark:text-slate-100">{moneyShort(totalPrice)}</p>{allowance > 0 && <span className={`text-xs font-medium ${priceDiff > 0 ? 'text-red-600' : priceDiff < 0 ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}`}>{priceDiff !== 0 ? `${priceDiff > 0 ? '+' : ''}${moneyShort(priceDiff)}` : 'Within allowance'}</span>}</div>
+                      <div className="mt-2 flex items-center justify-between"><p className="text-sm font-bold text-gray-900 dark:text-slate-100">{moneyShort(totalPrice)}</p>{allowance > 0 && <span className={`text-xs font-medium ${priceDiff > 0 ? 'text-red-600 dark:text-red-400' : priceDiff < 0 ? 'text-green-600 dark:text-green-300' : 'text-gray-500 dark:text-slate-400'}`}>{priceDiff !== 0 ? `${priceDiff > 0 ? '+' : ''}${moneyShort(priceDiff)}` : 'Within allowance'}</span>}</div>
                       {option.lead_time_days > 0 && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-1"><Clock className="w-3 h-3" />{option.lead_time_days} day lead time</p>}
                       {isSelected && <div className="mt-2 flex items-center gap-1 text-blue-600 text-xs font-medium dark:text-blue-300"><Check className="w-3 h-3" /> Currently selected</div>}
                     </button>

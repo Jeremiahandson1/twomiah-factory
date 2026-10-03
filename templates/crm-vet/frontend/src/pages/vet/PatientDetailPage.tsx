@@ -389,7 +389,7 @@ export default function PatientDetailPage() {
         </div>
 
         {p.alerts && (
-          <div className="mt-4 flex items-start gap-2 bg-red-50 border border-red-200 text-red-800 rounded-lg p-3">
+          <div className="mt-4 flex items-start gap-2 bg-red-50 border border-red-200 text-red-800 rounded-lg p-3 dark:text-red-400 dark:bg-red-950/40">
             <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold">Medical Alert</p>
@@ -475,7 +475,7 @@ export default function PatientDetailPage() {
                       {(v.diagnoses || []).length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
                           {(v.diagnoses || []).map((d, i) => (
-                            <span key={i} className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">{d}</span>
+                            <span key={i} className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full dark:text-purple-300 dark:bg-purple-950/40">{d}</span>
                           ))}
                         </div>
                       )}
@@ -544,7 +544,7 @@ export default function PatientDetailPage() {
                     <tr key={v.id} className={vaccineOverdue(v) ? 'bg-red-50 dark:bg-red-950/30' : isSuperseded(v) ? 'opacity-60' : ''}>
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                         {v.vaccine || '—'}
-                        {v.isRabies && !/rabies/i.test(v.vaccine || '') && <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Rabies</span>}
+                        {v.isRabies && !/rabies/i.test(v.vaccine || '') && <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full dark:text-amber-300 dark:bg-amber-950/40">Rabies</span>}
                         {isSuperseded(v) && <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full dark:bg-slate-700 dark:text-slate-300">Superseded</span>}
                       </td>
                       <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{fmtDate(v.givenDate)}</td>
@@ -590,7 +590,7 @@ export default function PatientDetailPage() {
                   <div className="flex items-center justify-between">
                     <p className="font-medium text-gray-900 dark:text-slate-100">
                       {[rx.drug, rx.strength, rx.form].filter(Boolean).join(' ') || 'Medication'}
-                      {rx.isControlled && <span className="ml-2 text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full">Controlled</span>}
+                      {rx.isControlled && <span className="ml-2 text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full dark:text-red-400 dark:bg-red-950/40">Controlled</span>}
                     </p>
                     <span className="text-xs text-gray-500 dark:text-slate-400">
                       Qty {rx.quantity ?? '—'} · {rx.refills ?? 0} refills

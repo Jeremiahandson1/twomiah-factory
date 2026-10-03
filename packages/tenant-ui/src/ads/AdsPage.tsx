@@ -23,10 +23,10 @@ const PLATFORM_LABEL: Record<string, string> = { google: 'Google Ads', meta: 'Me
 const card = 'bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-slate-800'
 const th = 'px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400'
 const statusCls: Record<string, string> = {
-  active: 'bg-green-100 text-green-700', running: 'bg-blue-100 text-blue-700', paused: 'bg-gray-100 text-gray-700', budget_paused: 'bg-amber-100 text-amber-800',
-  balance_paused: 'bg-amber-100 text-amber-800', completed: 'bg-green-100 text-green-700', archived: 'bg-gray-100 text-gray-600', draft: 'bg-gray-100 text-gray-600', failed: 'bg-red-100 text-red-700',
+  active: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', running: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', paused: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800', budget_paused: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40',
+  balance_paused: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40', completed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', archived: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800', draft: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800', failed: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 }
-const Badge = ({ s }: { s?: string | null }) => <span className={`px-2 py-0.5 text-xs rounded-full ${statusCls[String(s)] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>{human(s)}</span>
+const Badge = ({ s }: { s?: string | null }) => <span className={`px-2 py-0.5 text-xs rounded-full ${statusCls[String(s)] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>{human(s)}</span>
 const Spinner = () => <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
 const ErrorBox = ({ msg, onRetry }: { msg: string; onRetry?: () => void }) => (msg ? <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300"><span className="flex items-center gap-2"><AlertCircle className="w-4 h-4 shrink-0" />{msg}</span>{onRetry && <button onClick={onRetry} className="underline">Retry</button>}</div> : null)
 const Empty = ({ icon: Icon, text, hint }: { icon: any; text: string; hint?: string }) => <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900"><Icon className="w-10 h-10 mx-auto text-gray-400 mb-3" /><p className="text-gray-600 dark:text-slate-300">{text}</p>{hint && <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 max-w-md mx-auto">{hint}</p>}</div>
@@ -166,7 +166,7 @@ function OverviewTab({ api, overview }: { api: AdsApi; overview: AdsOverview }) 
             <div className={`${card} p-4`}>
               <h3 className="font-medium mb-3 text-gray-900 dark:text-slate-100">Campaign health (last 7 days)</h3>
               <div className="grid md:grid-cols-2 gap-3">
-                {data.healthScores.map((h: any) => <div key={h.campaign_id} className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-slate-700 px-3 py-2 text-sm"><span>{h.name} <span className="text-gray-500 dark:text-slate-400">· {PLATFORM_LABEL[h.platform] || h.platform}</span></span><span className={`font-semibold ${h.status === 'healthy' ? 'text-green-600' : h.status === 'critical' ? 'text-red-600' : 'text-amber-600'}`}>{h.score}/100</span></div>)}
+                {data.healthScores.map((h: any) => <div key={h.campaign_id} className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-slate-700 px-3 py-2 text-sm"><span>{h.name} <span className="text-gray-500 dark:text-slate-400">· {PLATFORM_LABEL[h.platform] || h.platform}</span></span><span className={`font-semibold ${h.status === 'healthy' ? 'text-green-600 dark:text-green-300' : h.status === 'critical' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-300'}`}>{h.score}/100</span></div>)}
               </div>
             </div>
           )}
@@ -310,7 +310,7 @@ function RecommendationsTab({ api, toast, can }: { api: AdsApi; toast: AdsToast;
               <div key={r.id} className={`${card} p-4`}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="font-medium text-gray-900 dark:text-slate-100">{human(r.action_type)} {urgency && <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${urgency === 'high' ? 'bg-red-100 text-red-700' : urgency === 'medium' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>{urgency}</span>}</p>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{human(r.action_type)} {urgency && <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${urgency === 'high' ? 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' : urgency === 'medium' ? 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40' : 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>{urgency}</span>}</p>
                     <p className="text-xs text-gray-500 dark:text-slate-400">{r.campaign_name || 'Account-wide'}{r.platform ? ` · ${PLATFORM_LABEL[r.platform] || r.platform}` : ''} · {when(r.created_at)}</p>
                     <p className="text-sm mt-2 text-gray-700 dark:text-slate-300">{r.reasoning}</p>
                     {r.executed && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1"><Check className="w-3 h-3 inline" /> {String(r.reasoning || '').includes('[DISMISSED]') ? 'Dismissed' : 'Applied'} {when(r.executed_at)}</p>}
@@ -376,10 +376,10 @@ function ExperimentsTab({ api, toast, can }: { api: AdsApi; toast: AdsToast; can
                     const lift = i > 0 && cvr(base) > 0 ? ((cvr(v) - cvr(base)) / cvr(base)) * 100 : null
                     return (
                       <div key={v.key} className={`p-3 rounded-lg border ${e.winnerKey === v.key ? 'border-orange-500 bg-orange-50/40 dark:bg-orange-900/10' : 'border-gray-200 dark:border-slate-800'}`}>
-                        <div className="flex items-center justify-between mb-1"><span className="text-xs font-medium text-gray-600 dark:text-slate-400">{v.label} <span className="font-mono">({v.key}, {v.trafficPercent}%)</span></span>{e.winnerKey === v.key && <Trophy className="w-3.5 h-3.5 text-orange-500" />}</div>
+                        <div className="flex items-center justify-between mb-1"><span className="text-xs font-medium text-gray-600 dark:text-slate-400">{v.label} <span className="font-mono">({v.key}, {v.trafficPercent}%)</span></span>{e.winnerKey === v.key && <Trophy className="w-3.5 h-3.5 text-orange-500 dark:text-orange-300" />}</div>
                         <div className="text-xl font-bold text-gray-900 dark:text-slate-100">{cvr(v).toFixed(1)}%</div>
                         <div className="text-xs text-gray-500 dark:text-slate-400">{v.conversions} conversions / {v.assignments} visitors</div>
-                        {lift != null && <div className={`text-xs font-medium mt-1 ${lift >= 0 ? 'text-green-600' : 'text-red-600'}`}>{lift >= 0 ? '+' : ''}{lift.toFixed(1)}% vs {base.label}</div>}
+                        {lift != null && <div className={`text-xs font-medium mt-1 ${lift >= 0 ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-400'}`}>{lift >= 0 ? '+' : ''}{lift.toFixed(1)}% vs {base.label}</div>}
                       </div>
                     )
                   })}
@@ -598,7 +598,7 @@ function Billing({ api, balanceCents }: { api: AdsApi; balanceCents: number }) {
       {entries && entries.length > 0 && (
         <table className="w-full text-sm mt-4">
           <thead><tr>{['Date', 'Type', 'Amount', 'Note'].map((h, i) => <th key={h} className={`${th} ${i === 2 ? 'text-right' : 'text-left'}`}>{h}</th>)}</tr></thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-slate-800">{entries.map((e) => <tr key={e.id}><td className="px-4 py-2">{when(e.created_at)}</td><td className="px-4 py-2">{human(e.kind)}</td><td className={`px-4 py-2 text-right ${Number(e.delta_cents) < 0 ? 'text-red-600' : 'text-green-600'}`}>{usd(e.delta_cents)}</td><td className="px-4 py-2">{e.note || '-'}</td></tr>)}</tbody>
+          <tbody className="divide-y divide-gray-100 dark:divide-slate-800">{entries.map((e) => <tr key={e.id}><td className="px-4 py-2">{when(e.created_at)}</td><td className="px-4 py-2">{human(e.kind)}</td><td className={`px-4 py-2 text-right ${Number(e.delta_cents) < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>{usd(e.delta_cents)}</td><td className="px-4 py-2">{e.note || '-'}</td></tr>)}</tbody>
         </table>
       )}
       {entries && entries.length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400 mt-2">No top-ups or charges yet.</p>}

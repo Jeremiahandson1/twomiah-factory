@@ -74,7 +74,7 @@ export default function AlertsPage() {
           <p className="text-gray-500 dark:text-slate-400">Service-to-sales opportunities</p>
         </div>
         <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-600 dark:text-slate-400">
-          <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} className="w-4 h-4 rounded text-orange-500" />
+          <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} className="w-4 h-4 rounded text-orange-500 dark:text-orange-300" />
           Show dismissed
         </label>
       </div>
@@ -92,7 +92,7 @@ export default function AlertsPage() {
             return (
               <div key={row.alert.id} className={`bg-white dark:bg-slate-900 rounded-xl border p-4 flex items-start gap-4 ${dismissed ? 'opacity-60' : ''}`}>
                 <div className="mt-0.5">
-                  <BellRing className={`w-6 h-6 ${dismissed ? 'text-gray-300' : 'text-amber-500'}`} />
+                  <BellRing className={`w-6 h-6 ${dismissed ? 'text-gray-300' : 'text-amber-500 dark:text-amber-300'}`} />
                 </div>
                 <div className="flex-1 space-y-1">
                   <p className="font-medium text-gray-900 dark:text-slate-100">{row.customerName || 'A customer'} checked into service</p>

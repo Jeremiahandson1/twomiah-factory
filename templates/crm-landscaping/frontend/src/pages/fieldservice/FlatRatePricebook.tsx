@@ -455,7 +455,7 @@ function RateFormModal({ item, categories, onSave, onClose }) {
                 type="checkbox"
                 checked={form.taxable}
                 onChange={(e) => setForm({ ...form, taxable: e.target.checked })}
-                className="w-4 h-4 rounded text-orange-500"
+                className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
               />
               <span className="text-sm text-gray-700 dark:text-slate-300">Taxable</span>
             </label>

@@ -501,7 +501,7 @@ export default function SettingsPage() {
                   <button onClick={syncQB} disabled={syncing} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50">
                     <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} /> {syncing ? 'Syncing...' : 'Full Sync'}
                   </button>
-                  <button onClick={disconnectQB} disabled={qbLoading} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 text-xs rounded-lg hover:bg-red-100 disabled:opacity-50">
+                  <button onClick={disconnectQB} disabled={qbLoading} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 text-xs rounded-lg hover:bg-red-100 disabled:opacity-50 dark:text-red-400 dark:bg-red-950/40">
                     <Unlink className="w-3.5 h-3.5" /> Disconnect
                   </button>
                 </div>
@@ -521,7 +521,7 @@ export default function SettingsPage() {
         {hasStorm && (
           <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
             <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
-              <CloudLightning className="w-4 h-4 text-amber-500" /> Storm Lead Generation
+              <CloudLightning className="w-4 h-4 text-amber-500 dark:text-amber-300" /> Storm Lead Generation
             </h2>
             <div className="space-y-4">
               {/* Service Area Zip Codes */}
@@ -607,7 +607,7 @@ export default function SettingsPage() {
         {/* SMS / Twilio Configuration */}
         <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
           <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
-            <MessageSquare className="w-4 h-4 text-blue-500" /> SMS / Twilio
+            <MessageSquare className="w-4 h-4 text-blue-500 dark:text-blue-300" /> SMS / Twilio
           </h2>
           <p className="text-sm text-gray-500 mb-3 dark:text-slate-400">
             Automated SMS messages are sent at each pipeline stage when two-way texting is enabled.
@@ -651,7 +651,7 @@ export default function SettingsPage() {
                     : canManageUsers ? (
                       <button
                         onClick={() => toggleUserAccess(u.id, u.isActive !== false)}
-                        className={`text-xs font-medium ${u.isActive === false ? 'text-green-600 hover:text-green-700 dark:hover:text-green-300' : 'text-red-600 hover:text-red-700 dark:hover:text-red-300'}`}
+                        className={`text-xs font-medium ${u.isActive === false ? 'text-green-600 hover:text-green-700 dark:hover:text-green-300 dark:text-green-300' : 'text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400'}`}
                       >
                         {u.isActive === false ? 'Restore access' : 'Revoke access'}
                       </button>

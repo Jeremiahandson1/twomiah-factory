@@ -44,7 +44,7 @@ class ErrorBoundary extends React.Component<any, any> {
         <div className="min-h-[400px] flex items-center justify-center p-6">
           <div className="text-center max-w-md">
             <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4 dark:bg-red-950/40">
-              <AlertTriangle className="w-8 h-8 text-red-500" />
+              <AlertTriangle className="w-8 h-8 text-red-500 dark:text-red-400" />
             </div>
             <h2 className="text-xl font-semibold text-gray-900 mb-2 dark:text-slate-100">Something went wrong</h2>
             <p className="text-gray-600 mb-6 dark:text-slate-400">

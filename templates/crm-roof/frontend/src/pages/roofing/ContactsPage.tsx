@@ -417,7 +417,7 @@ export default function ContactsPage() {
                             } dark:text-slate-100`}
                           >
                             <p>{msg.body || msg.message}</p>
-                            <p className={`text-[10px] mt-1 ${msg.direction === 'inbound' ? 'text-gray-600' : 'text-blue-200'}`}>
+                            <p className={`text-[10px] mt-1 ${msg.direction === 'inbound' ? 'text-gray-600 dark:text-slate-300' : 'text-blue-200'}`}>
                               {msg.createdAt ? new Date(msg.createdAt).toLocaleString() : ''}
                             </p>
                           </div>

@@ -52,7 +52,7 @@ export default function AITradeAppraisalPage() {
         </div>
       </div>
 
-      {error && <div className="mt-5 bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 text-sm">{error}</div>}
+      {error && <div className="mt-5 bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 text-sm dark:text-red-400 dark:bg-red-950/40">{error}</div>}
 
       {res && (
         <div className="mt-5 space-y-4">
@@ -74,7 +74,7 @@ export default function AITradeAppraisalPage() {
               <ul className="list-disc pl-5 text-gray-600 dark:text-slate-400">{res.appraisal.comps.map((c: string, i: number) => <li key={i}>{c}</li>)}</ul>
             )}
           </div>
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex gap-2">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex gap-2 dark:text-amber-300 dark:bg-amber-950/40">
             <Info size={15} className="shrink-0 mt-0.5" /><span>{res.disclaimer}</span>
           </div>
         </div>

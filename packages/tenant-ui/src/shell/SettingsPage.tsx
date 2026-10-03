@@ -425,7 +425,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                               {mayTransfer && u.role !== 'owner' && u.isActive && (
                                 <button type="button" onClick={() => setTransferTo(u)} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 mr-3 dark:text-indigo-300 dark:hover:text-indigo-200">Make owner</button>
                               )}
-                              <button type="button" onClick={() => toggleAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700 dark:hover:text-red-300' : 'text-green-600 hover:text-green-700 dark:hover:text-green-300'}`}>{u.isActive ? 'Revoke access' : 'Restore access'}</button>
+                              <button type="button" onClick={() => toggleAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400' : 'text-green-600 hover:text-green-700 dark:hover:text-green-300 dark:text-green-300'}`}>{u.isActive ? 'Revoke access' : 'Restore access'}</button>
                             </>
                           ) : null}
                         </td>

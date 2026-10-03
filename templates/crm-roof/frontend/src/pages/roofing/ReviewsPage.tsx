@@ -8,11 +8,11 @@ import { Star, Send, Plus } from 'lucide-react';
 import api from '../../api/client';
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-gray-100 text-gray-700',
-  sent: 'bg-blue-100 text-blue-700',
-  clicked: 'bg-purple-100 text-purple-700',
-  completed: 'bg-green-100 text-green-700',
-  failed: 'bg-red-100 text-red-700',
+  pending: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  sent: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  clicked: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  completed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  failed: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 export default function ReviewsPage() {
@@ -45,15 +45,15 @@ export default function ReviewsPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Star className="w-6 h-6 text-orange-500" />Reviews</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Star className="w-6 h-6 text-orange-500 dark:text-orange-300" />Reviews</h1>
           {summary && <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">{Number(summary.averageRating || 0).toFixed(1)} ★ average · {summary.totalReviews} reviews</p>}
         </div>
         {tab === 'requests' && <button onClick={() => setShowRequest(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />Request Review</button>}
       </div>
 
       <div className="flex gap-2 mb-4 border-b">
-        <button onClick={() => setTab('received')} className={`px-4 py-2 border-b-2 ${tab === 'received' ? 'border-orange-500 text-orange-600 font-semibold' : 'border-transparent text-gray-500 dark:text-slate-400'}`}>Received ({reviews.length})</button>
-        <button onClick={() => setTab('requests')} className={`px-4 py-2 border-b-2 ${tab === 'requests' ? 'border-orange-500 text-orange-600 font-semibold' : 'border-transparent text-gray-500 dark:text-slate-400'}`}>Requests ({requests.length})</button>
+        <button onClick={() => setTab('received')} className={`px-4 py-2 border-b-2 ${tab === 'received' ? 'border-orange-500 text-orange-600 font-semibold dark:text-orange-300' : 'border-transparent text-gray-500 dark:text-slate-400'}`}>Received ({reviews.length})</button>
+        <button onClick={() => setTab('requests')} className={`px-4 py-2 border-b-2 ${tab === 'requests' ? 'border-orange-500 text-orange-600 font-semibold dark:text-orange-300' : 'border-transparent text-gray-500 dark:text-slate-400'}`}>Requests ({requests.length})</button>
       </div>
 
       {tab === 'received' ? (
@@ -66,7 +66,7 @@ export default function ReviewsPage() {
                     <div className="flex items-center gap-1">{[1,2,3,4,5].map((s) => <Star key={s} className={`w-4 h-4 ${s <= r.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />)}</div>
                     <div className="text-xs text-gray-500 mt-1 dark:text-slate-400">{r.reviewerName || 'Anonymous'} · {r.platform} · {formatDate(r.receivedAt)}</div>
                   </div>
-                  {r.verified && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">Verified</span>}
+                  {r.verified && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full dark:text-green-300 dark:bg-green-950/40">Verified</span>}
                 </div>
                 {r.comment && <p className="mt-3 text-sm text-gray-700 dark:text-slate-200">{r.comment}</p>}
               </div>

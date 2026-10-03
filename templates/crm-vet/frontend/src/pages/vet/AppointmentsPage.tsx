@@ -14,13 +14,13 @@ import { APPOINTMENT_TYPES, appointmentTypeLabel } from '../../lib/appointmentTy
 // the types themselves live in lib/appointmentTypes, so the form and the schedule cannot disagree
 
 const STATUS_COLORS: Record<string, string> = {
-  scheduled: 'bg-gray-100 text-gray-700',
-  confirmed: 'bg-blue-100 text-blue-700',
-  checked_in: 'bg-teal-100 text-teal-700',
-  in_progress: 'bg-purple-100 text-purple-700',
-  completed: 'bg-green-100 text-green-700',
-  no_show: 'bg-amber-100 text-amber-700',
-  cancelled: 'bg-red-100 text-red-700',
+  scheduled: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  confirmed: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  checked_in: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40',
+  in_progress: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  completed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  no_show: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
+  cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 const NOT_CHECKED_IN = new Set(['scheduled', 'confirmed']);
@@ -157,7 +157,7 @@ export default function AppointmentsPage() {
                 {a.room && <span className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><DoorOpen className="w-3 h-3" /> {a.room}</span>}
                 {providerName(a) && <span className="text-xs text-gray-500 dark:text-slate-400">Dr. {providerName(a)}</span>}
               </div>
-              <span className={`text-xs px-2 py-1 rounded-full capitalize ${STATUS_COLORS[a.status || ''] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+              <span className={`text-xs px-2 py-1 rounded-full capitalize ${STATUS_COLORS[a.status || ''] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                 {(a.status || 'scheduled').replace('_', ' ')}
               </span>
               {NOT_CHECKED_IN.has(a.status || 'scheduled') && (
@@ -279,7 +279,7 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Patient <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Patient <span className="text-red-500 dark:text-red-400">*</span></label>
               <select value={form.patientId} onChange={(e) => onPatient(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
                 <option value="">Select patient...</option>
                 {patients.map((p) => (
@@ -335,7 +335,7 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             {conflictMsg && (
-              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:text-amber-300 dark:bg-amber-950/40">
                 <p className="font-medium">{conflictMsg}</p>
                 <p className="mt-1 text-amber-700 dark:text-amber-300">Book this appointment anyway, or change the time or provider.</p>
                 <div className="flex gap-2 mt-2">

@@ -7,11 +7,11 @@ import { Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
 
 const queueStatuses: Record<string, string> = {
-  waiting: 'bg-yellow-100 text-yellow-700',
-  called: 'bg-blue-100 text-blue-700',
-  serving: 'bg-green-100 text-green-700',
-  completed: 'bg-gray-100 text-gray-600',
-  no_show: 'bg-red-100 text-red-700',
+  waiting: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  called: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  serving: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  completed: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800',
+  no_show: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 const sources = ['walk_in', 'online', 'phone', 'qr_code'];
@@ -208,11 +208,11 @@ export default function CheckinPage() {
                         <div>
                           <div className="flex items-center gap-3 mb-1">
                             <span className="font-semibold text-gray-900 dark:text-slate-100">{entry.name || 'Unknown'}</span>
-                            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${queueStatuses[entry.status] || 'bg-gray-100 text-gray-600'}`}>
+                            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${queueStatuses[entry.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                               {(entry.status || 'waiting').replace('_', ' ')}
                             </span>
                             {entry.isMedical && (
-                              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-700">Medical</span>
+                              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40">Medical</span>
                             )}
                             <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400">
                               {(entry.source || 'walk_in').replace('_', ' ')}
@@ -259,7 +259,7 @@ export default function CheckinPage() {
                         {(entry.status === 'waiting' || entry.status === 'called') && (
                           <button
                             onClick={() => updateStatus(entry.id, 'no_show')}
-                            className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                            className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 dark:text-red-400 dark:bg-red-950/40"
                           >
                             No-Show
                           </button>

@@ -79,7 +79,7 @@ function StatCard({ icon: Icon, label, value, highlight }: { icon: any; label: s
   return (
     <div className="card p-5">
       <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400"><Icon className="h-4 w-4" /> {label}</div>
-      <div className={`mt-2 text-2xl font-bold ${highlight ? 'text-primary-600' : 'text-gray-900'} dark:text-slate-100`}>{value}</div>
+      <div className={`mt-2 text-2xl font-bold ${highlight ? 'text-primary-600' : 'text-gray-900 dark:text-slate-200'} dark:text-slate-100`}>{value}</div>
     </div>
   )
 }
@@ -88,7 +88,7 @@ function ChecklistItem({ done, text, to }: { done: boolean; text: string; to: st
   return (
     <li>
       <Link to={to} className="flex items-center gap-2 text-gray-700 hover:text-primary-600 dark:text-slate-200">
-        {done ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <AlertCircle className="h-4 w-4 text-yellow-500" />}
+        {done ? <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-300" /> : <AlertCircle className="h-4 w-4 text-yellow-500 dark:text-yellow-300" />}
         {text}
       </Link>
     </li>

@@ -20,13 +20,13 @@ import { useConfirm } from '../../shared';
  */
 
 const STATUS_COLORS: Record<string, string> = {
-  scheduled: 'bg-gray-100 text-gray-700',
-  confirmed: 'bg-blue-100 text-blue-700',
-  checked_in: 'bg-teal-100 text-teal-700',
-  in_chair: 'bg-purple-100 text-purple-700',
-  completed: 'bg-green-100 text-green-700',
-  no_show: 'bg-amber-100 text-amber-700',
-  cancelled: 'bg-red-100 text-red-700',
+  scheduled: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  confirmed: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  checked_in: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40',
+  in_chair: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  completed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  no_show: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
+  cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 const NOT_CHECKED_IN = new Set(['scheduled', 'confirmed']);
@@ -242,7 +242,7 @@ export default function AppointmentsPage() {
                 {a.station && <span className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><Armchair className="w-3 h-3" /> {a.station}</span>}
                 {stylistName(a) && <span className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><User className="w-3 h-3" /> {stylistName(a)}</span>}
               </div>
-              <span className={`text-xs px-2 py-1 rounded-full capitalize ${STATUS_COLORS[a.status || ''] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+              <span className={`text-xs px-2 py-1 rounded-full capitalize ${STATUS_COLORS[a.status || ''] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                 {(a.status || 'scheduled').replace('_', ' ')}
               </span>
               {NOT_CHECKED_IN.has(a.status || 'scheduled') && (
@@ -490,11 +490,11 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Client <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Client <span className="text-red-500 dark:text-red-400">*</span></label>
               <ClientPicker value={contactId} onChange={(id) => { setContactId(id); setProfile(null); if (id) loadProfile(id).then(setProfile); }} />
             </div>
             {visitWarnings(profile, services.find((s) => s.id === form.serviceId)).length > 0 && (
-              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-sm">
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-sm dark:text-amber-300 dark:bg-amber-950/40">
                 <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
                 <ul className="space-y-1">{visitWarnings(profile, services.find((s) => s.id === form.serviceId)).map((w) => <li key={w}>{w}</li>)}</ul>
               </div>

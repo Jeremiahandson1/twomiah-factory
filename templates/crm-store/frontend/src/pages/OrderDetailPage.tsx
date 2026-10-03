@@ -229,5 +229,5 @@ function LabelPanel({ orderId, order, onBought }: { orderId: string; order: Orde
 }
 
 function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
-  return <div className={`flex justify-between ${bold ? 'font-semibold text-gray-900 pt-1' : 'text-gray-600'} dark:text-slate-100`}><span>{label}</span><span>{value}</span></div>
+  return <div className={`flex justify-between ${bold ? 'font-semibold text-gray-900 pt-1 dark:text-slate-200' : 'text-gray-600 dark:text-slate-300'} dark:text-slate-100`}><span>{label}</span><span>{value}</span></div>
 }

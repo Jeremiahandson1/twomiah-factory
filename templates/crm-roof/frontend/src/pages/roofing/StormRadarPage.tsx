@@ -12,17 +12,17 @@ import { Radio, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react';
 import api from '../../api/client';
 
 const SEVERITY_COLORS: Record<string, string> = {
-  minor: 'bg-yellow-100 text-yellow-700',
-  moderate: 'bg-orange-100 text-orange-700',
-  severe: 'bg-red-100 text-red-700',
-  extreme: 'bg-purple-100 text-purple-700',
+  minor: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  moderate: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  severe: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  extreme: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
 };
 
 const MATCH_STATUS_COLORS: Record<string, string> = {
-  new: 'bg-blue-100 text-blue-700',
-  contacted: 'bg-purple-100 text-purple-700',
-  quoted: 'bg-yellow-100 text-yellow-700',
-  booked: 'bg-green-100 text-green-700',
+  new: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  contacted: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  quoted: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  booked: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
   not_interested: 'bg-gray-100 text-gray-400',
 };
 
@@ -74,13 +74,13 @@ export default function StormRadarPage() {
     load();
   };
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500" /></div>;
+  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500 dark:text-orange-300" /></div>;
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Radio className="w-6 h-6 text-orange-500" />Storm Radar</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Radio className="w-6 h-6 text-orange-500 dark:text-orange-300" />Storm Radar</h1>
           <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Weather events overlaid on your customer base — drive storm-season lead generation</p>
         </div>
         <button onClick={sync} disabled={syncing || !status?.configured} className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg flex items-center gap-2">
@@ -101,7 +101,7 @@ export default function StormRadarPage() {
       )}
 
       {status?.configured && (
-        <div className="mb-6 bg-green-50 border border-green-300 rounded-lg p-3 text-sm text-green-800">
+        <div className="mb-6 bg-green-50 border border-green-300 rounded-lg p-3 text-sm text-green-800 dark:text-green-300 dark:bg-green-950/40">
           ✓ Storm Radar active using <strong>{status.provider}</strong>. Click "Sync Now" to pull the latest events.
         </div>
       )}

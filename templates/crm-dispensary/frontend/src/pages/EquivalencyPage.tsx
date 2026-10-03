@@ -365,7 +365,7 @@ const unitOf = (rule: any): string => {
           <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-semibold text-gray-900 dark:text-slate-100">Purchase Limit</h3>
-              <span className={`text-sm font-medium ${overLimit ? 'text-red-600' : 'text-gray-600'}`}>
+              <span className={`text-sm font-medium ${overLimit ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-slate-300'}`}>
                 {Number(totalEquivalentGrams).toFixed(1)}g / {purchaseLimit}g
               </span>
             </div>
@@ -409,7 +409,7 @@ const unitOf = (rule: any): string => {
                     <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{item.ruleEquivalency}g</td>
                     <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">{Number(item.equivalentGrams).toFixed(1)}g</td>
                     <td className="px-4 py-3 text-right">
-                      <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300">
+                      <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </td>
@@ -427,7 +427,7 @@ const unitOf = (rule: any): string => {
                 <tfoot className="bg-gray-50 dark:bg-slate-900">
                   <tr>
                     <td colSpan={4} className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-slate-100">Total Flower Equivalent:</td>
-                    <td className={`px-4 py-3 text-right font-bold ${overLimit ? 'text-red-600' : 'text-green-600'}`}>
+                    <td className={`px-4 py-3 text-right font-bold ${overLimit ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>
                       {Number(totalEquivalentGrams).toFixed(1)}g
                     </td>
                     <td />

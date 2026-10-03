@@ -341,7 +341,7 @@ export default function SchedulingPage() {
                             onClick={() => cellShifts.length === 0 && openCreateShift(dateStr, emp.id)}>
                             {cellShifts.map(s => (
                               <div key={s.id}
-                                className={`text-xs px-1 py-1 rounded border mb-1 cursor-pointer ${ROLE_COLORS[s.role] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}
+                                className={`text-xs px-1 py-1 rounded border mb-1 cursor-pointer ${ROLE_COLORS[s.role] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}
                                 onClick={(e) => { e.stopPropagation(); openEditShift(s); }}>
                                 {formatTime(s.startTime)}-{formatTime(s.endTime)}
                               </div>
@@ -431,7 +431,7 @@ export default function SchedulingPage() {
                     <td className="px-4 py-3 text-sm">{entry.clockOut ? formatTime(entry.clockOut) : <span className="text-yellow-600 dark:text-yellow-300">Active</span>}</td>
                     <td className="px-4 py-3 text-sm font-medium">{entry.hours ? `${Number(entry.hours).toFixed(1)}h` : '-'}</td>
                     <td className="px-4 py-3 text-sm">
-                      <span className={`px-2 py-0.5 rounded-full text-xs ${entry.approved ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                      <span className={`px-2 py-0.5 rounded-full text-xs ${entry.approved ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40'}`}>
                         {entry.approved ? 'Approved' : 'Pending'}
                       </span>
                     </td>

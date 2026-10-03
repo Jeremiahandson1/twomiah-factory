@@ -15,11 +15,11 @@ const STATUSES: { value: string; label: string }[] = [
 ];
 
 const STATUS_COLORS: Record<string, string> = {
-  open: 'bg-blue-100 text-blue-700',
-  in_progress: 'bg-purple-100 text-purple-700',
-  waiting_parts: 'bg-amber-100 text-amber-700',
-  ready: 'bg-green-100 text-green-700',
-  closed: 'bg-gray-100 text-gray-700',
+  open: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  in_progress: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  waiting_parts: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
+  ready: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  closed: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
 };
 
 interface RoRow {
@@ -140,7 +140,7 @@ export default function ServicePage() {
                     <select
                       value={row.ro.status}
                       onChange={(e) => changeStatus(row.ro.id, e.target.value)}
-                      className={`text-xs px-2 py-1 rounded-full border-0 ${STATUS_COLORS[row.ro.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}
+                      className={`text-xs px-2 py-1 rounded-full border-0 ${STATUS_COLORS[row.ro.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}
                     >
                       {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>
@@ -220,12 +220,12 @@ function RoFormModal({ onSave, onClose }: RoFormModalProps) {
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold flex items-center gap-2"><Wrench className="w-5 h-5 text-orange-500" /> New Repair Order</h2>
+            <h2 className="text-lg font-bold flex items-center gap-2"><Wrench className="w-5 h-5 text-orange-500 dark:text-orange-300" /> New Repair Order</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Customer <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Customer <span className="text-red-500 dark:text-red-400">*</span></label>
               <select value={form.customerId} onChange={(e) => set('customerId', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
                 <option value="">Select customer...</option>
                 {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}

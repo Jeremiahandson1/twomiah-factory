@@ -8,32 +8,32 @@ import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/Dat
 import { Modal } from '../components/ui/Modal';
 
 const orderStatusColors: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-700',
-  confirmed: 'bg-blue-100 text-blue-700',
-  shipped: 'bg-purple-100 text-purple-700',
-  delivered: 'bg-green-100 text-green-700',
-  invoiced: 'bg-amber-100 text-amber-700',
-  paid: 'bg-green-100 text-green-700',
-  cancelled: 'bg-red-100 text-red-700',
+  draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  confirmed: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  shipped: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  delivered: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  invoiced: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
+  paid: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 const paymentStatusColors: Record<string, string> = {
-  unpaid: 'bg-red-100 text-red-700',
-  partial: 'bg-amber-100 text-amber-700',
-  paid: 'bg-green-100 text-green-700',
+  unpaid: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  partial: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
+  paid: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
 };
 
 const labStatusColors: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  in_progress: 'bg-blue-100 text-blue-700',
-  completed: 'bg-green-100 text-green-700',
-  failed: 'bg-red-100 text-red-700',
+  pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  in_progress: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  completed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  failed: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 const resultColors: Record<string, string> = {
-  pass: 'bg-green-100 text-green-700',
-  fail: 'bg-red-100 text-red-700',
-  pending: 'bg-yellow-100 text-yellow-700',
+  pass: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  fail: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
 };
 
 const contaminantTests = ['pesticides', 'heavyMetals', 'microbials', 'mycotoxins', 'residualSolvents', 'foreignMatter'];
@@ -59,7 +59,7 @@ export default function WholesalePage() {
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
             } dark:bg-slate-900 dark:text-slate-300`}
           >
             <tab.icon className="w-4 h-4" />
@@ -178,7 +178,7 @@ function CustomersTab() {
       </div>
     )},
     { key: 'paymentTerms', label: 'Payment Terms', render: (val: string) => <span className="text-gray-700 dark:text-slate-200">{({ cod: 'COD', net15: 'Net 15', net30: 'Net 30', net60: 'Net 60', prepaid: 'Prepaid' } as Record<string, string>)[String(val || '').toLowerCase().replace(/[^a-z0-9]/g, '')] || val || '--'}</span> },
-    { key: 'balance', label: 'Balance', render: (val: number) => val ? <span className={`font-medium ${val > 0 ? 'text-red-600' : 'text-green-600'}`}>${Number(val).toFixed(2)}</span> : <span className="text-gray-500 dark:text-slate-400">$0.00</span> },
+    { key: 'balance', label: 'Balance', render: (val: number) => val ? <span className={`font-medium ${val > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>${Number(val).toFixed(2)}</span> : <span className="text-gray-500 dark:text-slate-400">$0.00</span> },
   ];
 
   return (

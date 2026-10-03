@@ -131,7 +131,7 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
               <div className={`mt-4 grid ${showCost ? 'grid-cols-3' : 'grid-cols-1'} gap-2 text-sm`}>
                 <div><p className="text-gray-500 dark:text-slate-400">Price</p><p className="font-bold text-gray-900 dark:text-slate-100">{usd(item.price)}</p></div>
                 {showCost && <div><p className="text-gray-500 dark:text-slate-400">Cost</p><p className="font-medium text-gray-700 dark:text-slate-200">{usd(item.totalCost ?? item.cost)}</p></div>}
-                {showCost && <div><p className="text-gray-500 dark:text-slate-400">Margin</p><p className={`font-medium ${Number(item.margin) > 30 ? 'text-green-600' : 'text-orange-600'}`}>{item.margin}%</p></div>}
+                {showCost && <div><p className="text-gray-500 dark:text-slate-400">Margin</p><p className={`font-medium ${Number(item.margin) > 30 ? 'text-green-600 dark:text-green-300' : 'text-orange-600 dark:text-orange-300'}`}>{item.margin}%</p></div>}
               </div>
               {Number(item.laborHours) > 0 && <div className="mt-2 flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400"><Clock className="w-4 h-4" />{Number(item.laborHours)} hours</div>}
               {Number(item._count?.goodBetterBest) > 0 && <div className="mt-2 flex items-center gap-1 text-sm text-blue-600 dark:text-blue-300"><Star className="w-4 h-4" />{item._count.goodBetterBest} {config?.tiersTitle || 'pricing tier'}{item._count.goodBetterBest === 1 ? '' : 's'}</div>}
@@ -143,7 +143,7 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
                   {mayUpdate && <button onClick={() => setEditing({ open: true, item })} className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg dark:text-slate-400 dark:hover:bg-slate-800"><Edit2 className="w-4 h-4" />Edit</button>}
                   {mayUpdate && <button onClick={() => setTiersFor(item)} className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg dark:text-blue-300"><Star className="w-4 h-4" />{config?.tiersButton || 'Options'}</button>}
                   {mayCreate && <button onClick={() => duplicate(item)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg" title="Duplicate" aria-label="Duplicate"><Copy className="w-4 h-4" /></button>}
-                  {mayDelete && <button onClick={() => setToDelete(item)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Delete" aria-label="Delete"><Trash2 className="w-4 h-4" /></button>}
+                  {mayDelete && <button onClick={() => setToDelete(item)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg dark:text-red-400" title="Delete" aria-label="Delete"><Trash2 className="w-4 h-4" /></button>}
                 </div>
               )}
             </div>
@@ -195,7 +195,7 @@ function ItemModal({ api, toast, item, categories, itemWord, onClose, onSaved }:
           <Field label="Price ($)"><input className={inputCls} type="number" min={0} step="0.01" required value={f.price} onChange={set('price')} /></Field>
           <Field label="Cost ($)"><input className={inputCls} type="number" min={0} step="0.01" value={f.cost} onChange={set('cost')} /></Field>
           <Field label="Labor hours"><input className={inputCls} type="number" min={0} step="0.25" value={f.laborHours} onChange={set('laborHours')} /></Field>
-          <Field label="Margin"><div className={`px-3 py-2 rounded-lg font-medium ${Number(margin) > 30 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>{margin}%</div></Field>
+          <Field label="Margin"><div className={`px-3 py-2 rounded-lg font-medium ${Number(margin) > 30 ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40'}`}>{margin}%</div></Field>
         </div>
         <div className="flex flex-wrap gap-6 text-sm">
           <label className="flex items-center gap-2"><input type="checkbox" checked={f.taxable} onChange={set('taxable')} />Taxable</label>
@@ -275,7 +275,7 @@ function TiersModal({ api, toast, item, presets, title, onClose, onSaved }: { ap
             {opts.map((o) => (
               <div key={o.tier} className={`p-4 rounded-xl border-2 ${o.recommended ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/20' : 'border-gray-200 dark:border-slate-700'}`}>
                 <div className="flex items-center justify-between mb-3">
-                  <span className={`px-2 py-1 rounded text-xs font-medium uppercase ${o.tier === 'good' ? 'bg-gray-200 text-gray-700' : o.tier === 'better' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'} dark:text-slate-200`}>{o.tier}</span>
+                  <span className={`px-2 py-1 rounded text-xs font-medium uppercase ${o.tier === 'good' ? 'bg-gray-200 text-gray-700 dark:text-slate-200 dark:bg-slate-700' : o.tier === 'better' ? 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40'} dark:text-slate-200`}>{o.tier}</span>
                   <label className="flex items-center gap-1 text-xs"><input type="radio" name="recommended" checked={o.recommended} onChange={() => setOpts((cur) => cur.map((x) => ({ ...x, recommended: x.tier === o.tier })))} />Recommended</label>
                 </div>
                 <input className={`${inputCls} mb-2 font-medium`} maxLength={100} value={o.name} onChange={(e) => upd(o.tier, { name: e.target.value })} placeholder="Option name" />

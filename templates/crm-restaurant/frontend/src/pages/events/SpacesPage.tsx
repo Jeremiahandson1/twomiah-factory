@@ -103,7 +103,7 @@ export default function SpacesPage() {
 
               <div className="mt-3 space-y-1 text-sm">
                 <p className="flex items-center gap-2 text-gray-700 dark:text-slate-200">
-                  <Wallet className="w-4 h-4 text-orange-500" />
+                  <Wallet className="w-4 h-4 text-orange-500 dark:text-orange-300" />
                   <span className="font-semibold">{money(s.minimumSpend)}</span>
                   <span className="text-gray-500 dark:text-slate-400">minimum spend</span>
                 </p>
@@ -113,7 +113,7 @@ export default function SpacesPage() {
               {(s.amenities || []).length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-3">
                   {(s.amenities || []).map((a, i) => (
-                    <span key={i} className="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded-full">{a}</span>
+                    <span key={i} className="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded-full dark:text-orange-300 dark:bg-orange-950/40">{a}</span>
                   ))}
                 </div>
               )}
@@ -196,7 +196,7 @@ function SpaceModal({ space, onSave, onClose }: { space: Space | null; onSave: (
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500 dark:text-red-400">*</span></label>
               <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="The Cellar" required />
             </div>
             <div>
@@ -229,7 +229,7 @@ function SpaceModal({ space, onSave, onClose }: { space: Space | null; onSave: (
                     key={a}
                     type="button"
                     onClick={() => toggleAmenity(a)}
-                    className={`text-xs px-2 py-1 rounded-full border ${amenities.includes(a) ? 'bg-orange-600 text-white border-orange-600' : 'bg-white dark:bg-slate-900 text-gray-600 hover:bg-gray-50'} dark:text-slate-300`}
+                    className={`text-xs px-2 py-1 rounded-full border ${amenities.includes(a) ? 'bg-orange-600 text-white border-orange-600' : 'bg-white dark:bg-slate-900 text-gray-600 hover:bg-gray-50 dark:text-slate-300'} dark:text-slate-300`}
                   >
                     {a}
                   </button>

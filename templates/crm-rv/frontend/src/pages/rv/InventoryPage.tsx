@@ -83,11 +83,11 @@ const CATEGORIES = [
 const POWERSPORTS = new Set(['motorcycle', 'atv', 'utv', 'sxs', 'pwc', 'snowmobile', 'boat']);
 
 const STATUS_COLORS: Record<string, string> = {
-  available: 'bg-green-100 text-green-700',
-  sold: 'bg-gray-100 text-gray-700',
-  pending: 'bg-yellow-100 text-yellow-700',
-  on_order: 'bg-blue-100 text-blue-700',
-  in_service: 'bg-purple-100 text-purple-700',
+  available: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  sold: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  on_order: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  in_service: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
 };
 
 function categoryLabel(id?: string): string {
@@ -288,11 +288,11 @@ export default function InventoryPage() {
               )}
               <div className="p-4 flex-1 flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full dark:text-orange-300 dark:bg-orange-950/40">
                     <Tag className="w-3 h-3" /> {categoryLabel(u.category)}
                   </span>
                   {u.status && (
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[u.status] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[u.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                       {u.status.replace('_', ' ')}
                     </span>
                   )}
@@ -422,7 +422,7 @@ function FeedUrlModal({ onClose }: { onClose: () => void }) {
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2">
-              <Link2 className="w-5 h-5 text-orange-500" />
+              <Link2 className="w-5 h-5 text-orange-500 dark:text-orange-300" />
               Syndication Feed URLs
             </h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
@@ -798,7 +798,7 @@ function UnitFormModal({ unit, onSave, onClose }: UnitFormModalProps) {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Category — required, drives the form */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Category <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Category <span className="text-red-500 dark:text-red-400">*</span></label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}

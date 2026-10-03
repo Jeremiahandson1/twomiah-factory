@@ -35,7 +35,7 @@ export default function MyAccountPage() {
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2">
-          <User className="w-6 h-6 text-orange-500" />My Account
+          <User className="w-6 h-6 text-orange-500 dark:text-orange-300" />My Account
         </h1>
         <p className="text-sm text-gray-600 mt-1 dark:text-slate-400">
           How you sign in. These settings are yours alone — changing them affects nobody else and

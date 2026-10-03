@@ -302,7 +302,7 @@ export default function CashPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                        session.status === 'open' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                        session.status === 'open' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
                       }`}>
                         {session.status || 'closed'}
                       </span>

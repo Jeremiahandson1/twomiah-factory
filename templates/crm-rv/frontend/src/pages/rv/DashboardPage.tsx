@@ -170,7 +170,7 @@ export default function DashboardPage() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400">
-              <Truck className="w-5 h-5 text-orange-500" />
+              <Truck className="w-5 h-5 text-orange-500 dark:text-orange-300" />
               <span className="text-sm font-medium">Inventory</span>
             </div>
             <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-orange-400" />
@@ -188,7 +188,7 @@ export default function DashboardPage() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400">
-              <TrendingUp className="w-5 h-5 text-orange-500" />
+              <TrendingUp className="w-5 h-5 text-orange-500 dark:text-orange-300" />
               <span className="text-sm font-medium">Sales Pipeline</span>
             </div>
             <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-orange-400" />
@@ -218,7 +218,7 @@ export default function DashboardPage() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400">
-              <Wrench className="w-5 h-5 text-orange-500" />
+              <Wrench className="w-5 h-5 text-orange-500 dark:text-orange-300" />
               <span className="text-sm font-medium">Service</span>
             </div>
             <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-orange-400" />
@@ -249,7 +249,7 @@ export default function DashboardPage() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400">
-              <Users className="w-5 h-5 text-orange-500" />
+              <Users className="w-5 h-5 text-orange-500 dark:text-orange-300" />
               <span className="text-sm font-medium">Contacts</span>
             </div>
             <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-orange-400" />

@@ -64,14 +64,14 @@ export default function TitleRegPage() {
       </div>
 
       {result && (result.error
-        ? <div className="mt-4 bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 text-sm">{result.error}</div>
+        ? <div className="mt-4 bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 text-sm dark:text-red-400 dark:bg-red-950/40">{result.error}</div>
         : <div className="mt-4 bg-white rounded-xl border shadow-sm p-5 dark:bg-slate-900">
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             {accepted ? <CheckCircle2 className="text-green-600 dark:text-green-300" /> : <AlertCircle className="text-amber-600 dark:text-amber-300" />}
             <span className="text-lg font-bold capitalize">{statusLabel}</span>
             {res?.refNumber && <span className="text-sm text-gray-500 dark:text-slate-400">· {res.refNumber}</span>}
             {res?.state && <span className="text-sm text-gray-500 dark:text-slate-400">· {res.state}</span>}
-            {!live && <span className="sm:ml-auto text-[11px] bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">not connected — live via Vitu on integration</span>}</div>
+            {!live && <span className="sm:ml-auto text-[11px] bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5 dark:text-amber-300 dark:bg-amber-950/40">not connected — live via Vitu on integration</span>}</div>
           {res?.reason && <p className="text-sm text-gray-600 mb-3 dark:text-slate-400">{res.reason}</p>}
           <div className="grid sm:grid-cols-2 gap-4 text-sm">
             <div><div className="font-semibold text-gray-700 mb-1 dark:text-slate-200">Fees</div>

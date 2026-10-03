@@ -127,7 +127,7 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
     <div data-testid="time-page-shared">
       <PageHeader title="Time Tracking" subtitle={config?.subtitle || 'Clock in and out, or log hours by hand'} action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Log Time</Button>} />
       <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <Clock className="w-5 h-5 text-orange-500" />
+        <Clock className="w-5 h-5 text-orange-500 dark:text-orange-300" />
         {active ? (
           <>
             <span className="text-sm text-gray-700 dark:text-slate-200">Clocked in since {new Date(active.clockIn as string).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{active.job?.title ? ` · ${active.job.title}` : active.project?.name ? ` · ${active.project.name}` : ''}</span>

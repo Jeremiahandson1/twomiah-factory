@@ -274,10 +274,10 @@ export default function LoyaltyPage() {
   ];
 
   const tierBadgeColor: Record<string, string> = {
-    bronze: 'bg-amber-100 text-amber-700',
-    silver: 'bg-gray-200 text-gray-700',
-    gold: 'bg-yellow-100 text-yellow-700',
-    platinum: 'bg-indigo-100 text-indigo-700',
+    bronze: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
+    silver: 'bg-gray-200 text-gray-700 dark:text-slate-200 dark:bg-slate-700',
+    gold: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+    platinum: 'bg-indigo-100 text-indigo-700 dark:text-indigo-300 dark:bg-indigo-950/40',
   };
 
   return (
@@ -432,7 +432,7 @@ export default function LoyaltyPage() {
                     <Gift className="w-5 h-5 text-green-600 dark:text-green-300" />
                     <h3 className="font-semibold text-gray-900 dark:text-slate-100">{reward.name}</h3>
                   </div>
-                  <span className={`px-2 py-0.5 text-xs rounded-full ${reward.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                  <span className={`px-2 py-0.5 text-xs rounded-full ${reward.isActive ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                     {reward.isActive ? 'Active' : 'Inactive'}
                   </span>
                 </div>
@@ -495,7 +495,7 @@ export default function LoyaltyPage() {
                       <p className="text-xs text-gray-500 dark:text-slate-400">{member.email || member.phone || ''}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${tierBadgeColor[member.tier || member.loyaltyTier] || 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${tierBadgeColor[member.tier || member.loyaltyTier] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                         {member.tier || member.loyaltyTier || 'Bronze'}
                       </span>
                     </td>

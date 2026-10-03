@@ -56,7 +56,7 @@ export function InboundMessagesPage(): React.ReactElement {
       <h1 className="text-2xl font-bold mb-2">Email</h1>
       <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Emails received on your "route into CRM" aliases. Newest first.</p>
 
-      {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700">{error}</div>}
+      {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700 dark:text-red-400 dark:bg-red-950/40">{error}</div>}
 
       {loading && <div className="text-sm text-gray-500 dark:text-slate-400">Loading…</div>}
 

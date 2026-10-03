@@ -118,7 +118,7 @@ export function PortalPetDetail() {
                   <p className="font-medium truncate">{v.vaccine}</p>
                   <p className="text-sm text-gray-500 dark:text-slate-400">Given {v.givenDate ? formatDate(v.givenDate) : '—'}</p>
                 </div>
-                {v.dueDate && <span className={pill(isPast(v.dueDate) ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700')}>{isPast(v.dueDate) ? 'Due' : 'Due'} {formatDate(v.dueDate)}</span>}
+                {v.dueDate && <span className={pill(isPast(v.dueDate) ? 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' : 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{isPast(v.dueDate) ? 'Due' : 'Due'} {formatDate(v.dueDate)}</span>}
               </li>
             ))}
           </ul>
@@ -133,7 +133,7 @@ export function PortalPetDetail() {
                   <p className="font-medium truncate">{a.reason || 'Appointment'}</p>
                   <p className="text-sm text-gray-500 dark:text-slate-400">{formatDate(a.startTime)}</p>
                 </div>
-                <span className={pill('bg-gray-100 text-gray-700 capitalize')}>{String(a.status).replace(/_/g, ' ')}</span>
+                <span className={pill('bg-gray-100 text-gray-700 capitalize dark:text-slate-200 dark:bg-slate-800')}>{String(a.status).replace(/_/g, ' ')}</span>
               </li>
             ))}
           </ul>

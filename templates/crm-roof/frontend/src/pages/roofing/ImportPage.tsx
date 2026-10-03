@@ -241,7 +241,7 @@ export default function ImportPage() {
           ))}
 
           {unknownFiles.length > 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-700">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40">
               <AlertCircle size={14} className="inline mr-1" />
               {unknownFiles.length} file(s) could not be auto-detected. They will be skipped unless you re-upload with recognizable column headers.
             </div>
@@ -265,7 +265,7 @@ export default function ImportPage() {
           {/* Import order explanation */}
           {clientFiles.length > 0 && jobFiles.length > 0 && (
             <div className="flex items-center gap-2 text-sm text-gray-500 px-1 dark:text-slate-400">
-              <CheckCircle2 size={14} className="text-green-500" />
+              <CheckCircle2 size={14} className="text-green-500 dark:text-green-300" />
               Import order: {clientFiles.length} client file(s) first, then {jobFiles.length} job file(s) with cross-referencing
             </div>
           )}
@@ -324,7 +324,7 @@ export default function ImportPage() {
           </div>
 
           {results.dryRun && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800 dark:text-yellow-300 dark:bg-yellow-950/40">
               <AlertCircle size={16} className="inline mr-2" />
               This was a dry run — nothing was saved. Click "Import Now" to commit these changes.
             </div>
@@ -367,11 +367,11 @@ export default function ImportPage() {
                     'bg-gray-400'
                   }`} />
                   <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                    record.type === 'contact' ? 'bg-green-100 text-green-700' :
-                    record.type === 'job' ? 'bg-blue-100 text-blue-700' :
-                    record.type === 'quote' ? 'bg-amber-100 text-amber-700' :
-                    record.type === 'invoice' ? 'bg-purple-100 text-purple-700' :
-                    'bg-gray-100 text-gray-700'
+                    record.type === 'contact' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
+                    record.type === 'job' ? 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' :
+                    record.type === 'quote' ? 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40' :
+                    record.type === 'invoice' ? 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40' :
+                    'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'
                   } dark:text-slate-200`}>
                     {record.type}
                   </span>
@@ -422,10 +422,10 @@ export default function ImportPage() {
 
 function SummaryCard({ label, value, icon, color }: { label: string; value: number; icon: React.ReactNode; color: string }) {
   const colors: Record<string, string> = {
-    green: 'bg-green-50 text-green-700 border-green-200',
-    blue: 'bg-blue-50 text-blue-700 border-blue-200',
-    purple: 'bg-purple-50 text-purple-700 border-purple-200',
-    amber: 'bg-amber-50 text-amber-700 border-amber-200',
+    green: 'bg-green-50 text-green-700 border-green-200 dark:text-green-300 dark:bg-green-950/40',
+    blue: 'bg-blue-50 text-blue-700 border-blue-200 dark:text-blue-300 dark:bg-blue-950/40',
+    purple: 'bg-purple-50 text-purple-700 border-purple-200 dark:text-purple-300 dark:bg-purple-950/40',
+    amber: 'bg-amber-50 text-amber-700 border-amber-200 dark:text-amber-300 dark:bg-amber-950/40',
   }
 
   return (

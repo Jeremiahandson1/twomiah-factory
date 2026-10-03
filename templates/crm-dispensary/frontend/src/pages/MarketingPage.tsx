@@ -37,11 +37,11 @@ const CONTACT_TYPES: Array<{ value: string; label: string }> = [
 ];
 
 const statusColors: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-700',
-  scheduled: 'bg-blue-100 text-blue-700',
-  sending: 'bg-amber-100 text-amber-700',
-  sent: 'bg-green-100 text-green-700',
-  failed: 'bg-red-100 text-red-700',
+  draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  scheduled: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  sending: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
+  sent: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  failed: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 const emptyForm = {

@@ -262,7 +262,7 @@ export default function AuditLogPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                      actionColors[log.action] || 'bg-gray-100 text-gray-600'
+                      actionColors[log.action] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
                     }`}>
                       {(log.action || 'unknown').replace(/_/g, ' ')}
                     </span>

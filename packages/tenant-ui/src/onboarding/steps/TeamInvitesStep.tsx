@@ -42,7 +42,7 @@ export function TeamInvitesStep({ onBack, onNext }: { onBack: () => void; onNext
       <h2 className="text-xl font-semibold mb-2">Invite your team</h2>
       <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Skip if it's just you for now — you can invite people from Settings anytime.</p>
 
-      {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700">{error}</div>}
+      {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700 dark:text-red-400 dark:bg-red-950/40">{error}</div>}
 
       <div className="space-y-2 mb-4">
         {invites.map((inv, i) => (
@@ -60,9 +60,9 @@ export function TeamInvitesStep({ onBack, onNext }: { onBack: () => void; onNext
       <button onClick={addRow} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 mb-6 dark:text-orange-300">+ Add another</button>
 
       <div className="flex justify-between">
-        <button onClick={onBack} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm dark:text-slate-200">Back</button>
+        <button onClick={onBack} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm dark:text-slate-200 dark:bg-slate-800">Back</button>
         <div className="flex gap-2">
-          <button onClick={onNext} disabled={saving} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm dark:text-slate-200">Skip</button>
+          <button onClick={onNext} disabled={saving} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm dark:text-slate-200 dark:bg-slate-800">Skip</button>
           <button onClick={saveAndContinue} disabled={saving} className="px-5 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white rounded-md text-sm font-semibold">
             {saving ? 'Sending…' : 'Send invites'}
           </button>

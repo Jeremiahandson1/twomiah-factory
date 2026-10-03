@@ -29,7 +29,7 @@ export default function ForgotPasswordPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 dark:bg-slate-900">
         <div className="max-w-md w-full text-center">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 dark:bg-green-950/40">
-            <CheckCircle className="w-8 h-8 text-green-500" />
+            <CheckCircle className="w-8 h-8 text-green-500 dark:text-green-300" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Check your email</h1>
           <p className="text-gray-600 mb-6 dark:text-slate-400">
@@ -72,7 +72,7 @@ export default function ForgotPasswordPage() {
           </p>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+            <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm dark:text-red-400 dark:bg-red-950/40">
               {error}
             </div>
           )}

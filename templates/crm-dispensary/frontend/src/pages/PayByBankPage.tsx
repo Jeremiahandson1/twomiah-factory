@@ -8,11 +8,11 @@ import { Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
 
 const txnStatusColors: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  processing: 'bg-blue-100 text-blue-700',
-  completed: 'bg-green-100 text-green-700',
-  failed: 'bg-red-100 text-red-700',
-  returned: 'bg-orange-100 text-orange-700',
+  pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  processing: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  completed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  failed: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  returned: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
 };
 
 export default function PayByBankPage() {
@@ -232,7 +232,7 @@ export default function PayByBankPage() {
                 onChange={(e) => setConfig({ ...config, enabled: e.target.checked })}
                 className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
               />
-              <span className={`text-sm font-medium ${config.enabled ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}`}>
+              <span className={`text-sm font-medium ${config.enabled ? 'text-green-600 dark:text-green-300' : 'text-gray-500 dark:text-slate-400'}`}>
                 {config.enabled ? 'Enabled' : 'Disabled'}
               </span>
             </label>
@@ -385,7 +385,7 @@ export default function PayByBankPage() {
                       </div>
                       <div className="space-y-1 text-sm text-gray-600 dark:text-slate-400">
                         <p>Type: {account.subtype || account.type || 'Checking'}</p>
-                        <p>Status: <span className={`px-2 py-0.5 text-xs rounded-full ${account.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                        <p>Status: <span className={`px-2 py-0.5 text-xs rounded-full ${account.active ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                           {account.active ? 'Active' : 'Inactive'}
                         </span></p>
                         {account.linkedAt && <p>Linked: {formatDate(account.linkedAt)}</p>}
@@ -425,7 +425,7 @@ export default function PayByBankPage() {
                 className={`px-3 py-1.5 text-sm font-medium rounded-lg whitespace-nowrap ${
                   txnFilter === s.value
                     ? 'bg-green-700 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
                 } dark:bg-slate-900 dark:text-slate-300`}
               >
                 {s.label}
@@ -470,7 +470,7 @@ export default function PayByBankPage() {
                         ${Number(txn.amount || 0).toFixed(2)}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${txnStatusColors[txn.status] || 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${txnStatusColors[txn.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                           {txn.status || 'unknown'}
                         </span>
                       </td>

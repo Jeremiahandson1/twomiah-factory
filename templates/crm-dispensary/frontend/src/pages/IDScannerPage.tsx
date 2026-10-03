@@ -14,13 +14,13 @@ const scanMethods = [
 ];
 
 const verificationColors: Record<string, string> = {
-  verified: 'bg-green-100 text-green-700',
-  underage: 'bg-red-100 text-red-700',
-  expired: 'bg-red-100 text-red-700',
-  flagged: 'bg-orange-100 text-orange-700',
-  pending: 'bg-yellow-100 text-yellow-700',
+  verified: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  underage: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  expired: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  flagged: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
   // A scan that could not be read is a refusal, not a warning — it is the case that used to pass. (T45 BL1)
-  unreadable: 'bg-red-100 text-red-700',
+  unreadable: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 export default function IDScannerPage() {
@@ -217,7 +217,7 @@ export default function IDScannerPage() {
                     className={`px-4 py-2 text-sm font-medium rounded-lg ${
                       scanMethod === m.value
                         ? 'bg-green-700 text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:text-slate-300 dark:bg-slate-800'
                     } dark:text-slate-300`}
                   >
                     {m.label}
@@ -356,7 +356,7 @@ export default function IDScannerPage() {
                     <span className="w-4 h-4 text-gray-400 text-center font-bold">A</span>
                     <span className="text-gray-500 w-24 dark:text-slate-400">Age:</span>
                     <span className={`font-bold text-lg ${
-                      (scanResult.age || calculateAge(scanResult.dob)) >= 21 ? 'text-green-600' : 'text-red-600'
+                      (scanResult.age || calculateAge(scanResult.dob)) >= 21 ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-400'
                     }`}>
                       {scanResult.age || calculateAge(scanResult.dob) || '—'}
                     </span>
@@ -370,11 +370,11 @@ export default function IDScannerPage() {
                     <Clock className="w-4 h-4 text-gray-400" />
                     <span className="text-gray-500 w-24 dark:text-slate-400">Expires:</span>
                     <span className={`font-medium ${
-                      scanResult.expiry && new Date(scanResult.expiry) < new Date() ? 'text-red-600' : 'text-gray-900'
+                      scanResult.expiry && new Date(scanResult.expiry) < new Date() ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-slate-200'
                     } dark:text-slate-100`}>
                       {scanResult.expiry ? formatDate(scanResult.expiry) : '—'}
                       {scanResult.expiry && new Date(scanResult.expiry) < new Date() && (
-                        <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700">EXPIRED</span>
+                        <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40">EXPIRED</span>
                       )}
                     </span>
                   </div>
@@ -474,7 +474,7 @@ export default function IDScannerPage() {
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{scan.state || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{scan.method || '—'}</td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${verificationColors[scan.status] || 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${verificationColors[scan.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                           {scan.status || 'unknown'}
                         </span>
                       </td>
@@ -507,7 +507,7 @@ export default function IDScannerPage() {
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="flex items-center gap-3 mb-2">
-                        <AlertTriangle className="w-5 h-5 text-red-500" />
+                        <AlertTriangle className="w-5 h-5 text-red-500 dark:text-red-400" />
                         <span className="font-semibold text-gray-900 dark:text-slate-100">{scan.name || 'Unknown'}</span>
                         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${verificationColors[scan.status]}`}>
                           {scan.status}
@@ -526,7 +526,7 @@ export default function IDScannerPage() {
                       <button className="px-3 py-1.5 text-sm bg-green-700 text-white rounded-lg hover:bg-green-800">
                         Dismiss
                       </button>
-                      <button className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200">
+                      <button className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 dark:text-red-400 dark:bg-red-950/40">
                         Report
                       </button>
                     </div>

@@ -22,7 +22,7 @@ function authHeaders(): Record<string, string> {
 
 const STARS: Record<string, number> = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 }
 function Stars({ rating }: { rating: number }) {
-  return <span className="text-yellow-500">{'★'.repeat(Math.round(rating))}<span className="text-gray-300">{'★'.repeat(5 - Math.round(rating))}</span></span>
+  return <span className="text-yellow-500 dark:text-yellow-300">{'★'.repeat(Math.round(rating))}<span className="text-gray-300">{'★'.repeat(5 - Math.round(rating))}</span></span>
 }
 
 export function GbpReviewsPage(): React.ReactElement {
@@ -95,7 +95,7 @@ export function GbpReviewsPage(): React.ReactElement {
     <div className="p-6 max-w-3xl">
       <h1 className="text-2xl font-bold mb-1">Google Reviews</h1>
       <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Your Google Business Profile — where local customers find and judge you. Reply to every review; it matters more than any ad.</p>
-      {error && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">{error}</div>}
+      {error && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3 dark:text-red-400 dark:bg-red-950/40">{error}</div>}
 
       {!status?.connected && (
         <div className="bg-white border rounded-lg p-6 dark:bg-slate-900">

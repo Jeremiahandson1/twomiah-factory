@@ -126,7 +126,7 @@ export default function MerchStorePage() {
       key: 'stockQuantity',
       label: 'Stock',
       render: (val: number) => (
-        <span className={`font-medium ${val <= 0 ? 'text-red-600' : val <= 10 ? 'text-amber-600' : 'text-green-600'}`}>
+        <span className={`font-medium ${val <= 0 ? 'text-red-600 dark:text-red-400' : val <= 10 ? 'text-amber-600 dark:text-amber-300' : 'text-green-600 dark:text-green-300'}`}>
           {val ?? 0}
         </span>
       ),
@@ -165,10 +165,10 @@ export default function MerchStorePage() {
       label: 'Status',
       render: (val: string) => (
         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-          val === 'shipped' ? 'bg-blue-100 text-blue-700' :
-          val === 'delivered' ? 'bg-green-100 text-green-700' :
-          val === 'cancelled' ? 'bg-red-100 text-red-700' :
-          'bg-yellow-100 text-yellow-700'
+          val === 'shipped' ? 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' :
+          val === 'delivered' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
+          val === 'cancelled' ? 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' :
+          'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40'
         }`}>
           {val || 'pending'}
         </span>
@@ -199,7 +199,7 @@ export default function MerchStorePage() {
         <button
           onClick={() => setTab('products')}
           className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap flex-shrink-0 transition-colors ${
-            tab === 'products' ? 'border-green-600 text-green-700 dark:text-green-300' : 'border-transparent text-gray-500 hover:text-gray-700'
+            tab === 'products' ? 'border-green-600 text-green-700 dark:text-green-300' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-slate-400'
           }`}
         >
           <Package className="w-4 h-4" /> Products
@@ -207,7 +207,7 @@ export default function MerchStorePage() {
         <button
           onClick={() => setTab('orders')}
           className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap flex-shrink-0 transition-colors ${
-            tab === 'orders' ? 'border-green-600 text-green-700 dark:text-green-300' : 'border-transparent text-gray-500 hover:text-gray-700'
+            tab === 'orders' ? 'border-green-600 text-green-700 dark:text-green-300' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-slate-400'
           }`}
         >
           <ShoppingBag className="w-4 h-4" /> Online Orders

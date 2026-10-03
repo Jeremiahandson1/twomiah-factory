@@ -182,12 +182,12 @@ export default function RoofReportsPage() {
 
   const qualityBadge = (quality: string) => {
     const colors: Record<string, string> = {
-      HIGH: 'bg-green-100 text-green-700',
-      MEDIUM: 'bg-yellow-100 text-yellow-700',
-      LOW: 'bg-red-100 text-red-700',
+      HIGH: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+      MEDIUM: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+      LOW: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
     }
     return (
-      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${colors[quality] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${colors[quality] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
         {quality}
       </span>
     )
@@ -385,7 +385,7 @@ export default function RoofReportsPage() {
                 >
                   <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">DIY Measurement</span>
                   <span className="text-xs text-gray-500 dark:text-slate-400">Draw lines on satellite image yourself</span>
-                  <span className="mt-1 px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase">Free</span>
+                  <span className="mt-1 px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase dark:text-green-300 dark:bg-green-950/40">Free</span>
                 </button>
                 <button
                   type="button"
@@ -394,8 +394,8 @@ export default function RoofReportsPage() {
                   className="flex flex-col items-center gap-1 p-4 border-2 border-blue-200 bg-blue-50 rounded-xl hover:border-blue-400 hover:bg-blue-100 transition-colors disabled:opacity-50 dark:bg-blue-950/40"
                 >
                   <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">Professional Report</span>
-                  <span className="text-xs text-blue-500">Verified measurements, delivered fast</span>
-                  <span className="mt-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full uppercase">$9.99</span>
+                  <span className="text-xs text-blue-500 dark:text-blue-300">Verified measurements, delivered fast</span>
+                  <span className="mt-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full uppercase dark:text-blue-300 dark:bg-blue-950/40">$9.99</span>
                 </button>
               </div>
               {purchasing && (
@@ -467,7 +467,7 @@ export default function RoofReportsPage() {
                   </td>
                   <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">
                     {report.status === 'pending_review' ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40">
                         <Loader2 className="w-3 h-3 animate-spin" /> Processing
                       </span>
                     ) : report.totalSquares ?? '-'}
@@ -477,7 +477,7 @@ export default function RoofReportsPage() {
                     <div className="flex items-center gap-1.5">
                       {report.imageryQuality ? qualityBadge(report.imageryQuality) : '-'}
                       {report.imageryDate && isSummerMonth(report.imageryDate) && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-orange-100 text-orange-700" title="Summer imagery — trees may obscure roof">Summer</span>
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40" title="Summer imagery — trees may obscure roof">Summer</span>
                       )}
                     </div>
                   </td>

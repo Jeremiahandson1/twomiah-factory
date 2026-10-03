@@ -29,9 +29,9 @@ const FREQUENCIES: Record<string, string> = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  active: 'bg-green-100 text-green-700',
-  paused: 'bg-yellow-100 text-yellow-700',
-  cancelled: 'bg-gray-100 text-gray-600',
+  active: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  paused: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  cancelled: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800',
 };
 
 interface RecurringStats {
@@ -192,8 +192,8 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
             onClick={() => setFilter(s)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               filter === s
-                ? 'bg-orange-100 text-orange-700'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                ? 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:text-slate-300 dark:bg-slate-800'
             } dark:text-slate-300`}
           >
             {s === '' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
@@ -220,7 +220,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className={`p-2 rounded-lg ${item.status === 'active' ? 'bg-green-100' : 'bg-gray-100'}`}>
-                    <RefreshCw className={`w-5 h-5 ${item.status === 'active' ? 'text-green-600' : 'text-gray-400'}`} />
+                    <RefreshCw className={`w-5 h-5 ${item.status === 'active' ? 'text-green-600 dark:text-green-300' : 'text-gray-400'}`} />
                   </div>
                   <div>
                     <Link to={`/recurring/${item.id}`} className="font-medium text-gray-900 hover:text-orange-600 dark:hover:text-orange-200 dark:text-slate-100">

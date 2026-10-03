@@ -10,12 +10,12 @@ import { Button, PageHeader } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
 
 const CATEGORY_COLORS: Record<string, string> = {
-  compliance: 'bg-red-100 text-red-700',
-  product: 'bg-green-100 text-green-700',
-  sales: 'bg-blue-100 text-blue-700',
-  safety: 'bg-orange-100 text-orange-700',
-  onboarding: 'bg-purple-100 text-purple-700',
-  general: 'bg-gray-100 text-gray-700',
+  compliance: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  product: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  sales: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  safety: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  onboarding: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
+  general: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
 };
 
 export default function TrainingPage() {
@@ -240,7 +240,7 @@ export default function TrainingPage() {
                         {course.category}
                       </span>
                       {course.required && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">Required</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40">Required</span>
                       )}
                     </div>
                   </div>
@@ -306,7 +306,7 @@ export default function TrainingPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-semibold">{enrollment.courseTitle}</h3>
-                        {enrollment.completed && <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Completed</span>}
+                        {enrollment.completed && <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40">Completed</span>}
                       </div>
                       <div className="text-sm text-gray-500 mb-2 dark:text-slate-400">{enrollment.courseCategory} &middot; {enrollment.estimatedMinutes || 30} min</div>
                       <div className="w-64 bg-gray-200 rounded-full h-2">
@@ -356,16 +356,16 @@ export default function TrainingPage() {
                           {(row.courses || []).map((c: any, i: number) => (
                             <div key={i} className="flex items-center gap-2 text-sm">
                               {c.status === 'completed' && <Check className="w-4 h-4 text-green-600 dark:text-green-300" />}
-                              {c.status === 'in_progress' && <Clock className="w-4 h-4 text-yellow-500" />}
-                              {c.status === 'not_started' && <X className="w-4 h-4 text-red-500" />}
+                              {c.status === 'in_progress' && <Clock className="w-4 h-4 text-yellow-500 dark:text-yellow-300" />}
+                              {c.status === 'not_started' && <X className="w-4 h-4 text-red-500 dark:text-red-400" />}
                               <span className={c.overdue ? 'text-red-600 font-medium' : ''}>{c.title}</span>
-                              {c.overdue && <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded">Overdue</span>}
+                              {c.overdue && <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded dark:text-red-400 dark:bg-red-950/40">Overdue</span>}
                             </div>
                           ))}
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${row.allComplete ? 'bg-green-100 text-green-700' : row.hasOverdue ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${row.allComplete ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : row.hasOverdue ? 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' : 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40'}`}>
                           {row.allComplete ? 'Compliant' : row.hasOverdue ? 'Non-Compliant' : 'In Progress'}
                         </span>
                       </td>
@@ -376,7 +376,7 @@ export default function TrainingPage() {
                               <Award className="w-3 h-3 text-gray-400" />
                               <span>{cert.name}</span>
                               {cert.expiring && (
-                                <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded flex items-center gap-1 dark:text-orange-300 dark:bg-orange-950/40">
                                   <AlertTriangle className="w-3 h-3" />Expires {cert.expiresAt}
                                 </span>
                               )}
@@ -495,7 +495,7 @@ export default function TrainingPage() {
                       {step.type === 'quiz' && <><HelpCircle className="w-3 h-3" />Quiz Question</>}
                       <span className="text-gray-500 dark:text-slate-400">#{i + 1}</span>
                     </span>
-                    <button onClick={() => removeStep(i)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300"><X className="w-4 h-4" /></button>
+                    <button onClick={() => removeStep(i)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400"><X className="w-4 h-4" /></button>
                   </div>
                   {step.type === 'text' && (
                     <div className="space-y-2">

@@ -15,11 +15,11 @@ const tabs = [
 ];
 
 const txStatusColors: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  processing: 'bg-blue-100 text-blue-700',
-  completed: 'bg-green-100 text-green-700',
-  failed: 'bg-red-100 text-red-700',
-  returned: 'bg-red-100 text-red-700',
+  pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  processing: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  completed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  failed: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  returned: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 
 export default function EnterprisePage() {
@@ -376,8 +376,8 @@ function MultiStoreReportsTab() {
                   <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{loc.name}</td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{loc.totalSkus || 0}</td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{(loc.totalUnits || 0).toLocaleString()}</td>
-                  <td className="px-4 py-3"><span className={`font-medium ${(loc.lowStock || 0) > 0 ? 'text-amber-600' : 'text-gray-500 dark:text-slate-400'}`}>{loc.lowStock || 0}</span></td>
-                  <td className="px-4 py-3"><span className={`font-medium ${(loc.outOfStock || 0) > 0 ? 'text-red-600' : 'text-gray-500 dark:text-slate-400'}`}>{loc.outOfStock || 0}</span></td>
+                  <td className="px-4 py-3"><span className={`font-medium ${(loc.lowStock || 0) > 0 ? 'text-amber-600 dark:text-amber-300' : 'text-gray-500 dark:text-slate-400'}`}>{loc.lowStock || 0}</span></td>
+                  <td className="px-4 py-3"><span className={`font-medium ${(loc.outOfStock || 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-slate-400'}`}>{loc.outOfStock || 0}</span></td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 </tr>
               ))}
@@ -410,17 +410,17 @@ function MultiStoreReportsTab() {
                 <tr key={i} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{loc.name}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${loc.licenseStatus === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${loc.licenseStatus === 'active' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40'}`}>
                       {loc.licenseStatus || 'unknown'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${loc.metrcSync === 'synced' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${loc.metrcSync === 'synced' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40'}`}>
                       {loc.metrcSync || 'unknown'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{loc.lastAudit ? formatDate(loc.lastAudit) : '--'}</td>
-                  <td className="px-4 py-3"><span className={`font-medium ${(loc.issues || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>{loc.issues || 0}</span></td>
+                  <td className="px-4 py-3"><span className={`font-medium ${(loc.issues || 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>{loc.issues || 0}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -594,11 +594,11 @@ function APIDocsTab() {
   }
 
   const methodColors: Record<string, string> = {
-    get: 'bg-blue-100 text-blue-700',
-    post: 'bg-green-100 text-green-700',
-    put: 'bg-amber-100 text-amber-700',
-    patch: 'bg-orange-100 text-orange-700',
-    delete: 'bg-red-100 text-red-700',
+    get: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+    post: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+    put: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
+    patch: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+    delete: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
   };
 
   // Parse OpenAPI spec paths
@@ -636,7 +636,7 @@ function APIDocsTab() {
                   onClick={() => setExpandedEndpoint(isExpanded ? null : ep.id)}
                   className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 text-left"
                 >
-                  <span className={`px-2 py-0.5 text-xs font-bold rounded uppercase ${methodColors[ep.method] || 'bg-gray-100 text-gray-700'} dark:text-slate-200`}>
+                  <span className={`px-2 py-0.5 text-xs font-bold rounded uppercase ${methodColors[ep.method] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                     {ep.method}
                   </span>
                   <span className="font-mono text-sm text-gray-900 dark:text-slate-100">{ep.path}</span>
@@ -657,7 +657,7 @@ function APIDocsTab() {
                             <div key={i} className="flex items-center gap-2 text-sm">
                               <span className="font-mono text-gray-900 dark:text-slate-100">{param.name}</span>
                               <span className="text-xs text-gray-500 dark:text-slate-400">({param.in})</span>
-                              {param.required && <span className="text-xs text-red-500">required</span>}
+                              {param.required && <span className="text-xs text-red-500 dark:text-red-400">required</span>}
                               {param.description && <span className="text-gray-500 dark:text-slate-400">- {param.description}</span>}
                             </div>
                           ))}
@@ -687,7 +687,7 @@ function APIDocsTab() {
                           {Object.entries(ep.responses).map(([code, resp]: [string, any]) => (
                             <div key={code} className="text-sm">
                               <div className="flex items-center gap-2">
-                                <span className={`font-mono font-bold ${code.startsWith('2') ? 'text-green-600' : code.startsWith('4') ? 'text-red-600' : 'text-gray-600'}`}>
+                                <span className={`font-mono font-bold ${code.startsWith('2') ? 'text-green-600 dark:text-green-300' : code.startsWith('4') ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-slate-300'}`}>
                                   {code}
                                 </span>
                                 <span className="text-gray-600 dark:text-slate-400">{resp.description || ''}</span>
