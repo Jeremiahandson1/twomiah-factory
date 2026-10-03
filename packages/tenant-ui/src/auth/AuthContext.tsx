@@ -4,7 +4,16 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { AuthApi, AuthContextValue, AuthUser, AuthCompany, AuthData } from './types'
 import { permissionAllows } from './types'
 
-const AuthContext = createContext<AuthContextValue | null>(null)
+/**
+ * Exported so PermissionsContext can read it WITHOUT useAuth's throw. (T41)
+ *
+ * `useAuth` deliberately throws outside its provider — a page that needs the signed-in user and has
+ * no provider above it is a wiring mistake and should say so loudly. But PermissionsProvider is now
+ * usable by the two verticals that fork this context (crm-roof, crm-store), where there is no shared
+ * AuthProvider at all and the values arrive as props. It therefore has to be able to LOOK and find
+ * nothing, which is what reading the context directly allows.
+ */
+export const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ api, children }: { api: AuthApi; children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)

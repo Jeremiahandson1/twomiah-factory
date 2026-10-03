@@ -2,9 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Phone, Mail, MapPin, Briefcase, MessageSquare, Key, Send, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useMayWrite } from '../../shared';
 import { useToast } from '../../contexts/ToastContext';
 
 export default function ContactsPage() {
+  // Offer a write only where we know it is allowed. Each permission is the one its own route
+  // asks for; crm-roof could not ask this until T41 gave its client the permission list.
+  const mayCreateContact = useMayWrite('contacts:create');
   const { token } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -212,12 +216,16 @@ export default function ContactsPage() {
       <div className="max-w-7xl mx-auto px-6 py-6">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Contacts</h1>
-          <button
-            onClick={openCreate}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg"
-          >
-            <Plus className="w-4 h-4" /> Add Contact
-          </button>
+          {/* POST /api/contacts asks contacts:create. A roofing crew reads contacts — they need
+              the homeowner's number — and does not create them. (T41) */}
+          {mayCreateContact && (
+            <button
+              onClick={openCreate}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg"
+            >
+              <Plus className="w-4 h-4" /> Add Contact
+            </button>
+          )}
         </div>
 
         <div className="flex gap-6">

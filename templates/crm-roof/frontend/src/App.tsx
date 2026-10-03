@@ -21,7 +21,7 @@ import ReportsPage from './pages/roofing/ReportsPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import EstimatorSettingsPage from './pages/settings/EstimatorSettingsPage'
 import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage'
-import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage, BillingPage, meetsRole } from './shared'
+import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage, BillingPage, meetsRole, PermissionsProvider } from './shared'
 import InsuranceClaimPage from './pages/roofing/InsuranceClaimPage'
 import AdjusterDirectoryPage from './pages/roofing/AdjusterDirectoryPage'
 import CanvassingView from './pages/roofing/CanvassingView'
@@ -124,10 +124,32 @@ function ProtectedRoute() {
   return <Outlet />
 }
 
+/**
+ * THE PERMISSIONS PROVIDER crm-roof NEVER HAD. (T41)
+ *
+ *   "Staff can write nothing, but the UI offers everything. Jobs, contacts, quotes, invoices,
+ *    canvassing sessions, supplements, claim status and activity notes all 403 for staff, yet every
+ *    button is shown."
+ *
+ * One root cause for all of it: nothing in the roofing client knew what the signed-in person may
+ * do. /api/auth/me and /login now answer with the effective permission list (routes/auth.ts), this
+ * context carries it (contexts/AuthContext.tsx), and this is where it becomes askable — once it is
+ * mounted, `useMayWrite` starts answering on every shared page roof uses, and roof's own pages can
+ * ask too.
+ *
+ * Inside AuthProvider and ABOVE the routes, so every screen is under it. The values are passed as
+ * props because roof forks the auth context; the shared provider takes them either way.
+ */
+function RoofPermissions({ children }: { children: ReactNode }) {
+  const { user, permissions } = useAuth()
+  return <PermissionsProvider role={(user as any)?.role ?? null} permissions={permissions}>{children}</PermissionsProvider>
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <RoofPermissions>
         <ToastProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
@@ -212,6 +234,7 @@ export default function App() {
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </ToastProvider>
+        </RoofPermissions>
       </AuthProvider>
     </BrowserRouter>
   )

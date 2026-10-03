@@ -270,9 +270,11 @@ console.log('\n══════════ company scoping ══════
 // ══════════ T41 · the scope export is the ask OR the settlement, and says which ═════════════════
 //
 // T41: "the Xactimate export carries drafts and requested amounts instead of approved amounts."
-// True — and deliberate: roof T18 D3 settled that this document is the ASK sent to the carrier. The
-// fix is not to flip it but to make the basis explicit, because a contractor needs both documents
-// and getting the wrong one overstates a settlement.
+//
+// Two separate things, and they were settled separately. The REQUESTED-vs-APPROVED half is not a
+// fault to flip: roof T18 D3 settled that this document is the ASK sent to the carrier, and a
+// contractor needs both documents, so the fix was to make the basis explicit. The DRAFTS half is a
+// fault — see the note on the ask assertions below, which this round changed.
 //
 // The document builder writes a PDF to R2, which this sandbox has no credentials for, so what is
 // pinned here is the decision the builder makes: buildSupplementItems(supplements, basis).
@@ -300,15 +302,33 @@ console.log('\n══════════ which supplements the scope carrie
   ]
   const sum = (rows: any[]) => Math.round(rows.reduce((s, r) => s + Number(r.total), 0) * 100) / 100
 
-  // ── the ask: unchanged behaviour, T18 D3 ──
+  /**
+   * ── the ask: everything SENT, and nothing that was not ──
+   *
+   * THESE THREE ASSERTIONS CHANGED, and the change is deliberate. Written earlier in this same
+   * campaign, they said the ask "carries every supplement handed in, drafts included", on the
+   * grounds that T18 D3 settled this document as the ask rather than the settlement. That reading
+   * kept the basis question straight and got the drafts question wrong.
+   *
+   * The report is specific: "it includes three never-submitted drafts ($450)". A draft is what the
+   * product itself calls a supplement that has not been sent — the UI offers Submit on it and
+   * nothing else — so putting its lines into the document the contractor hands a carrier asks for
+   * something nobody decided to ask for. Pressing Submit is one click, and it makes the record say
+   * what happened. So the ask is now everything that was SENT: submitted, and whatever has since
+   * been decided.
+   *
+   * 85 + 1000 = 1085; the draft's 370 is out.
+   */
   const ask = buildSupplementItems(supplements, 'ask')
-  check('T41: the ASK carries every supplement handed in, drafts included', ask.length === 3,
+  check('T41: the ASK carries every supplement that was SENT', ask.length === 2,
     ask.map((r: any) => `${r.code} ${r.total}`))
-  check('T41: …at the amounts requested — 370 + 85 + 1000', sum(ask) === 1455, { total: sum(ask) })
+  check('T41: …and not the draft nobody submitted', !ask.some((r: any) => /Extra squares/.test(String(r.description))),
+    ask.map((r: any) => r.description))
+  check('T41: …at the amounts requested — 85 + 1000', sum(ask) === 1085, { total: sum(ask) })
   check('T41: …and adds no adjustment line, because nothing is being settled',
     !ask.some((r: any) => r.code === 'ADJ'), ask.map((r: any) => r.code))
   check('T41: the default basis is still the ask, so existing callers are unchanged',
-    sum(buildSupplementItems(supplements)) === 1455, { total: sum(buildSupplementItems(supplements)) })
+    sum(buildSupplementItems(supplements)) === 1085, { total: sum(buildSupplementItems(supplements)) })
 
   // ── the settlement ──
   const approved = buildSupplementItems(supplements, 'approved')

@@ -221,7 +221,38 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
   const { portalToken, portalTokenExp, ...safeContact } = foundContact // (VET-29)
   // Same redaction as the list. The detail is the easier one to forget and the richer one to leak.
   if (!(await canSeeCustomerIdentity(currentUser))) redactCustomerIdentity(safeContact)
-  return c.json({ ...safeContact, orders, loyalty: loyaltyMembers[0] || null })
+
+  /**
+   * ONE DEFINITION OF WHAT A CUSTOMER HAS SPENT. (T41)
+   *
+   *   "Customer Total Spent $43.75 in the list vs $87.50 on detail (detail counts a refunded
+   *    order)."
+   *
+   * The list has got this right for several rounds: every SETTLED sale, NET of what was refunded,
+   * from the same expression the reporting surfaces use (see the long note on the list above). The
+   * detail handed over the raw order rows and nothing else, so the screen added up `total` itself —
+   * every order at face value, refunds included — and reached double the real figure. Two screens,
+   * two answers, and the wrong one is the one a budtender reads before offering a loyalty reward.
+   *
+   * The figure is computed HERE, by the same expression, so there is one definition and no screen
+   * has to re-derive it.
+   */
+  const spentRes = await db.execute(sql`SELECT
+      COALESCE(SUM(${netExprBare}), 0)::numeric as spent,
+      COUNT(*)::int as order_count,
+      MAX(created_at) as last_order
+    FROM orders
+    WHERE company_id = ${currentUser.companyId} AND status IN ${settledSale} AND contact_id = ${id}`)
+  const spent: any = ((spentRes as any).rows || spentRes)[0] || {}
+
+  return c.json({
+    ...safeContact,
+    orders,
+    totalSpent: String(spent.spent ?? 0),
+    orderCount: Number(spent.order_count ?? 0),
+    lastVisit: spent.last_order ?? null,
+    loyalty: loyaltyMembers[0] || null,
+  })
 })
 
 /**

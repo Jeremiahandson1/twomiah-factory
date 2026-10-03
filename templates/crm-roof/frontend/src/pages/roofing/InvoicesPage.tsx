@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '../../utils/date';
+import { useMayWrite } from '../../shared';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Send, Check, DollarSign, ChevronLeft, ChevronRight, X, Receipt } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -19,6 +20,9 @@ function formatStatus(s: string) {
 }
 
 export default function InvoicesPage() {
+  // Offer a write only where we know it is allowed. Each permission is the one its own route
+  // asks for; crm-roof could not ask this until T41 gave its client the permission list.
+  const mayCreateInvoice = useMayWrite('invoices:create');
   const { token } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -183,15 +187,20 @@ export default function InvoicesPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Invoices</h1>
             <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{total} {total === 1 ? 'invoice' : 'invoices'}</p>
           </div>
-          <button
-            onClick={() => {
-              setForm({ contactId: '', jobId: '', dueDate: '', taxRate: '0', notes: '', lineItems: [{ description: '', quantity: '1', unitPrice: '' }] });
-              setModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
-          >
-            <Plus className="w-4 h-4" /> New Invoice
-          </button>
+          {/* POST /api/invoices asks invoices:create. The roofing invoice LIST is already gated on
+              invoices:read (routes/invoices.ts, T41), so a seat that gets this far can read the
+              ledger — raising one is a separate right. (T41) */}
+          {mayCreateInvoice && (
+            <button
+              onClick={() => {
+                setForm({ contactId: '', jobId: '', dueDate: '', taxRate: '0', notes: '', lineItems: [{ description: '', quantity: '1', unitPrice: '' }] });
+                setModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+            >
+              <Plus className="w-4 h-4" /> New Invoice
+            </button>
+          )}
         </div>
 
         {/* Tabs */}

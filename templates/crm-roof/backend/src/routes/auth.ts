@@ -7,6 +7,7 @@ import { db } from '../../db/index.ts'
 import { company, user } from '../../db/schema.ts'
 import { eq, and, gt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { getPermissions, getExtraPermissions } from '../middleware/permissions.ts'
 import logger from '../services/logger.ts'
 import emailService from '../services/email.ts'
 import { passwordSchema } from '../shared/index.ts'
@@ -25,6 +26,32 @@ const generateTokens = (userId: string, companyId: string, email: string, role: 
 // to the login screen mid-shift. The column now holds a JSON array of the user's live refresh
 // tokens (newest last, capped), and logout revokes only the device that logged out.
 // (Propagated from crm-dispensary go-live QA M-4.)
+/**
+ * EVERYTHING THIS PERSON MAY DO — and roof is the vertical that was never told. (T41)
+ *
+ *   "Staff can write nothing, but the UI offers everything. Jobs, contacts, quotes, invoices,
+ *    canvassing sessions, supplements, claim status and activity notes all 403 for staff, yet every
+ *    button is shown."
+ *
+ * That finding has one root cause and it is here. crm-roof forks this file instead of using the
+ * shared auth module, and its /login and /me answered with user + company and nothing else — no
+ * permission list. So crm-roof mounts no PermissionsProvider, `useMayWrite` has nothing to read,
+ * and every shared page's write control is offered to everybody because the client genuinely does
+ * not know. Fixing the roofing buttons one at a time was never possible; the client had no answer
+ * to gate them on.
+ *
+ * The role's list PLUS the grants an owner handed out by name in Settings › Users — which is what
+ * the guards decide on (hasPermission takes `extra`), so it is what the screen has to be told. A
+ * menu built from the role list alone hides the button from exactly the person who was let through
+ * on purpose. Same shape as the shared module's `effectivePermissions`, so the two cannot disagree.
+ */
+const effectivePermissions = async (userId: string, role: string): Promise<string[]> => {
+  const base = getPermissions(role)
+  if (base.includes('*')) return base
+  const extra = (await getExtraPermissions(userId)) || []
+  return Array.from(new Set([...base, ...extra]))
+}
+
 const MAX_SESSIONS_PER_USER = 10
 const parseTokenList = (raw: string | null | undefined): string[] => {
   if (!raw) return []
@@ -121,6 +148,10 @@ app.post('/login', async (c) => {
       limits,
       vertical: 'roofing',
     },
+    // On the LOGIN response too, not only /me: without it `can()` answers false for one round trip
+    // after signing in, so every gated control would be HIDDEN on the first render — the same bug
+    // in the other direction. (The shared auth module learned this in T32 M16.)
+    permissions: await effectivePermissions(foundUser.id, foundUser.role),
     ...tokens,
   })
 })
@@ -188,6 +219,8 @@ app.get('/me', authenticate, async (c) => {
       limits,
       vertical: 'roofing',
     },
+    // What this person may actually do, so the screen can stop offering what the API refuses. (T41)
+    permissions: await effectivePermissions(foundUser.id, foundUser.role),
   })
 })
 

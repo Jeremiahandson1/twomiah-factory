@@ -30,6 +30,26 @@ const FILE = 'templates/crm-roof/backend/src/routes/insurance.ts'
 const src = (() => { try { return readFileSync(ROOT + FILE, 'utf8').replace(/\r\n/g, '\n') } catch { return '' } })()
 if (!src) fail(`${FILE} is missing`)
 
+/**
+ * ONE HANDLER'S BODY, however long it has grown. (T41)
+ *
+ * These checks used to read a fixed slice — the first 2,000 or 2,500 characters after the route
+ * declaration — and T41 added comments to the approve and deny handlers explaining a decision that
+ * was reverted and a figure that is now cleared. That pushed the `reduce` past the window and the
+ * guard went red on code it should have passed: a false failure, which costs as much trust as a
+ * false pass.
+ *
+ * A handler ends where the next route begins, so that is what this reads. No magic number to
+ * outgrow, and a comment can be as long as the explanation needs to be.
+ */
+const handler = (declaration: string): string => {
+  const at = src.indexOf(declaration)
+  if (at < 0) return ''
+  const rest = src.slice(at + declaration.length)
+  const next = rest.search(/\napp\.(get|post|put|patch|delete)\(/)
+  return next < 0 ? rest : rest.slice(0, next)
+}
+
 // ── the money is computed here, from the line items ───────────────────────────────────────────────
 {
   if (!/const lineItems = data\.lineItems\.map\(\(li\) => \(\{ \.\.\.li, total: Number\(\(li\.qty \* li\.unitPrice\)\.toFixed\(2\)\) \}\)\)/.test(src))
@@ -61,20 +81,33 @@ if (!src) fail(`${FILE} is missing`)
 {
   if (/\+\s*\n?\s*\(sup\.status !== 'approved' \? Number\(approvedAmount\) : 0\)/.test(src))
     fail('the most recently approved supplement is being counted twice — the row is already in the query above it (T17 H1)')
-  const approve = src.slice(src.indexOf("app.post('/supplements/:id/approve'"))
-  if (!/const supTotal = allSups\.reduce\(\(sum, s\) => sum \+ Number\(s\.approvedAmount \|\| 0\), 0\)\n/.test(approve.slice(0, 2500)))
+  const approve = handler("app.post('/supplements/:id/approve'")
+  if (!approve) fail('the approve route is gone — fix this guard\'s walk')
+  if (!/const supTotal = allSups\.reduce\(\(sum, s\) => sum \+ Number\(s\.approvedAmount \|\| 0\), 0\)\n/.test(approve))
     fail('…the claim total must be exactly the sum of the approved supplements')
-  if (!/if \(!Number\.isFinite\(approved\) \|\| approved < 0\)/.test(approve.slice(0, 1500)))
+  if (!/if \(!Number\.isFinite\(approved\) \|\| approved < 0\)/.test(approve))
     fail('an approved amount must be a real, non-negative number')
 }
 
 // ── a denial is the mirror of an approval ─────────────────────────────────────────────────────────
 {
-  const deny = src.slice(src.indexOf("app.post('/supplements/:id/deny'"))
-  if (!/const stillApproved = await db\.select\(\)\.from\(supplement\)/.test(deny.slice(0, 2000)))
+  const deny = handler("app.post('/supplements/:id/deny'")
+  if (!deny) fail('the deny route is gone — fix this guard\'s walk')
+  if (!/const stillApproved = await db\.select\(\)\.from\(supplement\)/.test(deny))
     fail('denying a supplement must recompute the claim total — otherwise a reversed decision leaves the claim overstated')
-  if (!/supplementAmount: String\(stillApproved\.reduce/.test(deny.slice(0, 2000)))
+  if (!/supplementAmount: String\(stillApproved\.reduce/.test(deny))
     fail('…from the supplements that are still approved')
+  /**
+   * …and the denied row must stop claiming to be approved for anything. (T41)
+   *
+   *   "A denied supplement keeps its old approvedAmount (the total correctly excludes it)."
+   *
+   * The claim total was right and the supplement itself read "Approved: $1,100" with a denial reason
+   * beside it — two contradictory facts on one record, and the one a person reads off the screen was
+   * the wrong one.
+   */
+  if (!/approvedAmount: null,/.test(deny))
+    fail('a denial must clear approvedAmount — a denied supplement that still reads "approved for $X" contradicts itself (T41)')
 }
 
 // ── approving and denying move money, so they are not open to everyone ────────────────────────────

@@ -120,7 +120,24 @@ export default function ContactDetailPage() {
     customer: 'bg-green-100 text-green-700',
   };
 
-  const totalSpent = orders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+  /**
+   * THE SERVER'S FIGURE, NOT THIS PAGE'S ARITHMETIC. (T41)
+   *
+   *   "Customer Total Spent $43.75 in the list vs $87.50 on detail (detail counts a refunded
+   *    order)."
+   *
+   * This line was the $87.50: every order at face value, including one that had been refunded and
+   * one that may never have settled. The customers LIST has had the right definition for rounds —
+   * every settled sale, net of refunds — and the detail re-derived it here and got a different
+   * answer, which is the number a budtender reads before offering a loyalty reward.
+   *
+   * GET /api/contacts/:id now returns `totalSpent` from the same expression the list uses
+   * (routes/contacts.ts), so there is one definition. The fallback keeps the old sum only for a
+   * payload that predates the field, rather than showing nothing.
+   */
+  const totalSpent = (contact as any)?.totalSpent !== undefined
+    ? Number((contact as any).totalSpent || 0)
+    : orders.reduce((sum, o) => sum + Number(o.total || 0), 0);
 
   return (
     <div className="space-y-6">

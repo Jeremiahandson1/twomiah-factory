@@ -667,9 +667,21 @@ export default function SettingsPage() {
                     const days = Number(generalForm.paymentTermsDays);
                     const outOfRange = generalForm.paymentTermsDays !== '' &&
                       (!Number.isInteger(days) || days < 0 || days > 365);
+                    {/* …and the warning itself was out of date. (T41)
+                        "Payment terms stored as 400 days and accepted by the server; the General tab
+                         then blocks every save."
+                        It does not block it. The server grandfathers a value it did not ask for —
+                        an UNCHANGED out-of-range figure is replayed and accepted, precisely so a
+                        tenant carrying 400 is not locked out of its own settings page (the comment
+                        above it says why). This message still said "nothing on this page will save
+                        until you do", which was the rule BEFORE the grandfathering and is now
+                        simply untrue; the tester read it and recorded the page as blocked. A warning
+                        that describes behaviour the product no longer has is worse than none. */}
                     return outOfRange ? (
                       <p className="text-xs text-amber-700 mt-1 dark:text-amber-300">
-                        {generalForm.paymentTermsDays} is outside the range this accepts. Set it between 0 and 365 — nothing on this page will save until you do.
+                        {generalForm.paymentTermsDays} is outside 0–365. It is kept as it is and the rest of this
+                        page still saves, but any NEW value has to be between 0 and 365 — so once you change this
+                        box you will have to put it in range.
                       </p>
                     ) : null;
                   })()}

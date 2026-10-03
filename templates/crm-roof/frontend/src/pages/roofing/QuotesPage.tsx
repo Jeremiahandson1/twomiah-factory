@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '../../utils/date';
+import { useMayWrite } from '../../shared';
 import { Plus, Send, Check, X, ChevronLeft, ChevronRight, FileText, Trash2, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -34,6 +35,9 @@ const num0 = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const emptyLine = { description: '', quantity: '1', unitPrice: '' };
 
 export default function QuotesPage() {
+  // Offer a write only where we know it is allowed. Each permission is the one its own route
+  // asks for; crm-roof could not ask this until T41 gave its client the permission list.
+  const mayCreateQuote = useMayWrite('quotes:create');
   const { token } = useAuth();
   const toast = useToast();
 
@@ -167,12 +171,15 @@ export default function QuotesPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Quotes</h1>
             <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{total} {total === 1 ? 'quote' : 'quotes'}</p>
           </div>
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
-          >
-            <Plus className="w-4 h-4" /> New Quote
-          </button>
+          {/* POST /api/quotes asks quotes:create. (T41) */}
+          {mayCreateQuote && (
+            <button
+              onClick={openCreate}
+              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+            >
+              <Plus className="w-4 h-4" /> New Quote
+            </button>
+          )}
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-slate-900">

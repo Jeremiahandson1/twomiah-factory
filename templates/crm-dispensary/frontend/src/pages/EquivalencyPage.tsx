@@ -85,12 +85,43 @@ export default function EquivalencyPage() {
     setRuleModal(true);
   };
 
+/**
+ * THE FACTOR WAS ON EVERY ROW AND THE PAGE WAS READING THE WRONG KEY. (T41)
+ *
+ *   "Equivalency rules table shows a bare 'g' with no factor on every row (the API has the values);
+ *    edible rows show 'g' instead of mg THC."
+ *
+ * The column is `equivalency_factor` and GET /api/equivalency/rules camelises it to
+ * `equivalencyFactor`. This page asked for `equivalencyGrams` — a name the WRITE path accepts as
+ * a synonym, which is why creating a rule worked and reading one back did not. `{undefined}g`
+ * renders as a lone "g", on every row, next to a limit that rendered fine.
+ *
+ * Worse than the display: the Edit dialog prefilled from the same missing key, so opening a rule
+ * showed an empty factor box and saving it stored ZERO — which turns a purchase limit into no limit
+ * at all on a seed-to-sale till. And the in-page calculator fell back to 1 gram per unit, so it
+ * agreed with neither the rule nor the register.
+ *
+ * One reader, used by all four places, accepting the old name so nothing breaks mid-deploy.
+ */
+const factorOf = (rule: any): number => Number(rule?.equivalencyFactor ?? rule?.equivalencyGrams ?? 0)
+/**
+ * …and the UNIT the factor is per. An edible's equivalency is per MILLIGRAM of THC, not per gram of
+ * product, and printing "g" against it states the wrong rule to whoever is checking the limit.
+ * `unit_of_measure` carries it (grams|mg|ml|each); 'each' reads as a count, so it gets no suffix.
+ */
+const unitOf = (rule: any): string => {
+  const u = String(rule?.unitOfMeasure ?? 'g').trim().toLowerCase()
+  if (u === 'each' || u === 'unit' || u === 'units') return ''
+  if (u === 'grams' || u === 'gram') return 'g'
+  return u
+}
+
   const openEditRule = (rule: any) => {
     setEditingRule(rule);
     setRuleForm({
       state: rule.state || '',
       category: rule.category || '',
-      equivalencyGrams: String(rule.equivalencyGrams || ''),
+      equivalencyGrams: String(factorOf(rule) || ''),
       purchaseLimitGrams: String(rule.purchaseLimitGrams || ''),
       description: rule.description || '',
     });
@@ -150,7 +181,8 @@ export default function EquivalencyPage() {
     }
     const qty = parseInt(selectedQty) || 1;
     const rule = rules.find(r => r.category === (product.category || product.productType));
-    const equivalentGrams = (rule?.equivalencyGrams || 1) * qty;
+    // The rule's own factor. Falling back to 1 made the calculator disagree with the register.
+    const equivalentGrams = (factorOf(rule) || 1) * qty;
 
     setCartItems([...cartItems, {
       id: Date.now(),
@@ -159,7 +191,7 @@ export default function EquivalencyPage() {
       category: product.category || product.productType || '—',
       quantity: qty,
       equivalentGrams,
-      ruleEquivalency: rule?.equivalencyGrams || 1,
+      ruleEquivalency: factorOf(rule) || 1,
     }]);
     setSelectedProduct('');
     setSelectedQty('1');
@@ -249,7 +281,8 @@ export default function EquivalencyPage() {
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">State</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Category</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Equivalency (g)</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400" title="Grams of flower this category is worth against the purchase limit">Flower-equivalent</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400" title="The unit the factor is per — an edible's is per mg of THC, not per gram of product">Per</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Purchase Limit (g)</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Description</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Actions</th>
@@ -260,7 +293,8 @@ export default function EquivalencyPage() {
                     <tr key={rule.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-200">{rule.state || 'All'}</td>
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{rule.category}</td>
-                      <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{rule.equivalencyGrams}g</td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{factorOf(rule) || '—'}{factorOf(rule) ? 'g' : ''}</td>
+                      <td className="px-4 py-3 text-right text-gray-500 dark:text-slate-400">{unitOf(rule) ? `per ${unitOf(rule)}` : 'each'}</td>
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{rule.purchaseLimitGrams}g</td>
                       <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate dark:text-slate-400">{rule.description || '—'}</td>
                       <td className="px-4 py-3 text-right">
@@ -279,7 +313,9 @@ export default function EquivalencyPage() {
                   ))}
                   {rules.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">
+                      {/* 7, not 6: the "Per" column was added beside the flower-equivalent factor
+                          (T41), so the empty-state row has to span one more or the table shifts. */}
+                      <td colSpan={7} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">
                         <Scale className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                         <p>No equivalency rules configured</p>
                         <p className="text-sm mt-1">Click "Seed Defaults" to load standard rules or add your own</p>

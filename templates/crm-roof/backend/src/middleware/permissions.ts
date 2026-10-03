@@ -28,4 +28,31 @@ export const {
 } = createPermissions({
   db,
   tables: { user },
+  /**
+   * A CANVASSER CANNOT LOG A DOOR KNOCK, AND THAT IS THE BUG. (T41)
+   *
+   *   "Canvassers can't log a canvassing session at all."
+   *
+   * Every other refusal in that finding was correct — a crew does not raise invoices or approve a
+   * carrier's decision. This one is not. Door-knocking IS the field rung's job on a roofing crew:
+   * they walk a street after a storm, record who answered and what they said, and that record is
+   * the whole point of the module. `canvassing:*` sits in the manager's list, so the people doing
+   * the work were refused the only thing they were there to do, and the office had to re-key every
+   * knock from paper.
+   *
+   * Narrow on purpose:
+   *   canvassing:create   start a session, log a stop, end the session
+   *   canvassing:update   correct a stop they just logged — the same latitude the timesheet and the
+   *                       expense claim already give this rung
+   * NOT canvassing:delete — removing a knock from the record is not a field act, and
+   * NOT the script library, which is the shop's pitch. The three /scripts writes were on
+   * `canvassing:create` and have moved to `marketing:update` so this grant cannot reach them: a
+   * grant that quietly hands over the playbook along with the clipboard is the kind of
+   * over-widening this campaign has had to undo twice.
+   *
+   * A refused real need is worse than a leak — it stops the work. (feedback: a refusal can be the bug)
+   */
+  extraRolePermissions: {
+    field: ['canvassing:create', 'canvassing:update'],
+  },
 })

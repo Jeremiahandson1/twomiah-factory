@@ -14,7 +14,7 @@
 // The rank helpers (isAtLeast, RequireRole, isOwner…) stay, because a rank is a real and different
 // question: "is this person senior enough", not "may they do this". Only the matrix is gone. (T30 M-R1)
 import React, { createContext, useContext, useMemo } from 'react'
-import { useAuth } from './AuthContext'
+import { AuthContext } from './AuthContext'
 import { permissionAllows } from './types'
 
 const PermissionsContext = createContext<any>(null)
@@ -27,8 +27,29 @@ const normalizeRole = (role: string | undefined) => ROLE_ALIASES[String(role || 
 const meetsRoleLevel = (userRole: string, minRole: string) =>
   ROLE_HIERARCHY.indexOf(normalizeRole(userRole)) >= ROLE_HIERARCHY.indexOf(minRole)
 
-export function PermissionsProvider({ children }: { children: React.ReactNode }) {
-  const { user, permissions } = useAuth()
+/**
+ * `role` and `permissions` may be handed in instead of read from the shared AuthContext. (T41)
+ *
+ * Two verticals — crm-roof and crm-store — fork the auth context rather than using the shared one,
+ * which is exactly why they mount no permissions provider and why every write control on every one
+ * of their screens is offered to a seat the API refuses ("Staff can write nothing, but the UI offers
+ * everything"). The shared provider could not help them: its `useAuth` resolves to the PACKAGE's
+ * AuthContext, which those templates never fill.
+ *
+ * So the values become optional props. A template using the shared auth context passes nothing and
+ * behaves exactly as before; a template with its own passes what it has. The alternative was a
+ * second copy of this matrix reader in each fork, which is the drift this file was written to end.
+ */
+export function PermissionsProvider({ children, role: roleProp, permissions: permissionsProp }: {
+  children: React.ReactNode
+  role?: string | null
+  permissions?: string[] | null
+}) {
+  // The context directly, not useAuth(): useAuth THROWS when there is no provider above it, and in
+  // the two forked verticals there is not one — the values come in as props instead.
+  const fromContext = useContext(AuthContext) as any
+  const user = roleProp !== undefined ? ({ role: roleProp } as any) : fromContext?.user
+  const permissions = permissionsProp !== undefined ? permissionsProp : fromContext?.permissions
 
   const value = useMemo(() => {
     const role = normalizeRole(user?.role)

@@ -312,6 +312,20 @@ export function buildSupplementItems(supplements: any[], basis: XactBasis = 'ask
   const approvedOnly = basis === 'approved'
   const out: XactLineItem[] = []
   for (const sup of supplements || []) {
+    /**
+     * A DRAFT WAS NEVER SENT TO ANYBODY, so it is in neither document. (T41)
+     *
+     *   "Xactimate export carries the wrong supplements: it includes three never-submitted drafts
+     *    ($450) and SUP-001 at its requested $200 instead of the approved $1,100, so the scope
+     *    reads RCV $780 against an approved $1,100."
+     *
+     * The second half of that is what the `basis` argument fixed. This is the first half, and it
+     * applies to BOTH bases — not only the approved one. The 'ask' document is defined as "the scope
+     * sent to the carrier"; a draft is the office still writing one, so putting it in the ask
+     * overstates what was actually asked for and hands the carrier a document the contractor cannot
+     * stand behind. Submitted, approved and denied have all been sent; draft has not.
+     */
+    if (sup.status === 'draft') continue
     if (approvedOnly && sup.status !== 'approved') continue
     if (!sup.lineItems) continue
     const items = Array.isArray(sup.lineItems) ? sup.lineItems : []

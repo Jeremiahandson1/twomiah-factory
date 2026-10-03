@@ -307,6 +307,41 @@ app.put('/supplements/:id', requirePermission('insurance:update'), async (c) => 
 })
 
 // Submit supplement
+/**
+ * WHICH DECISION IS POSSIBLE FROM WHICH STATE. (T41)
+ *
+ *   "The API approves a supplement that was never submitted, and approves above the requested
+ *    amount."
+ *   "No on-screen way to change an approved supplement: once approved it shows only 'Approved: $X',
+ *    so re-approve and deny work only through the API."
+ *
+ * Those two findings pull in opposite directions and the lists below are how both are satisfied.
+ * Nothing checked the status at all, so a DRAFT — a supplement the office is still writing, never
+ * sent to anybody — could be recorded as approved by the carrier. That is not a decision; there was
+ * nothing to decide on. But an approved supplement must stay changeable, because carriers do change
+ * their minds: they come back with a different number, or deny what they had allowed, and the claim
+ * has to be able to say so.
+ *
+ * So:
+ *   submit   draft or denied → sent to the carrier (a denial can be reworked and re-sent)
+ *   approve  submitted, approved or denied → the carrier's decision, including a revised one
+ *   deny     submitted, approved or denied → likewise
+ *
+ * A draft is in none of the decision lists, and that is the whole first finding.
+ */
+const SUBMITTABLE = ['draft', 'denied']
+const DECIDABLE = ['submitted', 'approved', 'denied']
+/** One wording for all three refusals, naming the state and what it allows. */
+const wrongState = (c: any, sup: { supplementNumber: string; status: string }, verb: string, allowed: string[]) =>
+  c.json({
+    error: sup.status === 'draft' && verb !== 'submitted'
+      ? `${sup.supplementNumber} is still a draft — it has not been sent to the carrier, so there is no decision to record. Submit it first.`
+      : `${sup.supplementNumber} is ${sup.status}, and only a supplement that is ${allowed.join(' or ')} can be ${verb}.`,
+    code: 'supplement_wrong_status',
+    status: sup.status,
+    allowedFrom: allowed,
+  }, 400)
+
 app.post('/supplements/:id/submit', requirePermission('insurance:create'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
@@ -315,6 +350,7 @@ app.post('/supplements/:id/submit', requirePermission('insurance:create'), async
     .where(and(eq(supplement.id, id), eq(supplement.companyId, currentUser.companyId)))
     .limit(1)
   if (!sup) return c.json({ error: 'Supplement not found' }, 404)
+  if (!SUBMITTABLE.includes(sup.status)) return wrongState(c, sup, 'submitted', SUBMITTABLE)
 
   await db.update(supplement).set({
     status: 'submitted',
@@ -355,10 +391,43 @@ app.post('/supplements/:id/approve', requireManager, async (c) => {
     .where(and(eq(supplement.id, id), eq(supplement.companyId, currentUser.companyId)))
     .limit(1)
   if (!sup) return c.json({ error: 'Supplement not found' }, 404)
+  if (!DECIDABLE.includes(sup.status)) return wrongState(c, sup, 'approved', DECIDABLE)
+
+  /**
+   * APPROVING MORE THAN WAS ASKED IS ALLOWED, AND IS NO LONGER SILENT. (T41)
+   *
+   *   "The API approves a supplement that was never submitted, and approves above the requested
+   *    amount."
+   *
+   * The first half of that is the state rule above, and it is a clear fault — a supplement nobody
+   * sent has no decision to record. The second half I first implemented as a refusal and then
+   * REVERTED, and the reason is worth writing down.
+   *
+   * A carrier genuinely can allow more than was asked: an adjuster adds scope at the inspection and
+   * the letter comes back higher. The report's own evidence shows exactly that on the live tenant —
+   * SUP-001 asked $200 and was approved at $1,100 — so this is not a hypothetical, it is how shops
+   * use it. Refusing it would force the office to rewrite the supplement's line items to match a
+   * letter they already hold, and a refused real need stops the work, which this campaign has
+   * repeatedly found to be the worse failure.
+   *
+   * The actual harm the report describes is a DOCUMENT one: "the scope reads RCV $780 against an
+   * approved $1,100". That is fixed where it happens — services/xactimate.ts builds the approved
+   * basis with one reconciling ADJ line, which exists precisely to carry an approval the line items
+   * do not add up to, and checks against the carrier's letter.
+   *
+   * What was wrong here was the SILENCE. The claim total moved and nothing said the carrier had
+   * allowed more than was asked, so an over-approval and a mistyped one looked identical in the
+   * record. The activity line below now says which.
+   */
+  const requested = Number(sup.totalAmount || 0)
+  const overAsk = approved > requested + 0.005
 
   await db.update(supplement).set({
     status: 'approved',
     approvedAmount: approved.toFixed(2),
+    // A re-approval after a denial clears the old refusal: the claim must not show a supplement that
+    // is approved AND carries the reason it was turned down.
+    denialReason: null,
     respondedAt: new Date(),
     updatedAt: new Date(),
   }).where(eq(supplement.id, id))
@@ -385,7 +454,11 @@ app.post('/supplements/:id/approve', requireManager, async (c) => {
     claimId: sup.claimId,
     userId: currentUser.userId,
     activityType: 'approval',
-    body: `Supplement ${sup.supplementNumber} approved — $${Number(approvedAmount).toLocaleString()}`,
+    // …and when the carrier allowed MORE than was asked, the line says so. Both figures, so the
+    // entry can be checked against the carrier's letter without opening anything else. (T41)
+    body: overAsk
+      ? `Supplement ${sup.supplementNumber} approved — $${Number(approvedAmount).toLocaleString()}, which is ABOVE the $${requested.toLocaleString()} asked for`
+      : `Supplement ${sup.supplementNumber} approved — $${Number(approvedAmount).toLocaleString()}`,
   })
 
   const [updated] = await db.select().from(supplement).where(eq(supplement.id, id)).limit(1)
@@ -405,10 +478,23 @@ app.post('/supplements/:id/deny', requireManager, async (c) => {
     .where(and(eq(supplement.id, id), eq(supplement.companyId, currentUser.companyId)))
     .limit(1)
   if (!sup) return c.json({ error: 'Supplement not found' }, 404)
+  if (!DECIDABLE.includes(sup.status)) return wrongState(c, sup, 'denied', DECIDABLE)
 
   await db.update(supplement).set({
     status: 'denied',
     denialReason,
+    /**
+     * A DENIED SUPPLEMENT IS NOT STILL WORTH WHAT IT WAS APPROVED FOR. (T41)
+     *
+     *   "A denied supplement keeps its old approvedAmount (the total correctly excludes it)."
+     *
+     * The claim's supplementAmount was right — it sums only approved rows — but the supplement
+     * itself went on reading "Approved: $1,100" with a denial reason beside it. Two contradictory
+     * facts on one record, and the one a person reads off the screen was the wrong one. Whatever
+     * reads the row later (a report, an export, a carrier letter) has no way to know which to
+     * believe. The decision is the denial, so the approved figure goes with it.
+     */
+    approvedAmount: null,
     respondedAt: new Date(),
     updatedAt: new Date(),
   }).where(eq(supplement.id, id))
@@ -574,10 +660,37 @@ app.post('/claims/:claimId/xactimate-export', requirePermission('insurance:creat
    */
   const basis = c.req.query('basis') === 'approved' ? 'approved' as const : 'ask' as const
 
+  /**
+   * A SCOPE WITH NO MEASUREMENT IS SEVEN LINES OF ZERO. (T41)
+   *
+   *   "It also emits 7 measurement lines at quantity 0 instead of warning that there's no
+   *    measurement."
+   *
+   * Every quantity in generateLineItems is derived from totalSquares — the squares, the waste
+   * factor, the perimeter and from it the ridge, eave, ice-and-water and flashing. With no
+   * measurement that is 0, and the export produced a PDF and a CSV that are worth $0.00 on every
+   * line. A contractor can send that to a carrier without noticing; what comes back is a claim
+   * argued at nothing.
+   *
+   * So the export is REFUSED and says which of the two numbers is missing. It is not a warning
+   * buried in a document nobody re-reads — there is nothing useful to build.
+   */
+  const squaresForScope = Number(measurement?.totalSquares || j.totalSquares || 0)
+  if (!Number.isFinite(squaresForScope) || squaresForScope <= 0) {
+    return c.json({
+      error: 'This job has no roof measurement, so every line of the scope would be zero. Add the total '
+        + 'squares to the job, or link a measurement report, and then build the scope.',
+      code: 'no_measurement',
+    }, 400)
+  }
+
   // Get supplements. A DENIED one is not part of the scope: its line items were refused, and adding
   // them back into the subtotal overstated the RCV Total printed on the PDF that goes to the carrier —
-  // the mirror of the panel that left APPROVED ones out. Drafts and submitted ones stay: this document
-  // is the ask, not the settlement. (roof T18 D3)
+  // the mirror of the panel that left APPROVED ones out. (roof T18 D3)
+  //
+  // DRAFTS are excluded too, in buildSupplementItems — T41: "it includes three never-submitted
+  // drafts ($450)". This document is the ask, and a draft has not been asked for. Submitted ones
+  // stay: they are exactly what was asked.
   //
   // On ?basis=approved the service narrows this further to approved supplements only; the query stays
   // the same so the two documents are built from one read.

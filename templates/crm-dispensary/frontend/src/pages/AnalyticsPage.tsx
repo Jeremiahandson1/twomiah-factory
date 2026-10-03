@@ -186,7 +186,18 @@ export default function AnalyticsPage() {
             <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
               <Package className="w-5 h-5" />
             </div>
-            <span className="text-sm text-gray-500 dark:text-slate-400">Total Orders</span>
+            {/* THE LABEL, NOT THE FIGURE, WAS WRONG. (T41)
+                "AOV and 'Sales Today' count refunded orders; analytics 'Total Orders' tile shows
+                 completed only."
+                Both screens show the same thing and always did: the SETTLED count — completed,
+                partially refunded and refunded — because a refunded sale still happened, which
+                T23 H1 settled when a dashboard showed 26 sales under revenue drawn from 33 of
+                them. The value here is `completed_orders`, which is that set despite its name.
+                What made the two tiles look like they disagreed was this word: "Total" promises
+                every order, including the cancelled and the still-pending, and the tile has never
+                shown those. Named for what it is, it reads the same as the dashboard's Sales
+                Today. */}
+            <span className="text-sm text-gray-500 dark:text-slate-400" title="Completed, partially refunded and refunded sales. Cancelled and still-pending orders are not sales.">Sales</span>
           </div>
           <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{metrics?.totalOrders || 0}</p>
           {metrics?.ordersChange != null && (

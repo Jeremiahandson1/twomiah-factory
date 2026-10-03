@@ -283,8 +283,20 @@ app.get('/scripts', async (c) => {
   return c.json(scripts)
 })
 
+/**
+ * THE SCRIPT LIBRARY IS THE SHOP'S PITCH, NOT A CLIPBOARD. (T41)
+ *
+ * All three writes below were on the `canvassing:*` verbs. T41 found that a canvasser could not log
+ * a session at all, and the fix grants the field rung canvassing:create and canvassing:update
+ * (middleware/permissions.ts) so they can record the knocks they are employed to make. That grant
+ * must not also hand them the script library: what the shop says at the door is written once, by
+ * whoever runs marketing, and changed deliberately.
+ *
+ * `marketing:update` is the right question and already exists — manager and up hold it, the field
+ * rung does not. The READ stays open: a canvasser needs the script in front of them.
+ */
 // POST /scripts — create script
-app.post('/scripts', requirePermission('canvassing:create'), async (c) => {
+app.post('/scripts', requirePermission('marketing:update'), async (c) => {
   const { companyId } = c.get('user')
   const body = await c.req.json()
   const [script] = await db.insert(canvassingScript).values({
@@ -297,7 +309,7 @@ app.post('/scripts', requirePermission('canvassing:create'), async (c) => {
 })
 
 // PUT /scripts/:id — update script
-app.put('/scripts/:id', requirePermission('canvassing:update'), async (c) => {
+app.put('/scripts/:id', requirePermission('marketing:update'), async (c) => {
   const { companyId } = c.get('user')
   const id = c.req.param('id')
   const body = await c.req.json()
@@ -314,7 +326,7 @@ app.put('/scripts/:id', requirePermission('canvassing:update'), async (c) => {
 })
 
 // DELETE /scripts/:id — delete (not if default)
-app.delete('/scripts/:id', requirePermission('canvassing:delete'), async (c) => {
+app.delete('/scripts/:id', requirePermission('marketing:update'), async (c) => {
   const { companyId } = c.get('user')
   const id = c.req.param('id')
 

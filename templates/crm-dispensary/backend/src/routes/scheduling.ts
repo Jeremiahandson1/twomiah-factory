@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requireRole, requireOwnership } from '../middleware/permissions.ts'
+import { requireRole, requireOwnership, meetsRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { storeTimeZone, storeDateString, storeDay, storeDayRange, zoneFor } from '../utils/isoTime.ts'
 import { zodRefusal } from '../utils/errors.ts'
@@ -48,12 +48,34 @@ app.get('/shifts', async (c) => {
   const limit = +(c.req.query('limit') || '25')
   const offset = (page - 1) * limit
 
+  /**
+   * THE ROTA IS THE WHOLE SHOP'S; YOUR OWN SHIFTS ARE YOURS. (T41)
+   *
+   *   "Viewer can read staff pay rates, shifts and time entries through the API (/api/team,
+   *    /api/scheduling/*) while the Team and Scheduling pages are blocked."
+   *
+   * The Scheduling nav entry is `minRole: 'manager'` and this read had no gate at all, so anybody
+   * who could sign in could pull every shift in the shop — who works when, at which location,
+   * including people they have no reason to know about. The pay rates half is already fixed
+   * (routes/team.ts strips hourlyRate below manager); this is the other half.
+   *
+   * NOT refused outright, because a budtender has to find their own shift to clock in to it — and
+   * `/shifts/:id/clock-in` is gated on budtender + ownership precisely so they can. Refusing the
+   * list would leave them a clock-in they cannot reach, which is the same trap as a rule with no
+   * screen to satisfy it.
+   *
+   * So: manager and up see the rota; everyone else sees their own shifts, whatever they ask for. A
+   * viewer is on no rota at all and correctly sees nothing.
+   */
+  const seesWholeRota = meetsRole(currentUser?.role, 'manager')
+
   let userFilter = sql``
   let locationFilter = sql``
   let startFilter = sql``
   let endFilter = sql``
   let statusFilter = sql``
-  if (userId) userFilter = sql`AND s.user_id = ${userId}`
+  if (!seesWholeRota) userFilter = sql`AND s.user_id = ${currentUser.userId}`
+  else if (userId) userFilter = sql`AND s.user_id = ${userId}`
   if (locationId) locationFilter = sql`AND s.location_id = ${locationId}`
   if (startDate) startFilter = sql`AND s.date >= ${startDate}`
   if (endDate) endFilter = sql`AND s.date <= ${endDate}`
@@ -659,7 +681,13 @@ app.get('/time-entries', async (c) => {
   let approvedFilter = sql``
   // time_entries has no `date` or boolean `approved` column; the work date is derived
   // from clock_in and approval is represented by approved_at being set. (schema.ts is truth)
-  if (userId) userFilter = sql`AND te.user_id = ${userId}`
+  //
+  // …and OWN-ONLY below manager, the same rule the shift list above now applies and for the same
+  // finding: "Viewer can read staff pay rates, shifts and time entries through the API". Hours
+  // worked are wages. A budtender reads their own — they have to check what they clocked — and
+  // nobody below manager reads anybody else's. (T41)
+  if (!meetsRole(currentUser?.role, 'manager')) userFilter = sql`AND te.user_id = ${currentUser.userId}`
+  else if (userId) userFilter = sql`AND te.user_id = ${userId}`
 
   // WHICH DAY a shift was worked.
   //

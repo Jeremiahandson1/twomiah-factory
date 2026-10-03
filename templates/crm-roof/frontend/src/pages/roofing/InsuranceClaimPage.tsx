@@ -6,6 +6,7 @@ import {
   AlertTriangle, DollarSign, Save, ChevronRight, Loader2,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useMayWrite } from '../../shared';
 import { useToast } from '../../contexts/ToastContext';
 
 const CLAIM_STAGES = [
@@ -58,6 +59,19 @@ function fmt$(n: any) {
 // So the field keeps the raw text, `num0` is used only to price the row while it is being filled in,
 // and the value is checked once on submit — the same shape the EDIT modal below already used.
 const num0 = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+/**
+ * A quantity or a price for the RUNNING TOTAL, which is never negative. (T41)
+ *
+ *   "Supplement modal live total shows '$-50.00' while typing."
+ *
+ * num0 above turns half-typed text into 0 so the typist keeps seeing what they typed — but a minus
+ * sign is a number, so "-50" priced a line at minus fifty and the modal displayed a supplement worth
+ * less than nothing. The server has refused negative money since T17 H2 (`z.number().nonnegative()`),
+ * so that total was a figure it would never accept. Clamped here, and the modal says why below.
+ */
+const price0 = (v: any) => Math.max(0, num0(v));
+const anyNegative = (rows: { qty?: any; unitPrice?: any }[]) =>
+  rows.some((r) => num0(r.qty) < 0 || num0(r.unitPrice) < 0);
 const newSupRow = () => ({ code: '', description: '', qty: '1', unit: 'SQ', unitPrice: '', total: 0 });
 
 // Xactimate code options for line item picker
@@ -79,6 +93,9 @@ const XACT_CODES = [
 ];
 
 export default function InsuranceClaimPage() {
+  // Offer a write only where we know it is allowed. Each permission is the one its own route
+  // asks for; crm-roof could not ask this until T41 gave its client the permission list.
+  const mayWriteClaim = useMayWrite('insurance:create');
   const { id: jobId } = useParams<{ id: string }>();
   const { token, user } = useAuth();
   const toast = useToast();
@@ -110,6 +127,9 @@ export default function InsuranceClaimPage() {
   // Xactimate export
   const [exporting, setExporting] = useState(false);
   const [exportResult, setExportResult] = useState<any>(null);
+  // null = loaded fine. 'notAllowed' = this role may not read it. 'failed' = something else. (T41)
+  const [activityError, setActivityError] = useState<'notAllowed' | 'failed' | null>(null);
+  const [supplementError, setSupplementError] = useState<'notAllowed' | 'failed' | null>(null);
 
   // Starting a claim. Everything behind this page works — the create endpoint, the status rail, the
   // supplements — but there was no way in from the product, so an insurance job could never reach any
@@ -146,8 +166,25 @@ export default function InsuranceClaimPage() {
         fetch(`/api/insurance/claims/${claimData.id}/activity`, { headers }),
         fetch(`/api/insurance/claims/${claimData.id}/supplements`, { headers }),
       ]);
-      setActivities(actRes.ok ? await actRes.json() : []);
-      setSupplements(supRes.ok ? await supRes.json() : []);
+      /**
+       * "NO ACTIVITY YET" AND "WE COULD NOT LOAD IT" ARE NOT THE SAME SENTENCE. (T41)
+       *
+       *   "Staff see an empty claim trail: activity returns 0 entries for staff while manager and
+       *    owner see 'filed' and 'submitted'."
+       *
+       * The endpoint itself does NOT refuse the staff seat — driven directly, it answers 200 with
+       * exactly the rows the owner gets, and this file now has a test that says so. What this page
+       * did was turn ANY non-OK response into an empty array, so a claim whose history failed to
+       * load for any reason read as a claim with no history. That is the same fault the report files
+       * against the Snow page ("tells staff 'No snow contracts yet' instead of 'no access'"), and it
+       * is why the trail looked empty rather than broken.
+       *
+       * The two cases are now distinguished, so the screen says which one happened.
+       */
+      if (actRes.ok) { setActivities(await actRes.json()); setActivityError(null); }
+      else { setActivities([]); setActivityError(actRes.status === 403 ? 'notAllowed' : 'failed'); }
+      if (supRes.ok) { setSupplements(await supRes.json()); setSupplementError(null); }
+      else { setSupplements([]); setSupplementError(supRes.status === 403 ? 'notAllowed' : 'failed'); }
     } catch {
       toast.error('Failed to load claim');
     } finally {
@@ -372,8 +409,12 @@ export default function InsuranceClaimPage() {
   const openDecide = (sup: any, mode: 'approve' | 'deny') => {
     setDecideSup(sup);
     setDecideMode(mode);
-    setApprovedAmount(mode === 'approve' ? String(sup.totalAmount ?? '') : '');
-    setDenialReason('');
+    // Changing an existing approval starts from the figure already recorded, not from the ask —
+    // otherwise "change the approved amount" silently proposes reverting it. Falls back to what was
+    // requested when there is nothing recorded yet. (T41)
+    setApprovedAmount(mode === 'approve' ? String(sup.approvedAmount ?? sup.totalAmount ?? '') : '');
+    // …and amending a denial starts from the reason on the record, for the same reason.
+    setDenialReason(mode === 'deny' ? String(sup.denialReason ?? '') : '');
   };
 
   const decide = async () => {
@@ -381,6 +422,14 @@ export default function InsuranceClaimPage() {
     if (decideMode === 'approve') {
       const n = Number(approvedAmount);
       if (!Number.isFinite(n) || n < 0) { toast.error('Approved amount must be a number of 0 or more'); return; }
+      // An approval ABOVE the ask is allowed — an adjuster adds scope and the letter comes back
+      // higher — so this confirms rather than refuses, and the claim's activity line records that
+      // it was above the ask. Silently accepting it is what the report objected to. (T41)
+      const asked = Number(decideSup.totalAmount ?? 0);
+      if (n > asked + 0.005 && !window.confirm(
+        `${decideSup.supplementNumber} asked the carrier for ${fmt$(asked)}, and you are recording ${fmt$(n)}.\n\n`
+        + 'That is allowed — carriers do allow more than was asked — and the claim history will say so. Record it?',
+      )) return;
     } else if (!denialReason.trim()) {
       toast.error('A denial needs a reason — it is what the claim record shows later');
       return;
@@ -437,6 +486,43 @@ export default function InsuranceClaimPage() {
     }
   };
 
+  /**
+   * Open one of the generated claim documents. (T41)
+   *
+   * /media/insurance/* is behind the sign-in now, and this app sends its token in an Authorization
+   * header — which a browser navigation does not do. So the file is fetched with the header and
+   * handed to the browser as a blob. The object URL is revoked on the next tick: the download (or
+   * the tab) has already taken the bytes by then, and leaving it alive pins the whole document in
+   * memory for as long as the page is open.
+   *
+   * A CSV is saved rather than opened, which is what the server asks for with its
+   * Content-Disposition — nothing previews a CSV, and an inline one is where spreadsheet-formula
+   * injection gets interesting.
+   */
+  const [fetchingDoc, setFetchingDoc] = useState<string | null>(null);
+  const openDocument = async (url: string, filename: string) => {
+    setFetchingDoc(url);
+    try {
+      const res = await fetch(url, { headers });
+      if (!res.ok) throw new Error(res.status === 401 ? 'Your session has expired — sign in again.' : 'Could not open that document.');
+      const blob = await res.blob();
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = href;
+      if (filename.endsWith('.csv')) a.download = filename;
+      else a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(href), 0);
+    } catch (e) {
+      toast.error((e as Error).message || 'Could not open that document.');
+    } finally {
+      setFetchingDoc(null);
+    }
+  };
+
   const saveAdjusterToDirectory = async () => {
     if (!claim?.adjusterName) { toast.error('Adjuster name required'); return; }
     try {
@@ -465,7 +551,9 @@ export default function InsuranceClaimPage() {
       if (field === 'qty' || field === 'unitPrice') {
         // Half-typed text ("", "-", "1.") prices as 0 for the running total; it is not written back
         // to the field, so the typist keeps seeing exactly what they typed.
-        updated.total = Math.round(num0(updated.qty) * num0(updated.unitPrice) * 100) / 100;
+        // price0, not num0: a typed minus sign is a number, and it made the line — and the modal's
+        // running total — negative, which the server has always refused. (T41)
+        updated.total = Math.round(price0(updated.qty) * price0(updated.unitPrice) * 100) / 100;
       }
       if (field === 'code') {
         const match = XACT_CODES.find(c => c.code === value);
@@ -627,13 +715,23 @@ export default function InsuranceClaimPage() {
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Claim Timeline</h2>
-              <button onClick={() => setActivityOpen(true)} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                <Plus className="w-3.5 h-3.5" /> Log Activity
-              </button>
+              {/* POST /claims/:id/activity asks insurance:create. A crew reads the trail — it is
+                  how they know where the claim stands — and does not write to it. (T41) */}
+              {mayWriteClaim && (
+                <button onClick={() => setActivityOpen(true)} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  <Plus className="w-3.5 h-3.5" /> Log Activity
+                </button>
+              )}
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border p-4 max-h-[600px] overflow-y-auto dark:bg-slate-900">
-              {activities.length === 0 ? (
+              {activityError ? (
+                <p className="text-sm text-amber-700 dark:text-amber-300 text-center py-8">
+                  {activityError === 'notAllowed'
+                    ? 'Your role cannot see this claim’s history.'
+                    : 'The claim history could not be loaded. Reload the page to try again.'}
+                </p>
+              ) : activities.length === 0 ? (
                 <p className="text-sm text-gray-500 dark:text-slate-400 text-center py-8">No activity yet</p>
               ) : (
                 <div className="space-y-3">
@@ -806,6 +904,19 @@ export default function InsuranceClaimPage() {
                   <input defaultValue={claim.finalApprovedAmount || ''} onBlur={(e) => saveClaim({ finalApprovedAmount: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="$0.00" />
                 </div>
               </div>
+              {/* NOTHING APPROVED YET MEANS THERE IS NO CHEQUE TO WORK OUT. (T41)
+                  "Claim financials show 'Carrier's first cheque (ACV net) $-1,000.00' before an RCV
+                   is entered." With no RCV and no final figure, totalApproved is 0, so the
+                   breakdown subtracted the deductible from nothing and printed a NEGATIVE cheque —
+                   a number that says the carrier will be sending the homeowner a bill. The
+                   arithmetic is right once there is something to do it to; before that it has no
+                   meaning, so the panel says what is missing instead of showing a figure. */}
+              {totalApproved <= 0 ? (
+                <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  Enter the carrier&rsquo;s RCV above and this will work out the first cheque — the approved
+                  total less depreciation held and less the deductible you collect from the homeowner.
+                </div>
+              ) : (
               <div className="mt-4 rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/25">
                 <div className="flex items-center justify-between p-3">
                   <span className="text-sm font-medium text-green-800 dark:text-green-200">Total approved (RCV)</span>
@@ -839,15 +950,27 @@ export default function InsuranceClaimPage() {
                   </div>
                   <div className="flex justify-between py-1 mt-1 border-t border-green-200 dark:border-green-800 font-semibold">
                     <dt>Carrier&rsquo;s first cheque (ACV net)</dt>
-                    <dd className="tabular-nums">{fmt$(carrierFirstCheck)}</dd>
+                    {/* Floored at zero: a cheque is money coming IN, and a negative one reads as the
+                        carrier invoicing the contractor. The note below says what a zero means. */}
+                    <dd className="tabular-nums">{fmt$(Math.max(0, carrierFirstCheck))}</dd>
                   </div>
                   {depHeld > 0 && (
                     <p className="pt-1.5 text-green-800 dark:text-green-200">
                       {fmt$(depHeld)} of recoverable depreciation is released once the work is complete and invoiced.
                     </p>
                   )}
+                  {/* It can still come out negative with a real RCV — a small claim under a big
+                      deductible genuinely pays nothing. Say that, rather than printing a cheque
+                      for minus money. */}
+                  {carrierFirstCheck <= 0 && (
+                    <p className="pt-1.5 text-green-800 dark:text-green-200">
+                      The deductible is larger than what the carrier allowed after depreciation, so there is no
+                      first cheque on this claim — the homeowner covers the work.
+                    </p>
+                  )}
                 </dl>
               </div>
+              )}
             </div>
 
             {/* Documents / Xactimate */}
@@ -856,15 +979,22 @@ export default function InsuranceClaimPage() {
                 <FileText className="w-4 h-4 text-gray-400" /> Documents & Xactimate Export
               </h3>
               <div className="flex flex-wrap gap-2 mb-4">
+                {/* FETCHED WITH THE TOKEN, not opened as a plain link. (T41)
+                    "Export PDF and CSV links under /media/insurance/ open without signing in
+                    (random IDs)." /media/insurance/* now requires a signed-in caller whose company
+                    owns the key — and this app authenticates with a Bearer header, which a plain
+                    <a href> navigation does not send. Left as a link it would simply 401, so
+                    closing the hole on the server without changing this would have broken the
+                    button. Same rule as everywhere else: a new refusal needs its client. */}
                 {claim.xactimateScopeUrl && (
-                  <a href={claim.xactimateScopeUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200">
-                    <Download className="w-3.5 h-3.5" /> Scope PDF
-                  </a>
+                  <button type="button" onClick={() => openDocument(claim.xactimateScopeUrl!, `scope-${claim.claimNumber || claim.id}.pdf`)} disabled={!!fetchingDoc} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 disabled:opacity-50">
+                    {fetchingDoc === claim.xactimateScopeUrl ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} Scope PDF
+                  </button>
                 )}
                 {claim.xactimateExportUrl && (
-                  <a href={claim.xactimateExportUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded-lg hover:bg-green-200">
-                    <Download className="w-3.5 h-3.5" /> CSV Export
-                  </a>
+                  <button type="button" onClick={() => openDocument(claim.xactimateExportUrl!, `scope-${claim.claimNumber || claim.id}.csv`)} disabled={!!fetchingDoc} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded-lg hover:bg-green-200 disabled:opacity-50">
+                    {fetchingDoc === claim.xactimateExportUrl ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} CSV Export
+                  </button>
                 )}
               </div>
               {/* Two documents, named for what they are rather than hidden behind one button. (T41) */}
@@ -929,9 +1059,12 @@ export default function InsuranceClaimPage() {
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Supplements</h3>
-                <button onClick={() => setSupOpen(true)} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  <Plus className="w-3.5 h-3.5" /> Add Supplement
-                </button>
+                {/* POST /claims/:id/supplements asks insurance:create. (T41) */}
+                {mayWriteClaim && (
+                  <button onClick={() => setSupOpen(true)} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    <Plus className="w-3.5 h-3.5" /> Add Supplement
+                  </button>
+                )}
               </div>
               {supplements.length === 0 ? (
                 <p className="text-sm text-gray-500 dark:text-slate-400">No supplements yet</p>
@@ -968,7 +1101,7 @@ export default function InsuranceClaimPage() {
                       {sup.status === 'denied' && sup.denialReason && (
                         <p className="text-xs text-red-700">Denied: {sup.denialReason}</p>
                       )}
-                      {sup.status === 'draft' && (
+                      {sup.status === 'draft' && mayWriteClaim && (
                         <div className="mt-2 flex items-center gap-4">
                           <button onClick={() => submitSupplement(sup.id)} className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium hover:text-blue-800 dark:hover:text-blue-300">
                             <Send className="w-3 h-3" /> Submit to Carrier
@@ -978,19 +1111,27 @@ export default function InsuranceClaimPage() {
                           </button>
                         </div>
                       )}
-                      {sup.status === 'submitted' && (
+                      {/* A CARRIER'S DECISION IS NOT FINAL, AND THE SCREEN HAS TO SAY SO. (T41)
+                          "No on-screen way to change an approved supplement: once approved it shows
+                           only 'Approved: $X', so re-approve and deny work only through the API."
+                          Carriers come back with a different number, or deny what they had allowed.
+                          The server accepts those transitions (routes/insurance.ts DECIDABLE covers
+                          submitted, approved and denied — a DRAFT is excluded, because a supplement
+                          nobody sent has no decision to record). So the same two controls are
+                          offered on all three, worded for what they do from here. */}
+                      {['submitted', 'approved', 'denied'].includes(sup.status) && (
                         canDecide ? (
-                          <div className="mt-2 flex items-center gap-4">
+                          <div className="mt-2 flex items-center gap-4 flex-wrap">
                             <button onClick={() => openDecide(sup, 'approve')} className="flex items-center gap-1 text-xs text-green-700 dark:text-green-400 font-medium hover:text-green-800 dark:hover:text-green-300">
-                              <CheckCircle className="w-3 h-3" /> Record Approval
+                              <CheckCircle className="w-3 h-3" /> {sup.status === 'approved' ? 'Change the approved amount' : sup.status === 'denied' ? 'Record an approval instead' : 'Record Approval'}
                             </button>
                             <button onClick={() => openDecide(sup, 'deny')} className="flex items-center gap-1 text-xs text-red-700 dark:text-red-400 font-medium hover:text-red-800 dark:hover:text-red-300">
-                              <XCircle className="w-3 h-3" /> Record Denial
+                              <XCircle className="w-3 h-3" /> {sup.status === 'approved' ? 'Record a denial instead' : sup.status === 'denied' ? 'Change the denial reason' : 'Record Denial'}
                             </button>
                           </div>
-                        ) : (
+                        ) : sup.status === 'submitted' ? (
                           <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">Awaiting the carrier. A manager records their answer.</p>
-                        )
+                        ) : null
                       )}
                     </div>
                   ))}
@@ -1118,8 +1259,14 @@ export default function InsuranceClaimPage() {
                 <button onClick={() => setSupLineItems(prev => [...prev, newSupRow()])} className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium">
                   + Add Line Item
                 </button>
-                <div className="flex justify-end mt-2">
-                  <span className="text-sm font-bold">Total: {fmt$(supLineItems.reduce((s, li) => s + Number(li.total || 0), 0))}</span>
+                <div className="flex flex-col items-end mt-2">
+                  <span className="text-sm font-bold">Total: {fmt$(supLineItems.reduce((s, li) => s + price0(li.total), 0))}</span>
+                  {anyNegative(supLineItems) && (
+                    <span className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                      A quantity or price is negative. Those lines count as nothing here, and the carrier
+                      cannot be asked for a negative amount — use a separate credit instead.
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -1167,7 +1314,15 @@ export default function InsuranceClaimPage() {
               ))}
             </div>
             <p className="mt-3 text-sm text-gray-600 dark:text-slate-400">
-              Total <span className="font-bold text-gray-900 dark:text-slate-100">{fmt$(editItems.reduce((s, li) => s + (Number(li.qty) || 0) * (Number(li.unitPrice) || 0), 0).toFixed(2))}</span>
+              {/* The EDIT modal had the same negative-total fault as the create one, one screen
+                  along — a report naming one is not a reason to leave its sibling. (T41) */}
+              Total <span className="font-bold text-gray-900 dark:text-slate-100">{fmt$(editItems.reduce((s, li) => s + price0(li.qty) * price0(li.unitPrice), 0).toFixed(2))}</span>
+              {anyNegative(editItems) && (
+                <span className="block text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                  A quantity or price is negative. Those lines count as nothing here, and the carrier cannot
+                  be asked for a negative amount.
+                </span>
+              )}
               <span className="text-xs"> — calculated from the lines above; the server recomputes it on save.</span>
             </p>
 
