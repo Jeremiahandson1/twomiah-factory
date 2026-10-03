@@ -441,7 +441,7 @@ export default function RoofReportsPage() {
           </button>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-slate-900">
+        <div className="bg-white rounded-xl shadow-sm border overflow-x-auto dark:bg-slate-900">
           <table className="w-full">
             <thead className="bg-gray-50 border-b dark:bg-slate-900">
               <tr>

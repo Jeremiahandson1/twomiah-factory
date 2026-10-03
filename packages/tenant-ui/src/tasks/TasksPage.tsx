@@ -166,7 +166,7 @@ export default function TasksPage({ api }: TasksPageProps) {
 
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard label="Total" value={stats.total} />
           <StatCard label="Pending" value={stats.pending} color="blue" />
           <StatCard label="Completed" value={stats.completed} color="green" />

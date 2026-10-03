@@ -60,7 +60,7 @@ export default function CallTrackingPage() {
 
       {/* Stats */}
       {report?.totals && (
-        <div className="grid grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           <StatCard icon={Phone} label="Total Calls" value={report.totals.totalCalls || 0} />
           <StatCard icon={Users} label="First-Time Callers" value={report.totals.firstTimeCallers || 0} color="blue" />
           <StatCard icon={Clock} label="Avg Duration" value={`${Math.round((report.totals.avgDuration || 0) / 60)}m`} color="purple" />
@@ -142,7 +142,10 @@ function CallsTab({ calls, filters, setFilters, onRefresh }) {
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="flex items-center gap-4">
+      {/* Four filter controls, each as wide as its longest option, in a row that could not wrap:
+          683px of content inside a 390px screen, and the whole page scrolled sideways.
+          (T41 "Call Tracking input 671px") */}
+      <div className="flex flex-wrap items-center gap-4">
         <select
           value={filters.source}
           onChange={(e) => setFilters({ ...filters, source: e.target.value })}
@@ -180,7 +183,7 @@ function CallsTab({ calls, filters, setFilters, onRefresh }) {
       </div>
 
       {/* Call List */}
-      <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
+      <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
         <table className="w-full">
           <thead className="bg-gray-50 dark:bg-slate-900">
             <tr>

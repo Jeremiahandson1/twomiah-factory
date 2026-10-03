@@ -125,7 +125,7 @@ export default function ContactSupportPage() {
           <select
             value={priority}
             onChange={(e: any) => setPriority(e.target.value)}
-            className="px-3 py-2 border rounded-lg"
+            className="w-full px-3 py-2 border rounded-lg"
           >
             <option value="low">Low — just a question</option>
             <option value="normal">Normal — something is awkward</option>

@@ -324,7 +324,7 @@ export default function SupportPage() {
       </div>
 
       {/* Quick stats */}
-      <div className="grid grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         {[
           { label: 'Open', value: stats.open || 0, color: 'text-blue-400' },
           { label: 'In Progress', value: stats.in_progress || 0, color: 'text-yellow-400' },

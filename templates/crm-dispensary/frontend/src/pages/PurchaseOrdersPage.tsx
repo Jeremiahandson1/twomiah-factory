@@ -499,7 +499,7 @@ export default function PurchaseOrdersPage() {
             </div>
 
             {lineItems.length > 0 && (
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border rounded-lg overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 text-left dark:bg-slate-900">

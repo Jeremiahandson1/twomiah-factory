@@ -464,7 +464,7 @@ export function LineItemsEditor({ items, onChange, pricebook }: {
       {/*
         A money field has a width below which it stops being usable, and w-24 / w-36 are hints, not
         floors: inside `w-full` on a phone the columns compressed until Qty and Unit Price were 31-36px —
-        wide enough to show two characters of a price someone is trying to check. `overflow-hidden` meant
+        wide enough to show two characters of a price someone is trying to check. `overflow-x-auto` meant
         the row had nowhere to go, so it crushed instead of scrolling. The table now has a minimum width
         and this frame scrolls sideways when it will not fit: desktop unchanged, and a phone gets a table
         it can push around rather than boxes it cannot type in. (Field Service T30, phone width)

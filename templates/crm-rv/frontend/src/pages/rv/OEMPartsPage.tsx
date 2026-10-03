@@ -148,7 +148,7 @@ export default function OEMPartsPage() {
           <select value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 block p-2 border rounded-lg text-sm"><option value="">All</option>{cats.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
       </div>
 
-      <div className="mt-4 bg-white rounded-xl border shadow-sm overflow-hidden dark:bg-slate-900">
+      <div className="mt-4 bg-white rounded-xl border shadow-sm overflow-x-auto dark:bg-slate-900">
         <div className="px-4 py-2.5 border-b text-sm font-semibold text-gray-600 dark:text-slate-400">{parts.length} part{parts.length === 1 ? '' : 's'}</div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">

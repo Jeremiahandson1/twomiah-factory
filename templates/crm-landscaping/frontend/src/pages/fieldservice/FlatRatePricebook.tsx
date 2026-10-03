@@ -90,7 +90,7 @@ export default function FlatRatePricebook() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard icon={BookOpen} label="Total Services" value={items.length} />
         <StatCard icon={FolderTree} label="Categories" value={Object.keys(groupedItems).length} />
         <StatCard icon={DollarSign} label="Avg Price" value={`$${avgPrice}`} color="green" />
@@ -384,7 +384,7 @@ function RateFormModal({ item, categories, onSave, onClose }) {
             {/* Pricing Section */}
             <div className="p-4 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
               <h3 className="font-medium text-gray-900 dark:text-white mb-3">Pricing</h3>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Flat Rate</label>
                   <div className="relative">

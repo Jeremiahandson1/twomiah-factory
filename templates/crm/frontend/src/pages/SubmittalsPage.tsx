@@ -102,7 +102,7 @@ export default function SubmittalsPage() {
         <button onClick={() => setShowCreate(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"><Plus className="w-4 h-4" />New Submittal</button>
       </div>
 
-      <div className="bg-white rounded-lg border overflow-hidden dark:bg-slate-900">
+      <div className="bg-white rounded-lg border overflow-x-auto dark:bg-slate-900">
         <table className="w-full">
           <thead className="bg-gray-50 border-b dark:bg-slate-900">
             <tr className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-slate-400">

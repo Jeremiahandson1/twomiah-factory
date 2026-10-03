@@ -528,7 +528,7 @@ export default function PatientDetailPage() {
           {vaccinations.length === 0 ? (
             <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">No vaccinations recorded</div>
           ) : (
-            <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
+            <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-gray-500 text-left dark:bg-slate-900 dark:text-slate-400">
                   <tr>

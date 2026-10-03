@@ -466,7 +466,7 @@ function TakeoffItemCard({ item, onUpdate }: TakeoffItemCardProps) {
       {expanded && (
         <div className="border-t">
           {/* Measurements */}
-          <div className="p-4 bg-gray-50 grid grid-cols-4 gap-4 text-sm dark:bg-slate-900">
+          <div className="p-4 bg-gray-50 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm dark:bg-slate-900">
             {item.measurementType === 'area' && (
               <>
                 <div>

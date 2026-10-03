@@ -208,7 +208,7 @@ export default function ProjectDetailPage() {
       {/* Content */}
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Main info */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 min-w-0 space-y-6">
           {/* Project details */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Project Details</h2>

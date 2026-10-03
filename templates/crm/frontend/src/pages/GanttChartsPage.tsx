@@ -104,7 +104,7 @@ export default function GanttChartsPage() {
         })}
       </div>
 
-      <div className="mt-4 flex items-center gap-4 text-xs text-gray-500 dark:text-slate-400">
+      <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-gray-500 dark:text-slate-400">
         <span>Legend:</span>
         {Object.entries(STATUS_COLORS).map(([status, color]) => (
           <div key={status} className="flex items-center gap-1"><div className="w-3 h-3 rounded" style={{ background: color }} /><span>{status.replace('_', ' ')}</span></div>

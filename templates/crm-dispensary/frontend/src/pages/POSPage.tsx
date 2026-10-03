@@ -583,8 +583,11 @@ export default function POSPage() {
     }
   };
 
+  // The negative margin cancels the layout's own padding so the till runs edge to edge — but that
+  // padding is `p-4 lg:p-6`, so a flat -m-6 pulled 8px past the viewport on both sides below lg.
+  // Measured at 820px: scrollWidth 828 against a 820px viewport. The margin now matches. (T41)
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] -m-6 gap-0">
+    <div className="flex flex-col h-[calc(100vh-4rem)] -m-4 lg:-m-6 gap-0">
       {/* A cashier has to be able to see that the till is off the network, and that sales are
           being held rather than sent. Without this the register looks normal right up until
           someone asks where the day's takings went. (T45 H17) */}
@@ -596,9 +599,15 @@ export default function POSPage() {
             : `No connection. Sales are being held on this till${queued > 0 ? ` (${queued} waiting)` : ''} and will be sent when you are back online.`}
         </div>
       )}
-      <div className="flex flex-1 gap-0 overflow-hidden">
+      {/* THE TILL WAS UNUSABLE ON A PHONE. (T41)
+          "POS unusable at 390px (product panel about 14px wide)."
+          The cart was a fixed w-96 — 384px — beside a flex-1 product panel, so on a 390px screen
+          the cart took the whole width and the products got the 6px left over. Below lg the two
+          panels now stack: products above with the space the cart does not need, cart below with
+          its own scroll. */}
+      <div className="flex flex-col lg:flex-row flex-1 gap-0 overflow-hidden">
       {/* LEFT: Product Grid */}
-      <div className="flex-1 flex flex-col bg-gray-50 border-r overflow-hidden dark:bg-slate-900">
+      <div className="flex-1 min-h-0 flex flex-col bg-gray-50 border-b lg:border-b-0 lg:border-r overflow-hidden dark:bg-slate-900">
         {/* Category Tabs */}
         <div className="flex gap-1 p-3 overflow-x-auto bg-white border-b dark:bg-slate-900">
           {categories.map(cat => (
@@ -686,8 +695,8 @@ export default function POSPage() {
         </div>
       </div>
 
-      {/* RIGHT: Cart */}
-      <div className="w-96 flex flex-col bg-white dark:bg-slate-900">
+      {/* RIGHT: Cart (BELOW the products on a phone — see the note on the split above) */}
+      <div className="w-full lg:w-96 flex-shrink-0 max-h-[55%] overflow-y-auto lg:max-h-none lg:overflow-visible flex flex-col bg-white dark:bg-slate-900">
         {/* Customer */}
         <div className="p-4 border-b">
           {customer ? (

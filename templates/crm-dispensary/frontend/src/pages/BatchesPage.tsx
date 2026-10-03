@@ -557,7 +557,7 @@ export default function BatchesPage() {
       </div>
 
       {/* Batches Table */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
+      <div className="bg-white rounded-lg shadow-sm overflow-x-auto dark:bg-slate-900">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-slate-900">

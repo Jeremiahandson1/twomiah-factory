@@ -198,7 +198,7 @@ export default function ProductDetailPage() {
         </div>
 
         {/* Details */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 min-w-0 space-y-6">
           {/* Basic Info */}
           <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
             <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Basic Information</h2>

@@ -249,7 +249,7 @@ export default function EquipmentPage({ api, config }: EquipmentPageProps) {
 
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard icon={Wrench} label="Total Equipment" value={stats.total} />
           {/*
             `?? 0` used to sit on this value, and it hid the tile completely: getEquipmentStats never
@@ -279,9 +279,10 @@ export default function EquipmentPage({ api, config }: EquipmentPageProps) {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1">
+      {/* Filters — the two selects are as wide as their longest option, so on a 390px screen this
+          row measured 437px and took the page with it. (T41 "Equipment select 437px") */}
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="relative flex-1 min-w-[12rem]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
@@ -323,7 +324,7 @@ export default function EquipmentPage({ api, config }: EquipmentPageProps) {
           <p className="text-gray-500 dark:text-slate-400">No equipment found</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
+        <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-slate-900">
               <tr>

@@ -104,7 +104,7 @@ export function EmailDomainPage(): React.ReactElement {
           </div>
 
           {status.records && status.records.length > 0 && (
-            <div className="border border-gray-200 rounded-md overflow-hidden">
+            <div className="border border-gray-200 rounded-md overflow-x-auto">
               <table className="w-full text-sm">
                 {/* no dark: text here on purpose — this header pins bg-gray-50 and never flips it, so a dark
                     text colour would put slate-400 on a light header (2.45:1). gray-500 reads 4.63:1 on

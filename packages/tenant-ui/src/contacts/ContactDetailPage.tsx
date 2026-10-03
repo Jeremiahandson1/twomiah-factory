@@ -272,8 +272,11 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between">
+      {/* THE DELETE BUTTON WAS OFF THE SIDE OF THE SCREEN. (T41)
+          "the contact header's Delete button sits off-screen at 520px"
+          Measured: at 520px the action row is 326px wide with its right edge at 541, and at 390px
+          the page scrolled 151px sideways. A nowrap row of four buttons beside a name. */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-4">
           <button type="button" onClick={() => navigate('/crm/contacts')} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg" aria-label="Back to contacts">
             <ArrowLeft className="w-5 h-5" />
@@ -289,7 +292,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {contact.type === 'lead' && <Button variant="success" onClick={handleConvert}>Convert to {cfg.convertLabel}</Button>}
           <NavLink to={`/crm/contacts?edit=${id}`} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2">
             <Edit className="w-4 h-4" />Edit
@@ -303,7 +306,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Main column */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 min-w-0 space-y-6">
           <div className={cardPad}>
             <h2 className={`${h2} mb-4`}>Contact Information</h2>
             <div className="grid md:grid-cols-2 gap-4">

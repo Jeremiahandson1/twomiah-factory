@@ -515,9 +515,14 @@ export default function SettingsPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold mb-6">Settings</h1>
-      <div className="flex gap-6">
+      {/* A 192px SIDEBAR BESIDE THE FORM LEFT 142px FOR THE FORM. (T41 "Settings scrolls sideways
+          (675px)") Measured at 390px: clientWidth 390, scrollWidth 687, and the element past the
+          edge was this pane — flex-1 cannot shrink below its content's minimum, so the form pushed
+          the page sideways by 297px instead. Below lg the nav sits above the form; `min-w-0` lets
+          the pane actually take the width it is given rather than its content's minimum. */}
+      <div className="flex flex-col lg:flex-row gap-6">
         {/* Sidebar */}
-        <div className="w-48 space-y-1">
+        <div className="w-full lg:w-48 flex-shrink-0 space-y-1">
           {tabs.map(t => (
             <button
               key={t.id}
@@ -567,7 +572,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+        <div className="flex-1 min-w-0 bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
           {/* GENERAL */}
           {tab === 'general' && (
             <div className="space-y-6 max-w-2xl">
@@ -1170,7 +1175,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
               )}
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border rounded-lg overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50 dark:bg-slate-900">
                     <tr>

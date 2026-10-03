@@ -182,7 +182,7 @@ export default function QuotesPage() {
           )}
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-slate-900">
+        <div className="bg-white rounded-xl shadow-sm border overflow-x-auto dark:bg-slate-900">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

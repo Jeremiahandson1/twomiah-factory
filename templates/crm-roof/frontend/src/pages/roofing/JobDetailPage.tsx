@@ -420,7 +420,7 @@ export default function JobDetailPage() {
         {/* Two column layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 min-w-0 space-y-6">
             {/* Property */}
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
               <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">

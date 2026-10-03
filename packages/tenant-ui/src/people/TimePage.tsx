@@ -170,7 +170,9 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
               <h2 className="font-semibold text-gray-900 dark:text-slate-100">Pay run</h2>
               <p className="text-xs text-gray-500 dark:text-slate-400">Approved and unapproved hours in the period, and anything being recovered from pay.</p>
             </div>
-            <div className="flex items-end gap-2">
+            {/* Two date pickers and a button: 421px of controls in a 324px column, measured at
+                390px, and the page scrolled sideways by 64px. (T41 "Time date row 442px") */}
+            <div className="flex flex-wrap items-end gap-2">
               <Field label="From"><input type="date" value={payFrom} onChange={(e) => setPayFrom(e.target.value)} className={inputCls} /></Field>
               <Field label="To"><input type="date" value={payTo} onChange={(e) => setPayTo(e.target.value)} className={inputCls} /></Field>
               <Button variant="secondary" onClick={loadPayRun} disabled={payLoading}>{payLoading ? 'Working…' : 'Show'}</Button>

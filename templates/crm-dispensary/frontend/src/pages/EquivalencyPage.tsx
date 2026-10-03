@@ -231,12 +231,12 @@ const unitOf = (rule: any): string => {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 border-b">
+      <div className="flex gap-1 mb-6 border-b overflow-x-auto">
         {tabs.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap flex-shrink-0 transition-colors ${
               tab === t.id
                 ? 'border-green-600 text-green-700 dark:text-green-300'
                 : 'border-transparent text-gray-500 dark:text-slate-300 hover:text-gray-700 dark:hover:text-slate-200'
@@ -275,7 +275,7 @@ const unitOf = (rule: any): string => {
               <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
+            <div className="bg-white rounded-lg shadow-sm overflow-x-auto dark:bg-slate-900">
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>
@@ -388,7 +388,7 @@ const unitOf = (rule: any): string => {
           </div>
 
           {/* Cart Items */}
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 dark:bg-slate-900">
+          <div className="bg-white rounded-lg shadow-sm overflow-x-auto border border-gray-100 dark:bg-slate-900">
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-slate-900">
                 <tr>

@@ -202,7 +202,7 @@ export default function SelectionsPage({ projectId: propProjectId }: SelectionsP
 
       {/* Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           <SummaryCard
             label="Total"
             value={summary.total}

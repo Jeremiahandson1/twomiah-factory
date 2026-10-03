@@ -55,7 +55,7 @@ export default function AccountingPage() {
         {!data.connected && <button onClick={connect} className="px-3 py-1.5 rounded-lg bg-white border text-sm font-medium hover:bg-gray-50 dark:bg-slate-900">Connect</button>}
       </div>
 
-      <div className="mt-4 bg-white rounded-xl border shadow-sm overflow-hidden dark:bg-slate-900">
+      <div className="mt-4 bg-white rounded-xl border shadow-sm overflow-x-auto dark:bg-slate-900">
         <div className="px-4 py-2.5 border-b flex items-center justify-between flex-wrap gap-2">
           <span className="text-sm font-semibold text-gray-600 dark:text-slate-400">Ready to post · {pending.length} entr{pending.length === 1 ? 'y' : 'ies'} · {money(pendingTotal)}</span>
           <button onClick={sync} disabled={syncing || !pending.length} className="px-4 py-1.5 rounded-lg bg-green-700 text-white text-sm font-medium hover:bg-green-800 disabled:opacity-50 inline-flex items-center gap-1.5">{syncing ? <Loader2 className="animate-spin" size={15} /> : <RefreshCw size={15} />}Sync to {String(data.provider || '').split(' ')[0]}</button>

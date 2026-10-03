@@ -131,7 +131,7 @@ export default function MaintenanceContracts() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard icon={FileText} label="Active Contracts" value={stats.active} />
         <StatCard icon={AlertTriangle} label="Expiring Soon" value={stats.expiringSoon} color="orange" />
         <StatCard
@@ -174,7 +174,7 @@ export default function MaintenanceContracts() {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 overflow-hidden">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-slate-900">
               <tr>

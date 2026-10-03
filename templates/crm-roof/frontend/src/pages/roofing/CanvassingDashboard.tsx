@@ -244,7 +244,7 @@ export default function CanvassingDashboard() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-xl p-4 border dark:bg-slate-900">
             <p className="text-2xl font-bold">{s.totalDoors || 0}</p>
             <p className="text-sm text-gray-500 dark:text-slate-400">Total Doors</p>
@@ -331,7 +331,7 @@ export default function CanvassingDashboard() {
       <div className="grid grid-cols-3 gap-6">
         {/* Sessions Table */}
         <div className="col-span-2">
-          <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
+          <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-gray-50 text-left text-xs text-gray-500 uppercase dark:bg-slate-900 dark:text-slate-400">

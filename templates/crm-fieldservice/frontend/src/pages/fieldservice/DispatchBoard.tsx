@@ -143,7 +143,7 @@ export default function DispatchBoard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard icon={ClipboardList} label="Total Jobs" value={jobs.length} />
         <StatCard icon={AlertTriangle} label="Unassigned" value={unassigned.length} color="orange" />
         <StatCard icon={Play} label="In Progress" value={inProgress.length} color="blue" />

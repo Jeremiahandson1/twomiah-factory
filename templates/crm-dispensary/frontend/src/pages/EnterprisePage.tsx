@@ -213,7 +213,7 @@ function StoreGroupsTab() {
 
                   {/* Location breakdown */}
                   {groupDashboard.locations && groupDashboard.locations.length > 0 && (
-                    <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
+                    <div className="bg-white rounded-lg shadow-sm overflow-x-auto dark:bg-slate-900">
                       <div className="px-4 py-3 border-b">
                         <h3 className="font-semibold text-gray-900 dark:text-slate-100">Location Breakdown</h3>
                       </div>
@@ -315,7 +315,7 @@ function MultiStoreReportsTab() {
   return (
     <div className="space-y-6">
       {/* Sales Comparison */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
+      <div className="bg-white rounded-lg shadow-sm overflow-x-auto dark:bg-slate-900">
         <div className="px-4 py-3 border-b flex items-center gap-2">
           <DollarSign className="w-4 h-4 text-gray-400" />
           <h3 className="font-semibold text-gray-900 dark:text-slate-100">Location Sales Comparison</h3>
@@ -351,7 +351,7 @@ function MultiStoreReportsTab() {
       </div>
 
       {/* Inventory Across Locations */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
+      <div className="bg-white rounded-lg shadow-sm overflow-x-auto dark:bg-slate-900">
         <div className="px-4 py-3 border-b flex items-center gap-2">
           <Package className="w-4 h-4 text-gray-400" />
           <h3 className="font-semibold text-gray-900 dark:text-slate-100">Inventory Across Locations</h3>
@@ -387,7 +387,7 @@ function MultiStoreReportsTab() {
       </div>
 
       {/* Compliance Status */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
+      <div className="bg-white rounded-lg shadow-sm overflow-x-auto dark:bg-slate-900">
         <div className="px-4 py-3 border-b flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-gray-400" />
           <h3 className="font-semibold text-gray-900 dark:text-slate-100">Compliance Status</h3>

@@ -41,7 +41,7 @@ const ALLOWED = new Set([
   'templates/crm-roof/backend/src/services/xactimate.ts:205',
   'templates/crm-roof/frontend/src/pages/roofReports/RoofReportDetail.tsx:118',
   'templates/crm-roof/frontend/src/pages/roofReports/RoofReportDetail.tsx:295',
-  'templates/crm-dispensary/frontend/src/pages/POSPage.tsx:708',
+  'templates/crm-dispensary/frontend/src/pages/POSPage.tsx:717',
 ])
 
 let failed = 0

@@ -191,7 +191,7 @@ function TrafficTab({ dateRange }: { dateRange: { start: string; end: string } }
   return (
     <div className="space-y-6">
       {/* Referrers */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
+      <div className="bg-white rounded-lg shadow-sm overflow-x-auto dark:bg-slate-900">
         <div className="px-4 py-3 border-b">
           <h3 className="font-semibold text-gray-900 dark:text-slate-100">Referrer Breakdown</h3>
         </div>
@@ -220,7 +220,7 @@ function TrafficTab({ dateRange }: { dateRange: { start: string; end: string } }
       </div>
 
       {/* Campaigns */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
+      <div className="bg-white rounded-lg shadow-sm overflow-x-auto dark:bg-slate-900">
         <div className="px-4 py-3 border-b">
           <h3 className="font-semibold text-gray-900 dark:text-slate-100">UTM Campaign Performance</h3>
         </div>
@@ -364,7 +364,7 @@ function RealtimeTab() {
       </div>
 
       {/* Active Pages */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
+      <div className="bg-white rounded-lg shadow-sm overflow-x-auto dark:bg-slate-900">
         <div className="px-4 py-3 border-b">
           <h3 className="font-semibold text-gray-900 dark:text-slate-100">Active Pages</h3>
         </div>

@@ -73,7 +73,7 @@ export default function ReviewsPage() {
             ))}
         </div>
       ) : (
-        <div className="bg-white rounded-lg border overflow-hidden dark:bg-slate-900">
+        <div className="bg-white rounded-lg border overflow-x-auto dark:bg-slate-900">
           <table className="w-full">
             <thead className="bg-gray-50 border-b dark:bg-slate-900"><tr className="text-left text-xs font-semibold text-gray-500 uppercase dark:text-slate-400"><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Channel</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Sent</th><th className="px-4 py-3"></th></tr></thead>
             <tbody>

@@ -217,12 +217,16 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
     <AgreementsCtx.Provider value={{ api, recurrence: !!config?.recurrence }}>
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* MEASURED, not guessed: at 390px this header row was the whole page's sideways scroll —
+          three buttons and a title in a nowrap flex, documentElement.scrollWidth 510 against a
+          390px viewport, the "New Agreement" button's right edge at 510. (T41 "Agreements header
+          510px") Wrapping costs nothing above the breakpoint, where it never wraps. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Service Agreements</h1>
           <p className="text-gray-500 dark:text-slate-400">Manage maintenance memberships</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {mayCreate && (
             <button
               onClick={() => { setSelectedPlan(null); setShowPlanForm(true); }}
@@ -342,7 +346,7 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
               <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
             </div>
           ) : (
-            <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
+            <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>

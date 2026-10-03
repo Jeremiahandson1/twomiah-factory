@@ -36,7 +36,7 @@ export default function FloorplanPage() {
         ))}
       </div>
 
-      <div className="mt-4 bg-white rounded-xl border shadow-sm overflow-hidden dark:bg-slate-900">
+      <div className="mt-4 bg-white rounded-xl border shadow-sm overflow-x-auto dark:bg-slate-900">
         <div className="px-4 py-2.5 border-b text-sm font-semibold text-gray-600 dark:text-slate-400">Floored units</div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">

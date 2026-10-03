@@ -765,7 +765,7 @@ export default function SOC2DashboardPage() {
                 )}
               </div>
 
-              <div className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+              <div className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-x-auto">
                 {loadingReviewUsers ? (
                   <div className="flex items-center justify-center h-32">
                     <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />

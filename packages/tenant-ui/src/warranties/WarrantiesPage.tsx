@@ -122,7 +122,7 @@ export default function WarrantiesPage({ api }: WarrantiesPageProps) {
 
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard icon={Shield} label="Active Warranties" value={stats.activeWarranties} />
           <StatCard
             icon={AlertTriangle}
@@ -243,7 +243,7 @@ function WarrantiesList({ warranties, onRefresh }: WarrantiesListProps) {
   }
 
   return (
-    <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
+    <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
       <table className="w-full">
         <thead className="bg-gray-50 dark:bg-slate-900">
           <tr>
@@ -404,7 +404,7 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
           <p className="text-gray-500 dark:text-slate-400">No claims found</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
+        <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-slate-900">
               <tr>

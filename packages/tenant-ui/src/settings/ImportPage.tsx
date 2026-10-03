@@ -103,7 +103,7 @@ export function ImportPage({ api, config }: { api: SettingsApi; config?: ImportC
               <div>
                 <h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">Preview (first {Math.min(5, (preview.sample || []).length)} rows)</h3>
                 <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm border rounded-lg overflow-hidden dark:border-slate-700" data-testid="import-preview">
+                  <table className="min-w-full text-sm border rounded-lg overflow-x-auto dark:border-slate-700" data-testid="import-preview">
                     <thead className="bg-gray-50 dark:bg-slate-800"><tr>{(preview.columns || []).map((col, i) => <th key={i} className="px-3 py-2 text-left font-medium text-gray-700 border-b dark:text-slate-200 dark:border-slate-700">{col}</th>)}</tr></thead>
                     <tbody>{(preview.sample || []).slice(0, 5).map((row, i) => <tr key={i} className="border-b last:border-0 dark:border-slate-700">{(preview.columns || []).map((col, j) => <td key={j} className="px-3 py-2 text-gray-600 truncate max-w-48 dark:text-slate-400">{row[col]}</td>)}</tr>)}</tbody>
                   </table>

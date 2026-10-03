@@ -188,7 +188,7 @@ export default function InventoryPage({ api }: InventoryPageProps) {
       {/* Stats Cards */}
       {/* One column per tile actually shown: with Total Value withheld, a four-column grid leaves a
           gap that reads as a figure failing to load. */}
-      <div className={`grid ${showCost ? 'grid-cols-4' : 'grid-cols-3'} gap-4`}>
+      <div className={`grid grid-cols-2 ${showCost ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
         <StatCard
           icon={Package}
           label="Total Items"
@@ -279,7 +279,7 @@ export default function InventoryPage({ api }: InventoryPageProps) {
               <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
             </div>
           ) : (
-            <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
+            <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>

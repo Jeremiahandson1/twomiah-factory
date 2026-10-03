@@ -107,7 +107,7 @@ export default function StormRadarPage() {
       )}
 
       {/* Recent events */}
-      <div className="bg-white rounded-lg border overflow-hidden mb-6 dark:bg-slate-900">
+      <div className="bg-white rounded-lg border overflow-x-auto mb-6 dark:bg-slate-900">
         <div className="p-4 border-b font-semibold">Recent Storm Events ({events.length})</div>
         <table className="w-full">
           <thead className="bg-gray-50 border-b dark:bg-slate-900"><tr className="text-left text-xs font-semibold text-gray-500 uppercase dark:text-slate-400"><th className="px-4 py-3">Type</th><th className="px-4 py-3">Severity</th><th className="px-4 py-3">Location</th><th className="px-4 py-3">Hail</th><th className="px-4 py-3">Wind</th><th className="px-4 py-3">Started</th><th className="px-4 py-3"></th></tr></thead>
@@ -129,7 +129,7 @@ export default function StormRadarPage() {
       </div>
 
       {/* Storm leads (matches) */}
-      <div className="bg-white rounded-lg border overflow-hidden dark:bg-slate-900">
+      <div className="bg-white rounded-lg border overflow-x-auto dark:bg-slate-900">
         <div className="p-4 border-b font-semibold">Storm Leads from Matches ({matches.length})</div>
         <table className="w-full">
           <thead className="bg-gray-50 border-b dark:bg-slate-900"><tr className="text-left text-xs font-semibold text-gray-500 uppercase dark:text-slate-400"><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Distance</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Matched</th><th className="px-4 py-3">Actions</th></tr></thead>

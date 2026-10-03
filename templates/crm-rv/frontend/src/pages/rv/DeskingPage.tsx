@@ -176,7 +176,7 @@ export default function DeskingPage() {
             )}
           </div>
 
-          <div className="bg-white text-gray-900 rounded-xl border shadow-sm overflow-hidden dark:bg-slate-900 dark:text-slate-100">
+          <div className="bg-white text-gray-900 rounded-xl border shadow-sm overflow-x-auto dark:bg-slate-900 dark:text-slate-100">
             <div className="px-4 py-2 border-b text-sm font-semibold text-gray-700 dark:text-slate-200">Monthly payment</div>
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 text-gray-500 dark:bg-slate-900 dark:text-slate-400"><tr><th className="px-4 py-2 text-left font-semibold">Term</th>{[6.99, 9.99, 12.99].map((a) => <th key={a} className="px-4 py-2 text-right font-semibold">{a}%</th>)}</tr></thead>

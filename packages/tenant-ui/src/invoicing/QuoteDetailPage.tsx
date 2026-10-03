@@ -66,8 +66,8 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
       )}
 
       <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden">
+        <div className="lg:col-span-2 min-w-0 space-y-6">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-x-auto">
             <div className="p-4 border-b border-gray-200 dark:border-slate-800"><h2 className="font-semibold text-gray-900 dark:text-white">Line Items</h2></div>
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-slate-800/60"><tr>

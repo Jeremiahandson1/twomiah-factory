@@ -239,7 +239,11 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
           )}
         </div>
 
-        <div className="flex-1 bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+        {/* `min-w-0`: a flex item's default minimum is its CONTENT's minimum, so this pane refused
+            to shrink to the space left beside the nav and pushed the page sideways instead —
+            measured on Settings › Users at 820px, pane 659px wide in a 572px slot, page
+            scrollWidth 848. (T41 "Settings › Users overflows at 820px") */}
+        <div className="flex-1 min-w-0 bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
           {tab === 'company' && editsCompany && (
             <div className="space-y-4 max-w-xl">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Company Information</h2>
@@ -359,7 +363,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
 
           {tab === 'users' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Users</h2>
                 {canManageUsers && <Button onClick={() => { setNewUser(emptyUser()); setAddUserOpen(true) }}>Add User</Button>}
               </div>

@@ -86,7 +86,7 @@ export default function RentalsPage() {
         <button onClick={create} disabled={saving} className="p-2 rounded-lg bg-indigo-700 text-white text-sm font-medium hover:bg-indigo-800 disabled:opacity-50 inline-flex items-center justify-center gap-1.5">{saving && <Loader2 size={14} className="animate-spin" />}Save</button>
       </div>}
 
-      <div className="mt-4 bg-white rounded-xl border shadow-sm overflow-hidden dark:bg-slate-900">
+      <div className="mt-4 bg-white rounded-xl border shadow-sm overflow-x-auto dark:bg-slate-900">
         <div className="px-4 py-2.5 border-b text-sm font-semibold text-gray-600 dark:text-slate-400">Reservations</div>
         <div className="overflow-x-auto"><table className="min-w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 dark:bg-slate-900 dark:text-slate-400"><tr>

@@ -230,7 +230,7 @@ export default function AuditLogPage() {
       </div>
 
       {/* Log Table */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
+      <div className="bg-white rounded-lg shadow-sm overflow-x-auto dark:bg-slate-900">
         {loading ? (
           <div className="flex items-center justify-center h-32">
             <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />

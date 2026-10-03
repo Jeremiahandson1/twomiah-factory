@@ -166,7 +166,7 @@ export default function FleetPage({ api, config }: FleetPageProps) {
 
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           <StatCard icon={Truck} label="Vehicles" value={stats.totalVehicles} />
           <StatCard icon={Navigation} label="Trips (30d)" value={stats.tripsThisMonth} color="blue" />
           <StatCard icon={TrendingUp} label="Miles (30d)" value={`${Math.round(stats.milesThisMonth)}`} color="green" />
@@ -523,7 +523,7 @@ function TripsTab() {
   }
 
   return (
-    <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
+    <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
       <table className="w-full">
         <thead className="bg-gray-50 dark:bg-slate-900">
           <tr>

@@ -107,7 +107,7 @@ export default function ServicePage() {
       ) : rows.length === 0 ? (
         <div className="text-center py-12 text-gray-500 bg-white rounded-xl border dark:text-slate-400 dark:bg-slate-900">No repair orders</div>
       ) : (
-        <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
+        <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-slate-900">
               <tr>

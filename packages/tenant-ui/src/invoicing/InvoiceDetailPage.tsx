@@ -127,9 +127,13 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
         </div>
       </div>
 
+      {/* `min-w-0` on both columns: a grid item's default minimum is its content's minimum, so at
+          390px the line-items column measured 431px inside a 358px track and the summary card was
+          carried off the right of the screen. (T41 "Invoice detail at 390px scrolls to 495px
+          (summary card pushed off-screen)") The tables inside already scroll on their own. */}
       <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden">
+        <div className="lg:col-span-2 min-w-0 space-y-6">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-x-auto">
             <div className="p-4 border-b border-gray-200 dark:border-slate-800"><h2 className="font-semibold text-gray-900 dark:text-white">Line Items</h2></div>
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-slate-800/60"><tr>
@@ -157,7 +161,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
           </div>
 
           {(invoice.payments || []).length > 0 && (
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-x-auto">
               <div className="p-4 border-b border-gray-200 dark:border-slate-800"><h2 className="font-semibold text-gray-900 dark:text-white">Payments</h2></div>
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-slate-800/60"><tr>
@@ -182,7 +186,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
           {invoice.notes && <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6"><h2 className="font-semibold mb-2 text-gray-900 dark:text-white">Notes</h2><p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-slate-300">{invoice.notes}</p></div>}
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-6 min-w-0">
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6 text-sm text-gray-900 dark:text-slate-100">
             <h2 className="font-semibold mb-4">Details</h2>
             <div className="space-y-3">

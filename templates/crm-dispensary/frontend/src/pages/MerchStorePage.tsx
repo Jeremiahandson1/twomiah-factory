@@ -195,10 +195,10 @@ export default function MerchStorePage() {
       />
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b">
+      <div className="flex gap-1 mb-4 border-b overflow-x-auto">
         <button
           onClick={() => setTab('products')}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap flex-shrink-0 transition-colors ${
             tab === 'products' ? 'border-green-600 text-green-700 dark:text-green-300' : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
@@ -206,7 +206,7 @@ export default function MerchStorePage() {
         </button>
         <button
           onClick={() => setTab('orders')}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap flex-shrink-0 transition-colors ${
             tab === 'orders' ? 'border-green-600 text-green-700 dark:text-green-300' : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >

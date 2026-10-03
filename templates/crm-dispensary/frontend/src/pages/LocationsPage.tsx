@@ -347,12 +347,12 @@ export default function LocationsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 border-b">
+      <div className="flex gap-1 mb-6 border-b overflow-x-auto">
         {tabs.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap flex-shrink-0 transition-colors ${
               tab === t.id
                 ? 'border-green-600 text-green-700 dark:text-green-300'
                 : 'border-transparent text-gray-500 dark:text-slate-300 hover:text-gray-700 dark:hover:text-slate-200'
@@ -477,7 +477,7 @@ export default function LocationsPage() {
               <p className="text-gray-500 dark:text-slate-400">Select a location to view inventory</p>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
+            <div className="bg-white rounded-lg shadow-sm overflow-x-auto dark:bg-slate-900">
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50 dark:bg-slate-900">
@@ -536,7 +536,7 @@ export default function LocationsPage() {
               New Transfer
             </Button>
           </div>
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
+          <div className="bg-white rounded-lg shadow-sm overflow-x-auto dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-slate-900">
@@ -655,7 +655,7 @@ export default function LocationsPage() {
             </div>
 
             {countItems.length > 0 && (
-              <div className="border border-gray-200 rounded-lg overflow-hidden mb-4 dark:border-slate-700">
+              <div className="border border-gray-200 rounded-lg overflow-x-auto mb-4 dark:border-slate-700">
                 <table className="w-full">
                   <thead className="bg-gray-50 dark:bg-slate-900">
                     <tr>
@@ -691,7 +691,7 @@ export default function LocationsPage() {
             <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
               <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Count Results</h3>
               {countResults.discrepancies && countResults.discrepancies.length > 0 ? (
-                <div className="border border-red-200 rounded-lg overflow-hidden">
+                <div className="border border-red-200 rounded-lg overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-red-50">
                       <tr>

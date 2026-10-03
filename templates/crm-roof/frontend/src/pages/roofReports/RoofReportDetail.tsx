@@ -276,7 +276,7 @@ export default function RoofReportDetail() {
       )}
 
       {/* Measurements Table */}
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-slate-900">
+      <div className="bg-white rounded-xl shadow-sm border overflow-x-auto dark:bg-slate-900">
         <div className="px-4 py-3 border-b bg-gray-50 dark:bg-slate-900">
           <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider dark:text-slate-100">Measurements</h2>
         </div>
@@ -302,7 +302,7 @@ export default function RoofReportDetail() {
 
       {/* Segments Table */}
       {report.segments && report.segments.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-slate-900">
+        <div className="bg-white rounded-xl shadow-sm border overflow-x-auto dark:bg-slate-900">
           <div className="px-4 py-3 border-b bg-gray-50 dark:bg-slate-900">
             <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider dark:text-slate-100">
               Roof Segments ({report.segments.length})

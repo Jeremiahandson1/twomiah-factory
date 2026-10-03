@@ -172,12 +172,12 @@ export default function AIBudtenderPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 border-b">
+      <div className="flex gap-1 mb-6 border-b overflow-x-auto">
         {tabs.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap flex-shrink-0 transition-colors ${
               tab === t.id
                 ? 'border-green-600 text-green-700 dark:text-green-300'
                 : 'border-transparent text-gray-500 dark:text-slate-300 hover:text-gray-700 dark:hover:text-slate-200'
@@ -290,7 +290,7 @@ export default function AIBudtenderPage() {
       {/* Sessions Tab */}
       {tab === 'sessions' && (
         <div>
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
+          <div className="bg-white rounded-lg shadow-sm overflow-x-auto dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-slate-900">
@@ -556,7 +556,7 @@ export default function AIBudtenderPage() {
               </div>
 
               {/* Top Recommended Products */}
-              <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
+              <div className="bg-white rounded-lg shadow-sm overflow-x-auto dark:bg-slate-900">
                 <div className="px-5 py-4 border-b">
                   <h3 className="font-semibold text-gray-900 dark:text-slate-100">Top Recommended Products</h3>
                 </div>

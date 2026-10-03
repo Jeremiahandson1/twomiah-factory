@@ -124,7 +124,7 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 min-w-0 space-y-6">
           <div className={card}>
             <h2 className="font-semibold mb-4 text-gray-900 dark:text-slate-100">{cfg.labels.singular} Details</h2>
             <div className="grid md:grid-cols-2 gap-4">
