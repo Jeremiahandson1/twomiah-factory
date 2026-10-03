@@ -7,7 +7,7 @@ import { notifyBillingPastDue, notifyMessagingEnabled } from '../../services/ema
 import { portalUrlFor } from '../../lib/portal'
 import { PRODUCTS, getProductDefaults } from '../../config/pricing'
 import { getRegistrar } from '../../services/registrar'
-import { type FactoryApp, UUID_RE, parseJsonBody, logTenantAudit, diffTenantChanges, FRONTEND_URL } from './shared'
+import { type FactoryApp, UUID_RE, DOMAIN_RE, parseJsonBody, logTenantAudit, diffTenantChanges, FRONTEND_URL, checkCronSecret } from './shared'
 import { triggerAutoDeploy } from './deploy'
 
 // Apply a webhook's tenant updates so that activation NEVER depends on an optional attribute.
@@ -355,22 +355,24 @@ factory.post('/stripe/webhook', async (c) => {
  * the customer isn't out money for a domain they don't have. Then email
  * them apologizing and pointing at BYOD as an alternative.
  */
+// `paymentIntent` is absent for an operator registration at cost (no charge was taken,
+// so a failure has nothing to refund); the result is returned so that caller can report it.
 async function handleDomainRegistration(opts: {
   tenantId: string
   domain: string
   years: number
-  paymentIntent: string
-  sessionId: string
-}): Promise<void> {
-  const { tenantId, domain, years, paymentIntent, sessionId } = opts
-  console.log('[Domain] Processing registration:', domain, 'for tenant', tenantId)
+  paymentIntent?: string
+  sessionId?: string
+}): Promise<{ ok: boolean; error?: string; nameserversSet?: boolean }> {
+  const { tenantId, domain, years, paymentIntent } = opts
+  console.log('[Domain] Processing registration:', domain, 'for tenant', tenantId, paymentIntent ? '(paid)' : '(operator, at cost)')
 
   const { data: tenant, error: tErr } = await supabase.from('tenants')
     .select('id, slug, name, email, admin_email, phone, address, city, state, zip, factory_sync_key')
     .eq('id', tenantId).single()
   if (tErr || !tenant) {
     console.error('[Domain] Tenant not found during registration:', tenantId)
-    return
+    return { ok: false, error: 'Tenant not found' }
   }
 
   const { getRegistrar } = await import('../../services/registrar/index')
@@ -381,9 +383,9 @@ async function handleDomainRegistration(opts: {
   // Namecheap requires phone for registration — if the tenant didn't
   // provide one we can't proceed. Refund + email.
   if (!tenant.phone) {
-    console.warn('[Domain] Tenant has no phone — refunding')
-    await refundAndEmail({ tenant, paymentIntent, domain, reason: 'no_phone' })
-    return
+    console.warn('[Domain] Tenant has no phone' + (paymentIntent ? ' — refunding' : ''))
+    if (paymentIntent) await refundAndEmail({ tenant, paymentIntent, domain, reason: 'no_phone' })
+    return { ok: false, error: 'Tenant has no phone on file — the registrar requires one' }
   }
   const reg = await registrar.register(domain, {
     years,
@@ -403,8 +405,8 @@ async function handleDomainRegistration(opts: {
   })
   if (!reg.success) {
     console.error('[Domain] Namecheap register failed:', reg.error)
-    await refundAndEmail({ tenant, paymentIntent, domain, reason: 'registrar_failed', detail: reg.error })
-    return
+    if (paymentIntent) await refundAndEmail({ tenant, paymentIntent, domain, reason: 'registrar_failed', detail: reg.error })
+    return { ok: false, error: 'Registrar: ' + (reg.error || 'registration did not complete') }
   }
   console.log('[Domain] Namecheap register OK for', domain, 'expires', reg.expiresAt)
 
@@ -420,6 +422,7 @@ async function handleDomainRegistration(opts: {
   const services = await findRenderServicesBySlug(tenant.slug)
   const siteServiceId = services.site || services['website-premium'] || services.website
   const backendServiceId = services.backend || services.api
+  let nameserversSet = false
   try {
     const wire = await wireDomainInfrastructure({ domain, siteServiceId, backendServiceId })
     if (wire.cloudflareZoneId) {
@@ -434,6 +437,7 @@ async function handleDomainRegistration(opts: {
     if (wire.cloudflareNameServers && wire.cloudflareNameServers.length >= 2) {
       const ns = await registrar.setNameservers(domain, wire.cloudflareNameServers)
       if (ns.success) {
+        nameserversSet = true
         console.log('[Domain] Nameservers pointed at Cloudflare for', domain)
       } else {
         // Not a refund: the domain is registered and the zone exists. But it
@@ -455,7 +459,9 @@ async function handleDomainRegistration(opts: {
     // Don't refund — the domain IS registered, just the DNS auto-wire
     // hit a snag. Customer keeps the domain; we surface the issue in
     // support so we can finish manually.
+    return { ok: true, nameserversSet, error: 'Registered, but DNS wiring threw: ' + e.message }
   }
+  return { ok: true, nameserversSet }
 }
 
 async function refundAndEmail(opts: {
@@ -500,6 +506,42 @@ async function refundAndEmail(opts: {
     '<p style="color:#888;font-size:12px">Reference: ' + reference + '</p>'
   ).catch(e => console.warn('[Domain] Email send failed:', e?.message))
 }
+
+// ─── Operator: register a domain at cost ────────────────────────────────────
+// The paid path above registers only after the tenant's Stripe checkout for
+// the retail price completes. For an account we provision and bill ourselves
+// (family, comped, internal), staff register on the Namecheap balance at cost
+// and the SAME handler wires Cloudflare, email auth, Render custom domains
+// and nameservers. Guarded by CRON_SECRET (operator-only): a tenant's own
+// X-Factory-Key must never be able to buy domains on our account.
+factory.post('/internal/domain/register-at-cost/:tenantId', async (c) => {
+  if (!checkCronSecret(c)) return c.json({ error: 'Unauthorized' }, 401)
+  try {
+    const tenantId = c.req.param('tenantId')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant id' }, 400)
+    const body = await c.req.json().catch(() => ({})) as { domain?: string; years?: number }
+    const domain = (body.domain || '').trim().toLowerCase()
+    const years = Math.max(1, Math.min(10, Math.floor(body.years || 1) || 1))
+    if (!domain || !DOMAIN_RE.test(domain)) return c.json({ error: 'Invalid domain format' }, 400)
+
+    const { data: tenant } = await supabase.from('tenants').select('id, slug, domain').eq('id', tenantId).single()
+    if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
+    if (tenant.domain) return c.json({ error: 'This tenant already has a domain attached.' }, 409)
+
+    const { isRegistrarConfigured } = await import('../../services/registrar')
+    if (!isRegistrarConfigured()) return c.json({ error: 'Registrar is not configured on this environment' }, 503)
+    const avail = await (await getRegistrar()).checkAvailability(domain)
+    if (!avail.available) return c.json({ error: 'That domain is not available.' }, 409)
+    if (avail.premium) return c.json({ error: 'Premium-priced domain — not registered automatically.' }, 422)
+
+    const result = await handleDomainRegistration({ tenantId, domain, years })
+    await logTenantAudit(tenantId, 'domain_registered_at_cost', { domain: { old: null, new: result.ok ? domain : null } }, 'operator', result.error || 'registered on registrar balance')
+    return c.json({ domain, ...result }, result.ok ? 200 : 502)
+  } catch (e: any) {
+    console.error('[Domain] register-at-cost failed:', e)
+    return c.json({ error: e.message || 'Registration failed' }, 500)
+  }
+})
 
 // ─── Billing Portal ─────────────────────────────────────────────────────────
 factory.post('/customers/:id/billing-portal', requireRole('owner', 'admin'), async (c) => {

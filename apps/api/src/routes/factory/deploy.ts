@@ -601,9 +601,12 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
       if (result.adsUrl) optionalUpdate.ads_url = result.adsUrl
       if (result.r2BucketName) optionalUpdate.r2_bucket_name = result.r2BucketName
 
-      if (Object.keys(optionalUpdate).length > 0) {
-        const { error: optErr } = await supabase.from('tenants').update(optionalUpdate).eq('id', tenant.id)
-        if (optErr) console.warn('[Deploy] Optional tenant fields failed (non-blocking):', optErr.message)
+      // One write per field: these were one update, so a column missing from the live schema
+      // (r2_bucket_name is) failed the whole statement and website_url was never saved — the
+      // tenant's site URL, which the domain-buy return links and the platform read.
+      for (const [field, value] of Object.entries(optionalUpdate)) {
+        const { error: optErr } = await supabase.from('tenants').update({ [field]: value }).eq('id', tenant.id)
+        if (optErr) console.warn('[Deploy] Optional tenant field ' + field + ' failed (non-blocking):', optErr.message)
       }
 
       // NOTE (pay-then-deploy, 2026-07): deploys must NEVER create billing.
