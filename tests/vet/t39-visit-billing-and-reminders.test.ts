@@ -525,5 +525,70 @@ console.log('\n══════════ vaccination dates ═════�
   check('a sensible correction still saves', goodEdit.status === 200, { status: goodEdit.status })
 }
 
+// ══════════ T41 — a visit is a record of something that HAPPENED ═══════════════════════════════
+//
+//   "Recent Visits is led by a future-dated 2027 visit."
+//
+// Nothing checked visitDate, so a mistyped year saved and then sat at the top of every list that
+// orders by it. A visit carries vitals, an assessment and a charge, so a future-dated one is a
+// consultation the clinic is asserting it has already done. Appointments are the future; visits are
+// not. The tolerance is 36 hours, because the date arrives as the browser's local day.
+console.log('\n══════════ a visit cannot be in the future ══════════')
+{
+  const future = await asOwner('POST', '/api/visits', { patientId: pet.id, visitDate: '2027-11-02T15:00:00Z', reason: 'Mistyped year' })
+  check('T41: a 2027 visit is refused', future.status === 400, { status: future.status, body: future.text?.slice(0, 200) })
+  check('T41: …and says what to do instead', /appointment/i.test(String(future.json?.error)), future.json)
+
+  const noneWritten = await count(sql`SELECT COUNT(*)::int AS n FROM visit WHERE reason = 'Mistyped year'`)
+  check('T41: …and wrote nothing', noneWritten === 0, { rows: noneWritten })
+
+  // Today still works, including from a clock a few hours ahead of this server.
+  const soon = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString()
+  const ok = await asOwner('POST', '/api/visits', { patientId: pet.id, visitDate: soon, reason: 'Entered from a clock ahead of UTC' })
+  check('T41: a few hours ahead is still accepted — that is a timezone, not a typo', ok.status === 201,
+    { status: ok.status, body: ok.text?.slice(0, 200) })
+
+  // The edit is the likelier typo of the two, so it has the same rule.
+  const moved = await asOwner('PUT', `/api/visits/${ok.json?.id}`, { visitDate: '2030-01-01T09:00:00Z' })
+  check('T41: the same rule applies on EDIT', moved.status === 400, { status: moved.status, body: moved.text?.slice(0, 200) })
+  const stillOk = await asOwner('GET', `/api/visits/${ok.json?.id}`)
+  check('T41: …and the stored date was left alone', new Date(String(stillOk.json?.visitDate)).getFullYear() < 2030,
+    { visitDate: stillOk.json?.visitDate })
+
+  // An edit that does not mention the date is unaffected.
+  const otherEdit = await asOwner('PUT', `/api/visits/${ok.json?.id}`, { reason: 'Corrected reason' })
+  check('an edit that does not touch the date still saves', otherEdit.status === 200, { status: otherEdit.status })
+}
+
+// ══════════ T41 — the age on a rabies certificate is the age on the DAY ════════════════════════
+//
+//   "the certificate shows the current age, not the age at vaccination"
+//
+// It read Date.now(), so the same certificate reprinted a year later aged the animal by a year —
+// two copies of one legal record disagreeing about one event. Months under two years, because a
+// puppy's first rabies certificate said "0 yr".
+console.log('\n══════════ the certificate ══════════')
+{
+  const [puppy] = await db.insert(patient).values({
+    companyId: co.id, ownerId: client.id, name: 'Pip', species: 'dog', breed: 'Collie',
+    dob: '2024-01-10',
+  } as any).returning()
+  const shot = await asOwner('POST', '/api/vaccinations', {
+    patientId: puppy.id, vaccine: 'Rabies 3yr', givenDate: '2024-05-10', dueDate: '2027-05-10', isRabies: true,
+  })
+  check('a rabies vaccination is recorded', shot.status === 201, { status: shot.status, body: shot.text?.slice(0, 200) })
+
+  const cert = await asOwner('GET', `/api/reminders/rabies/${shot.json?.id}`)
+  check('the certificate renders', cert.status === 200, { status: cert.status })
+  // 10 Jan 2024 → 10 May 2024 is four months. The animal is over two years old TODAY, which is
+  // exactly the number the old code printed.
+  check('T41: it prints the age at vaccination — 4 mo, not the age today', /<td class="v">4 mo<\/td>/.test(cert.text || ''),
+    (cert.text || '').slice((cert.text || '').indexOf('Age'), (cert.text || '').indexOf('Age') + 120))
+  check('T41: …and the label says which age it means', /Age at vaccination/.test(cert.text || ''),
+    /Age at vaccination/.test(cert.text || ''))
+  check('T41: …so the figure is not the current age in years', !/<td class="v">[23] yr<\/td>/.test(cert.text || ''),
+    (cert.text || '').slice((cert.text || '').indexOf('Age'), (cert.text || '').indexOf('Age') + 120))
+}
+
 console.log(`\n${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

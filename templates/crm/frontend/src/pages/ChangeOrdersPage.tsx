@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '../utils/date';
-import { Plus, Edit, Trash2, Send, Check, X as XIcon } from 'lucide-react';
+import { Plus, Edit, Trash2, Send, Check, X as XIcon, FileText } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,7 +10,7 @@ import { Modal, ConfirmModal } from '../components/ui/Modal';
 /**
  * Money, with the sign in FRONT of the currency and always two decimals. (T32 L2)
  *
- * Change-order totals printed as "$-615": `$${Number(v).toLocaleString()}` puts the minus inside the
+ * Change-order totals printed as "$-615": `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` puts the minus inside the
  * amount, and on a credit line — which is now a routine thing to enter (T32 H5) — that reads as a
  * typo rather than as money coming back off. It also dropped the cents, so $615.50 showed as $615.5.
  */
@@ -80,6 +80,8 @@ export default function ChangeOrdersPage() {
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  /** The same modal, opened to READ a change order no longer open to editing. (T41) */
+  const [readOnly, setReadOnly] = useState(false);
   const [form, setForm] = useState<ChangeOrderForm>({ title: '', description: '', projectId: '', reason: '', daysAdded: '0', lineItems: [{ description: '', quantity: '1', unitPrice: '' }] });
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -151,8 +153,27 @@ export default function ChangeOrdersPage() {
   const updateLineItem = (idx: number, field: string, val: string | number) => { const items = [...form.lineItems]; (items[idx] as Record<string, unknown>)[field] = val; setForm({ ...form, lineItems: items }); };
   const removeLineItem = (idx: number) => setForm({ ...form, lineItems: form.lineItems.filter((_: LineItem, i: number) => i !== idx) });
 
-  const openCreate = () => { setEditing(null); setForm({ title: '', description: '', projectId: '', reason: '', daysAdded: '0', lineItems: [{ description: '', quantity: '1', unitPrice: '' }] }); setModalOpen(true); };
-  const openEdit = (item: Record<string, unknown>) => { setEditing(item); setForm({ title: item.title as string, description: (item.description as string) || '', projectId: item.projectId as string, reason: (item.reason as string) || '', daysAdded: String((item.daysAdded as number) ?? 0), lineItems: (item.lineItems as LineItem[])?.length ? (item.lineItems as LineItem[]).map((li: LineItem) => ({ description: li.description, quantity: String(li.quantity ?? ''), unitPrice: String(li.unitPrice ?? '') })) : [{ description: '', quantity: '1', unitPrice: '' }] }); setModalOpen(true); };
+  const fill = (item: Record<string, unknown>) => setForm({ title: item.title as string, description: (item.description as string) || '', projectId: item.projectId as string, reason: (item.reason as string) || '', daysAdded: String((item.daysAdded as number) ?? 0), lineItems: (item.lineItems as LineItem[])?.length ? (item.lineItems as LineItem[]).map((li: LineItem) => ({ description: li.description, quantity: String(li.quantity ?? ''), unitPrice: String(li.unitPrice ?? '') })) : [{ description: '', quantity: '1', unitPrice: '' }] });
+  const openCreate = () => { setEditing(null); setReadOnly(false); setForm({ title: '', description: '', projectId: '', reason: '', daysAdded: '0', lineItems: [{ description: '', quantity: '1', unitPrice: '' }] }); setModalOpen(true); };
+  const openEdit = (item: Record<string, unknown>) => { setEditing(item); setReadOnly(false); fill(item); setModalOpen(true); };
+
+  /**
+   * AN APPROVED CHANGE ORDER COULD NOT BE OPENED AT ALL. (T41 contractor: "no CO detail route")
+   *
+   * This page's only view of a change order's contents is the Edit modal, and Edit is correctly
+   * limited to the statuses the server will accept an edit for. So the moment a CO was approved or
+   * signed — the moment it became the agreement that matters — its line items, its reason and its
+   * signature were unreachable from the screen. The list carries the total and nothing else.
+   *
+   * That is worse now, not better, than before this round: the list no longer ships the signature
+   * image, IP and user-agent to every seat, so the detail is the only place that evidence can be
+   * read, and there was no detail.
+   *
+   * A read-only open of the same modal rather than a new route, because this page has never had
+   * one and a modal is what the rest of it uses. Everything is disabled, Save is gone, and the
+   * signature block below is shown — so the person approving can read what they are signing off.
+   */
+  const openView = (item: Record<string, unknown>) => { setEditing(item); setReadOnly(true); fill(item); setModalOpen(true); };
 
   const columns = [
     { key: 'number', label: '#', render: (v: unknown) => <span className="font-mono text-sm">{v as string}</span> },
@@ -170,39 +191,67 @@ export default function ChangeOrdersPage() {
       <DataTable data={data} emptyMessage="No change orders yet. Raise one when the scope changes — including a credit, if work is coming out." columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[
         // Mirrors routes/changeOrders.ts: edit, submit, approve and reject are all
         // change-orders:update; the delete is its own verb. (T32 M9)
+        // Open to everyone who can read the page, at every status — this is the only way to see a
+        // change order's line items, its reason and its signature once it is no longer editable. (T41)
+        { label: 'View', icon: FileText, show: () => true, onClick: openView },
         { label: 'Edit', icon: Edit, show: (r: Record<string, unknown>) => can('change-orders:update') && EDITABLE.includes(statusOf(r)), onClick: openEdit },
         { label: 'Submit', icon: Send, show: (r: Record<string, unknown>) => can('change-orders:update') && SUBMITTABLE.includes(statusOf(r)), onClick: handleSubmit },
         { label: 'Approve', icon: Check, show: (r: Record<string, unknown>) => can('change-orders:update') && APPROVABLE.includes(statusOf(r)), onClick: handleApprove },
         { label: 'Reject', icon: XIcon, show: (r: Record<string, unknown>) => can('change-orders:update') && REJECTABLE.includes(statusOf(r)), onClick: handleReject },
         { label: 'Delete', icon: Trash2, show: (r: Record<string, unknown>) => can('change-orders:delete') && EDITABLE.includes(statusOf(r)), onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },
       ]} />
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Change Order' : 'New Change Order'} size="lg">
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={readOnly ? `Change Order ${(editing?.number as string) || ''}`.trim() : editing ? 'Edit Change Order' : 'New Change Order'} size="lg">
         <div className="space-y-4">
+          {readOnly && (
+            <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:bg-slate-800 dark:text-slate-300">
+              {`This change order is ${statusOf(editing || {}) || 'closed'}`}
+              {EDITABLE.includes(statusOf(editing || {})) ? ' — use Edit to change it.' : ', so it can no longer be changed. This is the record as agreed.'}
+            </div>
+          )}
           <div className="grid md:grid-cols-2 gap-4">
-            <div><label className="block text-sm font-medium mb-1">Title *</label><input value={form.title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, title: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
-            <div><label className="block text-sm font-medium mb-1">Project *</label><select value={form.projectId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, projectId: e.target.value})} className="w-full px-3 py-2 border rounded-lg"><option value="">Select...</option>{projects.map((p: Record<string, unknown>) => <option key={p.id as string} value={p.id as string}>{p.name as string}</option>)}</select></div>
+            <div><label className="block text-sm font-medium mb-1">Title *</label><input value={form.title} disabled={readOnly} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, title: e.target.value})} className="w-full px-3 py-2 border rounded-lg disabled:bg-gray-50 disabled:text-gray-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-300" /></div>
+            <div><label className="block text-sm font-medium mb-1">Project *</label><select value={form.projectId} disabled={readOnly} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, projectId: e.target.value})} className="w-full px-3 py-2 border rounded-lg disabled:bg-gray-50 disabled:text-gray-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-300"><option value="">Select...</option>{projects.map((p: Record<string, unknown>) => <option key={p.id as string} value={p.id as string}>{p.name as string}</option>)}</select></div>
           </div>
-          <div><label className="block text-sm font-medium mb-1">Description</label><textarea value={form.description} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({...form, description: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" /></div>
+          <div><label className="block text-sm font-medium mb-1">Description</label><textarea value={form.description} disabled={readOnly} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({...form, description: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg disabled:bg-gray-50 disabled:text-gray-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-300" /></div>
           <div className="grid md:grid-cols-2 gap-4">
-            <div><label className="block text-sm font-medium mb-1">Reason</label><input value={form.reason} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, reason: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="Owner request, unforeseen conditions..." /></div>
-            <div><label className="block text-sm font-medium mb-1">Days Added</label><input type="number" value={form.daysAdded} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, daysAdded: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
+            <div><label className="block text-sm font-medium mb-1">Reason</label><input value={form.reason} disabled={readOnly} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, reason: e.target.value})} className="w-full px-3 py-2 border rounded-lg disabled:bg-gray-50 disabled:text-gray-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-300" placeholder="Owner request, unforeseen conditions..." /></div>
+            <div><label className="block text-sm font-medium mb-1">Days Added</label><input type="number" value={form.daysAdded} disabled={readOnly} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, daysAdded: e.target.value})} className="w-full px-3 py-2 border rounded-lg disabled:bg-gray-50 disabled:text-gray-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-300" /></div>
           </div>
           <div><label className="block text-sm font-medium mb-2">Line Items</label>
             <div className="border rounded-lg">
               <table className="w-full"><thead className="bg-gray-50 dark:bg-slate-900"><tr><th className="px-4 py-2 text-left text-xs">Description</th><th className="px-4 py-2 w-20">Qty</th><th className="px-4 py-2 w-28">Price</th><th className="px-4 py-2 text-right w-28">Total</th><th className="w-10"></th></tr></thead>
                 <tbody className="divide-y">{form.lineItems.map((li: LineItem, idx: number) => (
-                  <tr key={idx}><td className="px-4 py-2"><input value={li.description} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'description', e.target.value)} className="w-full px-2 py-1 border rounded" /></td>
-                    <td className="px-4 py-2"><input type="number" value={li.quantity} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'quantity', e.target.value)} className="w-full px-2 py-1 border rounded" /></td>
-                    <td className="px-4 py-2"><input type="number" value={li.unitPrice} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'unitPrice', e.target.value)} className="w-full px-2 py-1 border rounded" /></td>
+                  <tr key={idx}><td className="px-4 py-2"><input value={li.description} disabled={readOnly} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'description', e.target.value)} className="w-full px-2 py-1 border rounded disabled:bg-gray-50 disabled:text-gray-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-300" /></td>
+                    <td className="px-4 py-2"><input type="number" value={li.quantity} disabled={readOnly} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'quantity', e.target.value)} className="w-full px-2 py-1 border rounded disabled:bg-gray-50 disabled:text-gray-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-300" /></td>
+                    <td className="px-4 py-2"><input type="number" value={li.unitPrice} disabled={readOnly} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'unitPrice', e.target.value)} className="w-full px-2 py-1 border rounded disabled:bg-gray-50 disabled:text-gray-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-300" /></td>
                     <td className="px-4 py-2 text-right">{asMoney(num0(li.quantity) * num0(li.unitPrice))}</td>
-                    <td><button onClick={() => removeLineItem(idx)} className="p-1 text-red-500"><Trash2 className="w-4 h-4" /></button></td></tr>
+                    <td>{!readOnly && <button onClick={() => removeLineItem(idx)} className="p-1 text-red-500"><Trash2 className="w-4 h-4" /></button>}</td></tr>
                 ))}</tbody>
               </table>
-              <div className="p-2 border-t flex justify-between items-center"><button onClick={addLineItem} className="text-sm text-orange-500">+ Add Line</button><span className="font-bold">Total: {asMoney(calcTotal())}</span></div>
+              <div className="p-2 border-t flex justify-between items-center">{readOnly ? <span /> : <button onClick={addLineItem} className="text-sm text-orange-500">+ Add Line</button>}<span className="font-bold">Total: {asMoney(calcTotal())}</span></div>
             </div>
           </div>
+          {/*
+            WHO SIGNED IT, AND WHEN. Only on the read-only open, because the signature is evidence
+            about a closed agreement and not a field anybody edits. The list no longer carries the
+            signature image or the IP to every seat (routes/changeOrders.ts strips them), so this
+            is where a manager reads it. (T41)
+          */}
+          {readOnly && (editing?.signedBy || editing?.approvedAt || editing?.status === 'approved') && (
+            <div className="rounded-lg border p-3 text-sm space-y-1 dark:border-slate-800">
+              <p className="font-medium text-gray-900 dark:text-slate-100">Signature</p>
+              <p className="text-gray-600 dark:text-slate-300">
+                {editing?.signedBy ? `Signed by ${editing.signedBy as string}` : 'No client signature recorded'}
+                {editing?.signedAt ? ` on ${formatDate(editing.signedAt as string)}` : ''}
+              </p>
+              {editing?.approvedAt ? <p className="text-gray-600 dark:text-slate-300">Approved {formatDate(editing.approvedAt as string)}{editing?.approvedBy ? ` by ${editing.approvedBy as string}` : ''}</p> : null}
+            </div>
+          )}
         </div>
-        <div className="flex justify-end gap-3 mt-6"><button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
+        <div className="flex justify-end gap-3 mt-6">
+          <button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">{readOnly ? 'Close' : 'Cancel'}</button>
+          {!readOnly && <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>}
+        </div>
       </Modal>
       <ConfirmModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} onConfirm={handleDelete} title="Delete CO" message={`Delete ${toDelete?.number as string}?`} confirmText="Delete" />
     </div>

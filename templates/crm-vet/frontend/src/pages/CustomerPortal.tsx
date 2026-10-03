@@ -4,25 +4,27 @@ import { useNavigate } from 'react-router-dom';
 import {
   Briefcase, Globe, Palette, Users, FileText,
   DollarSign, ArrowRight, ExternalLink, Settings,
-  Clock, LogOut, Camera, Sparkles, BookOpen, Ruler
+  Clock, LogOut, Camera, Sparkles, BookOpen, Ruler,
+  PawPrint, CalendarDays, Syringe
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import { brandSurfaceUnderWhite, maySeeRoute } from '../shared';
 import { SHELL } from '../shellConfig';
 
+// The shape GET /api/dashboard/stats actually returns on this template, not the contractor one.
 interface DashboardStats {
   contacts?: number;
-  jobs?: { today?: number; [key: string]: unknown };
-  quotes?: { pending?: number; [key: string]: unknown };
-  invoices?: { outstandingValue?: number; [key: string]: unknown };
+  patients?: { total?: number; active?: number; [key: string]: unknown };
+  appointments?: { today?: number; upcoming7?: number; [key: string]: unknown };
+  reminders?: { overdue?: number; dueSoon?: number; [key: string]: unknown };
   [key: string]: unknown;
 }
 
 interface ActivityData {
-  recentJobs?: Record<string, unknown>[];
-  recentQuotes?: Record<string, unknown>[];
-  recentInvoices?: Record<string, unknown>[];
+  recentPatients?: Record<string, unknown>[];
+  recentVisits?: Record<string, unknown>[];
+  upcomingAppointments?: Record<string, unknown>[];
   [key: string]: unknown;
 }
 
@@ -160,11 +162,25 @@ export default function CustomerPortal() {
         {/* Quick Stats */}
         {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+            {/*
+              FOUR TILES FROM A CONTRACTOR'S DASHBOARD, IN A VETERINARY CLINIC. (T41)
+
+                "the staff portal home shows contractor tiles"
+
+              They read stats.jobs.open, stats.quotes.pending and stats.invoices.outstandingValue.
+              GET /api/dashboard/stats on this template returns none of those keys — it returns
+              contacts, patients, appointments, visits, reminders and wellness — so `?? 0` turned
+              three absent figures into a confident "Open Jobs 0 · Pending Quotes 0 · Outstanding
+              $0.00" on the practice's own home page. Not merely the wrong words: three numbers
+              that were never measured, printed as if they had been.
+
+              These four are the clinic's, from the keys the endpoint actually sends.
+            */}
             {([
-              { label: 'Contacts', value: stats.contacts ?? 0, icon: Users, color: 'blue' },
-              { label: 'Open Jobs', value: (stats.jobs as Record<string, unknown>)?.open ?? 0, icon: Briefcase, color: 'emerald' },
-              { label: 'Pending Quotes', value: (stats.quotes as Record<string, unknown>)?.pending ?? 0, icon: FileText, color: 'amber' },
-              { label: 'Outstanding', value: `$${((stats.invoices as Record<string, unknown>)?.outstandingValue as number ?? 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
+              { label: 'Owners', value: stats.contacts ?? 0, icon: Users, color: 'blue' },
+              { label: 'Patients', value: (stats.patients as Record<string, unknown>)?.active ?? 0, icon: PawPrint, color: 'emerald' },
+              { label: 'Appointments today', value: (stats.appointments as Record<string, unknown>)?.today ?? 0, icon: CalendarDays, color: 'amber' },
+              { label: 'Reminders due', value: Number((stats.reminders as Record<string, unknown>)?.overdue ?? 0) + Number((stats.reminders as Record<string, unknown>)?.dueSoon ?? 0), icon: Syringe, color: 'green' },
             ] as unknown as StatCard[]).map((stat) => (
               <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-4 dark:bg-slate-900">
                 <div className={`w-8 h-8 rounded-lg bg-${stat.color}-50 flex items-center justify-center mb-2`}>
@@ -300,24 +316,38 @@ export default function CustomerPortal() {
           <div className="px-6 py-4 border-b border-slate-100">
             <h3 className="font-semibold text-slate-900">Recent Activity</h3>
           </div>
+          {/*
+            The same fault as the tiles above, one panel down: this read recentJobs / recentQuotes /
+            recentInvoices, and GET /api/dashboard/recent-activity on this template returns
+            recentPatients / recentVisits / upcomingAppointments. So the panel was permanently in its
+            empty state, telling a working clinic it had no recent activity and to "get started by
+            adding contacts and jobs". (T41)
+          */}
           <div className="divide-y divide-slate-100">
-            {(activity?.recentJobs?.length || activity?.recentQuotes?.length || activity?.recentInvoices?.length) ? (
+            {(activity?.upcomingAppointments?.length || activity?.recentVisits?.length || activity?.recentPatients?.length) ? (
               <>
-                {(activity?.recentJobs || []).slice(0, 3).map((item: Record<string, unknown>) => (
+                {(activity?.upcomingAppointments || []).slice(0, 3).map((item: Record<string, unknown>) => (
                   <div key={item.id as string} className="px-6 py-3 flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-blue-400" />
-                    <span className="text-sm text-slate-700">Job: {(item.title as string) || (item.number as string)} — {((item.status as string)?.replace('_', ' ')) || 'pending'}</span>
+                    <div className="w-2 h-2 rounded-full bg-amber-400" />
+                    <span className="text-sm text-slate-700">
+                      Appointment: {(item.patientName as string) || 'patient'}
+                      {item.ownerName ? ` (${item.ownerName as string})` : ''}
+                      {item.type ? ` — ${String(item.type).replace(/_/g, ' ')}` : ''}
+                    </span>
                     <span className="text-xs text-slate-400 ml-auto">
-                      {item.updatedAt ? formatDate(item.updatedAt as string) : ''}
+                      {item.startTime ? formatDate(item.startTime as string) : ''}
                     </span>
                   </div>
                 ))}
-                {(activity?.recentQuotes || []).slice(0, 2).map((item: Record<string, unknown>) => (
+                {(activity?.recentVisits || []).slice(0, 3).map((item: Record<string, unknown>) => (
                   <div key={item.id as string} className="px-6 py-3 flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-amber-400" />
-                    <span className="text-sm text-slate-700">Quote: {(item.name as string) || (item.number as string)} — ${Number(item.total || 0).toLocaleString()}</span>
+                    <div className="w-2 h-2 rounded-full bg-blue-400" />
+                    <span className="text-sm text-slate-700">
+                      Visit: {(item.patientName as string) || 'patient'}
+                      {item.reason ? ` — ${item.reason as string}` : ''}
+                    </span>
                     <span className="text-xs text-slate-400 ml-auto">
-                      {item.updatedAt ? formatDate(item.updatedAt as string) : ''}
+                      {item.visitDate ? formatDate(item.visitDate as string) : ''}
                     </span>
                   </div>
                 ))}
@@ -326,7 +356,7 @@ export default function CustomerPortal() {
               <div className="px-6 py-8 text-center">
                 <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                 <p className="text-sm text-slate-500">No recent activity</p>
-                <p className="text-xs text-slate-400 mt-1">Get started by adding contacts and jobs</p>
+                <p className="text-xs text-slate-400 mt-1">Get started by adding an owner and their pet</p>
               </div>
             )}
           </div>

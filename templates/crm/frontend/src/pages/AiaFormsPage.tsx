@@ -80,7 +80,7 @@ export default function AiaFormsPage() {
                   <td className="px-4 py-3 font-semibold">{f.formType}</td>
                   <td className="px-4 py-3 text-sm">{f.project?.name || '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{formatDate(f.periodTo)}</td>
-                  <td className="px-4 py-3 font-mono text-sm">${Number(f.currentPaymentDue).toLocaleString()}</td>
+                  <td className="px-4 py-3 font-mono text-sm">${Number(f.currentPaymentDue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[f.status]}`}>{f.status}</span></td>
                   <td className="px-4 py-3">{f.status === 'draft' && <button onClick={() => sign(f.id)} className="text-blue-600 text-xs hover:underline">Sign</button>}</td>
                 </tr>

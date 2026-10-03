@@ -96,7 +96,7 @@ function categoryLabel(id?: string): string {
 
 function price(u: Unit): string {
   const p = u.internetPrice || u.listedPrice || u.msrp;
-  return p ? `$${Number(p).toLocaleString()}` : '—';
+  return p ? `$${Number(p).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
 }
 
 function keySpec(u: Unit): string {

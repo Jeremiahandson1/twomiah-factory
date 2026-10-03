@@ -108,12 +108,29 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
   const withRelations = async (companyId: string, rows: any[]) => {
     const projectIds = [...new Set(rows.filter((e) => e.projectId).map((e) => e.projectId))]
     const jobIds = [...new Set(rows.filter((e) => e.jobId).map((e) => e.jobId))]
-    const [projects, jobs] = await Promise.all([
+    // WHO CLAIMED IT, by name. (T41)
+    //
+    //   salon: "'Reimburse me' when a manager edits someone else's expense"
+    //
+    // The row carried submittedById and nothing else, so the screen could tell whether a claim was
+    // yours but not whose it was — and the reimbursement checkbox said "Reimburse me" to a manager
+    // correcting a stylist's claim, about money that would go to the stylist. A manager already
+    // sees these people by name in the Owed panel, and a non-manager only ever sees their own rows
+    // (the list self-scopes above), so this adds no visibility to anyone.
+    const submitterIds = [...new Set(rows.filter((e) => e.submittedById).map((e) => e.submittedById))]
+    const [projects, jobs, submitters] = await Promise.all([
       projectIds.length && t.project ? db.select({ id: t.project.id, name: t.project.name }).from(t.project).where(and(eq(t.project.companyId, companyId), inArray(t.project.id, projectIds))) : Promise.resolve([]),
       jobIds.length && t.job ? db.select({ id: t.job.id, title: t.job.title, number: t.job.number }).from(t.job).where(and(eq(t.job.companyId, companyId), inArray(t.job.id, jobIds))) : Promise.resolve([]),
+      submitterIds.length && t.user ? db.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName, email: t.user.email }).from(t.user).where(and(eq(t.user.companyId, companyId), inArray(t.user.id, submitterIds))) : Promise.resolve([]),
     ])
     const pm = Object.fromEntries(projects.map((p: any) => [p.id, p])), jm = Object.fromEntries(jobs.map((j: any) => [j.id, j]))
-    return rows.map((e) => ({ ...e, project: e.projectId ? pm[e.projectId] || null : null, job: e.jobId ? jm[e.jobId] || null : null }))
+    const sm = Object.fromEntries((submitters as any[]).map((u: any) => [u.id, [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || null]))
+    return rows.map((e) => ({
+      ...e,
+      project: e.projectId ? pm[e.projectId] || null : null,
+      job: e.jobId ? jm[e.jobId] || null : null,
+      submittedByName: e.submittedById ? sm[e.submittedById] || null : null,
+    }))
   }
 
   // ── whose expense is this? (Salon RR6 E1 / E7) ────────────────────────────────────────────────

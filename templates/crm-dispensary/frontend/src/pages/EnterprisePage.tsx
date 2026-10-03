@@ -195,7 +195,7 @@ function StoreGroupsTab() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
                       <p className="text-xs text-gray-500 dark:text-slate-400">Total Revenue</p>
-                      <p className="text-xl font-bold text-gray-900 dark:text-slate-100">${Number(groupDashboard.totalRevenue || 0).toLocaleString()}</p>
+                      <p className="text-xl font-bold text-gray-900 dark:text-slate-100">${Number(groupDashboard.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                     </div>
                     <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
                       <p className="text-xs text-gray-500 dark:text-slate-400">Total Orders</p>
@@ -230,7 +230,7 @@ function StoreGroupsTab() {
                             {groupDashboard.locations.map((loc: any, i: number) => (
                               <tr key={i} className="hover:bg-gray-50">
                                 <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{loc.name}</td>
-                                <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.revenue || 0).toLocaleString()}</td>
+                                <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                 <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{loc.orders || 0}</td>
                               </tr>
                             ))}
@@ -338,9 +338,9 @@ function MultiStoreReportsTab() {
               ) : salesData.map((loc, i) => (
                 <tr key={i} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{loc.name}</td>
-                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.today || 0).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.thisWeek || 0).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.thisMonth || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.today || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.thisWeek || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.thisMonth || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{loc.orderCount || 0}</td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.avgTicket || 0).toFixed(2)}</td>
                 </tr>
@@ -378,7 +378,7 @@ function MultiStoreReportsTab() {
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{(loc.totalUnits || 0).toLocaleString()}</td>
                   <td className="px-4 py-3"><span className={`font-medium ${(loc.lowStock || 0) > 0 ? 'text-amber-600' : 'text-gray-500 dark:text-slate-400'}`}>{loc.lowStock || 0}</span></td>
                   <td className="px-4 py-3"><span className={`font-medium ${(loc.outOfStock || 0) > 0 ? 'text-red-600' : 'text-gray-500 dark:text-slate-400'}`}>{loc.outOfStock || 0}</span></td>
-                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.value || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 </tr>
               ))}
             </tbody>

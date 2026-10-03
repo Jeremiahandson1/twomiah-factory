@@ -452,7 +452,7 @@ export default function RecommendationsPage() {
                 </div>
                 <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                   <p className="text-sm text-gray-500 mb-1 dark:text-slate-400">Revenue Attributed</p>
-                  <p className="text-2xl font-bold text-green-700">${Number(performance.revenueAttributed || 0).toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-green-700">${Number(performance.revenueAttributed || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
                 <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                   <p className="text-sm text-gray-500 mb-1 dark:text-slate-400">Total Impressions</p>

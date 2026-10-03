@@ -419,7 +419,7 @@ export default function LocationsPage() {
                     </div>
                     <div className="text-center">
                       <p className="text-lg font-bold text-gray-900 dark:text-slate-100">
-                        ${Number(loc.inventoryValue || 0).toLocaleString()}
+                        ${Number(loc.inventoryValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-slate-400">Inventory Value</p>
                     </div>

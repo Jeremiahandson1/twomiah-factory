@@ -53,10 +53,10 @@ function Bar({ label, value, max, color }: { label: string; value: number; max: 
       <span className="w-36 text-gray-600 truncate text-right dark:text-slate-400">{label}</span>
       <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden dark:bg-slate-800">
         <div className="h-full rounded-full flex items-center px-2" style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: color }}>
-          {pct > 15 && <span className="text-xs font-medium" style={{ color: labelOn(color) }}>${value.toLocaleString()}</span>}
+          {pct > 15 && <span className="text-xs font-medium" style={{ color: labelOn(color) }}>${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
         </div>
       </div>
-      {pct <= 15 && <span className="text-xs text-gray-500 w-20 dark:text-slate-400">${value.toLocaleString()}</span>}
+      {pct <= 15 && <span className="text-xs text-gray-500 w-20 dark:text-slate-400">${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
     </div>
   );
 }

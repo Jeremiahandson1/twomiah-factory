@@ -176,7 +176,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
                 <DollarSign className="w-5 h-5 text-orange-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">${(stats.monthlyRecurringRevenue ?? 0).toLocaleString()}</p>
+                <p className="text-2xl font-bold">${(stats.monthlyRecurringRevenue ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 <p className="text-sm text-gray-500 dark:text-slate-400">Monthly Revenue</p>
               </div>
             </div>
@@ -229,7 +229,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
                     <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-slate-400">
                       <span>{FREQUENCIES[item.frequency as string] || item.frequency as string}</span>
                       <span>•</span>
-                      <span>${Number(item.total).toLocaleString()}</span>
+                      <span>${Number(item.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       {(item._count as Record<string, unknown>)?.generatedInvoices as number > 0 && (
                         <>
                           <span>•</span>

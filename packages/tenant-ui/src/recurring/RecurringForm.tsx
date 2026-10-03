@@ -396,7 +396,7 @@ export default function RecurringForm({ api }: RecurringPageProps) {
                   />
                 </div>
                 <div className="w-28 py-2 text-right font-medium">
-                  ${((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)).toLocaleString()}
+                  ${((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <button
                   type="button"
@@ -424,7 +424,7 @@ export default function RecurringForm({ api }: RecurringPageProps) {
             <div className="max-w-xs ml-auto space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600 dark:text-slate-400">Subtotal</span>
-                <span>${subtotal.toLocaleString()}</span>
+                <span>${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between text-sm items-center gap-2">
                 <span className="text-gray-600 dark:text-slate-400">Tax %</span>
@@ -436,7 +436,7 @@ export default function RecurringForm({ api }: RecurringPageProps) {
                   min="0"
                   step="0.1"
                 />
-                <span className="w-24 text-right">${taxAmount.toLocaleString()}</span>
+                <span className="w-24 text-right">${taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between text-sm items-center gap-2">
                 <span className="text-gray-600 dark:text-slate-400">Discount</span>
@@ -448,11 +448,11 @@ export default function RecurringForm({ api }: RecurringPageProps) {
                   min="0"
                   step="0.01"
                 />
-                <span className="w-24 text-right">-${Number(form.discount || 0).toLocaleString()}</span>
+                <span className="w-24 text-right">-${Number(form.discount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between font-bold text-lg border-t pt-2">
                 <span>Total</span>
-                <span>${total.toLocaleString()}</span>
+                <span>${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>
           </div>

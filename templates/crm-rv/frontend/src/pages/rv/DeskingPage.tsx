@@ -94,7 +94,7 @@ export default function DeskingPage() {
     ['Selling price', t.sellingPrice], ['Accessories / add-ons', d.accessories],
     [errors.taxRate ? 'Sales tax (net of trade)' : `Sales tax (${d.taxRate}% net of trade)`, t.tax], ['Fees (doc / freight / title / prep)', t.fees],
   ];
-  const leadLabel = (l: any) => `${l.customerName} — ${[l.unitYear, l.unitMake, l.unitModel].filter(Boolean).join(' ')} ${l.unitPrice ? `($${Number(l.unitPrice).toLocaleString()})` : ''}`;
+  const leadLabel = (l: any) => `${l.customerName} — ${[l.unitYear, l.unitMake, l.unitModel].filter(Boolean).join(' ')} ${l.unitPrice ? `($${Number(l.unitPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : ''}`;
   const missingOption = leadId && info && !leads.some((l) => l.id === leadId);
 
   return (

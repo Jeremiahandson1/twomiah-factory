@@ -205,5 +205,29 @@ const addExpense = async (who: any, desc: string, amount = 20, extra: Record<str
     { warnings: bulk2.json?.warnings, approved: bulk2.json?.approved, skipped: bulk2.json?.skipped })
 }
 
+// ══════════ T41 · the claim says WHO claimed it ════════════════════════════════════════════════
+//
+//   "'Reimburse me' when a manager edits someone else's expense"
+//
+// The row carried submittedById and no name, so the screen could tell whether a claim was yours but
+// not whose it was — and the one checkbox that decides whether cash leaves the till was labelled
+// for the wrong person. The name comes from the row now, which is also what lets the label say
+// "Reimburse Rr8Sty" instead.
+{
+  const made = await addExpense(asSty, 'T41 whose claim is this', 31.25, { reimbursable: true })
+  const list = await asMgr('GET', '/api/expenses?limit=100')
+  const row = (list.json?.data || []).find((r: any) => r.id === made.id)
+  check('T41: the manager\'s list names the person who claimed it', !!row?.submittedByName,
+    { submittedById: row?.submittedById, submittedByName: row?.submittedByName })
+  check('T41: …and it is the stylist, not the manager reading the page',
+    String(row?.submittedByName || '').toLowerCase().includes('rr8sty'), row?.submittedByName)
+
+  // The stylist's own row still carries it, so "Reimburse me" and "Reimburse <name>" are decided
+  // from the same field whoever is looking.
+  const own = await asSty('GET', '/api/expenses?limit=100')
+  const mine = (own.json?.data || []).find((r: any) => r.id === made.id)
+  check('T41: the stylist sees the same field on their own claim', !!mine?.submittedByName, mine?.submittedByName)
+}
+
 console.log(`\n  ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

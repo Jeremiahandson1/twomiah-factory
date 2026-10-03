@@ -56,7 +56,7 @@ export default function FIPage() {
   const apr = decision?.result?.apr || 9.99;
   const months = decision?.result?.termMonths || term;
   const estPay = payment(amountFinanced, apr, months);
-  const leadLabel = (l: any) => `${l.customerName} — ${[l.unitYear, l.unitMake, l.unitModel].filter(Boolean).join(' ')} ${l.unitPrice ? `($${Number(l.unitPrice).toLocaleString()})` : ''}`;
+  const leadLabel = (l: any) => `${l.customerName} — ${[l.unitYear, l.unitMake, l.unitModel].filter(Boolean).join(' ')} ${l.unitPrice ? `($${Number(l.unitPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : ''}`;
   const missingOption = lead && !leads.some((l) => l.id === leadId);
 
   async function submit() {

@@ -22,8 +22,27 @@ if (!/<button type="button" onClick=\{\(\) => setIsOpen\(true\)\} className="fle
 // the search placeholder speaks each vertical's words (events T18: "Search contacts, jobs, invoices" on an events venue)
 if (!/placeholder=\{placeholder\}/.test(search) || /placeholder="Search contacts, jobs, invoices\.\.\."/.test(search)) fail('GlobalSearch: the placeholder must come from the shell config, not be hard-coded')
 if (!/<GlobalSearch api=\{api\} placeholder=\{config\.searchPlaceholder\} \/>/.test(read('packages/tenant-ui/src/shell/AppShell.tsx'))) fail('AppShell must pass config.searchPlaceholder to GlobalSearch')
-for (const [t, words] of [['crm-restaurant', 'events'], ['crm-vet', 'patients'], ['crm-salon', 'services'], ['crm-fieldservice', 'service calls'], ['crm-landscaping', 'service calls']] as const) {
-  if (!new RegExp(`searchPlaceholder: 'Search [^']*${words}`).test(read(`templates/${t}/frontend/src/shellConfig.ts`))) fail(`${t} shellConfig must set a searchPlaceholder naming ${words}`)
+/**
+ * The expected word is DERIVED, not pinned. (T41)
+ *
+ * This listed 'service calls' for crm-landscaping, and landscaping does not take service calls —
+ * the label came from the crm-fieldservice clone it was built from, and T41 reported it. Pinning the
+ * wrong literal made the guard go red on the fix, which is the guard's fault and not the code's.
+ *
+ * So: a template whose jobsConfig declares a job plural must use THAT word in its placeholder, and
+ * the two can no longer drift in either direction. The others name their own domain noun, because
+ * a clinic searches patients and a salon searches services — neither has a job label at all.
+ */
+const jobPlural = (t: string): string | null => {
+  try { return (/plural: '([^']+)'/.exec(read(`templates/${t}/frontend/src/jobsConfig.ts`)) || [])[1] || null } catch { return null }
+}
+for (const [t, words] of [['crm-restaurant', 'events'], ['crm-vet', 'patients'], ['crm-salon', 'services'], ['crm-fieldservice', 'service calls'], ['crm-landscaping', 'jobs']] as const) {
+  const plural = jobPlural(t)
+  const expect = plural ? plural.toLowerCase() : words
+  if (!new RegExp(`searchPlaceholder: 'Search [^']*${expect}`, 'i').test(read(`templates/${t}/frontend/src/shellConfig.ts`))) {
+    fail(`${t} shellConfig must set a searchPlaceholder naming ${expect}`
+      + (plural ? ` — the plural its own jobsConfig.ts uses, so the nav, the page and the search cannot drift` : ''))
+  }
 }
 
 // M7

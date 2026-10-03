@@ -187,7 +187,7 @@ export default function PayByBankPage() {
             <DollarSign className="w-5 h-5 text-green-600" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">${Number(stats.totalVolume || 0).toLocaleString()}</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">${Number(stats.totalVolume || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             <p className="text-sm text-gray-500 dark:text-slate-400">Total Volume</p>
           </div>
         </div>

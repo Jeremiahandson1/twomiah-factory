@@ -175,8 +175,20 @@ export function TwoFactorCard({ api, toast }: { api: MfaApi; toast: { success: (
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Two-factor authentication</h2>
           <p className="mt-1 text-sm text-gray-600 dark:text-slate-400 max-w-prose">
-            A six-digit code from your phone, on top of your password. This account can reach the client
-            list, the contract values and the money — the password is the only thing in front of it today.
+            {/*
+              THIS CARD IS SHARED BY EIGHT VERTICALS. (T41)
+
+              It used to say "the client list, the contract values and the money", which is a
+              contractor's sentence — a veterinary clinic read it on its own Settings page, and the
+              report picked it up there. Nothing on a shared screen may name one trade's paperwork.
+
+              The replacement is deliberately about what EVERY tenant keeps and no tenant wants
+              taken: who their customers are, and what has been paid. It loses nothing of the point,
+              which is that the password is currently the only thing in the way.
+            */}
+            A six-digit code from your phone, on top of your password. This account can reach every
+            customer record and every payment in this business — the password is the only thing in
+            front of it today.
           </p>
         </div>
         <span className={`text-xs font-medium px-2 py-1 rounded-full ${active

@@ -109,6 +109,33 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
   });
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
+  /**
+   * EDITING A RECORD MUST NOT MOVE THE TIME IT WAS PERFORMED. (T41)
+   *
+   *   "editing a service record resets performedAt to noon"
+   *
+   * The form asks for a DATE, and the save posted `${date}T12:00:00`. So correcting a price on a
+   * cut performed at 14:30 rewrote the time to 12:00 — a silent edit to a field the operator was
+   * not shown and did not touch. The time is real: closing out an appointment writes the
+   * appointment's own start into it (routes/appointments.ts), the dashboard orders by it, and two
+   * services on one day are only distinguishable by it.
+   *
+   * So: the date box is the only thing the operator controls, and the TIME is carried across.
+   *   · the date unchanged  → the stored timestamp is sent back exactly as it was
+   *   · the date changed    → the same clock time, on the new day
+   *   · a brand-new record  → noon, as before, because there is no time to preserve
+   */
+  const originalPerformedAt = record?.performedAt ? new Date(record.performedAt) : null;
+  const performedAtToSend = (dayStr: string): string => {
+    if (!originalPerformedAt || isNaN(originalPerformedAt.getTime())) {
+      return new Date(`${dayStr}T12:00:00`).toISOString();
+    }
+    if (dayStr === toDayString(originalPerformedAt)) return originalPerformedAt.toISOString();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const clock = `${pad(originalPerformedAt.getHours())}:${pad(originalPerformedAt.getMinutes())}:${pad(originalPerformedAt.getSeconds())}`;
+    return new Date(`${dayStr}T${clock}`).toISOString();
+  };
+
   useEffect(() => {
     (async () => {
       try {
@@ -145,7 +172,7 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
       const cleanFormula = formula.filter((l) => (l.product || '').trim() || (l.shade || '').trim());
       const payload: Record<string, unknown> = {
         contactId,
-        performedAt: new Date(`${form.performedAt}T12:00:00`).toISOString(),
+        performedAt: performedAtToSend(form.performedAt),
         formula: cleanFormula,
       };
       if (appointmentId) payload.appointmentId = appointmentId;

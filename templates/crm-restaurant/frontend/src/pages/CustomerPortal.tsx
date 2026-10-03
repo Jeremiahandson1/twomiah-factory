@@ -168,7 +168,7 @@ export default function CustomerPortal() {
               { label: 'Contacts', value: stats.contacts ?? 0, icon: Users, color: 'blue' },
               { label: 'Upcoming Events', value: (stats.events as Record<string, unknown>)?.upcoming30 ?? 0, icon: Briefcase, color: 'emerald' },
               { label: 'Enquiries', value: (stats.pipeline as Record<string, unknown>)?.enquiry ?? 0, icon: FileText, color: 'amber' },
-              { label: 'Outstanding', value: `$${Number((stats.payments as Record<string, unknown>)?.outstanding ?? 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
+              { label: 'Outstanding', value: `$${Number((stats.payments as Record<string, unknown>)?.outstanding ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: DollarSign, color: 'green' },
             ] as unknown as StatCard[]).map((stat) => (
               <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-4 dark:bg-slate-900">
                 <div className={`w-8 h-8 rounded-lg bg-${stat.color}-50 flex items-center justify-center mb-2`}>

@@ -1872,6 +1872,17 @@ jobs:
       - name: "Check money figures print a currency symbol"
         run: bun run scripts/check-money-keeps-its-currency.ts
 
+  money-shows-cents:
+    name: "Money shows its cents"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check every $ figure prints two decimals"
+        run: bun run scripts/check-money-shows-cents.ts
+
   settings-blob-columns:
     name: "Settings blob carries no column-backed value"
     runs-on: ubuntu-latest

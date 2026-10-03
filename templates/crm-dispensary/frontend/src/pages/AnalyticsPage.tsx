@@ -315,7 +315,7 @@ export default function AnalyticsPage() {
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm text-gray-700 capitalize dark:text-slate-200">{item.category || item.name}</span>
                     <span className="text-sm font-medium text-gray-900 dark:text-slate-100">
-                      ${Number(item.revenue || 0).toLocaleString()} ({item.count || 0} sold)
+                      ${Number(item.revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({item.count || 0} sold)
                     </span>
                   </div>
                   <div className="w-full bg-gray-100 rounded-full h-3 dark:bg-slate-800">

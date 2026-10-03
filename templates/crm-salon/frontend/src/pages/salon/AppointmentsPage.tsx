@@ -308,6 +308,20 @@ function toLocalParts(iso?: string): { date: string; time: string } {
   return { date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, time: `${pad(d.getHours())}:${pad(d.getMinutes())}` };
 }
 
+// Start + a number of minutes, as "HH:MM". One definition, because the callers used to carry a copy
+// each and only one of them was ever written. (Salon T27 N3) — now at module scope, because the
+// Reschedule modal needs the same arithmetic as the New Appointment modal. (T41)
+const shiftTime = (from: string, minutes: number) => {
+  const [h, m] = from.split(':').map(Number);
+  const t = new Date(2000, 0, 1, h, m + minutes);
+  return `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+};
+const minutesBetween = (from: string, to: string) => {
+  const [fh, fm] = from.split(':').map(Number);
+  const [th, tm] = to.split(':').map(Number);
+  return (th * 60 + tm) - (fh * 60 + fm);
+};
+
 function RescheduleModal({ appt, onSave, onClose }: { appt: Appointment; onSave: () => void; onClose: () => void }) {
   const toast = useToast();
   const start = toLocalParts(appt.startTime);
@@ -316,6 +330,27 @@ function RescheduleModal({ appt, onSave, onClose }: { appt: Appointment; onSave:
   const [startTime, setStartTime] = useState(start.time);
   const [endTime, setEndTime] = useState(end.time);
   const [saving, setSaving] = useState(false);
+
+  /**
+   * MOVING THE START HAS TO MOVE THE END. (T41)
+   *
+   *   "a reschedule keeps the old End time, so the save 400s"
+   *
+   * The End box held a clock time, not a duration. Move a 09:00–09:45 cut to 14:00 and the modal
+   * still said End 09:45, so the payload asked the server to end the appointment five hours before
+   * it starts — and the server rightly refused, with a message about end times to somebody who
+   * thought they had only changed the start. The New Appointment modal has always shifted the end
+   * with the start; this one never did.
+   *
+   * The appointment's own length is preserved, which is what a reschedule means: the same service,
+   * at a different time. An End the operator types by hand is left exactly as typed.
+   */
+  const onStart = (value: string) => {
+    const length = startTime && endTime ? minutesBetween(startTime, endTime) : 0;
+    setStartTime(value);
+    if (length > 0) setEndTime(shiftTime(value, length));
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -342,7 +377,7 @@ function RescheduleModal({ appt, onSave, onClose }: { appt: Appointment; onSave:
           <form onSubmit={submit} className="space-y-4">
             <div className="grid grid-cols-3 gap-4">
               <div><label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Start</label><input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Start</label><input type="time" value={startTime} onChange={(e) => onStart(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">End</label><input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full px-3 py-2 border rounded-lg" /></div>
             </div>
             <p className="text-xs text-gray-500 dark:text-slate-400">Leave End blank to keep the service's normal duration. Stylist and chair conflicts are checked before the move is saved.</p>
@@ -387,19 +422,6 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
       }
     })();
   }, []);
-
-  // Start + a number of minutes, as "HH:MM". One definition, because the two callers below used to
-  // carry a copy each and only one of them was ever written. (Salon T27 N3)
-  const shiftTime = (from: string, minutes: number) => {
-    const [h, m] = from.split(':').map(Number);
-    const t = new Date(2000, 0, 1, h, m + minutes);
-    return `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
-  };
-  const minutesBetween = (from: string, to: string) => {
-    const [fh, fm] = from.split(':').map(Number);
-    const [th, tm] = to.split(':').map(Number);
-    return (th * 60 + tm) - (fh * 60 + fm);
-  };
 
   // Choosing a service fills in price and end time from the menu — the desk
   // should not have to do duration arithmetic.

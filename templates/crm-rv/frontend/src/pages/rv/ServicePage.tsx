@@ -131,9 +131,9 @@ export default function ServicePage() {
                         not the estimate (M-14). Label estimates so the two aren't
                         confused. */}
                     {row.ro.actualTotal
-                      ? `$${Number(row.ro.actualTotal).toLocaleString()}`
+                      ? `$${Number(row.ro.actualTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                       : row.ro.estimatedTotal
-                        ? <span className="text-gray-500 dark:text-slate-400">${Number(row.ro.estimatedTotal).toLocaleString()} <span className="text-xs">est</span></span>
+                        ? <span className="text-gray-500 dark:text-slate-400">${Number(row.ro.estimatedTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs">est</span></span>
                         : '—'}
                   </td>
                   <td className="px-4 py-3">

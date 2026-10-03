@@ -217,19 +217,19 @@ export default function SelectionsPage({ projectId: propProjectId }: SelectionsP
           />
           <SummaryCard
             label="Allowance"
-            value={`$${summary.totalAllowance.toLocaleString()}`}
+            value={`$${summary.totalAllowance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             icon={DollarSign}
             color="blue"
           />
           <SummaryCard
             label="Selected"
-            value={`$${summary.totalSelected.toLocaleString()}`}
+            value={`$${summary.totalSelected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             icon={Check}
             color="green"
           />
           <SummaryCard
             label="Net Change"
-            value={`${summary.netDifference >= 0 ? '+' : ''}$${summary.netDifference.toLocaleString()}`}
+            value={`${summary.netDifference >= 0 ? '+' : ''}$${summary.netDifference.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             icon={summary.netDifference >= 0 ? ArrowUpRight : ArrowDownRight}
             color={summary.netDifference > 0 ? 'orange' : summary.netDifference < 0 ? 'green' : 'gray'}
           />
@@ -444,11 +444,11 @@ function SelectionRow({ selection, onSelect, onRefresh }: SelectionRowProps) {
           {/* Pricing */}
           <div className="mt-2 flex items-center gap-4 text-sm">
             <span className="text-gray-500 dark:text-slate-400">
-              Allowance: ${selection.allowance?.toLocaleString() || 0}
+              Allowance: ${selection.allowance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || 0}
             </span>
             {selection.priceDifference !== 0 && selection.priceDifference !== undefined && (
               <span className={(selection.priceDifference ?? 0) > 0 ? 'text-orange-700 dark:text-orange-300' : 'text-green-700 dark:text-green-400'}>
-                {(selection.priceDifference ?? 0) > 0 ? '+' : ''}${(selection.priceDifference ?? 0).toLocaleString()}
+                {(selection.priceDifference ?? 0) > 0 ? '+' : ''}${(selection.priceDifference ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 {(selection.priceDifference ?? 0) > 0 ? ' upgrade' : ' credit'}
               </span>
             )}
@@ -543,7 +543,7 @@ function OptionPickerModal({ selection, onSelect, onClose }: OptionPickerModalPr
           <div className="p-4 border-b">
             <h2 className="text-lg font-bold">Select {selection.name}</h2>
             <p className="text-sm text-gray-500 dark:text-slate-400">
-              Allowance: ${selection.allowance?.toLocaleString() || 0} •
+              Allowance: ${selection.allowance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || 0} •
               Qty: {selection.quantity} {selection.unit}
             </p>
           </div>
@@ -600,10 +600,10 @@ function OptionPickerModal({ selection, onSelect, onClose }: OptionPickerModalPr
                         {option.manufacturer} {option.model}
                       </p>
                       <div className="mt-2 flex items-center justify-between">
-                        <span className="font-bold">${totalPrice.toLocaleString()}</span>
+                        <span className="font-bold">${totalPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         {diff !== 0 && (
                           <span className={`text-sm ${diff > 0 ? 'text-orange-700 dark:text-orange-300' : 'text-green-700 dark:text-green-400'}`}>
-                            {diff > 0 ? '+' : ''}${diff.toLocaleString()}
+                            {diff > 0 ? '+' : ''}${diff.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                         )}
                       </div>

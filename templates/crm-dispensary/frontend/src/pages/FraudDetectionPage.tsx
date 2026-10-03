@@ -357,7 +357,7 @@ export default function FraudDetectionPage() {
                     <span className="text-sm text-gray-500 dark:text-slate-400">Est. Shrinkage</span>
                     <DollarSign className="w-5 h-5 text-orange-500" />
                   </div>
-                  <div className="text-2xl font-bold">${(dashboardData?.estimatedShrinkage || 0).toLocaleString()}</div>
+                  <div className="text-2xl font-bold">${(dashboardData?.estimatedShrinkage || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 </div>
                 <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
                   <div className="flex items-center justify-between mb-2">

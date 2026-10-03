@@ -66,7 +66,7 @@ export const MONEY_CEILING = 99_999_999.99
 
 export class QuoteTooLargeError extends Error {
   constructor(public readonly field: string, public readonly value: number) {
-    super(`${field} is ${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}, which is more than this system can store (maximum ${MONEY_CEILING.toLocaleString()})`)
+    super(`${field} is ${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}, which is more than this system can store (maximum ${MONEY_CEILING.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`)
     this.name = 'QuoteTooLargeError'
   }
 }

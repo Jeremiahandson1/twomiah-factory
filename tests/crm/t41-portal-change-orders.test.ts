@@ -223,5 +223,56 @@ console.log('\n══════════ tenancy ════════�
   check('…and it is untouched', (await statusOf(otherCo.id))?.status === 'submitted', await statusOf(otherCo.id))
 }
 
+// ══════════ T41 · a change order is not BORN approved ═════════════════════════════════════════
+//
+// `status` flows through the create handler (it was added so PUT {status} would stop silently
+// no-opping), which made it a way to raise a change order that is already approved — skipping the
+// submit, the client's signature and the revised contract value in one POST.
+{
+  const born = await asOffice('POST', '/api/change-orders', {
+    title: 'T41 born approved', projectId: proj.id, status: 'approved',
+    lineItems: [{ description: 'Scope', quantity: 1, unitPrice: 500 }],
+  })
+  check('T41: a change order cannot be created already approved', born.status === 400,
+    { status: born.status, body: born.text?.slice(0, 200) })
+  check('T41: …and the refusal says what a new one may start as', /draft/i.test(String(born.json?.error)) || Array.isArray(born.json?.allowed),
+    born.json)
+  const draft = await asOffice('POST', '/api/change-orders', {
+    title: 'T41 raised properly', projectId: proj.id,
+    lineItems: [{ description: 'Scope', quantity: 1, unitPrice: 500 }],
+  })
+  check('T41: a draft is of course accepted', draft.status === 201, { status: draft.status })
+  const submitted = await asOffice('POST', '/api/change-orders', {
+    title: 'T41 raised and submitted', projectId: proj.id, status: 'submitted',
+    lineItems: [{ description: 'Scope', quantity: 1, unitPrice: 500 }],
+  })
+  check('T41: …and so is one raised straight to the client', submitted.status === 201, { status: submitted.status })
+}
+
+// ══════════ T41 · the LIST does not carry signature evidence ══════════════════════════════════
+//
+// The signature image, the signer's IP and their user-agent were on every row of the list, which
+// every seat on the page can read. A list needs to show that a change order IS signed, by whom and
+// when; the image and the device fingerprint belong to the detail read.
+{
+  const list = await asOffice('GET', '/api/change-orders?limit=100')
+  const rows = list.json?.data || []
+  const signed = rows.find((r: any) => r.signedBy)
+  check('T41: the list has a signed change order to check', !!signed, rows.map((r: any) => r.number))
+  check('T41: …and it says it is signed, by whom and when',
+    signed?.signed === true && !!signed?.signedBy && !!signed?.signedAt,
+    { signed: signed?.signed, by: signed?.signedBy, at: signed?.signedAt })
+  check('T41: …but carries no signature image, IP or user-agent',
+    !('signature' in (signed || {})) && !('signedIp' in (signed || {})) && !('signedUserAgent' in (signed || {})),
+    Object.keys(signed || {}).filter((k) => /sign/i.test(k)))
+  check('T41: …and no row does', !rows.some((r: any) => 'signature' in r || 'signedIp' in r || 'signedUserAgent' in r),
+    rows.length)
+
+  // The DETAIL still has everything — this is a list concern, not a redaction.
+  const detail = await asOffice('GET', `/api/change-orders/${signed?.id}`)
+  check('T41: the detail read still carries the signature itself', !!detail.json?.signature,
+    { keys: Object.keys(detail.json || {}).filter((k) => /sign/i.test(k)) })
+}
+
 console.log(`\n${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

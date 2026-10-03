@@ -249,7 +249,33 @@ app.get('/rabies/:vaccinationId', requirePermission('contacts:read'), async (c) 
   const esc = (s: any) => String(s ?? '').replace(/[<>&]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[ch] as string))
   // Title-case enum values ("dog"/"male") — this is a legal document, not a DB dump. (VET-28)
   const cap = (s: any) => String(s ?? '').replace(/\b\w/g, (ch: string) => ch.toUpperCase())
-  const age = pet?.dob ? Math.max(0, Math.floor((Date.now() - new Date(pet.dob).getTime()) / (365.25 * 86400000))) + ' yr' : ''
+  /**
+   * THE AGE ON A CERTIFICATE IS THE AGE AT THE DATE ADMINISTERED. (T41)
+   *
+   *   "the certificate shows the current age, not the age at vaccination"
+   *
+   * This read Date.now(), so a certificate reprinted for a three-year-old rabies shot aged the
+   * animal by three years every time it was printed — two copies of the same certificate, issued a
+   * year apart, disagreed about the same event. A rabies certificate is a legal record of one
+   * administration; every field on it describes that day, and the age is no different.
+   *
+   * Months under two years, because "0 yr" is what a sixteen-week puppy's first rabies certificate
+   * said, and a puppy's age at its first shot is the one a rabies certificate is most often read for.
+   */
+  const ageAt = (dob: any, at: any): string => {
+    if (!dob) return ''
+    const born = new Date(dob)
+    const when = at ? new Date(at) : new Date()
+    if (isNaN(born.getTime()) || isNaN(when.getTime()) || when.getTime() < born.getTime()) return ''
+    // WHOLE CALENDAR MONTHS, not elapsed days over an average month: 10 Jan → 10 May is four
+    // months, and dividing 121 days by 30.4375 floors it to three. An owner reading a certificate
+    // counts on their fingers, and so does the shelter checking it.
+    let months = (when.getUTCFullYear() - born.getUTCFullYear()) * 12 + (when.getUTCMonth() - born.getUTCMonth())
+    if (when.getUTCDate() < born.getUTCDate()) months--
+    if (months < 1) return '< 1 mo'
+    return months < 24 ? `${months} mo` : `${Math.floor(months / 12)} yr`
+  }
+  const age = ageAt(pet?.dob, vax.givenDate)
   const row = (label: string, val: string) => `<tr><td class="l">${label}</td><td class="v">${esc(val)}</td></tr>`
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Rabies Certificate — ${esc(pet?.name || '')}</title>
@@ -274,7 +300,7 @@ app.get('/rabies/:vaccinationId', requirePermission('contacts:read'), async (c) 
   <h2>Owner</h2>
   <table>${row('Name', owner?.name || '')}${row('Address', [owner?.address, owner?.city, owner?.state, owner?.zip].filter(Boolean).join(', '))}${row('Phone', owner?.mobile || owner?.phone || '')}</table>
   <h2>Animal</h2>
-  <table>${row('Name', pet?.name || '')}${row('Species', cap(pet?.species || ''))}${row('Breed', cap(pet?.breed || ''))}${row('Sex', cap(pet?.sex || '') + (pet?.spayedNeutered ? ' (spayed/neutered)' : ''))}${row('Color / Markings', pet?.color || '')}${row('Age', age)}${row('Microchip', pet?.microchip || '')}</table>
+  <table>${row('Name', pet?.name || '')}${row('Species', cap(pet?.species || ''))}${row('Breed', cap(pet?.breed || ''))}${row('Sex', cap(pet?.sex || '') + (pet?.spayedNeutered ? ' (spayed/neutered)' : ''))}${row('Color / Markings', pet?.color || '')}${row('Age at vaccination', age)}${row('Microchip', pet?.microchip || '')}</table>
   <h2>Vaccination</h2>
   <table>${row('Vaccine', vax.vaccine || 'Rabies')}${row('Manufacturer', vax.manufacturer || '')}${row('Lot / Serial', [vax.lotNumber, vax.serialNumber].filter(Boolean).join(' / '))}${row('Date Administered', vax.givenDate || '')}${row('Expiration / Due', vax.dueDate || '')}${row('Tag Number', vax.rabiesTag || pet?.rabiesTag || '')}${row('Route / Site', [vax.route, vax.site].filter(Boolean).join(' / '))}</table>
   <div class="sign">

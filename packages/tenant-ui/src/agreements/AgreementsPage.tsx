@@ -274,13 +274,13 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
           <StatCard
             icon={DollarSign}
             label="Monthly Revenue"
-            value={`$${stats.monthlyRecurringRevenue?.toLocaleString() || 0}`}
+            value={`$${stats.monthlyRecurringRevenue?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || 0}`}
             color="green"
           />
           <StatCard
             icon={TrendingUp}
             label="Annual Revenue"
-            value={`$${stats.annualRecurringRevenue?.toLocaleString() || 0}`}
+            value={`$${stats.annualRecurringRevenue?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || 0}`}
             color="blue"
           />
         </div>

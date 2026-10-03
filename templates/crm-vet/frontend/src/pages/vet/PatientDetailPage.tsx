@@ -125,7 +125,7 @@ function fmtDate(s?: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 function money(v: number | string | undefined | null): string {
-  return `$${Number(v || 0).toLocaleString()}`;
+  return `$${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 function ownerName(o?: Owner): string {
   if (!o) return '—';
@@ -302,6 +302,39 @@ export default function PatientDetailPage() {
   const owner = detail.owner;
   const visits = detail.visits || [];
   const vaccinations = detail.vaccinations || [];
+
+  /**
+   * A VACCINE THAT HAS BEEN GIVEN AGAIN IS NOT OVERDUE. (T41)
+   *
+   *   "a superseded vaccine is labelled '(overdue)'"
+   *
+   * The chart marked every row whose due date has passed, so a pet given Rabies in 2024 (due 2025)
+   * and again in 2025 (due 2028) showed the 2024 row in red, saying overdue, next to the current
+   * one. The animal is covered; it is the chart that is wrong, and a chart that cries overdue about
+   * a dose already repeated is a chart nobody trusts about the doses that really are.
+   *
+   * The server's reminder engine already got this right — GET /reminders/due keeps only the most
+   * recent administration per (patient, vaccine) for exactly this reason — so the clinic was not
+   * chasing these owners. Only the chart disagreed, which is why it reads as cosmetic and is not:
+   * the person looking at the chart is the one deciding what to give today.
+   *
+   * Same key as the server's: the vaccine's name, case-folded. The latest administration of each is
+   * the only one that can be overdue; the earlier ones are history, and say so.
+   */
+  const latestGiven = new Map<string, string>();
+  for (const v of vaccinations) {
+    const key = String(v.vaccine || '').trim().toLowerCase();
+    const given = String(v.givenDate || '');
+    if (!given) continue;
+    if (!latestGiven.has(key) || given > (latestGiven.get(key) as string)) latestGiven.set(key, given);
+  }
+  const isSuperseded = (v: { vaccine?: string; givenDate?: string }): boolean => {
+    const key = String(v.vaccine || '').trim().toLowerCase();
+    const latest = latestGiven.get(key);
+    return !!latest && !!v.givenDate && String(v.givenDate) < latest;
+  };
+  const vaccineOverdue = (v: { vaccine?: string; givenDate?: string; dueDate?: string }): boolean =>
+    !isSuperseded(v) && isOverdue(v.dueDate);
   const prescriptions = detail.prescriptions || [];
   const labResults = detail.labResults || [];
 
@@ -508,14 +541,17 @@ export default function PatientDetailPage() {
                 </thead>
                 <tbody className="divide-y">
                   {vaccinations.map((v) => (
-                    <tr key={v.id} className={isOverdue(v.dueDate) ? 'bg-red-50' : ''}>
+                    <tr key={v.id} className={vaccineOverdue(v) ? 'bg-red-50 dark:bg-red-950/30' : isSuperseded(v) ? 'opacity-60' : ''}>
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                         {v.vaccine || '—'}
                         {v.isRabies && !/rabies/i.test(v.vaccine || '') && <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Rabies</span>}
+                        {isSuperseded(v) && <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full dark:bg-slate-700 dark:text-slate-300">Superseded</span>}
                       </td>
                       <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{fmtDate(v.givenDate)}</td>
-                      <td className={`px-4 py-3 ${isOverdue(v.dueDate) ? 'text-red-700 font-medium' : 'text-gray-600'}`}>
-                        {fmtDate(v.dueDate)}{isOverdue(v.dueDate) ? ' (overdue)' : ''}
+                      <td className={`px-4 py-3 ${vaccineOverdue(v) ? 'text-red-700 font-medium dark:text-red-300' : 'text-gray-600 dark:text-slate-400'}`}>
+                        {fmtDate(v.dueDate)}
+                        {vaccineOverdue(v) ? ' (overdue)' : ''}
+                        {isSuperseded(v) ? <span className="ml-1 text-xs text-gray-500 dark:text-slate-400">— given again since</span> : ''}
                       </td>
                       <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{v.lotNumber || '—'}</td>
                       <td className="px-4 py-3">

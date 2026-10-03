@@ -112,7 +112,7 @@ export default function EstimatorPage() {
           </div>
         </div>
         <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
-          Example: A 25-square roof at ${settings.pricePerSquareLow}–${settings.pricePerSquareHigh}/sq = ${(25 * Number(settings.pricePerSquareLow)).toLocaleString()}–${(25 * Number(settings.pricePerSquareHigh)).toLocaleString()}
+          Example: A 25-square roof at ${settings.pricePerSquareLow}–${settings.pricePerSquareHigh}/sq = ${(25 * Number(settings.pricePerSquareLow)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}–${(25 * Number(settings.pricePerSquareHigh)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </p>
       </div>
 

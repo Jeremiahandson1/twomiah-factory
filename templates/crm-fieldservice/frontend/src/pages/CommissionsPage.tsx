@@ -103,9 +103,9 @@ export default function CommissionsPage() {
                 commissions.map((c) => (
                   <tr key={c.id} className="border-b hover:bg-gray-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-3 font-mono text-xs">{c.userId.substring(0, 8)}…</td>
-                    <td className="px-4 py-3 font-mono text-sm">${Number(c.baseAmount).toLocaleString()}</td>
+                    <td className="px-4 py-3 font-mono text-sm">${Number(c.baseAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     <td className="px-4 py-3 text-sm">{c.rateApplied ? `${c.rateApplied}%` : '—'}</td>
-                    <td className="px-4 py-3 font-mono text-sm font-semibold">${Number(c.commissionAmount).toLocaleString()}</td>
+                    <td className="px-4 py-3 font-mono text-sm font-semibold">${Number(c.commissionAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{formatDate(c.earnedAt)}</td>
                     <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[c.status]}`}>{c.status}</span></td>
                     <td className="px-4 py-3">

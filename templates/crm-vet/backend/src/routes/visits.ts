@@ -20,6 +20,36 @@ import { createId } from '@paralleldrive/cuid2'
 const app = new Hono()
 app.use('*', authenticate)
 
+/**
+ * A VISIT IS SOMETHING THAT HAPPENED. (T41)
+ *
+ *   "Recent Visits is led by a future-dated 2027 visit"
+ *
+ * Nothing checked visitDate, so a mistyped year saved happily and then sat at the top of every
+ * list that orders by it — the dashboard's Recent Visits panel, the patient's chart, the practice's
+ * visit list. It is not only ugly: a visit carries vitals, an assessment and a charge, so a record
+ * dated in the future is a consultation the clinic is asserting it has already done.
+ *
+ * An APPOINTMENT is the thing that may be in the future; that is a different table with its own
+ * screen. A visit is written when the animal is on the table.
+ *
+ * The tolerance is a day, not zero, because the date arrives as the browser's local day and the
+ * server reads it in UTC — a clinic in Auckland entering today's date is already "tomorrow" here,
+ * and refusing that would make the page unusable in half the world. A year out is still refused.
+ */
+const VISIT_DATE_SKEW_MS = 36 * 60 * 60 * 1000
+
+export function visitDateError(value: unknown): string | null {
+  if (value === undefined || value === null || String(value).trim() === '') return null
+  const d = new Date(String(value))
+  if (isNaN(d.getTime())) return 'The visit date is not a date.'
+  if (d.getTime() > Date.now() + VISIT_DATE_SKEW_MS) {
+    return 'A visit is a record of something that has happened, so its date cannot be in the future. '
+      + 'Book an appointment instead, or correct the date.'
+  }
+  return null
+}
+
 // GET /visits — ?patientId=
 app.get('/', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
@@ -61,6 +91,9 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
 app.post('/', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.json()
+
+  const badDate = visitDateError(body.visitDate)
+  if (badDate) return c.json({ error: badDate, code: 'visit_date_in_future' }, 400)
 
   const [created] = await db.insert(visit).values({
     id: createId(),
@@ -220,6 +253,12 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
     // Unchanged (the edit form posts every field back, including the total it was shown) — accept the
     // rest of the edit and leave the figure alone rather than refusing a save that changes nothing.
     delete updates.total
+  }
+  // The same rule on the edit as on the create — a date nobody may enter is a date nobody may
+  // correct a record INTO either, and the edit is the likelier typo of the two. (T41)
+  if ('visitDate' in updates) {
+    const badDate = visitDateError(updates.visitDate)
+    if (badDate) return c.json({ error: badDate, code: 'visit_date_in_future' }, 400)
   }
   if ('visitDate' in updates && updates.visitDate) updates.visitDate = new Date(updates.visitDate)
 

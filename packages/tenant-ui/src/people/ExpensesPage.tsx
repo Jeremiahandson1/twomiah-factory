@@ -9,7 +9,7 @@ import { useAuth } from '../auth/AuthContext'
 import type { PeopleApi, PeopleToast, ExpensesConfig } from './types'
 import { DEFAULT_EXPENSE_CATEGORIES, isManagerRole } from './types'
 
-interface Expense { id: string; date: string; category: string; vendor?: string | null; description: string; amount: string | number; billable: boolean; reimbursable?: boolean; reimbursed?: boolean; approved?: boolean; submittedById?: string | null; repaidAmount?: string | number | null; repaidReason?: string | null; projectId?: string | null; jobId?: string | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
+interface Expense { id: string; date: string; category: string; vendor?: string | null; description: string; amount: string | number; billable: boolean; reimbursable?: boolean; reimbursed?: boolean; approved?: boolean; submittedById?: string | null; submittedByName?: string | null; repaidAmount?: string | number | null; repaidReason?: string | null; projectId?: string | null; jobId?: string | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
 // The person's own day, not UTC's: toISOString() rolls over at UTC midnight, so west of Greenwich this
 // pre-filled TOMORROW all evening. It is also the ceiling the date box is given — an expense is money already
 // spent. (Contractor T30 L1, the same fix the timesheet got)
@@ -249,6 +249,18 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
     ? [{ value: form.category, label: catLabel(form.category) }, ...categories]
     : categories
 
+  /**
+   * "me" only where it IS me. (T41 salon: "'Reimburse me' when a manager edits someone else's
+   * expense".) Creating a claim is always your own, so that keeps the short form; editing uses the
+   * row's own submitter, and falls back to a neutral phrase for a row written before the submitter
+   * column existed, where there genuinely is nobody to name.
+   */
+  const reimburseLabel = !editing || isMine(editing)
+    ? 'Reimburse me'
+    : editing.submittedByName
+      ? `Reimburse ${editing.submittedByName}`
+      : 'Reimburse whoever claimed it'
+
   const columns = [
     { key: 'date', label: 'Date', render: (v: any) => dateOnly(v) || '-' },
     { key: 'category', label: 'Category', render: (v: any) => catLabel(v) },
@@ -306,6 +318,7 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
           // action is not offered at all. (Salon RR7 X4)
           { label: 'Delete', icon: Trash2, onClick: (r) => setToDelete(r), className: 'text-red-600', show: (r) => !r.reimbursed && (manager || !r.approved) },
         ]} />
+      {/* Whose pocket the money comes back to. See the note on the checkbox below. (T41) */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Expense' : 'Add Expense'} size="md">
         <div className="space-y-4">
           {formError && <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{formError}</div>}
@@ -320,7 +333,16 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
           {showProjects && <Field label="Project"><select value={form.projectId} onChange={set('projectId')} className={inputCls}><option value="">None</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
           <div className="flex gap-6">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.billable} onChange={(e) => setForm({ ...form, billable: e.target.checked })} className="rounded" /> Billable to customer</label>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.reimbursable} onChange={(e) => setForm({ ...form, reimbursable: e.target.checked })} className="rounded" /> Reimburse me</label>
+            {/*
+              "REIMBURSE ME" IS WRONG WHEN IT IS NOT YOUR CLAIM. (T41)
+
+              A manager correcting a stylist's expense was asked whether to "Reimburse me" about
+              money that would be paid to the stylist — the one box on this form that decides
+              whether cash leaves the till, labelled for the wrong person. The claim's own submitter
+              now names it (the row carries submittedByName), and it still says "me" where that is
+              the truth: creating a claim, or editing your own.
+            */}
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.reimbursable} onChange={(e) => setForm({ ...form, reimbursable: e.target.checked })} className="rounded" /> {reimburseLabel}</label>
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>

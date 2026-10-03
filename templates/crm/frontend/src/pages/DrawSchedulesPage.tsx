@@ -79,9 +79,9 @@ export default function DrawSchedulesPage() {
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[s.status]}`}>{s.status}</span>
               </div>
               <div className="mt-3 space-y-1 text-sm">
-                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Total</span><span className="font-mono">${Number(s.totalAmount).toLocaleString()}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Drawn</span><span className="font-mono text-green-600">${Number(s.drawnAmount || 0).toLocaleString()}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Remaining</span><span className="font-mono">${Number(s.remainingAmount || s.totalAmount).toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Total</span><span className="font-mono">${Number(s.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Drawn</span><span className="font-mono text-green-600">${Number(s.drawnAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Remaining</span><span className="font-mono">${Number(s.remainingAmount || s.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
               </div>
               <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">{s.drawCount || 0} draws</div>
             </button>
@@ -102,8 +102,8 @@ export default function DrawSchedulesPage() {
                     selected.requests.map((r: any) => (
                       <tr key={r.id} className="border-b">
                         <td className="px-4 py-3 font-mono text-sm">#{r.drawNumber}</td>
-                        <td className="px-4 py-3 font-mono text-sm">${Number(r.amountRequested).toLocaleString()}</td>
-                        <td className="px-4 py-3 font-mono text-sm">{r.amountApproved ? `$${Number(r.amountApproved).toLocaleString()}` : '—'}</td>
+                        <td className="px-4 py-3 font-mono text-sm">${Number(r.amountRequested).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="px-4 py-3 font-mono text-sm">{r.amountApproved ? `$${Number(r.amountApproved).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</td>
                         <td className="px-4 py-3 text-sm">{r.percentComplete ? `${r.percentComplete}%` : '—'}</td>
                         <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${REQ_STATUS_COLORS[r.status]}`}>{r.status}</span></td>
                         <td className="px-4 py-3">

@@ -173,7 +173,7 @@ function CheckoutForm({ amount, onSuccess, onCancel }) {
       {amount && (
         <div className="bg-gray-50 rounded-lg p-4 text-center dark:bg-slate-900">
           <p className="text-sm text-gray-500 dark:text-slate-400">Payment Amount</p>
-          <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">${Number(amount).toLocaleString()}</p>
+          <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
         </div>
       )}
 
@@ -225,7 +225,7 @@ function CheckoutForm({ amount, onSuccess, onCancel }) {
           ) : (
             <>
               <CreditCard className="w-4 h-4" />
-              Pay ${Number(amount).toLocaleString()}
+              Pay ${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </>
           )}
         </button>

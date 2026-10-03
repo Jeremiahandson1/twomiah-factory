@@ -189,11 +189,11 @@ const templates: Record<string, (data: any) => TemplateResult> = {
         <div class="content">
           <h2>Invoice ${data.invoiceNumber}</h2>
           <p>Hi ${data.contactName},</p>
-          <div class="amount">$${Number(data.total).toLocaleString()}</div>
+          <div class="amount">$${Number(data.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           <div class="highlight">
             <p><strong>Invoice #:</strong> ${data.invoiceNumber}</p>
             <p><strong>Due Date:</strong> ${data.dueDate}</p>
-            <p><strong>Balance:</strong> $${Number(data.balance).toLocaleString()}</p>
+            <p><strong>Balance:</strong> $${Number(data.balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
           </div>
           ${data.paymentLink ? `<p style="text-align:center;"><a href="${data.paymentLink}" class="button">Pay Now</a></p>` : ''}
         </div>
@@ -213,7 +213,7 @@ const templates: Record<string, (data: any) => TemplateResult> = {
           <h2>Payment Reminder</h2>
           <p>Hi ${data.contactName},</p>
           <p>This is a friendly reminder that invoice ${data.invoiceNumber} is due on <strong>${data.dueDate}</strong>.</p>
-          <div class="amount">$${Number(data.balance).toLocaleString()}</div>
+          <div class="amount">$${Number(data.balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           ${data.paymentLink ? `<p style="text-align:center;"><a href="${data.paymentLink}" class="button">Pay Now</a></p>` : ''}
         </div>
         <div class="footer">${data.companyName}</div>
@@ -231,7 +231,7 @@ const templates: Record<string, (data: any) => TemplateResult> = {
         <div class="content">
           <p>Hi ${data.contactName},</p>
           <p>Invoice ${data.invoiceNumber} is <strong>${data.daysOverdue} days overdue</strong>.</p>
-          <div class="amount" style="color:#dc2626;">$${Number(data.balance).toLocaleString()}</div>
+          <div class="amount" style="color:#dc2626;">$${Number(data.balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           <p>Please remit payment as soon as possible.</p>
           ${data.paymentLink ? `<p style="text-align:center;"><a href="${data.paymentLink}" class="button" style="background:#dc2626;">Pay Now</a></p>` : ''}
         </div>
@@ -251,9 +251,9 @@ const templates: Record<string, (data: any) => TemplateResult> = {
           <p>Hi ${data.contactName},</p>
           <p>Thank you! We received your payment.</p>
           <div class="highlight">
-            <p><strong>Amount:</strong> $${Number(data.amount).toLocaleString()}</p>
+            <p><strong>Amount:</strong> $${Number(data.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             <p><strong>Invoice:</strong> ${data.invoiceNumber}</p>
-            <p><strong>Remaining Balance:</strong> $${Number(data.remainingBalance).toLocaleString()}</p>
+            <p><strong>Remaining Balance:</strong> $${Number(data.remainingBalance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
           </div>
         </div>
         <div class="footer">${data.companyName}</div>
@@ -272,7 +272,7 @@ const templates: Record<string, (data: any) => TemplateResult> = {
           <h2>${data.quoteName}</h2>
           <p>Hi ${data.contactName},</p>
           <p>Thank you for the opportunity to provide this quote.</p>
-          <div class="amount">$${Number(data.total).toLocaleString()}</div>
+          <div class="amount">$${Number(data.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           <p><strong>Valid until:</strong> ${data.expiryDate}</p>
           <p style="text-align:center;">
             ${data.approveLink ? `<a href="${data.approveLink}" class="button">Approve Quote</a>` : ''}
@@ -295,7 +295,7 @@ const templates: Record<string, (data: any) => TemplateResult> = {
           <p>${data.contactName} has approved quote <strong>${data.quoteNumber}</strong>.</p>
           <div class="highlight">
             <p><strong>Project:</strong> ${data.projectName || 'N/A'}</p>
-            <p><strong>Amount:</strong> $${Number(data.total).toLocaleString()}</p>
+            <p><strong>Amount:</strong> $${Number(data.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
           </div>
           <p style="text-align:center;"><a href="${APP_URL}/quotes/${data.quoteId}" class="button">View Quote</a></p>
         </div>

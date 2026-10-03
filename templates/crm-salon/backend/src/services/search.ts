@@ -170,7 +170,7 @@ export async function globalSearch(
             subtype: item.status,
             id: item.id,
             name: item.name || item.number,
-            description: `${item.number} - $${Number(item.total).toLocaleString()}`,
+            description: `${item.number} - $${Number(item.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             url: `/crm/quotes/${item.id}`,
             icon: 'file-text',
           }))
@@ -194,7 +194,7 @@ export async function globalSearch(
             subtype: deriveStatus(item),
             id: item.id,
             name: item.number,
-            description: `$${Number(item.total).toLocaleString()} - ${deriveStatus(item)}`,
+            description: `$${Number(item.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - ${deriveStatus(item)}`,
             url: `/crm/invoices/${item.id}`,
             icon: 'file-invoice',
           }))

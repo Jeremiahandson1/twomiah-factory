@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { contact, patient, appointment, visit, vaccination, wellnessEnrollment, user } from '../../db/schema.ts'
-import { eq, and, gte, lt, count, desc, sql, notInArray } from 'drizzle-orm'
+import { eq, and, gte, lt, lte, count, desc, sql, notInArray } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 
 /**
@@ -79,8 +79,15 @@ app.get('/recent-activity', async (c) => {
     safe(() => db.select({ id: patient.id, name: patient.name, species: patient.species, breed: patient.breed, ownerName: contact.name, updatedAt: patient.updatedAt })
       .from(patient).leftJoin(contact, eq(patient.ownerId, contact.id)).where(eq(patient.companyId, companyId)).orderBy(desc(patient.updatedAt)).limit(5), []),
     // Recent Visits showed $0 against every line because the total was never selected. (T12 M4)
+    //
+    // RECENT means it has happened. (T41: "Recent Visits is led by a future-dated 2027 visit.")
+    // POST/PUT /api/visits now refuse a future date, but a row entered before that fix is still in
+    // the table and this panel orders by visitDate DESC — so the one mistyped record would sit at
+    // the top of the practice's home page for ever. The clause also keeps the panel honest if a
+    // date is ever back-filled from an import.
     safe(() => db.select({ id: visit.id, visitDate: visit.visitDate, reason: visit.reason, total: visit.total, patientName: patient.name, ownerName: contact.name })
-      .from(visit).leftJoin(patient, eq(visit.patientId, patient.id)).leftJoin(contact, eq(patient.ownerId, contact.id)).where(eq(visit.companyId, companyId)).orderBy(desc(visit.visitDate)).limit(5), []),
+      .from(visit).leftJoin(patient, eq(visit.patientId, patient.id)).leftJoin(contact, eq(patient.ownerId, contact.id))
+      .where(and(eq(visit.companyId, companyId), lte(visit.visitDate, now))).orderBy(desc(visit.visitDate)).limit(5), []),
     safe(() => db.select({ id: appointment.id, startTime: appointment.startTime, type: appointment.type, status: appointment.status, patientName: patient.name, ownerName: contact.name, providerFirstName: user.firstName, providerLastName: user.lastName })
       .from(appointment).leftJoin(patient, eq(appointment.patientId, patient.id)).leftJoin(contact, eq(appointment.ownerId, contact.id)).leftJoin(user, eq(appointment.providerId, user.id))
       .where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, now))).orderBy(appointment.startTime).limit(8), []),

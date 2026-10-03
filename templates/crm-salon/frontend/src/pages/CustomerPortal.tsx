@@ -164,7 +164,7 @@ export default function CustomerPortal() {
               { label: 'Clients', value: stats.contacts ?? 0, icon: Users, color: 'blue' },
               { label: 'Appointments today', value: ((stats as Record<string, unknown>).appointments as Record<string, unknown>)?.today ?? 0, icon: Briefcase, color: 'emerald' },
               { label: 'Visits this month', value: ((stats as Record<string, unknown>).services as Record<string, unknown>)?.thisMonth ?? 0, icon: FileText, color: 'amber' },
-              { label: 'Outstanding', value: `$${((stats.invoices as Record<string, unknown>)?.outstandingValue as number ?? 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
+              { label: 'Outstanding', value: `$${((stats.invoices as Record<string, unknown>)?.outstandingValue as number ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: DollarSign, color: 'green' },
             ] as unknown as StatCard[]).map((stat) => (
               <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-4 dark:bg-slate-900">
                 <div className={`w-8 h-8 rounded-lg bg-${stat.color}-50 flex items-center justify-center mb-2`}>
@@ -284,7 +284,7 @@ export default function CustomerPortal() {
                 {(((activity as Record<string, unknown>).recentServices as Record<string, unknown>[]) || []).slice(0, 4).map((item: Record<string, unknown>) => (
                   <div key={item.id as string} className="px-6 py-3 flex items-center gap-3">
                     <div className="w-2 h-2 rounded-full bg-teal-400" />
-                    <span className="text-sm text-slate-700">Visit: {(item.clientName as string) || 'Client'} — {(item.serviceName as string) || 'service'}{item.priceCharged ? ` · $${Number(item.priceCharged).toLocaleString()}` : ''}</span>
+                    <span className="text-sm text-slate-700">Visit: {(item.clientName as string) || 'Client'} — {(item.serviceName as string) || 'service'}{item.priceCharged ? ` · $${Number(item.priceCharged).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}</span>
                     <span className="text-xs text-slate-400 ml-auto">{item.performedAt ? formatDate(item.performedAt as string) : ''}</span>
                   </div>
                 ))}

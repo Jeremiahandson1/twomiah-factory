@@ -55,8 +55,8 @@ export default function FinancingPage() {
                 <tr key={a.id} className="border-b hover:bg-gray-50">
                   <td className="px-4 py-3 font-mono text-xs">{a.contactId.substring(0, 8)}…</td>
                   <td className="px-4 py-3 text-sm font-semibold">{LENDER_LABELS[a.lender] || a.lender}</td>
-                  <td className="px-4 py-3 font-mono text-sm">${Number(a.amountRequested).toLocaleString()}</td>
-                  <td className="px-4 py-3 font-mono text-sm">{a.amountApproved ? `$${Number(a.amountApproved).toLocaleString()}` : '—'}</td>
+                  <td className="px-4 py-3 font-mono text-sm">${Number(a.amountRequested).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td className="px-4 py-3 font-mono text-sm">{a.amountApproved ? `$${Number(a.amountApproved).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</td>
                   <td className="px-4 py-3 font-mono text-sm">{a.monthlyPayment ? `$${Number(a.monthlyPayment).toFixed(0)}` : '—'}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[a.status]}`}>{a.status}</span></td>
                   <td className="px-4 py-3">

@@ -365,7 +365,7 @@ app.post('/supplements/:id/submit', requirePermission('insurance:create'), async
     claimId: sup.claimId,
     userId: currentUser.userId,
     activityType: 'supplement',
-    body: `Supplement ${sup.supplementNumber} submitted — $${Number(sup.totalAmount).toLocaleString()} — ${sup.reason}`,
+    body: `Supplement ${sup.supplementNumber} submitted — $${Number(sup.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} — ${sup.reason}`,
   })
 
   const [updated] = await db.select().from(supplement).where(eq(supplement.id, id)).limit(1)
@@ -457,8 +457,8 @@ app.post('/supplements/:id/approve', requireManager, async (c) => {
     // …and when the carrier allowed MORE than was asked, the line says so. Both figures, so the
     // entry can be checked against the carrier's letter without opening anything else. (T41)
     body: overAsk
-      ? `Supplement ${sup.supplementNumber} approved — $${Number(approvedAmount).toLocaleString()}, which is ABOVE the $${requested.toLocaleString()} asked for`
-      : `Supplement ${sup.supplementNumber} approved — $${Number(approvedAmount).toLocaleString()}`,
+      ? `Supplement ${sup.supplementNumber} approved — $${Number(approvedAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, which is ABOVE the $${requested.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} asked for`
+      : `Supplement ${sup.supplementNumber} approved — $${Number(approvedAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
   })
 
   const [updated] = await db.select().from(supplement).where(eq(supplement.id, id)).limit(1)
