@@ -2301,7 +2301,8 @@ export async function wireDomainInfrastructure(opts: WireDomainOptions): Promise
         : await sendgrid.authenticateDomain(opts.domain)
       // Both providers return { id, records[] } — for legacy SendGrid the
       // id is numeric; for Resend it's a UUID string. The schema column
-      // (sendgrid_domain_auth_id) tolerates either since it's used opaquely.
+      // (sendgrid_domain_auth_id) is text since 2026-10-03 — it was bigint, so every
+      // Resend UUID failed to save (migrations/2026-10-03_tenants_email_auth_id_text.sql).
       sgId = auth.id as any
       result.sendgridDomainAuthId = auth.id as any
       for (const rec of auth.records) {
@@ -2310,6 +2311,11 @@ export async function wireDomainInfrastructure(opts: WireDomainOptions): Promise
           await writeRecord({ type: 'CNAME', name: rel, content: rec.data, proxied: false }, emailAuthProvider + '_' + rel)
         } else if (rec.type === 'txt') {
           await writeRecord({ type: 'TXT', name: rel, content: rec.data }, emailAuthProvider + '_txt_' + rel)
+        } else if (rec.type === 'mx' && emailAuthProvider === 'resend') {
+          // Resend's MX sits on its own return-path subdomain (send.<domain>), not the
+          // apex, so it cannot collide with Email Routing's MX. Without it Resend leaves
+          // the domain 'partially_verified' (SPF pending) indefinitely.
+          await writeRecord({ type: 'MX', name: rel, content: rec.data, priority: rec.priority ?? 10 }, emailAuthProvider + '_mx_' + rel)
         } else if (rec.type === 'mx') {
           result.steps.push({ step: emailAuthProvider + '_mx_' + rel, status: 'skipped', detail: 'factory-wide parse MX handles this' })
         }
@@ -2327,14 +2333,39 @@ export async function wireDomainInfrastructure(opts: WireDomainOptions): Promise
   // ─── 5. SPF + DMARC ─────────────────────────────────────────────────────
   // SPF advertises the active provider as the authorized sender. Resend's
   // SPF include is _spf.resend.com; SendGrid's is sendgrid.net.
+  // Email Routing (step 3) also requires Cloudflare's include in the apex SPF — without
+  // it the zone's routing reports "misconfigured" and the aliases never forward.
   const spfInclude = emailAuthProvider === 'resend' ? 'include:_spf.resend.com' : 'include:sendgrid.net'
-  await writeRecord({ type: 'TXT', name: '@', content: 'v=spf1 ' + spfInclude + ' -all' }, 'spf')
+  const spfValue = 'v=spf1 include:_spf.mx.cloudflare.net ' + spfInclude + ' -all'
+
+  // SPF and DMARC must each be ONE record per name — two SPF records is a permerror
+  // and two DMARC records makes receivers ignore DMARC entirely. writeRecord only
+  // skips an IDENTICAL record, so a re-run with different content (a changed include,
+  // a different report address) added a second one. Replace any other record of the
+  // same kind at that name instead.
+  const replaceSingleTxt = async (name: string, prefix: string, content: string, label: string) => {
+    const fqdn = name === '@' ? opts.domain : name + '.' + opts.domain
+    try {
+      const existing = await cloudflare.listDnsRecords(zoneId!)
+      for (const r of existing) {
+        const value = String(r.content || '').replace(/^"|"$/g, '')
+        if (r.type === 'TXT' && r.name === fqdn && value.startsWith(prefix) && value !== content) {
+          await cloudflare.deleteDnsRecord(zoneId!, r.id)
+          result.steps.push({ step: 'dns_' + label + '_replace', status: 'ok', detail: 'removed ' + value.slice(0, 60) })
+        }
+      }
+    } catch (e: any) {
+      result.steps.push({ step: 'dns_' + label + '_replace', status: 'warning', detail: e.message })
+    }
+    await writeRecord({ type: 'TXT', name, content }, label)
+  }
+  await replaceSingleTxt('@', 'v=spf1', spfValue, 'spf')
 
   // DMARC p=none per plan decision: monitor-only for the first 30 days so we
   // can tighten to quarantine/reject after clean reports come in.
   const dmarcRua = opts.adminEmailForDmarc || ('dmarc@' + opts.domain)
   const dmarcValue = 'v=DMARC1; p=none; rua=mailto:' + dmarcRua + '; ruf=mailto:' + dmarcRua + '; sp=none; aspf=r;'
-  await writeRecord({ type: 'TXT', name: '_dmarc', content: dmarcValue }, 'dmarc')
+  await replaceSingleTxt('_dmarc', 'v=DMARC1', dmarcValue, 'dmarc')
 
   // ─── 6. Attach custom domains to Render services ────────────────────────
   const siteSvc = opts.siteServiceId || opts.backendServiceId

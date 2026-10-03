@@ -441,7 +441,7 @@ create policy "Service role full access on roof_review_queue"
 alter table tenants add column if not exists domain_registrar text;          -- 'namecheap' | 'byod' | null
 alter table tenants add column if not exists domain_expires_at timestamptz;  -- Only set when registrar='namecheap' (we only know expiry for domains we bought)
 alter table tenants add column if not exists cloudflare_zone_id text;        -- Cloudflare zone created for this tenant's domain
-alter table tenants add column if not exists sendgrid_domain_auth_id bigint; -- SendGrid whitelabel domain id for this tenant
+alter table tenants add column if not exists sendgrid_domain_auth_id text; -- email-auth provider domain id (Resend UUID, or legacy SendGrid numeric id)
 
 -- Renewal warning sentinels (idempotent per-warning: set to now() when sent)
 alter table tenants add column if not exists domain_renewal_warned_60d_at timestamptz;

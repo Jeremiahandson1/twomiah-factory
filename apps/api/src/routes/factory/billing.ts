@@ -368,7 +368,7 @@ async function handleDomainRegistration(opts: {
   console.log('[Domain] Processing registration:', domain, 'for tenant', tenantId, paymentIntent ? '(paid)' : '(operator, at cost)')
 
   const { data: tenant, error: tErr } = await supabase.from('tenants')
-    .select('id, slug, name, email, admin_email, phone, address, city, state, zip, factory_sync_key')
+    .select('id, slug, name, email, admin_email, phone, address, city, state, zip, factory_sync_key, website_url, render_backend_url, cloudflare_zone_id')
     .eq('id', tenantId).single()
   if (tErr || !tenant) {
     console.error('[Domain] Tenant not found during registration:', tenantId)
@@ -423,8 +423,22 @@ async function handleDomainRegistration(opts: {
   const siteServiceId = services.site || services['website-premium'] || services.website
   const backendServiceId = services.backend || services.api
   let nameserversSet = false
+  // wireDomainInfrastructure writes the @ / www / app CNAMEs only when it is told the
+  // Render hosts to point them at — without them the zone gets mail records and no
+  // record for the site at all. Read them from the tenant row (the deployed URLs),
+  // never compose them: tenant hosts carry a vertical suffix (…-wrench-api).
+  const renderSlug = (url?: string | null) => {
+    const host = (url || '').replace(/^https?:\/\//, '').split('/')[0]
+    return host.endsWith('.onrender.com') ? host.slice(0, -'.onrender.com'.length) : undefined
+  }
   try {
-    const wire = await wireDomainInfrastructure({ domain, siteServiceId, backendServiceId })
+    const wire = await wireDomainInfrastructure({
+      domain, siteServiceId, backendServiceId,
+      siteSlug: renderSlug(tenant.website_url),
+      backendSlug: renderSlug(tenant.render_backend_url),
+      adminEmailForDmarc: tenant.admin_email || tenant.email || undefined,
+      existingCloudflareZoneId: tenant.cloudflare_zone_id || undefined,
+    })
     if (wire.cloudflareZoneId) {
       await supabase.from('tenants').update({ cloudflare_zone_id: wire.cloudflareZoneId }).eq('id', tenantId)
     }
