@@ -212,17 +212,38 @@ app.post('/sync', requireRole('budtender'), async (c) => {
         }
 
       } else if (txn.transactionType === 'payment') {
-        // Replay payment completion
+        // Settling an order that already existed, paid at the till while the connection was down.
+        //
+        // This was a raw UPDATE that stamped status='completed', payment_method, cash_tendered,
+        // change_due and completed_at straight onto the row. It was the one replay branch that did
+        // not go through the real route — the "second copy" the note at the top of this file says
+        // must not exist — and it therefore moved NO inventory (neither products.stock_quantity nor
+        // the batch the units came out of), awarded no loyalty points, and never ran the age gate.
+        //
+        // So a day of offline payments settled every sale and sold nothing: the shelf count never
+        // moved. Worse, because it DID set completed_at, a later refund with restoreInventory put
+        // stock back that had never come out, pushing the count up above what was on the shelf.
+        // Found while fixing the refund/batch drift in orders.ts, which is the other half of it. (T41)
+        //
+        // POST /:id/complete does all of that, and keeps doing it as rules are added there. Note it
+        // derives change_due from cashTendered itself (orders.ts), which is also what this file
+        // wants — the device's money is reported, never believed.
         const p = txn.payload
         if (p.orderId) {
+          const done = await callOrders(c, `/${p.orderId}/complete`, {
+            paymentMethod: p.paymentMethod || 'cash',
+            ...(p.cashTendered != null ? { cashTendered: Number(p.cashTendered) } : {}),
+            idVerified: p.idVerified === true,
+          })
+          // A refusal is now surfaced as a sync error against this transaction instead of being
+          // stamped over. Settling twice is the common one, and it should be visible, not silent.
+          if (done.status !== 200) throw new Error(refusalText(done.json))
+
+          // The takings belong to the moment the money was taken, not to the reconnect. Same
+          // reasoning, and same statement, as the order branch above.
           await db.execute(sql`
             UPDATE orders
-            SET status = 'completed',
-                payment_method = ${p.paymentMethod || 'cash'},
-                cash_tendered = ${p.cashTendered || null},
-                change_due = ${p.changeDue || '0'},
-                completed_at = ${txn.createdOfflineAt}::timestamptz,
-                updated_at = NOW()
+            SET completed_at = ${txn.createdOfflineAt}::timestamptz, updated_at = NOW()
             WHERE id = ${p.orderId} AND company_id = ${currentUser.companyId}
           `)
           replayResult = { orderId: p.orderId, status: 'completed' }

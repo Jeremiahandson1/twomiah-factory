@@ -27,7 +27,13 @@ const vetInvoices = read('templates/crm-vet/backend/src/routes/invoices.ts')
 if (!/links: \{ patientId: patient \}/.test(vetInvoices)) fail('crm-vet must raise invoices against the patient')
 if (!/minLineItems: 1/.test(vetInvoices)) fail('…without losing the minimum-line rule it already had')
 const visits = read('templates/crm-vet/backend/src/routes/visits.ts')
-if (!/patientId: v\.patientId,/.test(visits)) fail('billing a visit must bill the animal that was seen, not just its owner')
+// EITHER SPELLING OF THE SOURCE. This asserted `patientId: v.patientId,` exactly, and went red the
+// moment POST /:id/invoice started reading the visit through a `SELECT … FOR UPDATE` (the bill-once
+// lock) — raw SQL hands back snake_case, so the correct code now says `patientId: v.patient_id`.
+// The guard was pinning one way of writing the fact instead of the fact, and would have had me
+// "repair" working code to satisfy its own regex. What matters is that the patient reaches the
+// invoice; where the value is read from is the route's business. (T41)
+if (!/patientId: v\.(?:patientId|patient_id)\b/.test(visits)) fail('billing a visit must bill the animal that was seen, not just its owner')
 
 // the column
 const schema = read('templates/crm-vet/backend/db/schema.ts')

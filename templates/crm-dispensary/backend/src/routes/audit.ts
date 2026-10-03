@@ -3,7 +3,7 @@ import { db } from '../../db/index.ts'
 import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
-import audit from '../services/audit.ts'
+import audit, { dateConditions, searchCondition } from '../services/audit.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -22,8 +22,13 @@ app.get('/', async (c) => {
   const entityId = c.req.query('entityId')
   const action = c.req.query('action')
   const userId = c.req.query('userId')
-  const startDate = c.req.query('startDate')
-  const endDate = c.req.query('endDate')
+  // dateFrom/dateTo are accepted alongside startDate/endDate for the same reason entityType is
+  // accepted alongside entity, one line above: the screen sent dateFrom and dateTo, this read
+  // startDate and endDate, and so narrowing the Audit Log to a single day returned the whole log —
+  // an ignored filter reading as an answer, again. (T41)
+  const startDate = c.req.query('startDate') || c.req.query('dateFrom')
+  const endDate = c.req.query('endDate') || c.req.query('dateTo')
+  const search = c.req.query('search')
   const page = +(c.req.query('page') || '1')
   const limit = +(c.req.query('limit') || '50')
 
@@ -33,6 +38,7 @@ app.get('/', async (c) => {
     entityId,
     action,
     userId,
+    search,
     startDate,
     endDate,
     page,
@@ -40,6 +46,14 @@ app.get('/', async (c) => {
   })
 
   return c.json(result)
+})
+
+// What this company's log can be filtered by, read from its own rows. The screen builds its
+// dropdowns from this instead of a hard-coded list, which is what had drifted. See
+// services/audit.ts filterOptions for the full story. (T41)
+app.get('/filters', async (c) => {
+  const currentUser = c.get('user') as any
+  return c.json(await audit.filterOptions(currentUser.companyId))
 })
 
 // CSV export of audit log
@@ -50,15 +64,20 @@ app.get('/export', async (c) => {
   const entity = c.req.query('entity') || c.req.query('entityType')
   const action = c.req.query('action')
   const userId = c.req.query('userId')
-  const startDate = c.req.query('startDate')
-  const endDate = c.req.query('endDate')
+  // Same two aliases, and the same search, as the list above — by that comment's own argument the
+  // export is the worse place to drop a filter, because the spreadsheet leaves the building. (T41)
+  const startDate = c.req.query('startDate') || c.req.query('dateFrom')
+  const endDate = c.req.query('endDate') || c.req.query('dateTo')
+  const search = c.req.query('search')
 
   const conditions = [sql`company_id = ${currentUser.companyId}`]
   if (entity)    conditions.push(sql`entity = ${entity}`)
   if (action)    conditions.push(sql`action = ${action}`)
   if (userId)    conditions.push(sql`user_id = ${userId}`)
-  if (startDate) conditions.push(sql`created_at >= ${new Date(startDate)}`)
-  if (endDate)   conditions.push(sql`created_at <= ${new Date(endDate)}`)
+  // The same two helpers the list uses, so the CSV contains exactly the rows that were on screen.
+  conditions.push(...dateConditions(startDate, endDate))
+  const searchCond = searchCondition(search)
+  if (searchCond) conditions.push(searchCond)
 
   const where = conditions.reduce((acc, cond, i) => i === 0 ? cond : sql`${acc} AND ${cond}`)
 
@@ -98,7 +117,7 @@ app.get('/export', async (c) => {
   audit.log({
     action: audit.ACTIONS.EXPORT,
     entity: 'audit_log',
-    metadata: { rowCount: rows.length, filters: { entity, action, userId, startDate, endDate } },
+    metadata: { rowCount: rows.length, filters: { entity, action, userId, search, startDate, endDate } },
     req: c,
   })
 

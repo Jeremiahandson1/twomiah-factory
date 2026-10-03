@@ -19,6 +19,32 @@ import { sql } from 'drizzle-orm'  // for the security_events row the code step 
 // question as "is MFA configured" — see shared auth/mfa.ts. (T49 H4)
 import { mfaGateFor, openLoginChallenge, verifyLoginChallenge } from '../shared/index.ts'
 
+/**
+ * One place that writes a security_events row, so every credential change is logged the same way.
+ *
+ * T41: "PIN changes, 2FA setup and logins are not audited." The sign-in code step already wrote one
+ * of these inline; this is that same INSERT, named, so the PIN and enrolment paths can use it too
+ * without each growing its own copy.
+ *
+ * Never throws: an audit write that fails must not take the operation down with it. A credential
+ * change that succeeded and went unlogged is bad; one that is rolled back because the log was
+ * unavailable is worse.
+ */
+async function recordSecurityEvent(
+  c: any, companyId: string, userId: string | null,
+  eventType: string, severity: 'info' | 'warning' | 'critical', description: string,
+) {
+  try {
+    await db.execute(sql`
+      INSERT INTO security_events (id, company_id, event_type, severity, description, user_id, ip_address, created_at)
+      VALUES (gen_random_uuid(), ${companyId}, ${eventType}, ${severity}, ${description},
+              ${userId}, ${c.req.header('x-forwarded-for') || 'unknown'}, NOW())
+    `)
+  } catch (e: any) {
+    logger.warn('security event not recorded', { eventType, message: e?.message })
+  }
+}
+
 const app = new Hono()
 
 const generateTokens = (userId: string, companyId: string, email: string, role: string) => {
@@ -336,7 +362,15 @@ app.post('/pin-login', async (c) => {
 // Set/update PIN (authenticated users only)
 app.put('/pin', authenticate, async (c) => {
   const currentUser = c.get('user') as any
-  const pinSchema = z.object({ pin: z.string().min(4).max(8) })
+  /**
+   * DIGITS. `string().min(4).max(8)` accepted 'abcd'. (T41)
+   *
+   * A till PIN is typed on a numeric keypad at a counter, and the sign-in screen's input strips
+   * anything that is not a digit — so a PIN containing letters could be SET through the API and
+   * then never entered through the UI that exists to enter it. T41: "The PIN API accepts
+   * non-numeric PINs ('abcd')."
+   */
+  const pinSchema = z.object({ pin: z.string().regex(/^\d{4,8}$/, 'A PIN must be 4 to 8 digits.') })
   const data = pinSchema.parse(await c.req.json())
 
   /**
@@ -363,8 +397,14 @@ app.put('/pin', authenticate, async (c) => {
     }
   }
 
+  const [before] = await db.select({ h: user.pinHash }).from(user).where(eq(user.id, currentUser.userId)).limit(1)
   const pinHash = await Bun.password.hash(data.pin, 'bcrypt')
   await db.update(user).set({ pinHash, pinAttempts: 0, pinLockedUntil: null, updatedAt: new Date() } as any).where(eq(user.id, currentUser.userId))
+
+  // A PIN is a way into the till, so setting or changing one belongs in the security log. T41: "PIN
+  // changes, 2FA setup and logins are not audited." The DIGITS are never recorded — only the event.
+  await recordSecurityEvent(c, currentUser.companyId, currentUser.userId,
+    before?.h ? 'pin_changed' : 'pin_set', 'info', before?.h ? 'Changed their till PIN' : 'Set a till PIN')
 
   return c.json({ message: 'PIN updated', pinSet: true })
 })
@@ -387,6 +427,7 @@ app.delete('/pin', authenticate, async (c) => {
   if (!me.pinHash) return c.json({ error: 'You do not have a PIN set.', code: 'no_pin' }, 400)
 
   await db.update(user).set({ pinHash: null, pinAttempts: 0, pinLockedUntil: null, updatedAt: new Date() } as any).where(eq(user.id, currentUser.userId))
+  await recordSecurityEvent(c, currentUser.companyId, currentUser.userId, 'pin_removed', 'info', 'Turned their till PIN off')
   return c.json({ message: 'Quick sign-in is off for your account.', pinSet: false })
 })
 

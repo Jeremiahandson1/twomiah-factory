@@ -1295,6 +1295,10 @@ jobs:
       # `.from(company).limit(1)` with no ORDER BY picked the second row. Found 3x in one day. (T40)
       - name: "single-row company pick — ordered or scoped, never arbitrary"
         run: bun run scripts/check-single-row-pick-is-ordered.ts
+      # T41 raced "Bill this visit": four clicks, four invoices, two sharing a number. No suite here
+      # can see it — PGlite serialises — so the shape is guarded instead. (T41)
+      - name: "billing race — bill-once handlers lock the row and use the shared numbering"
+        run: bun run scripts/check-billing-race-guarded.ts
 
   revenue-one-definition:
     name: "Revenue one definition"

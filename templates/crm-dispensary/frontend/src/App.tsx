@@ -70,6 +70,9 @@ import TaxFilingPage from './pages/TaxFilingPage';
 import MarketplacePage from './pages/MarketplacePage';
 import PlatformPage from './pages/PlatformPage';
 import SecurityPage from './pages/SecurityPage';
+// The person's OWN credentials — PIN and authenticator. Separate from SecurityPage, which is the
+// company's security POLICY (manager+), and from SettingsPage, which is admin-only. (T41)
+import MyAccountPage from './pages/MyAccountPage';
 import SOC2DashboardPage from './pages/SOC2DashboardPage';
 import GrowInputsPage from './pages/GrowInputsPage';
 import QRScannerPage from './pages/QRScannerPage';
@@ -207,6 +210,9 @@ function App() {
                     <Route path="marketplace" element={<MarketplacePage />} />
                     <Route path="platform" element={<PlatformPage />} />
                     <Route path="security" element={<SecurityPage />} />
+                    {/* NO role gate, deliberately: everyone who can sign in may manage how they
+                        sign in. Nothing on this page affects another person or the shop. (T41) */}
+                    <Route path="account" element={<MyAccountPage />} />
                     <Route path="soc2" element={<SOC2DashboardPage />} />
                     <Route path="grow-inputs" element={<GrowInputsPage />} />
                     <Route path="qr-scanner" element={<QRScannerPage />} />

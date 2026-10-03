@@ -241,12 +241,62 @@ export function presentLog(row: any): any {
   return out
 }
 
+/**
+ * The two date bounds, as conditions — shared by the list and the CSV export so they can never
+ * disagree about which rows a date range contains.
+ *
+ * THE UPPER BOUND IS EXCLUSIVE AND A DAY LATER when the caller sends a bare date. The screen's
+ * To field is an <input type="date">, so it sends '2026-10-03', which as a timestamp is that day at
+ * 00:00 — and `created_at <= '2026-10-03 00:00'` excludes everything that happened on the 3rd.
+ * Picking From = To = today therefore returned nothing at all, and picking any range silently
+ * dropped its last day. (T41)
+ *
+ * Stated plainly: the boundary is UTC, because this service is not given the shop's timezone. For a
+ * dispensary in a western timezone the last few hours of the final day land in the next UTC day and
+ * fall outside the range. That is a smaller error than dropping the whole day, and it is the same
+ * assumption the rest of this table already makes by storing bare `created_at`; narrowing it
+ * further needs the company row, which belongs to a separate change.
+ */
+export function dateConditions(startDate?: string, endDate?: string) {
+  const out: any[] = [];
+  const bare = /^\d{4}-\d{2}-\d{2}$/;
+  if (startDate) out.push(sql`created_at >= ${new Date(startDate)}`);
+  if (endDate) {
+    if (bare.test(endDate)) {
+      const end = new Date(`${endDate}T00:00:00.000Z`);
+      end.setUTCDate(end.getUTCDate() + 1);
+      out.push(sql`created_at < ${end}`);
+    } else {
+      out.push(sql`created_at <= ${new Date(endDate)}`);
+    }
+  }
+  return out;
+}
+
+/**
+ * The search condition, or nothing. Shared for the same reason as the dates.
+ *
+ * Matches what a person can actually read on the row: the record's name, who did it, and the id.
+ * %, _ and \ are escaped so a search for "50%" is a search for "50%", not for everything.
+ */
+export function searchCondition(search?: string) {
+  if (!search || !search.trim()) return null;
+  const like = `%${search.trim().replace(/[\\%_]/g, (m) => '\\' + m)}%`;
+  return sql`(
+    COALESCE(entity_name, '') ILIKE ${like} ESCAPE '\\'
+    OR COALESCE(user_name, '') ILIKE ${like} ESCAPE '\\'
+    OR COALESCE(user_email, '') ILIKE ${like} ESCAPE '\\'
+    OR COALESCE(entity_id, '') ILIKE ${like} ESCAPE '\\'
+  )`;
+}
+
 export async function query({
   companyId,
   entity,
   entityId,
   action,
   userId,
+  search,
   startDate,
   endDate,
   page = 1,
@@ -257,6 +307,7 @@ export async function query({
   entityId?: string;
   action?: string;
   userId?: string;
+  search?: string;
   startDate?: string;
   endDate?: string;
   page?: number;
@@ -268,8 +319,13 @@ export async function query({
   if (entityId)  conditions.push(sql`entity_id = ${entityId}`);
   if (action)    conditions.push(sql`action = ${action}`);
   if (userId)    conditions.push(sql`user_id = ${userId}`);
-  if (startDate) conditions.push(sql`created_at >= ${new Date(startDate)}`);
-  if (endDate)   conditions.push(sql`created_at <= ${new Date(endDate)}`);
+  conditions.push(...dateConditions(startDate, endDate));
+  // The Audit Log screen has always had a search box and this query had no `search` at all — so the
+  // box was sent, dropped, and every keystroke returned the unfiltered log. A filter that is ignored
+  // rather than refused looks exactly like an answer, which is the note already written above the
+  // entity/entityType aliasing in routes/audit.ts. (T41)
+  const searchCond = searchCondition(search);
+  if (searchCond) conditions.push(searchCond);
 
   const where = conditions.reduce((acc, cond, i) => i === 0 ? cond : sql`${acc} AND ${cond}`);
   const offset = (page - 1) * limit;
@@ -288,6 +344,44 @@ export async function query({
 }
 
 /**
+ * What this company's log can actually be filtered BY — the distinct actions and record types
+ * present in its own rows, most-used first.
+ *
+ * WHY THIS EXISTS. The Audit Log screen hard-coded its filter list as composite values —
+ * 'order_created', 'product_updated', 'inventory_adjusted', fifteen of them. Nothing writes those:
+ * the log stores `action` ('create', 'update', 'status_change', …) and `entity` ('order', 'product',
+ * …) in two separate columns. So every single option in that dropdown matched zero rows, and
+ * choosing any of them emptied the screen. T41 reported it as "filters return nothing".
+ *
+ * Correcting the hard-coded list by hand is how it was written in the first place, and the entity
+ * vocabulary is ~110 values that grows with every module. So the screen now asks what is there.
+ * A filter built from the data cannot disagree with the data.
+ */
+export async function filterOptions(companyId: string) {
+  const result = await db.execute(sql`
+    SELECT action, entity, COUNT(*)::int AS n
+    FROM audit_log
+    WHERE company_id = ${companyId}
+    GROUP BY action, entity
+  `);
+  const rows = ((result as any).rows || result) as any[];
+
+  const tally = (key: 'action' | 'entity') => {
+    const counts = new Map<string, number>();
+    for (const r of rows) {
+      const v = r[key];
+      if (!v) continue;
+      counts.set(String(v), (counts.get(String(v)) || 0) + Number(r.n || 0));
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([value, count]) => ({ value, count }));
+  };
+
+  return { actions: tally('action'), entities: tally('entity') };
+}
+
+/**
  * Get history for specific entity
  */
 export async function getHistory(companyId: string, entity: string, entityId: string) {
@@ -301,4 +395,4 @@ export async function getHistory(companyId: string, entity: string, entityId: st
   return ((result as any).rows || result).map(presentLog);
 }
 
-export default { log, diff, query, getHistory, ACTIONS, ENTITIES };
+export default { log, diff, query, filterOptions, getHistory, ACTIONS, ENTITIES };

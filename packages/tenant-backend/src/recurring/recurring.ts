@@ -591,8 +591,33 @@ export function createRecurringRoutes(deps: RecurringRoutesDeps) {
    * up, but it is no longer the only thing standing here.
    */
   app.post('/process', requirePermission('invoices:create'), async (c: any) => {
-    const cronSecret = c.req.header('x-cron-secret')
-    if (process.env.CRON_SECRET && cronSecret !== process.env.CRON_SECRET) return c.json({ error: 'Unauthorized' }, 401)
+    /**
+     * FAIL CLOSED. The secret is REQUIRED, not "checked if configured". (T41)
+     *
+     * This morning I added `requirePermission('invoices:create')` and left the secret check as
+     * `if (process.env.CRON_SECRET && …)`. T41 then pointed out the obvious: a MANAGER holds
+     * invoices:create, so a manager could still run every due schedule for the company from a URL
+     * with no screen offering it. My gate narrowed the door; it did not shut it.
+     *
+     * CRON_SECRET is not written into a tenant's environment by the deploy pipeline, the generator
+     * or render.yaml, so in practice the condition was always false and the check never ran at all.
+     * Requiring it means: no secret configured → nobody can trigger a company-wide billing run.
+     * Nothing calls this endpoint today — no internal caller, no Render cron, no template scheduler
+     * — so closing it costs nothing and removes the last way to reach it by hand.
+     *
+     * FOR WHOEVER WIRES A REAL SCHEDULER: this router sits under `app.use('*', authenticate)`, so a
+     * secret-only caller with no user session cannot reach here however correct its header is. Mount
+     * this route outside that middleware (the way /api/internal/* is) rather than loosening the
+     * secret back to optional.
+     */
+    const configured = process.env.CRON_SECRET
+    if (!configured) {
+      return c.json({
+        error: 'Recurring invoices are run on a schedule, not from here. No scheduler is configured for this tenant.',
+        code: 'cron_not_configured',
+      }, 503)
+    }
+    if (c.req.header('x-cron-secret') !== configured) return c.json({ error: 'Unauthorized' }, 401)
     return c.json(await service.processDueRecurring())
   })
 

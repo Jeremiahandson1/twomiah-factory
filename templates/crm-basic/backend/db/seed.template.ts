@@ -72,15 +72,26 @@ async function main() {
   // Seed help articles if none exist
   const existingArticles = await db.select().from(supportKnowledgeBase).where(eq(supportKnowledgeBase.companyId, comp.id)).limit(1)
   if (existingArticles.length === 0) {
+    // These eight articles are the first thing a new tenant reads, and they used to open with
+    // "Getting Started with Your Field Service CRM" and go on about AC installs, furnace repairs,
+    // duct cleaning and dispatching technicians. This template is shared by showcase, foodtruck and
+    // basic (industryRouting.ts), so a gym, a venue and a food truck were all handed an HVAC
+    // contractor's help centre on day one. T41 called it out on the showcase tenant.
+    //
+    // The wording below names only what the modules actually are, so it is true for all three.
+    // One substantive correction while rewriting: the Team article told people to assign the roles
+    // "admin, dispatcher, technician". Those are not this product's roles — DEFAULT_ROLES is
+    // viewer / field (shown as Staff) / manager / admin — so the instruction could not be followed
+    // as written. It now names the real four.
     const helpArticles = [
-      { title: 'Getting Started with Your Field Service CRM', content: 'Welcome to your field service CRM! Start by adding customer contacts, creating service calls (AC Install, Furnace Repair, Duct Cleaning, etc.), and sending quotes. Use the sidebar to navigate between modules.', category: 'Getting Started', isFaq: true, sortOrder: 1 },
-      { title: 'Managing Customers', content: 'Contacts are the foundation of your CRM. Add new customers from the Contacts page. Each customer can have multiple service calls, quotes, and invoices linked to them. Use tags to categorize by service type (HVAC, Plumbing, Electrical).', category: 'Getting Started', isFaq: false, sortOrder: 2 },
-      { title: 'Creating and Sending Quotes', content: 'Navigate to Quotes to create a new quote for services like AC Installation, Heat Pump Replacement, or Furnace Repair. Select a customer, add line items with parts and labor, then send the quote via email. Customers can approve quotes online through the customer portal.', category: 'Quotes & Invoices', isFaq: false, sortOrder: 3 },
-      { title: 'Invoice Management', content: 'Create invoices from the Invoices page or convert approved quotes to invoices. Set payment terms, add line items for parts, labor, and service fees, and send to customers. Track payment status and send reminders for overdue invoices.', category: 'Quotes & Invoices', isFaq: false, sortOrder: 4 },
-      { title: 'How do I schedule service calls?', content: 'Go to the Schedule page to view your dispatch calendar. Click on a date to create a new service call or drag existing calls to reschedule. Assign technicians, set estimated duration, and choose the service type (repair, maintenance, install, emergency). The calendar supports day, week, and month views.', category: 'Scheduling', isFaq: true, sortOrder: 5 },
-      { title: 'Team & Technician Management', content: 'Add team members from the Team page. Assign roles (admin, dispatcher, technician) to control access. Technicians can be assigned to service calls, tracked on the dispatch board, and have their time entries logged for payroll.', category: 'Team', isFaq: false, sortOrder: 6 },
-      { title: 'How do I track technician time?', content: 'Use the Time page to log hours for service calls. Technicians can clock in/out at job sites or manually add time entries. Time entries are linked to specific service calls for accurate billing and labor cost tracking.', category: 'Time & Expenses', isFaq: true, sortOrder: 7 },
-      { title: 'Equipment & Service History', content: 'Track customer equipment (HVAC units, water heaters, furnaces) and maintain complete service history. Attach photos, manuals, and warranty documents to customer records for quick reference during service calls.', category: 'Documents', isFaq: false, sortOrder: 8 },
+      { title: 'Getting Started with Your CRM', content: 'Welcome to your CRM. Start by adding your customer contacts, creating jobs for the work you have booked, and sending quotes. Use the sidebar to move between modules.', category: 'Getting Started', isFaq: true, sortOrder: 1 },
+      { title: 'Managing Customers', content: 'Contacts are the foundation of your CRM. Add new customers from the Contacts page. Each customer can have any number of jobs, quotes and invoices linked to them. Use tags to group them the way you actually work — by service, by location, or by account type.', category: 'Getting Started', isFaq: false, sortOrder: 2 },
+      { title: 'Creating and Sending Quotes', content: 'Go to Quotes to build a quote for a customer. Add a line item for each part of the work and anything you supply, then send the quote by email. Customers can approve a quote online through the customer portal, and an approved quote can be turned into a job or an invoice in one step.', category: 'Quotes & Invoices', isFaq: false, sortOrder: 3 },
+      { title: 'Invoice Management', content: 'Create invoices from the Invoices page, or convert an approved quote into one. Set the payment terms, add your line items, and send it to the customer. Track payment status and send reminders for anything overdue.', category: 'Quotes & Invoices', isFaq: false, sortOrder: 4 },
+      { title: 'How do I schedule work?', content: 'Go to the Schedule page to see your calendar. Click a date to create a job, or drag an existing job to move it. Assign who is doing it, set an estimated duration, and choose the job type. The calendar has day, week and month views.', category: 'Scheduling', isFaq: true, sortOrder: 5 },
+      { title: 'Team Management', content: 'Add team members from the Team page. Each person gets a role — Viewer can look but change nothing, Staff handles day-to-day work, Manager has full access to work and invoicing, Admin also has company settings and the team itself. Team members can be assigned to jobs and have their time logged for payroll.', category: 'Team', isFaq: false, sortOrder: 6 },
+      { title: 'How do I track time?', content: 'Use the Time page to log hours against a job. People can clock in and out on site, or add an entry by hand. Every entry links to a specific job, so billing and labour cost stay accurate.', category: 'Time & Expenses', isFaq: true, sortOrder: 7 },
+      { title: 'Equipment & Service History', content: 'Track the equipment you look after for a customer and keep its full service history. Attach photos, manuals and warranty documents to the record so they are to hand the next time you are on site.', category: 'Documents', isFaq: false, sortOrder: 8 },
     ]
     for (const article of helpArticles) {
       await db.insert(supportKnowledgeBase).values({
@@ -165,30 +176,41 @@ async function main() {
     console.log('Created 2 demo sites for Martinez')
 
     // Create demo equipment linked to customers
+    //
+    // The four demo units were an AC condenser, a gas furnace, a tankless water heater and a heat
+    // pump — an HVAC contractor's book of work, seeded unconditionally into a template shared by
+    // showcase, foodtruck and basic. T41 found it on a gym. They are now ordinary FACILITY
+    // equipment: things a gym, a venue, a food truck and a general small business all plausibly
+    // have serviced, which is what this generic CRM is for. Every id, status, date, warranty and
+    // link downstream (jobs, quotes, photos) is unchanged — only the nouns moved, so the demo still
+    // shows the same relationships it was built to show.
+    //
+    // The water heater below (eq3) and its descaling job kept their original wording: a water
+    // heater is already trade-neutral.
     const [eq1] = await db.insert(equipment).values({
-      name: 'Central AC Unit',
-      manufacturer: 'Carrier',
-      model: '24ACC636A003',
-      serialNumber: 'CAR-2019-48271',
+      name: 'Commercial Refrigerator',
+      manufacturer: 'True',
+      model: 'T-49-HC',
+      serialNumber: 'TRU-2019-48271',
       status: 'active',
-      location: 'Backyard (east side)',
+      location: 'Kitchen — east wall',
       purchaseDate: new Date('2019-06-15'),
       warrantyExpiry: new Date('2029-06-15'),
-      notes: '3-ton, 16 SEER. Annual tune-up due each spring.',
+      notes: '49 cu ft, two-door. Condenser coil cleaning due each spring.',
       companyId: comp.id,
       contactId: johnson.id,
     }).returning()
 
     await db.insert(equipment).values({
-      name: 'Gas Furnace',
-      manufacturer: 'Lennox',
-      model: 'SL280UHV070V36B',
-      serialNumber: 'LNX-2019-93847',
+      name: 'Backup Generator',
+      manufacturer: 'Generac',
+      model: 'RG02224',
+      serialNumber: 'GEN-2019-93847',
       status: 'active',
-      location: 'Basement utility room',
+      location: 'Side pad, north wall',
       purchaseDate: new Date('2019-06-15'),
       warrantyExpiry: new Date('2029-06-15'),
-      notes: '70K BTU, two-stage variable speed. Paired with Carrier AC.',
+      notes: '22 kW natural gas standby. Self-tests weekly, full service annually.',
       companyId: comp.id,
       contactId: johnson.id,
     }).returning()
@@ -209,15 +231,15 @@ async function main() {
     }).returning()
 
     const [eq4] = await db.insert(equipment).values({
-      name: 'Heat Pump System',
-      manufacturer: 'Trane',
-      model: 'XR15',
-      serialNumber: 'TRN-2016-22039',
+      name: 'Walk-In Cooler',
+      manufacturer: 'Nor-Lake',
+      model: 'KLB74810-C',
+      serialNumber: 'NOR-2016-22039',
       status: 'needs_repair',
-      location: 'Side yard',
+      location: 'Warehouse B — north bay',
       purchaseDate: new Date('2016-03-22'),
       warrantyExpiry: new Date('2026-03-22'),
-      notes: '3.5-ton heat pump. Compressor making noise — needs diagnostic.',
+      notes: '8 x 10 walk-in. Compressor making noise — needs diagnostic.',
       companyId: comp.id,
       contactId: martinez.id,
       siteId: martinezWarehouse.id,
@@ -228,8 +250,8 @@ async function main() {
     // Create demo jobs linked to equipment
     const [job1] = await db.insert(job).values({
       number: 'JOB-00001',
-      title: 'Annual AC Tune-Up',
-      description: 'Spring maintenance on Carrier central AC. Check refrigerant levels, clean coils, inspect electrical connections.',
+      title: 'Annual Refrigeration Service',
+      description: 'Spring service on the True reach-in. Clean condenser coils, check door seals and holding temperatures, inspect electrical connections.',
       status: 'completed',
       priority: 'normal',
       jobType: 'maintenance',
@@ -248,8 +270,8 @@ async function main() {
 
     await db.insert(job).values({
       number: 'JOB-00002',
-      title: 'Heat Pump Diagnostic — Compressor Noise',
-      description: 'Customer reports loud rattling from outdoor unit. Inspect compressor, check mounting bolts, test capacitor and contactors.',
+      title: 'Walk-In Cooler Diagnostic — Compressor Noise',
+      description: 'Customer reports loud rattling from the condensing unit. Inspect compressor, check mounting bolts, test capacitor and contactors.',
       status: 'scheduled',
       priority: 'high',
       jobType: 'repair',
@@ -284,7 +306,7 @@ async function main() {
       equipmentId: eq3.id,
     })
 
-    console.log('Created 3 demo service calls linked to equipment')
+    console.log('Created 3 demo jobs linked to equipment')
 
     // Create demo quotes
     const existingQuotes = await db.select().from(quote).where(eq(quote.companyId, comp.id)).limit(1)
@@ -292,15 +314,15 @@ async function main() {
       // Draft quote for Johnson — capacitor replacement
       await db.insert(quote).values({
         number: 'QTE-00001',
-        name: 'AC Capacitor Replacement',
+        name: 'Capacitor Replacement',
         status: 'draft',
         subtotal: '340.00',
         taxRate: '0',
         taxAmount: '0',
         discount: '0',
         total: '340.00',
-        customerMessage: 'Your AC unit is running but the start capacitor is showing signs of wear. Replacing it now will prevent a breakdown during peak summer.',
-        notes: 'Johnson called about AC making clicking noise on startup.',
+        customerMessage: 'The refrigerator is still running, but the start capacitor is showing signs of wear. Replacing it now will prevent a breakdown in the middle of summer.',
+        notes: 'Johnson called about the unit making a clicking noise on startup.',
         expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         companyId: comp.id,
         contactId: johnson.id,
@@ -313,7 +335,10 @@ async function main() {
         ])
       })
 
-      // Approved quote for Martinez — coil cleaning + refrigerant, already converted to job
+      // Approved quote for Martinez — coil cleaning + refrigerant, already converted to job.
+      // Both still read correctly against the walk-in cooler eq4 is now: an evaporator coil and a
+      // refrigerant charge are refrigeration parts, so this quote, its four line items and the
+      // JOB-00004 it converts into needed no rewording.
       const [martinezQuote] = await db.insert(quote).values({
         number: 'QTE-00002',
         name: 'Evaporator Coil Cleaning & Refrigerant Recharge',
@@ -323,7 +348,7 @@ async function main() {
         taxAmount: '0',
         discount: '0',
         total: '1240.00',
-        customerMessage: 'The evaporator coil on the warehouse heat pump is heavily soiled and refrigerant is 1.5 lbs low. Cleaning and recharging will restore cooling capacity.',
+        customerMessage: 'The evaporator coil in the warehouse walk-in is heavily soiled and the refrigerant is 1.5 lbs low. Cleaning and recharging will restore cooling capacity.',
         notes: 'Martinez warehouse unit — low performance complaint.',
         expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         sentAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
@@ -375,8 +400,8 @@ async function main() {
     if (existingAgreements.length === 0) {
       // Create a plan first
       const [plan] = await db.insert(agreementPlan).values({
-        name: 'HVAC Maintenance Plan',
-        description: 'Quarterly HVAC tune-ups with priority scheduling and 10% discount on repairs.',
+        name: 'Quarterly Maintenance Plan',
+        description: 'Quarterly equipment service with priority scheduling and 10% discount on repairs.',
         price: '299.00',
         billingFrequency: 'annual',
         visitsIncluded: 4,
@@ -394,14 +419,14 @@ async function main() {
 
       await db.insert(serviceAgreement).values({
         number: 'AGR-00001',
-        name: 'HVAC Maintenance Plan — Johnson',
+        name: 'Quarterly Maintenance Plan — Johnson',
         status: 'active',
         startDate: new Date('2025-06-01'),
         endDate: new Date('2026-06-01'),
         billingFrequency: 'annual',
         amount: '299.00',
         renewalType: 'auto',
-        notes: 'Covers both AC and furnace. Quarterly visits.',
+        notes: 'Covers the refrigerator and the generator. Quarterly visits.',
         planId: plan.id,
         recurrenceRule: { frequency: 'quarterly' },
         nextServiceDate: ninetyDays,
@@ -423,15 +448,15 @@ async function main() {
           companyId: comp.id,
           jobId: job1.id,
           uploadedById: adminUser.id,
-          url: 'https://placehold.co/800x600/e2e8f0/475569?text=AC+Unit+Before',
-          caption: 'AC unit before service — dirty coils visible',
+          url: 'https://placehold.co/800x600/e2e8f0/475569?text=Before+Service',
+          caption: 'Before service — dirty condenser coils visible',
         },
         {
           companyId: comp.id,
           jobId: job1.id,
           uploadedById: adminUser.id,
-          url: 'https://placehold.co/800x600/e2e8f0/475569?text=AC+Unit+After',
-          caption: 'AC unit after service — coils cleaned and refrigerant topped off',
+          url: 'https://placehold.co/800x600/e2e8f0/475569?text=After+Service',
+          caption: 'After service — coils cleaned and holding temperature verified',
         },
       ])
       console.log('Created 2 demo photos on JOB-00001')

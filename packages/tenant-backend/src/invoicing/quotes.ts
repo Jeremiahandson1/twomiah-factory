@@ -4,7 +4,8 @@
 // customer message, decline with timestamp, SMS on send, which conversions it offers).
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq, and, or, count, desc, asc, ilike, inArray } from 'drizzle-orm'
+// `sql` is for the FOR UPDATE lock on the quote in convert-to-invoice. (T41)
+import { eq, and, or, count, desc, asc, ilike, inArray, sql } from 'drizzle-orm'
 import { round2, calcTotals, rawSubtotal, businessToday, defaultTaxRateFrom, dueDateFromTerms, quoteExpiryFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
 import { checkFilter } from '../listFilter'
 
@@ -385,11 +386,35 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       const found = await findOwn(cid, id)
       if (!found) return c.json({ error: 'Quote not found' }, 404)
       if (['rejected', 'declined', 'expired'].includes(found.status)) return c.json({ error: `A ${found.status} quote cannot be converted to an invoice.` }, 400)
+      /**
+       * The already-converted check is the FAST PATH. The one that decides is inside the
+       * transaction, under a lock on the quote. (T41)
+       *
+       * This read ran outside the transaction, so two people pressing "Convert to invoice" together
+       * both saw "not yet" and both converted: one quote, two invoices, the second of which nobody
+       * is expecting and which sits in AR. It is the same shape T41 found on vet's "Bill this
+       * visit", where four concurrent clicks produced four invoices — and this one is in shared
+       * code, so it ships to every vertical that enables the conversion.
+       *
+       * A re-read alone would not fix it; the second caller has to BLOCK. So the quote row is locked
+       * FOR UPDATE and the existence check repeated inside, where the first committer's invoice is
+       * already visible.
+       *
+       * Everything after the lock uses `tx`. `items` and `settings` are deliberately read BEFORE the
+       * transaction opens — going back to the pool while it is open deadlocks a single-connection
+       * database, as the comment on the PUT path above records.
+       */
       const [already] = await db.select({ id: t.invoice.id, number: t.invoice.number }).from(t.invoice).where(and(eq(t.invoice.quoteId, id), eq(t.invoice.companyId, cid))).limit(1)
       if (already) return c.json({ error: `This quote was already converted to invoice ${already.number}.`, invoiceId: already.id }, 400)
       const items = await lineRows(id)
       const settings = await companySettings(cid)
       const result = await db.transaction(async (tx: any) => {
+        // Serialises two converters of the SAME quote against each other.
+        await tx.execute(sql`SELECT id FROM quote WHERE id = ${id} AND company_id = ${cid} FOR UPDATE`)
+        const dup = await tx.select({ id: t.invoice.id, number: t.invoice.number }).from(t.invoice)
+          .where(and(eq(t.invoice.quoteId, id), eq(t.invoice.companyId, cid))).limit(1)
+        if (dup.length) return { conflict: dup[0] }
+
         const number = await nextNumber(tx, t.invoice, t.invoice.number, t.invoice.companyId, cid, numInvoice)
         const [inv] = await tx.insert(t.invoice).values({
           number, contactId: found.contactId, projectId: found.projectId, quoteId: found.id,
@@ -397,10 +422,14 @@ export function createQuoteRoutes(deps: QuoteDeps) {
           dueDate: dueDateFromTerms(settings), notes: found.notes, terms: found.terms, companyId: cid,
         }).returning()
         const lines = items.length ? await tx.insert(t.invoiceLineItem).values(items.map((li: any) => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice, total: li.total, sortOrder: li.sortOrder, invoiceId: inv.id }))).returning() : []
-        return { ...inv, lineItems: lines }
+        return { invoice: { ...inv, lineItems: lines } }
       })
-      emitToCompany(cid, EVENTS.INVOICE_CREATED, result)
-      return c.json(result, 201)
+      // The loser of the race gets the winner's invoice number, not a second invoice.
+      if ('conflict' in result && result.conflict) {
+        return c.json({ error: `This quote was already converted to invoice ${result.conflict.number}.`, invoiceId: result.conflict.id }, 400)
+      }
+      emitToCompany(cid, EVENTS.INVOICE_CREATED, (result as any).invoice)
+      return c.json((result as any).invoice, 201)
     })
   }
 

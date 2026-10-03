@@ -1,7 +1,16 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { visit, user, patient, invoice, invoiceLineItem } from '../../db/schema.ts'
-import { eq, and, desc } from 'drizzle-orm'
+import { eq, and, desc, sql } from 'drizzle-orm'
+// insertInvoice is the ONE write path for a new invoice — it numbers under an advisory lock, which is
+// what stops two concurrent bills taking the same number. See POST /:id/invoice. (T41)
+import { insertInvoice } from '../shared/index.ts'
+
+/** Same numbering as this CRM's invoices route, so a billed visit continues the same sequence. */
+const INVOICE_NUMBERING = { prefix: 'INV', pad: 5, seed: 0 }
+
+/** db.execute shapes differ by driver; every raw read here goes through this. */
+const rowsOf = (r: any): any[] => (r?.rows ?? r ?? []) as any[]
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -82,57 +91,82 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
 
 // POST /visits/:id/invoice — turn a visit's charge into a draft invoice billed to the
 // pet's owner. Without this the charge captured on a visit never reached billing. (VET-15)
+/**
+ * Bill a visit — ONCE, even when two people press the button at the same moment. (T41)
+ *
+ * THE FAULT. This read the visit, checked `invoiceId`, and inserted, all outside a transaction. Two
+ * parallel requests both passed the check and both inserted: T41 raced it five times two-way and
+ * double-billed five times out of five, across owner, staff and manager, and a four-way race
+ * produced three invoices. Twice the pair even shared a number (INV-00061, INV-00070), because the
+ * number came from a `max()` scan with nothing serialising it. The visit links only the LAST
+ * invoice, so the others sit in AR with no visit pointing at them — money owed by nobody,
+ * discoverable only by reconciling the ledger by hand.
+ *
+ * THE FIX IS NOT A TIGHTER CHECK. A re-read cannot fix a race; it just narrows the window. Two
+ * things make it impossible instead:
+ *
+ *   1. `SELECT … FOR UPDATE` on the VISIT row inside a transaction. The second request blocks until
+ *      the first commits, then reads the invoice_id the first one wrote and answers 409. That is the
+ *      same lock invoices.ts already takes before it moves money on an invoice.
+ *   2. The shared `insertInvoice`, instead of this file's own copy of invoice creation. It numbers
+ *      under `pg_advisory_xact_lock` so two invoices cannot take the same number, and it is the one
+ *      write path every other vertical uses — snow billing, agreements, wellness plans and event
+ *      deposits all go through it. Vet having its own hand-rolled copy is why vet alone had the
+ *      duplicate-number bug.
+ *
+ * Everything inside the transaction uses `tx`. A helper that reaches for the outer `db` here would
+ * deadlock PGlite and hang the suite with no output.
+ */
 app.post('/:id/invoice', requirePermission('invoices:create'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
-  const [v] = await db.select().from(visit)
-    .where(and(eq(visit.id, id), eq(visit.companyId, currentUser.companyId))).limit(1)
-  if (!v) return c.json({ error: 'Visit not found' }, 404)
-  if (v.invoiceId) return c.json({ error: 'This visit has already been billed.' }, 409)
-  const charge = Number(v.total)
-  if (!charge || charge <= 0) return c.json({ error: 'This visit has no charge to bill.' }, 400)
+  const outcome = await db.transaction(async (tx: any) => {
+    // The lock. Scoped to the company, so one tenant cannot block another's row by id.
+    const locked = rowsOf(await tx.execute(
+      sql`SELECT id, patient_id, total, invoice_id, visit_date FROM visit
+           WHERE id = ${id} AND company_id = ${currentUser.companyId} FOR UPDATE`,
+    ))
+    const v = locked[0]
+    if (!v) return { status: 404 as const, body: { error: 'Visit not found' } }
+    if (v.invoice_id) return { status: 409 as const, body: { error: 'This visit has already been billed.' } }
 
-  const [pet] = await db.select({ ownerId: patient.ownerId, name: patient.name }).from(patient)
-    .where(eq(patient.id, v.patientId)).limit(1)
-  if (!pet?.ownerId) return c.json({ error: 'This patient has no owner to bill.' }, 400)
+    const charge = Number(v.total)
+    if (!charge || charge <= 0) return { status: 400 as const, body: { error: 'This visit has no charge to bill.' } }
 
-  // Next number from the highest existing one, matching the invoices route. (VET-03)
-  const existingNumbers = await db.select({ number: invoice.number }).from(invoice).where(eq(invoice.companyId, currentUser.companyId))
-  const maxSeq = existingNumbers.reduce((max, r) => {
-    const m = String(r.number || '').match(/(\d+)\s*$/)
-    return m ? Math.max(max, parseInt(m[1], 10)) : max
-  }, 0)
-  const amount = (Math.round(charge * 100) / 100).toFixed(2)
+    const [pet] = await tx.select({ ownerId: patient.ownerId, name: patient.name }).from(patient)
+      .where(eq(patient.id, v.patient_id)).limit(1)
+    if (!pet?.ownerId) return { status: 400 as const, body: { error: 'This patient has no owner to bill.' } }
 
-  const [inv] = await db.insert(invoice).values({
-    contactId: pet.ownerId,
-    // The owner is billed, but the charges are this animal's — the chart's Invoices tab reads it. (T12 M6)
-    patientId: v.patientId,
-    subtotal: amount,
-    taxAmount: '0',
-    total: amount,
-    amountPaid: '0',
-    taxRate: '0',
-    discount: '0',
-    number: `INV-${String(maxSeq + 1).padStart(5, '0')}`,
-    status: 'draft',
-    companyId: currentUser.companyId,
-  }).returning()
+    const amount = Math.round(charge * 100) / 100
+    const when = v.visit_date ? new Date(v.visit_date) : null
+    const inv = await insertInvoice(
+      tx,
+      { invoice, invoiceLineItem } as any,
+      INVOICE_NUMBERING,
+      {
+        companyId: currentUser.companyId,
+        contactId: pet.ownerId,
+        issueDate: new Date(), dueDate: new Date(),
+        taxRate: 0, status: 'draft',
+        // The owner is billed, but the charges are this animal's — the chart's Invoices tab reads it. (T12 M6)
+        extra: { patientId: v.patient_id },
+      },
+      [{
+        description: `Veterinary visit${when ? ' — ' + when.toLocaleDateString('en-US') : ''}${pet.name ? ` (${pet.name})` : ''}`,
+        quantity: 1, unitPrice: amount,
+      }] as any,
+    )
 
-  await db.insert(invoiceLineItem).values({
-    invoiceId: inv.id,
-    description: `Veterinary visit${v.visitDate ? ' — ' + new Date(v.visitDate).toLocaleDateString('en-US') : ''}${pet.name ? ` (${pet.name})` : ''}`,
-    quantity: '1',
-    unitPrice: amount,
-    total: amount,
-    sortOrder: 0,
+    await tx.update(visit).set({ invoiceId: inv.id, updatedAt: new Date() }).where(eq(visit.id, id))
+    return { status: 201 as const, body: inv }
   })
 
-  await db.update(visit).set({ invoiceId: inv.id, updatedAt: new Date() }).where(eq(visit.id, id))
-  await audit.log({ action: 'create', entity: 'invoice', entityId: inv.id, metadata: { fromVisit: id }, req: { user: currentUser } })
-  emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'invoice' })
-  return c.json(inv, 201)
+  if (outcome.status === 201) {
+    await audit.log({ action: 'create', entity: 'invoice', entityId: (outcome.body as any).id, metadata: { fromVisit: id }, req: { user: currentUser } })
+    emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'invoice' })
+  }
+  return c.json(outcome.body as any, outcome.status)
 })
 
 // PUT /visits/:id

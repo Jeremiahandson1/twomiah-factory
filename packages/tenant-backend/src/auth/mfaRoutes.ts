@@ -203,14 +203,35 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
     const u = c.get('user') as any
     const body = await c.req.json().catch(() => ({} as any))
     const code = typeof body?.code === 'string' ? body.code : ''
-    if (!code) return c.json({ error: 'Enter the code from your authenticator to turn two-factor off.', code: 'code_required' }, 400)
-    if (!(await presentedLiveCode(u, code))) return c.json({ error: 'That code was not right.', code: 'bad_code' }, 400)
 
+    // Read the device FIRST: whether a code is required depends on what it is. (T41)
     const [device] = rowsOf(await db.execute(sql`
-      SELECT id, type FROM mfa_devices
+      SELECT id, type, COALESCE(is_verified, false) AS is_verified FROM mfa_devices
        WHERE id = ${c.req.param('id')} AND user_id = ${u.userId} AND company_id = ${u.companyId} LIMIT 1
     `))
     if (!device) return c.json({ error: 'That device is not on your account.' }, 404)
+
+    /**
+     * AN ABANDONED ENROLMENT NEEDS NO CODE TO CLEAN UP. (T41)
+     *
+     * Demanding a code is right for a VERIFIED device: it proves the person asking still holds the
+     * factor they are switching off. For an UNVERIFIED one it is a trap. T41, on every tenant
+     * tested: "Cancelling two-factor setup leaves an unverified device behind. Deleting it needs a
+     * code, so it can't be cleaned up."
+     *
+     * Someone who started setup and stopped — closed the tab, could not scan the QR, changed their
+     * mind — may never have had the seed in an authenticator at all, so there is no code they could
+     * produce. And the row protects nothing: `mfaGateFor` counts only VERIFIED devices, which is
+     * why sign-in was unaffected and why this sat there unnoticed. The result was a row nobody could
+     * remove and a card showing a pending enrolment for ever.
+     *
+     * Deleting an unverified row cannot weaken the account: it was never a second factor.
+     */
+    const needsCode = device.is_verified === true || device.is_verified === 't' || device.is_verified === 1
+    if (needsCode) {
+      if (!code) return c.json({ error: 'Enter the code from your authenticator to turn two-factor off.', code: 'code_required' }, 400)
+      if (!(await presentedLiveCode(u, code))) return c.json({ error: 'That code was not right.', code: 'bad_code' }, 400)
+    }
 
     // A policy that demands a second factor must not be left demanding one nobody has.
     const [co] = rowsOf(await db.execute(sql`SELECT settings FROM company WHERE id = ${u.companyId} LIMIT 1`))

@@ -79,7 +79,10 @@ const as = (who: any) => async (method: string, path: string, body?: unknown) =>
   const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
   return { status: res.status, json: j, text: t }
 }
-const asOwner = as(owner), asTech = as(tech)
+// A manager seat too, because the T41 race mixed roles — owner, staff and manager all billed the
+// same visit at once, and all three won.
+const manager = await mkUser('manager', 'manager')
+const asOwner = as(owner), asTech = as(tech), asManager = as(manager)
 
 const count = async (q: any) => Number((((await db.execute(q)) as any).rows ?? [])[0]?.n ?? 0)
 
@@ -146,6 +149,67 @@ console.log('\n══════════ never twice ═══════�
 
   const stillOne = await count(sql`SELECT COUNT(*)::int AS n FROM invoice_line_item WHERE invoice_id = ${invoiceId}`)
   check('…and the first invoice did not grow a second line', stillOne === 1, { lineItems: stillOne })
+}
+
+// ══════════ T41 · the 409 path under parallel calls — AND WHAT THIS CANNOT PROVE ══════════════
+//
+// READ THIS BEFORE TRUSTING IT. This block fires four parallel bills at one visit and asserts one
+// wins. It passes. It ALSO passes with the `FOR UPDATE` lock deleted from the handler — I checked.
+// PGlite serialises the sandbox's requests, so there is no real concurrency here and this cannot
+// observe the race in either direction.
+//
+// What it does earn: the 409 path, the invoice count, the visit link and the no-orphans invariant,
+// all of which are worth keeping. What it must NOT be read as: evidence that the race is fixed.
+//
+// The race is proven two other ways, because this one cannot:
+//   · scripts/check-billing-race-guarded.ts (#196) pins the lock and the shared write path in source
+//   · scratchpad/race-vet-live.ts races the LIVE tenant on real Postgres, which is where T41 found it.
+//     Before the fix: 4 of 5 rounds double-billed, one round turned 4 clicks into 4 invoices, with
+//     duplicate numbers in four rounds.
+console.log('\n══════════ parallel bills (the 409 path; PGlite cannot race) ══════════')
+{
+  const [v] = await db.insert(visit).values({
+    companyId: co.id, patientId: pet.id, visitDate: new Date('2026-09-25T15:00:00Z'),
+    reason: 'Dental under anaesthetic', total: '412.75',
+  } as any).returning()
+
+  const before = await count(sql`SELECT COUNT(*)::int AS n FROM invoice WHERE company_id = ${co.id}`)
+
+  // Four at once, from three different seats — the shape T41 used.
+  const results = await Promise.all([
+    asOwner('POST', `/api/visits/${v.id}/invoice`),
+    asOwner('POST', `/api/visits/${v.id}/invoice`),
+    asTech('POST', `/api/visits/${v.id}/invoice`),
+    asManager('POST', `/api/visits/${v.id}/invoice`),
+  ])
+  const created = results.filter((r) => r.status === 201)
+  const refused = results.filter((r) => r.status === 409)
+
+  check('exactly ONE of four concurrent bills is accepted', created.length === 1,
+    { statuses: results.map((r) => r.status), bodies: results.filter((r) => r.status >= 400).map((r) => r.text?.slice(0, 80)) })
+  check('…and the other three are refused as already billed', refused.length === 3, { refused: refused.length, statuses: results.map((r) => r.status) })
+
+  const after = await count(sql`SELECT COUNT(*)::int AS n FROM invoice WHERE company_id = ${co.id}`)
+  check('…so the ledger grew by exactly one invoice', after === before + 1, { before, after })
+
+  // The duplicate NUMBER is its own fault: a max() scan with nothing serialising it handed the same
+  // number to both winners. insertInvoice numbers under pg_advisory_xact_lock.
+  const dupes: any = await db.execute(sql`
+    SELECT number, COUNT(*)::int AS n FROM invoice WHERE company_id = ${co.id} GROUP BY number HAVING COUNT(*) > 1`)
+  const dupeRows = ((dupes as any).rows || dupes)
+  check('…and no two invoices share a number', dupeRows.length === 0, dupeRows)
+
+  // An orphan is the lasting damage: an invoice in AR that no visit points at.
+  const linked: any = await db.execute(sql`SELECT invoice_id FROM visit WHERE id = ${v.id}`)
+  const invoiceId = ((linked as any).rows || linked)[0]?.invoice_id
+  check('…the visit points at the invoice that was raised', invoiceId === created[0]?.json?.id,
+    { onVisit: invoiceId, created: created[0]?.json?.id })
+
+  const orphans = await count(sql`
+    SELECT COUNT(*)::int AS n FROM invoice i
+     WHERE i.company_id = ${co.id} AND i.patient_id = ${pet.id}
+       AND NOT EXISTS (SELECT 1 FROM visit vv WHERE vv.invoice_id = i.id)`)
+  check('…and no orphaned invoice is left sitting in AR', orphans === 0, { orphans })
 }
 
 // ══════════ a visit with nothing to charge ═══════════════════════════════════════════════════

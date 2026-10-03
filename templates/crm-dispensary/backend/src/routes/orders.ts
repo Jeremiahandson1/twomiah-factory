@@ -929,6 +929,21 @@ app.put('/:id/status', requireRole('driver'), async (c) => {
           stockQuantity: sql`${product.stockQuantity} - ${item.quantity}`,
           updatedAt: new Date(),
         } as any).where(eq(product.id, item.productId))
+
+        // …and the BATCH, the same as /complete does. (T41)
+        //
+        // The comment above calls this "the other way a cannabis sale gets settled", and it moved
+        // the product but not the lot — so completing a sale from the order detail page left the
+        // batch reading what it started at, which is the T46 N14 drift reappearing on the second
+        // path. Rule: every way a sale is completed has to move the batch, not just the one the
+        // report happened to name.
+        if ((item as any).batchId) {
+          await tx.execute(sql`
+            UPDATE batches
+            SET current_quantity = GREATEST(COALESCE(current_quantity, 0) - ${item.quantity}, 0), updated_at = NOW()
+            WHERE id = ${(item as any).batchId} AND company_id = ${currentUser.companyId}
+          `)
+        }
       }
     }
     return u
@@ -1666,8 +1681,13 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
       updatedAt: new Date(),
     } as any).where(eq(order.id, id))
 
-    // Restore inventory for the returned units — only if the sale actually decremented it
-    // (completedAt is set only by /complete; a status-flow "completed" never decremented). (F1)
+    // Restore inventory for the returned units — only if the sale actually decremented it. (F1)
+    //
+    // completedAt is the marker, and it is the right one: BOTH settlement paths set it and both
+    // decrement (POST /complete, and PUT /:id/status when nowCompleting). The parenthetical that
+    // used to sit here said a status-flow "completed" never decremented, which stopped being true
+    // when that path was taught to move inventory — worth correcting, because the next person to
+    // read it would conclude this restore was over-restoring when it is in fact balanced.
     if (data.restoreInventory && existing.completedAt) {
       for (const r of refundPlan) {
         if (!r.line.productId) continue
@@ -1675,6 +1695,36 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
           stockQuantity: sql`${product.stockQuantity} + ${r.qty}`,
           updatedAt: new Date(),
         } as any).where(eq(product.id, r.line.productId))
+
+        // …and back into the BATCH the units were sold out of. (T41)
+        //
+        // /complete decrements both the product and the batch (see the sale loop above), and this
+        // restore only ever put the product back. So every return quietly shrank the lot's recorded
+        // remaining quantity for good: sell 5 from a batch of 20 and take all 5 back, and the batch
+        // reads 15 with 20 on the shelf. That gap is the number a recall is answered with — the same
+        // figure T46 N14 was raised about from the other direction — so it is a compliance error,
+        // not a reporting one, and it compounds with every return.
+        //
+        // Capped so a return can never inflate a lot past what it held: LEAST(current + qty, …).
+        // The ceiling is GREATEST(initial_quantity, current_quantity), not initial_quantity alone,
+        // because a manual count correction (batches.ts /deplete) can legitimately set current above
+        // initial, and clamping to initial there would destroy that correction. Where the sale had
+        // floored a drifted batch at 0, the units still come back — losing them silently would be
+        // the same class of error in the other direction.
+        //
+        // Status is deliberately left alone: the sale loop does not mark a batch depleted when it
+        // reaches 0 either (only batches.ts does, explicitly), so there is nothing to reverse.
+        if ((r.line as any).batchId) {
+          await tx.execute(sql`
+            UPDATE batches
+            SET current_quantity = LEAST(
+                  COALESCE(current_quantity, 0) + ${r.qty},
+                  GREATEST(initial_quantity, COALESCE(current_quantity, 0))
+                ),
+                updated_at = NOW()
+            WHERE id = ${(r.line as any).batchId} AND company_id = ${currentUser.companyId}
+          `)
+        }
       }
     }
 

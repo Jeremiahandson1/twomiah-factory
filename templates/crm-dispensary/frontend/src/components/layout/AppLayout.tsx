@@ -307,10 +307,19 @@ export default function AppLayout() {
           </button>
         </div>
 
-        {/* Company */}
+        {/* Company, and the way to the signed-in person's own account.
+            The email was already printed here, so this is where somebody looks for "my" settings.
+            NO role gate: a budtender's PIN and authenticator are theirs. T41 found the Till PIN
+            card stranded on the admin-only Settings page, which is where I had put it. (T41) */}
         <div className="px-4 py-3 border-b dark:border-slate-800">
           <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{company?.name}</p>
-          <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{user?.email}</p>
+          <NavLink
+            to="/crm/account"
+            className={({ isActive }) => `block text-xs truncate hover:underline ${isActive ? 'text-orange-700 dark:text-orange-200' : 'text-gray-500 dark:text-slate-400'}`}
+            title="Your account — PIN and two-factor"
+          >
+            {user?.email}
+          </NavLink>
         </div>
 
         {/* Back to Portal */}

@@ -166,6 +166,34 @@ console.log('\n══════════ 4 · recovery codes ════�
 // ══════════ 5 · turning it off needs a live code ══════════════════════════════════════════════
 console.log('\n══════════ 5 · turning it off ══════════')
 {
+  /**
+   * T41 · AN ABANDONED ENROLMENT CAN BE CLEANED UP WITHOUT A CODE.
+   *
+   * Asserted before the verified-device rules below, because the two answers differ and the
+   * difference is the whole point: an unverified row is not a second factor, so demanding a code to
+   * remove it asks for something the person may never have had. T41 found one stranded on every
+   * tenant it tested, uncleanable.
+   */
+  {
+    const started = await api('POST', '/api/auth/mfa-devices/setup', {}, owner)
+    const pendingId = started.json?.deviceId
+    check('T41 a second enrolment can be started', started.status === 201 && !!pendingId, { status: started.status })
+
+    const listed = await api('GET', '/api/auth/mfa-devices/devices', undefined, owner)
+    check('T41 …and it is listed as unverified', (listed.json?.devices || []).some((d: any) => d.id === pendingId && !d.is_verified && !d.isVerified),
+      (listed.json?.devices || []).map((d: any) => ({ id: d.id, v: d.is_verified ?? d.isVerified })))
+
+    const dropped = await api('DELETE', `/api/auth/mfa-devices/devices/${pendingId}`, {}, owner)
+    check('T41 an UNVERIFIED device is removed with NO code', dropped.status === 200,
+      { status: dropped.status, body: dropped.text?.slice(0, 160) })
+
+    const after = await api('GET', '/api/auth/mfa-devices/devices', undefined, owner)
+    check('T41 …and it is gone', !(after.json?.devices || []).some((d: any) => d.id === pendingId),
+      (after.json?.devices || []).map((d: any) => d.id))
+    check('T41 …while the VERIFIED authenticator is untouched and two-factor stays on', after.json?.active === true,
+      { active: after.json?.active })
+  }
+
   const noCode = await api('DELETE', `/api/auth/mfa-devices/devices/${deviceId}`, {}, owner)
   check('an open session alone cannot remove the second factor',
     noCode.status === 400 && noCode.json?.code === 'code_required', { status: noCode.status, code: noCode.json?.code })

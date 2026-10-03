@@ -86,6 +86,20 @@ console.log('\n══════════ setting a PIN ══════�
   const short = await api('PUT', '/api/auth/pin', { pin: '12' }, bud)
   check('three digits or fewer is refused', short.status >= 400, { status: short.status })
 
+  /**
+   * DIGITS ONLY. (T41)
+   *
+   * The schema was `string().min(4).max(8)`, so 'abcd' was a valid PIN — settable through the API
+   * and then impossible to enter, because the sign-in field strips non-digits. T41 found it; my
+   * original 31 assertions here only covered length.
+   */
+  for (const bad of ['abcd', '12a4', '    ', '1 2 3', '№123']) {
+    const r = await api('PUT', '/api/auth/pin', { pin: bad }, bud)
+    check(`a non-numeric PIN ${JSON.stringify(bad)} is refused`, r.status >= 400, { status: r.status, error: r.json?.error })
+  }
+  const stillNone = await api('GET', '/api/auth/me', undefined, bud)
+  check('…and none of them set a PIN', stillNone.json?.user?.pinSet === false, { pinSet: stillNone.json?.user?.pinSet })
+
   const set = await api('PUT', '/api/auth/pin', { pin: '4821' }, bud)
   check('a budtender can set a PIN', set.status === 200, { status: set.status, body: set.text?.slice(0, 160) })
   check('…and the response says it is set, so the screen need not re-fetch', set.json?.pinSet === true, set.json)
@@ -169,6 +183,22 @@ console.log('\n══════════ removing a PIN ══════�
   const twice = await api('DELETE', '/api/auth/pin', undefined, bud)
   check('removing a PIN that is not there says so rather than pretending', twice.status === 400 && twice.json?.code === 'no_pin',
     { status: twice.status, code: twice.json?.code })
+
+  /**
+   * THE SECURITY LOG. (T41: "PIN changes, 2FA setup and logins are not audited.")
+   *
+   * A PIN is a way into the till, so setting, changing and removing one are logged — and the DIGITS
+   * never are. The second assertion is the one that matters: a log that recorded the PIN would be
+   * worse than no log.
+   */
+  const ev: any = await db.execute(sql`
+    SELECT event_type, description FROM security_events
+     WHERE company_id = ${co.id} AND event_type LIKE 'pin_%' ORDER BY created_at`)
+  const evRows = ((ev as any).rows || ev)
+  const types = evRows.map((r: any) => r.event_type)
+  check('setting, changing and removing a PIN are all in the security log',
+    types.includes('pin_set') && types.includes('pin_changed') && types.includes('pin_removed'), types)
+  check('…and no log row contains the PIN itself', !/4821|7731/.test(JSON.stringify(evRows)), evRows.map((r: any) => r.description))
 
   // The password is untouched by any of this.
   const pw = await api('POST', '/api/auth/login', { email: bud.email, password: PASSWORD })

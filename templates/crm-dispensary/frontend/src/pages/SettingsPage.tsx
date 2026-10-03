@@ -3,11 +3,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Users, Gift, Truck, ShoppingBag, Receipt, Clock, ToggleLeft, ToggleRight, AtSign, Globe, Inbox, CreditCard, Plug, Monitor, Upload, ShieldCheck, KeyRound, Loader2 } from 'lucide-react';
+import { Building2, Users, Gift, Truck, ShoppingBag, Receipt, Clock, ToggleLeft, ToggleRight, AtSign, Globe, Inbox, CreditCard, Plug, Monitor, Upload } from 'lucide-react';
 import { Button } from '../components/ui/DataTable';
-// The same enrolment card every other vertical shows. This template renders its own SettingsPage,
-// which is why it was the one that never showed it — see the Security tab below. (T37)
-import { TwoFactorCard } from '../shared';
+// NOTE: the Two-Factor and Till PIN cards are deliberately NOT here. This page is company
+// configuration and admin-only, and putting a budtender's own PIN behind that gate is exactly the
+// fault T41 found. They live on MyAccountPage, which every role can reach. (T41)
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 const DAY_LABELS: Record<string, string> = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' };
@@ -510,15 +510,6 @@ export default function SettingsPage() {
     // defect T44 filed against the End-of-Day menu entry.
     ...(hasFeature('kiosk') && isAdmin ? [{ id: 'kiosks', label: 'Kiosks', icon: Monitor }] : []),
     { id: 'team', label: 'Team', icon: Users },
-    /**
-     * Security — EVERY role, not just an admin. (T37)
-     *
-     * Both things on this tab are about the person signed in, not about the shop: their own
-     * authenticator and their own till PIN. A budtender is exactly who needs the PIN, and
-     * two-factor on a counter account protects the same seed-to-sale record an owner's does. This
-     * tab is deliberately outside the `isAdmin` gating the Kiosks tab carries.
-     */
-    { id: 'security', label: 'Security', icon: ShieldCheck },
   ];
 
   return (
@@ -1216,146 +1207,8 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/**
-            * SECURITY — two-factor and the till PIN, both for the person signed in. (T37)
-            *
-            * Neither had a screen on this template. Two-factor was BUILT here — mfa_devices and
-            * mfa_challenges have been in this schema since before the engine moved to shared auth,
-            * /login asks the gate and /pin-login opens the same challenge — but the enrolment routes
-            * went to shared and were only ever mounted in crm, and this vertical renders its own
-            * SettingsPage so it did not inherit the card either. An owner could be asked for a code
-            * they had no way to set up.
-            *
-            * The PIN was the same story from the other side: PUT /api/auth/pin and
-            * POST /api/auth/pin-login have been live and validating all along with nothing in this
-            * frontend mentioning a PIN, so a budtender could neither set one nor tap in with one.
-            */}
-          {tab === 'security' && (
-            <div className="space-y-6 max-w-xl">
-              <TwoFactorCard api={api as any} toast={toast} />
-              <TillPinCard user={user} toast={toast} />
-            </div>
-          )}
         </div>
       </div>
-    </div>
-  );
-}
-
-/**
- * The till PIN: four to eight digits that sign you in at the counter without a password.
- *
- * WHY THE STATE COMES FROM `pinSet` AND NOT FROM THE PIN. Nothing can read a PIN back — it is
- * bcrypt-hashed like a password — so GET /api/auth/me grew a `pinSet` boolean (T37). Without it a
- * screen cannot tell "set a PIN" from "change your PIN", which is half of why this screen did not
- * exist.
- *
- * TWO REFUSALS THE SERVER MAKES THAT THIS SCREEN HAS TO SHOW PROPERLY:
- *   · 409 pin_in_use — somebody else in the shop already uses those digits. A PIN has to point at
- *     one person or the till cannot say who rang a sale, so the server checks every other PIN by
- *     verifying against each hash. The message is the server's own; it explains the till, so it is
- *     shown rather than replaced.
- *   · a PIN is NOT a password — it is four digits on a shared screen. The copy says so, because
- *     somebody choosing one should know what it is for and what it is not.
- */
-function TillPinCard({ user, toast }: { user: any; toast: any }) {
-  const [pinSet, setPinSet] = useState<boolean>(!!user?.pinSet);
-  const [editing, setEditing] = useState(false);
-  const [pin, setPin] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-
-  // `user` is refreshed by the auth context after a sign-in, so follow it rather than snapshotting
-  // once — otherwise this card still says "not set" after the page has learned otherwise.
-  useEffect(() => { setPinSet(!!user?.pinSet); }, [user?.pinSet]);
-
-  const digits = (s: string) => s.replace(/\D/g, '').slice(0, 8);
-  const reset = () => { setEditing(false); setPin(''); setConfirm(''); setErr(''); };
-
-  const save = async () => {
-    setErr('');
-    if (pin.length < 4) { setErr('A PIN is at least four digits.'); return; }
-    if (pin !== confirm) { setErr('Those two PINs are not the same.'); return; }
-    setBusy(true);
-    try {
-      await api.pin.set(pin);
-      setPinSet(true);
-      reset();
-      toast.success('Your till PIN is set.');
-    } catch (e: any) {
-      // The server's wording for a clash explains the till; keep it.
-      setErr(e?.message || 'That PIN could not be saved.');
-    } finally { setBusy(false); }
-  };
-
-  const clear = async () => {
-    setBusy(true); setErr('');
-    try {
-      await api.pin.clear();
-      setPinSet(false);
-      reset();
-      toast.success('Quick sign-in is off for your account.');
-    } catch (e: any) {
-      setErr(e?.message || 'That PIN could not be removed.');
-    } finally { setBusy(false); }
-  };
-
-  const inputCls = 'w-full border rounded-lg px-3 py-2 tracking-[0.4em] text-center text-lg dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100';
-
-  return (
-    <div className="bg-white rounded-lg border p-6 dark:bg-slate-900 dark:border-slate-700">
-      <h2 className="text-lg font-semibold mb-1 flex items-center gap-2 text-gray-900 dark:text-slate-100">
-        <KeyRound className="w-4 h-4 text-emerald-600" />Till PIN
-      </h2>
-      <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">
-        Four to eight digits to sign in at the counter without typing your password. It is for getting
-        back to the till between customers — not a replacement for your password, and anyone watching
-        the screen can see it.
-      </p>
-
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-sm text-gray-500 dark:text-slate-400">Status</span>
-        <span className={`text-sm font-medium ${pinSet ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}`}>
-          {pinSet ? 'Set' : 'Not set'}
-        </span>
-      </div>
-
-      {err && (
-        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3 dark:bg-red-900/30 dark:text-red-200 dark:border-red-800">{err}</p>
-      )}
-
-      {!editing ? (
-        <div className="flex gap-2">
-          <Button onClick={() => setEditing(true)}>{pinSet ? 'Change PIN' : 'Set a PIN'}</Button>
-          {pinSet && (
-            <button type="button" onClick={clear} disabled={busy}
-              className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-red-600 hover:bg-red-50 disabled:opacity-60 dark:border-slate-700 dark:hover:bg-slate-800">
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Turn quick sign-in off'}
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <div>
-            <label className="block text-sm text-gray-500 mb-1 dark:text-slate-400">New PIN</label>
-            <input type="password" inputMode="numeric" autoComplete="new-password" value={pin}
-              onChange={(e) => setPin(digits(e.target.value))} className={inputCls} placeholder="••••" />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-500 mb-1 dark:text-slate-400">Confirm PIN</label>
-            <input type="password" inputMode="numeric" autoComplete="new-password" value={confirm}
-              onChange={(e) => setConfirm(digits(e.target.value))} className={inputCls} placeholder="••••" />
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save PIN'}</Button>
-            <button type="button" onClick={reset} disabled={busy}
-              className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

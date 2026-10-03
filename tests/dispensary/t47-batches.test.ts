@@ -58,7 +58,7 @@ const as = (u: any) => async (method: string, path: string, body?: unknown) => {
 const api = as(owner)
 const rows = async (q: any) => { const r: any = await db.execute(q); return (r.rows || r) as any[] }
 const batchRow = async (id: string) => (await rows(sql`SELECT * FROM batches WHERE id = ${id}`))[0]
-const stockOf = async (id: string) => Number((await rows(sql`SELECT stock_quantity FROM product WHERE id = ${id}`))[0]?.stock_quantity)
+const stockOf = async (id: string) => Number((await rows(sql`SELECT stock_quantity FROM products WHERE id = ${id}`))[0]?.stock_quantity)
 
 /** Ring up `qty` of a product at the till. */
 const sell = async (productId: string, qty: number) =>

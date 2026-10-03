@@ -48,66 +48,16 @@ const INTEGRATIONS: Integration[] = [
       'Choose which data to sync (invoices, expenses, or both)',
     ],
   },
-  {
-    id: 'servicetitan',
-    label: 'ServiceTitan Import',
-    description: 'Import existing jobs, clients, and invoices from ServiceTitan.',
-    category: 'accounting',
-    guideSteps: [
-      'Export your data from ServiceTitan (Customers, Jobs, Invoices as CSV)',
-      'Go to Settings > Import in your CRM',
-      'Upload each CSV file and map the columns',
-      'Review the import preview and confirm',
-    ],
-  },
-  {
-    id: 'housecall_pro',
-    label: 'Housecall Pro Import',
-    description: 'Import existing jobs, clients, and invoices from Housecall Pro.',
-    category: 'accounting',
-    guideSteps: [
-      'Export your data from Housecall Pro (Customers, Jobs, Invoices as CSV)',
-      'Go to Settings > Import in your CRM',
-      'Upload each CSV file and map the columns',
-      'Review the import preview and confirm',
-    ],
-  },
-  {
-    id: 'angi',
-    label: "Angi's List / HomeAdvisor",
-    description: 'Automatically pull leads from Angi into your CRM lead inbox.',
-    category: 'lead_sources',
-    guideSteps: [
-      'Go to Settings > Integrations > Lead Sources in your CRM',
-      'Click "Connect Angi" and enter your Angi Pro account credentials',
-      'New leads will automatically flow into your Lead Inbox',
-      'Set up auto-reply templates to respond to leads instantly',
-    ],
-  },
-  {
-    id: 'thumbtack',
-    label: 'Thumbtack',
-    description: 'Pull Thumbtack leads directly into your CRM.',
-    category: 'lead_sources',
-    guideSteps: [
-      'Go to Settings > Integrations > Lead Sources',
-      'Click "Connect Thumbtack" and authenticate with your Thumbtack Pro account',
-      'Configure which service categories to import leads from',
-      'Leads will appear in your Lead Inbox automatically',
-    ],
-  },
-  {
-    id: 'google_lsa',
-    label: 'Google Local Services',
-    description: 'Import Google LSA leads into your CRM automatically.',
-    category: 'lead_sources',
-    guideSteps: [
-      'Go to Settings > Integrations > Lead Sources',
-      'Click "Connect Google LSA" and sign in with your Google account',
-      'Authorize access to your Local Services Ads account',
-      'New LSA leads will appear in your Lead Inbox',
-    ],
-  },
+  // ServiceTitan, Housecall Pro, Angi/HomeAdvisor, Thumbtack and Google Local Services were listed
+  // here. All five are home-services tools, and this template is shared by showcase, foodtruck and
+  // basic (industryRouting.ts) — a gym, a venue or a food truck has no ServiceTitan export to import
+  // and no Angi Pro account, so onboarding step 2 asked every tenant to connect accounts it could not
+  // have. crm-fieldservice keeps the full set; that is the vertical they belong to. (T41)
+  //
+  // Only the universally applicable four remain: domain, QuickBooks, Stripe, texting. 'lead_sources'
+  // is deliberately left in the category union, CATEGORY_LABELS and CATEGORY_ORDER so a lead source
+  // that does suit these verticals drops straight in — StepIntegrations filters out any category with
+  // no integrations, so the empty Lead Sources heading does not render.
   {
     id: 'stripe',
     label: 'Stripe Payments',

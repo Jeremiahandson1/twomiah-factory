@@ -1,6 +1,6 @@
 /**
  * Commissions Page — Fleet tier
- * Tech + sales rep commission tracking. Manages commission plans (how
+ * Commission tracking for whoever earns it. Manages commission plans (how
  * commission is calculated) and commission records (individual earning
  * events from completed jobs / paid invoices).
  */
@@ -18,11 +18,26 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function CommissionsPage() {
-  // Not useMayWrite: that answers true while the permission list is still in flight, which is right
-  // for a write button but wrong for a tab holding the company's pay rates. Absent then present
-  // beats briefly shown then refused.
+  /**
+   * A READ permission must not gate a WRITE control. (T41)
+   *
+   * I gated the Plans tab, New Plan, Approve and Mark Paid all on `commissions:read` — which a
+   * MANAGER holds. Creating needs `commissions:create` and approving needs `commissions:update`,
+   * and both are owner/admin only. So T41 found a manager being shown New Plan, clicking it, and
+   * the modal just sitting there: "the server refuses it silently". Approve and Mark Paid did the
+   * same. I introduced that in the commit whose whole point was removing a button that could only
+   * ever 403.
+   *
+   * Three permissions now, one per thing they actually gate.
+   *
+   * All three use `can()` rather than `useMayWrite()`: the optimistic hook answers true while the
+   * permission list is still in flight, which would flash these controls at someone who cannot use
+   * them — the very fault being fixed. Absent then present beats shown then refused.
+   */
   const { can } = usePermissions();
   const mayReadPlans = can('commissions:read');
+  const mayCreatePlans = can('commissions:create');
+  const mayApprove = can('commissions:update');
   const [tab, setTab] = useState<'records' | 'plans'>('records');
   const [commissions, setCommissions] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
@@ -70,8 +85,8 @@ export default function CommissionsPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <div><h1 className="text-2xl font-bold flex items-center gap-2"><DollarSign className="w-6 h-6 text-sky-500" />Commissions</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Tech + sales rep commission tracking</p></div>
-        {tab === 'plans' && mayReadPlans && <button onClick={() => setShowPlan(true)} className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Plan</button>}
+        <div><h1 className="text-2xl font-bold flex items-center gap-2"><DollarSign className="w-6 h-6 text-sky-500" />Commissions</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">How commission is calculated, and what has been earned</p></div>
+        {tab === 'plans' && mayCreatePlans && <button onClick={() => setShowPlan(true)} className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Plan</button>}
       </div>
 
       <div className="flex gap-2 mb-4 border-b">
@@ -95,8 +110,8 @@ export default function CommissionsPage() {
                     <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[c.status]}`}>{c.status}</span></td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
-                        {c.status === 'pending' && <button onClick={() => act(c.id, 'approve')} className="text-blue-600 hover:bg-blue-50 p-1 rounded" title="Approve"><Check className="w-4 h-4" /></button>}
-                        {c.status === 'approved' && <button onClick={() => act(c.id, 'mark-paid')} className="text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-500/10 p-1 rounded text-xs">Mark Paid</button>}
+                        {c.status === 'pending' && mayApprove && <button onClick={() => act(c.id, 'approve')} className="text-blue-600 hover:bg-blue-50 p-1 rounded" title="Approve"><Check className="w-4 h-4" /></button>}
+                        {c.status === 'approved' && mayApprove && <button onClick={() => act(c.id, 'mark-paid')} className="text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-500/10 p-1 rounded text-xs">Mark Paid</button>}
                       </div>
                     </td>
                   </tr>

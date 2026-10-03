@@ -66,6 +66,35 @@ export function TwoFactorCard({ api, toast }: { api: MfaApi; toast: { success: (
     } catch (e) { toast.error(errMsg(e, 'Could not start')) } finally { setBusy(false) }
   }
 
+  /**
+   * CANCEL REMOVES THE PENDING DEVICE, it does not just forget about it. (T41)
+   *
+   * This used to be `setEnrolling(null)` and nothing else, so the row that `setup()` had already
+   * created stayed on the server for ever. T41 found it on every tenant it tested: "Cancelling
+   * two-factor setup leaves an unverified device behind. Deleting it needs a code, so it can't be
+   * cleaned up" — and the code it wanted was from an authenticator the person had just decided not
+   * to use. Sign-in was unaffected, because the gate counts only verified devices, which is exactly
+   * why the litter accumulated unnoticed.
+   *
+   * The server now lets an unverified device be deleted with no code (mfaRoutes DELETE /devices/:id),
+   * so this can simply ask. If that call fails the local state is still cleared — leaving the person
+   * stuck on a dead enrolment screen would be worse than leaving a row behind — but the failure is
+   * surfaced rather than swallowed, so it is not silent litter twice.
+   */
+  const cancelEnrolment = async () => {
+    const pending = enrolling
+    setEnrolling(null)
+    setCode('')
+    if (!pending) return
+    setBusy(true)
+    try {
+      await api.mfa.remove(pending.deviceId, '')
+      await load()
+    } catch (e) {
+      toast.error(errMsg(e, 'Setup was cancelled, but the pending device could not be removed'))
+    } finally { setBusy(false) }
+  }
+
   const finish = async () => {
     if (!enrolling) return
     setBusy(true)
@@ -178,7 +207,7 @@ export function TwoFactorCard({ api, toast }: { api: MfaApi; toast: { success: (
             <button type="button" onClick={finish} disabled={busy || !code.trim()} className={`${btn} bg-orange-600 text-white hover:bg-orange-700`}>
               {busy ? 'Checking…' : 'Turn it on'}
             </button>
-            <button type="button" onClick={() => { setEnrolling(null); setCode('') }} className={`${btn} bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-100`}>Cancel</button>
+            <button type="button" onClick={cancelEnrolment} disabled={busy} className={`${btn} bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-100`}>Cancel</button>
           </div>
         </div>
       )}

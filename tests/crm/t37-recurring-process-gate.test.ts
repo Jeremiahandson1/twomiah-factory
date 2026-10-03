@@ -108,15 +108,39 @@ check('…and no invoice has been raised from it yet', before === 0, { before })
   check('…and still nothing was billed', (await invoiceCount()) === before, { count: await invoiceCount(), before })
 }
 
-// ══════════ the owner can still run it — the gate must not break the feature ═══════════════════
+// ══════════ T41 · the secret is REQUIRED, so not even the owner can run it by hand ═════════════
 //
-// This is the half that stops the fix becoming the bug. Nothing calls /process today, but it is the
-// endpoint a scheduler will call, and a gate that refuses everybody is not a gate.
+// My first version asserted "the owner can run the due schedules", reasoning that a gate refusing
+// everybody is not a gate. T41 showed that reasoning was wrong: a MANAGER holds invoices:create, so
+// leaving a session-reachable path open meant a manager could bill the whole company from a URL with
+// no screen offering it. A cron hook belongs to the cron.
+//
+// With no CRON_SECRET configured — which is every tenant, since the deploy pipeline never writes one
+// — the endpoint refuses everyone with 503 cron_not_configured, and nothing is billed.
 {
+  const asCron = async () => {
+    const res = await app.request('/api/recurring/process', {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-test-user': owner.id, 'x-cron-secret': 'whatever' },
+    })
+    const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+    return { status: res.status, json: j, text: t }
+  }
+
   const r = await asOwner('POST', '/api/recurring/process')
-  check('the owner can run the due schedules', r.status === 200, { status: r.status, body: r.text?.slice(0, 200) })
-  const after = await invoiceCount()
-  check('…and exactly one invoice was raised', after === before + 1, { before, after })
+  check('even the OWNER cannot run it by hand with no scheduler configured',
+    r.status === 503 && r.json?.code === 'cron_not_configured', { status: r.status, body: r.text?.slice(0, 200) })
+  check('…and says a schedule runs it, not a person', /scheduler is configured/i.test(String(r.json?.error)), r.json?.error)
+  check('…and nothing was billed', (await invoiceCount()) === before, { before, now: await invoiceCount() })
+
+  const withSecret = await asCron()
+  check('…and a made-up secret is refused too, not merely ignored', withSecret.status === 503 || withSecret.status === 401,
+    { status: withSecret.status, body: withSecret.text?.slice(0, 160) })
+  check('…still nothing billed', (await invoiceCount()) === before, { before, now: await invoiceCount() })
+
+  // And the schedule is still due, so a real scheduler would pick it up when one exists.
+  const stillDue: any = await db.execute(sql`SELECT status, next_run_date FROM recurring_invoice WHERE company_id = ${co.id}`)
+  const row = ((stillDue as any).rows || stillDue)[0]
+  check('…the due schedule is untouched and still active', String(row?.status) === 'active', row)
 }
 
 // ══════════ the reads the T37 note asked about — confirmed correct, and pinned ═════════════════
