@@ -121,12 +121,48 @@ const validDate = (v: unknown) => {
 /** What a job's estimated value is: a quoted figure carried onto the work. (T32 M7) */
 const JOB_MONEY_PERMISSION = 'quotes:update'
 
+/**
+ * …and the READ counterpart. (T41)
+ *
+ * T32 M7 stopped a field technician from CHANGING what a job is worth (it had dropped JOB-00119
+ * from $11,183 to $1). It left them able to read it, and T41 found that on three verticals:
+ * "Staff sees agreement revenue tiles, job estimatedValue" (field service), "Staff sees job
+ * estimatedValue and agreement price and revenue" (showcase), and the same on landscaping.
+ *
+ * `quotes:read` rather than `invoices:read`: this field IS a quoted figure — the constant above
+ * already ties job money to the quotes resource — and the read sits beside the write it guards.
+ * Either would exclude `field`, which is the seat that was reading it; this one says why.
+ *
+ * `estimatedHours` is deliberately NOT in the list below. Hours are how long the work takes, which
+ * is the technician's own business; only the VALUE is withheld.
+ */
+const JOB_MONEY_READ_PERMISSION = 'quotes:read'
+const JOB_MONEY_FIELDS = ['estimatedValue', 'actualValue'] as const
+
 export function createJobRoutes(deps: JobDeps) {
   const { db, tables: t, authenticate, requirePermission, emitToCompany, EVENTS, cleanText } = deps
   const maySetJobMoney = async (c: any) => {
     if (!deps.canSee) return true
     const u = c.get('user') as any
     try { return await deps.canSee(u?.role, JOB_MONEY_PERMISSION, u?.userId) } catch { return true }
+  }
+  const maySeeJobMoney = async (c: any) => {
+    if (!deps.canSee) return true
+    const u = c.get('user') as any
+    try { return await deps.canSee(u?.role, JOB_MONEY_READ_PERMISSION, u?.userId) } catch { return true }
+  }
+  /**
+   * Take the value off a job row (or rows). Both the list and the single read return
+   * `db.select().from(t.job)` — the whole row — so both carried it. (T41)
+   */
+  const hideJobMoney = <T,>(rows: T): T => {
+    const strip = (r: any) => {
+      if (!r || typeof r !== 'object') return r
+      const out = { ...r }
+      for (const f of JOB_MONEY_FIELDS) delete out[f]
+      return out
+    }
+    return (Array.isArray(rows) ? rows.map(strip) : strip(rows)) as any
   }
   /** The vertical's own noun, for a message somebody reads. "job" where nothing says otherwise. */
   const jobWord = (deps.options?.numbering?.prefix === 'SVC' ? 'service call' : 'job')
@@ -376,7 +412,9 @@ export function createJobRoutes(deps: JobDeps) {
       db.select().from(t.job).where(where).orderBy(...order).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(t.job).where(where),
     ])
-    const data = (await withRelations(rows, currentUser.companyId)).map((j) => ({ ...j, isOverdue: isOverdue(j) }))
+    const withOverdue = (await withRelations(rows, currentUser.companyId)).map((j) => ({ ...j, isOverdue: isOverdue(j) }))
+    // What the work is WORTH is not part of reading the schedule. (T41)
+    const data = (await maySeeJobMoney(c)) ? withOverdue : hideJobMoney(withOverdue)
     return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
   })
 
@@ -391,7 +429,13 @@ export function createJobRoutes(deps: JobDeps) {
     const rows = await db.select().from(t.job)
       .where(and(eq(t.job.companyId, currentUser.companyId), sql`${jobLocalDay(t.job.scheduledDate, t.job.source, tz)} = ${localToday}::date`))
       .orderBy(asc(t.job.scheduledTime))
-    return c.json(await withRelations(rows, currentUser.companyId, { id: t.contact.id, name: t.contact.name, phone: t.contact.phone }))
+    /**
+     * …and /today, which is the TECHNICIAN'S OWN SCREEN and therefore the one most likely to be
+     * read by the seat this withholds from. Missing it would have left the value on the single
+     * surface the finding is actually about. (T41)
+     */
+    const today = await withRelations(rows, currentUser.companyId, { id: t.contact.id, name: t.contact.name, phone: t.contact.phone })
+    return c.json((await maySeeJobMoney(c)) ? today : hideJobMoney(today))
   })
 
   // ---------------------------------------------------------------- photos (before /:id so /:id/photos routes resolve first)
@@ -451,7 +495,9 @@ export function createJobRoutes(deps: JobDeps) {
     const { portalToken, portalTokenExp, ...safeContact } = (jobContact[0] || {}) as any
     // one assignedTo whichever kind of person is on the job — same shape the list gives (T21 M12)
     const [withAssignee] = await withRelations([found], currentUser.companyId)
-    return c.json({ ...found, project: jobProject[0] || null, contact: jobContact[0] ? safeContact : null, assignedTo: assignedUser[0] ? { ...assignedUser[0], name: `${assignedUser[0].firstName || ''} ${assignedUser[0].lastName || ''}`.trim(), kind: 'user' } : withAssignee?.assignedTo || null, timeEntries: entries, ...(t.equipment ? { equipment: jobEquipment[0] || null } : {}) })
+    // The same rule as the list. Both reads return the whole job row, so both carried the value. (T41)
+    const base = (await maySeeJobMoney(c)) ? found : hideJobMoney(found)
+    return c.json({ ...base, project: jobProject[0] || null, contact: jobContact[0] ? safeContact : null, assignedTo: assignedUser[0] ? { ...assignedUser[0], name: `${assignedUser[0].firstName || ''} ${assignedUser[0].lastName || ''}`.trim(), kind: 'user' } : withAssignee?.assignedTo || null, timeEntries: entries, ...(t.equipment ? { equipment: jobEquipment[0] || null } : {}) })
   })
 
   app.post('/', requirePermission('jobs:create'), async (c) => {

@@ -73,6 +73,25 @@ export interface AgreementsRoutesDeps {
   requirePermission: (permission: string) => any
   /** Expose the recurrence endpoints (fs / landscaping maintenance contracts). Default false. */
   recurrence?: boolean
+  /**
+   * May this caller see MONEY? Asked with `invoices:read`. (T41)
+   *
+   * This module's convention is "writes are gated, reads are open", which is right for a technician
+   * who needs to know a customer is on a plan and when the next visit is due. It is wrong for the
+   * recurring REVENUE, and T41 found that on three verticals at once — they all run this one file:
+   *
+   *   "Staff sees recurring revenue: Agreements shows Monthly Revenue $49 / Annual $588 and
+   *    contract prices, from /api/agreements/reports/stats."  — Landscaping
+   *   "Staff sees agreement revenue tiles..."  — Field service and Showcase
+   *
+   * `invoices:read` rather than a rank: it is the fleet's "may see money" permission, manager and
+   * viewer hold it, and `field` does not — which is exactly the seat that was reading it. It also
+   * makes this agree with /api/invoices, which already refuses staff.
+   *
+   * Optional, and absent means "do not ask", so a template that has not been rewired keeps the
+   * behaviour it has today rather than silently hiding figures somebody relies on.
+   */
+  canSee?: (role: string, permission: string, userId?: string) => Promise<boolean> | boolean
 }
 
 /** Months between invoices for each billing frequency we support. */
@@ -686,7 +705,44 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
 export type AgreementsService = ReturnType<typeof createAgreementsService>
 
 export function createAgreementsRoutes(deps: AgreementsRoutesDeps) {
-  const { service, authenticate, requirePermission } = deps
+  const { service, authenticate, requirePermission, canSee } = deps
+
+  /**
+   * The money fields on an agreement, and on the stats tiles. (T41)
+   *
+   * The tiles are NOT refused wholesale: the counts (active, expiring, renewing) are operational
+   * and a technician has every reason to see them — blanking the page would be the kind of refusal
+   * that is its own bug. Only the revenue figures and the contract price go.
+   */
+  const maySeeMoney = async (c: any): Promise<boolean> => {
+    if (!canSee) return true
+    const u = c.get('user') as any
+    return !!(await canSee(u?.role, 'invoices:read', u?.userId))
+  }
+  const REVENUE_KEYS = ['monthlyRecurringRevenue', 'annualRecurringRevenue'] as const
+  /** What a customer pays for the contract. `amount` is the per-period charge; price is the plan's. */
+  const AGREEMENT_MONEY_KEYS = ['amount', 'price', 'totalBilled', 'discountPercent'] as const
+  /**
+   * RECURSIVE, and it has to be: the money is not all on the top level.
+   *
+   * An agreement row carries `amount` (what this customer pays per period) and the list and detail
+   * both EMBED the plan, which carries its own `price` and `discountPercent`. A top-level-only strip
+   * removed `amount` and left `price` sitting one object down — which my first version did, and the
+   * test caught: "…with no contract price on it  [price]".
+   *
+   * Every key in the list is money on these payloads, so walking the whole tree cannot remove
+   * something innocent; it clones as it goes so the service's own rows are not mutated.
+   */
+  const stripKeys = <T,>(value: T, keys: readonly string[]): T => {
+    if (Array.isArray(value)) return value.map((v) => stripKeys(v, keys)) as any
+    if (!value || typeof value !== 'object' || value instanceof Date) return value
+    const out: any = {}
+    for (const [k, v] of Object.entries(value as any)) {
+      if (keys.includes(k)) continue
+      out[k] = stripKeys(v as any, keys)
+    }
+    return out
+  }
   const app = new Hono()
   app.use('*', authenticate)
 
@@ -717,6 +773,11 @@ export function createAgreementsRoutes(deps: AgreementsRoutesDeps) {
         status, contactId, expiringSoon: expiringSoon === 'true',
         page: parseInt(page) || 1, limit: parseInt(limit) || 50,
       })
+      // The list stays readable — who is on a plan, which plan, when it ends — without the price.
+      // "Staff sees ... contract prices" was part of the same finding as the revenue tiles. (T41)
+      if (!(await maySeeMoney(c)) && Array.isArray((data as any)?.data)) {
+        (data as any).data = stripKeys((data as any).data, AGREEMENT_MONEY_KEYS)
+      }
       return c.json(data)
     } catch (e: any) {
       console.error('[Agreements] GET / error:', e.message, e.stack?.split('\n').slice(0, 3).join('\n'))
@@ -726,7 +787,8 @@ export function createAgreementsRoutes(deps: AgreementsRoutesDeps) {
   app.get('/:id', async (c: any) => {
     const agreement = await service.getAgreement(c.req.param('id'), (c.get('user')).companyId)
     if (!agreement) return c.json({ error: 'Agreement not found' }, 404)
-    return c.json(agreement)
+    if (await maySeeMoney(c)) return c.json(agreement)
+    return c.json(stripKeys(agreement as any, AGREEMENT_MONEY_KEYS))
   })
   app.post('/', requirePermission('agreements:create'), async (c: any) => {
     try {
@@ -759,7 +821,12 @@ export function createAgreementsRoutes(deps: AgreementsRoutesDeps) {
   app.post('/visits/:visitId/complete', requirePermission('agreements:update'), async (c: any) => c.json(await service.completeVisit(c.req.param('visitId'), (c.get('user')).companyId, await c.req.json())))
 
   // ---- billing ----
-  app.get('/billing/due', async (c: any) => c.json(await service.getAgreementsDueForBilling((c.get('user')).companyId)))
+  /**
+   * Gated outright rather than redacted, unlike the list above: "which contracts are due to be
+   * billed, and for how much" is only a money question — there is no operational half of it to
+   * preserve. Its own action (POST /:id/bill) already requires invoices:create. (T41)
+   */
+  app.get('/billing/due', requirePermission('invoices:read'), async (c: any) => c.json(await service.getAgreementsDueForBilling((c.get('user')).companyId)))
   app.post('/:id/bill', requirePermission('invoices:create'), async (c: any) => c.json(await service.processAgreementBilling(c.req.param('id'), (c.get('user')).companyId)))
   app.put('/:id/autopay', requirePermission('agreements:update'), async (c: any) => {
     const user = c.get('user')
@@ -774,8 +841,17 @@ export function createAgreementsRoutes(deps: AgreementsRoutesDeps) {
   app.post('/billing/run', requirePermission('invoices:create'), async (c: any) => c.json(await service.processDueAgreements((c.get('user')).companyId)))
 
   // ---- reports ----
-  app.get('/reports/stats', async (c: any) => c.json(await service.getAgreementStats((c.get('user')).companyId)))
-  app.get('/reports/expiring', async (c: any) => c.json(await service.getExpiringAgreements((c.get('user')).companyId, parseInt(c.req.query('days')) || 60)))
+  // The counts stay for everyone; the revenue goes to whoever may see money. (T41)
+  app.get('/reports/stats', async (c: any) => {
+    const stats = await service.getAgreementStats((c.get('user')).companyId)
+    return c.json(await maySeeMoney(c) ? stats : stripKeys(stats, REVENUE_KEYS))
+  })
+  app.get('/reports/expiring', async (c: any) => {
+    const rows = await service.getExpiringAgreements((c.get('user')).companyId, parseInt(c.req.query('days')) || 60)
+    if (await maySeeMoney(c)) return c.json(rows)
+    // An expiring contract is a thing to act on whoever you are; what it is worth is not.
+    return c.json(stripKeys(Array.isArray(rows) ? rows : [], AGREEMENT_MONEY_KEYS))
+  })
 
   // ---- recurring scheduling (fs / landscaping) ----
   if (deps.recurrence) {
