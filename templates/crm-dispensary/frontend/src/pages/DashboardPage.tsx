@@ -9,7 +9,17 @@ import {
 } from 'lucide-react';
 
 export default function DashboardPage() {
-  const { user, company, hasFeature } = useAuth();
+  /**
+   * "the dashboard links to blocked Analytics" (T41, dispensary viewer)
+   *
+   * The Avg Order Value tile linked to /crm/analytics, which the API gates at manager and above
+   * (routes/analytics.ts: app.use('*', requireRole('manager'))) and the sidebar already hides for a
+   * budtender or viewer. The FIGURE is theirs to see — it comes from /api/dashboard/stats, which
+   * they can read — so the tile stays and only the link goes. Sending somebody to a page the server
+   * will refuse is worse than a tile that does not move.
+   */
+  const { user, company, hasFeature, isAtLeast } = useAuth();
+  const maySeeAnalytics = isAtLeast ? isAtLeast('manager') : true;
   const [stats, setStats] = useState<any>(null);
   const [lowStock, setLowStock] = useState<any[]>([]);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
@@ -89,7 +99,7 @@ export default function DashboardPage() {
       value: `$${Number(stats?.avgOrderValue || 0).toFixed(2)}`,
       icon: TrendingUp,
       color: 'purple',
-      link: '/crm/analytics',
+      link: maySeeAnalytics ? '/crm/analytics' : null,
     },
     {
       label: 'Low Stock Items',
@@ -134,19 +144,23 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((stat) => (
-          <Link
-            key={stat.label}
-            to={stat.link}
-            className="bg-white rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow dark:bg-slate-900"
-          >
-            <div className={`w-10 h-10 rounded-lg ${colorClasses[stat.color]} flex items-center justify-center mb-3`}>
-              <stat.icon className="w-5 h-5" />
-            </div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stat.value}</p>
-            <p className="text-sm text-gray-500 dark:text-slate-400">{stat.label}</p>
-          </Link>
-        ))}
+        {statCards.map((stat) => {
+          const body = (
+            <>
+              <div className={`w-10 h-10 rounded-lg ${colorClasses[stat.color]} flex items-center justify-center mb-3`}>
+                <stat.icon className="w-5 h-5" />
+              </div>
+              <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stat.value}</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">{stat.label}</p>
+            </>
+          );
+          const card = 'bg-white rounded-lg p-5 shadow-sm dark:bg-slate-900';
+          // A tile whose destination this role cannot open renders as a plain card: no hover lift,
+          // no pointer, nothing that invites a click into a 403. (T41)
+          return stat.link
+            ? <Link key={stat.label} to={stat.link} className={`${card} hover:shadow-md transition-shadow`}>{body}</Link>
+            : <div key={stat.label} className={card}>{body}</div>;
+        })}
       </div>
 
       {/* Main Content */}

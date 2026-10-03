@@ -3,11 +3,30 @@ import {
   Plus, Loader2, X, HeartPulse, Edit2, Trash2, Check, Users,
 } from 'lucide-react';
 import api from '../../services/api';
+import { useMayWrite } from '../../shared';
 
 /**
  * Wellness Plans — list/CRUD plans (GET/POST/PUT/DELETE /api/wellness-plans)
  * and review current enrollments
  * (GET /api/wellness-plans/enrollments).
+ *
+ * THE LAST UNGATED WRITE CONTROLS IN THIS TEMPLATE. (T41)
+ *
+ *   "Staff can write nothing, but the UI offers everything." … "The server is right every time.
+ *    The UI just doesn't hide what the role can't do."
+ *
+ * Every other vet screen was gated in this round; the audit of the report's named controls found
+ * this file still offering all five. The permissions are the ones its OWN routes ask for, read off
+ * backend/src/routes/wellnessPlans.ts rather than guessed — note that a plan is filed under the
+ * CONTACTS rights, not an invoices right, even though it bills monthly:
+ *
+ *   New Plan         POST /                     contacts:create
+ *   Edit             PUT /:id                   contacts:update
+ *   Delete           DELETE /:id                contacts:update  ← not :delete
+ *   Enroll Patient   POST /enrollments          contacts:create
+ *   Cancel           PUT /enrollments/:id       contacts:update
+ *
+ * Reading stays open: a nurse needs to see what a patient is enrolled in.
  */
 
 const SPECIES = ['', 'dog', 'cat', 'avian', 'reptile', 'equine', 'exotic', 'other'];
@@ -55,6 +74,8 @@ export default function WellnessPlansPage() {
   const [showForm, setShowForm] = useState<boolean>(false);
   const [editing, setEditing] = useState<WellnessPlan | null>(null);
   const [showEnroll, setShowEnroll] = useState<boolean>(false);
+  const mayCreate = useMayWrite('contacts:create');
+  const mayUpdate = useMayWrite('contacts:update');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -104,9 +125,11 @@ export default function WellnessPlansPage() {
           </h1>
           <p className="text-gray-500 dark:text-slate-400">Recurring preventive-care memberships</p>
         </div>
-        <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">
-          <Plus className="w-4 h-4" /> New Plan
-        </button>
+        {mayCreate && (
+          <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">
+            <Plus className="w-4 h-4" /> New Plan
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -146,10 +169,12 @@ export default function WellnessPlansPage() {
                       ))}
                     </ul>
                   )}
-                  <div className="mt-auto pt-3 flex items-center justify-end gap-2 border-t mt-4">
-                    <button onClick={() => { setEditing(p); setShowForm(true); }} className="p-1 text-gray-400 hover:text-gray-600" title="Edit"><Edit2 className="w-4 h-4" /></button>
-                    <button onClick={() => remove(p)} className="p-1 text-gray-400 hover:text-red-600" title="Delete"><Trash2 className="w-4 h-4" /></button>
-                  </div>
+                  {mayUpdate && (
+                    <div className="mt-auto pt-3 flex items-center justify-end gap-2 border-t mt-4">
+                      <button onClick={() => { setEditing(p); setShowForm(true); }} className="p-1 text-gray-400 hover:text-gray-600" title="Edit"><Edit2 className="w-4 h-4" /></button>
+                      <button onClick={() => remove(p)} className="p-1 text-gray-400 hover:text-red-600" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -162,9 +187,11 @@ export default function WellnessPlansPage() {
                 <Users className="w-4 h-4 text-teal-500" /> Enrollments
                 <span className="text-xs bg-gray-100 text-gray-600 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{enrollments.length}</span>
               </h2>
-              <button onClick={() => setShowEnroll(true)} disabled={plans.length === 0} className="flex items-center gap-1 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm disabled:opacity-50" title={plans.length === 0 ? 'Create a plan first' : ''}>
-                <Plus className="w-4 h-4" /> Enroll Patient
-              </button>
+              {mayCreate && (
+                <button onClick={() => setShowEnroll(true)} disabled={plans.length === 0} className="flex items-center gap-1 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm disabled:opacity-50" title={plans.length === 0 ? 'Create a plan first' : ''}>
+                  <Plus className="w-4 h-4" /> Enroll Patient
+                </button>
+              )}
             </div>
             {enrollments.length === 0 ? (
               <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">No active enrollments</p>
@@ -192,7 +219,7 @@ export default function WellnessPlansPage() {
                           <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{e.status || 'active'}</span>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {(e.status || 'active') === 'active' && (
+                          {mayUpdate && (e.status || 'active') === 'active' && (
                             <button onClick={() => unenroll(e)} className="text-xs text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400">Cancel</button>
                           )}
                         </td>
