@@ -268,5 +268,55 @@ console.log('\n══════════ T41 · who may read the roster ═
   check('T41: …and the manager is still a manager', (await roleOf(t41Manager.id)) === 'manager', await roleOf(t41Manager.id))
 }
 
+// ══════════ T41 · the company row is not the billing record ═════════════════════════════════════
+//
+// GET /api/company carries no role gate, which is right for the name, address, logo and brand colour
+// the whole app renders. COMPANY_SECRETS already removes the provider credentials. What it did not
+// remove is the commercial relationship:
+//
+//   "Staff sees ... subscription plan / Stripe account ID in /api/company."  — Field service
+//   "/api/company gives the manager billing details while /api/billing is 403."  — Contractor
+//
+// The second says it best: the dedicated billing endpoint refuses the manager, and this one handed
+// over the same facts as a side effect of loading the shell.
+console.log('\n══════════ T41 · who may read the commercial fields ══════════')
+{
+  await db.update(company).set({
+    stripeCustomerId: 'cus_T41PROBE',
+    subscriptionTier: 'fleet',
+    integrations: { stripeAccountId: 'acct_T41PROBE', quickbooksRealmId: '9130350000000000' },
+  } as any).where((await import('drizzle-orm')).eq(company.id, co.id))
+
+  const commercial = (row: any) => ['integrations', 'subscriptionTier', 'stripeCustomerId'].filter((k) => k in (row || {}))
+
+  // The owner runs the business and may see what it pays.
+  const byOwner = await asOwner('GET', '/api/company')
+  check('T41: the owner reads the company', byOwner.status === 200, { status: byOwner.status })
+  check('T41: …including the subscription and the connected accounts',
+    commercial(byOwner.json).includes('integrations') && commercial(byOwner.json).includes('subscriptionTier'),
+    commercial(byOwner.json))
+  // …but never the provider credentials, which COMPANY_SECRETS has always removed.
+  check('T41: …and NEVER the Stripe customer id, even for the owner',
+    !('stripeCustomerId' in (byOwner.json || {})), Object.keys(byOwner.json || {}).filter((k) => /stripe/i.test(k)))
+
+  // THE ASSERTIONS THIS SECTION EXISTS FOR.
+  const mgr2 = await mk('manager', 'mgr-billing')
+  const byManager = await as(mgr2)('GET', '/api/company')
+  check('T41: a manager still reads the company — the shell needs it', byManager.status === 200,
+    { status: byManager.status })
+  check('T41: …with the name and branding intact', !!byManager.json?.name, Object.keys(byManager.json || {}).length)
+  check('T41: …and NO subscription tier', !('subscriptionTier' in (byManager.json || {})), commercial(byManager.json))
+  check('T41: …and NO integrations bag, so no Stripe account id can hide in it',
+    !('integrations' in (byManager.json || {})), commercial(byManager.json))
+  check('T41: …which is the whole point — the account id is not reachable at all',
+    !/acct_T41PROBE/.test(JSON.stringify(byManager.json || {})), JSON.stringify(byManager.json || {}).slice(0, 160))
+
+  const byField = await as(await mk('field', 'tech-billing'))('GET', '/api/company')
+  check('T41: a field seat gets the same reduced row', byField.status === 200 && commercial(byField.json).length === 0,
+    { status: byField.status, commercial: commercial(byField.json) })
+  check('T41: …and cannot see the QuickBooks realm either',
+    !/9130350000000000/.test(JSON.stringify(byField.json || {})), JSON.stringify(byField.json || {}).slice(0, 160))
+}
+
 console.log(`\n  ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

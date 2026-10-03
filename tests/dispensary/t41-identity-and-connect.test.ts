@@ -233,5 +233,53 @@ console.log('\n── who can read a pay rate ──')
   }
 }
 
+// ═════════════════ V4 · the company row is not the billing record ══════════════════════════════
+//
+// T41 named this leak on field service and contractor ("staff sees subscription plan / Stripe
+// account ID in /api/company"; "/api/company gives the manager billing details while /api/billing
+// is 403"). Those two run the SHARED company route. This template has its own copy of it, so it had
+// the same hole — and was not reported only because nobody looked here. Fixed in the same round
+// rather than left for the next report.
+//
+// This file's sanitizeCompany already redacts `settings` by role (T45 M27, after a Stripe secret key
+// turned up in there). It left `integrations` — the bag holding stripeAccountId — and
+// `subscriptionTier` beside it.
+console.log('\n── who can read the commercial fields ──')
+{
+  const { company: companyT } = await import('./db/schema.ts')
+  await db.update(companyT).set({
+    subscriptionTier: 'fleet',
+    integrations: { stripeAccountId: 'acct_T41DISP', metrcUserKey: 'mk_T41DISP' },
+  } as any).where(sql`id = ${co.id}` as any)
+
+  const appCo = new Hono()
+  appCo.route('/api/company', (await import('./src/routes/company.ts')).default)
+  appCo.onError((await import('./src/utils/errors.ts')).errorHandler)
+  const getCompany = async (u: any) => {
+    const res = await appCo.request('/api/company', {
+      headers: { 'x-test-user': u.id, 'x-test-company': co.id, 'x-test-role': u.role },
+    })
+    const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+    return { status: res.status, json: j, text: t }
+  }
+
+  const asOwner2 = await getCompany(owner)
+  check('V4: the owner reads the company', asOwner2.status === 200, { status: asOwner2.status })
+  check('V4: …including the connected accounts and the tier',
+    'integrations' in (asOwner2.json || {}) && 'subscriptionTier' in (asOwner2.json || {}),
+    Object.keys(asOwner2.json || {}).filter((k) => /integrations|subscription/.test(k)))
+
+  for (const [label, who] of [['manager', manager], ['budtender', budtender], ['viewer', viewer]] as const) {
+    const got = await getCompany(who)
+    check(`V4: a ${label} still reads the company — the shell needs the name and branding`,
+      got.status === 200 && !!got.json?.name, { status: got.status })
+    check(`V4: …with no integrations bag and no tier`,
+      !('integrations' in (got.json || {})) && !('subscriptionTier' in (got.json || {})),
+      Object.keys(got.json || {}).filter((k) => /integrations|subscription/.test(k)))
+    check(`V4: …and the Stripe account id is not reachable at all`,
+      !/acct_T41DISP/.test(got.text || ''), (got.text || '').slice(0, 140))
+  }
+}
+
 console.log(`\n  ${passed} passed, ${failed} failed`)
 if (failed) process.exit(1)

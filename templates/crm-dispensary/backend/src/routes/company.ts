@@ -39,6 +39,27 @@ function sanitizeCompany<T extends Record<string, any>>(row: T, role?: unknown):
   // Merch tab writes a Stripe SECRET key straight into it — so the blob went out whole, to every
   // role, on this route and on /auth/me. (T45 M27, which asked for exactly this confirmation.)
   clone.settings = redactCompanySettings(clone.settings, { privileged: isPrivilegedRole(role) })
+  /**
+   * …and the COMMERCIAL fields, by the same rule. (T41)
+   *
+   * T45 M27 taught this function to look inside `settings`, because a Stripe secret key was being
+   * written there. It left two things beside it: `integrations`, an open JSON bag that connectors
+   * write account identifiers into (stripeAccountId — the very id T41 found reachable through
+   * /integrations/stripe/connect-url), and `subscriptionTier`, which is what the shop pays us.
+   *
+   * The report named this leak on field service and contractor ("staff sees subscription plan /
+   * Stripe account ID in /api/company"; "/api/company gives the manager billing details while
+   * /api/billing is 403"). Those run the SHARED company route; this template has its own copy, so
+   * it had the same hole and was not reported only because nobody looked here. Same shape, same
+   * round, same fix — not left for the next report to find.
+   *
+   * The whole bag goes rather than named keys inside it: a denylist inside an extensible object is
+   * wrong as soon as the next connector adds a field.
+   */
+  if (!isPrivilegedRole(role)) {
+    delete clone.integrations
+    delete clone.subscriptionTier
+  }
   // Settings → Loyalty reads these flat keys; they live under settings.loyalty. Without them the
   // screen fell back to its own placeholder numbers and looked like it had loaded a saved config. (T21 M7)
   Object.assign(clone, loyaltyConfigResponse(row))
