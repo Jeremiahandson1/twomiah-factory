@@ -112,6 +112,10 @@ export interface GenerateConfig {
     heroPhoto?: string
     heroPhotoFilename?: string
     websiteTheme?: string
+    // Google Fonts family names, e.g. 'Playfair Display' / 'Montserrat'.
+    // Premium sites only: replaces the template's display + body faces.
+    headingFont?: string
+    bodyFont?: string
   }
   features: {
     website?: string[]
@@ -241,6 +245,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
 
       copyTemplate(websiteTemplate, path.join(workDir, 'website'), tokens)
       injectCSSColors(path.join(workDir, 'website'), config.branding, industry)
+      if (isPremium) injectBrandFonts(path.join(workDir, 'website'), config.branding)
 
       // Inject website theme if specified
       const theme = config.websiteTheme || config.branding?.websiteTheme
@@ -943,6 +948,72 @@ function injectCSSColors(websiteDir: string, branding: GenerateConfig['branding'
   }
 }
 
+// Brand fonts for the premium templates. Every premium base.ejs loads its faces
+// from one Google Fonts `fontsHref` and names them as quoted families in its CSS
+// and section partials — the body face is the one on the `body {` rule, the
+// display face is the next family in that URL. Swap both names everywhere they
+// are quoted and point fontsHref at the brand's families. Runs at generate time
+// from branding, so it survives every regenerate/update-code — editing a single
+// tenant's repo would not.
+const FONT_NAME_RE = /^[A-Za-z0-9 ]{2,40}$/
+function injectBrandFonts(websiteDir: string, branding: GenerateConfig['branding']) {
+  const heading = (branding.headingFont || '').trim()
+  const body = (branding.bodyFont || '').trim()
+  if (!heading && !body) return
+  if ((heading && !FONT_NAME_RE.test(heading)) || (body && !FONT_NAME_RE.test(body))) {
+    console.warn('[Generator] Brand fonts skipped — invalid family name:', heading, body)
+    return
+  }
+  const baseEjs = path.join(websiteDir, 'views', 'base.ejs')
+  const mainCss = path.join(websiteDir, 'build', 'styles', 'main.css')
+  if (!fs.existsSync(baseEjs) || !fs.existsSync(mainCss)) return
+  const base = fs.readFileSync(baseEjs, 'utf8')
+  const hrefMatch = base.match(/var fontsHref = '([^']*)'/)
+  const bodyRule = fs.readFileSync(mainCss, 'utf8').match(/\nbody\s*\{[^}]*font-family:\s*'([^']+)'/)
+  if (!hrefMatch || !bodyRule) {
+    console.warn('[Generator] Brand fonts skipped — template has no fontsHref/body font rule')
+    return
+  }
+  const families = [...hrefMatch[1].matchAll(/family=([^:&]+)/g)].map(m => decodeURIComponent(m[1].replace(/\+/g, ' ')))
+  const templateBody = bodyRule[1]
+  const templateDisplay = families.find(f => f !== templateBody)
+  const swaps: Array<[string, string]> = []
+  if (body) swaps.push([templateBody, body])
+  if (heading && templateDisplay) swaps.push([templateDisplay, heading])
+
+  const files: string[] = []
+  const walk = (dir: string) => {
+    if (!fs.existsSync(dir)) return
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, entry.name)
+      if (entry.isDirectory()) walk(p)
+      else if (/\.(css|ejs)$/.test(entry.name)) files.push(p)
+    }
+  }
+  walk(path.join(websiteDir, 'build'))
+  walk(path.join(websiteDir, 'views'))
+  for (const file of files) {
+    let src = fs.readFileSync(file, 'utf8')
+    const before = src
+    for (const [from, to] of swaps) src = src.split("'" + from + "'").join("'" + to + "'")
+    if (src !== before) fs.writeFileSync(file, src, 'utf8')
+  }
+
+  // Load the brand's families at the weights the templates use (400–800; Google
+  // rejects the WHOLE request if a family lacks one, so brand faces must offer
+  // them). A template family that was not swapped (e.g. foodtruck's mono face)
+  // keeps its original spec untouched.
+  const swapped = new Set(swaps.map(([from]) => from))
+  const specs = [
+    ...[...new Set(swaps.map(([, to]) => to))].map(f => 'family=' + f.replace(/ /g, '+') + ':wght@400;500;600;700;800'),
+    ...[...hrefMatch[1].matchAll(/family=[^&]+/g)].map(m => m[0])
+      .filter(spec => !swapped.has(decodeURIComponent(spec.slice(7).split(':')[0].replace(/\+/g, ' ')))),
+  ]
+  const href = 'https://fonts.googleapis.com/css2?' + specs.join('&') + '&display=swap'
+  fs.writeFileSync(baseEjs, fs.readFileSync(baseEjs, 'utf8').replace(hrefMatch[0], "var fontsHref = '" + href + "'"), 'utf8')
+  console.log('[Generator] Brand fonts:', swaps.map(([a, b]) => a + ' → ' + b).join(', '))
+}
+
 function stripWebsiteFeatures(websiteDir: string, enabledFeatures: string[]) {
   const featureFiles: Record<string, { views?: string[]; data?: string[]; routes?: string[] }> = {
     blog: { views: ['blog.ejs', 'blog-post.ejs'], data: ['posts.json'] },
@@ -1384,6 +1455,10 @@ async function writeBrandingAssets(targetDir: string, branding: GenerateConfig['
     } catch (err: any) {
       console.warn('[Generator] Logo discipline skipped:', err?.message)
     }
+    // A stable name that can never be the synthesized placeholder
+    // (/images/logo.svg) — premium site-bootstrap seeds settings.logoUrl with
+    // this path when the tenant uploaded a logo, and the header renders it.
+    fs.copyFileSync(logoFile, path.join(imagesDir, 'brand-logo.' + ext))
   }
 
   if (branding.favicon?.startsWith('data:')) {

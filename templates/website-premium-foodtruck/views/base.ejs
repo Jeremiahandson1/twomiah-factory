@@ -65,7 +65,11 @@
 <% if (settings.googleTagManagerId) { %><noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<%= settings.googleTagManagerId %>" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript><% } %>
   <header class="site-header">
     <div class="container header-inner">
-      <a class="brand" href="<%= settings.homeHref || '/' %>"><%= settings.companyName || 'Your Company' %></a>
+      <%/* An uploaded logo replaces the text wordmark. /images/logo.svg is the
+           generator's synthesized placeholder (initial + name), never a real
+           logo, so it keeps the text wordmark. */%>
+      <% var headerLogo = settings.logoUrl && settings.logoUrl !== '/images/logo.svg' ? settings.logoUrl : ''; %>
+      <a class="brand<%= headerLogo ? ' brand--logo' : '' %>" href="<%= settings.homeHref || '/' %>"><% if (headerLogo) { %><img src="<%= headerLogo %>" alt="<%= settings.companyName || 'Home' %>" style="display:block;height:44px;width:auto;max-width:min(340px,58vw);"><% } else { %><%= settings.companyName || 'Your Company' %><% } %></a>
       <nav class="primary-nav" aria-label="Primary">
         <% (settings.nav || []).forEach(function(item) { %>
           <a href="<%= item.href %>"<%= currentPath && currentPath === item.href ? ' aria-current="page"' : '' %>><%= item.label %></a>

@@ -1607,6 +1607,19 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
   const composed = (tenant.preview_premium_pages || {}) as { pages?: Record<string, { sections: any[] }> }
   const composedPages = composed.pages || {}
 
+  // Uploaded brand assets. The generator writes an uploaded logo to
+  // build/images/brand-logo.<ext> and an uploaded favicon to build/favicon.png;
+  // with no upload it synthesizes /images/logo.svg + /favicon.svg. The build
+  // this site was deployed from is the tenant's latest factory job.
+  const { data: latestJob } = await supabase.from('factory_jobs')
+    .select('config, branding').eq('tenant_id', tenantId)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle()
+  const jobBranding = (latestJob?.config?.branding || latestJob?.branding || {}) as { logo?: string; favicon?: string }
+  const uploadedLogoExt = typeof jobBranding.logo === 'string' && jobBranding.logo.startsWith('data:')
+    ? ((jobBranding.logo.match(/^data:image\/([a-z0-9.+-]+)/i)?.[1] || 'png').toLowerCase().replace('svg+xml', 'svg').replace('jpeg', 'jpg'))
+    : null
+  const uploadedFavicon = typeof jobBranding.favicon === 'string' && jobBranding.favicon.startsWith('data:')
+
   // Page set is whatever the composer actually produced. Generic verticals
   // get home/about/services/contact; food trucks get home/menu/about/
   // schedule/catering/contact; future verticals will define their own.
@@ -1650,8 +1663,8 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
     // settings URL), and any signed URL would expire while this row lives
     // forever. Local paths never 404 and never expire, so they're the robust
     // default. (Templates serve /favicon.svg from build/ via server-static.)
-    faviconUrl: '/favicon.svg',
-    logoUrl: '/images/logo.svg',
+    faviconUrl: uploadedFavicon ? '/favicon.png' : '/favicon.svg',
+    logoUrl: uploadedLogoExt ? '/images/brand-logo.' + uploadedLogoExt : '/images/logo.svg',
     // Nav derived from the page set the composer actually produced —
     // food trucks get Menu/Find us/Catering, generic verticals get
     // Services/About. Same buildPremiumNav helper used by the preview
