@@ -10,7 +10,7 @@
  * template whose schema doesn't carry those columns/tables.
  */
 import { Hono } from 'hono'
-import { eq, and, lte, gte, count, asc, desc, ilike, or, sql } from 'drizzle-orm'
+import { eq, and, ne, lte, gte, count, countDistinct, asc, desc, ilike, or, sql } from 'drizzle-orm'
 
 export interface EquipmentTables {
   equipment: any
@@ -46,9 +46,27 @@ export interface EquipmentRoutesDeps {
  */
 export const WARRANTY_WINDOW_DAYS = 60
 
+/**
+ * The one status that means the machine is GONE. 'active' and 'needs_repair' are both still in the
+ * yard; `markReplaced` sets this one.
+ *
+ * Every report below used to filter `status = 'active'`, which quietly made a machine disappear the
+ * moment somebody marked it broken: it dropped off Maintenance Due, off Warranty Expiring, off the
+ * aging list, and out of the "Total Equipment" count — while the Needs Repair tile counted it
+ * separately, so a yard of 12 with 2 broken read "Total Equipment 10, Needs Repair 2". A broken
+ * machine is the one you most need on the maintenance list and the one whose warranty matters most.
+ * (T41, landscaping + field service — one shared module, so one fix.)
+ *
+ * Written as "not replaced" rather than "active or needs_repair" so a status added later counts as
+ * owned by default. Losing a machine from a report is the expensive direction.
+ */
+const RETIRED = 'replaced'
+
 export function createEquipmentService(deps: EquipmentServiceDeps) {
   const { db, tables } = deps
   const { equipment, equipmentCategory, equipmentMaintenance, contact, job, user } = tables
+  /** Still in the yard: anything not marked replaced. See RETIRED above for why. */
+  const stillOwned = () => ne(equipment.status, RETIRED)
   const opt = { contacts: !!deps.options?.contacts, sites: !!deps.options?.sites, linkedJobs: !!deps.options?.linkedJobs }
 
   // ---- categories ----
@@ -346,7 +364,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
       FROM equipment e
       JOIN equipment_maintenance em ON em.equipment_id = e.id
       WHERE e.company_id = ${companyId}
-        AND e.status = 'active'
+        AND e.status <> ${RETIRED}
         AND em.next_due_date IS NOT NULL
         AND em.next_due_date <= ${dueDate}
       ORDER BY em.next_due_date ASC
@@ -358,7 +376,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
     const expiryDate = new Date(); expiryDate.setDate(expiryDate.getDate() + days)
     return db.select().from(equipment).where(and(
       eq(equipment.companyId, companyId),
-      eq(equipment.status, 'active'),
+      stillOwned(),
       gte(equipment.warrantyExpiry, new Date()),
       lte(equipment.warrantyExpiry, expiryDate),
     )).orderBy(asc(equipment.warrantyExpiry))
@@ -368,25 +386,53 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
     const cutoffDate = new Date(); cutoffDate.setFullYear(cutoffDate.getFullYear() - minAgeYears)
     return db.select().from(equipment).where(and(
       eq(equipment.companyId, companyId),
-      eq(equipment.status, 'active'),
+      stillOwned(),
       lte(equipment.purchaseDate, cutoffDate),
     )).orderBy(asc(equipment.purchaseDate))
   }
 
+  /**
+   * The four tiles on the Equipment page. (T41)
+   *
+   * TWO THINGS WERE WRONG HERE, and the second one had hidden a whole tile for as long as it has
+   * existed.
+   *
+   * 1. `total` counted `status = 'active'` under a tile labelled "Total Equipment", while the Needs
+   *    Repair tile counted the broken ones separately. A yard of 12 machines with 2 broken read
+   *    "Total Equipment 10 · Needs Repair 2" — the label says total and the number was not one. It
+   *    now counts everything still owned.
+   *
+   * 2. The page renders a "Maintenance Due" tile from `stats.needsMaintenance`, and this function
+   *    never returned that key. Its TypeScript interface declares it as required, but no template
+   *    runs tsc, so nothing said so — and the page reads `stats.needsMaintenance ?? 0`, which turned
+   *    the missing figure into a confident zero. The tile has therefore always shown 0, including on
+   *    a yard with overdue machines. It is computed here now, mirroring getMaintenanceDue exactly
+   *    (same window, same join) so the tile and the list it corresponds to cannot disagree.
+   */
   async function getEquipmentStats(companyId: string) {
     const now = new Date()
     const window = new Date(now); window.setDate(window.getDate() + WARRANTY_WINDOW_DAYS)
-    const [[{ value: total }], [{ value: needsRepair }], [{ value: warrantyExpiring }]] = await Promise.all([
-      db.select({ value: count() }).from(equipment).where(and(eq(equipment.companyId, companyId), eq(equipment.status, 'active'))),
+    const maintenanceWindow = new Date(now); maintenanceWindow.setDate(maintenanceWindow.getDate() + 30)
+    const [[{ value: total }], [{ value: needsRepair }], [{ value: warrantyExpiring }], [{ value: needsMaintenance }]] = await Promise.all([
+      db.select({ value: count() }).from(equipment).where(and(eq(equipment.companyId, companyId), stillOwned())),
       db.select({ value: count() }).from(equipment).where(and(eq(equipment.companyId, companyId), eq(equipment.status, 'needs_repair'))),
       db.select({ value: count() }).from(equipment).where(and(
         eq(equipment.companyId, companyId),
-        eq(equipment.status, 'active'),
+        stillOwned(),
         gte(equipment.warrantyExpiry, now),
         lte(equipment.warrantyExpiry, window),
       )),
+      // DISTINCT equipment, not maintenance rows: a machine with three overdue schedules is one
+      // machine to go and look at.
+      db.select({ value: countDistinct(equipment.id) }).from(equipment)
+        .innerJoin(equipmentMaintenance, eq(equipmentMaintenance.equipmentId, equipment.id))
+        .where(and(
+          eq(equipment.companyId, companyId),
+          stillOwned(),
+          lte(equipmentMaintenance.nextDueDate, maintenanceWindow),
+        )),
     ])
-    return { total, needsRepair, warrantyExpiring }
+    return { total, needsRepair, warrantyExpiring, needsMaintenance }
   }
 
   async function deleteEquipment(id: string, companyId: string) {

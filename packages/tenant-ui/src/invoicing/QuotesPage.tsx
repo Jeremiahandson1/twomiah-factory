@@ -24,6 +24,8 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   const [projects, setProjects] = useState<Row[]>([])
   const [sites, setSites] = useState<Row[]>([])
   const [equipment, setEquipment] = useState<Row[]>([])
+  /** The catalogue, when this vertical prices quotes from it. Empty everywhere else. (T41) */
+  const [pricebook, setPricebook] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
   const [pagination, setPagination] = useState<any>(null)
   const [statusFilter, setStatusFilter] = useState('')
@@ -47,6 +49,22 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
     finally { setLoading(false) }
     api.get('/api/contacts', { limit: 200 }).then((r: any) => setContacts(r?.data || [])).catch(() => setContacts([]))
     if (cfg.projects) api.get('/api/projects', { limit: 100 }).then((r: any) => setProjects(r?.data || [])).catch(() => setProjects([]))
+    /**
+     * The pricebook, only where quotes are priced from it. (T41)
+     *
+     * Active items only — a retired item must not be offered on a new quote. 200 is the endpoint's
+     * own ceiling (getItems clamps limit), so asking for more would be a lie about what arrives; a
+     * book bigger than that still types by hand, and the search endpoint is the next step if a
+     * tenant ever needs it.
+     *
+     * A failure leaves the picker hidden rather than blocking the page — and a tenant without the
+     * pricebook feature gets a 403 here, which is exactly the case where it should not appear.
+     */
+    if (cfg.pricebook) {
+      api.get('/api/pricebook/items', { limit: 200, active: 'true' })
+        .then((r: any) => setPricebook(Array.isArray(r) ? r : r?.data || []))
+        .catch(() => setPricebook([]))
+    }
   }, [page, statusFilter, search]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [load])
 
@@ -57,7 +75,17 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   const openCreate = () => { setEditing(null); setForm(emptyForm()); setSites([]); setEquipment([]); setModalOpen(true) }
   const openEdit = useCallback((item: Row) => {
     setEditing(item)
-    setForm({ name: item.name || '', contactId: item.contactId || '', projectId: item.projectId || '', siteId: item.siteId || '', equipmentId: item.equipmentId || '', expiryDate: item.expiryDate ? String(item.expiryDate).slice(0, 10) : '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: item.notes || '', customerMessage: item.customerMessage || '', terms: item.terms || '', lineItems: item.lineItems?.length ? item.lineItems.map((li: any) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) })) : [blankLine()] })
+    setForm({ name: item.name || '', contactId: item.contactId || '', projectId: item.projectId || '', siteId: item.siteId || '', equipmentId: item.equipmentId || '', expiryDate: item.expiryDate ? String(item.expiryDate).slice(0, 10) : '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: item.notes || '', customerMessage: item.customerMessage || '', terms: item.terms || '', lineItems: item.lineItems?.length ? item.lineItems.map((li: any) => ({
+      description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice),
+      /*
+       * The cost fields have to survive a round trip. PUT replaces the whole line set, so reading a
+       * quote back without them and saving it again would silently wipe every cost the quote had —
+       * the edit path throwing away what the create path recorded. (T41)
+       */
+      ...(li.type ? { type: li.type } : {}),
+      ...(li.unitCost === null || li.unitCost === undefined ? {} : { unitCost: Number(li.unitCost) }),
+      ...(li.pricebookItemId ? { pricebookItemId: li.pricebookItemId } : {}),
+    })) : [blankLine()] })
     loadCustomerExtras(item.contactId || '')
     setModalOpen(true)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -139,7 +167,19 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
             {cfg.quoteSites && sites.length > 0 && <Field label="Location"><select value={form.siteId} onChange={e => setForm({ ...form, siteId: e.target.value })} className={inputCls}><option value="">No specific location</option>{sites.map(s => <option key={s.id} value={s.id}>{s.name}{s.address ? ` — ${s.address}` : ''}</option>)}</select></Field>}
             {cfg.quoteEquipment && equipment.length > 0 && <Field label="Equipment"><select value={form.equipmentId} onChange={e => setForm({ ...form, equipmentId: e.target.value })} className={inputCls}><option value="">No specific unit</option>{equipment.map(eq => <option key={eq.id} value={eq.id}>{eq.name}{eq.manufacturer ? ` — ${eq.manufacturer}` : ''}{eq.model ? ` ${eq.model}` : ''}</option>)}</select></Field>}
           </div>
-          <Field label="Line Items"><LineItemsEditor items={form.lineItems} onChange={items => setForm({ ...form, lineItems: items })} /></Field>
+          <Field label="Line Items">
+            <LineItemsEditor
+              items={form.lineItems}
+              onChange={items => setForm({ ...form, lineItems: items })}
+              /*
+               * Only passed where the vertical records line cost, so every other template gets the
+               * editor exactly as it was. canSeeCost follows the same permission the Pricebook
+               * screen uses to decide whether to show what the company PAYS — and when cost is
+               * withheld, lines are left uncosted rather than costed at zero. (T41)
+               */
+              pricebook={cfg.pricebook ? { items: pricebook as any, canSeeCost: cfg.can ? cfg.can('pricebook:update') : true } : undefined}
+            />
+          </Field>
           <div className="grid md:grid-cols-3 gap-4">
             <Field label="Tax Rate (%)"><NumberInput min="0" max="100" step="0.01" value={form.taxRate} onValue={n => setForm({ ...form, taxRate: n })} className={inputCls} /></Field>
             <Field label="Discount ($)"><NumberInput min="0" step="0.01" value={form.discount} onValue={n => setForm({ ...form, discount: n })} className={inputCls} /></Field>

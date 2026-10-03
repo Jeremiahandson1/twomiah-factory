@@ -264,9 +264,22 @@ export async function attributeRevenue(companyId: string, inScope: JobKey[]): Pr
 
   const quoteIds = [...quoteToJobs.keys()]
   const projectIds = [...projectToJobs.keys()]
-  if (!quoteIds.length && !projectIds.length) return { byJob, distinct }
+  /**
+   * The THIRD and most direct link: an invoice raised FOR this job. (T41)
+   *
+   * Revenue could only reach a job through its quote or its project, and a field-service call
+   * frequently has neither — so billing a service call left the job showing cost against no
+   * revenue, a pure loss on work that had been invoiced and paid. POST /api/jobs/:id/invoice now
+   * stamps invoice.job_id, and this is the half that reads it.
+   *
+   * It is checked FIRST below, because it is the least ambiguous of the three: the invoice names
+   * exactly one job, so the money is direct revenue and is never spread across a project's siblings.
+   */
+  const jobIds = universe.map((j) => j.id)
+  if (!quoteIds.length && !projectIds.length && !jobIds.length) return { byJob, distinct }
 
   const links = [
+    ...(jobIds.length ? [inArray(invoice.jobId, jobIds)] : []),
     ...(quoteIds.length ? [inArray(invoice.quoteId, quoteIds)] : []),
     ...(projectIds.length ? [inArray(invoice.projectId, projectIds)] : []),
   ]
@@ -274,7 +287,7 @@ export async function attributeRevenue(companyId: string, inScope: JobKey[]): Pr
     id: invoice.id, number: invoice.number, status: invoice.status,
     total: invoice.total, taxAmount: invoice.taxAmount,
     amountPaid: invoice.amountPaid, amountRefunded: invoice.amountRefunded,
-    projectId: invoice.projectId, quoteId: invoice.quoteId,
+    projectId: invoice.projectId, quoteId: invoice.quoteId, jobId: invoice.jobId,
   })
     .from(invoice)
     .where(and(
@@ -290,7 +303,14 @@ export async function attributeRevenue(companyId: string, inScope: JobKey[]): Pr
       amountPaid: num(r.amountPaid), amountRefunded: num(r.amountRefunded),
       projectId: r.projectId, quoteId: r.quoteId,
     }
-    const direct = inv.quoteId ? quoteToJobs.get(inv.quoteId) : undefined
+    /**
+     * Most specific link wins: the job the invoice names, then the quote behind the job, then the
+     * project it sits on. An invoice stamped with a job_id is DIRECT revenue for exactly that job
+     * and is never shared across a project's other calls — it names one piece of work. (T41)
+     */
+    const billedJob = r.jobId && byJob.has(r.jobId) ? [r.jobId] : undefined
+    const viaQuote = inv.quoteId ? quoteToJobs.get(inv.quoteId) : undefined
+    const direct = billedJob?.length ? billedJob : viaQuote
     const targets = direct?.length ? direct : (inv.projectId ? projectToJobs.get(inv.projectId) || [] : [])
     if (!targets.length) continue
 
@@ -319,26 +339,59 @@ export async function attributeRevenue(companyId: string, inScope: JobKey[]): Pr
 }
 
 /**
- * What the quote said the work would cost, split labour/material.
+ * What the quote said the work would COST us, split labour/material.
  *
- * Note what this is NOT: a quote line's `total` is the price to the customer, not the cost to
- * deliver, because quote lines carry no cost field. So "estimated cost" here is the quoted value of
- * the labour and material lines — which is what it has always been, and is left alone deliberately.
- * Making it a true estimated cost needs a cost column on quote lines and a screen to enter it, and
- * inventing a margin assumption to fill the gap is exactly the fault being fixed elsewhere in here.
+ * THIS USED TO BE ZERO FOR EVERY QUOTE, AND THAT IS WHY MARGIN READ 100%. (T41)
+ *
+ * The two CASE expressions below have always keyed on `quote_line_item.type` — and nothing ever
+ * wrote that column. The shared quote route's line schema had no `type` field, so every row was
+ * NULL, so both sums were 0 on every quote in the fleet. Reported as "pricebook cost never reaches
+ * job costing (100% margin)", and the deeper truth was worse than a wrong cost: there was no
+ * estimate at all, and a 100% margin is what you get when you divide revenue by nothing.
+ *
+ * What it reads now, in order of what it actually knows:
+ *
+ *   1. unit_cost × quantity, when the line records a cost. This is a real cost — entered by hand or
+ *      filled from the pricebook item's `cost` by the picker — and it is the only figure here that
+ *      deserves the name.
+ *   2. nothing, when the line records no cost. NOT the line's price: a line's `total` is what the
+ *      CUSTOMER pays, and reporting it back as our cost would state a 0% margin on work that has
+ *      not been costed, which is as wrong as 100% and harder to notice. Those lines are counted in
+ *      `uncostedLines` instead, so a screen can say "3 lines have no cost recorded" rather than
+ *      implying the job breaks even.
+ *
+ * That is the same principle as unratedLaborHours above: a cost the system made up is worse than a
+ * cost it admits it does not know.
  */
-async function estimatedCostsByQuote(quoteIds: string[]): Promise<Map<string, { labor: number; material: number }>> {
-  const out = new Map<string, { labor: number; material: number }>()
+async function estimatedCostsByQuote(quoteIds: string[]): Promise<Map<string, { labor: number; material: number; uncostedLines: number }>> {
+  const out = new Map<string, { labor: number; material: number; uncostedLines: number }>()
   for (const ids of chunks(quoteIds)) {
+    // `unit_cost` exists on templates that ran the quote-line-cost migration (crm-fieldservice
+    // 0024). Addressed through the schema object so a template without it fails loudly at build
+    // rather than silently summing a column that is not there.
+    const lineCost = sql`${quoteLineItem.quantity} * ${quoteLineItem.unitCost}`
     const rows = await db.select({
       quoteId: quoteLineItem.quoteId,
-      labor: sql<string>`COALESCE(SUM(CASE WHEN ${quoteLineItem.type} = 'labor' THEN ${quoteLineItem.total} ELSE 0 END), 0)`,
-      material: sql<string>`COALESCE(SUM(CASE WHEN ${quoteLineItem.type} IN ('material', 'part') THEN ${quoteLineItem.total} ELSE 0 END), 0)`,
+      labor: sql<string>`COALESCE(SUM(CASE WHEN ${quoteLineItem.type} = 'labor' AND ${quoteLineItem.unitCost} IS NOT NULL THEN ${lineCost} ELSE 0 END), 0)`,
+      material: sql<string>`COALESCE(SUM(CASE WHEN ${quoteLineItem.type} IN ('material', 'part') AND ${quoteLineItem.unitCost} IS NOT NULL THEN ${lineCost} ELSE 0 END), 0)`,
+      // Anything not costed, whatever its type — including a costed line typed 'service'/'other',
+      // which contributes to neither bucket and would otherwise vanish without trace.
+      other: sql<string>`COALESCE(SUM(CASE WHEN ${quoteLineItem.unitCost} IS NOT NULL AND (${quoteLineItem.type} IS NULL OR ${quoteLineItem.type} NOT IN ('labor', 'material', 'part')) THEN ${lineCost} ELSE 0 END), 0)`,
+      uncosted: sql<string>`COUNT(*) FILTER (WHERE ${quoteLineItem.unitCost} IS NULL)`,
     })
       .from(quoteLineItem)
       .where(inArray(quoteLineItem.quoteId, ids))
       .groupBy(quoteLineItem.quoteId)
-    for (const r of rows) out.set(r.quoteId, { labor: num(r.labor), material: num(r.material) })
+    for (const r of rows) {
+      out.set(r.quoteId, {
+        labor: num(r.labor),
+        // A costed line that is neither labour nor material is still money out of the door; it is
+        // reported with materials rather than dropped, because the alternative is an estimate that
+        // silently excludes it.
+        material: round2(num(r.material) + num(r.other)),
+        uncostedLines: Number(r.uncosted || 0),
+      })
+    }
   }
   return out
 }
@@ -385,7 +438,7 @@ export async function getJobCostAnalysis(jobId: string, companyId: string) {
   ])
   const rev = byJob.get(jobRow.id)!
   const cost = costMap.get(jobRow.id)!
-  const est = estMap.get(jobRow.quoteId || '') || { labor: 0, material: 0 }
+  const est = estMap.get(jobRow.quoteId || '') || { labor: 0, material: 0, uncostedLines: 0 }
 
   // The lines behind each figure. The hourly rate here resolves the same way costsByJob's SQL does.
   const timeEntries = await db.select()
@@ -445,6 +498,13 @@ export async function getJobCostAnalysis(jobId: string, companyId: string) {
       profit: estimatedProfit,
       margin: round1(estimatedMargin),
       laborHours: estimatedLaborHours,
+      /**
+       * Quote lines with no cost recorded. The estimate above excludes them rather than pricing
+       * them at their selling price, so this is the difference between "this job is costed and the
+       * margin is 100%" and "this job has not been costed". Without it the screen cannot tell the
+       * reader which one it is looking at — which is how the 100% went unexplained. (T41)
+       */
+      uncostedLines: est.uncostedLines,
     },
 
     actual: {
@@ -580,7 +640,7 @@ export async function getJobCostingSummary(
   const rowFor = (j: typeof scope[number]) => {
     const rev = byJob.get(j.id) || { directRevenue: 0, sharedRevenue: 0, revenue: 0, salesTax: 0, collected: 0, invoiceIds: [], invoices: [] }
     const cost = costMap.get(j.id) || EMPTY_COST
-    const est = estMap.get(j.quoteId || '') || { labor: 0, material: 0 }
+    const est = estMap.get(j.quoteId || '') || { labor: 0, material: 0, uncostedLines: 0 }
     const estimatedRevenue = estimatedRevenueOf(j.quoteTotal != null ? { total: j.quoteTotal, taxAmount: j.quoteTax } : null, j.estimatedValue)
     const estimatedCost = round2(est.labor + est.material)
     const profit = round2(rev.revenue - cost.totalCost)

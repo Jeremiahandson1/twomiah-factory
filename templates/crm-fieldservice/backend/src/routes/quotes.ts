@@ -17,7 +17,7 @@ export default createQuoteRoutes({
   emitToCompany,
   EVENTS,
   sendQuoteEmail: (to: string, data: Record<string, unknown>) => emailService.sendQuote(to, data),
-  loadPdf: () => import('../services/pdf.ts').then(m => m.generateQuotePDF),
+  loadPdf: () => import('../services/pdf.ts').then(m => m.generateQuotePDF),
   // timeZoneFor: the business's own clock decides what "today" is, so an invoice or quote raised
   // in the evening is not stamped with tomorrow. Render runs UTC. (Field Service T28 M4)
   options: { timeZoneFor: (companyId: string) => companyTimeZone(db, companyId),
@@ -25,6 +25,10 @@ export default createQuoteRoutes({
     hasDeclinedAt: true,
     hasConvertedToJobId: true,
     jobHasSiteAndEquipment: true,
+    // quote_line_item carries unit_cost + pricebook_item_id here (migration 0024), so a line can
+    // record what the work costs as well as what it sells for — which is what job costing needs to
+    // report a margin at all. (T41)
+    hasLineCost: true,
     // Text the customer when a quote goes out (was inline in this route before).
     onSent: async ({ companyId, quote, contact, company }) => {
       if (!contact?.phone) return

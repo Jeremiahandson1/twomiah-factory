@@ -3,7 +3,7 @@
 import { z } from 'zod'
 import { createJobRoutes } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
-import { job, project, contact, user, timeEntry, equipment, jobPhoto, company, teamMember } from '../../db/schema.ts'
+import { job, project, contact, user, timeEntry, equipment, jobPhoto, company, teamMember, invoice, invoiceLineItem } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import { cleanText } from '../utils/sanitize.ts'
@@ -16,7 +16,7 @@ import { requirePermission, hasPermission, getExtraPermissions } from '../middle
 
 export default createJobRoutes({
   db,
-  tables: { job, project, contact, user, timeEntry, equipment, jobPhoto, teamMember },
+  tables: { job, project, contact, user, timeEntry, equipment, jobPhoto, teamMember, invoice, invoiceLineItem },
   authenticate,
   requirePermission,
   // Changing what a job is WORTH needs the right that prices a quote. `jobs:update` has to stay
@@ -32,6 +32,9 @@ export default createJobRoutes({
     extraFields: { equipmentId: z.string().optional().transform((v) => (v === '' ? undefined : v)), siteId: z.string().optional().transform((v) => (v === '' ? undefined : v)) },
     // job photos live in the private bucket and are served by /media (routes/media.ts)
     storage,
+    // A service call can be billed: POST /api/jobs/:id/invoice. invoice.job_id exists here
+    // (migration 0025), which is what makes the revenue reach the job in job costing. (T41)
+    billing: { numbering: { prefix: 'INV', pad: 5 }, termsDays: 30 },
     // the customer hears from us as the tech moves through the call
     onDispatch: async ({ job, companyId }) => { smsService.sendJobUpdate(companyId, job.id, 'on_my_way').catch(() => {}) },
     onStart: async ({ job, companyId }) => { smsService.sendJobUpdate(companyId, job.id, 'on_site').catch(() => {}) },

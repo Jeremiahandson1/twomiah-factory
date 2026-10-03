@@ -267,5 +267,81 @@ console.log('\n══════════ company scoping ══════
   check('…and the figure is untouched', Number((await claimRow(claimId))?.supplement_amount) === 1100, await claimRow(claimId))
 }
 
+// ══════════ T41 · the scope export is the ask OR the settlement, and says which ═════════════════
+//
+// T41: "the Xactimate export carries drafts and requested amounts instead of approved amounts."
+// True — and deliberate: roof T18 D3 settled that this document is the ASK sent to the carrier. The
+// fix is not to flip it but to make the basis explicit, because a contractor needs both documents
+// and getting the wrong one overstates a settlement.
+//
+// The document builder writes a PDF to R2, which this sandbox has no credentials for, so what is
+// pinned here is the decision the builder makes: buildSupplementItems(supplements, basis).
+console.log('\n══════════ which supplements the scope carries ══════════')
+{
+  const { buildSupplementItems } = await import('./src/services/xactimate.ts')
+
+  const supplements = [
+    {
+      id: 's1', supplementNumber: 'SUP-001', status: 'draft',
+      lineItems: [{ code: 'RFG 240', description: 'Extra squares', qty: 2, unit: 'SQ', unitPrice: 185, total: 370 }],
+      approvedAmount: null,
+    },
+    {
+      id: 's2', supplementNumber: 'SUP-002', status: 'submitted',
+      lineItems: [{ code: 'WTR 052', description: 'Step flashing', qty: 10, unit: 'LF', unitPrice: 8.5, total: 85 }],
+      approvedAmount: null,
+    },
+    {
+      // Asked for $1,000, the carrier allowed $600.
+      id: 's3', supplementNumber: 'SUP-003', status: 'approved',
+      lineItems: [{ code: 'RFG 180', description: 'Ice & water', qty: 10, unit: 'SQ', unitPrice: 100, total: 1000 }],
+      approvedAmount: '600.00',
+    },
+  ]
+  const sum = (rows: any[]) => Math.round(rows.reduce((s, r) => s + Number(r.total), 0) * 100) / 100
+
+  // ── the ask: unchanged behaviour, T18 D3 ──
+  const ask = buildSupplementItems(supplements, 'ask')
+  check('T41: the ASK carries every supplement handed in, drafts included', ask.length === 3,
+    ask.map((r: any) => `${r.code} ${r.total}`))
+  check('T41: …at the amounts requested — 370 + 85 + 1000', sum(ask) === 1455, { total: sum(ask) })
+  check('T41: …and adds no adjustment line, because nothing is being settled',
+    !ask.some((r: any) => r.code === 'ADJ'), ask.map((r: any) => r.code))
+  check('T41: the default basis is still the ask, so existing callers are unchanged',
+    sum(buildSupplementItems(supplements)) === 1455, { total: sum(buildSupplementItems(supplements)) })
+
+  // ── the settlement ──
+  const approved = buildSupplementItems(supplements, 'approved')
+  check('T41: the APPROVED scope drops the draft and the submitted one',
+    !approved.some((r: any) => /Extra squares|Step flashing/.test(String(r.description))),
+    approved.map((r: any) => r.description))
+  check('T41: …keeps the approved supplement\'s own line', approved.some((r: any) => r.code === 'RFG 180'),
+    approved.map((r: any) => r.code))
+  check('T41: …and reconciles it with ONE named adjustment line, not by rewriting the line price',
+    approved.some((r: any) => r.code === 'ADJ' && /SUP-003/.test(String(r.description)) && Number(r.total) === -400),
+    approved.filter((r: any) => r.code === 'ADJ'))
+  // THE ASSERTION THIS SECTION EXISTS FOR: the settled scope totals what the carrier approved.
+  check('T41: …so the total is the 600 the carrier approved, not the 1000 that was asked for',
+    sum(approved) === 600, { total: sum(approved) })
+
+  // An approved supplement with no recorded amount is taken at its line items — there is nothing
+  // else to go on, and inventing a reduction would be worse than reporting what was approved.
+  const noAmount = buildSupplementItems(
+    [{ id: 's4', supplementNumber: 'SUP-004', status: 'approved', lineItems: [{ code: 'X', description: 'Allowed in full', qty: 1, unit: 'EA', unitPrice: 250, total: 250 }], approvedAmount: null }],
+    'approved',
+  )
+  check('T41: an approved supplement with no approved_amount is taken at its lines', sum(noAmount) === 250,
+    { total: sum(noAmount), codes: noAmount.map((r: any) => r.code) })
+  check('T41: …with no adjustment line invented', !noAmount.some((r: any) => r.code === 'ADJ'), noAmount.map((r: any) => r.code))
+
+  // A denied supplement never reaches this function (the route filters it), but if one did, the
+  // approved basis must still refuse it.
+  const denied = buildSupplementItems(
+    [{ id: 's5', supplementNumber: 'SUP-005', status: 'denied', lineItems: [{ code: 'Y', description: 'Refused', qty: 1, unit: 'EA', unitPrice: 900, total: 900 }], approvedAmount: null }],
+    'approved',
+  )
+  check('T41: a denied supplement is not in the approved scope', denied.length === 0, denied)
+}
+
 console.log(`\n${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

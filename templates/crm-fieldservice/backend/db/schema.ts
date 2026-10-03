@@ -295,9 +295,21 @@ export const quoteLineItem = pgTable('quote_line_item', {
   total: decimal('total', { precision: 12, scale: 2 }).default('0').notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
 
+  /**
+   * What the line COSTS to deliver, per unit — as distinct from unitPrice, which is what the
+   * customer pays. Job costing's estimate had nothing but `total` to work from, so quoted work
+   * reported a 100% margin; the figure exists in the pricebook (pricebook_item.cost) and had
+   * nowhere to land. Nullable, and ignored when null, so a hand-typed line and every quote already
+   * in the system keep exactly the meaning they had. (T41, migration 0024)
+   */
+  unitCost: decimal('unit_cost', { precision: 12, scale: 2 }),
+  /** The catalogue item this line was priced from, kept as provenance. No FK — see 0024. */
+  pricebookItemId: text('pricebook_item_id'),
+
   quoteId: text('quote_id').notNull().references(() => quote.id, { onDelete: 'cascade' }),
 }, (t) => [
   index('quote_line_item_quote_id_idx').on(t.quoteId),
+  index('quote_line_item_pricebook_item_id_idx').on(t.pricebookItemId),
 ])
 
 // ==================== INVOICES ====================
@@ -328,9 +340,21 @@ export const invoice = pgTable('invoice', {
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
   projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
   quoteId: text('quote_id').unique().references(() => quote.id, { onDelete: 'set null' }),
+  /**
+   * The JOB this invoice bills, when it was raised from one. (T41, migration 0025)
+   *
+   * A service call had no billing path at all: a quote converts to an invoice and a quote converts
+   * to a job, but a job did not convert to anything. Billing by hand produced an invoice attached
+   * to no work, and job costing attributes revenue through quote_id / project_id — so a completed,
+   * invoiced, PAID job showed its cost with no revenue and read as a pure loss.
+   *
+   * Unique (partial, on non-null) so one job bills once; see 0025 for why that backstop exists.
+   */
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
 }, (t) => [
   index('invoice_company_id_idx').on(t.companyId),
   index('invoice_status_idx').on(t.status),
+  uniqueIndex('invoice_job_id_unique_idx').on(t.jobId),
 ])
 
 export const invoiceLineItem = pgTable('invoice_line_item', {

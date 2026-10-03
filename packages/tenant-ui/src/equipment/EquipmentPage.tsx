@@ -87,7 +87,8 @@ interface Contact {
 interface StatCardProps {
   icon: LucideIcon;
   label: string;
-  value: number;
+  /** A string so a figure the server did not send can render as an em-dash rather than as 0. (T41) */
+  value: number | string;
   color?: string;
 }
 
@@ -175,10 +176,17 @@ export default function EquipmentPage({ api, config }: EquipmentPageProps) {
       {stats && (
         <div className="grid grid-cols-4 gap-4">
           <StatCard icon={Wrench} label="Total Equipment" value={stats.total} />
+          {/*
+            `?? 0` used to sit on this value, and it hid the tile completely: getEquipmentStats never
+            returned needsMaintenance, so the fallback turned a figure the server had not sent into a
+            confident "0 Maintenance Due" — on yards with overdue machines. The server computes it
+            now; this renders an em-dash rather than a zero if it is ever missing again, because
+            "I was not told" and "none" must not look the same. (T41)
+          */}
           <StatCard
             icon={Calendar}
             label="Maintenance Due"
-            value={stats.needsMaintenance ?? 0}
+            value={typeof stats.needsMaintenance === 'number' ? stats.needsMaintenance : '—'}
             color={(stats.needsMaintenance ?? 0) > 0 ? 'orange' : 'gray'}
           />
           <StatCard

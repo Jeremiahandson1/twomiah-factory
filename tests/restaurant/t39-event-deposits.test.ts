@@ -224,5 +224,69 @@ console.log('\n══════════ company scoping ══════
   check('…and the schedule is still 11700', (await scheduled()) === 11700, { scheduled: await scheduled() })
 }
 
+// ══════════ T41 · the rule holds when the TOTAL comes down, not only when a payment goes up ═════
+//
+// H-01 above guards the door where an instalment is ADDED. Nothing guarded the door where the total
+// is LOWERED, so the whole rule was bypassable in one move: schedule the full amount, then delete a
+// menu line. The invoice drops and the venue is holding deposits for more than the event is worth.
+//
+// The wedding arrives here with a $11,700 menu (two lines) and $11,700 scheduled — exactly square,
+// which is the state where any reduction breaks it.
+console.log('\n══════════ lowering the total cannot get under the schedule ══════════')
+{
+  const before = await asOwner('GET', `/api/events/${wedding.id}`)
+  const lines = before.json?.menu ?? []
+  check('T41: the wedding has its two menu lines and a square schedule',
+    lines.length === 2 && Number(before.json?.invoice?.total) === 11700 && (await scheduled()) === 11700,
+    { lines: lines.length, invoice: before.json?.invoice?.total, scheduled: await scheduled() })
+
+  const bar = lines.find((l: any) => /Bar package/.test(String(l.name)))
+  check('T41: …including the $1,500 bar package', !!bar, lines.map((l: any) => l.name))
+
+  // THE ASSERTION THIS SECTION EXISTS FOR.
+  const del = await asOwner('DELETE', `/api/events/${wedding.id}/menu/${bar.id}`)
+  check('T41: deleting a menu line that would drop the invoice under the schedule is REFUSED',
+    del.status === 400, { status: del.status, body: del.text?.slice(0, 240) })
+  check('T41: …and the message names both figures', /11,?700\.00/.test(String(del.json?.error)) && /10,?200\.00/.test(String(del.json?.error)),
+    del.json?.error)
+
+  const after = await asOwner('GET', `/api/events/${wedding.id}`)
+  check('T41: …the line is still on the menu — the transaction rolled back',
+    (after.json?.menu ?? []).length === 2, (after.json?.menu ?? []).map((l: any) => l.name))
+  check('T41: …the invoice is still 11700', Number(after.json?.invoice?.total) === 11700, { total: after.json?.invoice?.total })
+  check('T41: …and the schedule is untouched', (await scheduled()) === 11700, { scheduled: await scheduled() })
+
+  // Editing a line DOWN is the same move with a different verb.
+  const edit = await asOwner('PUT', `/api/events/${wedding.id}/menu/${bar.id}`, { unitPrice: 1 })
+  check('T41: editing a line down to $1 is refused for the same reason', edit.status === 400,
+    { status: edit.status, body: edit.text?.slice(0, 200) })
+  const afterEdit = await asOwner('GET', `/api/events/${wedding.id}`)
+  check('T41: …and the price did not change', Number((afterEdit.json?.menu ?? []).find((l: any) => l.id === bar.id)?.unitPrice) === 12.5,
+    (afterEdit.json?.menu ?? []).map((l: any) => `${l.name} @ ${l.unitPrice}`))
+
+  // Raising the total is always fine — the guard must not refuse everything.
+  const up = await asOwner('PUT', `/api/events/${wedding.id}/menu/${bar.id}`, { unitPrice: 20 })
+  check('T41: raising a line is still allowed', up.status === 200, { status: up.status, body: up.text?.slice(0, 180) })
+  const raised = await asOwner('GET', `/api/events/${wedding.id}`)
+  check('T41: …and the invoice follows it up to 12600', Number(raised.json?.invoice?.total) === 12600,
+    { total: raised.json?.invoice?.total })
+
+  // And once the schedule is reduced, the menu is free to come down again — proving the refusal is
+  // about the schedule and not a blanket ban on deleting lines.
+  const sched = (raised.json?.payments ?? raised.json?.schedule ?? [])
+  const dropMe = sched.find((p: any) => Number(p.amount) === 5200) || sched[sched.length - 1]
+  const dropped = await asOwner('DELETE', `/api/events/${wedding.id}/payments/${dropMe.id}`)
+  check('T41: an instalment can be dropped from the schedule', dropped.status === 200 || dropped.status === 204,
+    { status: dropped.status, body: dropped.text?.slice(0, 200) })
+
+  const nowOk = await asOwner('DELETE', `/api/events/${wedding.id}/menu/${bar.id}`)
+  check('T41: …and NOW the menu line deletes, because the schedule fits what is left',
+    nowOk.status === 200, { status: nowOk.status, body: nowOk.text?.slice(0, 240), scheduled: await scheduled() })
+  const final = await asOwner('GET', `/api/events/${wedding.id}`)
+  check('T41: …leaving one line and a 10200 invoice', (final.json?.menu ?? []).length === 1 && Number(final.json?.invoice?.total) === 10200,
+    { lines: (final.json?.menu ?? []).length, total: final.json?.invoice?.total })
+  check('T41: …with the schedule inside it', (await scheduled()) <= 10200, { scheduled: await scheduled() })
+}
+
 console.log(`\n${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

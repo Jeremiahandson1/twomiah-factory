@@ -218,6 +218,10 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
         if (synced?.inv && synced.inv.status !== 'void' && !row.contactId) {
           throw new LedgerError(`This event is billed on invoice ${synced.inv.number}, which needs a client. Choose a client instead of removing it.`)
         }
+        // quotedTotal is editable, and when the quote is what the invoice is built from, lowering it
+        // lowers the invoice — the third way to get under a schedule that is already set. (T41)
+        const broken = menuChangeBreaksSchedule(synced)
+        if (broken) throw new LedgerError(broken)
       }
       return row
     })
@@ -378,7 +382,10 @@ app.put('/:id/menu/:lineId', requirePermission('contacts:update'), async (c) => 
   try {
     updated = await db.transaction(async (tx: any) => {
       const [row] = await tx.update(eventMenuItem).set(updates).where(eq(eventMenuItem.id, lineId)).returning()
-      await syncEventInvoice(tx, currentUser.companyId, eventId)
+      // Editing a line DOWN lowers the invoice just as deleting it does. (T41)
+      const synced = await syncEventInvoice(tx, currentUser.companyId, eventId)
+      const broken = menuChangeBreaksSchedule(synced)
+      if (broken) throw new LedgerError(broken)
       return row
     })
   } catch (e: any) {
@@ -405,7 +412,11 @@ app.delete('/:id/menu/:lineId', requirePermission('contacts:update'), async (c) 
   try {
     await db.transaction(async (tx: any) => {
       await tx.delete(eventMenuItem).where(eq(eventMenuItem.id, lineId))
-      await syncEventInvoice(tx, currentUser.companyId, eventId)
+      // Removing a line lowers the invoice. If that leaves the deposit schedule promising more than
+      // the event now bills, the throw rolls the delete back with it. (T41)
+      const synced = await syncEventInvoice(tx, currentUser.companyId, eventId)
+      const broken = menuChangeBreaksSchedule(synced)
+      if (broken) throw new LedgerError(broken)
     })
   } catch (e: any) {
     const refused = ledgerError(c, e)
@@ -485,6 +496,34 @@ app.delete('/:id/timeline/:lineId', requirePermission('contacts:update'), async 
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   return c.json({ success: true })
 })
+
+/**
+ * THE SAME RULE, FROM THE OTHER SIDE. (T41)
+ *
+ * `scheduleExceedsInvoice` guards the door where a PAYMENT is added: a new instalment may not push the
+ * schedule past the invoice total. Nothing guarded the door where the TOTAL COMES DOWN. So the rule was
+ * bypassable in one move: add a $1,500 menu line, schedule the full $11,700 against it, then delete the
+ * line. The invoice drops to $10,200 and the venue is holding a deposit schedule for more than the event
+ * is worth — which is exactly the over-collection H-01 exists to prevent, reached by the other route.
+ *
+ * Three writes can lower the total, and all three are checked: DELETE a menu line, PUT a menu line to a
+ * smaller quantity or price, and PUT the event itself to a smaller quotedTotal.
+ *
+ * An event with NOTHING scheduled is never refused — deleting menu lines from a booking that has taken
+ * no deposits has to stay free, and that is the common case.
+ *
+ * This is the standing rule in this codebase that a rule applied on create applies on edit.
+ */
+function menuChangeBreaksSchedule(synced: any): string | null {
+  const schedule: any[] = synced?.schedule || []
+  const scheduled = round2(schedule.reduce((s: number, p: any) => s + Number(p.amount || 0), 0))
+  if (scheduled <= 0.005) return null
+  const total = round2(Number(synced?.inv?.total || 0))
+  if (scheduled > total + 0.005) {
+    return `That change would leave $${scheduled.toFixed(2)} of scheduled payments against an invoice total of $${total.toFixed(2)}. Change the payment schedule first.`
+  }
+  return null
+}
 
 // The schedule can't promise more than the invoice bills. Checked after the invoice is in step with the
 // menu/quote, inside the same transaction.

@@ -24,6 +24,18 @@ export interface JobsConfig {
    * ask", so a template that has not been rewired keeps every control it has today. (T30 M-R1)
    */
   can?: (permission: string) => boolean
+  /**
+   * Offer "Invoice this job" on the detail page. (T41)
+   *
+   * Only where the backend mounts POST /api/jobs/:id/invoice — options.billing in the shared jobs
+   * module, which in turn needs invoice.job_id (crm-fieldservice migration 0025). Off by default, so
+   * no vertical is offered a button that would 404.
+   *
+   * Reported as "no job→invoice path": a quote converts to an invoice and to a job, but a job
+   * converted to nothing, so a service call with no quote behind it could only be billed by hand —
+   * and a hand-made invoice attaches to no work, leaving the job showing cost against no revenue.
+   */
+  billing?: boolean
 }
 
 export const DEFAULT_JOB_STATUSES = ['scheduled', 'dispatched', 'in_progress', 'completed', 'cancelled']
@@ -38,6 +50,7 @@ export function resolveJobsConfig(c?: JobsConfig) {
     equipment: !!cfg.equipment,
     sites: !!cfg.sites,
     photos: !!cfg.photos,
+    billing: !!cfg.billing,
     statuses: cfg.statuses && cfg.statuses.length ? cfg.statuses : DEFAULT_JOB_STATUSES,
     priorities: cfg.priorities && cfg.priorities.length ? cfg.priorities : DEFAULT_JOB_PRIORITIES,
     hasFeature: cfg.hasFeature || (() => true),

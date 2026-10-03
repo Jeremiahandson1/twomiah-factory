@@ -6,4 +6,10 @@ export const JOBS: JobsConfig = {
   equipment: true,
   sites: true,
   photos: true,
+  /**
+   * A service call can be billed: the detail page offers Invoice, which posts to
+   * /api/jobs/:id/invoice. Mounted on this vertical because invoice.job_id exists here
+   * (migration 0025) — see the shared jobs module's options.billing. (T41)
+   */
+  billing: true,
 }

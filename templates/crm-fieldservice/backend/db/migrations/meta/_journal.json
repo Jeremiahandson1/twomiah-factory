@@ -169,6 +169,20 @@
       "when": 1791401200000,
       "tag": "0023_mfa",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791401300000,
+      "tag": "0024_quote_line_cost",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791401400000,
+      "tag": "0025_invoice_job",
+      "breakpoints": true
     }
   ]
 }

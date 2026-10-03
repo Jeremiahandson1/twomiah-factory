@@ -564,15 +564,28 @@ app.post('/claims/:claimId/xactimate-export', requirePermission('insurance:creat
     measurement = m
   }
 
+  /**
+   * WHICH DOCUMENT. ?basis=approved for the settled scope; anything else is the ask. (T41)
+   *
+   * The default is deliberately unchanged, because the ask is what this endpoint has always built
+   * and what gets sent to a carrier (roof T18 D3). T41 asked for the other one — the scope as
+   * approved — which a contractor needs once the carrier has responded, and which asking for the
+   * ask overstated. Both are legitimate; the caller now says which.
+   */
+  const basis = c.req.query('basis') === 'approved' ? 'approved' as const : 'ask' as const
+
   // Get supplements. A DENIED one is not part of the scope: its line items were refused, and adding
   // them back into the subtotal overstated the RCV Total printed on the PDF that goes to the carrier —
   // the mirror of the panel that left APPROVED ones out. Drafts and submitted ones stay: this document
   // is the ask, not the settlement. (roof T18 D3)
+  //
+  // On ?basis=approved the service narrows this further to approved supplements only; the query stays
+  // the same so the two documents are built from one read.
   const supplements = await db.select().from(supplement)
     .where(and(eq(supplement.claimId, claimId), eq(supplement.companyId, currentUser.companyId), ne(supplement.status, 'denied')))
 
   try {
-    const result = await generateXactimateScopeDocument(claim, j, comp, measurement, supplements)
+    const result = await generateXactimateScopeDocument(claim, j, comp, measurement, supplements, basis)
 
     // Update claim with URLs
     await db.update(insuranceClaim).set({
@@ -588,7 +601,11 @@ app.post('/claims/:claimId/xactimate-export', requirePermission('insurance:creat
       claimId,
       userId: currentUser.userId,
       activityType: 'xactimate_export',
-      body: 'Xactimate scope document generated',
+      // Which document was produced, because "a scope was generated" does not say whether the
+      // figures were the ask or the settlement — and the two are different numbers. (T41)
+      body: basis === 'approved'
+        ? `Xactimate scope generated — APPROVED basis (${result.supplementsIncluded} approved supplement${result.supplementsIncluded === 1 ? '' : 's'})`
+        : 'Xactimate scope generated — as requested (the ask sent to the carrier)',
     })
 
     return c.json(result)

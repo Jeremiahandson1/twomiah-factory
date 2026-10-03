@@ -408,11 +408,20 @@ export default function InsuranceClaimPage() {
     }
   };
 
-  const generateExport = async () => {
+  /**
+   * TWO SCOPES, AND THE CONTRACTOR SAYS WHICH. (T41)
+   *
+   * `basis: 'ask'` is every supplement that has not been denied, at the amounts requested — the
+   * document that goes to the carrier, and what this button has always produced (roof T18 D3).
+   * `basis: 'approved'` is only the supplements the carrier approved, reconciled to the approved
+   * amount, which is what a contractor needs once the response is in. Asking for one and getting
+   * the other is how an approved scope came to be overstated.
+   */
+  const generateExport = async (basis: 'ask' | 'approved' = 'ask') => {
     if (!claim) return;
     setExporting(true);
     try {
-      const res = await fetch(`/api/insurance/claims/${claim.id}/xactimate-export`, {
+      const res = await fetch(`/api/insurance/claims/${claim.id}/xactimate-export?basis=${basis}`, {
         method: 'POST',
         headers,
       });
@@ -858,14 +867,33 @@ export default function InsuranceClaimPage() {
                   </a>
                 )}
               </div>
-              <button onClick={generateExport} disabled={exporting} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
-                {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                {exporting ? 'Building scope...' : 'Generate Xactimate Export'}
-              </button>
+              {/* Two documents, named for what they are rather than hidden behind one button. (T41) */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button onClick={() => generateExport('ask')} disabled={exporting} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
+                  {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                  {exporting ? 'Building scope...' : 'Scope as requested'}
+                </button>
+                <button onClick={() => generateExport('approved')} disabled={exporting} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-green-700 text-white rounded-lg hover:bg-green-800 disabled:opacity-50">
+                  {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                  {exporting ? 'Building scope...' : 'Scope as approved'}
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-gray-500 dark:text-slate-400 max-w-prose">
+                <strong>As requested</strong> is the document you send the carrier: every supplement that has
+                not been denied, at the amounts you asked for. <strong>As approved</strong> is the settled
+                scope: only supplements the carrier approved, brought to the amount they approved.
+              </p>
 
               {exportResult && (
                 <div className="mt-4 p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
-                  <p className="text-xs font-semibold text-gray-700 mb-2 dark:text-slate-200">Generated Line Items ({exportResult.lineItems?.length || 0})</p>
+                  {/* Which of the two documents this table is, so the figures are never read as the
+                      other one. (T41) */}
+                  <p className="text-xs font-semibold text-gray-700 mb-2 dark:text-slate-200">
+                    Generated Line Items ({exportResult.lineItems?.length || 0})
+                    {exportResult.basis === 'approved'
+                      ? <span className="ml-2 font-normal text-green-700 dark:text-green-300">— as approved by the carrier</span>
+                      : <span className="ml-2 font-normal text-orange-700 dark:text-orange-300">— as requested</span>}
+                  </p>
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b text-gray-500 dark:text-slate-400">

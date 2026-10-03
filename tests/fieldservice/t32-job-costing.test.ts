@@ -113,5 +113,74 @@ const get = async (path: string) => {
     { revenue: sept?.revenue, cost: sept?.cost })
 }
 
+// ══════════ T41 · the estimate had no inputs, which is why margin read 100% ═════════════════════
+//
+// quote_line_item.type has always been READ here to split the estimate into labour and material,
+// and nothing ever WROTE it: the shared quote route's line schema had no `type` field, so every row
+// was NULL and both CASE expressions summed to zero. And a line had no cost column at all, so even
+// a typed line could only have reported the customer's price back as our cost.
+//
+// Reported as "pricebook cost never reaches job costing (100% margin)". The deeper truth was worse:
+// there was no estimated cost at all on any quoted job in the fleet, and 100% is the margin you get
+// when you divide revenue by nothing.
+//
+// What is pinned: a costed line reaches the estimate at its COST; an uncosted line is counted and
+// reported rather than priced at its selling price; and the split follows `type`.
+{
+  const { quoteLineItem } = schema
+  check('T41: quote_line_item carries unit_cost — migration 0024 ran in this sandbox',
+    quoteLineItem.unitCost !== undefined, Object.keys(quoteLineItem).filter((k: string) => /cost|pricebook/i.test(k)))
+
+  const [q3] = await db.insert(quote).values({
+    companyId: co.id, contactId: client.id, number: 'QT-FS3', name: 'Unit 3 — priced from the book',
+    status: 'approved', subtotal: '2000.00', total: '2000.00', taxAmount: '0',
+  } as any).returning()
+  const j3 = await mkJob('FS-3', { quoteId: q3.id, projectId: null })
+
+  // Sold for 2,000. Costs us 300 of labour + 450 of parts = 750. One line deliberately uncosted.
+  await db.insert(quoteLineItem).values([
+    { quoteId: q3.id, description: 'Install labour (6h)', quantity: '6.00', unitPrice: '150.00', total: '900.00', sortOrder: 0, type: 'labor', unitCost: '50.00' },
+    { quoteId: q3.id, description: 'Condenser unit', quantity: '1.00', unitPrice: '800.00', total: '800.00', sortOrder: 1, type: 'part', unitCost: '450.00' },
+    { quoteId: q3.id, description: 'Haulaway — not costed yet', quantity: '1.00', unitPrice: '300.00', total: '300.00', sortOrder: 2, type: 'other' },
+  ] as any)
+
+  const one = await get(`/api/job-costing/job/${j3.id}`)
+  check('T41: the job cost analysis answers', one.status === 200, { status: one.status, body: one.text?.slice(0, 200) })
+  const est = one.json?.estimated
+
+  // THE ASSERTIONS THIS SECTION EXISTS FOR. Each of these read 0 before the fix.
+  check('T41: estimated LABOUR cost is 6 × 50 = 300 — the cost, not the 900 it sells for',
+    isMoney(est?.laborCost, 300), { laborCost: est?.laborCost })
+  check('T41: estimated MATERIAL cost is 1 × 450 = 450, not the 800 it sells for',
+    isMoney(est?.materialCost, 450), { materialCost: est?.materialCost })
+  check('T41: estimated total cost is 750', isMoney(est?.totalCost, 750), { totalCost: est?.totalCost })
+
+  // 2000 revenue against 750 cost = 1250 profit, 62.5% margin. NOT 100%.
+  check('T41: estimated profit is 1250', isMoney(est?.profit, 1250), { profit: est?.profit })
+  check('T41: …and the margin is 62.5%, not 100%', Math.abs(Number(est?.margin) - 62.5) < 0.05,
+    { margin: est?.margin })
+
+  // The uncosted line is reported, not priced at its selling price and not silently dropped.
+  check('T41: the one line with no cost is counted and reported', Number(est?.uncostedLines) === 1,
+    { uncostedLines: est?.uncostedLines })
+  check('T41: …and its $300 selling price did NOT become a cost', !isMoney(est?.totalCost, 1050),
+    { totalCost: est?.totalCost })
+
+  // A quote whose lines are all uncosted must report 0 and say so — not 100% silently.
+  const [q4] = await db.insert(quote).values({
+    companyId: co.id, contactId: client.id, number: 'QT-FS4', name: 'Unit 4 — never costed',
+    status: 'approved', subtotal: '500.00', total: '500.00', taxAmount: '0',
+  } as any).returning()
+  const j4 = await mkJob('FS-4', { quoteId: q4.id, projectId: null })
+  await db.insert(quoteLineItem).values([
+    { quoteId: q4.id, description: 'Service call', quantity: '1.00', unitPrice: '500.00', total: '500.00', sortOrder: 0, type: 'labor' },
+  ] as any)
+  const bare = await get(`/api/job-costing/job/${j4.id}`)
+  check('T41: an uncosted quote reports no estimated cost', isMoney(bare.json?.estimated?.totalCost, 0),
+    { totalCost: bare.json?.estimated?.totalCost })
+  check('T41: …and says SO, so 100% margin is explained rather than implied',
+    Number(bare.json?.estimated?.uncostedLines) === 1, { uncostedLines: bare.json?.estimated?.uncostedLines })
+}
+
 console.log(`\n  ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

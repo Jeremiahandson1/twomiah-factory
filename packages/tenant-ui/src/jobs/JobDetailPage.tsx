@@ -2,7 +2,7 @@
 // photos (when the vertical has them), related project / contact / equipment.
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Edit, Trash2, MapPin, Calendar, Clock, User, Play, CheckCircle, Wrench, Camera, X } from 'lucide-react'
+import { ArrowLeft, Edit, Trash2, MapPin, Calendar, Clock, User, Play, CheckCircle, Wrench, Camera, X, FileText } from 'lucide-react'
 import { StatusBadge, ConfirmModal, Button, NavLink, dateOnly, errMsg } from '../invoicing/ui'
 import { resolveJobsConfig, PRIORITY_COLORS } from './types'
 import type { JobsPageProps, JobRow, JobPhoto } from './types'
@@ -40,6 +40,25 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
   }
   const remove = async () => {
     try { await api.delete('/api/jobs', id); toast.success(`${cfg.labels.singular} deleted`); navigate('/crm/jobs') } catch (err) { toast.error(errMsg(err, 'Failed to delete')) }
+  }
+  /**
+   * Bill this job. (T41)
+   *
+   * Goes straight to the new invoice, because the next thing anybody does after raising one is send
+   * it. A second press is refused by the server (409, bill-once under a row lock) and that refusal
+   * names the invoice already raised — which is the useful answer, not an error.
+   */
+  const [billing, setBilling] = useState(false)
+  const invoiceJob = async () => {
+    setBilling(true)
+    try {
+      const inv = await api.post(`/api/jobs/${id}/invoice`)
+      const raised = inv?.data ?? inv
+      toast.success(`Invoice ${raised?.number || ''} raised`.trim())
+      if (raised?.id) navigate(`/crm/invoices/${raised.id}`)
+      else load()
+    } catch (err) { toast.error(errMsg(err, 'Could not raise an invoice for this job')) }
+    finally { setBilling(false) }
   }
   const deletePhoto = async (photoId: string) => {
     try { await api.delete(`/api/jobs/${id}/photos`, photoId); toast.success('Photo deleted'); setFullscreen(null); loadPhotos() } catch (err) { toast.error(errMsg(err, 'Failed to delete photo')) }
@@ -82,6 +101,16 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
         <div className="flex items-center gap-2">
           {open && job.status !== 'in_progress' && <Button onClick={() => act('start', `${cfg.labels.singular} started`)} className="bg-blue-500 hover:bg-blue-600"><Play className="w-4 h-4 inline mr-2" />Start</Button>}
           {open && job.status === 'in_progress' && <Button variant="success" onClick={() => act('complete', `${cfg.labels.singular} completed`)}><CheckCircle className="w-4 h-4 inline mr-2" />Complete</Button>}
+          {/*
+            Invoicing the job. Gated on the vertical having the path AND the person holding
+            invoices:create — the permission the server asks — so the button is not offered to
+            somebody who would be refused. (T41)
+          */}
+          {cfg.billing && cfg.can('invoices:create') && (
+            <Button variant="secondary" onClick={invoiceJob} disabled={billing}>
+              <FileText className="w-4 h-4 inline mr-2" />{billing ? 'Raising…' : 'Invoice'}
+            </Button>
+          )}
           <NavLink to={`/crm/jobs?edit=${id}`} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2"><Edit className="w-4 h-4" />Edit</NavLink>
           <Button variant="danger" onClick={() => setDeleteOpen(true)}><Trash2 className="w-4 h-4 inline mr-2" />Delete</Button>
         </div>

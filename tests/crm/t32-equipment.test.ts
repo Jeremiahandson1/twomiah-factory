@@ -163,5 +163,77 @@ const api = async (method: string, path: string, body?: unknown) => {
   void expiring
 }
 
+// ══════════ T41 · the four tiles, and what marking a machine broken does to them ════════════════
+//
+// Two faults, one shared module (crm, crm-fieldservice, crm-basic, crm-landscaping all run this):
+//
+//   · "Total Equipment" counted status = 'active' only, so a machine dropped out of the TOTAL the
+//     moment somebody marked it broken — while the Needs Repair tile counted it separately. A yard
+//     of 12 with 2 broken read "Total 10 · Needs Repair 2".
+//   · The page renders "Maintenance Due" from stats.needsMaintenance, and getEquipmentStats never
+//     returned that key. `?? 0` on the screen turned the missing figure into a confident zero, so
+//     that tile has always read 0 — including here, where a machine is 10 days overdue.
+//
+// And a broken machine must stay ON the maintenance and warranty reports: it is the one you most
+// need to go and look at.
+{
+  const list = async (q = '') => (await api('GET', `/api/equipment?limit=200${q}`)).json?.data || []
+  const tiles = async () => (await api('GET', '/api/equipment/stats')).json
+  const nameOf = (rows: any[]) => rows.map((r: any) => r.name)
+
+  const before = await tiles()
+  const owned = await list()
+
+  check('T41: the Maintenance Due figure is sent at all — it was simply absent before',
+    typeof before?.needsMaintenance === 'number', before)
+  const dueList = await list('&needsMaintenance=true')
+  check('T41: …it is not zero, because one machine is 10 days overdue', before?.needsMaintenance > 0,
+    { tile: before?.needsMaintenance, list: nameOf(dueList) })
+  check('T41: …and it agrees with its own list, to the row', before?.needsMaintenance === dueList.length,
+    { tile: before?.needsMaintenance, list: nameOf(dueList) })
+  check('T41: Total Equipment equals what the yard holds', before?.total === owned.length,
+    { total: before?.total, rows: owned.length })
+
+  // The overdue machine is the one with the maintenance record. Mark it broken.
+  const overdue = dueList[0]
+  const broke = await api('POST', `/api/equipment/${overdue.id}/needs-repair`, { notes: 'Will not start' })
+  check('T41: a machine can be marked needing repair', broke.status === 200, { status: broke.status })
+
+  const after = await tiles()
+  check('T41: …it is counted in Needs Repair', after?.needsRepair === (before?.needsRepair || 0) + 1,
+    { before: before?.needsRepair, after: after?.needsRepair })
+  // THE ASSERTION THIS SECTION EXISTS FOR.
+  check('T41: …and it is STILL IN THE TOTAL — the yard did not shrink because something broke',
+    after?.total === before?.total, { before: before?.total, after: after?.total })
+  check('T41: …and still on the Maintenance Due tile', after?.needsMaintenance === before?.needsMaintenance,
+    { before: before?.needsMaintenance, after: after?.needsMaintenance })
+
+  // Array.isArray, not `|| []`: when this endpoint 500s it answers an error OBJECT, and `.some` on
+  // that threw a TypeError that ended the whole file with no summary — a broken endpoint read as a
+  // broken test rather than as a failed assertion.
+  const dueAfter = await api('GET', '/api/equipment/maintenance-due')
+  const dueRows = Array.isArray(dueAfter.json) ? dueAfter.json : []
+  check('T41: the maintenance-due list still answers with rows', dueAfter.status === 200 && Array.isArray(dueAfter.json),
+    { status: dueAfter.status, body: JSON.stringify(dueAfter.json)?.slice(0, 160) })
+  check('T41: …and the broken machine is still on it, which is where somebody would go find it',
+    dueRows.some((r: any) => r.id === overdue.id), nameOf(dueRows))
+
+  // Replacing one is the only thing that takes it out of the yard.
+  const [spare] = await db.insert(equipment).values({
+    companyId: co.id, name: 'Old spare', status: 'active',
+  } as any).returning()
+  const withSpare = await tiles()
+  check('T41: adding a machine raises the total', withSpare?.total === (after?.total || 0) + 1,
+    { before: after?.total, after: withSpare?.total })
+
+  const gone = await api('POST', `/api/equipment/${spare.id}/replaced`, { notes: 'Scrapped' })
+  check('T41: a machine can be marked replaced', gone.status === 200, { status: gone.status })
+  const afterGone = await tiles()
+  check('T41: …and THAT is what lowers the total — replaced means gone from the yard',
+    afterGone?.total === after?.total, { expected: after?.total, got: afterGone?.total })
+  check('T41: …without being counted as needing repair', afterGone?.needsRepair === after?.needsRepair,
+    { before: after?.needsRepair, after: afterGone?.needsRepair })
+}
+
 console.log(`\n  ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

@@ -280,8 +280,76 @@ function generatePDF(
   })
 }
 
+/** Which document the scope is: the ask sent to the carrier, or the scope as settled. (T41) */
+export type XactBasis = 'ask' | 'approved'
+
+/**
+ * WHICH SUPPLEMENTS GO IN, AND AT WHAT AMOUNTS. (T41)
+ *
+ * T41 reported that this export "carries drafts and requested amounts instead of approved amounts".
+ * That was true, and it was also DELIBERATE: roof T18 D3 settled that this document is the ASK, not
+ * the settlement — so a draft or a submitted supplement belongs in it, and the figure to print is
+ * what is being asked for. Silently flipping that would have undone a decision made for a reason,
+ * and left a contractor unable to produce the document they actually send to the carrier.
+ *
+ * But the request behind the report was real: once the carrier has responded, a contractor needs the
+ * scope AS APPROVED, and asking for that got them the ask — overstating the settlement. One document
+ * was serving two jobs. So the basis is explicit and the default is unchanged:
+ *
+ *   'ask'      (default) every supplement handed in (the caller has already dropped denied ones),
+ *                        at the amounts requested. T18 D3 stands.
+ *   'approved'           only supplements the carrier approved, reconciled to approved_amount.
+ *
+ * In 'approved' mode a supplement's line items are printed AS REQUESTED and the difference between
+ * them and approved_amount is added as ONE explicit adjustment line. An approved amount is a lump
+ * sum: spreading it across the lines pro rata would invent per-line detail the carrier never sent,
+ * whereas an adjustment line is honest and checks against the carrier's letter.
+ *
+ * Pure and exported so it can be tested: the document builder around it writes a PDF to R2, which a
+ * test sandbox has no credentials for, so the decision this function makes is the testable part.
+ */
+export function buildSupplementItems(supplements: any[], basis: XactBasis = 'ask'): XactLineItem[] {
+  const approvedOnly = basis === 'approved'
+  const out: XactLineItem[] = []
+  for (const sup of supplements || []) {
+    if (approvedOnly && sup.status !== 'approved') continue
+    if (!sup.lineItems) continue
+    const items = Array.isArray(sup.lineItems) ? sup.lineItems : []
+    let requested = 0
+    for (const li of items) {
+      const lineTotal = Number(li.total || 0)
+      requested += lineTotal
+      out.push({
+        code: li.code || 'MISC',
+        description: li.description,
+        qty: Number(li.qty || 0),
+        unit: li.unit || 'EA',
+        unitPrice: Number(li.unitPrice || 0),
+        total: lineTotal,
+      })
+    }
+    if (approvedOnly && sup.approvedAmount != null && sup.approvedAmount !== '') {
+      const approved = Number(sup.approvedAmount)
+      const delta = Math.round((approved - requested) * 100) / 100
+      if (Number.isFinite(delta) && Math.abs(delta) >= 0.005) {
+        out.push({
+          code: 'ADJ',
+          description: `Approved adjustment — supplement ${sup.supplementNumber || sup.id}`,
+          qty: 1,
+          unit: 'EA',
+          unitPrice: delta,
+          total: delta,
+        })
+      }
+    }
+  }
+  return out
+}
+
 export async function generateXactimateScopeDocument(
-  claim: any, job: any, comp: any, measurement: any, supplements: any[]
+  claim: any, job: any, comp: any, measurement: any, supplements: any[],
+  /** 'ask' (default, the document sent to the carrier) or 'approved' (the settled scope). (T41) */
+  basis: XactBasis = 'ask',
 ) {
   const totalSquares = Number(measurement?.totalSquares || job.totalSquares || 0)
   const state = job.state || 'TX'
@@ -289,22 +357,11 @@ export async function generateXactimateScopeDocument(
   // Generate main scope line items
   const lineItems = generateLineItems(totalSquares, state)
 
-  // Collect supplement line items
-  const supplementItems: XactLineItem[] = []
-  for (const sup of supplements) {
-    if (!sup.lineItems) continue
-    const items = Array.isArray(sup.lineItems) ? sup.lineItems : []
-    for (const li of items) {
-      supplementItems.push({
-        code: li.code || 'MISC',
-        description: li.description,
-        qty: Number(li.qty || 0),
-        unit: li.unit || 'EA',
-        unitPrice: Number(li.unitPrice || 0),
-        total: Number(li.total || 0),
-      })
-    }
-  }
+  /**
+   * Collect supplement line items — see buildSupplementItems for which, and at what amounts.
+   */
+  const approvedOnly = basis === 'approved'
+  const supplementItems = buildSupplementItems(supplements, basis)
 
   // Calculate totals
   const subtotal = lineItems.reduce((sum, i) => sum + i.total, 0) +
@@ -330,15 +387,20 @@ export async function generateXactimateScopeDocument(
     netClaim: Math.round(netClaim * 100) / 100,
   }
 
+  // The two bases are two different documents and must not overwrite each other's file: a contractor
+  // who generates the approved scope still needs the ask they sent. The 'ask' keys keep their
+  // original names so links already stored on existing claims keep resolving. (T41)
+  const suffix = approvedOnly ? '-approved' : ''
+
   // Generate CSV
   const csvContent = generateCSV(lineItems, supplementItems)
   const csvBuffer = Buffer.from(csvContent, 'utf-8')
-  const csvKey = `insurance/${claim.companyId}/${claim.id}/xactimate-export.csv`
+  const csvKey = `insurance/${claim.companyId}/${claim.id}/xactimate-export${suffix}.csv`
   const csvUrl = await uploadFile(csvKey, csvBuffer, 'text/csv')
 
   // Generate PDF
   const pdfBuffer = await generatePDF(claim, job, comp, measurement, lineItems, supplementItems, totals)
-  const pdfKey = `insurance/${claim.companyId}/${claim.id}/xactimate-scope.pdf`
+  const pdfKey = `insurance/${claim.companyId}/${claim.id}/xactimate-scope${suffix}.pdf`
   const pdfUrl = await uploadFile(pdfKey, pdfBuffer, 'application/pdf')
 
   return {
@@ -347,5 +409,8 @@ export async function generateXactimateScopeDocument(
     lineItems,
     supplementItems,
     totals,
+    // So the screen can say which document it just built, and the activity log can record it.
+    basis,
+    supplementsIncluded: supplements.filter((s: any) => !approvedOnly || s.status === 'approved').length,
   }
 }

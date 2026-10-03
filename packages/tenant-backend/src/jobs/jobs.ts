@@ -14,6 +14,9 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, ne, and, gte, lt, lte, count, asc, desc, or, ilike, inArray, notInArray, sql } from 'drizzle-orm'
 import { nextNumber } from '../invoicing/money'
+// Billing a job raises an invoice through the SAME helper every other billing path uses, so numbering,
+// totals and the UTC date normalisation cannot drift from invoices, quotes, agreements or visits. (T41)
+import { insertInvoice } from '../invoicing/invoices'
 import { companyTimeZone, storeDayRange, jobLocalDay } from '../time/businessDay'
 import { checkFilter } from '../listFilter'
 import { withinHorizon, horizonMessage } from '../dateInput'
@@ -21,7 +24,10 @@ import { sniffType, baseMime } from '../files/storage'
 
 export interface JobTables { job: any; contact: any; user: any; project?: any; timeEntry?: any; equipment?: any; jobPhoto?: any;
   /** crew roster. Present → roster-only people (no login) can be assigned work, via job.assignedToMemberId. (T21 M12) */
-  teamMember?: any }
+  teamMember?: any
+  /** Billing a job needs these two plus options.billing; see POST /:id/invoice. (T41) */
+  invoice?: any
+  invoiceLineItem?: any }
 export interface JobPhotoStorage { put: (key: string, body: Buffer, contentType: string) => Promise<void>; deleteFile: (key: string) => boolean | Promise<boolean | void>; storageConfigured?: () => boolean }
 export type JobHook = (ctx: { job: any; companyId: string; userId: string }) => Promise<Record<string, any> | void> | Record<string, any> | void
 
@@ -38,6 +44,26 @@ export interface JobOptions {
   /** may return extra fields merged into the complete response (e.g. nextServiceDate) */
   onComplete?: JobHook
   maxLimit?: number
+  /**
+   * Present → POST /:id/invoice is offered: a job can be billed. (T41)
+   *
+   * Requires tables.invoice + tables.invoiceLineItem, and an `invoice.job_id` column on this
+   * template (crm-fieldservice migration 0025). Absent → the route is not mounted at all, so no
+   * vertical gains a billing path it has no column for.
+   *
+   * WHY IT WAS MISSING AND WHY THAT MATTERED. A quote converts to an invoice, and a quote converts
+   * to a job — but a job converted to nothing, and a field-service call frequently has no quote
+   * behind it. The only way to bill one was to raise an invoice by hand and pick the customer, and
+   * that invoice belonged to no work: job costing attributes revenue through invoice.quote_id and
+   * invoice.project_id, so a completed, invoiced, PAID call showed its cost with no revenue and read
+   * as a pure loss.
+   */
+  billing?: {
+    /** Invoice numbering for this vertical — the same options the invoices route uses. */
+    numbering?: { prefix?: string; pad?: number; seed?: number }
+    /** Days until due, from today. Default 30. */
+    termsDays?: number
+  }
 }
 
 export interface JobDeps {
@@ -600,6 +626,83 @@ export function createJobRoutes(deps: JobDeps) {
   transition('start', 'in_progress', () => o.onStart)
   transition('complete', 'completed', () => o.onComplete, () => ({ completedAt: new Date() }))
   transition('dispatch', 'dispatched', () => o.onDispatch)
+
+  /**
+   * POST /:id/invoice — bill this job. Mounted only where options.billing says the template can. (T41)
+   *
+   * BILL ONCE, UNDER A LOCK. The whole handler runs inside one transaction, takes `FOR UPDATE` on
+   * the job row, and re-checks for an existing invoice INSIDE the lock — because the T41 round found
+   * exactly this shape raising two invoices for one piece of work on two different modules (a vet
+   * visit and a quote conversion), both of which read "already billed?" outside the transaction and
+   * lost the race. PGlite serialises requests so no suite in this repo can observe that race; the
+   * rule is enforced statically instead, by scripts/check-billing-race-guarded.ts.
+   *
+   * The unique partial index on invoice.job_id (migration 0025) sits underneath as a backstop.
+   *
+   * WHAT IT BILLS. The job's estimated value — the agreed price for the call — as a single line. Not
+   * its actual cost: cost is what the work took us, and billing a customer our cost would be a
+   * different and wrong number. A job with no value recorded is refused rather than invoiced for
+   * $0.00, because a zero invoice is indistinguishable from a mistake.
+   */
+  if (o.billing && t.invoice && t.invoiceLineItem) {
+    const numbering = { prefix: 'INV', pad: 5, seed: 0, ...(o.billing.numbering || {}) }
+    const termsDays = o.billing.termsDays ?? 30
+    const rowsOf = (r: any): any[] => (r?.rows ?? r ?? []) as any[]
+
+    app.post('/:id/invoice', requirePermission('invoices:create'), async (c) => {
+      const currentUser = c.get('user') as any
+      const id = c.req.param('id')
+
+      const outcome = await db.transaction(async (tx: any) => {
+        // Scoped to the company, so one tenant cannot lock another's row by guessing an id.
+        const locked = rowsOf(await tx.execute(
+          sql`SELECT id, contact_id, number, title, estimated_value, completed_at
+                FROM job
+               WHERE id = ${id} AND company_id = ${currentUser.companyId}
+                 FOR UPDATE`,
+        ))
+        const j = locked[0]
+        if (!j) return { status: 404 as const, body: { error: 'Job not found' } }
+        if (!j.contact_id) return { status: 400 as const, body: { error: 'This job has no customer to bill. Add one first.' } }
+
+        // Already billed? Asked INSIDE the lock, and against both doors: this job's own invoice, and
+        // the invoice its quote raised if it came from one.
+        const already = rowsOf(await tx.execute(
+          sql`SELECT id, number FROM invoice
+               WHERE company_id = ${currentUser.companyId} AND job_id = ${id} LIMIT 1`,
+        ))
+        if (already.length) {
+          return { status: 409 as const, body: { error: `This job is already billed on invoice ${already[0].number}.`, invoiceId: already[0].id } }
+        }
+
+        const amount = Math.round(Number(j.estimated_value || 0) * 100) / 100
+        if (!amount || amount <= 0) {
+          return { status: 400 as const, body: { error: 'This job has no value to bill. Set what the work is worth, then invoice it.' } }
+        }
+
+        const issueDate = new Date()
+        const dueDate = new Date(issueDate.getTime() + termsDays * 86_400_000)
+        const inv = await insertInvoice(
+          tx,
+          { invoice: t.invoice, invoiceLineItem: t.invoiceLineItem } as any,
+          numbering,
+          {
+            companyId: currentUser.companyId,
+            contactId: j.contact_id,
+            issueDate, dueDate,
+            taxRate: 0, status: 'draft',
+            // The link that makes the revenue reach the job in job costing.
+            extra: { jobId: id },
+          },
+          [{ description: j.title ? `${j.title}${j.number ? ` (${j.number})` : ''}` : `Service call ${j.number || ''}`.trim(), quantity: 1, unitPrice: amount }] as any,
+        )
+        return { status: 201 as const, body: inv }
+      })
+
+      if (outcome.status === 201) emitToCompany(currentUser.companyId, EVENTS.JOB_UPDATED, { id })
+      return c.json(outcome.body, outcome.status)
+    })
+  }
 
   return app
 }

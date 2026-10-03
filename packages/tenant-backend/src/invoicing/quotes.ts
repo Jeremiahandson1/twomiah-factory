@@ -35,6 +35,16 @@ export interface QuoteOptions {
   hasConvertedToJobId?: boolean
   /** job.equipmentId / job.siteId exist → carried over from the quote. */
   jobHasSiteAndEquipment?: boolean
+  /**
+   * quote_line_item.unit_cost / .pricebook_item_id exist → a line can record what it COSTS and which
+   * catalogue item it came from, and `type` (labour / material / part) is persisted. (T41)
+   *
+   * WHY THIS IS A FLAG AND NOT JUST ALWAYS ON. The columns are added per template by migration
+   * (crm-fieldservice 0024). Writing them where they do not exist would make every quote save fail,
+   * so the verticals that have not been migrated keep exactly the behaviour they have — the same
+   * reason hasDeclinedAt and hasConvertedToJobId are flags.
+   */
+  hasLineCost?: boolean
   /** Which conversions this vertical offers. Default both. */
   conversions?: Array<'invoice' | 'job'>
   numbering?: { quote?: NumberingOptions; invoice?: NumberingOptions; job?: NumberingOptions }
@@ -82,18 +92,44 @@ const lineItemSchema = z.object({
   // Rounding here means the number the customer reads is the number the arithmetic used.
   // (Field Service T28 L7)
   unitPrice: z.number().min(0, 'Price cannot be negative').default(0).transform((v: number) => Math.round((v + Number.EPSILON) * 100) / 100),
+  /**
+   * WHAT KIND OF LINE IT IS, and WHAT IT COSTS US. Both only persisted on a template that has the
+   * columns (options.hasLineCost). (T41)
+   *
+   * `type` was the live bug. quote_line_item has carried a `type` column all along and job costing
+   * READS it to split the estimate into labour and material — but nothing ever WROTE it: this schema
+   * had no `type` field, so `toRow` never set one, so every row was NULL and both of those CASE
+   * expressions summed to zero. The estimate was therefore £0 on every quoted job, which is why
+   * margin read 100%: not a bad cost figure, no cost figure at all.
+   *
+   * `unitCost` is the other half. A line's unitPrice is what the CUSTOMER pays; the cost to deliver
+   * had nowhere to live, so even a correctly-typed line could only have reported the price back as
+   * the cost. The pricebook already records cost per item, and the picker fills this from it.
+   */
+  type: z.enum(['labor', 'material', 'part', 'service', 'other']).optional(),
+  unitCost: z.number().min(0, 'Cost cannot be negative').optional()
+    .transform((v) => (v === undefined ? undefined : Math.round((v + Number.EPSILON) * 100) / 100)),
+  pricebookItemId: z.string().optional().transform(v => (v === '' ? undefined : v)),
 })
 const optionalId = z.string().optional().transform(v => (v === '' ? undefined : v))
 const QUOTE_STATUSES = ['draft', 'sent', 'approved', 'rejected', 'declined', 'expired'] as const
 const EDITABLE = ['draft', 'sent']
 
-const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string) => items.map((item, i) => ({
+const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLineCost = false) => items.map((item, i) => ({
   description: item.description,
   quantity: item.quantity.toString(),
   unitPrice: item.unitPrice.toString(),
   total: round2(item.quantity * item.unitPrice).toString(),
   sortOrder: i,
   quoteId,
+  // Only on a template whose quote_line_item carries these columns. `type` is included here rather
+  // than unconditionally because it is written alongside the cost by the same picker, and a template
+  // without the migration has no screen sending either. (T41)
+  ...(hasLineCost ? {
+    type: item.type ?? null,
+    unitCost: item.unitCost === undefined ? null : item.unitCost.toString(),
+    pricebookItemId: item.pricebookItemId ?? null,
+  } : {}),
 }))
 
 export function createQuoteRoutes(deps: QuoteDeps) {
@@ -237,7 +273,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const result = await db.transaction(async (tx: any) => {
       values.number = await nextNumber(tx, t.quote, t.quote.number, t.quote.companyId, cid, numQuote)
       const [created] = await tx.insert(t.quote).values(values).returning()
-      const items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, created.id)).returning() : []
+      const items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, created.id, !!o.hasLineCost)).returning() : []
       return { ...created, lineItems: items }
     })
     emitToCompany(cid, EVENTS.QUOTE_CREATED, result)
@@ -278,7 +314,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       let items: any[]
       if (data.lineItems !== undefined) {
         await tx.delete(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, id))
-        items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, id)).returning() : []
+        items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, id, !!o.hasLineCost)).returning() : []
       // read the existing lines on the SAME connection as the transaction — going back to the pool for them while
       // this transaction is open waits on a second connection, which deadlocks when the pool is busy (and always on
       // a single-connection database). Every other caller reads before the transaction opens.
