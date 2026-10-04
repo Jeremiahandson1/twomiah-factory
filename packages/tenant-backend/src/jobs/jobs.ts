@@ -13,7 +13,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, ne, and, gte, lt, lte, count, asc, desc, or, ilike, inArray, notInArray, sql } from 'drizzle-orm'
-import { nextNumber } from '../invoicing/money'
+import { nextNumber, round2, defaultTaxRateFrom } from '../invoicing/money'
 // Billing a job raises an invoice through the SAME helper every other billing path uses, so numbering,
 // totals and the UTC date normalisation cannot drift from invoices, quotes, agreements or visits. (T41)
 import { insertInvoice } from '../invoicing/invoices'
@@ -685,10 +685,12 @@ export function createJobRoutes(deps: JobDeps) {
    *
    * The unique partial index on invoice.job_id (migration 0025) sits underneath as a backstop.
    *
-   * WHAT IT BILLS. The job's estimated value — the agreed price for the call — as a single line. Not
-   * its actual cost: cost is what the work took us, and billing a customer our cost would be a
-   * different and wrong number. A job with no value recorded is refused rather than invoiced for
-   * $0.00, because a zero invoice is indistinguishable from a mistake.
+   * WHAT IT BILLS. The quote behind the job when there is one — its lines, its tax rate and its
+   * discount, the same thing convert-to-invoice copies — and otherwise the job's estimated value as
+   * a single line at the company's default tax rate. Never its actual cost: cost is what the work
+   * took us, and billing a customer our cost would be a different and wrong number. A quoteless job
+   * with no value recorded is refused rather than invoiced for $0.00, because a zero invoice is
+   * indistinguishable from a mistake. See the long note at the billing step for what T42 measured.
    */
   if (o.billing && t.invoice && t.invoiceLineItem) {
     const numbering = { prefix: 'INV', pad: 5, seed: 0, ...(o.billing.numbering || {}) }
@@ -702,7 +704,7 @@ export function createJobRoutes(deps: JobDeps) {
       const outcome = await db.transaction(async (tx: any) => {
         // Scoped to the company, so one tenant cannot lock another's row by guessing an id.
         const locked = rowsOf(await tx.execute(
-          sql`SELECT id, contact_id, number, title, estimated_value, completed_at
+          sql`SELECT id, contact_id, number, title, estimated_value, completed_at, quote_id
                 FROM job
                WHERE id = ${id} AND company_id = ${currentUser.companyId}
                  FOR UPDATE`,
@@ -711,19 +713,92 @@ export function createJobRoutes(deps: JobDeps) {
         if (!j) return { status: 404 as const, body: { error: 'Job not found' } }
         if (!j.contact_id) return { status: 400 as const, body: { error: 'This job has no customer to bill. Add one first.' } }
 
-        // Already billed? Asked INSIDE the lock, and against both doors: this job's own invoice, and
-        // the invoice its quote raised if it came from one.
+        /**
+         * Already billed? Asked INSIDE the lock, and against BOTH doors — which the comment here
+         * has always claimed and the query did not do: it looked at `job_id` only. A job that came
+         * from a quote has two ways to become an invoice, and converting the quote and then billing
+         * the job produced TWO invoices for one piece of work. On the field-service test tenant
+         * both doors had been used: INV-00171 through the quote, INV-00170 and INV-00172 through
+         * the job. (T42)
+         */
         const already = rowsOf(await tx.execute(
-          sql`SELECT id, number FROM invoice
-               WHERE company_id = ${currentUser.companyId} AND job_id = ${id} LIMIT 1`,
+          j.quote_id
+            ? sql`SELECT id, number, job_id FROM invoice
+                   WHERE company_id = ${currentUser.companyId}
+                     AND (job_id = ${id} OR quote_id = ${j.quote_id}) LIMIT 1`
+            : sql`SELECT id, number, job_id FROM invoice
+                   WHERE company_id = ${currentUser.companyId} AND job_id = ${id} LIMIT 1`,
         ))
         if (already.length) {
-          return { status: 409 as const, body: { error: `This job is already billed on invoice ${already[0].number}.`, invoiceId: already[0].id } }
+          const a = already[0]
+          const error = a.job_id === id
+            ? `This job is already billed on invoice ${a.number}.`
+            : `The quote behind this job was already billed on invoice ${a.number}.`
+          return { status: 409 as const, body: { error, invoiceId: a.id } }
         }
 
-        const amount = Math.round(Number(j.estimated_value || 0) * 100) / 100
-        if (!amount || amount <= 0) {
-          return { status: 400 as const, body: { error: 'This job has no value to bill. Set what the work is worth, then invoice it.' } }
+        /**
+         * WHAT IT BILLS — and why this is no longer one untaxed line. (T42)
+         *
+         *   "Invoicing from a completed job collapses the lines into one and drops the tax
+         *    (INV-00170, INV-00172: $178 instead of $191.35)"
+         *
+         * When this route was added the job was taken to be the whole story: its estimated value as
+         * a single line, taxRate hard-coded to 0. For a call with no quote behind it that is all
+         * there is — but a job CARRIES `quote_id`, and a job that came from a quote has the real
+         * lines, the real tax rate and the agreed discount sitting on that quote. Billing the
+         * estimate instead threw all three away: measured on the live tenant, the quote path wrote
+         * 2 lines at 7.5% for $191.35 and the job path wrote 1 line at 0% for $178.00 — the job's
+         * estimated value having been set to the quote's SUBTOTAL.
+         *
+         * So: bill the quote's lines when there is a quote, exactly as convert-to-invoice does, and
+         * carry `quoteId` onto the invoice so job costing and the duplicate check above can both
+         * see where the money came from. Otherwise the estimate as one line — taxed at the
+         * company's own default rate rather than zero, which is the other half of "drops the tax".
+         *
+         * Read through `tx`, never through `db`: a helper that queries the pool while this
+         * transaction is open deadlocks a single-connection database, which is why the quote and
+         * the settings are fetched with raw SQL here instead of through the quotes module's
+         * `companySettings`.
+         */
+        let lines: Array<{ description: string; quantity: number; unitPrice: number }> | null = null
+        let taxRate = 0
+        let discount = 0
+        let quoteId: string | null = null
+        if (j.quote_id) {
+          const q = rowsOf(await tx.execute(
+            sql`SELECT id, tax_rate, discount FROM quote
+                 WHERE id = ${j.quote_id} AND company_id = ${currentUser.companyId} LIMIT 1`,
+          ))[0]
+          const qLines = q ? rowsOf(await tx.execute(
+            sql`SELECT description, quantity, unit_price FROM quote_line_item
+                 WHERE quote_id = ${q.id} ORDER BY sort_order ASC`,
+          )) : []
+          if (q && qLines.length) {
+            lines = qLines.map((r: any) => ({
+              description: String(r.description || ''),
+              quantity: Number(r.quantity || 0),
+              unitPrice: Number(r.unit_price || 0),
+            }))
+            taxRate = Number(q.tax_rate || 0)
+            discount = Number(q.discount || 0)
+            quoteId = String(q.id)
+          }
+        }
+        if (!lines) {
+          const amount = round2(Number(j.estimated_value || 0))
+          if (!amount || amount <= 0) {
+            return { status: 400 as const, body: { error: 'This job has no value to bill. Set what the work is worth, then invoice it.' } }
+          }
+          const settings = rowsOf(await tx.execute(
+            sql`SELECT settings FROM company WHERE id = ${currentUser.companyId} LIMIT 1`,
+          ))[0]?.settings
+          taxRate = defaultTaxRateFrom((settings as any) || {})
+          lines = [{
+            description: j.title ? `${j.title}${j.number ? ` (${j.number})` : ''}` : `Service call ${j.number || ''}`.trim(),
+            quantity: 1,
+            unitPrice: amount,
+          }]
         }
 
         const issueDate = new Date()
@@ -736,11 +811,11 @@ export function createJobRoutes(deps: JobDeps) {
             companyId: currentUser.companyId,
             contactId: j.contact_id,
             issueDate, dueDate,
-            taxRate: 0, status: 'draft',
-            // The link that makes the revenue reach the job in job costing.
-            extra: { jobId: id },
+            taxRate, discount, status: 'draft',
+            // The links that make the revenue reach the job AND the quote in job costing.
+            extra: { jobId: id, ...(quoteId ? { quoteId } : {}) },
           },
-          [{ description: j.title ? `${j.title}${j.number ? ` (${j.number})` : ''}` : `Service call ${j.number || ''}`.trim(), quantity: 1, unitPrice: amount }] as any,
+          lines as any,
         )
         return { status: 201 as const, body: inv }
       })
