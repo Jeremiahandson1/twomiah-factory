@@ -61,8 +61,11 @@ const orders = read('templates/crm-dispensary/backend/src/routes/orders.ts')
 // BOTH tender paths, counted — cash and split each carry this code, so matching it once let a plant
 // that gutted the cash branch sail past while the split branch still satisfied the regex.
 if ((orders.match(/code: 'insufficient_tender'/g) || []).length < 2) fail('the register must refuse a tender that does not cover the total — on cash AND on a split')
-if (!/Cash tendered \$\$\{data\.cashTendered\.toFixed\(2\)\} is less than the order total/.test(orders)) fail('…telling the cashier what was short on cash')
-if (!/Split payments total \$\$\{paid\.toFixed\(2\)\}, order total is/.test(orders)) fail('…and on a split')
+// What matters is that the refusal NAMES the figures — the amount tendered and the total it falls
+// short of. These pinned `toFixed(2)` and failed when both moved to money() for their thousands
+// separator, which is the one formatting change that makes "$12000.00" readable at a till. (T41)
+if (!/Cash tendered \$?\$?\{?(?:money\(data\.cashTendered\)|data\.cashTendered\.toFixed\(2\))\}? is less than the order total/.test(orders)) fail('…telling the cashier what was short on cash')
+if (!/Split payments total \$?\$?\{?(?:money\(paid\)|paid\.toFixed\(2\))\}?, order total is/.test(orders)) fail('…and on a split')
 if (!/Math\.max\(0, round2\(data\.cashTendered - orderTotal\)\)/.test(orders)) fail('…and must never store a negative change')
 const detail = read('templates/crm-dispensary/frontend/src/pages/OrderDetailPage.tsx')
 if (!detail) fail('the order detail page is missing')

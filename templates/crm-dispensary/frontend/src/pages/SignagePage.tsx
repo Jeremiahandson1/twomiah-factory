@@ -289,7 +289,7 @@ export default function SignagePage() {
                               <p className="text-sm font-medium text-gray-900 dark:text-slate-100">{item.name || item.productName}</p>
                               <p className="text-xs text-gray-500 dark:text-slate-400">{item.category || '—'}</p>
                             </div>
-                            <span className="text-sm font-medium text-gray-900 dark:text-slate-100">{item.price ? `$${Number(item.price).toFixed(2)}` : '—'}</span>
+                            <span className="text-sm font-medium text-gray-900 dark:text-slate-100">{item.price ? `$${Number(item.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</span>
                           </div>
                         ))}
                         {contentItems.length === 0 && (
@@ -408,7 +408,7 @@ export default function SignagePage() {
                         {previewData.items.map((item: any, i: number) => (
                           <div key={i} className="flex justify-between py-1 border-b border-gray-700">
                             <span>{item.name}</span>
-                            <span className="text-green-400">{item.price ? `$${Number(item.price).toFixed(2)}` : ''}</span>
+                            <span className="text-green-400">{item.price ? `$${Number(item.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}</span>
                           </div>
                         ))}
                       </div>

@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { money } from '../shared/invoicing/money.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -381,7 +382,7 @@ app.post('/scan', requireRole('manager'), async (c) => {
         const variances = (varianceResult as any).rows || varianceResult
         for (const v of variances) {
           await createAlert('cash_variance_threshold', rule.severity, v.user_id,
-            `Cash variance of $${Math.abs(Number(v.variance)).toFixed(2)} on register "${v.register}" (threshold: $${rule.threshold})`,
+            `Cash variance of ${money(Math.abs(Number(v.variance)))} on register "${v.register}" (threshold: $${rule.threshold})`,
             { variance: Number(v.variance), register: v.register, sessionId: v.id })
         }
         break

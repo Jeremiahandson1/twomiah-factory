@@ -308,7 +308,7 @@ app.post('/:id/payment', requirePermission('invoices:update'), async (c) => {
     // an $8,400 invoice went straight through).
     const balanceDue = Number(row.total) - Number(row.amount_paid)
     if (data.amount > balanceDue + 0.005) {
-      outcome = { status: 400, body: { error: `Payment exceeds the balance due — $${balanceDue.toFixed(2)} remaining` } }
+      outcome = { status: 400, body: { error: `Payment exceeds the balance due — ${money(balanceDue)} remaining` } }
       return
     }
 
@@ -360,7 +360,7 @@ app.get('/:id/pdf', requirePermission('invoices:read'), async (c) => {
   doc.on('data', (chunk: Buffer) => chunks.push(chunk))
   const pdfReady = new Promise<Buffer>((resolve) => { doc.on('end', () => resolve(Buffer.concat(chunks))) })
 
-  const money = (n: unknown) => `$${Number(n || 0).toFixed(2)}`
+  const money = (n: unknown) => `$${Number(n  || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
   // Header
   doc.fontSize(20).text(foundCompany?.name || 'Company', { align: 'center' })

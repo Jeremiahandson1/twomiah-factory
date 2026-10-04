@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { money } from '../shared/invoicing/money.ts'
 
 const app = new Hono()
 
@@ -392,7 +393,7 @@ app.post('/charge', requireRole('manager'), async (c) => {
     action: audit.ACTIONS.CREATE,
     entity: 'ach_transaction',
     entityId: transaction?.id,
-    entityName: `ACH $${data.amount.toFixed(2)} for order ${data.orderId}`,
+    entityName: `ACH ${money(data.amount)} for order ${data.orderId}`,
     metadata: { amount: data.amount, orderId: data.orderId, plaidTransferId },
     req: c,
   })

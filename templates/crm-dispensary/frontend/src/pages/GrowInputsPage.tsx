@@ -448,7 +448,7 @@ function InventoryTab() {
       label: 'Cost',
       // val arrives as a string ("5") from the camelized raw-SQL API — String.toFixed
       // doesn't exist and crashed the page. Coerce first. (retest#7)
-      render: (val: any) => (val != null && val !== '') ? `$${Number(val).toFixed(2)}` : '--',
+      render: (val: any) => (val != null && val !== '') ? `$${Number(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--',
     },
     {
       key: 'expirationDate',

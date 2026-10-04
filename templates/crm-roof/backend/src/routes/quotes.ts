@@ -6,6 +6,7 @@ import { eq, and, desc, count, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { businessToday, companyTimeZone, quoteExpiryFromTerms } from '../shared/index.ts'
+import { money } from '../shared/invoicing/money.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -74,7 +75,7 @@ export class QuoteTooLargeError extends Error {
 /** L2: a discount bigger than the quote is a typo, not a free roof */
 export class DiscountTooLargeError extends Error {
   constructor(discount: number, subtotal: number) {
-    super(`The discount ($${discount.toFixed(2)}) is more than the quote subtotal ($${subtotal.toFixed(2)})`)
+    super(`The discount (${money(discount)}) is more than the quote subtotal (${money(subtotal)})`)
     this.name = 'DiscountTooLargeError'
   }
 }
@@ -452,8 +453,8 @@ app.get('/:id/pdf', async (c) => {
     doc.fontSize(9)
     doc.text(item.description, 50, y, { width: 250 })
     doc.text(String(item.quantity), 310, y, { width: 50, align: 'right' })
-    doc.text(`$${Number(item.unitPrice).toFixed(2)}`, 370, y, { width: 80, align: 'right' })
-    doc.text(`$${Number(item.total || item.quantity * item.unitPrice).toFixed(2)}`, 460, y, { width: 80, align: 'right' })
+    doc.text(`${money(Number(item.unitPrice))}`, 370, y, { width: 80, align: 'right' })
+    doc.text(`${money(Number(item.total || item.quantity * item.unitPrice))}`, 460, y, { width: 80, align: 'right' })
     y += 18
   }
 
@@ -463,16 +464,16 @@ app.get('/:id/pdf', async (c) => {
 
   doc.fontSize(10)
   doc.text('Subtotal:', 370, y, { width: 80, align: 'right' })
-  doc.text(`$${Number(foundQuote.subtotal).toFixed(2)}`, 460, y, { width: 80, align: 'right' })
+  doc.text(`${money(Number(foundQuote.subtotal))}`, 460, y, { width: 80, align: 'right' })
   y += 18
 
   doc.text('Tax:', 370, y, { width: 80, align: 'right' })
-  doc.text(`$${Number(foundQuote.taxAmount).toFixed(2)}`, 460, y, { width: 80, align: 'right' })
+  doc.text(`${money(Number(foundQuote.taxAmount))}`, 460, y, { width: 80, align: 'right' })
   y += 18
 
   doc.font('Helvetica-Bold')
   doc.text('Total:', 370, y, { width: 80, align: 'right' })
-  doc.text(`$${Number(foundQuote.total).toFixed(2)}`, 460, y, { width: 80, align: 'right' })
+  doc.text(`${money(Number(foundQuote.total))}`, 460, y, { width: 80, align: 'right' })
 
   // Notes
   if (foundQuote.notes) {

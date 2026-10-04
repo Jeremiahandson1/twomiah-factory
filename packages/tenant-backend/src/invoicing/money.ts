@@ -6,6 +6,35 @@ import { withinHorizon, MAX_PLAN_YEARS } from '../dateInput'
 
 export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
+/**
+ * A dollar figure as a PERSON reads it — the other end of round2.
+ *
+ * `toFixed(2)` has no thousands separator, so a five-figure sum printed to someone came out as
+ * "$12000.00": on 47 PDFs a customer receives, 10 HTML receipts, 7 SMS/email bodies and 19
+ * in-product refusals across eleven templates. A number with no grouping is the one somebody
+ * misreads by a factor of ten with a client on the phone, and it is the first thing that makes an
+ * invoice look like it came out of a script. (T41)
+ *
+ * The locale is PINNED. These strings are built on the SERVER — into a PDF, an email, an SMS — so
+ * they must not depend on the host's locale: one that resolved to de-DE would start mailing
+ * customers "$12.000,00". Browser code uses the viewer's own locale deliberately; this is the other
+ * case, and the two are not interchangeable.
+ *
+ * `money()` carries the sign, so write `${money(total)}`, never `$${money(total)}`.
+ */
+export function money(n: unknown): string {
+  const v = Number(n)
+  if (!Number.isFinite(v)) return '$0.00'
+  return `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+/** The same figure without the sign, for a column that carries its own currency heading. */
+export function amount(n: unknown): string {
+  const v = Number(n)
+  if (!Number.isFinite(v)) return '0.00'
+  return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 export interface LineInput { quantity: number; unitPrice: number }
 
 /**

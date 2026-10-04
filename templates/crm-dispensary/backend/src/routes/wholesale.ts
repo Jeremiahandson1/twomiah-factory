@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { zodRefusal } from '../utils/errors.ts'
+import { money } from '../shared/invoicing/money.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -637,7 +638,7 @@ app.put('/orders/:id/payment', requireRole('manager'), async (c) => {
   // Cap the payment at the outstanding balance — a $50 order must not accept $9,999 (F-27).
   // (Small floating tolerance so an exact final payment isn't rejected by rounding.)
   if (data.amount > balanceDue + 0.005) {
-    return c.json({ error: `Payment of $${data.amount.toFixed(2)} exceeds the balance due of $${balanceDue.toFixed(2)}.`, balanceDue }, 400)
+    return c.json({ error: `Payment of ${money(data.amount)} exceeds the balance due of ${money(balanceDue)}.`, balanceDue }, 400)
   }
 
   const newPaid = currentPaid + data.amount

@@ -6,7 +6,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 // `sql` is for the FOR UPDATE lock on the quote in convert-to-invoice. (T41)
 import { eq, and, or, count, desc, asc, ilike, inArray, sql } from 'drizzle-orm'
-import { round2, calcTotals, rawSubtotal, businessToday, defaultTaxRateFrom, dueDateFromTerms, quoteExpiryFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
+import { round2, calcTotals, rawSubtotal, businessToday, defaultTaxRateFrom, dueDateFromTerms, quoteExpiryFromTerms, normalizeDateInput, nextNumber, type NumberingOptions, money } from './money'
 import { checkFilter } from '../listFilter'
 
 
@@ -483,7 +483,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
         : await db.select({ id: t.job.id }).from(t.job).where(and(eq(t.job.quoteId, id), eq(t.job.companyId, cid))).limit(1)
       if (existingJob) return c.json({ error: 'Quote already converted to a job', jobId: existingJob.id }, 400)
       const items = await lineRows(id)
-      const description = items.map((li: any) => `${li.description} (${Number(li.quantity)} × $${Number(li.unitPrice).toFixed(2)})`).join('\n')
+      const description = items.map((li: any) => `${li.description} (${Number(li.quantity)} × ${money(Number(li.unitPrice))})`).join('\n')
       // Service address: the quote's site when the vertical has sites, else the contact's address.
       let address = '', city = '', state = '', zip = ''
       let src: any = null

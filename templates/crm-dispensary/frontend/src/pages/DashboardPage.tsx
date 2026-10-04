@@ -96,7 +96,7 @@ export default function DashboardPage() {
     },
     {
       label: 'Avg Order Value',
-      value: `$${Number(stats?.avgOrderValue || 0).toFixed(2)}`,
+      value: `$${Number(stats?.avgOrderValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       icon: TrendingUp,
       color: 'purple',
       link: maySeeAnalytics ? '/crm/analytics' : null,

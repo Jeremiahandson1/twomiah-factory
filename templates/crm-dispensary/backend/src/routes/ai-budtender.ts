@@ -7,6 +7,7 @@ import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { resolveSellableStock, refusalFor } from '../services/sellableStock.ts'
 import crypto from 'crypto'
+import { money } from '../shared/invoicing/money.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -498,8 +499,8 @@ function buildResponseMessage(
     const thc = p.thc_percent ? ` | THC: ${p.thc_percent}%` : ''
     const cbd = p.cbd_percent ? ` | CBD: ${p.cbd_percent}%` : ''
     const price = p.sale_price && Number(p.sale_price) < Number(p.price)
-      ? `$${Number(p.sale_price).toFixed(2)} (was $${Number(p.price).toFixed(2)})`
-      : `$${Number(p.price).toFixed(2)}`
+      ? `${money(Number(p.sale_price))} (was ${money(Number(p.price))})`
+      : `${money(Number(p.price))}`
     const strain = p.strain_type ? ` (${p.strain_type})` : ''
 
     response += `${i + 1}. **${p.name}**${strain}${thc}${cbd} — ${price}\n`

@@ -390,7 +390,7 @@ export default function POSPage() {
       setSelectedReward(null);
       setLoyaltyDiscount(discount);
       setLoyaltyApplied(true);
-      toast.success(`Loyalty discount applied: $${Number(discount).toFixed(2)} (${balance} pts)`);
+      toast.success(`Loyalty discount applied: $${Number(discount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${balance} pts)`);
     } catch (err: any) {
       toast.error(err.message || 'No rewards available');
     }
@@ -411,7 +411,7 @@ export default function POSPage() {
     setLoyaltyDiscount(discount);
     setLoyaltyApplied(true);
     setRewardPickerOpen(false);
-    toast.success(`${r.name} applied: -$${discount.toFixed(2)} for ${cost} pts`);
+    toast.success(`${r.name} applied: -$${discount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} for ${cost} pts`);
   };
 
   const clearLoyalty = () => {
@@ -896,7 +896,7 @@ export default function POSPage() {
                       <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">{cost} pts</span>
                       {problem && <span className="ml-2 text-xs text-red-500 dark:text-red-400">{problem}</span>}
                     </span>
-                    <span className="text-green-700 font-medium dark:text-green-300">{problem ? '' : `-$${discount.toFixed(2)}`}</span>
+                    <span className="text-green-700 font-medium dark:text-green-300">{problem ? '' : `-$${discount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</span>
                   </button>
                 );
               })}

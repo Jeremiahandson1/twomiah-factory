@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit'
+import { money } from '../shared/invoicing/money.ts'
 
 function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: any) {
   const companyName = company?.name || company?.companyName || 'Company'
@@ -64,8 +65,8 @@ function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: an
       doc.text(String(item.description || item.name || ''), colDesc, rowY, { width: wDesc })
       const rowEnd = doc.y
       doc.text(String(qty), colQty, rowY, { width: wQty, align: 'right' })
-      doc.text(`$${price.toFixed(2)}`, colPrice, rowY, { width: wPrice, align: 'right' })
-      doc.text(`$${lineTotal.toFixed(2)}`, colTotal, rowY, { width: wTotal, align: 'right' })
+      doc.text(`${money(price)}`, colPrice, rowY, { width: wPrice, align: 'right' })
+      doc.text(`${money(lineTotal)}`, colTotal, rowY, { width: wTotal, align: 'right' })
       doc.y = Math.max(rowY + 14, rowEnd) // advance past the tallest cell in the row
     }
     doc.moveDown()
@@ -73,14 +74,14 @@ function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: an
 
   // Full money breakdown, not just a bare Total. (R2-03)
   doc.fontSize(10)
-  if (data.subtotal != null) doc.text(`Subtotal: $${Number(data.subtotal).toFixed(2)}`, { align: 'right' })
-  if (Number(data.discount) > 0) doc.text(`Discount: -$${Number(data.discount).toFixed(2)}`, { align: 'right' })
-  if (Number(data.taxAmount) > 0) doc.text(`Tax: $${Number(data.taxAmount).toFixed(2)}`, { align: 'right' })
-  if (data.total != null) doc.fontSize(12).text(`Total: $${Number(data.total).toFixed(2)}`, { align: 'right' })
+  if (data.subtotal != null) doc.text(`Subtotal: ${money(Number(data.subtotal))}`, { align: 'right' })
+  if (Number(data.discount) > 0) doc.text(`Discount: -${money(Number(data.discount))}`, { align: 'right' })
+  if (Number(data.taxAmount) > 0) doc.text(`Tax: ${money(Number(data.taxAmount))}`, { align: 'right' })
+  if (data.total != null) doc.fontSize(12).text(`Total: ${money(Number(data.total))}`, { align: 'right' })
   if (Number(data.amountPaid) > 0) {
     doc.fontSize(10).text(`Paid: -${Number(data.amountPaid).toFixed(2)}`, { align: 'right' })
     if (Number(data.amountRefunded) > 0) doc.fontSize(10).text(`Refunded: ${Number(data.amountRefunded).toFixed(2)}`, { align: 'right' })
-    doc.fontSize(12).text(`Balance Due: $${(Number(data.total) - Number(data.amountPaid)).toFixed(2)}`, { align: 'right' })
+    doc.fontSize(12).text(`Balance Due: ${money((Number(data.total) - Number(data.amountPaid)))}`, { align: 'right' })
   }
 }
 

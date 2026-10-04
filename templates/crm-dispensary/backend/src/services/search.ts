@@ -8,6 +8,7 @@
 import { db } from '../../db/index.ts'
 import { contact, product, order, document, teamMember } from '../../db/schema.ts'
 import { eq, and, or, ilike, desc, asc, sql } from 'drizzle-orm'
+import { money } from '../shared/invoicing/money.ts'
 
 interface SearchResult {
   type: string
@@ -139,7 +140,7 @@ export async function globalSearch(
             subtype: item.status,
             id: item.id,
             name: `Order #${item.orderNumber || item.number || item.id.slice(0, 8)}`,
-            description: `$${Number(item.total).toFixed(2)} - ${item.status}${item.customerName ? ` - ${item.customerName}` : ''}`,
+            description: `${money(Number(item.total))} - ${item.status}${item.customerName ? ` - ${item.customerName}` : ''}`,
             url: `/crm/orders/${item.id}`,
             icon: 'shopping-cart',
           }))

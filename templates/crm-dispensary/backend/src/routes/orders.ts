@@ -22,6 +22,7 @@ import { isFeatureEnabled } from '../middleware/enabledFeature.ts'
 import { checkFilter } from '../shared/index.ts'
 // One implementation of "can this be sold", called by every door a sale comes in through. (T49 B1)
 import { resolveSellableStock, refusalFor } from '../services/sellableStock.ts'
+import { money } from '../shared/invoicing/money.ts'
 
 /** Does this shop have loyalty switched on? The award below is the thing the switch has to reach. */
 const loyaltyEnabled = (companyId: string) => isFeatureEnabled(companyId, 'loyalty_rewards')
@@ -603,7 +604,7 @@ app.post('/', requireRole('budtender'), async (c) => {
   //   a raw points spend is divisible, so only the points that could be used are charged
   if (rewardId && rewardDiscount > subtotal + 0.005) {
     return c.json({
-      error: `"${rewardName}" takes $${round2(rewardDiscount).toFixed(2)} off, and there is only $${round2(subtotal).toFixed(2)} on this ticket. Ring up more, or use a smaller reward.`,
+      error: `"${rewardName}" takes ${money(round2(rewardDiscount))} off, and there is only ${money(round2(subtotal))} on this ticket. Ring up more, or use a smaller reward.`,
       code: 'reward_larger_than_order',
       rewardValue: round2(rewardDiscount),
       orderSubtotal: round2(subtotal),
@@ -714,7 +715,7 @@ app.post('/', requireRole('budtender'), async (c) => {
       const minimum = terms.minimum
       if (minimum > 0 && subtotal < minimum) {
         return c.json({
-          error: `${zone.name} has a $${minimum.toFixed(2)} minimum for delivery — this order is $${subtotal.toFixed(2)}`,
+          error: `${zone.name} has a ${money(minimum)} minimum for delivery — this order is ${money(subtotal)}`,
           code: 'below_delivery_minimum',
           minimum,
           subtotal: round2(subtotal),
@@ -1130,14 +1131,14 @@ app.post('/:id/complete', requireRole('budtender'), async (c) => {
     if (data.cashTendered == null) data.cashTendered = orderTotal
     if (round2(data.cashTendered) + 0.005 < orderTotal) {
       return c.json({
-        error: `Cash tendered $${data.cashTendered.toFixed(2)} is less than the order total $${orderTotal.toFixed(2)}`,
+        error: `Cash tendered ${money(data.cashTendered)} is less than the order total ${money(orderTotal)}`,
         code: 'insufficient_tender', total: orderTotal, tendered: data.cashTendered, shortBy: round2(orderTotal - data.cashTendered),
       }, 400)
     }
   } else if (data.paymentMethod === 'split') {
     const paid = round2((data.splitPayments || []).reduce((s, p) => s + p.amount, 0))
     if (paid + 0.005 < orderTotal) {
-      return c.json({ error: `Split payments total $${paid.toFixed(2)}, order total is $${orderTotal.toFixed(2)}`, code: 'insufficient_tender', total: orderTotal, tendered: paid }, 400)
+      return c.json({ error: `Split payments total ${money(paid)}, order total is ${money(orderTotal)}`, code: 'insufficient_tender', total: orderTotal, tendered: paid }, 400)
     }
   }
 
@@ -1428,7 +1429,7 @@ app.post('/:id/complete', requireRole('budtender'), async (c) => {
         import('../services/sms.ts').then(smsModule => {
           smsModule.default?.send?.({
             to: customerContact.phone,
-            body: `Your order ${existing.number} is complete! Total: $${Number(existing.total).toFixed(2)}. Thank you for visiting!`,
+            body: `Your order ${existing.number} is complete! Total: ${money(Number(existing.total))}. Thank you for visiting!`,
             companyId: currentUser.companyId,
           }).catch(() => {})
         }).catch(() => {})
@@ -1520,7 +1521,7 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
     if (remainingRefundable <= 0) return c.json({ error: 'Nothing left to refund on this order' }, 400)
     if (requestedAmount > remainingRefundable + 0.005) {
       return c.json({
-        error: `Cannot refund $${requestedAmount.toFixed(2)} — only $${remainingRefundable.toFixed(2)} of the $${orderTotal.toFixed(2)} total remains refundable`,
+        error: `Cannot refund ${money(requestedAmount)} — only ${money(remainingRefundable)} of the ${money(orderTotal)} total remains refundable`,
         remainingRefundable, alreadyRefunded, orderTotal,
       }, 400)
     }
@@ -1659,7 +1660,7 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
     const lockedRefunded = round2(Number(lr?.refunded_amount ?? 0) || 0)
     if (round2(lockedRefunded + refundAmount) > orderTotal + 0.005) {
       const remain = round2(Math.max(0, orderTotal - lockedRefunded))
-      raceReject = { status: 400, body: { error: `Cannot refund $${refundAmount.toFixed(2)} — only $${remain.toFixed(2)} of the $${orderTotal.toFixed(2)} total remains refundable`, remainingRefundable: remain, alreadyRefunded: lockedRefunded, orderTotal } }
+      raceReject = { status: 400, body: { error: `Cannot refund ${money(refundAmount)} — only ${money(remain)} of the ${money(orderTotal)} total remains refundable`, remainingRefundable: remain, alreadyRefunded: lockedRefunded, orderTotal } }
       throw new Error('__REFUND_RACE__')
     }
 
@@ -1847,8 +1848,8 @@ app.get('/:id/receipt', async (c) => {
     <tr>
       <td>${escapeHtml(item.productName)}</td>
       <td style="text-align:center">${escapeHtml(item.quantity)}</td>
-      <td style="text-align:right">$${Number(item.unitPrice).toFixed(2)}</td>
-      <td style="text-align:right">$${Number(item.lineTotal).toFixed(2)}</td>
+      <td style="text-align:right">${money(Number(item.unitPrice))}</td>
+      <td style="text-align:right">${money(Number(item.lineTotal))}</td>
     </tr>
   `).join('')
 
@@ -1917,14 +1918,14 @@ app.get('/:id/receipt', async (c) => {
     <tbody>${itemRows}</tbody>
   </table>
   <table class="totals">
-    <tr><td>Subtotal</td><td style="text-align:right">$${Number(foundOrder.subtotal).toFixed(2)}</td></tr>
-    <tr><td>Excise Tax</td><td style="text-align:right">$${Number((foundOrder as any).exciseTax || 0).toFixed(2)}</td></tr>
-    <tr><td>Sales Tax</td><td style="text-align:right">$${Number((foundOrder as any).salesTax || 0).toFixed(2)}</td></tr>
-    ${Number((foundOrder as any).discountAmount) > 0 ? `<tr><td>Discount</td><td style="text-align:right">-$${Number((foundOrder as any).discountAmount).toFixed(2)}</td></tr>` : ''}
-    <tr class="grand-total"><td>Total</td><td style="text-align:right">$${Number(foundOrder.total).toFixed(2)}</td></tr>
+    <tr><td>Subtotal</td><td style="text-align:right">${money(Number(foundOrder.subtotal))}</td></tr>
+    <tr><td>Excise Tax</td><td style="text-align:right">${money(Number((foundOrder as any).exciseTax || 0))}</td></tr>
+    <tr><td>Sales Tax</td><td style="text-align:right">${money(Number((foundOrder as any).salesTax || 0))}</td></tr>
+    ${Number((foundOrder as any).discountAmount) > 0 ? `<tr><td>Discount</td><td style="text-align:right">-${money(Number((foundOrder as any).discountAmount))}</td></tr>` : ''}
+    <tr class="grand-total"><td>Total</td><td style="text-align:right">${money(Number(foundOrder.total))}</td></tr>
     ${(foundOrder as any).paymentMethod === 'cash' && (foundOrder as any).cashTendered ? `
-    <tr><td>Cash Tendered</td><td style="text-align:right">$${Number((foundOrder as any).cashTendered).toFixed(2)}</td></tr>
-    <tr><td>Change Due</td><td style="text-align:right">$${Number((foundOrder as any).changeDue || 0).toFixed(2)}</td></tr>
+    <tr><td>Cash Tendered</td><td style="text-align:right">${money(Number((foundOrder as any).cashTendered))}</td></tr>
+    <tr><td>Change Due</td><td style="text-align:right">${money(Number((foundOrder as any).changeDue || 0))}</td></tr>
     ` : ''}
   </table>
   <div class="footer">

@@ -16,7 +16,7 @@ import { Hono } from 'hono'
 import Stripe from 'stripe'
 import { eq, and, sql } from 'drizzle-orm'
 import { recordInvoicePayment, recordInvoiceRefund } from '../invoicing/invoices'
-import { round2, invoiceBalance } from '../invoicing/money'
+import { round2, invoiceBalance, money } from '../invoicing/money'
 
 export interface StripeTables {
   contact: any
@@ -749,10 +749,10 @@ export function createStripeService(deps: StripeServiceDeps) {
     const collected = round2(Number(paymentRow.amount))
     const requested = amount == null ? collected : round2(Number(amount))
     if (!(requested > 0)) return { ok: false, status: 400, error: 'Refund amount must be at least $0.01' }
-    if (requested > collected + 0.005) return { ok: false, status: 400, error: `Refund exceeds this payment — $${collected.toFixed(2)} was collected on it.` }
+    if (requested > collected + 0.005) return { ok: false, status: 400, error: `Refund exceeds this payment — ${money(collected)} was collected on it.` }
     const net = round2(Number(invoiceRow.amountPaid || 0) - Number(invoiceRow.amountRefunded || 0))
     if (net <= 0.005) return { ok: false, status: 400, error: 'Everything collected on this invoice has already been refunded.' }
-    if (requested > net + 0.005) return { ok: false, status: 400, error: `Refund exceeds what was collected — $${net.toFixed(2)} still refundable on this invoice.` }
+    if (requested > net + 0.005) return { ok: false, status: 400, error: `Refund exceeds what was collected — ${money(net)} still refundable on this invoice.` }
 
     const stripeAccount = await connectedAccountFor(invoiceRow.companyId)
     const refund = await stripe!.refunds.create({

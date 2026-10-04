@@ -9,6 +9,7 @@ import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { zodRefusal } from '../utils/errors.ts'
 // The same batch rule the register runs — one implementation, every door. (T49 B1)
 import { resolveSellableStock, recalledProductIds } from '../services/sellableStock.ts'
+import { money } from '../shared/invoicing/money.ts'
 
 // Cannabis purchase limit: the company's configured/state limit (utils/cannabis.ts) — was a hardcoded 2.5 oz.
 const CANNABIS_TAX_RATE = 0.15 // 15% cannabis excise tax
@@ -482,7 +483,7 @@ app.post('/order', async (c) => {
       menuDeliveryFee = terms.fee
       if (terms.minimum > 0 && subtotal < terms.minimum) {
         return c.json({
-          error: `${zone.name || 'That area'} has a $${terms.minimum.toFixed(2)} minimum for delivery — this order is $${subtotal.toFixed(2)}.`,
+          error: `${zone.name || 'That area'} has a ${money(terms.minimum)} minimum for delivery — this order is ${money(subtotal)}.`,
           code: 'below_delivery_minimum',
           minimum: terms.minimum,
           subtotal: Number(subtotal.toFixed(2)),

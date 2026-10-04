@@ -16,6 +16,7 @@ import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
+import { money } from '../shared/invoicing/money.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -243,7 +244,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
     const changed = Number(updates.total ?? 0).toFixed(2) !== Number(existing.total ?? 0).toFixed(2)
     if (changed) {
       return c.json({
-        error: `This visit has already been invoiced, so its charge is fixed at $${Number(existing.total ?? 0).toFixed(2)}. `
+        error: `This visit has already been invoiced, so its charge is fixed at ${money(Number(existing.total ?? 0))}. `
           + 'To change what the owner pays, credit or void the invoice and raise a new one.',
         code: 'visit_already_invoiced',
         invoiceId: existing.invoiceId,

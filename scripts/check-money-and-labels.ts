@@ -13,7 +13,11 @@ if (!/export const money = .*minimumFractionDigits: 2, maximumFractionDigits: 2/
 if (!/export const moneyShort = money\b/.test(common)) fail('portal moneyShort must show cents too (it is money)')
 // L2 — a team rate is money
 const team = read('packages/tenant-ui/src/people/TeamPage.tsx')
-if (!/\$\$\{Number\(v\)\.toFixed\(2\)\}\/hr/.test(team.replace(/\$\{/g, '$${')) && !/\$\{Number\(v\)\.toFixed\(2\)\}\/hr/.test(team)) fail('the team Rate column must show 2 decimals')
+// Two decimals is the rule; `toFixed(2)` was only one way to get there. The Rate column now uses
+// toLocaleString with minimumFractionDigits 2, which also groups thousands — so this accepts either
+// formatter and still refuses a bare figure. (T41)
+const TWO_DP = /\$\{Number\(v\)\.(?:toFixed\(2\)|toLocaleString\(undefined, \{ minimumFractionDigits: 2, maximumFractionDigits: 2 \}\))\}\/hr/
+if (!TWO_DP.test(team)) fail('the team Rate column must show 2 decimals')
 // A login account's role is a PERMISSION role, and the Team page printed the stored slug — "field" and "user"
 // on a page whose own Settings › Users calls both of them Staff. One vocabulary, one map. (T14 M10)
 if (!/import \{ ROLE_LABELS \} from '\.\.\/shell\/types'/.test(team)) fail('the Team page must read the shared role vocabulary, not invent a second one')

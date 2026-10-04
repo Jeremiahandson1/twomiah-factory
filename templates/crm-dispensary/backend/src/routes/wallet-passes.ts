@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import crypto from 'crypto'
+import { money } from '../shared/invoicing/money.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -126,7 +127,7 @@ app.post('/generate', requireRole('budtender'), async (c) => {
           {
             key: 'totalSpent',
             label: 'Total Spent',
-            value: `$${Number(member.total_spent || 0).toFixed(2)}`,
+            value: `${money(Number(member.total_spent || 0))}`,
           },
         ],
       },

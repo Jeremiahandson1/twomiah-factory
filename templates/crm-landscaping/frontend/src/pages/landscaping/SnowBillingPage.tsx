@@ -138,7 +138,7 @@ export default function SnowBillingPage() {
     }
     try {
       const res = await api.post('/api/snow/events', { snowContractId: selected.id, ...evForm });
-      toast.success(`Logged — billed $${Number(res.billableAmount).toFixed(2)}`);
+      toast.success(`Logged — billed $${Number(res.billableAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
       setEvForm({ pushes: 1, snowfallInches: '', saltApplied: false, notes: '' });
       openContract(selected); load();
     } catch (e: any) { toast.error(e?.message || 'Failed to log event'); }
@@ -147,7 +147,7 @@ export default function SnowBillingPage() {
   // Unbilled visits → one draft invoice to the site's customer (T14 H5: the charge had no way to be billed).
   const [billing, setBilling] = useState<string | null>(null);
   const billContract = async (ct: any, amount: number) => {
-    if (!confirm(`Create a draft invoice for the $${amount.toFixed(2)} of unbilled snow visits at ${ct.siteName || 'this site'}?`)) return;
+    if (!confirm(`Create a draft invoice for the $${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} of unbilled snow visits at ${ct.siteName || 'this site'}?`)) return;
     setBilling(ct.id);
     try {
       const res = await api.post(`/api/snow/contracts/${ct.id}/bill`, {});
@@ -231,7 +231,7 @@ export default function SnowBillingPage() {
                     {Number(sm.unbilledTotal || 0) > 0 && mayBill && (
                       <button onClick={(e) => { e.stopPropagation(); billContract(ct, Number(sm.unbilledTotal)); }} disabled={billing === ct.id}
                         className="mt-1 mr-2 text-xs bg-green-700 text-white rounded px-2 py-1 disabled:opacity-50">
-                        {billing === ct.id ? 'Billing…' : `Bill $${Number(sm.unbilledTotal).toFixed(2)}`}
+                        {billing === ct.id ? 'Billing…' : `Bill $${Number(sm.unbilledTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                       </button>
                     )}
                     {mayDelete && <button onClick={(e) => { e.stopPropagation(); removeContract(ct.id); }} className="text-red-500 mt-1 dark:text-red-400" aria-label="Delete contract"><Trash2 className="w-4 h-4" /></button>}

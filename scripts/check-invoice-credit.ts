@@ -41,7 +41,10 @@ if (/tx\.insert\(t\.payment\)/.test(core)) fail('applyInvoiceCredit must not wri
 const written = core.match(/const set: Record<string, any> = \{([^\n]*)\}/)?.[1]
 if (written === undefined) fail('applyInvoiceCredit must build the invoice update as `const set`')
 else if (/amountPaid|amountRefunded/.test(written)) fail('applyInvoiceCredit must not change amountPaid / amountRefunded — a credit moves no money')
-if (!/Credit \$\$\{amount\.toFixed\(2\)\} applied/.test(core)) fail('applyInvoiceCredit must record the credit on the invoice notes')
+// The rule is that the credit and its AMOUNT are written onto the notes — not how the amount is
+// formatted. This pinned `$${amount.toFixed(2)}` and failed when the figure moved to money() for
+// its thousands separator. Match the sentence and the amount, whichever formatter produces it. (T41)
+if (!/Credit \$?\$?\{?(?:money\(amount\)|amount\.toFixed\(2\))\}? applied/.test(core)) fail('applyInvoiceCredit must record the credit, with its amount, on the invoice notes')
 
 const route = inv.slice(inv.indexOf("app.post('/:id/credit'"), inv.indexOf('// ---------------------------------------------------------------- pdf'))
 // payments:delete, not invoices:update — the same right POST /api/payments/refund asks for. Writing money

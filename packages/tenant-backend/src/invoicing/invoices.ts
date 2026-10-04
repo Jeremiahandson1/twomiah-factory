@@ -6,6 +6,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, or, count, desc, asc, sql, inArray, lt, gte, isNull } from 'drizzle-orm'
+import { money } from './money'
 import { round2, calcTotals, rawSubtotal, DEFAULT_OPEN_STATUSES, isOverdue, overdueCutoff, startOfUtcDay, businessToday, deriveStatus, invoiceBalance, recomputeStatus, defaultTaxRateFrom, dueDateFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
 import { ACCOUNT_BALANCE_METHOD } from '../clients/accountBalance'
 import { mailFailureReason } from '../integrations/mailError'
@@ -178,7 +179,7 @@ export async function insertInvoice(
 export function retotalInvoice(existing: { amountPaid: any; status: string }, lines: InvoiceLine[], taxRate: number, discount: number): { error: string } | { fields: Record<string, string> } {
   const calc = calcTotals(lines, taxRate, discount)
   const paid = Number(existing.amountPaid)
-  if (calc.total < paid - 0.005) return { error: `This invoice already has $${paid.toFixed(2)} in payments; the total can't be lowered below that. Refund or void instead.` }
+  if (calc.total < paid - 0.005) return { error: `This invoice already has ${money(paid)} in payments; the total can't be lowered below that. Refund or void instead.` }
   // amountPaid is gross (refunds live in amountRefunded), so a partially refunded, fully paid invoice stays 'paid'.
   return {
     fields: {
@@ -259,7 +260,7 @@ export async function recordInvoicePayment(db: any, t: { invoice: any; payment: 
     }
     // Owed is net of refunds: if a deposit was refunded the balance reopened, and a payment may cover it.
     const balanceDue = invoiceBalance({ status: row.status, total: row.total, amountPaid: row.amount_paid, amountRefunded: row.amount_refunded })
-    if (!input.allowOverpayment && amount > balanceDue + 0.005) { outcome = { ok: false, status: 400, error: `Payment exceeds the balance due — $${balanceDue.toFixed(2)} remaining` }; return }
+    if (!input.allowOverpayment && amount > balanceDue + 0.005) { outcome = { ok: false, status: 400, error: `Payment exceeds the balance due — ${money(balanceDue)} remaining` }; return }
     if (input.beforeWrite) {
       const refusal = await input.beforeWrite(tx, row, amount)
       if (refusal) { outcome = { ok: false, status: 409, error: refusal }; return }
@@ -349,7 +350,7 @@ export async function recordInvoiceRefund(db: any, t: { invoice: any; payment: a
     const net = round2(paid - refunded)
     if (paid <= 0.005) { outcome = { ok: false, status: 400, error: 'This invoice has no payments to refund.' }; return }
     if (net <= 0.005) { outcome = { ok: false, status: 400, error: 'Everything collected on this invoice has already been refunded.' }; return }
-    if (amount > net + 0.005) { outcome = { ok: false, status: 400, error: `Refund exceeds what was collected — $${net.toFixed(2)} still refundable on this invoice.` }; return }
+    if (amount > net + 0.005) { outcome = { ok: false, status: 400, error: `Refund exceeds what was collected — ${money(net)} still refundable on this invoice.` }; return }
     // Default to how the money came in — the most recent positive payment's method.
     const [last] = await tx.select({ method: t.payment.method }).from(t.payment).where(and(eq(t.payment.invoiceId, id), sql`${t.payment.amount}::numeric > 0`)).orderBy(desc(t.payment.paidAt)).limit(1)
     const method = input.method || last?.method || 'other'
@@ -412,8 +413,11 @@ export async function applyInvoiceCredit(db: any, t: { invoice: any; invoiceLine
     if (!row) { outcome = { ok: false, status: 404, error: 'Invoice not found' }; return }
     if (row.status === 'void') { outcome = { ok: false, status: 400, error: 'This invoice is void.' }; return }
     if (row.status === 'refunded') { outcome = { ok: false, status: 400, error: 'This sale was refunded and can no longer be changed.' }; return }
-    const money = { status: row.status, total: row.total, amountPaid: row.amount_paid, amountRefunded: row.amount_refunded }
-    const balanceBefore = invoiceBalance(money)
+// Named `figures`, not `money`: `money()` is the formatter this file calls eight times, and a local
+// object shadowing it turned every one of those calls into "money is not a function" — a 500 on the
+// credit path, caught by the fieldservice refund-tier suite. (T41)
+    const figures = { status: row.status, total: row.total, amountPaid: row.amount_paid, amountRefunded: row.amount_refunded }
+    const balanceBefore = invoiceBalance(figures)
     if (balanceBefore <= 0.005) { outcome = { ok: false, status: 400, error: 'Nothing is owed on this invoice, so there is nothing to credit.' }; return }
     const current = await tx.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder))
     const lines = current.map((li: any) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) }))
@@ -440,15 +444,15 @@ export async function applyInvoiceCredit(db: any, t: { invoice: any; invoiceLine
         ok: false,
         status: 400,
         error: bindsOnOwed
-          ? `Only $${balanceBefore.toFixed(2)} is still owed — the most you can credit is $${cap.toFixed(2)}${taxRate > 0 ? ' before tax' : ''}.`
-          : `A credit can't take the price below $0 — the most you can credit is $${cap.toFixed(2)}.`,
+          ? `Only ${money(balanceBefore)} is still owed — the most you can credit is ${money(cap)}${taxRate > 0 ? ' before tax' : ''}.`
+          : `A credit can't take the price below $0 — the most you can credit is ${money(cap)}.`,
       }
       return
     }
     const retotal = retotalInvoice({ amountPaid: row.amount_paid, status: row.status }, lines, taxRate, newDiscount)
     if ('error' in retotal) { outcome = { ok: false, status: 400, error: retotal.error }; return }
-    const balanceAfter = invoiceBalance({ ...money, total: retotal.fields.total, status: retotal.fields.status })
-    const note = `Credit $${amount.toFixed(2)} applied ${new Date().toISOString().slice(0, 10)}${input.by ? ` by ${input.by}` : ''}: ${input.reason}`
+    const balanceAfter = invoiceBalance({ ...figures, total: retotal.fields.total, status: retotal.fields.status })
+    const note = `Credit ${money(amount)} applied ${new Date().toISOString().slice(0, 10)}${input.by ? ` by ${input.by}` : ''}: ${input.reason}`
     const set: Record<string, any> = { ...retotal.fields, notes: row.notes ? `${row.notes}\n${note}` : note, updatedAt: new Date() }
     if (balanceAfter <= 0.005 && !row.paid_at) set.paidAt = new Date()
     const [updated] = await tx.update(t.invoice).set(set).where(eq(t.invoice.id, id)).returning()
@@ -889,7 +893,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const amount = round2(data.amount)
     if (amount <= 0) return c.json({ error: 'Payment amount must be at least $0.01' }, 400)
     const tipAmount = tips ? round2(data.tipAmount || 0) : 0
-    if (tips && tipAmount > Math.max(amount * 5, 100)) return c.json({ error: `A $${tipAmount.toFixed(2)} tip on a $${amount.toFixed(2)} payment looks wrong — check the amount.` }, 400)
+    if (tips && tipAmount > Math.max(amount * 5, 100)) return c.json({ error: `A ${money(tipAmount)} tip on a ${money(amount)} payment looks wrong — check the amount.` }, 400)
 
     // The locked, refund-aware write lives in recordInvoicePayment (shared with the Stripe webhook).
     const outcome = await recordInvoicePayment(db, t, tips, { invoiceId: id, companyId: currentUser.companyId, amount, method: data.method, reference: data.reference, notes: data.notes, tipAmount, beforeWrite: deps.options?.onPayment, spendFromAccount: deps.options?.accountBalance?.spend })
@@ -923,7 +927,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       // like it already is for edit / send / payment. (Contractor M24.)
       if (row.status === 'refunded') { outcome = { status: 400, body: { error: 'This sale was refunded — the refund already records the reversal, so it cannot be voided.' } }; return }
       const paid = round2(Number(row.amount_paid) - Number(row.amount_refunded || 0))
-      if (paid > 0.005) { outcome = { status: 400, body: { error: `This invoice has $${paid.toFixed(2)} in payments that were not refunded. Refund them first, then void.` } }; return }
+      if (paid > 0.005) { outcome = { status: 400, body: { error: `This invoice has ${money(paid)} in payments that were not refunded. Refund them first, then void.` } }; return }
       const note = body.reason ? `Voided: ${String(body.reason).slice(0, 500)}` : 'Voided'
       const [updated] = await tx.update(t.invoice).set({ status: 'void', notes: row.notes ? `${row.notes}\n${note}` : note, updatedAt: new Date() }).where(eq(t.invoice.id, id)).returning()
       outcome = { status: 200, body: updated }

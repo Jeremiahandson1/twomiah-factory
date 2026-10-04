@@ -8,6 +8,7 @@ import type { BookingDeps, BookingStatus, CatalogService } from './types'
 import { createWidgetCatalog } from './catalog'
 import { DAYS, DAY_MS, addDays, defaultWorkingHours, formatWhen, hmToMinutes, isHm, isIsoDate, isRealDate, isValidTz, minutesToHm, parseHours, safeTz, tzParts, zonedWallTimeToUtc } from './time'
 import type { WorkingHours } from './time'
+import { money } from '../invoicing/money'
 
 const BOOKING_STATUSES: BookingStatus[] = ['pending', 'confirmed', 'cancelled', 'completed', 'no_show']
 const num = (v: unknown, d = 0) => { const n = Number(v); return Number.isFinite(n) ? n : d }
@@ -499,7 +500,7 @@ export function createBookingService(deps: BookingDeps) {
 ${b.phone ? `<tr><td style="padding:2px 12px 2px 0;color:#555">Phone</td><td>${escapeHtml(b.phone)}</td></tr>` : ''}
 ${b.notes ? `<tr><td style="padding:2px 12px 2px 0;color:#555">Notes</td><td>${escapeHtml(b.notes)}</td></tr>` : ''}
 <tr><td style="padding:2px 12px 2px 0;color:#555">Code</td><td>${escapeHtml(b.code)}</td></tr>
-${b.depositRequired ? `<tr><td style="padding:2px 12px 2px 0;color:#555">Deposit</td><td>$${b.depositAmount.toFixed(2)} — pending until paid</td></tr>` : ''}
+${b.depositRequired ? `<tr><td style="padding:2px 12px 2px 0;color:#555">Deposit</td><td>${money(b.depositAmount)} — pending until paid</td></tr>` : ''}
 </table>`
         await o.notify.email({ to: co.email, subject: `New online booking: ${line}`, html })
       }

@@ -8,6 +8,7 @@ import audit from '../services/audit.ts'
 import { settledSale, taxCollected, taxNetExprBare, exciseNetExprBare, salesNetExprBare } from '../utils/revenue.ts'
 import { medicalExciseExempt } from '../utils/tax.ts'
 import { storeDayRange, zoneFor, storeDateString } from '../utils/isoTime.ts'
+import { money } from '../shared/invoicing/money.ts'
 
 const app = new Hono()
 
@@ -479,7 +480,7 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
     collectedVariance: variance,
     reconciles: withinRounding,
     reconcileNote: variance !== null && withinRounding === false
-      ? `The ${filed.label} collected is $${Math.abs(variance).toFixed(2)} ${variance < 0 ? 'less' : 'more'} than ${filed.ratePct}% of the taxable base.${varianceOrders.length ? ` ${varianceOrders.length === 1 ? 'One order is' : `${varianceOrders.length} orders are`} out of step with the rate — they are listed under "orders out of step" with the excise each one took.` : ' Some sales in this period were not charged at the current rate — check sales made before the rate was set, or orders created outside the register.'}`
+      ? `The ${filed.label} collected is ${money(Math.abs(variance))} ${variance < 0 ? 'less' : 'more'} than ${filed.ratePct}% of the taxable base.${varianceOrders.length ? ` ${varianceOrders.length === 1 ? 'One order is' : `${varianceOrders.length} orders are`} out of step with the rate — they are listed under "orders out of step" with the excise each one took.` : ' Some sales in this period were not charged at the current rate — check sales made before the rate was set, or orders created outside the register.'}`
       : null,
     // The orders behind the variance, named. Empty when everything reconciles, so a clean period
     // carries no list at all. (T48, the tester's ask on P5)
@@ -1064,7 +1065,7 @@ app.get('/summary', async (c) => {
     // alarm rather than the excuse it used to be: if the invariant ever breaks again, the shop is
     // told plainly instead of the arithmetic drifting in silence for four test rounds.
     breakdownNote: reconciles ? null
-      : `The three lines add to $${breakdownTotal.toFixed(2)} against a total of $${totalCollected.toFixed(2)} — a difference of $${Math.abs(breakdownVariance).toFixed(2)}. They are meant to add up exactly, so this is a fault in the figures rather than something to work around: file nothing from this screen and tell us.`,
+      : `The three lines add to ${money(breakdownTotal)} against a total of ${money(totalCollected)} — a difference of ${money(Math.abs(breakdownVariance))}. They are meant to add up exactly, so this is a fault in the figures rather than something to work around: file nothing from this screen and tell us.`,
   })
 })
 

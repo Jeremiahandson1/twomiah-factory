@@ -8,6 +8,7 @@ import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import { sendSMS } from '../services/sms.ts'
 import emailService from '../services/email.ts'
+import { money } from '../shared/invoicing/money.ts'
 
 export default createQuoteRoutes({
   db,
@@ -29,7 +30,7 @@ export default createQuoteRoutes({
     onSent: async ({ companyId, quote, contact, company }) => {
       if (!contact?.phone) return
       const portalUrl = process.env.CUSTOMER_PORTAL_URL || process.env.FRONTEND_URL || ''
-      const msg = `Hi ${contact.name?.split(' ')[0] || 'there'}, ${company?.name || 'we'} just sent you a quote (#${quote.number}) for $${Number(quote.total || 0).toFixed(2)}. View it here: ${portalUrl}/quotes/${quote.id}`
+      const msg = `Hi ${contact.name?.split(' ')[0] || 'there'}, ${company?.name || 'we'} just sent you a quote (#${quote.number}) for ${money(Number(quote.total || 0))}. View it here: ${portalUrl}/quotes/${quote.id}`
       await sendSMS(companyId, { contactId: contact.id, message: msg })
     },
   },

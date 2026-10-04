@@ -14,6 +14,7 @@
 import { db } from '../../db/index.ts'
 import { sql } from 'drizzle-orm'
 import { normalizeRole, ROLE_HIERARCHY } from '../middleware/permissions.ts'
+import { money } from '../shared/invoicing/money.ts'
 
 export type ApprovalType = 'void' | 'discount' | 'refund' | 'price_override'
 
@@ -144,7 +145,7 @@ export async function requireApproval(args: ResolveArgs): Promise<ApprovalGrant>
       throw new ApprovalRequiredError(type, amount, threshold, 'Approval request is for a different order')
     }
     if (amount != null && req.amount != null && Number(req.amount) + 0.005 < amount) {
-      throw new ApprovalRequiredError(type, amount, threshold, `Approval request covers $${Number(req.amount).toFixed(2)}, action is $${amount.toFixed(2)}`)
+      throw new ApprovalRequiredError(type, amount, threshold, `Approval request covers ${money(Number(req.amount))}, action is ${money(amount)}`)
     }
     await db.execute(sql`
       UPDATE approval_requests

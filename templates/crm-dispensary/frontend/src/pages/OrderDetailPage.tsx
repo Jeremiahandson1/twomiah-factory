@@ -146,7 +146,7 @@ export default function OrderDetailPage() {
     if (refundMode === 'amount') {
       const amt = Number(refundAmount);
       if (!(amt > 0)) { toast.error('Enter an amount to refund'); return; }
-      if (amt > remainingRefundable + 0.005) { toast.error(`Only $${remainingRefundable.toFixed(2)} remains refundable`); return; }
+      if (amt > remainingRefundable + 0.005) { toast.error(`Only $${remainingRefundable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} remains refundable`); return; }
       body.amount = amt;
     } else {
       // Units, with the shelf decision made explicitly: product that came back gets restocked,

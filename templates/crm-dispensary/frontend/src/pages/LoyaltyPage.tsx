@@ -440,7 +440,7 @@ export default function LoyaltyPage() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-500 dark:text-slate-400">{reward.pointsCost} points</span>
                   <span className="font-medium text-green-700 dark:text-green-300">
-                    {reward.discountType === 'percent' ? `${reward.discountValue}% off` : `$${Number(reward.discountValue).toFixed(2)} off`}
+                    {reward.discountType === 'percent' ? `${reward.discountValue}% off` : `$${Number(reward.discountValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} off`}
                   </span>
                 </div>
                 <div className="flex gap-2 mt-4 pt-3 border-t">

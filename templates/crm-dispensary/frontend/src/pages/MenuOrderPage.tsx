@@ -13,7 +13,7 @@ import { ShoppingCart, Plus, Minus, Check, Loader2, Store, Truck } from 'lucide-
 
 type CartLine = { productId: string; name: string; price: number; quantity: number; isCannabis?: boolean };
 
-const money = (n: number) => `$${Number(n || 0).toFixed(2)}`;
+const money = (n: number) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function MenuOrderPage() {
   const [menu, setMenu] = useState<any>(null);

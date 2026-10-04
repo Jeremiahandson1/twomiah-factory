@@ -16,6 +16,7 @@ import { AUTO_VISIT_NOTE, CANCELLED_VISIT_NOTE, CANCELLED_VISIT_LABEL } from './
 // path normalised a string and this file did not, so `formula: "6N + 20vol"` was stored raw and the
 // client chart's visit list threw on `.map`, taking the whole chart down behind an error boundary.
 import { keepFromRecord, normaliseFormula } from '../services/clientFormulas.ts'
+import { money } from '../shared/invoicing/money.ts'
 
 /**
  * The formula log — what was actually done in the chair. This is the salon's
@@ -549,7 +550,7 @@ app.delete('/:id', requirePermission('invoices:update'), async (c) => {
     const paid = Math.round((Number(linkedInvoice.amountPaid || 0) - Number(linkedInvoice.amountRefunded || 0)) * 100) / 100
     if (paid > 0.005) {
       return c.json({
-        error: `This visit has been paid for — ${linkedInvoice.number} holds $${paid.toFixed(2)}. Refund the payment and void the invoice first, then delete the visit.`,
+        error: `This visit has been paid for — ${linkedInvoice.number} holds ${money(paid)}. Refund the payment and void the invoice first, then delete the visit.`,
         code: 'VISIT_HAS_PAYMENT',
         invoiceId: linkedInvoice.id,
         invoiceNumber: linkedInvoice.number,

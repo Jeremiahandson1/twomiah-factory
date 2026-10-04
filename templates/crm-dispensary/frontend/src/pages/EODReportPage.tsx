@@ -233,7 +233,7 @@ export default function EODReportPage() {
                     </div>
                     <div>
                       <div className="text-sm text-gray-500 dark:text-slate-400">Actual Count</div>
-                      <div className="text-xl font-bold">{drawerOpen ? <span className="text-gray-500 dark:text-slate-400">—</span> : `$${Number(report.cashActual || 0).toFixed(2)}`}</div>
+                      <div className="text-xl font-bold">{drawerOpen ? <span className="text-gray-500 dark:text-slate-400">—</span> : `$${Number(report.cashActual || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</div>
                     </div>
                     <div>
                       <div className="text-sm text-gray-500 dark:text-slate-400">Variance</div>
@@ -275,9 +275,9 @@ export default function EODReportPage() {
                                 <td className="py-1.5 pr-4 text-gray-700 dark:text-slate-200">{d.closedByName || d.openedByName || '—'}</td>
                                 <td className="py-1.5 pr-4 text-gray-700 dark:text-slate-200">{d.status === 'open' ? 'Open' : 'Closed'}</td>
                                 <td className="py-1.5 pr-4 text-right tabular-nums text-gray-700 dark:text-slate-200">${Number(d.expected || 0).toFixed(2)}</td>
-                                <td className="py-1.5 pr-4 text-right tabular-nums text-gray-700 dark:text-slate-200">{d.counted == null ? '—' : `$${Number(d.counted).toFixed(2)}`}</td>
+                                <td className="py-1.5 pr-4 text-right tabular-nums text-gray-700 dark:text-slate-200">{d.counted == null ? '—' : `$${Number(d.counted).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</td>
                                 <td className={`py-1.5 text-right tabular-nums font-medium ${d.variance == null ? 'text-gray-500 dark:text-slate-400' : Math.abs(Number(d.variance)) > 5 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`}>
-                                  {d.variance == null ? 'Pending' : `${Number(d.variance) >= 0 ? '+' : ''}$${Number(d.variance).toFixed(2)}`}
+                                  {d.variance == null ? 'Pending' : `${Number(d.variance) >= 0 ? '+' : ''}$${Number(d.variance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                                 </td>
                               </tr>
                             ))}
@@ -322,7 +322,7 @@ export default function EODReportPage() {
                           <ul className="mt-2 flex flex-wrap gap-2">
                             {report.unsettledOrders.map((o: any, i: number) => (
                               <li key={o.id || o.number || i} className="rounded-md bg-red-50 px-2 py-1 text-xs text-red-800 dark:bg-red-900/30 dark:text-red-200">
-                                {o.number || o.id}{o.total != null ? ` · $${Number(o.total).toFixed(2)}` : ''}
+                                {o.number || o.id}{o.total != null ? ` · $${Number(o.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
                               </li>
                             ))}
                           </ul>
@@ -352,7 +352,7 @@ export default function EODReportPage() {
                           <ul className="mt-2 flex flex-wrap gap-2">
                             {report.awaitingCollectionOrders.map((o: any, i: number) => (
                               <li key={o.id || o.number || i} className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
-                                {o.number || o.id}{o.total != null ? ` · $${Number(o.total).toFixed(2)}` : ''}
+                                {o.number || o.id}{o.total != null ? ` · $${Number(o.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
                               </li>
                             ))}
                           </ul>

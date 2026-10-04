@@ -1,6 +1,6 @@
 import { sql, and, eq } from 'drizzle-orm'
 // The same rounding the invoice totals use. Money that rounds two ways does not reconcile.
-import { round2 } from '../invoicing/money'
+import { round2, money } from '../invoicing/money'
 
 /**
  * Money a client has ON ACCOUNT with the business.
@@ -70,8 +70,8 @@ export function balanceFrom(entries: AccountEntry[]): number {
 /** Money on account reads as a credit; a negative balance is money the client owes. */
 export function describeBalance(balance: number, clientWord = 'client'): string {
   const b = round2(balance)
-  if (b > 0.005) return `$${b.toFixed(2)} on account`
-  if (b < -0.005) return `$${Math.abs(b).toFixed(2)} owed by this ${clientWord}`
+  if (b > 0.005) return `${money(b)} on account`
+  if (b < -0.005) return `${money(Math.abs(b))} owed by this ${clientWord}`
   return 'Nothing on account'
 }
 
@@ -220,7 +220,7 @@ export function createAccountBalanceStore(
         balance: before,
         error: before <= 0.005
           ? 'This client has nothing on account.'
-          : `This client has $${before.toFixed(2)} on account, which is less than $${amount.toFixed(2)}.`,
+          : `This client has ${money(before)} on account, which is less than ${money(amount)}.`,
       }
     }
     await add(tx, {

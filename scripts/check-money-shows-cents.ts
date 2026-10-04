@@ -37,8 +37,8 @@ const PARKED = ['crm-automotive', 'crm-homecare']
  */
 const ALLOWED = new Set([
   'templates/crm-landscaping/backend/src/routes/areaPricing.ts:125',
-  'templates/crm-roof/backend/src/services/xactimate.ts:196',
-  'templates/crm-roof/backend/src/services/xactimate.ts:205',
+  'templates/crm-roof/backend/src/services/xactimate.ts:197',
+  'templates/crm-roof/backend/src/services/xactimate.ts:206',
   'templates/crm-roof/frontend/src/pages/roofReports/RoofReportDetail.tsx:118',
   'templates/crm-roof/frontend/src/pages/roofReports/RoofReportDetail.tsx:295',
   'templates/crm-dispensary/frontend/src/pages/POSPage.tsx:717',
@@ -96,6 +96,39 @@ for (const file of files) {
     scanned++
     fail(`${id} prints money with a bare toLocaleString(), which drops the cents — $125.5 instead of $125.50.\n`
       + `       Pass { minimumFractionDigits: 2, maximumFractionDigits: 2 }, or use the portal's money() helper.\n`
+      + `       ${line.trim().slice(0, 140)}`)
+  }
+}
+
+/**
+ * …and the other half of the same fault: a figure with its CENTS but no THOUSANDS separator.
+ *
+ * `toFixed(2)` gives "12000.00". The rule above catches a bare `toLocaleString()` dropping the
+ * cents; this catches `$${x.toFixed(2)}` dropping the grouping, which is how 136 figures in 33
+ * backend files reached people — 47 of them on PDFs a customer receives, 10 on HTML receipts, 7 in
+ * SMS or email bodies. A five-figure sum with no grouping is the one somebody misreads by a factor
+ * of ten with a client on the phone.
+ *
+ * The answer is `money()` from packages/tenant-backend/src/money.ts, which the generator vendors
+ * into every tenant as `backend/src/shared/money.ts`. Its locale is PINNED, because these strings
+ * are built server-side: a host that resolved to de-DE would mail customers "$12.000,00".
+ *
+ * Only the `$`-prefixed form is flagged. A bare `toFixed(2)` on a quantity, a weight, a percentage
+ * or an hour count is not money and is none of this rule's business.
+ */
+let grouped = 0
+for (const file of files) {
+  const rel = relative(ROOT, file).replace(/\\/g, '/')
+  // money.ts itself defines the helper; the frontend uses the viewer's own locale deliberately.
+  if (/\/money\.ts$/.test(rel)) continue
+  const lines = readFileSync(file, 'utf8').split(/\r?\n/)
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (/^\s*(?:\/\/|\*|\/\*)/.test(line)) continue
+    if (!/\$\$\{[^}]*\.toFixed\(2\)\}/.test(line)) continue
+    grouped++
+    fail(`${rel}:${i + 1} prints money with toFixed(2), which has no thousands separator — "$12000.00".\n`
+      + `       Use money() — import { money } from '../shared/money.ts' in a tenant backend, or './money' inside packages/tenant-backend. It carries the $ sign.\n`
       + `       ${line.trim().slice(0, 140)}`)
   }
 }

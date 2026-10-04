@@ -246,7 +246,7 @@ export default function MeasurementsPage() {
                         {m.totalArea != null ? Number(m.totalArea).toLocaleString() : '—'}
                       </td>
                       <td className="px-4 py-3 text-right text-gray-900 dark:text-slate-100">
-                        {m.cost != null ? `$${Number(m.cost).toFixed(2)}` : '—'}
+                        {m.cost != null ? `$${Number(m.cost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">
                         {m.createdAt ? formatDate(m.createdAt) : '—'}

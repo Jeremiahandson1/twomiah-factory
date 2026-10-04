@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { zodRefusal } from '../utils/errors.ts'
+import { money } from '../shared/invoicing/money.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -316,7 +317,7 @@ app.post('/print', requireRole('budtender'), async (c) => {
       weight: prod.weight_grams != null && String(prod.weight_grams) !== ''
         ? `${prod.weight_grams}g`
         : (prod.weight != null ? `${prod.weight}${prod.weight_unit || 'g'}` : ''),
-      price: prod.price != null ? `$${Number(prod.price).toFixed(2)}` : '',
+      price: prod.price != null ? `${money(Number(prod.price))}` : '',
       sku: prod.sku || '',
       metrc_tag: prod.metrc_tag || '',
     }
@@ -526,7 +527,7 @@ app.post('/generate', requireRole('budtender'), async (c) => {
       weight: prod.weight_grams != null && String(prod.weight_grams) !== ''
         ? `${prod.weight_grams}g`
         : (prod.weight != null ? `${prod.weight}${prod.weight_unit || 'g'}` : ''),
-      price: prod.price != null ? `$${Number(prod.price).toFixed(2)}` : '',
+      price: prod.price != null ? `${money(Number(prod.price))}` : '',
       sku: prod.sku || '',
       metrc_tag: batch?.metrc_tag || prod.metrc_tag || '',
       batch_number: batch?.batch_number || '',

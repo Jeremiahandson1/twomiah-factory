@@ -17,7 +17,9 @@ const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 const stripe = read('packages/tenant-backend/src/payments/stripe.ts')
 const between = (from: string, to: string) => { const a = stripe.indexOf(from); const b = stripe.indexOf(to, a + 1); return a < 0 || b < 0 ? '' : stripe.slice(a, b) }
 
-if (!/import \{ round2, invoiceBalance \} from '\.\.\/invoicing\/money'/.test(stripe)) fail('payments/stripe.ts must import invoiceBalance from the money model')
+// The rule is WHERE invoiceBalance comes from — the shared money model, not a local reimplementation.
+// This pinned the exact import list and failed when `money` joined it on the same line. (T41)
+if (!/import \{[^}]*\binvoiceBalance\b[^}]*\} from '\.\.\/invoicing\/money'/.test(stripe)) fail('payments/stripe.ts must import invoiceBalance from the money model')
 if (!/const invoiceOwed = \(invoiceRow: any\) => invoiceBalance\(invoiceRow\)/.test(stripe)) fail('invoiceOwed must be the shared invoiceBalance')
 if (/Number\(invoiceRow\.total\) - Number\(invoiceRow\.amountPaid/.test(stripe)) fail('no charge path may compute total − amountPaid (refund-blind) any more')
 if (/inv\.balance/.test(stripe)) fail('routes must not read inv.balance (not a column — the check never fired)')

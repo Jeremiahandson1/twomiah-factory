@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { round2 } from '../invoicing/money'
+import { round2, money } from '../invoicing/money'
 import { createAccountBalanceStore, balanceFrom } from '../clients/accountBalance'
 
 /**
@@ -80,7 +80,7 @@ export function owedFrom(entries: Array<{ amount: any }>): number {
 export function describeOwed(owed: number, name?: string | null): string {
   const o = round2(owed)
   if (o <= 0.005) return name ? `${name} owes nothing` : 'Nothing owed'
-  return name ? `${name} owes $${o.toFixed(2)}` : `$${o.toFixed(2)} owed`
+  return name ? `${name} owes ${money(o)}` : `${money(o)} owed`
 }
 
 /**
@@ -121,7 +121,7 @@ export function createStaffBalanceStore(table: any, tableName = 'staff_account_e
     const before = await owed(tx, input.companyId, input.userId, true)
     if (before <= 0.005) return { ok: false, error: 'This person does not owe anything.', owed: 0 }
     if (amount > before + 0.005) {
-      return { ok: false, owed: before, error: `They owe $${before.toFixed(2)}, which is less than $${amount.toFixed(2)}.` }
+      return { ok: false, owed: before, error: `They owe ${money(before)}, which is less than ${money(amount)}.` }
     }
     await store.add(tx, {
       companyId: input.companyId, subjectId: input.userId,

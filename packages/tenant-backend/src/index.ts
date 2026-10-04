@@ -16,6 +16,8 @@ export { createAccountRoutes } from './account'
 export { createBillingRoutes, createSubscriptionSyncRoute, refreshSubscriptionFromFactory, applySubscriptionToCompany } from './billing'
 export type { BillingDeps, BillingFactoryClient } from './billing'
 export { PLANS, planFor, seatsForPlan } from './plans'
+// A dollar figure as a person reads it — grouped, two decimals, locale pinned. See money.ts.
+export { money, amount } from './invoicing/money'
 export type { PlanDef, TenantSubscription } from './plans'
 export { createFactoryApiClient } from './factoryClient'
 export type {

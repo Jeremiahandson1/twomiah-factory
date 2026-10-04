@@ -1,6 +1,7 @@
 // Xactimate-compatible scope document and CSV export generator
 import PDFDocument from 'pdfkit'
 import { uploadFile } from './storage.ts'
+import { money } from '../shared/invoicing/money.ts'
 
 // ── Xactimate line item codes & regional pricing ──────
 
@@ -237,8 +238,8 @@ function generatePDF(
       doc.text(item.description, col.desc, ly, { width: 220 })
       doc.text(String(item.qty), col.qty, ly, { width: 40, align: 'right' })
       doc.text(item.unit, col.unit, ly, { width: 35, align: 'center' })
-      doc.text(`$${item.unitPrice.toFixed(2)}`, col.price, ly, { width: 55, align: 'right' })
-      doc.text(`$${item.total.toFixed(2)}`, col.total, ly, { width: 60, align: 'right' })
+      doc.text(`${money(item.unitPrice)}`, col.price, ly, { width: 55, align: 'right' })
+      doc.text(`${money(item.total)}`, col.total, ly, { width: 60, align: 'right' })
       doc.moveDown(0.4)
     }
 

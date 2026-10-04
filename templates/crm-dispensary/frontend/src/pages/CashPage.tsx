@@ -283,7 +283,7 @@ export default function CashPage() {
                     <td className="px-4 py-3 text-sm text-right text-green-700 dark:text-green-300">${Number(session.cashSales || 0).toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-slate-200">${Number(expected).toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-right text-gray-900 font-medium dark:text-slate-100">
-                      {session.closingAmount != null ? `$${Number(session.closingAmount).toFixed(2)}` : '—'}
+                      {session.closingAmount != null ? `$${Number(session.closingAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                     </td>
                     {/* Each variance variant carried only its light colour, so on the dark row the shortfall
                         read 3.70:1 (red-600 on slate-900) and the overage 3.46:1 (blue-600) — the two figures
@@ -325,7 +325,7 @@ export default function CashPage() {
         onClose={() => setCloseConfirm(false)}
         onConfirm={closeSession}
         title="Close Cash Drawer"
-        message={`Close the cash drawer with a counted amount of $${parseFloat(closingAmount || '0').toFixed(2)}?`}
+        message={`Close the cash drawer with a counted amount of $${parseFloat(closingAmount || '0').toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}?`}
         confirmText="Close Drawer"
         loading={closing}
       />
