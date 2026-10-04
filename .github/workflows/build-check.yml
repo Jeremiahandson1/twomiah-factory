@@ -2294,3 +2294,14 @@ jobs:
           bun-version: latest
       - name: "check composer facts"
         run: bun run scripts/check-composer-facts.ts
+
+  write-controls-ask-permission:
+    name: "A shared screen that writes asks whether this person may"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "check write controls ask permission"
+        run: bun run scripts/check-write-controls-ask-permission.ts

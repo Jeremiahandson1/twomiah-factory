@@ -8,12 +8,27 @@ import type { LeadsApi, LeadsConfig, LeadsToast, LeadSourceRow, LeadPlatform } f
 import { TRADES_LEAD_PLATFORMS } from './types'
 import { useLeadPalette } from './theme'
 import { useConfirm } from '../ui/ConfirmProvider'
+import { useMayWrite } from '../auth/PermissionsContext'
 
 const errMsg = (e: unknown, fallback: string) => (e as Error)?.message || fallback
 
 export function LeadSourcesPage({ api, toast, config }: { api: LeadsApi; toast?: LeadsToast; config?: LeadsConfig }) {
   const confirm = useConfirm()
   const c = useLeadPalette()
+  /**
+   * WHO MAY CONNECT A LEAD SOURCE — and who may read the key that posts into it. (T42)
+   *
+   * POST and DELETE /api/leads/sources ask `contacts:create`; PUT /sources/:id asks
+   * `contacts:update`. "Add Source" was offered to every seat on RV, Events and Showcase, and the
+   * three write controls on each card with it.
+   *
+   * AND THE WEBHOOK SECRET IS A CREDENTIAL, not a setting. The card prints it in full, and the
+   * webhook URL carries it in the query string — anybody holding either can post leads into this
+   * CRM from outside. It is the same class of thing as the customer's portal token, so it is behind
+   * the same question as managing the source: whoever may connect one may read its key. The inbound
+   * EMAIL address stays visible to everyone, because it is an address, not a secret.
+   */
+  const mayManageSources = useMayWrite('contacts:create')
   const platforms: LeadPlatform[] = config?.platforms || TRADES_LEAD_PLATFORMS
   const subtitle = config?.sourcesSubtitle || 'Connect your lead platforms to receive leads automatically'
   const [sources, setSources] = useState<LeadSourceRow[]>([])
@@ -75,9 +90,11 @@ export function LeadSourcesPage({ api, toast, config }: { api: LeadsApi; toast?:
           <h1 style={{ fontSize: 24, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}><Settings size={24} /> Lead Sources</h1>
           <p style={{ color: c.muted, marginTop: 4, fontSize: 14 }}>{subtitle}</p>
         </div>
-        <button onClick={() => setShowAdd(true)} style={{ padding: '8px 20px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Plus size={16} /> Add Source
-        </button>
+        {mayManageSources && (
+          <button onClick={() => setShowAdd(true)} style={{ padding: '8px 20px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Plus size={16} /> Add Source
+          </button>
+        )}
       </div>
 
       {error && (
@@ -128,18 +145,20 @@ export function LeadSourcesPage({ api, toast, config }: { api: LeadsApi; toast?:
                     <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: source.enabled ? '#e8f5e9' : c.mutedBtnBg, color: source.enabled ? '#2e7d32' : c.faint }}>{source.enabled ? 'Active' : 'Paused'}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {mayManageSources && <>
                     <button type="button" aria-label={source.enabled ? 'Pause source' : 'Resume source'} disabled={busy === `toggle:${source.id}`} onClick={() => toggleSource(source)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: source.enabled ? '#2e7d32' : c.faint }}>
                       {source.enabled ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
                     </button>
                     <button type="button" aria-label="Remove source" disabled={busy === `delete:${source.id}`} onClick={() => deleteSource(source)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}>
                       <Trash2 size={18} />
                     </button>
+                    </>}
                   </div>
                 </div>
                 <div style={{ padding: '16px 20px' }}>
                   {source.inboundEmail && <CopyField label="Inbound Email Address" icon={<Mail size={14} />} value={source.inboundEmail} field={`email-${source.id}`} />}
-                  {source.webhookUrl && <CopyField label="Webhook URL (secret included — paste into Zapier / Make / your form builder)" icon={<Webhook size={14} />} value={webhookWithSecret(source)} field={`webhook-${source.id}`} breakAll />}
-                  {source.webhookSecret && <CopyField label="Webhook Secret (or send it as the x-webhook-secret header)" icon={<KeyRound size={14} />} value={source.webhookSecret} field={`secret-${source.id}`} />}
+                  {mayManageSources && source.webhookUrl && <CopyField label="Webhook URL (secret included — paste into Zapier / Make / your form builder)" icon={<Webhook size={14} />} value={webhookWithSecret(source)} field={`webhook-${source.id}`} breakAll />}
+                  {mayManageSources && source.webhookSecret && <CopyField label="Webhook Secret (or send it as the x-webhook-secret header)" icon={<KeyRound size={14} />} value={source.webhookSecret} field={`secret-${source.id}`} />}
                   {info?.instructions && (
                     <div style={{ background: c.infoBg, borderRadius: 8, padding: 14, border: `1px solid ${c.infoBorder}` }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: c.infoHead, marginBottom: 8 }}><Info size={14} /> Setup Instructions</div>

@@ -9,6 +9,7 @@ import type { Pagination } from '../invoicing/ui'
 import { useAuth } from '../auth/AuthContext'
 import type { PeopleApi, PeopleToast, TimeConfig } from './types'
 import { isManagerRole } from './types'
+import { useMayWrite } from '../auth/PermissionsContext'
 
 interface Entry { id: string; date: string; hours: string | number; description?: string | null; billable: boolean; approved?: boolean; clockIn?: string | null; clockOut?: string | null; userId: string; projectId?: string | null; jobId?: string | null; user?: { firstName: string; lastName: string } | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
 // The person's own date, not UTC's: toISOString() rolls over at UTC midnight, so west of Greenwich this pre-filled
@@ -32,6 +33,17 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
   const [active, setActive] = useState<Entry | null>(null)
   const [now, setNow] = useState(Date.now())
   const [clockBusy, setClockBusy] = useState(false)
+  /**
+   * WHO MAY PUT TIME ON THE CLOCK. (T42 — "Log Time and Clock In shown to viewer; all 403")
+   *
+   * Read off the routes these buttons call, not from a rank: POST /api/time, /clock-in and
+   * /clock-out all ask `time:create`; PUT /:id and /:id/approve ask `time:update`. The field rung
+   * holds both — logging and correcting your own hours is the whole point of the screen — and
+   * `viewer` holds `time:read` only, which is the seat that was being shown three buttons that
+   * could only 403.
+   */
+  const mayLog = useMayWrite('time:create')
+  const mayCorrect = useMayWrite('time:update')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Entry | null>(null)
   const [form, setForm] = useState(empty())
@@ -109,7 +121,7 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
   const openEdit = (item: Entry) => { setEditing(item); setForm({ ...empty(), date: String(item.date || '').slice(0, 10) || today(), hours: String(item.hours ?? ''), description: item.description || '', billable: !!item.billable, projectId: item.projectId || '', jobId: item.jobId || '' }); setFormError(''); setModalOpen(true) }
   // The top of the tree may approve their own time — the server's carve-out, mirrored here. (RR6 N2)
   const ownApprovalOk = ['owner', 'admin'].includes(String(auth.user?.role || ''))
-  const canEdit = (row: Entry) => manager || (row.userId === auth.user?.id && !row.approved)
+  const canEdit = (row: Entry) => mayCorrect && (manager || (row.userId === auth.user?.id && !row.approved))
 
   const columns = [
     { key: 'date', label: 'Date', render: (v: any) => dateOnly(v) || '-' },
@@ -125,19 +137,19 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
 
   return (
     <div data-testid="time-page-shared">
-      <PageHeader title="Time Tracking" subtitle={config?.subtitle || 'Clock in and out, or log hours by hand'} action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Log Time</Button>} />
+      <PageHeader title="Time Tracking" subtitle={config?.subtitle || 'Clock in and out, or log hours by hand'} action={mayLog ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Log Time</Button> : undefined} />
       <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <Clock className="w-5 h-5 text-orange-500 dark:text-orange-300" />
         {active ? (
           <>
             <span className="text-sm text-gray-700 dark:text-slate-200">Clocked in since {new Date(active.clockIn as string).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{active.job?.title ? ` · ${active.job.title}` : active.project?.name ? ` · ${active.project.name}` : ''}</span>
             <span className="font-mono text-lg font-semibold text-gray-900 dark:text-slate-100">{fmtElapsed(now - new Date(active.clockIn as string).getTime())}</span>
-            <Button variant="danger" onClick={clockOut} disabled={clockBusy}><Square className="w-4 h-4 mr-2 inline" />Clock Out</Button>
+            {mayLog && <Button variant="danger" onClick={clockOut} disabled={clockBusy}><Square className="w-4 h-4 mr-2 inline" />Clock Out</Button>}
           </>
         ) : (
           <>
             <span className="text-sm text-gray-700 dark:text-slate-200">Not clocked in</span>
-            <Button onClick={clockIn} disabled={clockBusy}><Play className="w-4 h-4 mr-2 inline" />Clock In</Button>
+            {mayLog && <Button onClick={clockIn} disabled={clockBusy}><Play className="w-4 h-4 mr-2 inline" />Clock In</Button>}
           </>
         )}
       </div>
@@ -148,7 +160,7 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
           // ("approval is a second person checking the hours") and an action that can only ever
           // 403 is an item that never works. Owner and admin keep it: they have nobody above them
           // to ask, which is the same carve-out the server makes. (Salon RR6 N2)
-          { label: 'Approve', icon: Check, onClick: approve, show: (r) => manager && !r.approved && !(r.clockIn && !r.clockOut) && (ownApprovalOk || r.userId !== auth.user?.id) },
+          { label: 'Approve', icon: Check, onClick: approve, show: (r) => mayCorrect && manager && !r.approved && !(r.clockIn && !r.clockOut) && (ownApprovalOk || r.userId !== auth.user?.id) },
           { label: 'Delete', icon: Trash2, onClick: (r) => setToDelete(r), className: 'text-red-600', show: canEdit },
         ]} />
       {/**

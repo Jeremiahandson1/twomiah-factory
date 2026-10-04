@@ -104,7 +104,10 @@ else {
   if (!/\(row\.hasLogin \|\| row\._source === 'user'\)/.test(page)) {
     fail('the Team page must badge the people who can sign in — that badge is the only at-a-glance answer to "who has access"')
   }
-  if (!/show: \(r\) => r\._source !== 'user'/.test(page)) {
+  // The PROPERTY is that Delete's predicate tests the row's source; it may test other things too.
+  // T43 added `mayRemoveFromRoster &&` in front of it (team:delete — the row's Delete was offered to
+  // every seat) and this pinned expression failed on code that was more correct, not less.
+  if (!/show: \(r\) => [^}]*r\._source !== 'user'/.test(page)) {
     fail("Delete must be hidden on a borrowed login row: there is no team_member to delete, so the button could only 404 (logins are removed under Settings › Users)")
   }
   if (!/Settings → Users|Settings › Users/.test(page)) {

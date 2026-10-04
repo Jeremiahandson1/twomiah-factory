@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom'
 import type { LeadsApi, LeadsConfig, LeadsSubscribe, LeadsToast, LeadRow, LeadPlatform } from './types'
 import { TRADES_LEAD_PLATFORMS } from './types'
 import { useLeadPalette, chipColors } from './theme'
+import { useMayWrite } from '../auth/PermissionsContext'
 
 interface LeadStats {
   stats: { platform: string; leadsReceived: number; conversionRate: number; avgResponseTimeMin: number | null }[]
@@ -25,6 +26,13 @@ const errMsg = (e: unknown, fallback: string) => (e as Error)?.message || fallba
 
 export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi; toast?: LeadsToast; config?: LeadsConfig; subscribe?: LeadsSubscribe }) {
   const c = useLeadPalette()
+  /**
+   * Convert raises a CONTACT (POST /api/leads/:id/convert → `contacts:create`); Dismiss and Reopen
+   * move the lead's own status (PUT /:id/status → `contacts:update`). A seat holding neither still
+   * reads the inbox, which is how a lead gets looked at before anybody acts on it. (T42)
+   */
+  const mayConvert = useMayWrite('contacts:create')
+  const mayTriage = useMayWrite('contacts:update')
   const platforms: LeadPlatform[] = config?.platforms || TRADES_LEAD_PLATFORMS
   const jobTypeLabel = config?.jobTypeLabel || 'Job Type'
   const subtitle = config?.inboxSubtitle || 'All inbound leads from external sources in one place'
@@ -229,24 +237,27 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
                           <MessageSquare size={14} /> Text
                         </a>
                       )}
+                      {/* Convert raises a CONTACT, so it asks contacts:create; Dismiss and Reopen
+                          move the lead's own status and ask contacts:update. A seat with neither
+                          still reads the inbox, which is how a lead gets looked at. (T42) */}
                       {lead.status === 'converted' && lead.convertedContactId ? (
                         <Link to={`/crm/contacts/${lead.convertedContactId}`} onClick={(e) => e.stopPropagation()}
                           style={{ padding: '6px 14px', borderRadius: 6, background: '#e8f5e9', color: '#2e7d32', border: '1px solid #a5d6a7', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}>
                           <UserPlus size={14} /> Open contact
                         </Link>
                       ) : (
-                        <button disabled={busy === `${lead.id}:convert`} onClick={(e) => { e.stopPropagation(); convertToContact(lead.id) }}
+                        mayConvert && <button disabled={busy === `${lead.id}:convert`} onClick={(e) => { e.stopPropagation(); convertToContact(lead.id) }}
                           style={{ padding: '6px 14px', borderRadius: 6, background: '#e8f5e9', color: '#2e7d32', border: '1px solid #a5d6a7', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                           <UserPlus size={14} /> {busy === `${lead.id}:convert` ? 'Converting…' : 'Convert to Contact'}
                         </button>
                       )}
-                      {lead.status !== 'dismissed' && lead.status !== 'converted' && (
+                      {mayTriage && lead.status !== 'dismissed' && lead.status !== 'converted' && (
                         <button disabled={busy === `${lead.id}:dismissed`} onClick={(e) => { e.stopPropagation(); updateStatus(lead.id, 'dismissed') }}
                           style={{ padding: '6px 14px', borderRadius: 6, background: c.mutedBtnBg, color: c.faint, border: `1px solid ${c.border}`, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                           <XCircle size={14} /> Dismiss
                         </button>
                       )}
-                      {lead.status === 'dismissed' && (
+                      {mayTriage && lead.status === 'dismissed' && (
                         <button disabled={busy === `${lead.id}:new`} onClick={(e) => { e.stopPropagation(); updateStatus(lead.id, 'new') }}
                           style={{ padding: '6px 14px', borderRadius: 6, background: c.surface, color: '#1565c0', border: '1px solid #90caf9', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                           <RefreshCw size={14} /> Reopen

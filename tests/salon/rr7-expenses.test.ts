@@ -245,7 +245,9 @@ const addExpense = async (who: any, desc: string, amount = 20, extra: Record<str
     /const ownApprovalOk = \['owner', 'admin'\]\.includes/.test(code)
     && /const canApprove = \(r: Expense\) => manager && \(ownApprovalOk \|\| !isMine\(r\)\)/.test(code), null)
   check('X3: …and both approve-side actions use that one rule',
-    (code.match(/show: \(r\) => canApprove\(r\)/g) || []).length === 2, (code.match(/show: \(r\) => canApprove\(r\)/g) || []).length)
+    // Still exactly two, and still the SAME rule in both — which is the whole point of X3. T43
+    // added `maySettle &&` in front of each, so the match no longer starts at canApprove.
+    (code.match(/show: \(r\) => [^\n]*canApprove\(r\)/g) || []).length === 2, (code.match(/show: \(r\) => [^\n]*canApprove\(r\)/g) || []).length)
   check('X3: …while a manager is still not the second person for their own claim',
     /!isMine\(r\)/.test(code), null)
 
@@ -255,9 +257,13 @@ const addExpense = async (who: any, desc: string, amount = 20, extra: Record<str
   check('X4: …and Mark reimbursed follows Approve, which is the order it happens in',
     at('Approve') < at('Mark reimbursed') && at('Mark reimbursed') < at('Edit'), { reimbursed: at('Mark reimbursed') })
   check('X4: Delete is not offered on a reimbursed claim, where it can only answer 409',
-    /label: 'Delete'[^\n]*show: \(r\) => !r\.reimbursed/.test(code), null)
+    // `mayRemove &&` in front since T43 (expenses:delete). The property is that the predicate
+    // still refuses a reimbursed claim, where the server can only answer 409.
+    /label: 'Delete'[^\n]*show: \(r\) => [^\n]*!r\.reimbursed/.test(code), null)
   check('X4: …nor Edit on an approved claim a stylist may not change',
-    /label: 'Edit'[^\n]*show: \(r\) => manager \|\| !r\.approved/.test(code), null)
+    // `maySettle &&` in front since T43, and the pair is now parenthesised so the && binds the
+    // way it reads. The property is unchanged: a manager always, or your own claim until approval.
+    /label: 'Edit'[^\n]*show: \(r\) => [^\n]*manager \|\| !r\.approved/.test(code), null)
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed`)

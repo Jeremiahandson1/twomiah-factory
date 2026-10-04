@@ -85,11 +85,17 @@ if (!/workLabel/.test(list)) fail('the roster list must tell the page what to ca
 // A login account appears on this page on loan from the user table, under ITS id — so PUT /api/team/:id had
 // nothing to update and answered 404, the row menu opened nothing, and six of seven people had nowhere to
 // hold a pay rate on the page that prints a Rate column. Saving one creates their roster card. (T29 M2)
-if (!/\{ label: 'Edit', icon: Edit, onClick: openEdit \},/.test(page)) fail('Edit must be offered on every row, including a login account')
+// The property is that Edit is offered on EVERY row — not that the entry has no other keys. T43
+// added `show: () => mayEditRoster` (team:update: the row's Edit was offered to every seat), which
+// does not exclude a login row and so keeps this guard's point; the pinned literal did not know that.
+// Line below still forbids a show predicate that tests the row's SOURCE, which is the real mistake.
+if (!/\{ label: 'Edit', icon: Edit, onClick: openEdit[,}]/.test(page)) fail('Edit must be offered on every row, including a login account')
 if (/label: 'Edit'[^}]*show: \(r\) => r\._source !== 'user'/.test(page)) fail('…Edit must not be hidden from login accounts again')
 if (!/editing && editing\._source !== 'user'/.test(page)) fail('saving a login account must CREATE a roster card, not PUT to an id the roster does not have')
 if (!/editing\?\._source === 'user' && \(/.test(page)) fail('…and the dialog must say that is what it is about to do')
-if (!/label: 'Delete'[^}]*show: \(r\) => r\._source !== 'user'/.test(page)) fail('Delete must stay off login accounts — removing a login belongs to Settings › Users')
+// …and Delete's predicate must still ask about the row's source. It may ask other things first:
+// T43 put `mayRemoveFromRoster &&` in front of it (team:delete).
+if (!/label: 'Delete'[^}]*show: \(r\) => [^}]*r\._source !== 'user'/.test(page)) fail('Delete must stay off login accounts — removing a login belongs to Settings › Users')
 if (!/m\._source === 'user' \? '' : \(m\.role \|\| ''\)/.test(page)) fail("a login account's permission role must not be carried into the trade field")
 
 // …and that card must not cost them the badge. "Can this person sign in" is answered by whether a login EXISTS

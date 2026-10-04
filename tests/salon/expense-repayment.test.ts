@@ -187,7 +187,10 @@ const paidClaim = async (desc: string, amount: number) => {
   check('the Expenses screen can record one', /expenses\/\$\{repayFor\.id\}\/\$\{path\}`/.test(page)
     && /const path = repayForm\.settled \? 'repayment' : 'overpayment'/.test(page), null)
   check('…from an action offered only where money actually went out',
-    /label: 'Correct an over-payment'[^\n]*show: \(r\) => manager && !!r\.reimbursed && outstanding\(r\) > 0/.test(page), null)
+    // T43 put `maySettle &&` in front of this predicate (expenses:update — the action was offered
+    // to a seat the API refuses). The property is the two conditions AFTER it: a manager, on a row
+    // where money actually went out and some of it is still unaccounted for.
+    /label: 'Correct an over-payment'[^\n]*show: \(r\) => [^\n]*manager && !!r\.reimbursed && outstanding\(r\) > 0/.test(page), null)
   check('…with a reason box, because the server insists on one', /What happened \*/.test(page) && /repayForm\.reason/.test(page), null)
   check('…and the row shows what came back and what it cost in the end',
     /money\(repaid\(row\)\)/.test(page) && /money\(outstanding\(row\)\)/.test(page), null)

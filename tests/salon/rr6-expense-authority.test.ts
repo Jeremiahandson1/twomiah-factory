@@ -120,7 +120,9 @@ const addExpense = (who: any, desc: string, amount = 20) =>
   // RR7 X3 corrected this: the rule moved into canApprove() so the owner/admin carve-out the server
   // makes is honoured on the screen too. rr7-expenses.test.ts holds the detail of that condition.
   check('N1: …shown only to a manager, on an unapproved claim they are allowed to approve',
-    /label: 'Approve'[^\n]*show: \(r\) => canApprove\(r\) && !r\.approved/.test(page)
+    // T43 put `maySettle &&` in front (expenses:update). What N1 is about is that the predicate
+    // still defers to canApprove() and still excludes an already-approved claim.
+    /label: 'Approve'[^\n]*show: \(r\) => [^\n]*canApprove\(r\) && !r\.approved/.test(page)
     && /const canApprove = \(r: Expense\) => manager && \(ownApprovalOk \|\| !isMine\(r\)\)/.test(page), null)
   check('N1: Mark reimbursed is hidden until the claim is APPROVED, so the 409 is unreachable',
     /label: 'Mark reimbursed'[^\n]*!!r\.approved/.test(page), null)

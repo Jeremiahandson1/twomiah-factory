@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import type { RecurringPageProps } from './types';
 import { useConfirm } from '../ui/ConfirmProvider'
+import { useMayWrite } from '../auth/PermissionsContext';
 
 // UTC-safe date formatting (carried from templates' utils/date).
 function formatDate(value?: string | number | Date | null): string {
@@ -42,6 +43,15 @@ interface RecurringStats {
 }
 
 export default function RecurringInvoiceList({ api }: RecurringPageProps) {
+  /**
+   * "Viewer and staff shown write controls that fail (… Recurring actions)" — Contractor, T42.
+   *
+   * Generate Invoice Now raises an invoice (POST /:id/generate → `invoices:create`); Pause, Resume
+   * and Cancel move the schedule (→ `invoices:update`). A seat holding neither still reads the
+   * schedule and opens View Details, which is how anybody knows what is due and when.
+   */
+  const mayRaise = useMayWrite('invoices:create');
+  const mayManage = useMayWrite('invoices:update');
   const confirm = useConfirm()
   const navigate = useNavigate();
   const [recurring, setRecurring] = useState<Record<string, unknown>[]>([]);
@@ -265,14 +275,16 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
                       >
                         View Details
                       </Link>
-                      {item.status === 'active' && (
+                      {mayRaise && item.status === 'active' && (
+                        <button
+                          onClick={() => handleGenerateNow(item.id as string)}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-slate-200"
+                        >
+                          Generate Invoice Now
+                        </button>
+                      )}
+                      {mayManage && item.status === 'active' && (
                         <>
-                          <button
-                            onClick={() => handleGenerateNow(item.id as string)}
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-slate-200"
-                          >
-                            Generate Invoice Now
-                          </button>
                           <button
                             onClick={() => handlePause(item.id as string)}
                             className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-slate-200"
@@ -281,7 +293,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
                           </button>
                         </>
                       )}
-                      {item.status === 'paused' && (
+                      {mayManage && item.status === 'paused' && (
                         <button
                           onClick={() => handleResume(item.id as string)}
                           className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-slate-200"
@@ -289,7 +301,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
                           Resume
                         </button>
                       )}
-                      {item.status !== 'cancelled' && (
+                      {mayManage && item.status !== 'cancelled' && (
                         <button
                           onClick={() => handleCancel(item.id as string)}
                           className="w-full text-left px-4 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"

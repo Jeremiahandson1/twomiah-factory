@@ -10,6 +10,7 @@ import { meetsRole } from '../shell/types'
 import type { Pagination } from '../invoicing/ui'
 import { ROLE_LABELS } from '../shell/types'
 import type { PeopleApi, PeopleToast, TeamConfig } from './types'
+import { useMayWrite } from '../auth/PermissionsContext'
 
 interface Member { id: string; name: string; email?: string | null; phone?: string | null; role?: string | null; department?: string | null; hourlyRate?: string | number | null; active: boolean; assignedJobs?: number; hasLogin?: boolean; _source?: 'user' }
 const EMPTY = { name: '', email: '', phone: '', role: '', department: '', hourlyRate: '' }
@@ -96,6 +97,16 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
   ]
   const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value })
 
+  /**
+   * Add Member was already gated (canManageRoster); Edit and Delete on the rows were not. (T42)
+   *
+   * PUT /api/team/:id asks `team:update` and DELETE asks `team:delete` — admin and up. `viewer` and
+   * the field rung hold `team:read`, which is right: a roster with pay rates on it is something a
+   * crew may need to look at and nobody below admin may change.
+   */
+  const mayEditRoster = useMayWrite('team:update')
+  const mayRemoveFromRoster = useMayWrite('team:delete')
+
   return (
     <div data-testid="team-page-shared">
       <PageHeader title="Team" subtitle="The people you schedule and pay. Login access is set under Settings → Users." action={canManageRoster ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add Member</Button> : undefined} />
@@ -110,8 +121,8 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
           // Everyone can be edited — for a login account that means giving them a roster card, which is the
           // only place a pay rate, trade or department lives. Delete stays off those rows: removing a login
           // is Settings › Users' job, not this page's. (T29 M2)
-          { label: 'Edit', icon: Edit, onClick: openEdit },
-          { label: 'Delete', icon: Trash2, onClick: (r) => setToDelete(r), className: 'text-red-600', show: (r) => r._source !== 'user' },
+          { label: 'Edit', icon: Edit, onClick: openEdit, show: () => mayEditRoster },
+          { label: 'Delete', icon: Trash2, onClick: (r) => setToDelete(r), className: 'text-red-600', show: (r) => mayRemoveFromRoster && r._source !== 'user' },
         ]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? (editing._source === 'user' ? 'Add to the roster' : 'Edit Member') : 'Add Member'} size="md">
         <div className="space-y-4">

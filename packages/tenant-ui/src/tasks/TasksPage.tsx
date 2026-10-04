@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import type { TasksApi, TasksPageProps } from './types';
 import { useConfirm } from '../ui/ConfirmProvider'
+import { useMayWrite } from '../auth/PermissionsContext';
 
 // UTC-safe date formatting (carried from the templates' utils/date). Date-only values are stored as
 // UTC midnight; parsing the date part at LOCAL midnight avoids shifting viewers west of UTC a day back.
@@ -61,6 +62,12 @@ interface ProjectData {
 }
 
 export default function TasksPage({ api }: TasksPageProps) {
+  /**
+   * POST /api/tasks asks `tasks:create`; PUT /:id, DELETE /:id and /:id/toggle ask `tasks:update`.
+   * Both sit with the field rung and up — a technician keeps and ticks their own tasks — and
+   * `viewer` holds `tasks:read` alone, which is the seat New Task was being offered to. (T42)
+   */
+  const mayCreate = useMayWrite('tasks:create');
   const confirm = useConfirm()
   const [tasks, setTasks] = useState<TaskData[]>([]);
   const [stats, setStats] = useState<TaskStats | null>(null);
@@ -155,13 +162,15 @@ export default function TasksPage({ api }: TasksPageProps) {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">My Tasks</h1>
           <p className="text-gray-500 dark:text-slate-400">Manage your to-do list</p>
         </div>
-        <button
-          onClick={() => { setEditingTask(null); setShowForm(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
-        >
-          <Plus className="w-4 h-4" />
-          New Task
-        </button>
+        {mayCreate && (
+          <button
+            onClick={() => { setEditingTask(null); setShowForm(true); }}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+          >
+            <Plus className="w-4 h-4" />
+            New Task
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -272,6 +281,9 @@ interface TaskItemProps {
 }
 
 function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }: TaskItemProps) {
+  // Asked here rather than threaded down: useMayWrite is a hook, so the component that renders the
+  // control is the component that has to ask. Same permission the row's three writes require. (T42)
+  const mayWrite = useMayWrite('tasks:update');
   const [showMenu, setShowMenu] = useState<boolean>(false);
   const isOverdue = task.status !== 'completed' && task.dueDate && new Date(task.dueDate) < new Date();
 
@@ -279,7 +291,7 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }: TaskItem
     <div className={`p-4 hover:bg-gray-50 ${task.status === 'completed' ? 'opacity-60' : ''}`}>
       <div className="flex items-start gap-3">
         {/* Checkbox */}
-        <button onClick={onToggle} className="mt-0.5">
+        <button onClick={onToggle} className="mt-0.5" disabled={!mayWrite} aria-disabled={!mayWrite}>
           {task.status === 'completed' ? (
             <CheckCircle2 className="w-5 h-5 text-green-500 dark:text-green-300" />
           ) : (
@@ -330,14 +342,17 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }: TaskItem
           )}
         </div>
 
-        {/* Actions */}
+        {/* Actions — a seat that cannot change a task is not offered the menu that changes it. The
+            task, its status, its due date and its checklist all still render. (T42) */}
         <div className="relative">
-          <button
-            onClick={() => setShowMenu(!showMenu)}
-            className="p-1 text-gray-400 hover:text-gray-600 rounded"
-          >
-            <MoreVertical className="w-4 h-4" />
-          </button>
+          {mayWrite && (
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              className="p-1 text-gray-400 hover:text-gray-600 rounded"
+            >
+              <MoreVertical className="w-4 h-4" />
+            </button>
+          )}
           {showMenu && (
             <>
               <div className="fixed inset-0" onClick={() => setShowMenu(false)} />

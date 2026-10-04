@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react'
 import { Star, Send, Mail, Phone, CheckCircle, Settings, BarChart3, ExternalLink, Loader2, TrendingUp, MessageSquare } from 'lucide-react'
 import type { SettingsApi, SettingsToast, ReviewsConfig } from '../settings/integrationsTypes'
+import { useMayWrite } from '../auth/PermissionsContext'
 
 type Tab = 'dashboard' | 'settings'
 const fmt = (v: any) => { if (!v) return '—'; const d = new Date(v); return isNaN(d.getTime()) ? '—' : d.toLocaleDateString() }
@@ -27,7 +28,17 @@ export function ReviewsPage({ api, toast, config }: { api: SettingsApi; toast?: 
   )
 }
 
+/**
+ * "Reviews Save/Follow Up" was offered to staff and viewer. (T42, Events)
+ *
+ * Follow Up sends a message to a customer — POST /api/reviews/follow-up/:id asks `marketing:create`,
+ * which manager and up hold. Save Settings is company configuration and its route asks admin, so the
+ * screen asks `settings:update`, the permission that carries company configuration everywhere else.
+ * Each flag is asked inside the component that renders its control, because useMayWrite is a hook —
+ * the request list and the settings form are still readable to everyone who may open the page.
+ */
 function DashboardTab({ api, toast, copy }: { api: SettingsApi; toast?: SettingsToast; copy: Required<ReviewsConfig> }) {
+  const mayChase = useMayWrite('marketing:create')
   const [stats, setStats] = useState<any>(null)
   const [requests, setRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -69,7 +80,7 @@ function DashboardTab({ api, toast, copy }: { api: SettingsApi; toast?: Settings
                   <td className="px-4 py-3"><span className="inline-flex items-center gap-1 text-xs">{(r.channel === 'sms' || r.channel === 'both') && <Phone className="w-3 h-3" />}{(r.channel === 'email' || r.channel === 'both') && <Mail className="w-3 h-3" />}<span className="capitalize">{r.channel}</span></span></td>
                   <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
                   <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">{fmt(r.sentAt || r.createdAt)}</td>
-                  <td className="px-4 py-3">{r.status === 'sent' && !r.followUpSentAt && <button onClick={() => followUp(r.id)} disabled={busy === r.id} className="text-xs text-orange-900 dark:text-orange-200 hover:underline font-medium disabled:opacity-50">{busy === r.id ? 'Sending…' : 'Follow Up'}</button>}</td>
+                  <td className="px-4 py-3">{mayChase && r.status === 'sent' && !r.followUpSentAt && <button onClick={() => followUp(r.id)} disabled={busy === r.id} className="text-xs text-orange-900 dark:text-orange-200 hover:underline font-medium disabled:opacity-50">{busy === r.id ? 'Sending…' : 'Follow Up'}</button>}</td>
                 </tr>
               ))}</tbody>
             </table>
@@ -81,6 +92,7 @@ function DashboardTab({ api, toast, copy }: { api: SettingsApi; toast?: Settings
 }
 
 function SettingsTab({ api, toast, copy }: { api: SettingsApi; toast?: SettingsToast; copy: Required<ReviewsConfig> }) {
+  const maySave = useMayWrite('settings:update')
   const [settings, setSettings] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -126,7 +138,7 @@ function SettingsTab({ api, toast, copy }: { api: SettingsApi; toast?: SettingsT
         <p className="text-xs text-gray-500 dark:text-slate-400">Variables: <code className="bg-gray-100 dark:bg-slate-800 px-1 rounded">{'{firstName}'}</code> <code className="bg-gray-100 dark:bg-slate-800 px-1 rounded">{'{companyName}'}</code> <code className="bg-gray-100 dark:bg-slate-800 px-1 rounded">{'{trackingUrl}'}</code></p>
       </div>
       {message && <div role={message.kind === 'err' ? 'alert' : 'status'} className={`p-3 rounded-lg text-sm ${message.kind === 'err' ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400' : 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'}`}>{message.text}</div>}
-      <div className="flex justify-end"><button onClick={save} disabled={saving} className="flex items-center gap-2 px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50">{saving && <Loader2 className="w-4 h-4 animate-spin" />}Save Settings</button></div>
+      <div className="flex justify-end">{maySave && <button onClick={save} disabled={saving} className="flex items-center gap-2 px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50">{saving && <Loader2 className="w-4 h-4 animate-spin" />}Save Settings</button>}</div>
     </div>
   )
 }

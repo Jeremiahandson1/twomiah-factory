@@ -8,6 +8,7 @@ import type { Pagination } from '../invoicing/ui'
 import { useAuth } from '../auth/AuthContext'
 import type { PeopleApi, PeopleToast, ExpensesConfig } from './types'
 import { DEFAULT_EXPENSE_CATEGORIES, isManagerRole } from './types'
+import { useMayWrite } from '../auth/PermissionsContext'
 
 interface Expense { id: string; date: string; category: string; vendor?: string | null; description: string; amount: string | number; billable: boolean; reimbursable?: boolean; reimbursed?: boolean; approved?: boolean; submittedById?: string | null; submittedByName?: string | null; repaidAmount?: string | number | null; repaidReason?: string | null; projectId?: string | null; jobId?: string | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
 // The person's own day, not UTC's: toISOString() rolls over at UTC midnight, so west of Greenwich this
@@ -292,9 +293,24 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
   ]
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm({ ...form, [k]: e.target.value })
 
+  /**
+   * Claiming, approving and deleting are three permissions, and the screen asks all three. (T42)
+   *
+   * Read off the routes: POST /api/expenses asks `expenses:create`; /:id/approve, /:id/reimburse,
+   * /owed/:id/settle and PUT /:id ask `expenses:update`; DELETE asks `expenses:delete`. The field
+   * rung holds all three — correcting your own claim is a rule this page already encodes — and
+   * `viewer` holds `expenses:read` alone, which is the seat being offered every one of them.
+   *
+   * These AND with the existing row rules rather than replacing them: "your own claim until somebody
+   * approves it" is the server's rule and still applies on top of the permission.
+   */
+  const mayClaim = useMayWrite('expenses:create')
+  const maySettle = useMayWrite('expenses:update')
+  const mayRemove = useMayWrite('expenses:delete')
+
   return (
     <div data-testid="expenses-page-shared">
-      <PageHeader title="Expenses" action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add Expense</Button>} />
+      <PageHeader title="Expenses" action={mayClaim ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add Expense</Button> : undefined} />
       <DataTable<Expense> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} emptyMessage="No expenses yet."
         actions={[
           // Approve really is FIRST now — it is the step reimbursing depends on, so it is what a
@@ -305,18 +321,18 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
           // person does the checking — and offering an action that always 403s is the L11 mistake
           // in a new place. An owner or admin may approve their own, and is offered it. (RR6 N1/E1,
           // RR7 X3)
-          { label: 'Approve', icon: CheckCircle, onClick: approve, show: (r) => canApprove(r) && !r.approved },
+          { label: 'Approve', icon: CheckCircle, onClick: approve, show: (r) => maySettle && canApprove(r) && !r.approved },
           // …and Mark reimbursed only once it IS approved, so the 409 is unreachable from here.
-          { label: 'Mark reimbursed', icon: CheckCircle, onClick: reimburse, show: (r) => canApprove(r) && !!r.approved && !!r.reimbursable && !r.reimbursed },
+          { label: 'Mark reimbursed', icon: CheckCircle, onClick: reimburse, show: (r) => maySettle && canApprove(r) && !!r.approved && !!r.reimbursable && !r.reimbursed },
           // The door the "too much was paid" refusal points at. Only on a row where money actually
           // went out, and only while some of it is still unaccounted for. (Salon RR8/X6, RR9)
-          { label: 'Correct an over-payment', icon: Undo2, onClick: openRepayment, show: (r) => manager && !!r.reimbursed && outstanding(r) > 0 },
+          { label: 'Correct an over-payment', icon: Undo2, onClick: openRepayment, show: (r) => maySettle && manager && !!r.reimbursed && outstanding(r) > 0 },
           // Your own claim is yours to correct until somebody approves it; after that it is a
           // manager's. That is the server's rule, so it is this menu's rule.
-          { label: 'Edit', icon: Edit, onClick: openEdit, show: (r) => manager || !r.approved },
+          { label: 'Edit', icon: Edit, onClick: openEdit, show: (r) => maySettle && (manager || !r.approved) },
           // Deleting a reimbursed expense is always 409 — the record of a payment stays put — so the
           // action is not offered at all. (Salon RR7 X4)
-          { label: 'Delete', icon: Trash2, onClick: (r) => setToDelete(r), className: 'text-red-600', show: (r) => !r.reimbursed && (manager || !r.approved) },
+          { label: 'Delete', icon: Trash2, onClick: (r) => setToDelete(r), className: 'text-red-600', show: (r) => mayRemove && !r.reimbursed && (manager || !r.approved) },
         ]} />
       {/* Whose pocket the money comes back to. See the note on the checkbox below. (T41) */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Expense' : 'Add Expense'} size="md">
@@ -371,7 +387,7 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <span className="font-medium tabular-nums text-gray-900 dark:text-slate-100">{money(p.owed)}</span>
-                  {manager && <Button variant="secondary" onClick={() => openSettle(p)}>Settle</Button>}
+                  {manager && maySettle && <Button variant="secondary" onClick={() => openSettle(p)}>Settle</Button>}
                 </div>
               </li>
             ))}
