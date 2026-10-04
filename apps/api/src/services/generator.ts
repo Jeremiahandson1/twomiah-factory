@@ -458,6 +458,13 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
   const industry = c.industry || ''
   const industryLabel = INDUSTRY_LABELS[industry] || industry.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Contractor'
   const isStore = verticalFor(industry) === 'store'
+  // Where the tenant's website actually lives. With no domain yet this used to be
+  // 'https://' + slug + '.com' — a domain nobody owns — which became the CRM's
+  // "View website" link, company.website, and the standard sites' canonicals and
+  // sitemaps. The site service is always <slug>-site on Render.
+  const hasSite = (config.products || []).includes('website') || (config.products || []).includes('cms')
+  const renderSiteOrigin = 'https://' + slug + '-site.onrender.com'
+  const siteOrigin = c.domain ? 'https://' + c.domain : (hasSite ? renderSiteOrigin : '')
 
   const ownerParts = (c.ownerName || 'Admin User').split(' ')
   const firstName = ownerParts[0] || 'Admin'
@@ -526,8 +533,8 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{NEARBY_CITY_4}}': (c.nearbyCities || [])[3] || c.city || 'our area',
     '{{DOMAIN}}': c.domain || slug + '.com',
     '{{COMPANY_DOMAIN}}': c.domain || slug + '.com',
-    '{{SITE_URL}}': c.siteUrl || ('https://' + (c.domain || slug + '.com')),
-    '{{COMPANY_WEBSITE}}': 'https://' + (c.domain || slug + '.com'),
+    '{{SITE_URL}}': c.siteUrl || siteOrigin,
+    '{{COMPANY_WEBSITE}}': siteOrigin,
     // Backend/frontend URLs need to match the CRM service naming
     // (e.g. cleaning routes to crm-fieldservice → <slug>-wrench-api).
     // Central routing keeps this aligned. Automotive stays inline so
@@ -599,7 +606,8 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
       if (c.siteUrl && !prods.includes('website')) prods.push('website')
       return prods
     })()),
-    '{{CMS_URL}}': ((config.products || []).includes('website') || (config.products || []).includes('cms')) ? 'https://' + slug + '-site.onrender.com/admin' : '',
+    // Trailing slash: the premium sites serve the admin SPA at /admin/* only — bare /admin is a 404.
+    '{{CMS_URL}}': hasSite ? renderSiteOrigin + '/admin/' : '',
     // Storefront cart localStorage key — unique per tenant so multiple stores
     // opened in one browser don't share a cart.
     '{{CART_STORAGE_KEY}}': slug + '-cart',

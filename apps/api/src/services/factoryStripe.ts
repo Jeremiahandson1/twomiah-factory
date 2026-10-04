@@ -328,6 +328,29 @@ export async function createAutoSubscription(
   return { stripeCustomerId, subscriptionId: subscription.id }
 }
 
+// What the customer is actually charged each period: list price × quantity, less any
+// active subscription discounts. monthly_amount used to be the raw list price, so a
+// discounted tenant (a comp, a family rate) showed full price everywhere the factory
+// reads it. Webhook payloads carry discounts as ids, so expand them. On any lookup
+// failure, fall back to the list price — the previous behaviour — rather than throw.
+async function effectiveMonthlyAmount(sub: Stripe.Subscription): Promise<number> {
+  const item = sub.items.data[0]
+  let amount = ((item.price.unit_amount || 0) * (item.quantity || 1)) / 100
+  if (!stripe || !(sub.discounts && sub.discounts.length)) return amount
+  try {
+    const full = await stripe.subscriptions.retrieve(sub.id, { expand: ['discounts'] })
+    for (const d of full.discounts || []) {
+      const coupon = typeof d === 'string' ? null : d.coupon
+      if (!coupon || coupon.valid === false) continue
+      if (coupon.percent_off) amount = amount * (1 - coupon.percent_off / 100)
+      else if (coupon.amount_off) amount = amount - coupon.amount_off / 100
+    }
+  } catch (e: any) {
+    console.warn('[Stripe] Could not read subscription discounts for', sub.id, '-', e?.message)
+  }
+  return Math.max(0, Math.round(amount * 100) / 100)
+}
+
 // ── Webhook handling ─────────────────────────────────────────────────────────
 
 export async function handleFactoryWebhook(event: Stripe.Event): Promise<{
@@ -373,7 +396,7 @@ export async function handleFactoryWebhook(event: Stripe.Event): Promise<{
         billing_status: sub.status === 'active' ? 'active' : sub.status === 'past_due' ? 'past_due' : sub.status === 'canceled' ? 'canceled' : sub.status,
       }
       if (sub.items?.data?.[0]?.price?.unit_amount) {
-        updates.monthly_amount = sub.items.data[0].price.unit_amount / 100
+        updates.monthly_amount = await effectiveMonthlyAmount(sub)
       }
       if (sub.current_period_end) {
         updates.next_billing_date = new Date(sub.current_period_end * 1000).toISOString()
