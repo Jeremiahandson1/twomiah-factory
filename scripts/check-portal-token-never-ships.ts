@@ -243,12 +243,53 @@ for (const abs of files) {
   }
   if (!taints.length) continue
 
+  /**
+   * ONE LEVEL OF ALIASING, because mutation-testing this guard found the hole.
+   *
+   * The planted leak was `const safeContact = foundContact` followed by the existing
+   * `c.json({ ...safeContact })` — the row, renamed, straight into the response. The guard passed:
+   * it tracked `foundContact` and had never heard of `safeContact`. A rename is the FIRST thing
+   * somebody writes when they take a strip out, which makes it the shape that matters most.
+   *
+   * One level, not a dataflow analysis. `const a = b` where b is already a tainted row makes a
+   * tainted too; `const a = b.something` and `const a = f(b)` do not — a call is where the strip
+   * would be, and a field is not the row.
+   */
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(/const\s+(\w+)\s*=\s*([\w.[\]]+)\s*$|const\s+(\w+)\s*=\s*([\w.[\]]+)\s*(?:;|\/\/)/)
+      if (!m) continue
+      const alias = m[1] || m[3], source = (m[2] || m[4] || '').trim()
+      if (!alias || !source || alias === source) continue
+      const hit = taints.find((t) => new RegExp(`^(?:${t.src})$`).test(source) && i + 1 > t.from && i + 1 < t.to)
+      if (!hit) continue
+      if (taints.some((t) => t.src === alias)) continue
+      taints.push({ src: alias, from: i + 1, to: lines.length })
+    }
+  }
+
   for (const { src, from, to } of taints) {
     const spread = new RegExp(`\\.\\.\\.\\s*(?:${src})(?![\\w.])`)
     const asValue = new RegExp(`:\\s*(?:${src})\\s*(?:\\?\\?|\\|\\||,|\\}|\\)|$)`)
+    /**
+     * …and the row handed over WHOLE, with no object around it: `return c.json(found)`.
+     *
+     * The first version of this rule checked only `...row` and `contact: row`, because those are the
+     * two shapes the twenty sites it was written for happened to use. A route that answers the row
+     * directly is the same disclosure with less typing — crm-dispensary's contacts route is written
+     * that way (it strips by hand) — and the rule could not see it. A guard that only knows the
+     * shapes of the bugs already fixed is a guard for the past.
+     *
+     * `c.json(` and not a bare `return row`: reading the row into an internal helper and returning
+     * it is ordinary and correct — the shared contacts module's own `findOwned` does exactly that,
+     * and crm-roof's storm service returns a list of rows to a generator that never serialises
+     * them. Both were flagged by the first draft of this rule. What makes it a leak is the row
+     * reaching a RESPONSE, so that is what is matched.
+     */
+    const bare = new RegExp(`c\\.json\\(\\s*(?:${src})\\s*(?:,|\\)|$)`)
     for (let i = from; i < to; i++) {
       const l = lines[i]
-      if (!spread.test(l) && !asValue.test(l)) continue
+      if (!spread.test(l) && !asValue.test(l) && !bare.test(l)) continue
       if (l.includes(`${HELPER}(`)) continue
       // `for (const { request, contact: ct } of pending)` BINDS the name, it does not hand it over.
       if (new RegExp(`\\b(?:const|let|var)\\b[^=]*\\{[^}]*:\\s*(?:${src})\\b`).test(l)) continue
