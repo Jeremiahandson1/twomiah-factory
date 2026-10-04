@@ -140,6 +140,10 @@ export default function InventoryPage() {
 
   const canRecall = hasFeature('recall_lookup');
   const canSyndicate = hasFeature('inventory_syndication');
+  // The Feed URL dialog reads GET /api/syndication/token, which ISSUES the token if there is none —
+  // so it asks contacts:update, the same permission as rotating it. Export Feed is the listing data
+  // and stays open to every seat. (T42)
+  const mayManageFeed = useMayWrite('contacts:update');
 
   useEffect(() => {
     loadData();
@@ -208,6 +212,7 @@ export default function InventoryPage() {
         <div className="flex items-center gap-2">
           {canSyndicate && (
             <>
+              {mayManageFeed && (
               <button
                 onClick={() => setShowFeedUrls(true)}
                 className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50"
@@ -215,6 +220,7 @@ export default function InventoryPage() {
                 <Link2 className="w-4 h-4" />
                 Feed URL
               </button>
+              )}
               <button
                 onClick={exportFeed}
                 disabled={exporting}

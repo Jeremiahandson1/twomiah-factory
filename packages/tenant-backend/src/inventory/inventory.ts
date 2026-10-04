@@ -1027,7 +1027,9 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
   const maySeeCost = async (c: any) => {
     if (!deps.canSee) return true
     const u = c.get('user') as any
-    try { return await deps.canSee(u?.role, 'inventory:read', u?.userId) } catch { return true }
+    // 'margin:read' since T42 — see the note on the admin row of auth/permissions.ts. Unchanged
+    // for every role: the rungs holding inventory:* are the rungs holding margin:read.
+    try { return await deps.canSee(u?.role, 'margin:read', u?.userId) } catch { return true }
   }
   /** Answer a read, minus the cost figures when this seat may not see them. */
   const costed = async (c: any, data: any) => c.json(await maySeeCost(c) ? data : stripCost(data))

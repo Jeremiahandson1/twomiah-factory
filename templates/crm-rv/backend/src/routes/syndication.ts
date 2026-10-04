@@ -123,8 +123,17 @@ app.get('/feed', requirePermission('contacts:read'), async (c) => {
   return respondFeed(c, listings, format)
 })
 
-// GET /syndication/token — current public feed token + URLs (creates one if absent)
-app.get('/token', requirePermission('contacts:read'), async (c) => {
+/**
+ * THE FEED TOKEN IS ISSUED HERE, SO READING IT IS NOT A READ. (T42, RV HIGH — "viewer … syndication
+ * token")
+ *
+ * This asked `contacts:read`, which every seat holds, and then MINTED a token if the company had
+ * none — a GET that creates a credential. Rotating one has always required `contacts:update`; so
+ * does this now, which is the same line the portal link draws one template over: whoever may hand
+ * the URL out is whoever may create it. The feed itself (GET /feed) is unchanged and still open to
+ * any seat — it is the listing data, which the marketplaces pull publicly anyway.
+ */
+app.get('/token', requirePermission('contacts:update'), async (c) => {
   const user = c.get('user') as any
   let [comp] = await db.select().from(company).where(eq(company.id, user.companyId)).limit(1)
   if (!comp) return c.json({ error: 'Company not found' }, 404)

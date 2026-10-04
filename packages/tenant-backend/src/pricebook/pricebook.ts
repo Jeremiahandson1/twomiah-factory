@@ -307,7 +307,10 @@ export function createPricebookRoutes(deps: PricebookRoutesDeps) {
   const maySeeCost = async (c: any) => {
     if (!deps.canSee) return true
     const u = c.get('user') as any
-    try { return await deps.canSee(u?.role, 'pricebook:read', u?.userId) } catch { return true }
+    // 'margin:read' since T42, where this was one of three different permissions asked for the
+    // same thing. Behaviour is unchanged for every role: pricebook:* and margin:read sit on the same
+    // three rungs. See the note on the admin row of auth/permissions.ts.
+    try { return await deps.canSee(u?.role, 'margin:read', u?.userId) } catch { return true }
   }
   const run = (fn: (c: any, u: any) => Promise<any>, status = 200, carriesCost = false) => async (c: any) => {
     try {

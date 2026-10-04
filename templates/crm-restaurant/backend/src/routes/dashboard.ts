@@ -3,6 +3,7 @@ import { db } from '../../db/index.ts'
 import { contact, event, eventSpace, eventMenuItem, eventPayment, user, invoice, payment, job, project, quote, timeEntry } from '../../db/schema.ts'
 import { eq, and, gte, lte, lt, count, desc, asc, sql, inArray, notInArray } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { createReportingService } from '../shared/index.ts'
 import { installmentStates, EXIT_STATUSES } from '../services/eventLedger.ts'
 
@@ -58,6 +59,20 @@ app.get('/stats', async (c) => {
   const bookedValue = (bookedValueRows as any[]).reduce((s, l) => s + Number(l.unitPrice || 0) * Number(l.quantity || 0), 0)
   const statusMap = Object.fromEntries(byStatus.map(s => [s.status, Number(s.c)]))
 
+  /**
+   * THE EVENTS DASHBOARD PRINTED THE MONEY TO EVERY SEAT. (T42 — "staff dashboard money … remain")
+   *
+   * /stats carried only `authenticate`, so the coordinator rung read Booked Value Ahead and the
+   * Payments Overdue headline — the same figures the Reports page refuses it. `invoices:read` is the
+   * fleet's revenue-read permission: owner, admin, manager and the read-only office seat hold it;
+   * `field` does not.
+   *
+   * The keys are ABSENT rather than zero. `money(0)` renders "$0.00", which tells a coordinator the
+   * venue is owed nothing and has nothing booked — a wrong figure is worse than a missing one, and
+   * the tiles fall away instead.
+   */
+  const maySeeMoney = hasPermission(user_?.role, 'invoices:read', await getExtraPermissions(user_?.userId))
+
   return c.json({
     contacts: clientRows[0]?.value ?? 0,
     pipeline: {
@@ -71,9 +86,11 @@ app.get('/stats', async (c) => {
     events: {
       upcoming30: upcoming30Rows[0]?.value ?? 0,
       thisMonth: confirmedThisMonth[0]?.value ?? 0,
-      bookedValue,
+      ...(maySeeMoney ? { bookedValue } : {}),
     },
-    payments: { overdue: Number(revenue.overdue || 0), overdueCount: Number(revenue.overdueCount || 0), outstanding: Number(revenue.outstanding || 0) },
+    ...(maySeeMoney
+      ? { payments: { overdue: Number(revenue.overdue || 0), overdueCount: Number(revenue.overdueCount || 0), outstanding: Number(revenue.outstanding || 0) } }
+      : { moneyWithheld: true }),
     byType: Object.fromEntries((byTypeRows as any[]).map(r => [r.eventType, Number(r.c)])),
     bySpace: (spaceRows as any[]).map(r => ({ spaceId: r.spaceId, name: r.spaceName || 'Unassigned', events: Number(r.c) }))
       .sort((a, b) => b.events - a.events),

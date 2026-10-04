@@ -17,6 +17,7 @@
 // unit, and the F&I menu's selling price. A salesperson negotiates with all of those. It is the
 // COST — the margin they are negotiating against — that is withheld.
 import { Hono } from 'hono'
+import { sql } from 'drizzle-orm'
 
 let failed = 0, passed = 0
 const check = (name: string, ok: boolean, detail?: unknown) => {
@@ -282,6 +283,100 @@ console.log('\n── the dashboard ──')
   check('T41: …while inventory counts and the sales pipeline are untouched',
     typeof floorDash.json?.inventory?.total === 'number' && typeof floorDash.json?.sales?.openLeads === 'number',
     { inventory: floorDash.json?.inventory?.total, sales: floorDash.json?.sales?.openLeads })
+}
+
+// ══════════ T42: THE SEAT T41 LEFT HOLDING EVERYTHING ═══════════════════════════════════════════
+//
+//   "Viewer sees what staff can't: /api/units cost on 16 of 25 units; /api/fi/products cost; the full
+//    Accounting ledger (64 entries, $29,065); rental revenue; team list; syndication token."
+//                                                                             — RV, HIGH
+//
+//   "Decide whether viewers should see money, then apply the staff stripping to viewer or document it
+//    as intended."                                                     — T42, fleet-wide
+//
+// T41 gated every figure above on `invoices:read`, which `viewer` holds — so the sales floor lost the
+// cost and the read-only seat kept it. The decision T42 asked for is that this is TWO questions:
+//
+//   REVENUE      the ledger, rental income, the roster — a bookkeeper's job. Stays.
+//   COST/MARGIN  what the store PAID. `margin:read`: owner, admin, manager.
+//
+// Both halves are asserted, because "apply the staff stripping to viewer" would have emptied the one
+// seat whose purpose is reading the books, and that would be the other bug.
+console.log('\n══════════ T42 · revenue is the office seat\'s, cost is not ══════════')
+const rows = async (q: any) => { const r: any = await db.execute(q); return (r.rows || r) as any[] }
+const viewer = await mk('viewer', 'books')
+{
+  const ledger = await as(viewer)('/api/accounting/status')
+  check('the read-only seat still reads the invoice ledger — revenue is what it is for',
+    ledger.status === 200, { status: ledger.status, body: ledger.text?.slice(0, 160) })
+  check('…and the 29,065 is on it', /29065|29,065/.test(ledger.text || ''), (ledger.text || '').slice(0, 200))
+
+  const units = await as(viewer)('/api/units')
+  check('…it reads the inventory', units.status === 200 && /ST-T41/.test(units.text || ''),
+    { status: units.status, n: (units.json?.data || []).length })
+  check('…with MSRP, listed and internet price — what the unit SELLS at',
+    /129900/.test(units.text || '') && /114900/.test(units.text || ''), (units.text || '').slice(0, 200))
+  check('T42: …and NOT the 92,450 dealer cost', !/92450/.test(units.text || '') && !/"cost"/.test(units.text || ''),
+    (units.text || '').slice(0, 300))
+
+  const one = await as(viewer)(`/api/units/${rig.id}`)
+  check('T42: …nor on the single unit', one.status === 200 && !/92450/.test(one.text || ''),
+    { status: one.status, body: (one.text || '').slice(0, 200) })
+
+  const menu = await as(viewer)('/api/fi/products')
+  check('T42: …nor the F&I product cost, while the 1,895 selling price stays',
+    menu.status === 200 && /1895/.test(menu.text || '') && !/1100/.test(menu.text || '') && !/"cost"/.test(menu.text || ''),
+    (menu.text || '').slice(0, 240))
+
+  // …and the manager keeps it, which is what makes this a permission rather than a rank.
+  const mgrUnits = await as(manager)('/api/units')
+  check('the manager still sees the dealer cost — margin:read, not a rank',
+    /92450/.test(mgrUnits.text || ''), (mgrUnits.text || '').slice(0, 200))
+}
+
+// ══════════ T42: the public feed token is ISSUED by this GET ═════════════════════════════════════
+//
+// GET /syndication/token asked `contacts:read` — every seat — and MINTED a token when the company had
+// none. A read that creates a credential is not a read. Rotating one has always needed
+// `contacts:update`; so does this now, which is the line the portal link draws on the contractor
+// template: whoever may hand the URL out is whoever may create it.
+console.log('\n── the syndication feed token ──')
+{
+  const synd = new Hono()
+  synd.route('/api/syndication', (await import('./src/routes/syndication.ts')).default)
+  synd.onError((await import('./src/utils/errors.ts')).errorHandler)
+  const syndAs = (who: any) => async (path: string) => {
+    const res = await synd.request(path, { headers: { 'x-test-user': who.id } })
+    const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+    return { status: res.status, json: j, text: t }
+  }
+
+  const byViewer = await syndAs(viewer)('/api/syndication/token')
+  check('T42: the read-only seat is refused the feed token', byViewer.status === 403,
+    { status: byViewer.status, body: (byViewer.text || '').slice(0, 160) })
+  check('…and no token or URL comes back with the refusal',
+    !/inventory\.csv/.test(byViewer.text || '') && !byViewer.json?.token, (byViewer.text || '').slice(0, 200))
+
+  const byFloor = await syndAs(salesperson)('/api/syndication/token')
+  check('T42: …and so is the sales floor', byFloor.status === 403, { status: byFloor.status })
+
+  // Nothing was minted while those two were being refused.
+  const before = await rows(sql`SELECT feed_token FROM company WHERE id = ${co.id}`)
+  check('…and a refused read did not quietly create the credential',
+    !before[0]?.feed_token, before[0])
+
+  const byOwner = await syndAs(owner)('/api/syndication/token')
+  check('the owner gets the token and the three feed URLs — the feature still works',
+    byOwner.status === 200 && !!byOwner.json?.token && /inventory\.csv$/.test(String(byOwner.json?.urls?.csv || '')),
+    { status: byOwner.status, csv: byOwner.json?.urls?.csv })
+  const after = await rows(sql`SELECT feed_token FROM company WHERE id = ${co.id}`)
+  check('…and THAT read is what issued it', String(after[0]?.feed_token || '') === String(byOwner.json?.token),
+    { stored: after[0]?.feed_token, returned: byOwner.json?.token })
+
+  // The FEED itself is the listing data a marketplace pulls publicly. Still open to every seat.
+  const feed = await syndAs(salesperson)('/api/syndication/feed')
+  check('the feed itself is unchanged — the floor can still export the listings',
+    feed.status === 200, { status: feed.status, body: (feed.text || '').slice(0, 120) })
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed`)

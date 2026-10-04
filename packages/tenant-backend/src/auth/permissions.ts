@@ -64,6 +64,37 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // with the operational modules above. Locations are multi-location company configuration, which
     // is settings. Both shipped with no resource at all, which is why their routes carried no gate.
     'commissions:*', 'locations:*',
+    /**
+     * WHAT THE BUSINESS PAID, and therefore its margin. (T42)
+     *
+     *   "Viewer sees what staff can't: /api/units cost on 16 of 25 units; /api/fi/products cost; the
+     *    full Accounting ledger (64 entries, $29,065); rental revenue; team list; syndication
+     *    token."                                                               — RV, HIGH
+     *
+     *   "Decide whether viewers should see money, then apply the staff stripping to viewer or
+     *    document it as intended."                                      — T42, fleet-wide
+     *
+     * That is two questions, not one, and the answer differs.
+     *
+     * REVENUE IS A READ-ONLY OFFICE SEAT'S BUSINESS. `viewer` is the bookkeeper, the accountant, the
+     * silent partner — on salon it is literally labelled Front Desk. Invoices, quotes, totals, the
+     * ledger of what customers owe, the rental income, the team roster: that is `invoices:read`,
+     * which viewer holds deliberately, and it stays. Applying the staff stripping to viewer would
+     * empty the one seat whose whole purpose is reading the books.
+     *
+     * COST AND MARGIN ARE NOT. What the dealership paid for a unit, what an F&I product costs the
+     * store, what a roof's materials came to — that is the figure an owner keeps to themselves, and
+     * anyone holding it can price every deal in the building. It is also the half the sales floor
+     * negotiates against, which is why `field` never had it either.
+     *
+     * ONE PERMISSION, because the fleet had THREE answers to this one question and nothing said so:
+     * the pricebook asked `pricebook:read`, the shared inventory module asked `inventory:read`, and
+     * crm-rv's unit and F&I cost asked `invoices:read` — which is exactly how the viewer came to
+     * hold them. All three ask this now. The swap takes nothing from anybody on the first two: the
+     * roles that hold `pricebook:*` and `inventory:*` are precisely the roles listed here, and no
+     * template grants either to a lower rung (checked across all 13).
+     */
+    'margin:read',
     // The roofing set. crm-roof carried a FORKED permission matrix that predated most of this file, so
     // none of its own modules had a resource here — and a gate on a resource the matrix does not carry
     // refuses everyone but the owner, which is exactly why roof's writes were left ungated instead.
@@ -156,6 +187,9 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // A manager sees the commission ledger and the location list but does not approve payouts or
     // reconfigure branches — the same line payments/settings already draw for this role.
     'commissions:read', 'locations:read',
+    // What the shop paid, and the margin over it — a manager prices the work and buys the materials.
+    // The long note is on the admin row above. (T42)
+    'margin:read',
     // The roofing set. A roofing manager runs the day-to-day: storm events, insurance claims, the
     // canvassing board, measurements, estimates, leads and crews — the same standing the construction
     // document set above already gives this role, approvals included.

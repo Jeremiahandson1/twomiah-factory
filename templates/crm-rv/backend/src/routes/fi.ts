@@ -29,12 +29,13 @@ const PRODUCTS = [
  * itself stays open. `cost` is what the dealership pays for the product, which is the margin on
  * every deal in the store, and "not shown in the UI" is not a defence: the API is the product.
  *
- * `invoices:read` is the fleet's "may see money" permission — manager and viewer hold it, `field`
- * (the sales floor seat) does not, which is the seat the report read it from.
+ * T41 asked `invoices:read`, which manager AND VIEWER hold, so the read-only seat kept the cost of
+ * every F&I product after the sales floor lost it — T42's RV HIGH. `margin:read` is owner, admin and
+ * manager: see the note on the admin row of the shared permission matrix.
  */
 app.get('/products', async (c) => {
   const u = c.get('user') as any
-  const maySeeCost = hasPermission(u?.role, 'invoices:read', await getExtraPermissions(u?.userId))
+  const maySeeCost = hasPermission(u?.role, 'margin:read', await getExtraPermissions(u?.userId))
   if (maySeeCost) return c.json({ products: PRODUCTS })
   return c.json({ products: PRODUCTS.map(({ cost, ...rest }) => rest) })
 })

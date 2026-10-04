@@ -9,7 +9,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { uploadFile, deleteFile, keyFromMediaUrl } from '../services/storage.ts'
 import { createId } from '@paralleldrive/cuid2'
-import { normalizeDateInput } from '../shared/index.ts'
+import { normalizeDateInput, withoutPortalCredential } from '../shared/index.ts'
 import { uploadedForm } from '../utils/upload.ts'
 
 const app = new Hono()
@@ -28,15 +28,29 @@ app.use('*', authenticate)
  * would be a gate with its own answer printed next to it. `totalSquares` is NOT here: a roof's size
  * is what the crew is going to install, not what anybody is paid for it.
  */
-const JOB_MONEY = [
-  'estimatedRevenue', 'finalRevenue', 'materialCost', 'laborCost',
-  'deductible', 'rcv', 'acv', 'approvedScope',
+const JOB_REVENUE = [
+  'estimatedRevenue', 'finalRevenue', 'deductible', 'rcv', 'acv', 'approvedScope',
 ] as const
 
-/** A job row with every money field removed. Used by BOTH reads, so they cannot drift again. */
-const withoutJobMoney = (row: any) => {
+/**
+ * …and what the SHOP paid, which is a different question with a different answer. (T42)
+ *
+ * `invoices:read` is held by the read-only office seat, which is right for revenue — a bookkeeper
+ * reads the books — and wrong for margin: materials and labour are what the job COST to do, and a
+ * seat holding them can price every job in the book. The same mistake, asked with the same
+ * permission, is what T42 reported as a HIGH on crm-rv's unit cost. `margin:read` is
+ * owner/admin/manager; see the note on the admin row of the shared permission matrix.
+ *
+ * `deductible` stays with revenue deliberately: it is what the HOMEOWNER pays out of pocket on the
+ * claim, not what the shop spent.
+ */
+const JOB_COST = ['materialCost', 'laborCost'] as const
+
+/** A job row with the figures this seat may not see removed. Used by BOTH reads, so they cannot drift. */
+const withoutJobMoney = (row: any, keep: { revenue: boolean; cost: boolean }) => {
   const out = { ...row }
-  for (const f of JOB_MONEY) delete out[f]
+  if (!keep.revenue) for (const f of JOB_REVENUE) delete out[f]
+  if (!keep.cost) for (const f of JOB_COST) delete out[f]
   return out
 }
 
@@ -200,8 +214,12 @@ app.get('/', async (c) => {
    * claim's money written out in words. Stripping the figures and leaving the scope that states
    * them would be a gate with its own answer printed beside it.
    */
-  const maySeeMoney = hasPermission(currentUser?.role, 'invoices:read', await getExtraPermissions(currentUser?.userId))
-  const shaped = maySeeMoney ? dataWithRelations : dataWithRelations.map(withoutJobMoney)
+  const extra = await getExtraPermissions(currentUser?.userId)
+  const maySeeMoney = hasPermission(currentUser?.role, 'invoices:read', extra)
+  const maySeeCost = hasPermission(currentUser?.role, 'margin:read', extra)
+  const shaped = maySeeMoney && maySeeCost
+    ? dataWithRelations
+    : dataWithRelations.map((r: any) => withoutJobMoney(r, { revenue: maySeeMoney, cost: maySeeCost }))
 
   /**
    * `moneyWithheld` so the SCREEN can hide a figure instead of computing a wrong one. (T42)
@@ -224,6 +242,7 @@ app.get('/', async (c) => {
   return c.json({
     data: shaped,
     ...(maySeeMoney ? {} : { moneyWithheld: true }),
+    ...(maySeeCost ? {} : { costWithheld: true }),
     pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) },
   })
 })
@@ -318,15 +337,18 @@ app.get('/:id', async (c) => {
    * in their own right and go with them — roof's own invoice routes now require invoices:read, and
    * handing the same rows over through a job would walk straight around that.
    */
-  const maySeeJobMoney = hasPermission(currentUser?.role, 'invoices:read', await getExtraPermissions(currentUser?.userId))
-  // The SAME list the list read uses (JOB_MONEY, top of file). This had its own copy, two fields
-  // longer than the other one and still two fields short — which is how finalRevenue and
+  const detailExtra = await getExtraPermissions(currentUser?.userId)
+  const maySeeJobMoney = hasPermission(currentUser?.role, 'invoices:read', detailExtra)
+  const maySeeJobCost = hasPermission(currentUser?.role, 'margin:read', detailExtra)
+  // The SAME lists the list read uses (JOB_REVENUE / JOB_COST, top of file). This had its own copy,
+  // two fields longer than the other one and still two fields short — which is how finalRevenue and
   // approvedScope stayed readable here after T41. (T42)
-  const jobRow: any = maySeeJobMoney ? { ...foundJob } : withoutJobMoney(foundJob)
+  const jobRow: any = withoutJobMoney(foundJob, { revenue: maySeeJobMoney, cost: maySeeJobCost })
 
   return c.json({
     ...jobRow,
-    contact: jobContact[0] || null,
+    // the customer's portal credential never travels with their record (T42)
+    contact: jobContact[0] ? withoutPortalCredential(jobContact[0]) : null,
     crew: jobCrew[0] || null,
     measurementReport: measurement[0] || null,
     photos,

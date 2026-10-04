@@ -15,10 +15,12 @@ app.use('*', authenticate)
  * (T42, Roofing HIGH — "Materials shows Total Cost".) Every write here asks for an inventory
  * permission; neither read asked for anything, so a viewer read the supplier's prices off the list.
  *
- * It is gated on the question roof's job and invoice reads already ask — `invoices:read` — and not on
- * an inventory permission, because knowing WHAT is on the truck is the part of this screen a crew lead
- * needs and `inventory:read` is exactly that permission. So the prices go and nothing else does: the
- * description, quantity and unit stay, and the order still reads as an order.
+ * It asks `margin:read` — the fleet's "what the business paid" permission, owner/admin/manager —
+ * and not `invoices:read`, which the read-only seat holds: a supplier's prices are the shop's COST,
+ * and T42's RV HIGH is the same mistake made with `invoices:read` one vertical over. Nor
+ * `inventory:read`, because knowing WHAT is on the truck is the part of this screen a crew lead
+ * needs. So the prices go and nothing else does: the description, quantity and unit stay, and the
+ * order still reads as an order.
  */
 const MATERIAL_MONEY = ['totalCost'] as const
 
@@ -92,7 +94,7 @@ app.get('/', async (c) => {
 
   // `moneyWithheld` so the SCREEN can drop the Total Cost column rather than print "$0" or "—" for a
   // real order — T42 calls that out fleet-wide ("Hidden money shown as $0 instead of hidden").
-  const maySeeCost = hasPermission(currentUser?.role, 'invoices:read', await getExtraPermissions(currentUser?.userId))
+  const maySeeCost = hasPermission(currentUser?.role, 'margin:read', await getExtraPermissions(currentUser?.userId))
 
   return c.json({
     data: maySeeCost ? data : data.map(withoutMaterialMoney),
@@ -136,7 +138,7 @@ app.get('/:id', async (c) => {
     .limit(1)
   if (!found) return c.json({ error: 'Material order not found' }, 404)
 
-  const maySeeCost = hasPermission(currentUser?.role, 'invoices:read', await getExtraPermissions(currentUser?.userId))
+  const maySeeCost = hasPermission(currentUser?.role, 'margin:read', await getExtraPermissions(currentUser?.userId))
   if (!maySeeCost) return c.json({ ...withoutMaterialMoney(found), moneyWithheld: true })
 
   return c.json(found)

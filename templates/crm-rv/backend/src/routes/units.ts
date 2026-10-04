@@ -110,13 +110,15 @@ function priceWarnings(u: { msrp?: unknown; internetPrice?: unknown; cost?: unkn
  * one of them. `cost` is the margin on the unit, and the salesperson is the one negotiating against
  * it.
  *
- * `invoices:read` is the fleet's money-read permission: manager and viewer hold it, `field` — the
- * sales-floor seat the report read this from — does not. Writes are unaffected; a `cost` edit still
- * goes through PUT, which requires contacts:update.
+ * T41 asked `invoices:read` here, which manager AND VIEWER hold — so the read-only seat kept the
+ * cost after the sales floor lost it, and T42 came back with it as a HIGH. It asks `margin:read`
+ * now: owner, admin and manager. Revenue is a bookkeeper's business; what the store PAID is not.
+ * (See the note on the admin row of the shared permission matrix.) Writes are unaffected — a `cost`
+ * edit still goes through PUT, which requires contacts:update.
  */
 const maySeeUnitCost = async (c: any): Promise<boolean> => {
   const u = c.get('user') as any
-  return hasPermission(u?.role, 'invoices:read', await getExtraPermissions(u?.userId))
+  return hasPermission(u?.role, 'margin:read', await getExtraPermissions(u?.userId))
 }
 const hideUnitCost = <T extends Record<string, any>>(row: T): T => {
   if (!row) return row

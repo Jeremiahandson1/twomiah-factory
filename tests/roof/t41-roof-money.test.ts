@@ -370,12 +370,27 @@ console.log('\n══════════ T42: Materials shows Total Cost �
     oRows[0]?.lineItems?.[0])
   check('…with no withheld flag on it', ownerMats.json?.moneyWithheld === undefined, ownerMats.json?.moneyWithheld)
 
-  // viewer holds invoices:read. Its 200 is what proves this gate asks a permission and not a rank —
-  // the same reason the viewer seat is in the summary assertions above.
+  /**
+   * THE READ-ONLY SEAT GETS THE ORDER AND NOT THE PRICE, and that is a decision, not an oversight.
+   *
+   * This assertion first said the opposite. The gate was written asking `invoices:read` — the
+   * fleet's revenue-read permission, which `viewer` holds — and T42's RV HIGH is that exact mistake
+   * one vertical over: "Viewer sees what staff can't: /api/units cost … /api/fi/products cost".
+   * Revenue is a bookkeeper's business; a SUPPLIER'S PRICES are the shop's cost, and anyone holding
+   * them can price every job in the book. It asks `margin:read` now — owner, admin, manager.
+   *
+   * The manager's 200 below is what keeps this a PERMISSION and not a rank: manager is not the
+   * owner, and still sees the cost.
+   */
   const viewerMats = await asViewer('GET', '/api/materials')
-  check('the VIEWER seat still reads the cost — a permission, not a rank',
-    viewerMats.status === 200 && Number(rowsOf(viewerMats.json)[0]?.totalCost) === 33624,
-    { status: viewerMats.status, c: rowsOf(viewerMats.json)[0]?.totalCost })
+  check('the read-only seat still reads the ORDER', viewerMats.status === 200 && rowsOf(viewerMats.json).length === 1,
+    { status: viewerMats.status, n: rowsOf(viewerMats.json).length })
+  check('…and NOT the supplier\'s prices — that is cost, not revenue (margin:read)',
+    !('totalCost' in (rowsOf(viewerMats.json)[0] || {})) && viewerMats.json?.moneyWithheld === true,
+    { c: rowsOf(viewerMats.json)[0]?.totalCost, withheld: viewerMats.json?.moneyWithheld })
+  check('…while the MANAGER does see the cost — a permission, not a rank',
+    Number(rowsOf((await asManager('GET', '/api/materials')).json)[0]?.totalCost) === 33624,
+    rowsOf((await asManager('GET', '/api/materials')).json)[0]?.totalCost)
 
   const staffMats = await asField('GET', '/api/materials')
   const sRows = rowsOf(staffMats.json)

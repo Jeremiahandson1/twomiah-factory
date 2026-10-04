@@ -19,6 +19,8 @@ interface Stats {
   pipeline?: Pipeline;
   events?: { upcoming30?: number; thisMonth?: number; bookedValue?: number };
   payments?: { overdue?: number; overdueCount?: number; outstanding?: number };
+  // absent when this seat may not read the venue's money — the tiles go, rather than reading $0.00
+  moneyWithheld?: boolean;
   byType?: Record<string, number>;
   bySpace?: { spaceId?: string; name?: string; events?: number }[];
 }
@@ -71,6 +73,9 @@ export default function DashboardPage() {
   const pipeline = stats.pipeline || {};
   const events = stats.events || {};
   const payments = stats.payments || {};
+  // `money(undefined)` prints $0.00, which would tell a coordinator the venue is owed nothing. The
+  // server omits these keys for a seat that may not see them, so the cards are omitted too. (T42)
+  const showMoney = !stats.moneyWithheld && !!stats.payments;
   const bySpace = stats.bySpace || [];
   const overdue = Number(payments.overdue || 0);
   const topSpace = Math.max(1, ...bySpace.map((s) => Number(s.events || 0)));
@@ -90,6 +95,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Headline: money owed. This is the number a venue loses track of. Same figures as Reports. */}
+      {showMoney && (
       <Link
         to="/crm/invoices"
         className={`block rounded-xl border p-5 transition hover:shadow-md ${overdue > 0 ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-900/40' : 'bg-white dark:bg-slate-900 dark:border-slate-800'}`}
@@ -113,6 +119,7 @@ export default function DashboardPage() {
           <ArrowRight className="w-5 h-5 text-gray-400" />
         </div>
       </Link>
+      )}
 
       {/* KPI grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -134,14 +141,16 @@ export default function DashboardPage() {
           <p className="text-xs text-gray-500 dark:text-slate-400">{events.thisMonth || 0} this month</p>
         </Link>
 
-        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Booked Value Ahead</p>
-            <TrendingUp className="w-5 h-5 text-green-700 dark:text-green-300" />
+        {events.bookedValue !== undefined && (
+          <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Booked Value Ahead</p>
+              <TrendingUp className="w-5 h-5 text-green-700 dark:text-green-300" />
+            </div>
+            <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{money(events.bookedValue)}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400">Food &amp; beverage on held events</p>
           </div>
-          <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{money(events.bookedValue)}</p>
-          <p className="text-xs text-gray-500 dark:text-slate-400">Food &amp; beverage on held events</p>
-        </div>
+        )}
 
         <Link to="/crm/spaces" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
           <div className="flex items-center justify-between">
