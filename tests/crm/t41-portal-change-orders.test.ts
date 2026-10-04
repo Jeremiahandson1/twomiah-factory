@@ -58,6 +58,9 @@ const [proj] = await db.insert(project).values({
 const app = new Hono()
 app.route('/api/change-orders', (await import('./src/routes/changeOrders.ts')).default)
 app.route('/api/portal', (await import('./src/routes/portal.ts')).default)
+// Mounted for the T42 case at the end: it checks the project SCREEN's own figures, which is where
+// 'original + agreed changes' stopped adding up to 'revised' on the live tenant.
+app.route('/api/projects', (await import('./src/routes/projects.ts')).default)
 app.onError(errorHandler)
 
 const asOffice = async (method: string, path: string, body?: unknown) => {
@@ -272,6 +275,74 @@ console.log('\n══════════ tenancy ════════�
   const detail = await asOffice('GET', `/api/change-orders/${signed?.id}`)
   check('T41: the detail read still carries the signature itself', !!detail.json?.signature,
     { keys: Object.keys(detail.json || {}).filter((k) => /sign/i.test(k)) })
+}
+
+// ══════════ T42 · signing in the portal moves the CONTRACT, not just the status ══════════════════
+//
+//   "Portal-signed change orders never reach the contract value: PRJ-0005 shows Contract value
+//    $10,030 instead of $10,200.90; only CRM-approved COs count."
+//
+// `project.estimatedValue` IS the contract figure — routes/projects.ts returns it as
+// `revisedContractValue` and job costing reads it — and routes/changeOrders.ts moves it when the
+// office approves. The portal path recorded the signature and the audit trail and left the project
+// untouched, so an agreement reached through the customer's door never reached the money.
+//
+// Read off the live tenant before the fix: estimatedValue 10,030.00, three approved COs summing
+// 200.90, of which the two portal-signed (120.90 + 50.00) had never been added — and 10,030.00 +
+// 170.90 is exactly the 10,200.90 the report expected.
+console.log('\n══════════ T42 · a signed change order reaches the contract value ══════════')
+{
+  const valueOf = async (id: string) => {
+    const r: any = await db.execute(sql`SELECT estimated_value, end_date FROM project WHERE id = ${id}`)
+    return ((r as any).rows || r)[0]
+  }
+  // Its own project, so the earlier cases' money cannot be mistaken for this one's.
+  const [p2] = await db.insert(project).values({
+    companyId: co.id, contactId: homeowner.id, name: 'Loft conversion', number: 'PRJ-0002',
+    status: 'in_progress', estimatedValue: '10000.00', endDate: new Date('2026-06-01T00:00:00Z'),
+  } as any).returning()
+
+  const made = await asOffice('POST', '/api/change-orders', {
+    projectId: p2.id, title: 'T42 Rooflight upgrade', reason: 'client_request',
+    description: 'Swap to a triple-glazed rooflight.',
+    daysAdded: 2,
+    lineItems: [{ description: 'Rooflight, triple glazed', quantity: 1, unitPrice: 120.9 }],
+  })
+  check('T42: the office raises a 120.90 change order', made.status === 201 && Number(made.json?.amount) === 120.9,
+    { status: made.status, amount: made.json?.amount, body: made.text?.slice(0, 200) })
+  const id = made.json?.id
+  await asOffice('POST', `/api/change-orders/${id}/submit`)
+
+  const before = await valueOf(p2.id)
+  check('T42: the contract starts at 10,000.00', Number(before?.estimated_value) === 10000, before)
+
+  const signed = await asClient('POST', `/change-orders/${id}/approve`, SIGN)
+  check('T42: the homeowner signs it', signed.status === 200, { status: signed.status, body: signed.text?.slice(0, 200) })
+  check('T42: …the row is approved and the evidence kept', (await statusOf(id))?.status === 'approved' && !!(await statusOf(id))?.signature_hash,
+    await statusOf(id))
+
+  const after = await valueOf(p2.id)
+  check('T42: THE CONTRACT VALUE MOVED — 10,000.00 + 120.90 = 10,120.90, which is the finding',
+    Number(after?.estimated_value) === 10120.9, { before: before?.estimated_value, after: after?.estimated_value })
+  check('T42: …and the two days it adds moved the end date too, which nothing had reported',
+    new Date(after?.end_date).getTime() === new Date('2026-06-03T00:00:00Z').getTime(),
+    { before: before?.end_date, after: after?.end_date })
+
+  // The project screen's own figures have to agree with the stored value, or the block it renders
+  // reads "original + agreed changes" ≠ "revised" — which is what the live tenant showed.
+  const proj = await asOffice('GET', `/api/projects/${p2.id}`)
+  check('T42: …the project screen reports the revised contract value',
+    Number(proj.json?.financials?.revisedContractValue) === 10120.9, proj.json?.financials)
+  check('T42: …and its own arithmetic adds up: original + agreed = revised',
+    Math.round((Number(proj.json?.financials?.originalValue) + Number(proj.json?.financials?.approvedChangeOrders)) * 100) / 100 === 10120.9,
+    proj.json?.financials)
+
+  // Signing twice must not add it twice — the CRM path locks for exactly this reason and the portal
+  // path did not lock at all.
+  const twice = await asClient('POST', `/change-orders/${id}/approve`, SIGN)
+  check('T42: signing again is refused', twice.status === 400, { status: twice.status, body: twice.text?.slice(0, 160) })
+  check('T42: …and the contract value is unchanged, not double-counted',
+    Number((await valueOf(p2.id))?.estimated_value) === 10120.9, await valueOf(p2.id))
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)

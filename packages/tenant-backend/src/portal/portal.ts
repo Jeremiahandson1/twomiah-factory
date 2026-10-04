@@ -656,7 +656,60 @@ export function createPortalRoutes(deps: PortalDeps) {
       const lineItems = t.changeOrderLineItem ? await db.select().from(t.changeOrderLineItem).where(eq(t.changeOrderLineItem.changeOrderId, changeOrderId)) : []
       const signedAt = new Date(), ip = signerIp(c), userAgent = c.req.header('user-agent') || null
       const documentHash = documentFingerprint({ id: found.id, number: found.number, title: found.title, description: found.description || '', reason: found.reason || '', amount: found.amount, daysAdded: found.daysAdded, lineItems: lineItems.map((li: any) => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice, total: li.total })) })
-      const [updated] = await db.update(t.changeOrder).set({ status: 'approved', approvedDate: signedAt, approvedBy: check.signerName, signature: body.signature, signedAt, signedBy: check.signerName, signedIp: ip, signedUserAgent: userAgent, signatureHash: documentHash, consentAt: signedAt, updatedAt: signedAt }).where(eq(t.changeOrder.id, changeOrderId)).returning()
+      /**
+       * SIGNING IT IN THE PORTAL HAS TO MOVE THE CONTRACT, THE SAME WAY APPROVING IT IN THE CRM DOES.
+       *
+       *   "Portal-signed change orders never reach the contract value: PRJ-0005 shows Contract value
+       *    $10,030 instead of $10,200.90; only CRM-approved COs count."  — T42, Contractor, HIGH
+       *
+       * This handler recorded the signature, the hash, the audit row and the notification — and then
+       * left the project alone. `project.estimatedValue` IS the contract figure (routes/projects.ts
+       * returns it as `revisedContractValue`, and job costing reads it), and routes/changeOrders.ts
+       * moves it on approval. A customer signing in the portal is the same agreement reached through
+       * the other door, so it has to move the same two columns: the amount onto the value, and
+       * `daysAdded` onto the end date.
+       *
+       * Read off the live tenant: estimatedValue 10,030.00 with three approved COs summing 200.90, of
+       * which the two portal-signed ones (120.90 + 50.00 = 170.90) had never been added — and
+       * 10,030.00 + 170.90 is exactly the 10,200.90 the report expected. CO-001 also carries
+       * daysAdded 2, so the end date was short by two days with nothing saying so.
+       *
+       * Done under a lock, which this path also lacked: the CRM side takes `FOR UPDATE` on the change
+       * order and the project precisely so two approvals cannot both add the amount, and a customer
+       * signing while somebody clicks Approve in the office is that same race across two doors. The
+       * status is re-checked inside the lock, so the second one through refuses instead of
+       * double-counting. The signature inputs and the document hash are computed BEFORE the
+       * transaction opens — a read against the outer `db` from inside it deadlocks.
+       */
+      const moved = await db.transaction(async (tx: any) => {
+        const [locked] = await tx.select().from(t.changeOrder)
+          .where(and(eq(t.changeOrder.id, changeOrderId), eq(t.changeOrder.companyId, contact.companyId))).for('update').limit(1)
+        if (!locked) return { gone: true as const }
+        if (locked.status === 'approved' || !AWAITING_CLIENT.includes(locked.status)) return { raced: locked.status as string }
+
+        const [co] = await tx.update(t.changeOrder).set({ status: 'approved', approvedDate: signedAt, approvedBy: check.signerName, signature: body.signature, signedAt, signedBy: check.signerName, signedIp: ip, signedUserAgent: userAgent, signatureHash: documentHash, consentAt: signedAt, updatedAt: signedAt }).where(eq(t.changeOrder.id, changeOrderId)).returning()
+
+        if (t.project && locked.projectId) {
+          const [proj] = await tx.select().from(t.project)
+            .where(and(eq(t.project.id, locked.projectId), eq(t.project.companyId, contact.companyId))).for('update').limit(1)
+          if (proj) {
+            const value = Number(proj.estimatedValue || 0) + Number(locked.amount || 0)
+            const days = Number(locked.daysAdded || 0)
+            const endDate = proj.endDate && days
+              ? new Date(new Date(proj.endDate).getTime() + days * 86_400_000)
+              : proj.endDate
+            await tx.update(t.project).set({ estimatedValue: value.toFixed(2), endDate, updatedAt: signedAt }).where(eq(t.project.id, proj.id))
+          }
+        }
+        return { changeOrder: co }
+      })
+      if ('gone' in moved) return c.json({ error: 'Change order not found' }, 404)
+      if ('raced' in moved) {
+        return moved.raced === 'approved'
+          ? c.json({ error: 'Change order already approved' }, 400)
+          : c.json({ error: `This change order is ${moved.raced} and can no longer be approved` }, 400)
+      }
+      const updated = moved.changeOrder
       await recordSignatureAudit({ companyId: contact.companyId, entity: 'change_order', entityId: changeOrderId, entityName: `${found.number} — ${found.title}`, signerName: check.signerName, signerEmail: contact.email, ip, userAgent, documentHash, signedAt, amount: found.amount })
       notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'change_order', entityId: changeOrderId, action: 'approved', actorName: check.signerName, actorRole: contact.type || 'client', summary: `signed and approved change order ${found.number} "${found.title}" ($${Number(found.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`, details: { notes: body.notes || null, signedBy: check.signerName, documentHash } })
       return c.json({ success: true, changeOrder: updated })
