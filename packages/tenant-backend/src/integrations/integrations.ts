@@ -77,7 +77,23 @@ export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
   app.use('*', authenticate)
   const user = (c: any) => c.get('user') as any
 
-  app.get('/status', async (c) => {
+  /**
+   * THE CONNECTION IDENTIFIERS ARE ADMIN-TIER, like every write on this router. (T42)
+   *
+   *   "/api/integrations/status gives the Stripe account ID to staff and viewer (Field service,
+   *    Contractor)."  — confirmed live: acct_1UF1Ed… came back to both seats on both tenants.
+   *
+   * It also hands over the Twilio number and the QuickBooks company name. Every other route here
+   * carries `requireAdmin`; this one carried nothing, so the whole account identity of the business
+   * was readable by its newest employee.
+   *
+   * `requireAdmin` rather than a new dependency, because it costs nothing and breaks nobody: both
+   * readers of this endpoint — Settings › Integrations and Settings › Features — sit behind tabs
+   * declared `needs: 'admin'` in the shared SettingsPage, and both already `.catch(() => null)` on
+   * failure. Checked, not assumed: those are the only two callers in the package, and the only other
+   * reader in the fleet is crm-dispensary's own forked route, which asks for manager already.
+   */
+  app.get('/status', requireAdmin, async (c) => {
     const u = user(c)
     const row = await loadCompany(u.companyId)
     const integrations = ((row?.integrations as any) || {}) as any

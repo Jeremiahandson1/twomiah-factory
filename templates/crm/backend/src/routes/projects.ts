@@ -76,6 +76,78 @@ const changeOrderForWork = (row: Record<string, any>): Record<string, any> => {
 }
 
 /**
+ * …AND THE SIGNING RECORD IS NOT MONEY, which is the gap T42 found. (T42)
+ *
+ *   "Project endpoint gives viewer the CO signature image, signer IP and user agent (field gets a
+ *    stripped version)."  — confirmed live: the viewer's PRJ-0005 carried all of it.
+ *
+ * The allow-list above is right and was doing its job: a seat without `invoices:read` gets the work
+ * and nothing else. But `viewer` HOLDS `invoices:read` — it is the read-only office seat — so it fell
+ * through to the unfiltered row and received the customer's signature image, the address they signed
+ * from and their browser string.
+ *
+ * Those are not money. They are evidence about a person, and the only people who need them are the
+ * ones who administer the agreement — the same `change-orders:update` that approves and denies one.
+ * So there are three tiers, not two, and the middle one is built by ADDING to the allow-list rather
+ * than deleting from the row, so a column added later stays invisible until somebody decides:
+ *
+ *   no invoices:read        the work: which change, what it says, where it stands, days added
+ *   + invoices:read         …and what it is worth
+ *   + change-orders:update  …and who signed it, from where, with what hash
+ */
+const CHANGE_ORDER_MONEY_FIELDS = ['amount'] as const
+const changeOrderWithMoney = (row: Record<string, any>): Record<string, any> => {
+  const out = changeOrderForWork(row)
+  for (const k of CHANGE_ORDER_MONEY_FIELDS) if (k in row) out[k] = row[k]
+  return out
+}
+const maySignOffChangeOrders = async (c: any): Promise<boolean> => {
+  const u = c.get('user') as any
+  try { return hasPermission(u?.role, 'change-orders:update', await getExtraPermissions(u?.userId)) } catch { return false }
+}
+
+/**
+ * THE ACTIVITY FEED PUTS THE FIGURE IN THE PROSE. (T42 — "the activity feed shows CO amounts to field")
+ *
+ * Read off the live tenant rather than guessed, because it decides the whole shape of this fix: the
+ * rows carry no amount COLUMN at all. The money is inside `description`:
+ *
+ *   approved :: signed and approved change order CO-001 "T42 Portal CO" ($120.90)
+ *
+ * …and `metadata` carries `documentHash` and `signedBy` beside `actorName`, `actorRole`,
+ * `projectId` and `notes`. So a field technician reading the timeline was handed both the figure the
+ * job list withholds from them and the signing evidence.
+ *
+ * Two different withholdings, because they answer to two different permissions:
+ *   · the FIGURE goes with the money — a currency amount in prose is redacted, not the sentence,
+ *     so "approved CO-001" still reads as what happened;
+ *   · the SIGNING EVIDENCE goes with change-orders:update, like the record above.
+ * `companyId` is dropped for everybody: it is the tenant's own id and no screen reads it.
+ */
+const ACTIVITY_FIELDS = ['id', 'userId', 'entityType', 'entityId', 'action', 'description', 'metadata', 'createdAt'] as const
+const ACTIVITY_META_FIELDS = ['actorName', 'actorRole', 'projectId', 'notes'] as const
+const MONEY_IN_PROSE = /\$\s?\d[\d,]*(?:\.\d{2})?/g
+// A function, not a replacement string: a literal $ in String.replace is a substitution
+// token, and the figure being redacted is a currency amount. (feedback: the String.replace $ trap)
+const redactMoney = (v: unknown) => (typeof v === 'string' ? v.replace(MONEY_IN_PROSE, () => '$—') : v)
+const activityFor = (row: Record<string, any>, opts: { money: boolean; signoff: boolean }) => {
+  const out: Record<string, any> = {}
+  for (const k of ACTIVITY_FIELDS) if (k in row) out[k] = row[k]
+  if (!opts.signoff && out.metadata && typeof out.metadata === 'object') {
+    const meta: Record<string, any> = {}
+    for (const k of ACTIVITY_META_FIELDS) if (k in out.metadata) meta[k] = out.metadata[k]
+    out.metadata = meta
+  }
+  if (!opts.money) {
+    out.description = redactMoney(out.description)
+    if (out.metadata && typeof out.metadata === 'object' && 'notes' in out.metadata) {
+      out.metadata = { ...out.metadata, notes: redactMoney(out.metadata.notes) }
+    }
+  }
+  return out
+}
+
+/**
  * The money columns the `project` table actually has — checked against the schema, not guessed.
  * Stripped together, so none of them can be forgotten separately.
  */
@@ -251,10 +323,13 @@ app.get('/:id', async (c) => {
     })
   }
 
+  // The money tier. The signing record needs its own answer — see changeOrderWithMoney. (T42)
+  const signoff = await maySignOffChangeOrders(c)
   return c.json({
     ...foundProject,
     contact: projectContact[0] || null,
-    jobs, rfis, changeOrders, punchListItems,
+    jobs, rfis, punchListItems,
+    changeOrders: signoff ? changeOrders : changeOrders.map(changeOrderWithMoney),
     financials: {
       budget: foundProject.budget === null ? null : Number(foundProject.budget),
       /** What the project was worth before anybody changed it — the value less what approval added. */
@@ -337,7 +412,11 @@ app.get('/:id/activity', async (c) => {
     .orderBy(desc(activity.createdAt))
     .limit(200)
 
-  return c.json(rows)
+  // See the note beside activityFor: the figure is in the prose and the signing evidence is in the
+  // metadata, and they answer to two different permissions. (T42)
+  const money = await maySeeMoney(c)
+  const signoff = await maySignOffChangeOrders(c)
+  return c.json(rows.map((r: any) => activityFor(r, { money, signoff })))
 })
 
 app.delete('/:id', requirePermission('projects:delete'), async (c) => {
