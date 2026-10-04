@@ -39,15 +39,17 @@ const tabs = [
 
 export default function RFIDPage() {
   /**
-   * WHAT THIS SEAT MAY ACTUALLY DO. (T41: "a viewer is shown write buttons")
+   * THIS PAGE CRASHED FOR EVERY ROLE. (T42: "/crm/rfid crashes for every role —
+   * ReferenceError: mayRegister is not defined. Regression in this build.")
    *
-   * The rank is the one this screen's own routes ask for with requireRole(), not a guess — see
-   * templates/crm-dispensary/backend/src/routes. isAtLeast walks the server's ladder
-   * ['viewer','driver','budtender','manager','admin','owner'] and answers NO to a rank it does not
-   * recognise, so a typo hides a control instead of offering it to everybody.
+   * My own T41 gating put `const mayRegister = …` HERE, in the page shell, and the
+   * `{mayRegister && …}` it guards inside TagsTab — a different component in the same file, where
+   * the name is simply not in scope. No template in this repo is typechecked, and esbuild does no
+   * scope analysis, so nothing caught it until the tab rendered and threw.
+   *
+   * The gate now lives in each component that owns the control, which is the only place it can be
+   * correct. See the note in TagsTab.
    */
-  const { isAtLeast } = useAuth();
-  const mayRegister = isAtLeast('manager');
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('tags');
 
@@ -115,6 +117,20 @@ function LocationSelect({ value, onChange, locations, emptyLabel = 'No location'
 
 /* ─── Tags Tab ─── */
 function TagsTab() {
+  /**
+   * The gate belongs in the component that owns the button — see the note on RFIDPage, where it was
+   * declared one component too high and threw a ReferenceError for every role. (T42)
+   *
+   * The rank is what this tab's OWN routes ask for, read off backend/src/routes/rfid.ts:
+   *
+   *   POST /rfid/tags        requireRole('manager')   Register Tag
+   *   POST /rfid/tags/bulk   requireRole('manager')   Bulk Register   ← was never gated at all
+   *
+   * Both write, both ask for manager, so both are gated. Reading the tag list stays open: the floor
+   * needs to look a tag up.
+   */
+  const { isAtLeast } = useAuth();
+  const mayRegister = isAtLeast('manager');
   const toast = useToast();
   const [tags, setTags] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -219,7 +235,7 @@ function TagsTab() {
         </select>
         <LocationSelect value={locationFilter} onChange={setLocationFilter} locations={locations} emptyLabel="All locations" className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200 dark:bg-slate-900" />
         <div className="flex gap-2 ml-auto">
-          <Button variant="secondary" onClick={() => setBulkModalOpen(true)}>Bulk Register</Button>
+          {mayRegister && <Button variant="secondary" onClick={() => setBulkModalOpen(true)}>Bulk Register</Button>}
           {mayRegister && <Button onClick={() => { setFormData({ epc: '', tid: '', productId: '', batchId: '', location: '' }); setModalOpen(true); }}>
             <Plus className="w-4 h-4 mr-2 inline" />Register Tag
           </Button>}
@@ -382,6 +398,9 @@ function ScanTab() {
 
 /* ─── Inventory Count Tab ─── */
 function InventoryCountTab() {
+  // Declared in THIS component, not in the page shell — see the note on RFIDPage. (T42)
+  const { isAtLeast } = useAuth();
+  const mayAccept = isAtLeast('manager');
   const toast = useToast();
   const [location, setLocation] = useState('');
   const locations = useRfidLocations();
@@ -506,10 +525,15 @@ function InventoryCountTab() {
             </div>
           )}
 
-          <Button onClick={handleAccept} className="w-full">
-            <CheckCircle className="w-4 h-4 mr-2 inline" />
-            Accept Count
-          </Button>
+          {/* Accepting a count ADJUSTS STOCK — POST /rfid/inventory-count/accept asks for manager.
+              Running the count does not: /rfid/scan/bulk is budtender, because counting is the
+              floor's job and only the adjustment is the manager's. (T42) */}
+          {mayAccept && (
+            <Button onClick={handleAccept} className="w-full">
+              <CheckCircle className="w-4 h-4 mr-2 inline" />
+              Accept Count
+            </Button>
+          )}
         </div>
       )}
     </div>

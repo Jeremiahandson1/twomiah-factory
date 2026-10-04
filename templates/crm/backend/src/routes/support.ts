@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { authenticate } from '../middleware/auth.ts';
-import { requirePermission } from '../middleware/permissions.ts';
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts';
 import { db } from '../../db/index.ts';
 import { supportTicket, supportTicketMessage, supportKnowledgeBase, supportSlaPolicy, contact, user } from '../../db/schema.ts';
 import { eq, and, desc, asc, like, or, sql, count, inArray } from 'drizzle-orm';
@@ -246,6 +246,30 @@ app.patch('/tickets/:id', async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json();
 
+  /**
+   * DESK WORK, NOT GETTING HELP. (T42: "a viewer can … edit support tickets through the API")
+   *
+   * This route had `authenticate` and nothing else, so any seat that could sign in — a read-only
+   * viewer included — could close, reprioritise or reassign anybody's ticket. Raising and replying
+   * stay open by design (see the note beside support:update in the permission matrix); changing a
+   * ticket's state is a different act.
+   *
+   * The raiser keeps control of their OWN ticket, which is the latitude the matrix already gives a
+   * person over their own timesheet line. Reassignment is triage and needs the permission either
+   * way, because handing work to somebody else is not a thing you do to your own ticket.
+   */
+  const mayTriage = hasPermission(u.role, 'support:update', await getExtraPermissions(u.userId));
+  const [existing] = await db.select({ createdById: supportTicket.createdById }).from(supportTicket)
+    .where(and(eq(supportTicket.id, id), eq(supportTicket.companyId, u.companyId))).limit(1);
+  if (!existing) return c.json({ error: 'Ticket not found' }, 404);
+  const isRaiser = !!existing.createdById && existing.createdById === u.userId;
+  if (!mayTriage && !isRaiser) {
+    return c.json({ error: 'You can change a support ticket you raised; changing anybody else\'s needs support:update.' }, 403);
+  }
+  if (body.assignedToId !== undefined && !mayTriage) {
+    return c.json({ error: 'Assigning a support ticket to somebody needs support:update.' }, 403);
+  }
+
   const updates: any = { updatedAt: new Date() };
   if (body.status) updates.status = body.status;
   if (body.priority) updates.priority = body.priority;
@@ -309,6 +333,13 @@ app.post('/tickets/:id/messages', async (c) => {
   const [ticket] = await db.select().from(supportTicket)
     .where(and(eq(supportTicket.id, ticketId), eq(supportTicket.companyId, u.companyId)));
   if (!ticket) return c.json({ error: 'Ticket not found' }, 404);
+
+  // Replying is open to every seat — that is how somebody gets help. An INTERNAL note is written
+  // ABOUT the requester rather than to them, and it is the one thing on this route that is desk
+  // work. (T42: "posting internal notes also succeed" for a viewer.)
+  if (body.isInternal && !hasPermission(u.role, 'support:update', await getExtraPermissions(u.userId))) {
+    return c.json({ error: 'An internal note is only visible to the desk, so writing one needs support:update. Post it as a normal reply instead.' }, 403);
+  }
 
   // Track first response for SLA
   const updates: any = { updatedAt: new Date() };

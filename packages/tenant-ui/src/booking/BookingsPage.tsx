@@ -34,6 +34,16 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
   // owner who grants one manager company:update sees the tabs appear for them. (T30 M-R1 / M-R2)
   const { can } = useAuth()
   const configures = can('company:update')
+  /**
+   * …and the diary itself is not read-only work either. (T42)
+   *
+   * Confirming, completing, marking a no-show and cancelling all write — they mirror onto the job or
+   * appointment the booking created. The server now asks `jobs:update` for those (see the note on
+   * worksBookings in packages/tenant-backend/src/booking/routes.ts, which had NO permission at all
+   * and let a viewer run the diary). The same question here, so a read-only seat is not handed four
+   * row actions that each end in a 403.
+   */
+  const worksDiary = can('jobs:update')
   const [rows, setRows] = useState<BookingRow[]>([])
   const [pagination, setPagination] = useState<Pagination | null>(null)
   const [page, setPage] = useState(1)
@@ -142,10 +152,10 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
             </div>
           ) : (
             <DataTable<BookingRow> data={rows} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} emptyMessage="No bookings match this filter." actions={[
-              { label: 'Confirm', icon: CheckCircle2, onClick: r => setStatus(r, 'confirmed', 'Booking confirmed'), show: r => r.status === 'pending' },
-              { label: 'Mark completed', icon: Check, onClick: r => setStatus(r, 'completed', 'Marked completed'), show: r => r.status === 'confirmed' },
-              { label: 'No-show', icon: UserX, onClick: r => setStatus(r, 'no_show', 'Marked as a no-show'), show: r => r.status === 'confirmed' || r.status === 'pending' },
-              { label: 'Cancel booking', icon: XCircle, className: 'text-red-600 dark:text-red-300', onClick: r => setCancelRow(r), show: r => r.status === 'pending' || r.status === 'confirmed' },
+              { label: 'Confirm', icon: CheckCircle2, onClick: r => setStatus(r, 'confirmed', 'Booking confirmed'), show: r => worksDiary && r.status === 'pending' },
+              { label: 'Mark completed', icon: Check, onClick: r => setStatus(r, 'completed', 'Marked completed'), show: r => worksDiary && r.status === 'confirmed' },
+              { label: 'No-show', icon: UserX, onClick: r => setStatus(r, 'no_show', 'Marked as a no-show'), show: r => worksDiary && r.status === 'confirmed' || r.status === 'pending' },
+              { label: 'Cancel booking', icon: XCircle, className: 'text-red-600 dark:text-red-300', onClick: r => setCancelRow(r), show: r => worksDiary && r.status === 'pending' || r.status === 'confirmed' },
             ]} />
           )}
         </>

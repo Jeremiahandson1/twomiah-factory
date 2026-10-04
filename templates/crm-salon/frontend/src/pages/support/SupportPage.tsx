@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '../../utils/date';
 import { useAuth } from '../../contexts/AuthContext';
+import { useMayWrite } from '../../shared';
 import api from '../../services/api';
 import { LifeBuoy, Plus, Search, MessageSquare, Star, Send, ArrowLeft, Clock, AlertTriangle, X, Bot, ChevronRight } from 'lucide-react';
 
@@ -23,6 +24,7 @@ type Ticket = {
   rating: number | null;
   ratingComment: string | null;
   tags: string[];
+  createdById: string | null;
   createdAt: string;
 };
 
@@ -54,6 +56,14 @@ const statusColors: Record<string, string> = {
 
 export default function SupportPage() {
   const { user } = useAuth();
+  /**
+   * Resolve and Close WRITE — they PATCH the ticket, which the server now gates behind
+   * support:update or being the person who raised it. (T42: a viewer could edit any ticket.)
+   *
+   * Both halves of that rule are mirrored here so nobody is handed a button that 403s, and so the
+   * person who DID raise the ticket keeps the two actions they are allowed: closing their own.
+   */
+  const mayTriage = useMayWrite('support:update');
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [stats, setStats] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -235,10 +245,10 @@ export default function SupportPage() {
             <h2 className="text-lg font-bold text-gray-900 dark:text-white mt-1">{selected.subject}</h2>
           </div>
           <div className="flex gap-2">
-            {selected.status !== 'resolved' && (
+            {(mayTriage || selected.createdById === user?.id) && selected.status !== 'resolved' && (
               <button onClick={() => updateStatus(selected.id, 'resolved')} className="px-3 py-1 bg-green-700 hover:bg-green-800 text-white rounded text-xs">Resolve</button>
             )}
-            {selected.status !== 'closed' && (
+            {(mayTriage || selected.createdById === user?.id) && selected.status !== 'closed' && (
               <button onClick={() => updateStatus(selected.id, 'closed')} className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs">Close</button>
             )}
           </div>

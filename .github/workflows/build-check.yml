@@ -1883,6 +1883,17 @@ jobs:
       - name: "Check every $ figure prints two decimals"
         run: bun run scripts/check-money-shows-cents.ts
 
+  gate-in-scope:
+    name: "Permission flags are used where they are declared"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "A gate declared in one component and used in another throws for every role"
+        run: bun run scripts/check-gate-in-scope.ts
+
   settings-blob-columns:
     name: "Settings blob carries no column-backed value"
     runs-on: ubuntu-latest

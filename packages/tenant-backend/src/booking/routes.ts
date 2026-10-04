@@ -60,6 +60,25 @@ export function createBookingRoutes(deps: BookingDeps) {
   // manager" was standing in for "may configure the company". An owner who wants a particular manager
   // setting the hours grants them company:update in Settings › Users. (Field Service T30 M-R2)
   const configuresBooking = requirePermission('company:update')
+  /**
+   * A READ-ONLY SEAT COULD CONFIRM, COMPLETE, NO-SHOW AND CANCEL BOOKINGS. (T42)
+   *
+   *   "a viewer can change booking status … through the API"  — Showcase, HIGH
+   *   "PATCH /api/booking/:id changed a booking's status (200)"
+   *
+   * The note above says the rest of this router is "day-to-day work on the bookings themselves and
+   * keeps its old access" — which was right about not demanding company:update, and wrong about
+   * demanding nothing: `authenticate` alone let a viewer run the diary. Changing a booking's status
+   * mirrors onto the job or appointment it created, and cancelling one deletes that work.
+   *
+   * `jobs:update` rather than a new `bookings:*` key, because that is the right the write actually
+   * exercises: this is the same act as changing the job. It also lands correctly on every seat
+   * without inventing vocabulary — a technician and a stylist hold jobs:update (the matrix gives
+   * `field` exactly that), a manager holds jobs:*, and a viewer holds jobs:read only. The two
+   * templates whose bookings become appointments rather than jobs (salon, vet) come out the same,
+   * since the matrix has no appointments resource and `field` is the seat that works the diary.
+   */
+  const worksBookings = requirePermission('jobs:update')
   const svc = createBookingService(deps)
   const app = new Hono()
 
@@ -230,11 +249,11 @@ export function createBookingRoutes(deps: BookingDeps) {
     if (!ok) return c.json({ error: 'Booking not found' }, 404)
     return c.json(await svc.getBooking(companyId(c), c.req.param('id')))
   }
-  app.patch('/:id', changeStatus)
-  app.put('/:id', changeStatus)
+  app.patch('/:id', worksBookings, changeStatus)
+  app.put('/:id', worksBookings, changeStatus)
 
   // Cancel a booking (and its job/appointment) so the slot opens up again.
-  app.delete('/:id', async (c) => {
+  app.delete('/:id', worksBookings, async (c) => {
     const ok = await svc.cancelBooking(companyId(c), c.req.param('id'))
     if (!ok) return c.json({ error: 'Booking not found' }, 404)
     return c.json({ success: true })

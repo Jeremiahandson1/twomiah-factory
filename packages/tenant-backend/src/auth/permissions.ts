@@ -84,6 +84,23 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // response and resolve deadline on every ticket. Deliberately not manager: the matrix draws
     // the same admin line for ai-receptionist and integrations.
     'support-kb:*', 'support-sla:*',
+    /**
+     * …and the THIRD thing, which the two above were read as covering and do not. (T42)
+     *
+     * The note above draws the line between desk CONFIGURATION (gated) and getting help (open).
+     * There is a third category it never named — desk WORK: changing a ticket's status, priority or
+     * category, reassigning it, and writing an INTERNAL note that the person who raised it cannot
+     * see. PATCH /support/tickets/:id carried `authenticate` and nothing else, so a read-only viewer
+     * could close, reprioritise or reassign anybody's ticket in all nine templates that mount it:
+     *
+     *   "a viewer can change booking status and edit support tickets through the API" — T42, Showcase
+     *
+     * Raising, replying and rating stay open exactly as documented above; a raiser can also still
+     * close their OWN ticket (the route allows createdById), which is the same latitude the matrix
+     * already gives a person over their own timesheet line and their own expense claim. Reassigning
+     * is triage and needs this permission, creator or not.
+     */
+    'support:update',
     // Accounts payable (crm only). Purchase orders are a document lifecycle a construction manager
     // runs; vendor bills carry two money operations, so paying and voiding get their own verb —
     // `bills:pay` — and stay with payments:* rather than with the document work.
@@ -132,6 +149,10 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // operational modules (writes gated in their routes; reads are open) + read-only reports
     'equipment:*', 'fleet:*', 'warranties:*', 'inventory:*', 'agreements:*',
     'selections:*', 'takeoffs:*', 'calltracking:*', 'reports:read',
+    // Desk WORK on a support ticket — triage, not configuration. See the note beside support-kb on
+    // the admin row for why this is a third category and not covered by either of the other two.
+    // A manager runs the desk; publishing the knowledge base and setting the SLA stay admin. (T42)
+    'support:update',
     // A manager sees the commission ledger and the location list but does not approve payouts or
     // reconfigure branches — the same line payments/settings already draw for this role.
     'commissions:read', 'locations:read',
