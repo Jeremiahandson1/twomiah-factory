@@ -2283,12 +2283,19 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
   const findEmpty = (s: Record<string, Section[]>) =>
     Object.entries(s).filter(([, sections]) => sections.length === 0).map(([name]) => name)
 
+  //
+  // The retry asks for framing (a hero and a closing cta), never for content:
+  // under the FACTS POLICY a page whose purpose is facts the intake lacks (a
+  // pricing page with no prices) is legitimately bare, and "at least 2
+  // sections" would push the model to invent them. A page still empty after
+  // the retry is HELD by enforceIntakeFacts below, not fatal — only an empty
+  // home page fails the compose.
   const emptyPages = findEmpty(sanitized)
   if (emptyPages.length > 0) {
     if (process.env.COMPOSER_DEBUG) console.log('[Composer] Retrying — empty pages:', emptyPages.join(', '))
     const res3 = await callOnce(
-      `Your previous output had pages with no sections. Every page (${expectedPages.join(', ')}) MUST have at least 2 sections. ` +
-      'Empty sections arrays are not acceptable. Compose again, in full.'
+      `Your previous output had pages with no sections: ${emptyPages.join(', ')}. Every page (${expectedPages.join(', ')}) needs at least ` +
+      'a hero and a closing cta, plus whatever the intake supports. Do NOT invent facts to fill a page — the FACTS POLICY still applies. Compose again, in full.'
     )
     const text3 = res3.content[0]?.type === 'text' ? res3.content[0].text : ''
     const reparsed = tryParse(text3)
@@ -2298,9 +2305,8 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
       if (typeof reparsed.rationale === 'string') parsed.rationale = reparsed.rationale
     }
 
-    const stillEmpty = findEmpty(sanitized)
-    if (stillEmpty.length > 0) {
-      throw new Error('Site composer returned empty sections for: ' + stillEmpty.join(', ') + ' (even after retry)')
+    if (findEmpty(sanitized).includes('home')) {
+      throw new Error('Site composer returned an empty home page (even after retry)')
     }
   }
 

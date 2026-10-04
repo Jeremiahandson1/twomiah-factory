@@ -180,6 +180,12 @@ const invented = (): Record<string, Section[]> => ({
     'supplied facts are not reported as gaps')
 }
 
+// A page the model left empty (a pricing page with no prices) is held, not published blank.
+{
+  const r = run({ home: [sec('hero', 'full-bleed', { image: STOCK, title: 'Hi' })], pricing: [] }, higgs)
+  check(r.heldPages.includes('pricing'), 'an empty page must be held back')
+}
+
 // Numbers: what counts as a claim.
 {
   const eq = (a: string[], b: string[]) => JSON.stringify(a) === JSON.stringify(b)
@@ -259,7 +265,12 @@ const INVENT = [
   /Monday – Friday: 8am – 5pm/,
   /within one business day\."\n/,
   /generate plausible questions/i,
+  // The empty-page retry once demanded "at least 2 sections" — pressure to invent content for a
+  // page whose purpose is facts the intake lacks.
+  /MUST have at least 2 sections/,
 ]
+check(!/throw new Error\('Site composer returned empty sections for/.test(composer),
+  'composeSite must not fail the whole compose over an empty non-home page — enforceIntakeFacts holds it')
 for (const re of INVENT) check(!re.test(composer), `sectionComposer.ts still instructs the model to invent: ${re}`)
 
 const premium = readdirSync(ROOT + 'templates').filter(d => d.startsWith('website-premium-'))
