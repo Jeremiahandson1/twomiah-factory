@@ -3,14 +3,18 @@
   // type, and special dietary needs — fields a generic /contact form
   // wouldn't have. POSTs to /api/leads with source=catering so the CRM
   // can route it to the catering pipeline.
+  // Minimum headcount, lead time and the reply promise are the OWNER'S
+  // policies. With none supplied they are not shown and not enforced — a
+  // default here would print a minimum and a promise nobody made.
   const heading = data.heading || 'Book the truck'
   const intro = data.intro || ''
-  const minHeadcount = data.minHeadcount || 25
-  const leadTimeWeeks = data.leadTimeWeeks || 4
+  const minHeadcount = parseInt(data.minHeadcount, 10) > 0 ? parseInt(data.minHeadcount, 10) : null
+  const leadTimeWeeks = parseInt(data.leadTimeWeeks, 10) > 0 ? parseInt(data.leadTimeWeeks, 10) : null
   const venueTypes = Array.isArray(data.venueTypes) && data.venueTypes.length
     ? data.venueTypes
     : ['Wedding', 'Birthday', 'Corporate', 'Community', 'Other']
-  const responsePromise = data.responsePromise || 'We reply within one business day.'
+  const responsePromise = data.responsePromise || ''
+  const hasSidebar = !!minHeadcount || !!leadTimeWeeks || Array.isArray(data.includes)
 %>
 <section id="catering" class="catering catering--inquiry">
   <div class="container">
@@ -39,13 +43,13 @@
           </label>
           <label class="catering__field">
             <span class="catering__label">Event date</span>
-            <input type="date" name="eventDate" required min="<%= new Date(Date.now() + leadTimeWeeks * 7 * 24 * 60 * 60 * 1000).toISOString().slice(0,10) %>">
+            <input type="date" name="eventDate" required min="<%= new Date(Date.now() + (leadTimeWeeks || 0) * 7 * 24 * 60 * 60 * 1000).toISOString().slice(0,10) %>">
           </label>
         </div>
         <div class="catering__row">
           <label class="catering__field">
             <span class="catering__label">Headcount</span>
-            <input type="number" name="headcount" required min="<%= minHeadcount %>" placeholder="<%= minHeadcount %>+">
+            <input type="number" name="headcount" required min="<%= minHeadcount || 1 %>"<% if (minHeadcount) { %> placeholder="<%= minHeadcount %>+"<% } %>>
           </label>
           <label class="catering__field">
             <span class="catering__label">Event type</span>
@@ -65,18 +69,23 @@
         </label>
         <div class="catering__submit-row">
           <button type="submit" class="btn btn--xl btn--primary">Send inquiry</button>
-          <span class="catering__promise"><%= responsePromise %></span>
+          <% if (responsePromise) { %><span class="catering__promise"><%= responsePromise %></span><% } %>
         </div>
       </form>
+      <% if (hasSidebar) { %>
       <aside class="catering__sidebar">
+        <% if (minHeadcount) { %>
         <div class="catering__sidebar-row">
           <div class="catering__sidebar-num mono"><%= minHeadcount %>+</div>
           <div class="catering__sidebar-label">Minimum headcount</div>
         </div>
+        <% } %>
+        <% if (leadTimeWeeks) { %>
         <div class="catering__sidebar-row">
           <div class="catering__sidebar-num mono"><%= leadTimeWeeks %> wk</div>
           <div class="catering__sidebar-label">Earliest booking</div>
         </div>
+        <% } %>
         <% if (Array.isArray(data.includes)) { %>
           <div class="catering__sidebar-row catering__sidebar-row--list">
             <div class="catering__sidebar-label">Every booking includes</div>
@@ -86,6 +95,7 @@
           </div>
         <% } %>
       </aside>
+      <% } %>
     </div>
   </div>
 </section>

@@ -27,7 +27,14 @@ interface DetailIntake {
   state: string | null
   industry: string | null
   intake_data: any
-  preview_premium_pages: { pages: Record<string, { sections: any[] }>; rationale?: string } | null
+  preview_premium_pages: {
+    pages: Record<string, { sections: any[] }>
+    rationale?: string
+    // Set by the composer's facts check (apps/api/src/services/composerFacts.ts).
+    heldPages?: string[]
+    contentGaps?: Array<{ id: string; label: string; unlocks: string }>
+    removedClaims?: string[]
+  } | null
   preview_premium_generated_at: string | null
   preview_premium_approved_at: string | null
 }
@@ -335,6 +342,14 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
               <KV label="Goals" value={(intakeData.goals || []).join(' · ') || '—'} multiline />
               <KV label="Competitors" value={(intakeData.competitors || []).join(' · ') || '—'} multiline />
               <KV label="Nearby cities" value={(intakeData.nearbyCities || []).join(', ') || '—'} />
+              <KV label="Owner-supplied facts" value={[
+                intakeData.facts?.yearFounded ? 'Since ' + intakeData.facts.yearFounded : '',
+                (intakeData.facts?.credentials || []).join(', '),
+                intakeData.facts?.freeEstimates ? 'Free estimates' : '',
+                intakeData.facts?.hours ? 'Hours: ' + intakeData.facts.hours : '',
+                intakeData.facts?.pricing ? 'Pricing: ' + intakeData.facts.pricing : '',
+                (intakeData.facts?.testimonials || []).length ? intakeData.facts.testimonials.length + ' review(s)' : '',
+              ].filter(Boolean).join(' · ') || '—'} multiline />
             </div>
           </section>
 
@@ -342,6 +357,35 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
             <section className="mb-6">
               <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-2">Model rationale</h3>
               <p className="text-sm text-gray-300 italic">{intake.preview_premium_pages.rationale}</p>
+            </section>
+          )}
+
+          {(intake.preview_premium_pages?.heldPages?.length || 0) > 0 && (
+            <section className="mb-6">
+              <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-2">Held back (nothing real to show yet)</h3>
+              <p className="text-sm text-gray-300">{intake.preview_premium_pages!.heldPages!.join(', ')} — seeded unpublished and left out of the nav.</p>
+            </section>
+          )}
+
+          {(intake.preview_premium_pages?.contentGaps?.length || 0) > 0 && (
+            <section className="mb-6">
+              <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-2">Asked of the owner</h3>
+              <ul className="text-sm text-gray-300 space-y-1">
+                {intake.preview_premium_pages!.contentGaps!.map(g => (
+                  <li key={g.id}>{g.label} <span className="text-gray-500">→ {g.unlocks}</span></li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {(intake.preview_premium_pages?.removedClaims?.length || 0) > 0 && (
+            <section className="mb-6">
+              <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-2">
+                Removed — facts the owner didn't supply ({intake.preview_premium_pages!.removedClaims!.length})
+              </h3>
+              <ul className="text-xs text-gray-400 space-y-1 font-mono">
+                {intake.preview_premium_pages!.removedClaims!.map((r, i) => <li key={i}>{r}</li>)}
+              </ul>
             </section>
           )}
 

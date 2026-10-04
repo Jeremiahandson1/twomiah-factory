@@ -9,8 +9,11 @@
   const stats = Array.isArray(data.stats) ? data.stats : []
 %>
 <section class="story">
-  <div class="container story__grid">
-    <div class="story__portrait" style="background-image: url('<%= portrait %>')"></div>
+  <%/* No portrait = no portrait column. The composer only sets one from the
+       owner's own photos — a stock face beside the founder's story reads as
+       the founder — so an empty value is normal, not an error. */%>
+  <div class="container story__grid"<% if (!portrait) { %> style="grid-template-columns: 1fr; max-width: 820px"<% } %>>
+    <% if (portrait) { %><div class="story__portrait" style="background-image: url('<%= portrait %>')"></div><% } %>
     <div class="story__copy">
       <% if (eyebrow) { %><div class="story__eyebrow"><%= eyebrow %></div><% } %>
       <h1 class="story__title"><%= title %></h1>

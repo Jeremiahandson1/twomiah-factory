@@ -14,6 +14,7 @@ import fs from 'fs'
 import path from 'path'
 import ejs from 'ejs'
 import type { Section } from './sectionComposer'
+import type { ContentGap } from './composerFacts'
 
 const TEMPLATES_ROOT = path.resolve(__dirname, '../../../../templates')
 const DEFAULT_TEMPLATE = 'website-premium-contractor'
@@ -45,6 +46,12 @@ export interface PreviewSettings {
   nav?: Array<{ label: string; href: string }>
   primaryColor?: string
   accentColor?: string
+  /**
+   * What the composer left out for want of the owner's facts. When present the
+   * preview shows a "make it yours" panel listing them, so a short site reads
+   * as honest-and-unfinished rather than thin.
+   */
+  contentGaps?: ContentGap[]
 }
 
 // The template CSS ships literal {{PRIMARY_COLOR}}/{{ACCENT_COLOR}} tokens
@@ -166,8 +173,56 @@ export async function renderPremiumPage(
   // redirects to Stripe Checkout.
   inlined = injectApproveAndBuyWidget(inlined)
   inlined = injectFeedbackWidget(inlined)
+  if (settings.contentGaps && settings.contentGaps.length) {
+    inlined = injectContentGapsPanel(inlined, settings.contentGaps)
+  }
 
   return { html: inlined, bytes: inlined.length }
+}
+
+function escapeHtml(s: string): string {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+/**
+ * "Make it yours" — the preview states only what the owner told us, so it
+ * lists what they could add and what each addition unlocks. A pill bottom-
+ * left that opens a card; dark-on-white only, no inherited colours.
+ */
+function injectContentGapsPanel(html: string, gaps: ContentGap[]): string {
+  const items = gaps.map(g =>
+    '<li><strong>' + escapeHtml(g.label) + '</strong><span>' + escapeHtml(g.unlocks) + '</span></li>').join('')
+  const widget = `
+<style data-gaps-widget>
+  #__gaps_fab{position:fixed;bottom:20px;left:20px;z-index:2147483645;background:#fff;color:#1a2e22;border:1px solid #1a2e22;border-radius:999px;padding:14px 20px;font:600 14px/1 'Inter',system-ui,-apple-system,sans-serif;cursor:pointer;box-shadow:0 8px 30px rgba(0,0,0,.15)}
+  #__gaps_fab:hover{background:#f5f5f0}
+  @media (max-width: 720px){#__gaps_fab{bottom:140px}}
+  #__gaps_card{display:none;position:fixed;bottom:76px;left:20px;z-index:2147483646;background:#fff;color:#1a1a1a;border:1px solid #d1d5db;border-radius:14px;max-width:420px;width:calc(100vw - 40px);max-height:70vh;overflow:auto;padding:20px 22px;box-shadow:0 24px 80px rgba(0,0,0,.3);font:14px/1.5 'Inter',system-ui,-apple-system,sans-serif;box-sizing:border-box}
+  @media (max-width: 720px){#__gaps_card{bottom:196px}}
+  #__gaps_card.show{display:block}
+  #__gaps_card h2{margin:0 0 6px;font-size:17px;color:#1a1a1a}
+  #__gaps_card p{margin:0 0 12px;color:#4b5563}
+  #__gaps_card ul{margin:0;padding:0;list-style:none}
+  #__gaps_card li{padding:10px 0;border-top:1px solid #e5e7eb}
+  #__gaps_card li strong{display:block;color:#1a1a1a;font-weight:600}
+  #__gaps_card li span{display:block;color:#4b5563;font-size:13px}
+</style>
+<button id="__gaps_fab" type="button" aria-expanded="false" aria-controls="__gaps_card">Make it yours (${gaps.length})</button>
+<div id="__gaps_card" role="region" aria-label="What you can add">
+  <h2>Everything here is from what you told us</h2>
+  <p>We don't make up prices, reviews or photos of your work. Add any of these — email them to <a href="mailto:support@twomiah.com" style="color:#1e40af">support@twomiah.com</a>, or add them yourself in your site editor once you're live:</p>
+  <ul>${items}</ul>
+</div>
+<script data-gaps-widget>
+(function(){
+  var fab=document.getElementById('__gaps_fab'),card=document.getElementById('__gaps_card');
+  fab.addEventListener('click',function(){var open=card.classList.toggle('show');fab.setAttribute('aria-expanded',open?'true':'false')});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&card.classList.contains('show')){card.classList.remove('show');fab.setAttribute('aria-expanded','false')}});
+})();
+</script>`
+  const closeBodyMatch = html.match(/<\/body>/i)
+  if (!closeBodyMatch) return html + widget
+  return html.replace(closeBodyMatch[0], widget + '\n' + closeBodyMatch[0])
 }
 
 // Priority order for the "Get in touch" CTA in the header — whichever

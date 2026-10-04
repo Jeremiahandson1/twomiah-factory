@@ -789,6 +789,8 @@ const SETTINGS_FIELDS = [
   'primaryColor', 'secondaryColor', 'accentColor',
   'googleTagManagerId', 'googleAnalyticsId', 'googleAdsId', 'facebookPixelId', 'microsoftClarityId',
   'logoUrl', 'faviconUrl', 'nav',
+  // The "Finish your site" checklist — the admin marks items done.
+  'contentGaps',
 ] as const
 
 app.get('/settings', authMiddleware, async (c) => {

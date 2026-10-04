@@ -27,6 +27,7 @@ import { users, settings, pages } from '../db/schema'
 interface BootstrapPayload {
   settings: {
     photoCredits?: Array<{ photographer: string; photographerUrl?: string; sourceUrl?: string; source: string }>
+    contentGaps?: Array<{ id: string; label: string; unlocks: string }>
     companyName: string
     tagline?: string
     phone?: string
@@ -142,6 +143,7 @@ async function main() {
       logoUrl: payload.settings.logoUrl || null,
       nav: payload.settings.nav || [],
       photoCredits: payload.settings.photoCredits || [],
+      contentGaps: payload.settings.contentGaps || [],
     })
     console.log('[initDb] Created initial settings row.')
   } else {

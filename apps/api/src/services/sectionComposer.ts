@@ -13,6 +13,7 @@
  */
 import path from 'path'
 import { getHeroLibrary } from '../config/heroLibrary.ts'
+import { enforceIntakeFacts, type IntakeFacts, type ContentGap } from './composerFacts.ts'
 
 export interface ComposerInput {
   businessName: string
@@ -20,6 +21,14 @@ export interface ComposerInput {
   city?: string
   state?: string
   description?: string
+  /**
+   * The intake's free-form "Anything else?" box. On the short home-page form
+   * it is the ONLY place the owner describes the business, so it is copy
+   * material exactly like `description`.
+   */
+  notes?: string
+  /** Facts the owner supplied (years, credentials, hours, prices, reviews). The only facts a site may state. */
+  facts?: IntakeFacts
   services?: string[]
   goals?: string[]
   competitors?: string[]
@@ -119,16 +128,16 @@ export const SECTION_SCHEMA = {
   },
   about: {
     story: {
-      required: ['title', 'portrait', 'paragraphs'],
-      optional: ['eyebrow', 'signature', 'stats'],
-      use_when: 'lead an about page — portrait + 2-4 narrative paragraphs in the founder/principal voice',
+      required: ['title', 'paragraphs'],
+      optional: ['eyebrow', 'portrait', 'signature', 'stats'],
+      use_when: 'lead an about page — 2-4 narrative paragraphs in the founder/principal voice, built ONLY from what the intake says about them (no invented history, apprenticeships, family trades or milestones). portrait ONLY from a Tier 1 customer photo — a stock face beside the founder\'s story reads as the founder, so leave it empty when there is none. signature is the intake\'s owner name only.',
     },
   },
   team: {
     grid: {
       required: ['members'],
       optional: ['heading', 'intro'],
-      use_when: 'show the actual people doing the work — 3-8 members with portraits, names, roles, optional one-line bios',
+      use_when: 'show the actual people doing the work — ONLY people the intake names, with the role the intake gives them. Portrait only from a Tier 1 customer photo; otherwise leave portrait empty. Never invent a person, a name or a role.',
     },
   },
   contact: {
@@ -142,7 +151,7 @@ export const SECTION_SCHEMA = {
     grid: {
       required: ['photos'],
       optional: ['heading', 'intro'],
-      use_when: 'showcase 6-12 photos of recent work, projects, dishes, builds, or before/after — best for visual businesses with portfolio-quality shots',
+      use_when: 'showcase the owner\'s OWN photos of their work — Tier 1 customer photos only, never stock (a stock photo in a gallery of "our work" is a claim the business did that job). No captions: you cannot see the photos, so any caption is a guess about what, where and when. Omit this section when there are no Tier 1 photos.',
     },
   },
   testimonials: {
@@ -163,7 +172,7 @@ export const SECTION_SCHEMA = {
     accordion: {
       required: ['items'],
       optional: ['heading', 'intro'],
-      use_when: 'pre-empt the 5-8 most common buyer questions for this business — pricing, process, lead time, coverage area, what is included, what to expect, scheduling, payment, warranty/guarantee. Strong SEO win. PROACTIVELY GENERATE these questions from the business description even when the intake didn\'t explicitly ask for an FAQ — the questions and answers should be plausibly true given what the business said about itself.',
+      use_when: 'pre-empt the common buyer questions for this business. Strong SEO win, so add one even when the intake did not ask for it — but every ANSWER must be something the intake actually says, or general knowledge about the trade stated as general ("most kitchen remodels need a permit"), never a policy of this business it did not state (lead times, minimums, deposits, warranties, cancellation terms, who pulls permits, prices). A question the intake cannot answer is left out — "plausibly true" is not true.',
     },
   },
   // ─── Food truck-specific section types ─────────────────────────────────
@@ -175,7 +184,7 @@ export const SECTION_SCHEMA = {
     cards: {
       required: ['items'],
       optional: ['heading', 'intro', 'dietary_legend'],
-      use_when: 'food businesses with a real menu — food truck, restaurant, cafe, bakery. Each item has name, price, description, dietary tags (GF/V/DF/contains nut), optional image. Filter chips above the grid. Better than services/cards-grid for food because it surfaces price and dietary at-a-glance.',
+      use_when: 'food businesses with a real menu — food truck, restaurant, cafe, bakery. Each item has name, price, description, dietary tags (GF/V/DF/contains nut), optional image. Filter chips above the grid. Better than services/cards-grid for food because it surfaces price and dietary at-a-glance. ONLY dishes the intake names, at the prices it gives (no price if it gives none) — an invented dish is an item the kitchen does not make.',
     },
   },
   location: {
@@ -189,21 +198,21 @@ export const SECTION_SCHEMA = {
     'week-strip': {
       required: ['days'],
       optional: ['heading', 'intro'],
-      use_when: 'food truck or pop-up business — horizontal scroll of the next 7 days with location + hours per day. Tagged "Market" / "Private Event" / "Catering" / "Closed" per day. Beats a buried calendar — gives a one-glance answer to "where will you be this week".',
+      use_when: 'food truck or pop-up business — horizontal scroll of the next 7 days with location + hours per day. Tagged "Market" / "Private Event" / "Catering" / "Closed" per day. Beats a buried calendar — gives a one-glance answer to "where will you be this week". ONLY stops and times the intake gives; omit the section otherwise.',
     },
   },
   catering: {
     'inquiry-form': {
       required: ['heading'],
       optional: ['intro', 'minHeadcount', 'leadTimeWeeks', 'venueTypes', 'responsePromise'],
-      use_when: 'food businesses with catering revenue — food truck, restaurant, cafe doing private events. Different from a generic contact form: collects event date, headcount, venue type (wedding/birthday/corporate/community), and special dietary needs. Highest-margin lead type for food trucks.',
+      use_when: 'food businesses with catering revenue — food truck, restaurant, cafe doing private events. Different from a generic contact form: collects event date, headcount, venue type (wedding/birthday/corporate/community), and special dietary needs. Highest-margin lead type for food trucks. minHeadcount, leadTimeWeeks and responsePromise only when the intake states them — they are the owner\'s policies.',
     },
   },
   social: {
     feed: {
       required: ['handle'],
       optional: ['heading', 'intro', 'platform', 'limit'],
-      use_when: 'businesses where social IS the marketing — food trucks (Instagram is lifeblood), salons (stylist work), gyms (transformations). Embeds the 6-9 most recent posts in a responsive grid with hover-to-see-caption.',
+      use_when: 'businesses where social IS the marketing — food trucks (Instagram is lifeblood), salons (stylist work), gyms (transformations). Embeds the 6-9 most recent posts in a responsive grid with hover-to-see-caption. Only with a handle the intake gives.',
     },
   },
   // ─── Dispensary-specific section types ─────────────────────────────────
@@ -218,14 +227,14 @@ export const SECTION_SCHEMA = {
     grid: {
       required: ['items'],
       optional: ['heading', 'intro', 'filters'],
-      use_when: 'cannabis dispensaries — filterable card grid of strains/products with THC%, CBD%, indica/sativa/hybrid type, terpene profile, effects (relaxed/focused/sleepy/euphoric), price per gram/eighth. Filter chips (NOT dropdowns) above the grid. Cards link to detail pages when present, otherwise just informational.',
+      use_when: 'cannabis dispensaries — filterable card grid of strains/products with THC%, CBD%, indica/sativa/hybrid type, terpene profile, effects (relaxed/focused/sleepy/euphoric), price per gram/eighth. Filter chips (NOT dropdowns) above the grid. Cards link to detail pages when present, otherwise just informational. ONLY products the intake lists, with the potency and price it gives — never sample strains or plausible numbers; a regulated product with an invented THC% is a compliance problem, not copy. Omit the section when the intake lists none.',
     },
   },
   deals: {
     strip: {
       required: ['items'],
       optional: ['heading', 'intro', 'expiresLabel'],
-      use_when: 'dispensaries / cafes / any business with daily/weekly specials. Horizontal scroll strip of current deals (e.g. "Wax Wednesday: 30% off concentrates", "Senior Sundays: 10% off everything"). Each card has the deal name, brief description, valid-through date.',
+      use_when: 'dispensaries / cafes / any business with daily/weekly specials. Horizontal scroll strip of current deals (e.g. "Wax Wednesday: 30% off concentrates", "Senior Sundays: 10% off everything"). Each card has the deal name, brief description, valid-through date. ONLY specials the intake describes; omit otherwise.',
     },
   },
   // ─── Roofing-specific section types (some reusable across other trades) ──
@@ -233,28 +242,28 @@ export const SECTION_SCHEMA = {
     'instant-address': {
       required: ['heading'],
       optional: ['intro', 'pricePerSqFt', 'minSqFt', 'maxSqFt', 'mapCenter', 'mapZoom', 'callToAction', 'showFinancing'],
-      use_when: 'roofers + landscapers + any home-services business that can give a ballpark estimate from address + size. Mapbox satellite map with address-search, customer enters approximate sq ft, JS calculates a range from pricePerSqFt config. Single biggest conversion lever in roofing — crushes "fill out a form and we\'ll call you".',
+      use_when: 'roofers + landscapers + any home-services business that can give a ballpark estimate from address + size. Mapbox satellite map with address-search, customer enters approximate sq ft, JS calculates a range from pricePerSqFt config. Single biggest conversion lever in roofing — crushes "fill out a form and we\'ll call you". ONLY when the intake gives the business\'s own price per square foot: the widget prints a price range to homeowners, so an industry-average figure is a quote the business never gave. Omit otherwise.',
     },
   },
   banner: {
     'storm-alert': {
       required: ['heading'],
       optional: ['subtitle', 'cta', 'startDate', 'endDate', 'dismissable'],
-      use_when: 'roofers, restoration contractors. Server-rendered geo+date awareness with a dismissable promo bar — "Storm passed through Eau Claire 2026-05-12. Free inspection if you suspect damage." Only renders when current date is between startDate/endDate. Strong post-event conversion.',
+      use_when: 'roofers, restoration contractors. Server-rendered geo+date awareness with a dismissable promo bar — "Storm passed through Eau Claire 2026-05-12. Free inspection if you suspect damage." Only renders when current date is between startDate/endDate. Strong post-event conversion. ONLY for a storm and date the intake names.',
     },
   },
   before_after: {
     slider: {
       required: ['items'],
       optional: ['heading', 'intro', 'filters'],
-      use_when: 'roofing, contractor, landscaping, salon, painting — any vertical where the visual transformation is the proof. Side-by-side image slider with drag-to-reveal handle. Filterable by material, city, year. Each item: { beforeImage, afterImage, caption, location, year, material }.',
+      use_when: 'roofing, contractor, landscaping, salon, painting — any vertical where the visual transformation is the proof. Side-by-side image slider with drag-to-reveal handle. Each item: { beforeImage, afterImage }. ONLY the owner\'s own before and after photos (Tier 1) — a stock "before/after" is a transformation the business did not do. No caption, location, year or material: you cannot see the photos. Omit the section when there are none.',
     },
   },
   financing: {
     calculator: {
       required: ['heading'],
       optional: ['intro', 'fromMonthly', 'maxTermMonths', 'apr', 'minLoanAmount', 'maxLoanAmount', 'ctaLabel'],
-      use_when: 'roofing / contractor / HVAC / landscaping — any vertical where the average ticket is $5k+. Shows "starting at $99/mo" with a slider that lets the customer adjust loan amount + term. Pure marketing widget — NOT a real lending API. Routes to a contact form with budget context pre-filled.',
+      use_when: 'roofing / contractor / HVAC / landscaping — any vertical where the average ticket is $5k+. Shows "starting at $99/mo" with a slider that lets the customer adjust loan amount + term. Pure marketing widget — NOT a real lending API. Routes to a contact form with budget context pre-filled. ONLY when the intake states the financing the business offers AND its terms (monthly from, APR); the widget prints those numbers, so omit it rather than guess them.',
     },
   },
   trust: {
@@ -282,7 +291,7 @@ export const SECTION_SCHEMA = {
     bar: {
       required: ['phone'],
       optional: ['heading', 'subtext', 'businessHours', 'afterHoursLabel', 'normalHoursLabel'],
-      use_when: 'HVAC, plumbing, electrical — anything where same-day emergency calls are the highest-margin work. Sticky mobile-bottom tap-to-call bar. Server-rendered after-hours state pulses red when current local time is outside businessHours, signaling "we will pick up at 2am even though no one else will." Single biggest mobile conversion lever in this vertical.',
+      use_when: 'HVAC, plumbing, electrical — anything where same-day emergency calls are the highest-margin work. Sticky mobile-bottom tap-to-call bar. Server-rendered after-hours state pulses red when current local time is outside businessHours, signaling "we will pick up at 2am even though no one else will." Single biggest mobile conversion lever in this vertical. ONLY when the intake says they take emergency / after-hours / 24/7 calls — the bar is a promise to answer.',
     },
   },
   service_area: {
@@ -296,7 +305,7 @@ export const SECTION_SCHEMA = {
     'flat-rate-menu': {
       required: ['items'],
       optional: ['heading', 'intro', 'disclaimer'],
-      use_when: 'HVAC / plumbing / electrical / handyman. Transparent flat-rate pricing for common jobs (drain clear $X, water-heater install starting $Y, panel upgrade $Z, ductless mini-split $W). Yelp showed price transparency lifts conversion ~25%. Each item: { service, priceLabel, includes[], note? }. Use realistic 2026 regional pricing — DO NOT fabricate numbers if intake does not provide them; instead pick from common-industry ranges and disclose "starting at" or "typical range".',
+      use_when: 'HVAC / plumbing / electrical / handyman. Transparent flat-rate pricing for common jobs (drain clear $X, water-heater install starting $Y, panel upgrade $Z, ductless mini-split $W). Yelp showed price transparency lifts conversion ~25%. Each item: { service, priceLabel, includes[], note? }. ONLY prices the intake gives. An industry-average price labelled "starting at" is still a price the business never quoted — when the intake gives none, omit this section and let the services section and the estimate CTA carry the page.',
     },
   },
   // ─── Home care section types ───────────────────────────────────────────
@@ -311,7 +320,7 @@ export const SECTION_SCHEMA = {
     grid: {
       required: ['items'],
       optional: ['heading', 'intro', 'filters'],
-      use_when: 'home-care agencies. Anonymized caregiver profile cards: { name (first-only OR alias), yearsExperience, certifications (CNA/HHA/RN), specialties (dementia/hospice/recovery/companion), languages, photo, blurb }. Filterable by specialty. Humanizes the brand massively — adult children hire a person, not an agency.',
+      use_when: 'home-care agencies. Caregiver profile cards: { name (first name), yearsExperience, certifications (CNA/HHA/RN), specialties (dementia/hospice/recovery/companion), languages, photo, blurb }. Filterable by specialty. Humanizes the brand massively — adult children hire a person, not an agency. ONLY caregivers the intake names, with the details it gives — never composite, alias or sample profiles: a family choosing care for a parent would be choosing someone who does not exist. Omit the section otherwise.',
     },
   },
   coverage: {
@@ -326,7 +335,7 @@ export const SECTION_SCHEMA = {
     seasonal: {
       required: ['items'],
       optional: ['heading', 'intro', 'currentSeason'],
-      use_when: 'landscaping, lawn care, snow removal, pool service, pest control — any vertical that sells recurring service packages OR seasonal contracts. Stack of package cards with the current-season-relevant one highlighted. Items: { title, tier (basic/standard/premium), pricePerMonth, includes[], seasonOnly?, badge? }. The renderer auto-detects current month and badges the seasonally relevant tier.',
+      use_when: 'landscaping, lawn care, snow removal, pool service, pest control — any vertical that sells recurring service packages OR seasonal contracts. Stack of package cards with the current-season-relevant one highlighted. Items: { title, tier (basic/standard/premium), pricePerMonth, includes[], seasonOnly?, badge? }. The renderer auto-detects current month and badges the seasonally relevant tier. pricePerMonth ONLY from the intake — leave it out when none is given (the card renders without a price).',
     },
   },
 } as const
@@ -356,6 +365,63 @@ function sanitizeSections(raw: any): Section[] {
   }
   return out
 }
+
+/**
+ * What the owner told us, as the model sees it. The ONLY source of facts —
+ * see FACTS_POLICY. enforceIntakeFacts checks the output against the same
+ * fields, so anything stated here may appear on the site and nothing else may.
+ */
+function ownerFactsBlock(input: ComposerInput): string {
+  const f = input.facts || {}
+  const lines: string[] = []
+  if (input.notes) lines.push('In their own words (free-form notes): "' + input.notes + '"')
+  if (f.yearFounded) lines.push('Year founded: ' + f.yearFounded)
+  if (f.credentials && f.credentials.length) lines.push('Licenses, insurance, certifications: ' + f.credentials.join('; '))
+  if (f.freeEstimates) lines.push('Estimates: free')
+  if (f.hours) lines.push('Hours: ' + f.hours)
+  if (f.pricing) lines.push('Pricing, in their words: ' + f.pricing)
+  if (f.testimonials && f.testimonials.length) {
+    lines.push('Customer reviews (quote these word for word, with this attribution):')
+    for (const t of f.testimonials) lines.push('  - "' + t.quote + '"' + (t.author ? ' — ' + t.author : ''))
+  }
+  return lines.length ? lines.join('\n') : '(none supplied)'
+}
+
+/**
+ * The facts rule, shared by both prompts. Recipes and industry notes below
+ * describe the IDEAL site; this overrides them wherever they ask for
+ * something the intake does not contain.
+ */
+const FACTS_POLICY = `# FACTS POLICY — overrides every recipe, example and industry note below
+You write the copy; the OWNER supplies the facts. A fact is anything a customer
+could hold the business to: a number, price, price range, year, count, rating,
+percentage, timeframe or response time; a person's name or role; a license,
+certification, award, partner or insurance claim; a customer quote; a product,
+dish, strain or deal; a policy (minimums, deposits, warranties, cancellation,
+who pulls permits, what is included); business hours; an address or schedule.
+
+- State a fact ONLY if it appears above in the intake — "About the business",
+  "Services", "Owner", or "What the owner supplied".
+- Never fill a gap with an industry average, a typical range, a plausible
+  example, a sample, a composite or an alias. "Starting at" or "typical" does
+  not make an invented figure true.
+- When a recipe asks for a section whose facts the intake does not have
+  (stats, testimonials, team, pricing, packages prices, menu, strains, deals,
+  schedule, financing, instant quote, before/after, a portfolio gallery), OMIT
+  that section. The recipes are a maximum, not a quota. A shorter true site
+  beats a fuller invented one.
+- Photos: you cannot see them. Stock photos may set a mood (hero, service
+  cards, CTA) but never stand for the business's own work, staff or owner — no
+  stock in a gallery or before/after, no stock portrait beside the owner's
+  story, no captions saying what, where or when a photo shows.
+- The examples in this prompt contain specific facts (seat counts, years,
+  crew sizes). They show VOICE. Their facts belong to those example businesses.
+- Specific and confident is still the goal — get it from what the owner said
+  (their city, their services, their own words), not from numbers you supply.
+
+These rules are checked after you answer: an unsupported number, name, quote,
+credential or photo caption is removed automatically, and a section left empty
+is dropped — so inventing one only wastes the space.`
 
 function buildPrompt(input: ComposerInput): string {
   const schemaSummary = Object.entries(SECTION_SCHEMA).map(([type, variants]) =>
@@ -389,6 +455,14 @@ ${(input.goals || []).map(g => '- ' + g).join('\n') || '(none specified — assu
 Sites they pointed at as inspiration
 ${(input.competitors || []).map(c => '- ' + c).join('\n') || '(none)'}
 
+Owner / principal
+${input.ownerName || '(not specified)'}
+
+What the owner supplied
+${ownerFactsBlock(input)}
+
+${FACTS_POLICY}
+
 # Your job
 Propose a homepage as an ordered list of sections. Each section has a type, a variant, and a data object. Output JSON only — no prose, no markdown, no explanation.
 
@@ -410,7 +484,7 @@ ${Object.entries(SECTION_SCHEMA).map(([type, variants]) =>
 4. End with exactly ONE cta section.
 5. Choose variants that fit the business — read the "use_when" guidance.
 6. For services, write copy that actually reflects what's described in the intake — NOT generic boilerplate.
-7. For hero stats, use realistic numbers based on the intake. If the intake doesn't support specific numbers, omit stats entirely — don't fabricate.
+7. Hero stats only from numbers the intake states. If it states none, omit stats entirely.
 8. For photos, use Unsplash URLs in the format https://images.unsplash.com/photo-<id>?w=1400&q=80. Choose photos that match the business type. If you don't know a specific photo id, use https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=1400&q=80 as a placeholder.
 9. CTA must include a primaryCta with a real action label ("Schedule a consultation", "Get a quote") — not "Click here".
 10. All copy must read like a human wrote it for this specific business, not a template.
@@ -439,8 +513,9 @@ WRITE LIKE A HUMAN:
 - Take a position. The dispensary headline "Curated Quality, Not Volume
   Pricing" is good because it picks a side. "Premium Cannabis Selection"
   is bad because anybody could say it.
-- The hero subtitle should be ONE concrete claim — a price, a count, a
-  specific service window, a thing only they do — not a list of buzzwords.
+- The hero subtitle should be ONE concrete thing from the intake — what they
+  do, where, for whom, a thing only they do — not a list of buzzwords. A
+  price, count or service window only if the intake states it.
 - It's better to be slightly weird and specific than smooth and generic.
 
 Examples — the SAME business done well vs poorly:
@@ -467,7 +542,8 @@ Homecare done WELL:
             market. Specialists in dementia and end-of-life support."
 
 If your headline could plausibly run on a competitor's site five miles
-away, rewrite it.
+away, rewrite it. (The examples' numbers and names show voice only — see the
+FACTS POLICY above.)
 
 # Output schema (strict)
 {
@@ -557,10 +633,20 @@ export async function composeHomepageSections(input: ComposerInput): Promise<Com
     throw new Error('Composer returned un-parseable output after retry')
   }
 
+  const enforced = enforceIntakeFacts({ home: sanitizeSections(parsed.sections) }, input, {
+    requiredOf: requiredFieldsOf,
+    allowedTypes: new Set(Object.keys(SECTION_SCHEMA)),
+  })
   return {
-    sections: sanitizeSections(parsed.sections),
+    sections: enforced.pages.home,
     rationale: typeof parsed.rationale === 'string' ? parsed.rationale : undefined,
   }
+}
+
+/** SECTION_SCHEMA's required keys for a type/variant ([] when unknown). */
+function requiredFieldsOf(type: string, variant: string): readonly string[] {
+  const variants = (SECTION_SCHEMA as Record<string, Record<string, { required: readonly string[] }>>)[type]
+  return variants?.[variant]?.required || []
 }
 
 // ─── Multi-page composer ─────────────────────────────────────────────────
@@ -573,6 +659,16 @@ export interface SiteResult {
   // are present.
   pages: Record<string, ComposerResult>
   rationale?: string
+  /**
+   * Pages left with nothing real on them once unsupplied facts were removed
+   * (a Projects page with no photos of the owner's work). Kept so the owner
+   * can fill them in the admin, but seeded unpublished and left out of the nav.
+   */
+  heldPages?: string[]
+  /** What the owner can add and what it unlocks — preview, email and site admin. */
+  contentGaps?: ContentGap[]
+  /** Everything enforceIntakeFacts removed, for the staff review queue. */
+  removedClaims?: string[]
 }
 
 /**
@@ -586,7 +682,7 @@ const PAGE_RECIPES = {
   home: {
     purpose: 'Front door. Build trust fast, show what they do, close with a CTA.',
     allowed_types: ['hero', 'services', 'gallery', 'testimonials', 'faq', 'cta'],
-    required_sequence: '1 hero, then 1 services, then ADD 1 faq (proactively — generate plausible questions from the description), optionally 1 gallery (if visual business with Tier 1 customer photos available) or 1 testimonials (ONLY if real quotes are in the intake — never fabricate), close with 1 cta',
+    required_sequence: '1 hero, then 1 services, then ADD 1 faq (proactively — questions the intake can actually answer), optionally 1 gallery (only with Tier 1 customer photos) or 1 testimonials (ONLY if real quotes are in the intake — never fabricate), close with 1 cta',
   },
   about: {
     purpose: 'Tell who they are. The voice page — read by qualified leads doing due diligence.',
@@ -641,33 +737,33 @@ const STORE_PAGE_RECIPES = {
 // masonry, tile, flooring, framing, drywall, cabinet). Portfolio is the
 // conversion engine — "look at this kitchen we did" beats any copy. Trust
 // signals (license, insured, BBB, years) matter more than for showcase
-// businesses. Pricing is project-by-project so no flat-rate menu —
-// instead, give realistic ranges in the about/voice + faq.
+// businesses. Pricing is project-by-project so no flat-rate menu — and no
+// invented ranges either: prices appear only when the owner gives them.
 const CONTRACTOR_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a contractor. Hero takes a position about their specialty. Portfolio preview → services → about. SEO targets: "[city] kitchen remodel", "[city] general contractor", "[city] deck builder".',
     allowed_types: ['hero', 'services', 'reservation', 'gallery', 'stats', 'testimonials', 'about', 'cta'],
-    required_sequence: '1 hero/full-bleed (a finished project at golden hour, an in-progress build, or owner-on-jobsite — NOT generic stock tools), 1 services/cards-grid (3-6 specialties), 1 reservation/cta with heading "Ready to talk about your project?" and buttonLabel "Schedule a free estimate" (Twomiah Bookings — this is the primary conversion for contractors; homeowners want to book a walkthrough, not call), 1 gallery/grid (8-12 finished-project shots from real jobs — portfolio is the conversion driver), optional 1 stats/bar (years, jobs completed, licenses held — real anchored numbers), optional 1 testimonials block (real homeowner quotes only), optional 1 about/story snippet, close with 1 cta',
+    required_sequence: '1 hero/full-bleed (a Tier 1 photo of their work if there is one; otherwise a stock photo of the KIND of work they do — never presented as their project, NOT generic stock tools), 1 services/cards-grid (3-6 specialties from the intake), 1 reservation/cta with heading "Ready to talk about your project?" and buttonLabel "Schedule a free estimate" if the intake says estimates are free, otherwise "Schedule an estimate" (Twomiah Bookings — this is the primary conversion for contractors; homeowners want to book a walkthrough, not call), 1 gallery/grid ONLY when there are Tier 1 photos of their work (portfolio is the conversion driver — but a stock portfolio is a lie), optional 1 stats/bar (only numbers the intake states), optional 1 testimonials block (real homeowner quotes only), optional 1 about/story snippet, close with 1 cta',
   },
   services: {
     purpose: 'The full services menu — what they build, install, remodel. Each service with description + scope.',
     allowed_types: ['hero', 'services', 'gallery', 'faq', 'cta'],
-    required_sequence: '1 hero/centered-stats (eyebrow="Services"), 1 services/alternating (each specialty: description, typical scope, what\'s included, photo from a finished project), optional 1 gallery, 1 faq (free estimates, lead time, permits, financing), close with 1 cta',
+    required_sequence: '1 hero/centered-stats (eyebrow="Services"), 1 services/alternating (each specialty the intake lists: what it covers and how the work goes, photo of that kind of work), optional 1 gallery (Tier 1 only), 1 faq (only questions the intake answers — e.g. whether estimates are free, what areas they cover; no lead times, permit policies, minimums or financing it did not state), close with 1 cta',
   },
   projects: {
     purpose: 'Portfolio of finished work — kitchens, baths, decks, additions, full builds. The "can they actually do this" page.',
     allowed_types: ['hero', 'gallery', 'services', 'testimonials', 'cta'],
-    required_sequence: '1 hero/centered-stats (eyebrow="Projects"), 1 gallery/grid (20-40 photos organized by project type — each project caption gives location-only, scope, materials), optional 1 services/alternating retitled as "Recent builds" if intake has detailed project descriptions, optional 1 testimonials, close with 1 cta',
+    required_sequence: '1 hero/centered-stats (eyebrow="Projects"), 1 gallery/grid of the owner\'s Tier 1 photos ONLY, with no captions (you cannot see them), optional 1 services/alternating retitled as "Recent builds" ONLY if the intake describes specific projects, optional 1 testimonials, close with 1 cta. With no Tier 1 photos this page holds only the hero and cta — that is expected: it is kept unpublished until the owner adds photos.',
   },
   about: {
     purpose: 'Owner + crew + credentials + history. Where homeowners decide whether to hand you the keys to their house.',
     allowed_types: ['about', 'team', 'stats', 'testimonials', 'cta'],
-    required_sequence: '1 about/story (owner portrait + WHY this contracting business — apprenticeship, family trade, specialty), optional 1 stats/bar (years, jobs completed, licenses, insurance carried — concrete anchored numbers), optional 1 team/grid (lead carpenter, project manager, key subs), optional 1 testimonials, close with 1 cta',
+    required_sequence: '1 about/story (the owner\'s WHY, from what the intake says about them — no invented apprenticeships, family trades or milestones; portrait only from Tier 1), optional 1 stats/bar (only numbers and credentials the intake states), optional 1 team/grid (only people the intake names), optional 1 testimonials, close with 1 cta',
   },
   contact: {
     purpose: 'Conversion page for estimate requests + general contact.',
     allowed_types: ['hero', 'contact', 'reservation', 'faq', 'cta'],
-    required_sequence: 'optional 1 hero (short, set expectation: "free estimates, typically [X] day response"), 1 contact/form-info, 1 reservation/cta with heading "Or grab a time on the calendar" and buttonLabel "Schedule a free estimate" (Twomiah Bookings — for homeowners who would rather book directly than wait for a callback), 1 faq (estimate process, lead time, financing, permits, project minimum), close with 1 cta',
+    required_sequence: 'optional 1 hero (short, copy-only — "free estimates" only if the intake says so; no response time it did not state), 1 contact/form-info, 1 reservation/cta with heading "Or grab a time on the calendar" and buttonLabel "Schedule an estimate" (Twomiah Bookings — for homeowners who would rather book directly than wait for a callback), optional 1 faq (only questions the intake answers), close with 1 cta',
   },
 } as const
 
@@ -746,7 +842,7 @@ const SALON_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a salon/spa/barbershop. Bookings widget above-fold + services + stylist profiles + gallery. SEO targets: "[city] hair salon", "[city] barber", "best [service] [city]".',
     allowed_types: ['hero', 'reservation', 'services', 'team', 'gallery', 'about', 'testimonials', 'cta'],
-    required_sequence: '1 hero/full-bleed (real-client-portrait, the chair at golden hour, a signature color/cut — NOT generic stock model), 1 reservation/widget above-the-fold (Twomiah Bookings — this is the conversion engine), 1 services/cards-grid (signature services with prices), optional 1 team/grid (stylists with specialties + booking links per-stylist), optional 1 gallery/grid of actual work (NOT stock), optional 1 about/story snippet, optional 1 testimonials, close with 1 cta',
+    required_sequence: '1 hero/full-bleed (real-client-portrait, the chair at golden hour, a signature color/cut — NOT generic stock model), 1 reservation/widget above-the-fold (Twomiah Bookings — this is the conversion engine), 1 services/cards-grid (signature services; prices only from the intake), optional 1 team/grid (only stylists the intake names, with specialties + booking links per-stylist), optional 1 gallery/grid of actual work (NOT stock), optional 1 about/story snippet, optional 1 testimonials, close with 1 cta',
   },
   services: {
     purpose: 'Full services menu with transparent pricing. SEO targets: "[city] balayage cost", "men\'s cut [city]".',
@@ -824,7 +920,7 @@ const HOTEL_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a hotel/B&B/inn. Reservation widget + rooms preview + amenities + location. SEO: "[city] hotel", "boutique hotel [city]", "B&B [city]".',
     allowed_types: ['hero', 'reservation', 'services', 'gallery', 'about', 'testimonials', 'cta'],
-    required_sequence: '1 hero/full-bleed (the actual property exterior or the most photogenic real room — NOT generic luxury-hotel stock), 1 reservation/widget above-fold (Twomiah Bookings or booking engine — primary conversion), 1 services/cards-grid showing 3-5 room types with starting rates, optional 1 about/story snippet (innkeeper-driven), optional 1 gallery of real rooms + common areas, optional 1 testimonials (real guest quotes), close with 1 cta',
+    required_sequence: '1 hero/full-bleed (the actual property exterior or the most photogenic real room — NOT generic luxury-hotel stock), 1 reservation/widget above-fold (Twomiah Bookings or booking engine — primary conversion), 1 services/cards-grid showing 3-5 room types (rates only if the intake gives them), optional 1 about/story snippet (innkeeper-driven), optional 1 gallery of real rooms + common areas, optional 1 testimonials (real guest quotes), close with 1 cta',
   },
   rooms: {
     purpose: 'Full rooms catalog. Each room with photography + amenities + occupancy + starting rate. SEO: "[hotel name] rooms", "[room type] [city]".',
@@ -860,7 +956,7 @@ const EVENTS_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for an events venue. Venue photography + packages + capacity + inquiry form. SEO: "[city] wedding venue", "[city] event space", "rustic barn wedding [city]".',
     allowed_types: ['hero', 'gallery', 'services', 'catering', 'testimonials', 'about', 'cta'],
-    required_sequence: '1 hero/full-bleed (the actual venue in event mode — set up for a real wedding/event, NOT empty room or stock), 1 gallery/grid of the space across configurations, 1 services/cards-grid (3-5 package tiers with starting prices + included amenities + capacity), 1 catering/inquiry-form (event date + headcount + event type + budget range), optional 1 testimonials (real couples + planners), optional 1 about/story snippet, close with 1 cta',
+    required_sequence: '1 hero/full-bleed (the actual venue in event mode — set up for a real wedding/event, NOT empty room or stock), 1 gallery/grid of the space across configurations, 1 services/cards-grid (3-5 package tiers — starting prices, amenities and capacity only as the intake states them), 1 catering/inquiry-form (event date + headcount + event type + budget range), optional 1 testimonials (real couples + planners), optional 1 about/story snippet, close with 1 cta',
   },
   venue: {
     purpose: 'Full venue details — every space, capacity, layouts. SEO: "[venue name] capacity", "[venue type] [city]".',
@@ -1035,7 +1131,7 @@ const LANDSCAPING_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a landscaping / lawn-care business. Lead with the seasonally-relevant package, then property quote, then proof.',
     allowed_types: ['hero', 'packages', 'quote', 'reservation', 'services', 'before_after', 'testimonials', 'cta'],
-    required_sequence: '1 hero/full-bleed (the work itself in golden-hour photography, NOT a generic "trusted landscapers" stock), 1 packages/seasonal (current-season-tier highlighted), 1 quote/instant-address (property-size based estimate, pricePerSqFt 0.04-0.10 for mow contracts), 1 reservation/cta with heading "Prefer to talk it through?" and buttonLabel "Schedule an estimate visit" (Twomiah Bookings deep-link — gives customers who don\'t want an instant quote a path to a real conversation), optional 1 services/cards-grid for one-off jobs, 1 before_after/slider (3-4 transformations), close with 1 cta/split',
+    required_sequence: '1 hero/full-bleed (the work itself in golden-hour photography, NOT a generic "trusted landscapers" stock), 1 packages/seasonal (current-season-tier highlighted; prices only from the intake), 1 quote/instant-address ONLY if the intake gives their price per square foot, 1 reservation/cta with heading "Prefer to talk it through?" and buttonLabel "Schedule an estimate visit" (Twomiah Bookings deep-link — gives customers who don\'t want an instant quote a path to a real conversation), optional 1 services/cards-grid for one-off jobs, 1 before_after/slider ONLY with the owner\'s own before/after photos, close with 1 cta/split',
   },
   packages: {
     purpose: 'The recurring-service catalog. Compare tiers, see what is in each. This is the page that closes the subscription sale.',
@@ -1071,7 +1167,7 @@ const ROOFING_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a roofer. Insurance-claim positioning first, instant-quote second, trust badges third, work proof fourth.',
     allowed_types: ['hero', 'banner', 'quote', 'reservation', 'trust', 'services', 'before_after', 'stats', 'cta'],
-    required_sequence: 'optional 1 banner/storm-alert at the very top if a recent storm in the service area is referenced in the intake, then 1 hero/full-bleed or hero/split (insurance-claim voice, owner-on-every-roof signal), 1 quote/instant-address (the single biggest conversion lever), 1 reservation/cta with heading "Want eyes on it?" and buttonLabel "Schedule a free inspection" (Twomiah Bookings — pairs with the instant quote for customers who want a person on the roof not a calculator), 1 trust/badges if intake supports them, 1 services/cards-grid, 1 before_after/slider (3-4 items), close with 1 cta/split',
+    required_sequence: 'optional 1 banner/storm-alert at the very top if a recent storm in the service area is referenced in the intake, then 1 hero/full-bleed or hero/split (insurance-claim voice, owner-on-every-roof signal), 1 quote/instant-address (the single biggest conversion lever), 1 reservation/cta with heading "Want eyes on it?" and buttonLabel "Schedule a free inspection" (Twomiah Bookings — pairs with the instant quote for customers who want a person on the roof not a calculator), 1 trust/badges if intake supports them, 1 services/cards-grid, 1 before_after/slider ONLY with the owner\'s own before/after photos, close with 1 cta/split. The quote/instant-address above needs the business\'s own price per square foot — omit it without one.',
   },
   quote: {
     purpose: 'Standalone estimator page. SEO-targeted to "roof replacement cost" / "ballpark roof estimate" searches.',
@@ -1109,7 +1205,7 @@ const DISPENSARY_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a cannabis dispensary. Age-gate first, then the strain catalog, deals, and brand. The visitor is either a regular checking deals or a new customer scoping fit.',
     allowed_types: ['age', 'hero', 'deals', 'strain', 'stats', 'cta'],
-    required_sequence: '1 age/modal (legally required, first), 1 hero/full-bleed or hero/centered-stats with brand-forward copy (no "compassionate care" language — banned phrase list applies double here), 1 deals/strip (drives repeat visits), 1 strain/grid (3-6 featured items, NOT the full menu — that lives on /strains), 1 stats/bar for credibility (years in business, awards, growers partnered with), close with 1 cta',
+    required_sequence: '1 age/modal (legally required, first), 1 hero/full-bleed or hero/centered-stats with brand-forward copy (no "compassionate care" language — banned phrase list applies double here), 1 deals/strip (drives repeat visits — only specials the intake describes), 1 strain/grid (3-6 featured items the intake lists, NOT the full menu — that lives on /strains), optional 1 stats/bar for credibility (only years, awards or grower partners the intake states), close with 1 cta',
   },
   strains: {
     purpose: 'The full filterable strain catalog. SEO gold — every strain that gets indexed is organic traffic for that strain name.',
@@ -1315,7 +1411,12 @@ ${input.ownerName || '(not specified)'}
 Phone: ${input.phone || ''}
 Email: ${input.email || ''}
 Service area: ${[input.city, ...(input.nearbyCities || [])].filter(Boolean).join(', ')}
+
+What the owner supplied
+${ownerFactsBlock(input)}
 ${photosSection}
+${FACTS_POLICY}
+
 ${restaurant ? `
 # Industry note — RESTAURANT (sit-down, dinner-focused)
 This is a sit-down restaurant. Guidance:
@@ -1344,8 +1445,7 @@ This is a sit-down restaurant. Guidance:
 4. menu/cards on home shows 4-8 SIGNATURE items, not the full menu
    (that lives on /menu). Each item has the actual name, the actual
    price, a one-sentence description with sensory detail, and dietary
-   tags. Realistic 2026 dinner pricing: small plates $12-22, mains
-   $24-48, tasting menu $85-150.
+   tags — all from the intake. No menu in the intake = no menu section.
 5. Tonight's specials uses deals/strip retitled — "Tonight" or "This
    week" — for daily-changing items. Only include if the intake
    suggests they do specials.
@@ -1381,11 +1481,9 @@ This is a walk-in café. Guidance:
    name, the actual bean origin, the actual baker's name, the specific
    pastry that sells out first.
 4. menu/cards on home shows 4-8 SIGNATURE items, not the full menu (that
-   lives on /menu). Each item: actual name (Cortado, Iced Honey Latte,
-   Cardamom Bun), actual price, one-sentence description with sensory
-   detail. Realistic 2026 café pricing: espresso $3.50-4, cortado
-   $4.50-5, latte $5.50-6.50, drip $3.50-4.50, pour-over $5-7,
-   pastries $4-6, breakfast sandwich $9-13, bowls $13-17.
+   lives on /menu). Each item: actual name, actual price, one-sentence
+   description with sensory detail — all from the intake. No menu in the
+   intake = no menu section; describe the café instead.
 5. "Today" specials uses deals/strip retitled — daily-rotating items.
    Only include if the intake suggests they rotate (seasonal lattes,
    daily pastry, soup of the day).
@@ -1432,13 +1530,9 @@ The conversion engine is online booking.
    "we pride ourselves", "luxurious experience", "boutique experience".
    These read as small-business marketing-speak. Better: name the brand
    they carry, the technique they specialize in, the actual price.
-4. services/cards-grid with REAL prices. Realistic 2026 pricing ranges:
-   women's cut $55-110, men's cut $35-65, root retouch $80-130, balayage
-   $180-380, full color $120-220, blowout $40-65, gel manicure $40-65,
-   regular manicure $25-40, pedicure $45-75, facials $85-180, brows
-   $25-50, lash extensions $150-300 (full set), waxing $20-80 per area.
-   Higher in major metros. NEVER fabricate exact numbers if intake gave
-   ranges; pick from the realistic range and label "starting at".
+4. services/cards-grid with the salon's own prices when the intake gives
+   them. When it does not, list the services without prices — never an
+   industry range labelled "starting at".
 5. team/grid is conversion-critical. Each stylist should have a per-stylist
    booking link if the intake suggests they take their own clients.
    Specialties matter: "balayage + curl", "men's classic + skin fades",
@@ -1447,9 +1541,9 @@ The conversion engine is online booking.
    cuts, nail sets, lash sets, finished brows. NOT stock models. If
    customerPhotos has finished-work shots, those are tier-1 always.
    This is the "can they do what I want" page.
-7. Cancellation/no-show policy in services FAQ — be direct. Industry
-   standard: 24-48h cancellation, 50-100% charge for no-show. State
-   the actual policy from the intake or use industry-standard 48h/50%.
+7. Cancellation/no-show policy in services FAQ — be direct, and only
+   when the intake states the policy. Never supply a "standard" one: a
+   no-show charge the salon did not set is a charge it cannot collect.
 8. Hair-history disclosure FAQ for color clients — protect both parties.
    "Box dye, henna, or smoothing treatments in the last 18 months?
    Tell us during consultation."
@@ -1481,17 +1575,19 @@ and PT sessions.
    This vocabulary is bootcamp-2014 cliché. Better: state who you
    coach, what programming you actually do, what makes the room
    different from a Planet Fitness.
-4. Intro offer is critical — most gyms convert 60-80% of intro-week
-   trials into members if the offer is real. "First week free", "30
-   days for $30", "first class on us" — pull from intake or use
-   industry-standard for the modality.
+4. Intro offer is critical — most gyms convert intro-week trials into
+   members if the offer is real. "First week free", "30 days for $30",
+   "first class on us" — ONLY the offer the intake states. No offer in
+   the intake = no intro-offer strip; never an "industry-standard" one
+   the gym would then have to honour.
 5. schedule/week-strip: real classes, real times, real instructors.
    Pull from intake if provided. Day labels Mon-Sun. Time + class
    name + instructor + level. Boxes that conflict (two studios) need
    room labels.
-6. Pricing transparency: drop-in ($20-35), 10-pack ($150-280), monthly
-   unlimited ($120-220), annual ($1100-2000), PT package (8 sessions:
-   $400-800). NEVER fabricate prices the intake doesn't give.
+6. Pricing transparency: drop-in, class packs, monthly unlimited,
+   annual, PT packages — ONLY at the prices the intake gives. NEVER
+   fabricate prices the intake doesn't give; with none, the pricing page
+   lists what they offer and invites a visit.
 7. Trainer/coach profiles drive trust + PT bookings. Real certs:
    NSCA, NASM, ACE, CrossFit L2, RRCA, RYT-200, RYT-500. NEVER
    fabricate certs the intake doesn't mention.
@@ -1526,10 +1622,8 @@ travel site — concrete signals beat aspirational copy.
    landmark guests are coming for.
 4. services/cards-grid for rooms — each room: name, photos (real, not
    stock), bed configuration, sleeps, room size, amenities (private
-   bath, fireplace, view, kitchenette), rate "from $X" or "from $X/night".
-   Realistic 2026 pricing: economy hotel $90-150, mid-tier $130-220,
-   boutique $180-380, B&B $130-250, luxury inn $280-600, vacation
-   rental varies wildly by location.
+   bath, fireplace, view, kitchenette), rate "from $X" or "from $X/night"
+   — rooms, details and rates only as the intake gives them.
 5. Amenities page: be specific. NOT "all the comforts of home". Yes:
    "Heated saltwater pool, May-October, 7am-10pm. Towels at the front
    desk." Photo of the actual pool. If intake doesn't mention an
@@ -1577,9 +1671,8 @@ walk-through. Use catering/inquiry-form as the conversion engine.
 4. services/alternating for packages — each tier: name, included hours,
    capacity, included amenities (tables, chairs, linens, AV, kitchen
    access), what's NOT included (catering, alcohol, flowers), starting
-   price. Realistic 2026 venue pricing for the Midwest: small (50-100
-   guests) $2500-6000 rental, mid (100-200 guests) $5000-12000, large
-   (200+ guests) $10000-25000. Major-metro venues 2-4x higher.
+   price — each only as the intake states it. Without the venue's own
+   prices, describe the packages and send them to the inquiry form.
 5. gallery/grid is critical — actual events, not styled-shoot photos.
    Real couples, real receptions, real decor. If intake has photos
    from past events (always ask), those beat stock every time. 30-50
@@ -1591,9 +1684,10 @@ walk-through. Use catering/inquiry-form as the conversion engine.
 7. faq is critical at this price point. Cover: vendor restrictions
    (open list, closed list, in-house?), alcohol (BYOB? bar service
    required?), sound limits, ceremony rain plan, parking capacity,
-   accessibility, getting-ready spaces, payment schedule (typical:
-   25% deposit at signing, 50% 90-days-out, 25% 30-days-out),
-   cancellation policy, weather policy for outdoor events.
+   accessibility, getting-ready spaces, payment schedule, cancellation
+   policy, weather policy for outdoor events — answered ONLY from the
+   intake; a "typical" deposit schedule printed as theirs is a contract
+   term they never offered. Leave out questions the intake cannot answer.
 8. Testimonials from real couples + planners. Couple names + wedding
    month. Planner names + their company. NEVER fabricate. If intake
    provided reviews, use those. If not, omit the testimonials block.
@@ -1604,11 +1698,11 @@ homeowners want to see WORK, not read about a "passion for quality."
 The decision-maker is usually doing a $20k-$200k+ project and is
 pattern-matching across 3-5 contractors before requesting an estimate.
 
-1. Hero takes a position about THIS contractor. Anchor in a real fact:
-   specialty (kitchens only, full builds, historic restoration,
-   high-end finish carpentry, ADU specialists), trade pedigree (third-
-   generation, apprenticed under [name], custom-cabinet shop in-house),
-   geographic focus, year founded, license held.
+1. Hero takes a position about THIS contractor. Anchor in a real fact
+   FROM THE INTAKE: specialty, trade pedigree, geographic focus, year
+   founded, license held — whichever the owner actually told us. The
+   patterns below show the VOICE; every number and claim in them belongs
+   to that example business, not this one.
    Patterns:
    "Twenty-six years of kitchens. We do six a year. Our own millwork shop."
    (high-end kitchen specialist)
@@ -1621,43 +1715,35 @@ pattern-matching across 3-5 contractors before requesting an estimate.
    "from concept to completion", "your dream home", "passion for the
    craft", "your one-stop construction partner", "we treat your home
    like our own", "second to none". These signal small-business
-   marketing-speak. Replace with: name the project type, name the
-   neighborhood you work in, name the specific subcontractor you
-   work with (cabinetmaker, electrician, etc.), state the actual
-   project minimum or scope.
-3. gallery/grid is the most important section on the site. 8-12 shots
-   on home, 20-40 on /projects. ALWAYS prefer Tier 1 customer photos
-   (real finished work). If forced to use stock, pick photos that
-   genuinely look like "a contractor took this on their jobsite" not
-   "Home & Garden magazine cover." Caption each project with: location
-   (neighborhood-level, NOT exact address — privacy), project type,
-   scope, finishes used, project length.
-4. services/cards-grid: 3-6 specialties. Each item: actual name
-   (Kitchen Remodels, Full-Home Additions, Custom Decks), one-sentence
-   scope description, typical price range or "starting at" if intake
-   gives ranges, photo of a finished project. Realistic 2026 ranges
-   for the Midwest: kitchen remodel $35k-150k (full $75k-300k+),
-   bath remodel $18k-60k (master $40k-120k+), deck $8k-35k, ADU/in-law
-   suite $90k-250k, addition $50k-300k, full custom home $400k-2M+.
+   marketing-speak. Replace with: name the project types they do, the
+   area they work in, and — only if the intake says so — the trades
+   they work with or their project minimum.
+3. gallery/grid is the most important section on the site — and it is
+   ONLY the owner's Tier 1 photos. A stock photo in a portfolio tells a
+   homeowner this contractor built that room; it did not. With no Tier 1
+   photos, leave the gallery out (the Projects page is held back until
+   the owner adds photos). Never caption photos: you cannot see them.
+4. services/cards-grid: 3-6 specialties from the intake. Each item:
+   actual name (Kitchen Remodels, Full-Home Additions, Custom Decks),
+   one-sentence description of the work, photo of that kind of work.
+   A price or range only if the intake gives one.
 5. Trust signals matter. If intake provides license number, BBB rating,
    years in business, projects/year, list them in stats/bar or about/story.
-   NEVER fabricate a license number. NEVER fabricate BBB rating.
-   If the intake doesn't provide them, omit and lean on years +
-   testimonials.
-6. testimonials only from real homeowners. Pull from intake. Real
-   names + neighborhoods + project types ("Kitchen remodel, Eau Claire
-   eastside, 2024"). If intake doesn't provide any, OMIT the block —
-   don't fabricate.
+   NEVER fabricate a license number, BBB rating, year or count. If the
+   intake doesn't provide them, omit them — the services and the voice
+   carry the page.
+6. testimonials only from real homeowners, quoted from the intake with the
+   attribution it gives. If intake doesn't provide any, OMIT the block.
 7. Photography: hero should be a finished project at golden hour, an
    in-progress build at scale, or owner-on-jobsite-with-clipboard.
    NOT a generic tools-on-tool-bag or hammer-on-wood. If customerPhotos
-   has jobsite/finished photos, those beat Unsplash every time.
-8. FAQ must cover: estimate process (free? in-home? virtual?), lead
-   time (current — pull from intake if given, otherwise omit the
-   specific number), permits (who pulls them — answer is "we do" for
-   licensed contractors), financing (if intake mentions options),
-   project minimum (a lot of contractors won't do <$15k jobs — be
-   upfront if applicable).
+   has jobsite/finished photos, those beat Unsplash every time. A stock
+   hero sets the mood only — never caption it or call it their project.
+8. FAQ: answer what the intake answers — whether estimates are free,
+   where they work, what they do and do not take on. Do NOT state a lead
+   time, a project minimum, a financing option or who pulls permits
+   unless the intake says so; those are the owner's commitments, and a
+   homeowner will hold them to it. Leave unanswerable questions out.
 ` : ''}${fieldservice ? `
 # Industry note — FIELD SERVICE (HVAC / plumbing / electrical / cleaning)
 The work model varies within this template. Read the intake first:
@@ -1665,7 +1751,9 @@ The work model varies within this template. Read the intake first:
 A. **HVAC / plumbing / drain / leak / no-hot-water** — emergency-first.
    - Hero takes a position on availability: "We pick up at 2am. The
      other guys don't." or "Same-day if you call before 3, even on a
-     Sunday." NOT "Premier HVAC service" (banned).
+     Sunday." NOT "Premier HVAC service" (banned). An availability
+     promise ONLY when the intake makes it — otherwise take a position on
+     what they do and where.
    - emergency/bar at top of home page is mandatory if intake says 24/7.
    - service_area/zip-check at hero — answer "do you even come to me"
      in one click.
@@ -1695,12 +1783,10 @@ Universal rules across this template:
    "trusted plumbers", "your trusted electrician", "complete plumbing
    solutions", "from diagnosis to installation", "quality service you
    can trust", "your one-stop shop". Generic interchangeable language.
-2. pricing/flat-rate-menu: include realistic 2026 Midwest pricing.
-   Drain clear main line: $250-350. Water heater install (40-gal gas):
-   $1500-2200 starting. Furnace install (residential 80%): $4500-7000.
-   AC install (3-ton): $4500-8000. Panel upgrade (200A): $2500-4500.
-   Toilet install: $250-400 labor. NEVER fabricate exact numbers if the
-   intake gives them; otherwise pick from the range and label "starting at".
+2. pricing/flat-rate-menu: ONLY the business's own prices from the
+   intake. No prices in the intake = no flat-rate menu (and no pricing
+   page content beyond what they offer and how to book) — an average
+   labelled "starting at" is a quote they never gave.
 3. service_area/zip-check: pull the ZIP list from the intake's
    serviceAreas + nearbyCities. If the intake gives city names but not
    ZIPs, the renderer can match on city — you just need to populate
@@ -1709,8 +1795,9 @@ Universal rules across this template:
    53201-53259). It's fine to err on broader inclusion.
 4. NEVER fabricate Master license numbers, BBB years, or certifications
    the intake doesn't mention.
-5. After-hours pulse on emergency/bar is automatic — just provide
-   businessHours like "7am-7pm". The renderer handles the rest.
+5. After-hours pulse on emergency/bar is automatic — provide
+   businessHours (like "7am-7pm") only from the intake's hours. The
+   renderer handles the rest.
 ` : ''}${homecare ? `
 # Industry note — HOME CARE AGENCY
 This is an in-home senior care agency. The decision-maker audience is
@@ -1733,13 +1820,12 @@ exhausted, scared, and pattern-matching for whether you're trustworthy.
    on the home page (after hero + trust). Customize the relationships,
    careTypes, and hoursOptions to match what the intake says they
    actually offer — don't list dementia care if they don't do dementia.
-4. caregivers/grid: 3-4 sample profiles on home, 6-12 on /caregivers.
-   First-name only OR composite/anonymized names ("Maria, an 8-year
-   CNA"). Real-sounding specialties: dementia, hospice/end-of-life,
-   companion, post-surgical recovery, fall-risk reduction. Languages
-   if intake mentions multilingual staff. Include realistic blurbs:
-   "Specializes in afternoon sundowning support and gentle redirection."
-   Use stock professional headshots (warm, smiling, older-skewing).
+4. caregivers/grid: ONLY caregivers the intake names, first name only,
+   with the experience, certifications, specialties and languages it
+   gives. NEVER sample, composite or anonymized profiles, and never a
+   stock headshot over a caregiver's name — a family would be choosing a
+   person who does not work there. With none in the intake, omit the
+   grid and describe the kinds of care they provide instead.
 5. coverage/insurance-guide on /coverage: Medicare (does NOT cover
    non-medical home care — critical to clarify, this is the #1
    confused-customer search), Medicaid (state-specific waiver
@@ -1750,9 +1836,11 @@ exhausted, scared, and pattern-matching for whether you're trustworthy.
    "compassionate care", "loving care", "care you can trust", "second
    family", "tender", "passionate about helping", "make a difference
    in their life". These read as marketing-speak to exhausted family
-   decision-makers. Use specific: "Same two caregivers rotate the
-   morning shift for your parent — no surprise faces", "8-hour minimum
-   visit so we can actually finish what we start".
+   decision-makers. Be specific the way these are — "Same two caregivers
+   rotate the morning shift for your parent — no surprise faces", "8-hour
+   minimum visit so we can actually finish what we start" — but with the
+   agency's OWN practices from the intake; those two are examples, not
+   policies to borrow.
 7. Tone is empathetic but ADULT. Not maudlin. Not over-friendly.
    Like an experienced nurse who's been doing this for 20 years and
    has seen everything.
@@ -1766,21 +1854,19 @@ This is a landscaping / lawn-care / snow-removal business. Guidance:
 1. Recurring service is the business model. The site should sell the
    SUBSCRIPTION (weekly mow contract, monthly maintenance, seasonal
    plow contract), NOT one-off jobs. packages/seasonal is on the home
-   page after the hero. Each tier has a price-per-month, what's included,
-   and a season tag (spring-fall / winter / year-round).
-2. Realistic 2026 pricing for the Midwest: weekly mow + trim $35-60
-   per visit for a quarter-acre lot ($140-240/mo), full maintenance
-   (mow + bed weeding + bush trim + spring/fall cleanup) $80-150/visit.
-   Snow contracts $250-450/mo for residential, depending on push trigger
-   depth. Annual landscape design $3k-15k.
-3. Property-quote uses square FOOT of lawn (not roof). pricePerSqFt
-   for mow contracts: $0.04-0.10 / sq ft of turf. The customer types
-   their lot size or address, gets a per-visit + monthly range.
+   page after the hero. Each tier has what's included and a season tag
+   (spring-fall / winter / year-round), and a price-per-month only when
+   the intake gives it.
+2. Prices come from the intake or not at all — no regional averages.
+3. Property-quote uses square FOOT of lawn (not roof), and ONLY with the
+   business's own pricePerSqFt from the intake: the customer types their
+   lot size or address and is shown a price range, so a guessed rate is
+   a quote they never gave. No rate = no instant quote.
 4. Banned phrases: "your trusted landscaping partner", "premier lawn
    care", "complete lawn solutions", "quality lawn care you can trust".
-   Use specifics: "Same crew every week — you'll know their names by
-   July", "Weekly mow starts $145/mo on quarter-acre lots", "Snow
-   contracts include 1 truck + 1 walker + salt walkways".
+   Use specifics from the intake, in this voice: "Same crew every week —
+   you'll know their names by July", "Snow contracts include 1 truck +
+   1 walker + salt walkways" (examples of voice, not facts to reuse).
 5. Seasonal awareness: if intake mentions snow removal, the home page
    should default the seasonal-packages highlight to winter from
    October through March. If the intake is mow + maintenance only,
@@ -1801,9 +1887,10 @@ This is a residential roofing business. Industry-specific guidance:
    "After the hail, you call your insurer. Then you call <Owner>." NOT
    "Trusted roofing experts" or "Complete roofing solutions."
 2. quote/instant-address goes on the home page above-the-fold (after the
-   hero). It is the SINGLE biggest conversion lever in this vertical.
-   Set pricePerSqFt to a realistic regional number ($4.50-7.50/sq ft is
-   typical for asphalt shingle in 2026; metal $9-14; tile $15-25).
+   hero). It is the SINGLE biggest conversion lever in this vertical —
+   but it prints a price range to the homeowner, so it needs the
+   roofer's OWN pricePerSqFt from the intake. No rate in the intake = no
+   instant quote; lead with the inspection booking instead.
 3. Lead with owner-on-every-roof as a trust signal if the intake supports
    it. Most independent roofers compete with bigger franchises by being
    the one who actually shows up.
@@ -1811,9 +1898,11 @@ This is a residential roofing business. Industry-specific guidance:
    "premier roofing experts", "trusted roofing professionals", "complete
    roofing solutions", "your trusted roofing partner", "from inspection
    to installation", "quality you can trust". Use specific language
-   instead: "GAF Master Elite installer since 2014", "owner walks every
-   roof with your adjuster", "we work to the insurance company's spec,
-   not above and not below."
+   instead, built from the intake — in the voice of "GAF Master Elite
+   installer since 2014", "owner walks every roof with your adjuster",
+   "we work to the insurance company's spec, not above and not below."
+   (Those are examples; a certification or year is only stated if the
+   intake gives it.)
 5. Storm landing page (/storm) is SEO gold — geotargeted to recent
    hail/wind events in the service area. If the intake mentions specific
    storm dates or recent events, include a banner/storm-alert on the
@@ -1822,10 +1911,10 @@ This is a residential roofing business. Industry-specific guidance:
    they actually offer financing. Don't fabricate a financing program
    that doesn't exist. The widget is a marketing tool — the actual
    financing is a side deal the customer arranges with their lender.
-7. before_after/slider: include 3-6 items on /projects, 3-4 on home.
-   Use realistic Wisconsin/Midwest cities, GAF Timberline HDZ as a
-   common shingle product if material isn't specified, real years in
-   the 2022-2025 range.
+7. before_after/slider: ONLY the roofer's own before/after photos (Tier
+   1), 3-6 on /projects and 3-4 on home when there are that many. No
+   cities, materials or years — you cannot see the photos. With none,
+   omit it (the Projects page is held back until the owner adds some).
 8. trust/badges: ONLY include badges the intake actually mentions
    (GAF Master Elite, Owens Corning Preferred Contractor, CertainTeed
    SELECT ShingleMaster, BBB rating). Never fabricate credentials.
@@ -1838,15 +1927,13 @@ This is a cannabis dispensary. Industry-specific guidance:
    states. Don't editorialize the gate copy — keep it short and legally clean.
 2. The strain catalog IS the product. Lead the home page with a featured
    strain/grid (3-6 items), then push customers to /strains for the full
-   filterable catalog. Each strain has a real name (Blue Dream, Wedding Cake,
-   GG4, etc.), realistic THC% (typically 16-28% for flower), CBD% if relevant,
-   indica/sativa/hybrid, top 2-3 effects, top 2 terpenes (myrcene, limonene,
-   pinene, caryophyllene, linalool, terpinolene), and a believable price
-   (eighth: $25-65 depending on tier).
-3. NEVER fabricate exact potency numbers. Use realistic ranges and round to
-   whole percents. If the intake doesn't supply specific products, generate
-   plausible strain names + realistic numbers but make clear via copy these
-   are sample strains.
+   filterable catalog. Each strain: the name, THC%/CBD%, type, effects,
+   terpenes and price — exactly as the intake lists them.
+3. NEVER fabricate products or potency. If the intake doesn't list
+   specific products, there is no strain grid: no sample strains, no
+   plausible names, no "realistic" THC% — a regulated product described
+   with numbers nobody tested is a compliance problem. Describe what the
+   shop carries in words and send them to visit.
 4. Voice — banned phrases for this vertical (in addition to the global ones):
    "elevated cannabis experience", "compassionate care" (used by many but
    reads like home-health language), "premier dispensary", "top-shelf",
@@ -1909,11 +1996,11 @@ ${recipesSummary}
 2. Write copy that reflects THIS specific business — pull details from the description, services, goals. No generic boilerplate.
 3. The pages should feel like one coherent site — same voice, same level of formality, narrative continuity across every page.
 4. Photos: if a PHOTOS section is provided above, use ONLY those URLs. Otherwise use https://images.unsplash.com/photo-<id>?w=1400&q=80 URLs matching the business type; if unsure, use https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=1400&q=80.
-5. about/story portrait should be a person headshot, not a building or job site.
-6. team/grid members should reflect the actual scale of the business — for a 6-active-project firm, 4-6 members; for a solo operator, 1.
-7. Realistic numbers only. If the intake doesn't give specific stats, omit them. Never fabricate ratings, project counts, or years.
-8. Contact page hours: use ["Monday – Friday: 8am – 5pm", "Weekends: by appointment"] or a similarly realistic shape unless the intake says otherwise.
-9. Response promise on contact: something honest like "We reply to project inquiries within one business day."
+5. about/story portrait: a Tier 1 customer photo of the owner, or leave it empty. Never a stock face.
+6. team/grid: only the people the intake names — a solo operator gets no team grid, and nobody is invented to fill one.
+7. Numbers only from the intake. If the intake doesn't give specific stats, omit them. Never fabricate ratings, project counts, or years.
+8. Contact page hours: ONLY the intake's hours ("What the owner supplied"). With none, leave hours out — the form and the phone number carry the page.
+9. Response promise on contact: only a timeframe the intake states. Otherwise an untimed line such as "Send a message and we'll get back to you."
 
 # Section data shapes (same as single-page composer)
 
@@ -1965,6 +2052,8 @@ reservation/widget: { "heading": "Reserve a table", "intro": "...", "partySizes"
 }
 
 # Few-shot examples — match this tier of voice and specificity
+(Every number and name in these came from THAT business's own intake. Match the
+voice; take the facts only from this business's intake.)
 
 ## GOOD example: a Driftless-region restaurant
 Hero (full-bleed):
@@ -2098,7 +2187,7 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
     // "Request changes" widget.
     try {
       const res2 = await callOnce(
-        'Your previous output had an empty hero title and generic placeholders. EVERY section must have substantive content drawn from this specific business — actual names, prices, facts, voice from the intake. The hero/full-bleed section MUST have a non-empty `title` field with a concrete, intake-anchored headline. Output ONLY the raw JSON object.'
+        'Your previous output had an empty hero title and generic placeholders. EVERY section must have substantive content drawn from this specific business — its services, area, own words and voice from the intake (facts only as the intake states them; see the FACTS POLICY). The hero/full-bleed section MUST have a non-empty `title` field with a concrete, intake-anchored headline. Output ONLY the raw JSON object.'
       )
       const text2 = res2.content[0]?.type === 'text' ? res2.content[0].text : ''
       const parsed2 = tryParse(text2)
@@ -2145,35 +2234,36 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
   // pages get sanitized back to the generic home/services/about/contact set even
   // though the prompt used STORE_PAGE_RECIPES.
   const isStore = /\b(store|shop|dropship|dropshipping|drop[_\s\-]?ship|e-?commerce|ecommerce|online[_\s\-]?store|online[_\s\-]?shop|retail|boutique|apparel|merch|goods|marketplace)\b/i.test(businessTypeIn)
-  const expectedPages: string[] = isFoodTruck
-    ? Object.keys(FOODTRUCK_PAGE_RECIPES)
+  const recipeSet: Record<string, { allowed_types: readonly string[] }> = isFoodTruck
+    ? FOODTRUCK_PAGE_RECIPES
     : isDispensary
-      ? Object.keys(DISPENSARY_PAGE_RECIPES)
+      ? DISPENSARY_PAGE_RECIPES
       : isRoofing
-        ? Object.keys(ROOFING_PAGE_RECIPES)
+        ? ROOFING_PAGE_RECIPES
         : isLandscaping
-          ? Object.keys(LANDSCAPING_PAGE_RECIPES)
+          ? LANDSCAPING_PAGE_RECIPES
           : isHomecare
-            ? Object.keys(HOMECARE_PAGE_RECIPES)
+            ? HOMECARE_PAGE_RECIPES
             : isFieldservice
-              ? Object.keys(FIELDSERVICE_PAGE_RECIPES)
+              ? FIELDSERVICE_PAGE_RECIPES
               : isCafe
-                ? Object.keys(CAFE_PAGE_RECIPES)
+                ? CAFE_PAGE_RECIPES
                 : isRestaurant
-                  ? Object.keys(RESTAURANT_PAGE_RECIPES)
+                  ? RESTAURANT_PAGE_RECIPES
                   : isSalon
-                    ? Object.keys(SALON_PAGE_RECIPES)
+                    ? SALON_PAGE_RECIPES
                     : isFitness
-                      ? Object.keys(FITNESS_PAGE_RECIPES)
+                      ? FITNESS_PAGE_RECIPES
                       : isHotel
-                        ? Object.keys(HOTEL_PAGE_RECIPES)
+                        ? HOTEL_PAGE_RECIPES
                         : isEvents
-                          ? Object.keys(EVENTS_PAGE_RECIPES)
+                          ? EVENTS_PAGE_RECIPES
                           : isContractor
-                            ? Object.keys(CONTRACTOR_PAGE_RECIPES)
+                            ? CONTRACTOR_PAGE_RECIPES
                             : isStore
-                              ? Object.keys(STORE_PAGE_RECIPES)
-                              : Object.keys(PAGE_RECIPES)
+                              ? STORE_PAGE_RECIPES
+                              : PAGE_RECIPES
+  const expectedPages: string[] = Object.keys(recipeSet)
 
   let pages = parsed.pages || {}
   const sanitizeAll = (src: any): Record<string, Section[]> => {
@@ -2214,15 +2304,29 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
     }
   }
 
+  // Facts the owner did not supply come out here — after the empty-page
+  // retry above, so a page emptied by this step is HELD (kept, unpublished),
+  // never retried into inventing something to fill it.
+  const allowedTypes = new Set(Object.values(recipeSet).flatMap(r => [...r.allowed_types]))
+  const enforced = enforceIntakeFacts(sanitized, input, { requiredOf: requiredFieldsOf, allowedTypes })
+  if (enforced.removedClaims.length > 0) {
+    console.log('[Composer] removed ' + enforced.removedClaims.length + ' unsupplied fact(s) for ' + input.businessName +
+      (enforced.heldPages.length ? '; held pages: ' + enforced.heldPages.join(', ') : ''))
+  }
+
   // Wrap the section arrays back into { sections } shape per page.
   const finalPages: Record<string, { sections: Section[] }> = {}
   for (const page of expectedPages) {
-    finalPages[page] = { sections: sanitized[page] }
+    finalPages[page] = { sections: enforced.pages[page] || [] }
   }
 
   return {
     pages: finalPages,
     rationale: typeof parsed.rationale === 'string' ? parsed.rationale : undefined,
+    heldPages: enforced.heldPages,
+    contentGaps: enforced.contentGaps,
+    // Bounded: this rides along in preview_premium_pages.
+    removedClaims: enforced.removedClaims.slice(0, 60),
   }
 }
 

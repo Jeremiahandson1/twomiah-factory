@@ -1,10 +1,12 @@
 <%
   // Transparent flat-rate pricing menu. Each item: service name, price
   // (string label like "$285" or "from $1,850"), what's included as
-  // bullets, optional note. Disclaimer applies to the whole menu.
+  // bullets, optional note. Disclaimer applies to the whole menu. It is the
+  // owner's policy, so there is no default — a stock one would state terms
+  // (parts included, written quotes) the business never agreed to.
   var heading = data.heading || 'Flat-rate menu'
   var intro = data.intro || ''
-  var disclaimer = data.disclaimer || 'All prices include parts unless noted. Written quote before any work starts.'
+  var disclaimer = data.disclaimer || ''
   var items = Array.isArray(data.items) ? data.items.filter(function(i){ return i && i.service }) : []
   if (items.length === 0) return
 %>

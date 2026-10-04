@@ -2283,3 +2283,14 @@ jobs:
           bun-version: latest
       - name: "check portal token never ships"
         run: bun run scripts/check-portal-token-never-ships.ts
+
+  composer-facts:
+    name: "A composed site states only the facts its owner supplied"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "check composer facts"
+        run: bun run scripts/check-composer-facts.ts

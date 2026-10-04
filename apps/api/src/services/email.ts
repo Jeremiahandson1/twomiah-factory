@@ -418,12 +418,24 @@ export async function notifyNewIntake(
  * AI output.
  */
 export async function notifyPreviewReady(
-  data: { to: string; businessName: string; previewUrl: string }
+  data: {
+    to: string; businessName: string; previewUrl: string
+    /** What the composer left out for want of the owner's facts (services/composerFacts.ts). */
+    contentGaps?: Array<{ label: string; unlocks: string }>
+  }
 ): Promise<boolean> {
+  const esc = (s: string) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const gaps = (data.contentGaps || []).slice(0, 8)
+  const gapsBlock = gaps.length ? `
+    <div style="background:#fafaf7;border-radius:10px;padding:18px 22px;margin:18px 0;">
+      <p style="margin:0 0 6px;color:#1a1a1a;font-weight:600;">Everything on it comes from what you told us.</p>
+      <p style="margin:0 0 12px;color:#555;font-size:14px;line-height:1.5;">We don't invent prices, reviews or photos of your work, so a few things are left off until you send them. Email any of these to <a href="mailto:support@twomiah.com" style="color:#1e40af;">support@twomiah.com</a>, or add them yourself in your site editor once you're live:</p>
+      ${gaps.map(g => `<p style="margin:0 0 8px;color:#1a1a1a;font-size:14px;line-height:1.5;"><strong>${esc(g.label)}</strong><br><span style="color:#555;">${esc(g.unlocks)}</span></p>`).join('')}
+    </div>` : ''
   const body = `
     <p style="color:#333;line-height:1.6;font-size:16px;">Hi there — your <strong>${data.businessName}</strong> website preview is ready.</p>
-    <p style="color:#333;line-height:1.6;">This is a 4-page draft of what your site could look like, built from what you shared at sign-up. It's meant to show you the <em>shape</em> of the site — the structure, voice, and direction. The small details (the exact copy, the photos, the specific service descriptions) are yours to fine-tune once you're in.</p>
-    ${btn(data.previewUrl, 'View your preview')}
+    <p style="color:#333;line-height:1.6;">This is a draft of what your site could look like, built from what you shared at sign-up. It's meant to show you the <em>shape</em> of the site — the structure, voice, and direction. The small details (the exact copy, the photos, the specific service descriptions) are yours to fine-tune once you're in.</p>
+    ${btn(data.previewUrl, 'View your preview')}${gapsBlock}
     <p style="color:#666;line-height:1.6;font-size:14px;margin-top:24px;"><strong>When the direction feels right,</strong> hit "Approve &amp; build my site" on the preview page. We'll deploy the live version within an hour of payment clearing, and you'll get login details to swap photos, edit copy, and add your own touches through a simple editor — no code, no design tools to learn.</p>
     <p style="color:#666;line-height:1.6;font-size:14px;"><strong>If the vibe is off</strong> (wrong industry, wrong tone, wrong feel) use the "Request changes" button at the bottom right of any preview page — someone on our team will read it and follow up within one business day.</p>`
 

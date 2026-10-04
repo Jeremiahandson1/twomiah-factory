@@ -15,7 +15,8 @@
     <div class="team__grid">
       <% for (const m of members) { %>
         <article class="team__card">
-          <div class="team__portrait" style="background-image: url('<%= m.portrait || '' %>')"></div>
+          <%/* Only the person's own photo — never a stock face under a real name. */%>
+          <% if (m.portrait) { %><div class="team__portrait" style="background-image: url('<%= m.portrait %>')"></div><% } %>
           <div class="team__body">
             <div class="team__name"><%= m.name %></div>
             <div class="team__role"><%= m.role %></div>

@@ -21,6 +21,11 @@ export const settings = pgTable('settings', {
   // Guidelines wherever one of their photos appears. Seeded from the
   // factory bootstrap payload; drizzle-kit push adds the column at boot.
   photoCredits: jsonb('photo_credits').notNull().default([]),
+  // "Finish your site" checklist: what the factory's composer left out for
+  // want of the owner's facts — [{ id, label, unlocks, done? }]. Seeded from
+  // the bootstrap payload; the admin ticks items off. Added by drizzle-kit
+  // push at boot like photo_credits.
+  contentGaps: jsonb('content_gaps').notNull().default([]),
   contactCtaLabel: text('contact_cta_label').notNull().default('Get in touch'),
   // Brand colors (consumed via CSS variables in build/styles/main.css).
   primaryColor: text('primary_color'),

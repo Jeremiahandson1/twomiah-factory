@@ -10,6 +10,7 @@ import { buildBrief, type Intake } from '../../services/briefBuilder'
 import { renderHomepagePreview } from '../../services/previewRenderer'
 import { cacheGet, cacheSet, acquireInflight, releaseInflight } from '../../lib/previewGuard'
 import { composeSite } from '../../services/sectionComposer'
+import { parseIntakeFacts, type ContentGap } from '../../services/composerFacts'
 import { renderPremiumPage, pickPremiumTemplateDir, safeColor } from '../../services/premiumSiteRenderer'
 import { collectImageUrls, heroCreditsForUrls } from '../../config/heroLibrary'
 import { searchStockPhotosForBusiness, trackDownload as trackUnsplashDownload } from '../../services/unsplashPlus'
@@ -551,6 +552,18 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
     const nearbyCities = serviceAreas.length ? serviceAreas : getArr('nearbyCities', 12)  // manual "areas you serve"
     const wantsCrm = getBool('wantsCrm')
 
+    // ─── Owner-supplied facts ──────────────────────────────────────────────
+    // The ONLY facts the composed site may state (services/composerFacts.ts).
+    // All optional; each one unlocks a section the site otherwise leaves out.
+    const facts = parseIntakeFacts({
+      yearFounded: getStr('yearFounded'),
+      credentials: getArr('credentials', 12),
+      freeEstimates: getBool('freeEstimates'),
+      hours: getStr('hours'),
+      pricing: getStr('pricing'),
+      testimonials: getStr('testimonials'),
+    })
+
     // ─── Slug — collision-resistant ────────────────────────────────────────
     // Intake slugs are suffixed with '-intake' so they're visually distinct
     // from real tenants and won't collide with a future tenant of the same
@@ -639,6 +652,7 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
         services: services.length ? services : undefined,
         wantsCrm,
         requestedDomain: requestedDomain || undefined,
+        facts,
       },
     }
 
@@ -936,6 +950,8 @@ factory.post('/intake/:id/preview-premium', requireRole('owner', 'admin', 'edito
       email: intake.email,
       nearbyCities: intake.nearbyCities,
       primaryColor: intake.branding?.primaryColor,
+      notes: intakeData.freeFormNotes || undefined,
+      facts: intake.facts,
       customerPhotos,
       stockPhotos: stockPhotos.map(p => ({ url: p.url, tag: p.tag, alt: p.alt })),
     })
@@ -1098,8 +1114,15 @@ async function renderPremiumPreviewPage(id: string, slug: string, c: any) {
       404
     )
   }
-  const composed = tenant.preview_premium_pages as { pages: Record<string, { sections: any[] }> }
-  const composedPageSlugs = Object.keys(composed.pages || {})
+  const composed = tenant.preview_premium_pages as {
+    pages: Record<string, { sections: any[] }>
+    heldPages?: string[]
+    contentGaps?: ContentGap[]
+  }
+  // Held pages (nothing real on them yet) are left out of the preview exactly
+  // as they are left out of the live site's nav — see site-bootstrap.
+  const held = new Set(Array.isArray(composed.heldPages) ? composed.heldPages : [])
+  const composedPageSlugs = Object.keys(composed.pages || {}).filter(s => !held.has(s))
 
   const { layoutModeFor } = await import('../../config/industryRouting')
   const layoutMode = layoutModeFor(tenant.industry)
@@ -1127,7 +1150,7 @@ async function renderPremiumPreviewPage(id: string, slug: string, c: any) {
     const seen = new Set<string>()
     const walk = (key: string) => {
       const p = composed.pages?.[key]
-      if (!p || seen.has(key)) return
+      if (!p || seen.has(key) || held.has(key)) return
       seen.add(key)
       const pageSections = (p.sections || []).map((s: any, i: number) => ({
         ...s,
@@ -1163,6 +1186,7 @@ async function renderPremiumPreviewPage(id: string, slug: string, c: any) {
     // credits were stored.
     photoCredits: (composed as any)._photoCredits
       || heroCreditsForUrls(collectImageUrls(sectionsToRender)),
+    contentGaps: Array.isArray(composed.contentGaps) ? composed.contentGaps : undefined,
   }
 
   const previewBasePath = `/api/v1/factory/public/intake/${id}/preview-premium`
@@ -1267,7 +1291,7 @@ factory.post('/intake/:id/approve-premium', requireRole('owner', 'admin', 'edito
       .from('tenants')
       .update(updates)
       .eq('id', id)
-      .select('id, name, email')
+      .select('id, name, email, preview_premium_pages')
       .single()
     if (saveErr || !tenant) {
       return c.json({ error: saveErr?.message || 'Tenant not found' }, saveErr ? 500 : 404)
@@ -1276,7 +1300,7 @@ factory.post('/intake/:id/approve-premium', requireRole('owner', 'admin', 'edito
     const origin = new URL(c.req.url).origin
     const previewUrl = `${origin}/api/v1/factory/public/intake/${id}/preview-premium`
     if (tenant.email) {
-      notifyPreviewReady({ to: tenant.email, businessName: tenant.name || 'your', previewUrl })
+      notifyPreviewReady({ to: tenant.email, businessName: tenant.name || 'your', previewUrl, contentGaps: tenant.preview_premium_pages?.contentGaps })
         .catch((e: any) => console.warn('[Email] Preview-ready notification failed:', e.message))
     }
 
@@ -1416,11 +1440,13 @@ async function renderPremiumPreviewPageStaff(id: string, slug: string, c: any) {
   if (!tenant || !tenant.preview_premium_pages) {
     return c.html('<!doctype html><meta charset="utf-8"><title>Preview not ready</title><body style="font:16px system-ui;padding:40px">This preview hasn\'t been composed yet.</body>', 404)
   }
-  const composed = tenant.preview_premium_pages as { pages: Record<string, { sections: any[] }> }
+  const composed = tenant.preview_premium_pages as { pages: Record<string, { sections: any[] }>; contentGaps?: ContentGap[] }
   const page = composed.pages?.[slug]
   if (!page) return c.text('Page not found', 404)
 
   const intake = (tenant.intake_data && tenant.intake_data.intake) || {}
+  // Staff see every page, held ones included, so they can review what the
+  // owner will be asked to fill.
   const composedPageSlugs = Object.keys(composed.pages || {})
   const settings = {
     companyName: tenant.name || 'Your Company',
@@ -1433,6 +1459,7 @@ async function renderPremiumPreviewPageStaff(id: string, slug: string, c: any) {
     // Same brand-color resolution as the public preview — staff must review
     // what the prospect (and the deployed build) will actually see.
     primaryColor: intake.branding?.primaryColor,
+    contentGaps: Array.isArray(composed.contentGaps) ? composed.contentGaps : undefined,
   }
 
   // basePath is the STAFF route stem with the token preserved, so nav
@@ -1604,8 +1631,16 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
   if (error || !tenant) return c.json({ error: 'Tenant not found' }, 404)
   if (!checkFactoryKey(c, tenant)) return c.json({ error: 'Bad sync key' }, 401)
 
-  const composed = (tenant.preview_premium_pages || {}) as { pages?: Record<string, { sections: any[] }> }
+  const composed = (tenant.preview_premium_pages || {}) as {
+    pages?: Record<string, { sections: any[] }>
+    heldPages?: string[]
+    contentGaps?: ContentGap[]
+  }
   const composedPages = composed.pages || {}
+  // Pages the facts check left with nothing real on them (no photos of the
+  // owner's work for /projects, …). Seeded so the owner can fill them in the
+  // admin, but unpublished and out of the nav until they do.
+  const heldPages = new Set(Array.isArray(composed.heldPages) ? composed.heldPages : [])
 
   // Uploaded brand assets. The generator writes an uploaded logo to
   // build/images/brand-logo.<ext> and an uploaded favicon to build/favicon.png;
@@ -1637,7 +1672,7 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
     title: PAGE_TITLE_BY_SLUG[slug] || slug.charAt(0).toUpperCase() + slug.slice(1),
     sections: composedPages[slug]?.sections || [],
     navOrder: i,
-    isPublished: true,
+    isPublished: !heldPages.has(slug),
   }))
 
   // Standard CMS-defaults for a fresh tenant. The composer doesn't
@@ -1668,8 +1703,12 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
     // Nav derived from the page set the composer actually produced —
     // food trucks get Menu/Find us/Catering, generic verticals get
     // Services/About. Same buildPremiumNav helper used by the preview
-    // endpoints above.
-    nav: buildPremiumNav(pages.map(p => p.slug)),
+    // endpoints above. Held (unpublished) pages stay out until the owner
+    // publishes them and adds them under Settings → Navigation.
+    nav: buildPremiumNav(pages.filter(p => p.isPublished).map(p => p.slug)),
+    // The admin's "Finish your site" checklist — what the owner can add and
+    // what it unlocks. Seeded once with the rest of the settings row.
+    contentGaps: Array.isArray(composed.contentGaps) ? composed.contentGaps : [],
     // Credits for every curated-library photo across the composed pages. The
     // settings row is seeded once at first boot, so this covers the whole
     // site rather than a single page — a photo used on /services still gets
@@ -1776,6 +1815,8 @@ async function autoComposeForNewIntake(tenantId: string): Promise<void> {
     email: intake.email,
     nearbyCities: intake.nearbyCities,
     primaryColor: intake.branding?.primaryColor,
+    notes: intakeRoot.freeFormNotes || undefined,
+    facts: intake.facts,
     customerPhotos,
     stockPhotos: (stockPhotos || []).map((p: any) => ({ url: p.url, tag: p.tag, alt: p.alt })),
   })
@@ -1806,6 +1847,7 @@ async function autoComposeForNewIntake(tenantId: string): Promise<void> {
       to: tenant.email,
       businessName: tenant.name,
       previewUrl,
+      contentGaps: composed.contentGaps,
     }).catch((e: any) => console.warn('[Email] auto-compose preview-ready failed:', e.message))
   }
   console.log('[AutoCompose] tenant=' + tenantId + ' composed in self-serve mode, preview at ' + generatedAt)
@@ -1891,7 +1933,10 @@ async function recomposePreviewWithFeedback(tenantId: string): Promise<void> {
   const feedbackHistory = (fbRows || []).map(r => String((r as any).message || '')).filter(Boolean)
   if (feedbackHistory.length === 0) return  // nothing to act on (shouldn't happen, but safe)
 
-  const intake = tenant.intake_data as any
+  // The brief lives under intake_data.intake (see /public/intake); the root
+  // holds files + free-form notes. Reading the root lost every intake field.
+  const intakeRoot = tenant.intake_data as any
+  const intake = intakeRoot.intake || intakeRoot
   const composed = await composeSite({
     businessName: intake.businessName || tenant.name,
     businessType: intake.businessType || tenant.industry || 'business',
@@ -1906,6 +1951,8 @@ async function recomposePreviewWithFeedback(tenantId: string): Promise<void> {
     email: intake.email,
     nearbyCities: intake.nearbyCities,
     primaryColor: intake.branding?.primaryColor,
+    notes: intakeRoot.freeFormNotes || undefined,
+    facts: intake.facts,
     feedbackHistory,
   })
 
@@ -1928,6 +1975,7 @@ async function recomposePreviewWithFeedback(tenantId: string): Promise<void> {
         to: tenant.email,
         businessName: tenant.name,
         previewUrl,
+        contentGaps: composed.contentGaps,
       }).catch((e: any) => console.warn('[Email] Recompose preview-ready failed:', e.message))
     }
   }

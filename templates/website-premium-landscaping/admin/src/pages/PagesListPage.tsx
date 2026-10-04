@@ -4,6 +4,7 @@ import { Edit3, Eye, EyeOff, Plus, Trash2, X, ChevronUp, ChevronDown } from 'luc
 import clsx from 'clsx'
 import { api } from '../api/client'
 import { Label } from '../components/Field'
+import { FinishYourSiteCard } from '../components/FinishYourSiteCard'
 
 interface PageRow {
   id: string
@@ -95,6 +96,7 @@ export function PagesListPage() {
           </div>
         </div>
       )}
+      <FinishYourSiteCard />
       <div className="flex items-start justify-between mb-8">
         <div>
           <h1 className="text-3xl text-ink">Pages</h1>
