@@ -16,8 +16,17 @@
      mode. Without this, any value with no explicit color inherits the body's
      light (slate-100) text and disappears on the white card — that was the deal
      desk, the buyer's order and the payment matrix going invisible (C-05).
-     This lives in @layer base, so explicit text-* utilities still win. */
-  .bg-white {
+     This lives in @layer base, so explicit text-* utilities still win.
+
+     …and "always light" stopped being true. The T41 dark-mode pass gave most of
+     these cards a `dark:bg-slate-900` partner, so they now FLIP — and this rule
+     went on pinning gray-900 ink to them. Measured on the live tenant, dark mode:
+     the Accounting table read gray-900 on slate-900 at 1.01:1, 129 labels of it,
+     and every figure on the page was invisible. The premise is what needs the
+     condition, not the colour: this holds only for a surface that stays white, so
+     any element declaring a dark ground of its own is excluded and keeps the
+     body's light ink. */
+  .bg-white:not([class*="dark:bg-"]) {
     @apply text-gray-900;
   }
 

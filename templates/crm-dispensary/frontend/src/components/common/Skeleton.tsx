@@ -2,7 +2,7 @@
 export function Skeleton({ className = '', ...props }) {
   return (
     <div
-      className={`animate-pulse bg-gray-200 rounded ${className}`}
+      className={`animate-pulse bg-gray-200 dark:bg-slate-700 rounded ${className}`}
       {...props}
     />
   );

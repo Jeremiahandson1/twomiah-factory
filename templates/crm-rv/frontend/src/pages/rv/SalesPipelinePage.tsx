@@ -146,7 +146,7 @@ export default function SalesPipelinePage() {
               key={stage.value}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => { if (dragId) { moveTo(dragId, stage.value); setDragId(null); } }}
-              className={`flex-shrink-0 w-72 bg-gray-50 rounded-xl border-t-4 ${STAGE_ACCENT[stage.value] || 'border-t-gray-300'}`}
+              className={`flex-shrink-0 w-72 bg-gray-50 dark:bg-slate-800 rounded-xl border-t-4 ${STAGE_ACCENT[stage.value] || 'border-t-gray-300'}`}
             >
               <div className="p-3 flex items-center justify-between">
                 <span className="font-semibold text-gray-900 dark:text-slate-100">{stage.label}</span>
