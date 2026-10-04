@@ -255,9 +255,18 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Stats — the two revenue tiles are ABSENT for a seat that may not see the money, not
+          drawn as "$0". (T42, fleet-wide: "Hidden money shown as \$0 instead of hidden … Showcase
+          agreement tiles ('\$0 Monthly Revenue'). Hide the tiles instead.")
+
+          The server has stripped `monthlyRecurringRevenue` / `annualRecurringRevenue` for the field
+          rung since T41 — the counts stay, the revenue goes — and these two StatCards then read
+          `stats.monthlyRecurringRevenue?.toLocaleString(…) || 0`, which renders "$0" for an absent
+          key. A technician was being told the shop's recurring revenue was nothing, which is a
+          FIGURE, and a wrong one; a missing tile is not. Keyed on the key's presence rather than on
+          a permission, so the screen and the payload cannot disagree. */}
       {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className={`grid grid-cols-2 gap-4 ${stats.monthlyRecurringRevenue === undefined ? 'lg:grid-cols-3' : 'lg:grid-cols-5'}`}>
           <StatCard
             icon={FileText}
             label="Active Agreements"
@@ -275,18 +284,22 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
             value={stats.renewingIn30Days ?? 0}
             color="blue"
           />
-          <StatCard
-            icon={DollarSign}
-            label="Monthly Revenue"
-            value={`$${stats.monthlyRecurringRevenue?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || 0}`}
-            color="green"
-          />
-          <StatCard
-            icon={TrendingUp}
-            label="Annual Revenue"
-            value={`$${stats.annualRecurringRevenue?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || 0}`}
-            color="blue"
-          />
+          {stats.monthlyRecurringRevenue !== undefined && (
+            <StatCard
+              icon={DollarSign}
+              label="Monthly Revenue"
+              value={`$${stats.monthlyRecurringRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              color="green"
+            />
+          )}
+          {stats.annualRecurringRevenue !== undefined && (
+            <StatCard
+              icon={TrendingUp}
+              label="Annual Revenue"
+              value={`$${stats.annualRecurringRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              color="blue"
+            />
+          )}
         </div>
       )}
 

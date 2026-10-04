@@ -787,12 +787,23 @@ export function createAgreementsRoutes(deps: AgreementsRoutesDeps) {
   app.use('*', authenticate)
 
   // ---- plans ----
+  /**
+   * THE PLAN'S PRICE IS THE SHOP'S MONEY TOO. (T42 — "/api/agreements/plans gives staff the $299
+   * price")
+   *
+   * T41 gated the agreement rows and the revenue report and left this list open, so the same seat
+   * that is refused `amount` on a customer's contract could read the price of every plan the shop
+   * sells one request away — and the Agreements screen loads this list on the same page as the
+   * tiles it was refused. Same question, same permission, same strip (which is recursive, so a plan
+   * nested inside anything is covered); the plan's NAME, interval, visit count and what it includes
+   * all stay, because that is what somebody arranging a visit needs.
+   */
   app.get('/plans', async (c: any) => {
     const user = c.get('user')
     try {
       const active = c.req.query('active')
       const plans = await service.getPlans(user.companyId, { active: active === 'false' ? false : active === 'all' ? null : true })
-      return c.json(plans)
+      return c.json(await maySeeMoney(c) ? plans : stripKeys(plans, AGREEMENT_MONEY_KEYS))
     } catch (e: any) {
       console.error('[Agreements] GET /plans error:', e.message)
       return c.json({ error: 'Failed to load plans', detail: e.message }, 500)

@@ -286,5 +286,54 @@ console.log('\n── how many visits are left ──')
     { remaining: techRow?.visitsRemaining, money: moneyKeys(techRow) })
 }
 
+// ══════════ T42: the plan's own price, and the tiles that drew "$0" ═══════════════════════════
+//
+//   "Staff see $0 agreement tiles; /api/agreements/plans gives staff the $299 price."
+//                                                                       — Showcase
+//   "Hidden money shown as $0 instead of hidden … Showcase agreement tiles ('$0 Monthly
+//    Revenue') … Hide the tiles instead."                       — T42, fleet-wide
+//
+// TWO HALVES OF ONE SCREEN, and T41 fixed one of them. The agreement rows and the revenue report
+// were gated; GET /plans was left open — so the seat refused `amount` on a customer's contract could
+// read the price of every plan the shop sells, from the same page, one request later.
+//
+// And the half that is not a leak at all: the stats endpoint has stripped the revenue since T41, and
+// the Agreements screen then drew `monthlyRecurringRevenue?.toLocaleString(…) || 0` — so a
+// technician was told the shop's recurring revenue was "$0". A missing tile is a gap; a zero is a
+// FIGURE, and a wrong one. The screen now keys on the key's presence, which is why the assertion
+// below is about the key being ABSENT rather than being zero.
+console.log('\n══════════ T42 · the plan price, and the "$0" tiles ══════════')
+{
+  const asOwner = as(owner), asTech = as(tech), asViewer = as(viewer)
+
+  const ownerPlans = await asOwner('GET', '/api/agreements/plans')
+  check('the owner reads the plan list with its prices',
+    ownerPlans.status === 200 && moneyKeys(ownerPlans.json).includes('price'), moneyKeys(ownerPlans.json))
+
+  const techPlans = await asTech('GET', '/api/agreements/plans')
+  check('T42: a technician still reads the plan list — the name and what it includes is the work',
+    techPlans.status === 200 && /"name"/.test(techPlans.text || ''), { status: techPlans.status })
+  check('T42: …with NO price on it, the same question the contract rows already ask',
+    moneyKeys(techPlans.json).length === 0, moneyKeys(techPlans.json))
+  check('T42: …and the visit allowance survives, because that is not money',
+    /visitsIncluded|visits/i.test(techPlans.text || ''), (techPlans.text || '').slice(0, 160))
+
+  const viewerPlans = await asViewer('GET', '/api/agreements/plans')
+  check('T42: the read-only office seat keeps the price — invoices:read, not a rank',
+    moneyKeys(viewerPlans.json).includes('price'), moneyKeys(viewerPlans.json))
+
+  // The tiles: ABSENT, not zero. A screen cannot render "$0" for a key that is not there.
+  const techStats = await asTech('GET', '/api/agreements/reports/stats')
+  check('T42: the technician\'s stats carry no revenue KEY at all, so no tile can print $0',
+    techStats.json?.monthlyRecurringRevenue === undefined && techStats.json?.annualRecurringRevenue === undefined,
+    techStats.json)
+  check('T42: …and the key is absent rather than present-and-zero',
+    !/"monthlyRecurringRevenue"/.test(techStats.text || ''), (techStats.text || '').slice(0, 200))
+  const ownerStats = await asOwner('GET', '/api/agreements/reports/stats')
+  check('T42: the owner still gets both figures, so the tiles are there for the people they are for',
+    Number(ownerStats.json?.monthlyRecurringRevenue) === 49 && Number(ownerStats.json?.annualRecurringRevenue) === 588,
+    ownerStats.json)
+}
+
 console.log(`\n  ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)
