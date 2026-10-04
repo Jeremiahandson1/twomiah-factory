@@ -21,6 +21,7 @@ import {
 } from '../../db/schema.ts';
 import { eq, and, lte, gte, count, asc, desc, sql } from 'drizzle-orm';
 import { notFound } from '../utils/errors.ts'
+import { withoutPortalCredential } from '../shared/index.ts'
 
 // ============================================
 // AGREEMENT PLANS (Templates)
@@ -184,7 +185,9 @@ export async function getAgreement(agreementId: string, companyId: string) {
   return {
     ...result,
     visits,
-    contact: relatedContact || null,
+    // Without the portal credential: an agreement detail is read by every seat that can open the
+    // agreement, and the row carries a bearer token for the customer's portal. (T42)
+    contact: relatedContact ? withoutPortalCredential(relatedContact) : null,
   };
 }
 

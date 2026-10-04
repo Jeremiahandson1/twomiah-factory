@@ -6,6 +6,9 @@ import { contact, job, smsMessage, company } from '../../db/schema.ts'
 import { eq, and, desc, like, ilike, or, count, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
+// The portal credential, stripped through the same helper the shared contacts module uses. Roof
+// forks this route, so the shared module's strip never ran here. (T42)
+import { withoutPortalCredential } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -117,7 +120,7 @@ app.get('/:id', async (c) => {
     db.select().from(smsMessage).where(and(eq(smsMessage.contactId, id), eq(smsMessage.companyId, currentUser.companyId))).orderBy(desc(smsMessage.createdAt)).limit(50),
   ])
 
-  return c.json({ ...foundContact, jobs: contactJobs, smsThread })
+  return c.json({ ...withoutPortalCredential(foundContact), jobs: contactJobs, smsThread })
 })
 
 // Update contact

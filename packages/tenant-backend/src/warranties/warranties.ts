@@ -11,6 +11,7 @@
 
 import { Hono } from 'hono';
 import { eq, and, or, count, desc, asc, gte, lte, lt, gt, inArray, sql } from 'drizzle-orm';
+import { withoutPortalCredential } from '../contacts/contacts';
 
 export interface WarrantiesTables {
   warrantyTemplate: any; projectWarranty: any; warrantyClaim: any;
@@ -457,7 +458,8 @@ async function getClaim(claimId: string, companyId: string) {
     ...row.claim,
     warranty: row.warranty,
     project: row.project,
-    contact: row.contact,
+    // the customer's portal credential never travels with their record (T42)
+    contact: row.contact ? withoutPortalCredential(row.contact) : null,
   };
 }
 

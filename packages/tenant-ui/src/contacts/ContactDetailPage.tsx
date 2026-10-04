@@ -87,6 +87,11 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
   // this page do not mount one, and hiding the button on a `false` they never supplied would hide it
   // from their owners too. The server gates the route regardless.
   const mayMerge = cfg.can('contacts:delete')
+  // Managing a customer's portal — switching it on, reissuing the link, emailing it, reading it out —
+  // is one permission, and it is not the one that opens this page. The server withholds the link from
+  // a seat without it (GET …/link, contacts:update); this is the same answer on the screen, so the
+  // controls are not offered to a seat whose every click would 403. (T42)
+  const mayManagePortal = cfg.can('contacts:update')
 
   const showPortal = !!sections.portal && (cfg.portalGate === false || hasFeature(cfg.portalGate))
   const gated = (feature: string) => !cfg.gateByFeature || hasFeature(feature)
@@ -104,8 +109,26 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
     }
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * The status and the LINK are two requests, because they are two permissions. (T42)
+   *
+   * The status read says whether the portal is on, when the link expires and when the customer last
+   * signed in — everything a read-only seat can see. The URL carries the customer's bearer token and
+   * comes from a route that asks `contacts:update`. A refusal there is an expected answer, not an
+   * error: the Link row simply does not appear, which is why it is swallowed rather than toasted.
+   */
   const loadPortalStatus = async () => {
-    try { setPortalStatus(await api.get(`/api/portal/contacts/${id}/status`)) } catch { /* panel stays "Disabled" */ }
+    try {
+      const status = await api.get(`/api/portal/contacts/${id}/status`)
+      if (status?.hasToken && mayManagePortal) {
+        try {
+          const link = await api.get(`/api/portal/contacts/${id}/link`)
+          setPortalStatus({ ...status, ...link })
+          return
+        } catch { /* this seat may read the status and not the link */ }
+      }
+      setPortalStatus(status)
+    } catch { /* panel stays "Disabled" */ }
   }
   const loadSms = async () => {
     setSmsLoading(true)
@@ -610,9 +633,12 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-500 dark:text-slate-400">Status</span>
-                    <button type="button" onClick={togglePortal} disabled={portalLoading || noEmail}
-                      title={noEmail ? 'Add an email address first' : undefined}
-                      className={`flex items-center gap-1.5 ${noEmail ? 'cursor-not-allowed opacity-60' : ''}`}
+                    {/* Still shown, and still disabled without an email — the panel naming its own
+                        prerequisite is the T37 N10 fix. A seat that may not manage the portal reads
+                        the state here and cannot change it. (T42) */}
+                    <button type="button" onClick={togglePortal} disabled={portalLoading || noEmail || !mayManagePortal}
+                      title={noEmail ? 'Add an email address first' : !mayManagePortal ? 'Your role can see whether the portal is on, but not change it' : undefined}
+                      className={`flex items-center gap-1.5 ${noEmail || !mayManagePortal ? 'cursor-not-allowed opacity-60' : ''}`}
                       aria-label={portalStatus?.enabled ? 'Disable portal access' : 'Enable portal access'}>
                       {portalStatus?.enabled ? <ToggleRight className="w-6 h-6 text-green-500 dark:text-green-300" /> : <ToggleLeft className="w-6 h-6 text-gray-400" />}
                       <span className={`text-sm font-medium ${portalStatus?.enabled ? 'text-green-700 dark:text-green-300' : 'text-gray-500 dark:text-slate-400'}`}>{portalStatus?.enabled ? 'Enabled' : 'Disabled'}</span>
@@ -637,7 +663,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                   )}
                   {/* Not offered with no address to send to — the portal can be enabled through the
                       API without one, so this is checked here and not inferred from `enabled`. */}
-                  {portalStatus?.enabled && !noEmail && (
+                  {portalStatus?.enabled && !noEmail && mayManagePortal && (
                     <button type="button" onClick={resendPortalInvite} disabled={portalLoading} className="w-full mt-2 px-4 py-2 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 flex items-center justify-center gap-2 dark:bg-blue-900/30 dark:text-blue-200">
                       {portalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}Resend Portal Invite
                     </button>

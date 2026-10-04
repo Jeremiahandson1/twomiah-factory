@@ -5,6 +5,7 @@ import { project, contact, job, rfi, changeOrder, punchListItem, activity } from
 import { eq, and, or, ilike, count, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
+import { withoutPortalCredential } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -84,7 +85,7 @@ app.get('/:id', async (c) => {
     db.select().from(punchListItem).where(eq(punchListItem.projectId, id)).limit(20),
   ])
 
-  return c.json({ ...foundProject, contact: projectContact[0] || null, jobs, rfis, changeOrders, punchListItems })
+  return c.json({ ...foundProject, contact: projectContact[0] ? withoutPortalCredential(projectContact[0]) : null, jobs, rfis, changeOrders, punchListItems })
 })
 
 app.post('/', requirePermission('projects:create'), async (c) => {

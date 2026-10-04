@@ -5,7 +5,7 @@ import { quote, contact, job, company, financingApplication } from '../../db/sch
 import { eq, and, desc, count, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
-import { businessToday, companyTimeZone, quoteExpiryFromTerms } from '../shared/index.ts'
+import { businessToday, companyTimeZone, quoteExpiryFromTerms, withoutPortalCredential } from '../shared/index.ts'
 import { money } from '../shared/invoicing/money.ts'
 
 const app = new Hono()
@@ -196,7 +196,7 @@ app.get('/:id', requirePermission('quotes:read'), async (c) => {
     ? await db.select().from(contact).where(eq(contact.id, foundQuote.contactId)).limit(1)
     : [null]
 
-  return c.json({ ...foundQuote, contact: quoteContact || null })
+  return c.json({ ...foundQuote, contact: quoteContact ? withoutPortalCredential(quoteContact) : null })
 })
 
 /**

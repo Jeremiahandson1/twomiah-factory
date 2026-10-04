@@ -6,6 +6,7 @@ import { eq, and, desc, or, like } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { sendSms } from '../services/sms.ts'
+import { withoutPortalCredential } from '../shared/index.ts'
 
 const app = new Hono()
 
@@ -98,7 +99,8 @@ app.get('/conversation/:contactId', authenticate, async (c) => {
     .orderBy(desc(smsMessage.createdAt))
     .limit(100)
 
-  return c.json({ contact: contactRow, messages })
+  // The homeowner's record beside the thread — without the portal credential on it. (T42)
+  return c.json({ contact: withoutPortalCredential(contactRow), messages })
 })
 
 // Opt-out contact from SMS

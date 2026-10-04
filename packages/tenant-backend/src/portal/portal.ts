@@ -252,6 +252,28 @@ export function createPortalRoutes(deps: PortalDeps) {
     return c.json({ success: true, sentTo: found.email })
   })
 
+  /**
+   * THE LINK IS THE CREDENTIAL, SO IT IS NOT PART OF THE STATUS READ. (T42, contractor HIGH)
+   *
+   *   "Viewer can see and copy a customer's working portal link, which opens the portal as the
+   *    customer where COs can be signed."
+   *
+   * This handler answered one question — is the portal on — and returned two things: the answer, and
+   * a working URL with the customer's bearer token in it. It is gated on `contacts:read`, which the
+   * read-only seat holds, so the lowest rung in the company could copy a link that signs change
+   * orders in the customer's name. Enabling, reissuing and emailing that link all require
+   * `contacts:update`; reading it off the status panel required nothing of the kind.
+   *
+   * Splitting it is the fix rather than a role test inside the handler: `requirePermission` is the
+   * only thing here that knows a user's per-user grants (it reads extra_permissions), and it works as
+   * middleware, so the second permission needs its own door. No template mount changes — both routes
+   * are on this router, which every vertical already mounts whole.
+   *
+   * What the read-only seat keeps: whether the portal is on, whether a link exists, when it expires,
+   * and when the customer last signed in. That is the status of the thing, and none of it is a key.
+   * `portalUrlWithheld` is there so the screen can leave the Link row out instead of rendering an
+   * empty box next to a Copy button that copies nothing.
+   */
   app.get('/contacts/:contactId/status', authenticate, requirePermission('contacts:read'), async (c) => {
     const user = c.get('user') as any
     const found = await ownContact(c.req.param('contactId'), user.companyId)
@@ -261,8 +283,18 @@ export function createPortalRoutes(deps: PortalDeps) {
       hasToken: !!found.portalToken,
       expiresAt: found.portalTokenExp,
       lastVisit: found.lastPortalVisit,
-      portalUrl: found.portalToken ? portalUrlFor(found.portalToken) : null,
+      portalUrlWithheld: true,
     })
+  })
+
+  // The link itself, for the seats that may hand it out — the same permission /enable, /regenerate
+  // and /send-link ask for, because reading a credential out and emailing it are the same act. (T42)
+  app.get('/contacts/:contactId/link', authenticate, requirePermission('contacts:update'), async (c) => {
+    const user = c.get('user') as any
+    const found = await ownContact(c.req.param('contactId'), user.companyId)
+    if (!found) return c.json({ error: 'Contact not found' }, 404)
+    if (!found.portalEnabled || !found.portalToken) return c.json({ error: 'Portal access not enabled for this contact' }, 400)
+    return c.json({ portalUrl: portalUrlFor(found.portalToken), expiresAt: found.portalTokenExp })
   })
 
   // =============================================

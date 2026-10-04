@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { contact, clientProfile, serviceRecord, serviceMenu, appointment, membershipEnrollment, membershipPlan, user, invoice, teamMember, clientAccountEntry } from '../../db/schema.ts'
-import { createAccountBalanceStore, balanceFrom, describeBalance } from '../shared/index.ts'
+import { createAccountBalanceStore, balanceFrom, describeBalance, withoutPortalCredential } from '../shared/index.ts'
 import { listFormulas, keepFormula, forgetFormula, keepFromRecord, recordForKeeping, hasSubstance } from '../services/clientFormulas.ts'
 import { eq, and, or, ilike, count, desc, ne , sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
@@ -78,7 +78,11 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
     // vertical with no client-portal UI at all — nothing in the salon bundle reads it and
     // /api/portal/contacts/:token 404s here. A secret handed out for a feature that does not exist
     // is pure downside. (T20 L4)
-    const { portalToken, portalTokenExp, ...contactSafe } = r.contact
+    //
+    // T42: the same strip the shared contacts module does, through the same helper, because the
+    // DETAIL endpoint one handler below did not do it at all and a hand-rolled copy is exactly how
+    // the two came to disagree.
+    const contactSafe = withoutPortalCredential(r.contact)
     return {
       ...contactSafe,
       ...(r.profile ? { ...r.profile, id: r.contact.id, profileId: r.profile.id } : {}),
@@ -225,8 +229,19 @@ app.get('/:contactId', requirePermission('contacts:read'), async (c) => {
    */
   const maySeeClientMoney = hasPermission(currentUser?.role, 'invoices:read', await getExtraPermissions(currentUser?.userId))
 
+  /**
+   * THE LIST STRIPPED THE PORTAL TOKEN AND THE CHART DID NOT. (T42, salon HIGH)
+   *
+   *   "Stylists can read client portal tokens: GET /api/clients/:id returns contact.portalToken for
+   *    portal-enabled clients (removed from list endpoints in T22, not the detail endpoint)."
+   *
+   * T22 fixed the list by hand, in the map above, and the chart below kept returning the whole row.
+   * Both go through one helper now. Nobody loses anything real: the salon bundle has no client-portal
+   * screen, `/api/portal/contacts/:token` 404s on this vertical, and no caller in the frontend reads
+   * either field — it is a credential with no feature behind it, handed to the lowest seat in the shop.
+   */
   return c.json({
-    contact: ct,
+    contact: withoutPortalCredential(ct),
     profile: profile || null,
     serviceRecords,
     appointments,

@@ -8,6 +8,7 @@ import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
 import { SPECIES } from '../config/species.ts'
+import { withoutPortalCredential } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -112,7 +113,7 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
     .where(and(eq(labResult.patientId, id), eq(labResult.companyId, currentUser.companyId)))
     .orderBy(desc(labResult.resultDate))
 
-  return c.json({ patient: pat, owner: owner || null, visits, vaccinations, prescriptions, labResults })
+  return c.json({ patient: pat, owner: owner ? withoutPortalCredential(owner) : null, visits, vaccinations, prescriptions, labResults })
 })
 
 // POST /patients

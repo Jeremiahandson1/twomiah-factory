@@ -18,6 +18,7 @@
 // form-encoded / non-JSON webhook bodies handled instead of 500.
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { withoutPortalCredential } from '../contacts/contacts'
 import { eq, and, or, ilike, count, desc, gte, sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import crypto from 'crypto'
@@ -326,7 +327,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
 
     if (existing.status === 'converted' && existing.convertedContactId) {
       const [already] = await db.select().from(t.contact).where(and(eq(t.contact.id, existing.convertedContactId), eq(t.contact.companyId, currentUser.companyId))).limit(1)
-      if (already) return c.json({ error: `Already converted to ${already.name}`, contactId: already.id, lead: existing, contact: already }, 409)
+      if (already) return c.json({ error: `Already converted to ${already.name}`, contactId: already.id, lead: existing, contact: withoutPortalCredential(already) }, 409)
     }
 
     // Link an existing contact with the same email / phone instead of creating a duplicate (same rule the contacts module enforces).
@@ -364,7 +365,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     await audit.log({ action: 'status_change', entity: 'lead', entityId: id, metadata: { contactId: contactRow.id, matched }, req: { user: currentUser } })
     emitToCompany(currentUser.companyId, EVENTS.LEAD_UPDATED, { id, status: 'converted', contactId: contactRow.id })
     if (!matched) emitToCompany(currentUser.companyId, EVENTS.CONTACT_CREATED, { id: contactRow.id, name: contactRow.name })
-    return c.json({ lead: { ...existing, status: 'converted', convertedContactId: contactRow.id }, contact: contactRow, matched })
+    return c.json({ lead: { ...existing, status: 'converted', convertedContactId: contactRow.id }, contact: withoutPortalCredential(contactRow), matched })
   })
 
   app.delete('/:id', requirePermission('contacts:delete'), async (c) => {

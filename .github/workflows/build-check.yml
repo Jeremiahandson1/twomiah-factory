@@ -2272,3 +2272,14 @@ jobs:
           bun-version: latest
       - name: "check brand hex under white text"
         run: bun run scripts/check-brand-hex-under-white-text.ts
+
+  portal-token-never-ships:
+    name: "A contact's portal credential never leaves the server on their record"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "check portal token never ships"
+        run: bun run scripts/check-portal-token-never-ships.ts

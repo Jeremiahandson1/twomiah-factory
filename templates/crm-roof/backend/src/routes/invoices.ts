@@ -5,7 +5,7 @@ import { invoice, contact, job, company } from '../../db/schema.ts'
 import { eq, and, ne, desc, count, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
-import { businessToday, companyTimeZone, dueDateFromTerms } from '../shared/index.ts'
+import { businessToday, companyTimeZone, dueDateFromTerms, withoutPortalCredential } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -215,7 +215,7 @@ app.get('/:id', requirePermission('invoices:read'), async (c) => {
     ? await db.select().from(contact).where(eq(contact.id, found.contactId)).limit(1)
     : [null]
 
-  return c.json({ ...found, contact: invoiceContact || null })
+  return c.json({ ...found, contact: invoiceContact ? withoutPortalCredential(invoiceContact) : null })
 })
 
 // Update invoice

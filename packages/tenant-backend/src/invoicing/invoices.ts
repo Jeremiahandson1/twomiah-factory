@@ -9,6 +9,7 @@ import { eq, and, or, count, desc, asc, sql, inArray, lt, gte, isNull } from 'dr
 import { money } from './money'
 import { round2, calcTotals, rawSubtotal, DEFAULT_OPEN_STATUSES, isOverdue, overdueCutoff, startOfUtcDay, businessToday, deriveStatus, invoiceBalance, recomputeStatus, defaultTaxRateFrom, dueDateFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
 import { ACCOUNT_BALANCE_METHOD } from '../clients/accountBalance'
+import { withoutPortalCredential } from '../contacts/contacts'
 import { mailFailureReason } from '../integrations/mailError'
 import { checkFilter } from '../listFilter'
 
@@ -723,7 +724,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const accountBalance = deps.options?.accountBalance && found.contactId
       ? await deps.options.accountBalance.balanceOf(cid, found.contactId).catch(() => 0)
       : null
-    return c.json({ ...found, status: derive(found), balance, accountBalance, contact: ct[0] || null, project: pr[0] || null, quote: qt[0] || null, lineItems, payments })
+    return c.json({ ...found, status: derive(found), balance, accountBalance, contact: ct[0] ? withoutPortalCredential(ct[0]) : null, project: pr[0] || null, quote: qt[0] || null, lineItems, payments })
   })
 
   // ---------------------------------------------------------------- create
@@ -1023,7 +1024,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       db.select().from(t.payment).where(eq(t.payment.invoiceId, id)).orderBy(desc(t.payment.paidAt)),
       db.select().from(t.company).where(eq(t.company.id, cid)),
     ])
-    const pdfBuffer = await generateInvoicePDF({ ...found, status: derive(found), contact: ct[0] || null, lineItems, payments }, co)
+    const pdfBuffer = await generateInvoicePDF({ ...found, status: derive(found), contact: ct[0] ? withoutPortalCredential(ct[0]) : null, lineItems, payments }, co)
     return new Response(pdfBuffer, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="invoice-${found.number}.pdf"` } })
   })
 

@@ -7,7 +7,7 @@ import { requirePermission, hasPermission, getExtraPermissions } from '../middle
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
-import { deriveStatus, round2 } from '../shared/index.ts'
+import { deriveStatus, round2, withoutPortalCredential } from '../shared/index.ts'
 import { LedgerError, EXIT_STATUSES, loadEventLedger, ensureEventInvoice, syncEventInvoice, closeEventInvoice, backfillEventInvoices } from '../services/eventLedger.ts'
 // What an event may hold and how a booking is written — shared with the CSV importer (#162).
 import { HELD, DATE_RE, SpaceClash, eventLock, findClash, syncHireLine, createEvent, validateEventInput, validateTimelineInput, coordinatorRefusal, eventWarnings } from '../services/eventBooking.ts'
@@ -145,7 +145,8 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
   const menuRows = ledger?.menu || []
   return c.json({
     event: ev,
-    client: client || null,
+    // the customer's portal credential never travels with their record (T42)
+    client: client ? withoutPortalCredential(client) : null,
     space: space || null,
     menu: maySeeMoney ? menuRows : menuRows.map(({ unitPrice, ...rest }: any) => rest),
     timeline,

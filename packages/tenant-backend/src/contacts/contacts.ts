@@ -110,7 +110,21 @@ export function standardGuards(t: { invoice?: any; quote?: any; job?: any; proje
   return out
 }
 
-const stripPortal = (row: any) => {
+/**
+ * A contact row with the portal credential removed.
+ *
+ * `portalToken` is a BEARER CREDENTIAL: whoever holds it opens that customer's portal as the
+ * customer — invoices, documents, and on the contractor template the page where change orders get
+ * signed. It is not a field, it is a password, and the only places it belongs are the handler that
+ * mints it and the handler that redeems it.
+ *
+ * This module has stripped it from every contact response since T22. It was exported in T42 because
+ * the contact row leaves the server through more doors than this module: a vertical's own client
+ * chart, an SMS conversation, a lead conversion, an agreement. Every one of those was handing out
+ * the credential, and each had to be found separately because each had its own copy of "return the
+ * row". One helper now, so the next door has something to call.
+ */
+export const withoutPortalCredential = (row: any) => {
   if (!row) return row
   const { portalToken, portalTokenExp, ...rest } = row
   return rest
@@ -185,7 +199,7 @@ export function createContactRoutes(deps: ContactDeps) {
       db.select().from(t.contact).where(where).orderBy(desc(t.contact.createdAt)).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(t.contact).where(where),
     ])
-    return c.json({ data: data.map(stripPortal), pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
+    return c.json({ data: data.map(withoutPortalCredential), pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
   })
 
   app.get('/stats', requirePermission('contacts:read'), async (c) => {
@@ -290,7 +304,7 @@ export function createContactRoutes(deps: ContactDeps) {
       if (r.orderBy) q = q.orderBy(r.orderBy)
       return q
     }))
-    const out: any = stripPortal(found)
+    const out: any = withoutPortalCredential(found)
     relations.forEach((r, i) => { out[r.key] = lists[i] })
     return c.json(out)
   })
@@ -321,7 +335,7 @@ export function createContactRoutes(deps: ContactDeps) {
     }
 
     const [created] = await db.insert(t.contact).values({ ...data, companyId: currentUser.companyId }).returning()
-    const safe = stripPortal(created)
+    const safe = withoutPortalCredential(created)
     emitToCompany(currentUser.companyId, EVENTS.CONTACT_CREATED, safe)
     audit.log({ action: audit.ACTIONS.CREATE, entity: 'contact', entityId: created.id, entityName: created.name, req: c })
     return c.json(safe, 201)
@@ -357,9 +371,9 @@ export function createContactRoutes(deps: ContactDeps) {
     }
 
     const [updated] = await db.update(t.contact).set({ ...data, updatedAt: new Date() }).where(eq(t.contact.id, id)).returning()
-    const safe = stripPortal(updated)
+    const safe = withoutPortalCredential(updated)
     emitToCompany(currentUser.companyId, EVENTS.CONTACT_UPDATED, safe)
-    const changes = audit.diff(stripPortal(existing), safe)
+    const changes = audit.diff(withoutPortalCredential(existing), safe)
     if (changes) audit.log({ action: audit.ACTIONS.UPDATE, entity: 'contact', entityId: updated.id, entityName: updated.name, changes, req: c })
     return c.json(safe)
   })
@@ -470,7 +484,7 @@ export function createContactRoutes(deps: ContactDeps) {
       throw e
     }
 
-    const safe = stripPortal(merged)
+    const safe = withoutPortalCredential(merged)
     emitToCompany(currentUser.companyId, EVENTS.CONTACT_UPDATED, safe)
     emitToCompany(currentUser.companyId, EVENTS.CONTACT_DELETED, { id: loseId })
     audit.log({ action: audit.ACTIONS.DELETE, entity: 'contact', entityId: summary.absorbed.id, entityName: `${summary.absorbed.name} (merged into ${summary.kept.name})`, req: c })
@@ -485,7 +499,7 @@ export function createContactRoutes(deps: ContactDeps) {
     if (!existing) return c.json({ error: 'Contact not found' }, 404)
     if (existing.type !== 'lead') return c.json({ error: 'Only leads can be converted' }, 400)
     const [updated] = await db.update(t.contact).set({ type: convertTo, updatedAt: new Date() }).where(eq(t.contact.id, id)).returning()
-    const safe = stripPortal(updated)
+    const safe = withoutPortalCredential(updated)
     emitToCompany(currentUser.companyId, EVENTS.CONTACT_UPDATED, safe)
     audit.log({ action: audit.ACTIONS.STATUS_CHANGE, entity: 'contact', entityId: updated.id, entityName: updated.name, changes: { type: { old: 'lead', new: convertTo } }, req: c })
     return c.json(safe)

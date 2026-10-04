@@ -37,8 +37,18 @@ if ((menu.match(/error: 'Price must be a number\.'/g) || []).length < 2) fail('a
 if (!/error: 'Price cannot be negative\.'/.test(menu)) fail('…and a negative price must still say negative')
 
 // ── L4 ────────────────────────────────────────────────────────────────────────────────────────────
+//
+// T42 loosened the first assertion. It pinned the exact destructuring expression the T20 fix used, in
+// the LIST and nowhere else — and the T42 retest found that GET /api/clients/:id, one handler below,
+// had never stripped anything at all: "Stylists can read client portal tokens … removed from list
+// endpoints in T22, not the detail endpoint." Pinning the expression is also what made the two reads
+// awkward to unify, because the hand-rolled copy was the thing being checked. Both go through the
+// shared helper now (withoutPortalCredential, exported from the contacts module), so what is asserted
+// is the property: neither read serialises a raw contact row. (feedback: guard the property, not the
+// keyword.)
 const clients = read('templates/crm-salon/backend/src/routes/clients.ts')
-if (!/const \{ portalToken, portalTokenExp, \.\.\.contactSafe \} = r\.contact/.test(clients)) fail('the clients list must not ship portalToken — it is a bearer credential, in a list, for a feature this vertical does not have')
+if (!/withoutPortalCredential\(r\.contact\)/.test(clients)) fail('the clients LIST must strip the portal credential — it is a bearer token, in a list, for a feature this vertical does not have')
+if (!/contact: withoutPortalCredential\(ct\)/.test(clients)) fail('…and so must the client CHART, which handed the whole contact row, portalToken included, to every stylist (T42)')
 if (!/\.\.\.contactSafe,/.test(clients)) fail('…and must serialise the stripped contact, not the raw row')
 
 // ── L5 ────────────────────────────────────────────────────────────────────────────────────────────

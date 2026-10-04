@@ -7,6 +7,7 @@
 // and every version parsed Twilio's form-encoded webhook with c.req.json() → the text was dropped with a 200.
 import { Hono } from 'hono'
 import { eq, and, or, desc, asc, count, sum, sql, gt, isNull } from 'drizzle-orm'
+import { withoutPortalCredential } from '../contacts/contacts'
 import { formatPhoneE164, isDialablePhone, parseTwilioBody, verifyTwilioRequest, twilioClient, twilioConfigFromEnv, twilioConfigFor, twilioConfigured, companyTwilioNumbers, twilioSender, TWIML_EMPTY, type TwilioConfig } from './twilio'
 
 export interface SmsTables { smsConversation: any; smsMessage: any; smsTemplate: any; contact: any; company: any; job: any; user: any;
@@ -222,7 +223,7 @@ export function createSmsService(deps: SmsServiceDeps) {
       .where(eq(t.smsMessage.conversationId, conversationId)).orderBy(asc(t.smsMessage.createdAt)).limit(100)
     await db.update(t.smsConversation).set({ unreadCount: 0 }).where(eq(t.smsConversation.id, conversationId))
     // Flat rows: every inbox renders message.direction / message.body directly. (SALON-C3)
-    return { ...conversation, contact: contactRow, messages: messages.map((r: any) => ({ ...r.message, sentBy: r.sentBy })) }
+    return { ...conversation, contact: withoutPortalCredential(contactRow), messages: messages.map((r: any) => ({ ...r.message, sentBy: r.sentBy })) }
   }
 
   const archiveConversation = (conversationId: string, companyId: string) =>
