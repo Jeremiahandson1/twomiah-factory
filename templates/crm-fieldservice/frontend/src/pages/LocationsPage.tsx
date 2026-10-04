@@ -41,7 +41,7 @@ export default function LocationsPage() {
             <div key={l.id} className={`bg-white dark:bg-slate-900 rounded-lg border p-5 ${!l.isActive ? 'opacity-50' : ''}`}>
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <div className="text-xs font-mono text-sky-600 mb-1 dark:text-sky-300">{l.code}</div>
+                  <div className="text-xs font-mono text-sky-700 mb-1 dark:text-sky-300">{l.code}</div>
                   <h3 className="font-bold text-lg">{l.name}</h3>
                 </div>
                 {!l.isActive && <span className="text-xs text-gray-500 dark:text-slate-400">Inactive</span>}

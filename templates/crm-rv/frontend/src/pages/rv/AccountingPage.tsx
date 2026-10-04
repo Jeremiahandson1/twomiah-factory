@@ -46,8 +46,8 @@ export default function AccountingPage() {
         <div><h1 className="text-2xl font-bold">Accounting</h1><p className="text-sm text-gray-500 dark:text-slate-400">Post deals, F&I, parts, and service revenue to your books.</p></div>
       </div>
 
-      <div className={`mt-4 rounded-xl border p-4 flex items-center gap-3 ${data.connected ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
-        <Link2 size={18} className={data.connected ? 'text-green-600' : 'text-amber-600'} />
+      <div className={`mt-4 rounded-xl border p-4 flex items-center gap-3 ${data.connected ? 'bg-green-50 border-green-200 dark:bg-green-950/40 dark:text-slate-100' : 'bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-slate-100'}`}>
+        <Link2 size={18} className={data.connected ? 'text-green-700 dark:text-green-300' : 'text-amber-700 dark:text-amber-300'} />
         <div className="flex-1 text-sm">
           <span className="font-semibold">{data.provider}</span> — {data.connected ? 'Connected' : 'Not connected'}
           {!data.connected && <span className="block text-xs text-amber-700 dark:text-amber-300">Connect your books to post automatically. Demo — OAuth on integration; native GL is the upgrade path.</span>}
@@ -70,7 +70,7 @@ export default function AccountingPage() {
         </table>
       </div>
 
-      {done && <div className="mt-4 bg-white rounded-xl border shadow-sm p-4 flex items-center gap-2 text-sm dark:bg-slate-900"><CheckCircle2 className="text-green-600 dark:text-green-300" /><span>Posted <b>{done.posted}</b> entries ({money(done.total)}) to {done.provider} · batch {done.batch}</span></div>}
+      {done && <div className="mt-4 bg-white rounded-xl border shadow-sm p-4 flex items-center gap-2 text-sm dark:bg-slate-900"><CheckCircle2 className="text-green-700 dark:text-green-300" /><span>Posted <b>{done.posted}</b> entries ({money(done.total)}) to {done.provider} · batch {done.batch}</span></div>}
     </div>
   );
 }

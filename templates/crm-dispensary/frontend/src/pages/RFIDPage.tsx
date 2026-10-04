@@ -355,9 +355,9 @@ function ScanTab() {
 
         {/* Scan Result */}
         {result && (
-          <div className={`mt-6 p-4 rounded-lg border ${result.matched ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+          <div className={`mt-6 p-4 rounded-lg border ${result.matched ? 'bg-green-50 border-green-200 dark:bg-green-950/40 dark:text-slate-100' : 'bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-slate-100'}`}>
             <div className="flex items-center gap-2 mb-3">
-              {result.matched ? <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-300" /> : <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-300" />}
+              {result.matched ? <CheckCircle className="w-5 h-5 text-green-700 dark:text-green-300" /> : <AlertTriangle className="w-5 h-5 text-amber-700 dark:text-amber-300" />}
               <span className={`font-semibold ${result.matched ? 'text-green-800 dark:text-green-300' : 'text-amber-800 dark:text-amber-300'}`}>
                 {result.matched ? 'Tag Matched' : 'Unknown Tag'}
               </span>
@@ -479,11 +479,11 @@ function InventoryCountTab() {
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div className="p-4 bg-green-50 rounded-lg text-center dark:bg-green-950/40">
               <p className="text-2xl font-bold text-green-700 dark:text-green-300">{results.matched || 0}</p>
-              <p className="text-sm text-green-600 dark:text-green-300">Matched</p>
+              <p className="text-sm text-green-700 dark:text-green-300">Matched</p>
             </div>
             <div className="p-4 bg-amber-50 rounded-lg text-center dark:bg-amber-950/40">
               <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{results.unmatched || 0}</p>
-              <p className="text-sm text-amber-600 dark:text-amber-300">Unmatched</p>
+              <p className="text-sm text-amber-700 dark:text-amber-300">Unmatched</p>
             </div>
             <div className="p-4 bg-red-50 rounded-lg text-center dark:bg-red-950/40">
               <p className="text-2xl font-bold text-red-700 dark:text-red-300">{results.missing || 0}</p>

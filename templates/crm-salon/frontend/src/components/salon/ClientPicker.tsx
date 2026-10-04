@@ -109,7 +109,7 @@ export default function ClientPicker({ value, onChange, initialLabel }: ClientPi
                         {[c.phone, c.email].filter(Boolean).join(' · ')}
                       </span>
                     </span>
-                    {value === c.id && <Check className="w-4 h-4 text-teal-600 dark:text-teal-300" />}
+                    {value === c.id && <Check className="w-4 h-4 text-teal-700 dark:text-teal-300" />}
                   </button>
                 ))
               )}

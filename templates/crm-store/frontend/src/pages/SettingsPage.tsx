@@ -219,7 +219,7 @@ export default function SettingsPage() {
                   {u.id !== user?.id ? (
                     <button
                       onClick={() => toggleStaffAccess(u.id, u.isActive !== false)}
-                      className={`text-xs font-medium ${u.isActive === false ? 'text-green-600 hover:text-green-700 dark:text-green-300' : 'text-red-600 hover:text-red-700 dark:text-red-300'}`}
+                      className={`text-xs font-medium ${u.isActive === false ? 'text-green-700 hover:text-green-800 dark:text-green-300' : 'text-red-600 hover:text-red-700 dark:text-red-300'}`}
                     >
                       {u.isActive === false ? 'Restore access' : 'Revoke access'}
                     </button>

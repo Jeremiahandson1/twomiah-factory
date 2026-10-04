@@ -141,7 +141,7 @@ export default function CheckinPage() {
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3 dark:bg-slate-900">
           <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center dark:bg-yellow-950/40">
-            <Users className="w-5 h-5 text-yellow-600 dark:text-yellow-300" />
+            <Users className="w-5 h-5 text-yellow-700 dark:text-yellow-300" />
           </div>
           <div>
             <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.waiting || 0}</p>
@@ -159,7 +159,7 @@ export default function CheckinPage() {
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3 dark:bg-slate-900">
           <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center dark:bg-green-950/40">
-            <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-300" />
+            <CheckCircle className="w-5 h-5 text-green-700 dark:text-green-300" />
           </div>
           <div>
             <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.servedToday || 0}</p>
@@ -358,7 +358,7 @@ export default function CheckinPage() {
               type="checkbox"
               checked={checkinForm.isMedical}
               onChange={(e) => setCheckinForm({ ...checkinForm, isMedical: e.target.checked })}
-              className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
+              className="w-4 h-4 text-green-700 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
             />
             <span className="text-sm font-medium text-gray-700 dark:text-slate-200">Medical Patient</span>
           </label>
@@ -382,7 +382,7 @@ export default function CheckinPage() {
       {tab === 'qr' && (
         <div className="bg-white rounded-lg shadow-sm p-6 max-w-lg mx-auto text-center space-y-6 dark:bg-slate-900">
           <div className="w-20 h-20 bg-green-100 rounded-2xl flex items-center justify-center mx-auto dark:bg-green-950/40">
-            <QrCode className="w-10 h-10 text-green-600 dark:text-green-300" />
+            <QrCode className="w-10 h-10 text-green-700 dark:text-green-300" />
           </div>
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2 dark:text-slate-100">Self Check-In QR Code</h3>
@@ -473,7 +473,7 @@ export default function CheckinPage() {
               type="checkbox"
               checked={checkinForm.isMedical}
               onChange={(e) => setCheckinForm({ ...checkinForm, isMedical: e.target.checked })}
-              className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
+              className="w-4 h-4 text-green-700 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
             />
             <span className="text-sm text-gray-700 dark:text-slate-200">Medical Patient</span>
           </label>

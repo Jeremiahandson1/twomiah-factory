@@ -195,7 +195,7 @@ export default function TrackingPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <Route className="w-5 h-5 text-green-600 dark:text-green-300" />
+                        <Route className="w-5 h-5 text-green-700 dark:text-green-300" />
                         <span className="font-semibold text-gray-900 dark:text-slate-100">Route #{route.id?.slice(0, 8)}</span>
                         <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40">
                           Active
@@ -274,7 +274,7 @@ export default function TrackingPage() {
 
           <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 mb-4 dark:bg-slate-900">
             <div className="flex items-center gap-3 mb-3">
-              <Route className="w-5 h-5 text-green-600 dark:text-green-300" />
+              <Route className="w-5 h-5 text-green-700 dark:text-green-300" />
               <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Route #{selectedRoute.id?.slice(0, 8)}</h2>
             </div>
             <div className="grid md:grid-cols-3 gap-4 text-sm text-gray-600 dark:text-slate-400">
@@ -396,7 +396,7 @@ export default function TrackingPage() {
                       type="checkbox"
                       checked={selectedOrders.includes(order.id)}
                       onChange={() => toggleOrder(order.id)}
-                      className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
+                      className="w-4 h-4 text-green-700 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
                     />
                     <div className="flex-1 text-sm">
                       <span className="font-medium text-gray-900 dark:text-slate-100">{orderRef(order)}</span>

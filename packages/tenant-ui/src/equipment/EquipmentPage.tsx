@@ -938,7 +938,7 @@ function ServiceHistoryModal({ equipment, api, config, onClose, onRefresh }: Ser
               </p>
             </div>
             {j.completedAt && (
-              <span className="text-xs text-green-600 dark:text-green-300">Completed {formatDate(j.completedAt)}</span>
+              <span className="text-xs text-green-700 dark:text-green-300">Completed {formatDate(j.completedAt)}</span>
             )}
           </div>
         </div>

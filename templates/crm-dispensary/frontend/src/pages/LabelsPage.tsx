@@ -413,7 +413,7 @@ export default function LabelsPage() {
                           type="checkbox"
                           checked={selectedProductIds.includes(product.id)}
                           onChange={() => toggleProductSelection(product.id)}
-                          className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
+                          className="w-4 h-4 text-green-700 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
                         />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate dark:text-slate-100">{product.name}</p>
@@ -583,7 +583,7 @@ export default function LabelsPage() {
                     type="checkbox"
                     checked={templateForm.fields.includes(field.value)}
                     onChange={() => toggleField(field.value)}
-                    className="w-4 h-4 text-green-600 border-slate-500 rounded focus:ring-green-500 dark:text-green-300"
+                    className="w-4 h-4 text-green-700 border-slate-500 rounded focus:ring-green-500 dark:text-green-300"
                   />
                   <span className="text-sm text-slate-300">{field.label}</span>
                 </label>
@@ -597,7 +597,7 @@ export default function LabelsPage() {
                 type="checkbox"
                 checked={templateForm.showQrCode}
                 onChange={(e) => setTemplateForm({ ...templateForm, showQrCode: e.target.checked })}
-                className="w-4 h-4 text-green-600 border-slate-500 rounded focus:ring-green-500 dark:text-green-300"
+                className="w-4 h-4 text-green-700 border-slate-500 rounded focus:ring-green-500 dark:text-green-300"
               />
               <span className="text-sm text-slate-300">QR Code</span>
             </label>
@@ -606,7 +606,7 @@ export default function LabelsPage() {
                 type="checkbox"
                 checked={templateForm.showBarcode}
                 onChange={(e) => setTemplateForm({ ...templateForm, showBarcode: e.target.checked })}
-                className="w-4 h-4 text-green-600 border-slate-500 rounded focus:ring-green-500 dark:text-green-300"
+                className="w-4 h-4 text-green-700 border-slate-500 rounded focus:ring-green-500 dark:text-green-300"
               />
               <span className="text-sm text-slate-300">Barcode</span>
             </label>
@@ -615,7 +615,7 @@ export default function LabelsPage() {
                 type="checkbox"
                 checked={templateForm.showLogo}
                 onChange={(e) => setTemplateForm({ ...templateForm, showLogo: e.target.checked })}
-                className="w-4 h-4 text-green-600 border-slate-500 rounded focus:ring-green-500 dark:text-green-300"
+                className="w-4 h-4 text-green-700 border-slate-500 rounded focus:ring-green-500 dark:text-green-300"
               />
               <span className="text-sm text-slate-300">Company Logo</span>
             </label>
@@ -624,7 +624,7 @@ export default function LabelsPage() {
                 type="checkbox"
                 checked={templateForm.showThcWarning}
                 onChange={(e) => setTemplateForm({ ...templateForm, showThcWarning: e.target.checked })}
-                className="w-4 h-4 text-green-600 border-slate-500 rounded focus:ring-green-500 dark:text-green-300"
+                className="w-4 h-4 text-green-700 border-slate-500 rounded focus:ring-green-500 dark:text-green-300"
               />
               <span className="text-sm text-slate-300">THC Warning</span>
             </label>
@@ -633,7 +633,7 @@ export default function LabelsPage() {
                 type="checkbox"
                 checked={templateForm.showLabResults}
                 onChange={(e) => setTemplateForm({ ...templateForm, showLabResults: e.target.checked })}
-                className="w-4 h-4 text-green-600 border-slate-500 rounded focus:ring-green-500 dark:text-green-300"
+                className="w-4 h-4 text-green-700 border-slate-500 rounded focus:ring-green-500 dark:text-green-300"
               />
               <span className="text-sm text-slate-300">Lab Results</span>
             </label>

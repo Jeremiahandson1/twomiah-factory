@@ -80,7 +80,7 @@ export default function DrawSchedulesPage() {
               </div>
               <div className="mt-3 space-y-1 text-sm">
                 <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Total</span><span className="font-mono">${Number(s.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Drawn</span><span className="font-mono text-green-600 dark:text-green-300">${Number(s.drawnAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Drawn</span><span className="font-mono text-green-700 dark:text-green-300">${Number(s.drawnAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Remaining</span><span className="font-mono">${Number(s.remainingAmount || s.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
               </div>
               <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">{s.drawCount || 0} draws</div>
@@ -109,7 +109,7 @@ export default function DrawSchedulesPage() {
                         <td className="px-4 py-3">
                           <div className="flex gap-1">
                             {r.status === 'pending' && <button onClick={() => drawAction(r.id, 'submit')} className="text-blue-600 hover:bg-blue-50 p-1 rounded text-xs dark:text-blue-300">Submit</button>}
-                            {r.status === 'submitted' && <button onClick={() => drawAction(r.id, 'approve')} className="text-green-600 hover:bg-green-50 p-1 rounded dark:text-green-300"><Check className="w-4 h-4" /></button>}
+                            {r.status === 'submitted' && <button onClick={() => drawAction(r.id, 'approve')} className="text-green-700 hover:bg-green-50 p-1 rounded dark:text-green-300"><Check className="w-4 h-4" /></button>}
                             {r.status === 'approved' && <button onClick={() => drawAction(r.id, 'mark-paid')} className="text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 p-1 rounded text-xs">Mark Paid</button>}
                           </div>
                         </td>

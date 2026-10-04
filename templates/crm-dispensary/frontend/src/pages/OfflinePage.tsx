@@ -195,7 +195,7 @@ export default function OfflinePage() {
               <span className="text-sm text-gray-500 dark:text-slate-400">Connection</span>
               {status.online ? <Wifi className="w-5 h-5 text-green-500 dark:text-green-300" /> : <WifiOff className="w-5 h-5 text-red-500 dark:text-red-400" />}
             </div>
-            <div className={`text-xl font-bold ${status.online ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-400'}`}>
+            <div className={`text-xl font-bold ${status.online ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400'}`}>
               {status.online ? 'Online' : 'Offline'}
             </div>
             <div className={`w-3 h-3 rounded-full mt-2 ${status.online ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
@@ -245,7 +245,7 @@ export default function OfflinePage() {
                   <div className="font-medium">Enable Offline Mode</div>
                   <div className="text-sm text-gray-500 dark:text-slate-400">Allow the system to work without internet</div>
                 </div>
-                <div className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${config.offlineEnabled ? 'bg-green-500' : 'bg-gray-300'}`}
+                <div className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${config.offlineEnabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`}
                   onClick={() => setConfig({ ...config, offlineEnabled: !config.offlineEnabled })}>
                   <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${config.offlineEnabled ? 'translate-x-5' : 'translate-x-0.5'} dark:bg-slate-900`} />
                 </div>
@@ -280,7 +280,7 @@ export default function OfflinePage() {
                       </div>
                       <input type="checkbox" checked={(config as any)[feature.key]}
                         onChange={e => setConfig({ ...config, [feature.key]: e.target.checked })}
-                        className="rounded text-green-600 w-4 h-4 dark:text-green-300" />
+                        className="rounded text-green-700 w-4 h-4 dark:text-green-300" />
                     </label>
                   ))}
                 </div>

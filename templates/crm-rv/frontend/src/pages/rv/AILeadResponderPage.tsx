@@ -74,7 +74,7 @@ export default function AILeadResponderPage() {
             {leads.length === 0 && <div className="p-4 text-sm text-gray-500 dark:text-slate-400">No leads yet.</div>}
             {leads.map((l) => (
               <button key={l.id} onClick={() => draftFor(l)}
-                className={`w-full text-left px-4 py-3 hover:bg-indigo-50 transition ${selected?.id === l.id ? 'bg-indigo-50 border-l-2 border-indigo-600' : ''}`}>
+                className={`w-full text-left px-4 py-3 hover:bg-indigo-50 transition ${selected?.id === l.id ? 'bg-indigo-50 border-l-2 border-indigo-600 dark:bg-indigo-950/40 dark:text-slate-100' : ''}`}>
                 <div className="font-medium text-sm">{l.customerName || 'Unknown lead'}</div>
                 <div className="text-xs text-gray-500 mt-0.5 dark:text-slate-400">{interestLabel(l)} {!unavailableLabel(l) && l.unitPrice ? `· ${money(l.unitPrice)}` : ''}{unavailableLabel(l) && <span className="ml-1 text-amber-700 font-medium dark:text-amber-300">· {unavailableLabel(l)}</span>}</div>
                 <div className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5 capitalize">{(l.source || '').replace(/_/g, ' ')} · {l.stage?.replace(/_/g, ' ')}</div>

@@ -276,11 +276,11 @@ export default function RecommendationsPage() {
                   <p className="font-semibold text-green-800 dark:text-green-300">
                     Recommendations for {selectedCustomer.name || selectedCustomer.firstName + ' ' + selectedCustomer.lastName}
                   </p>
-                  <p className="text-sm text-green-600 dark:text-green-300">{selectedCustomer.email || ''}</p>
+                  <p className="text-sm text-green-700 dark:text-green-300">{selectedCustomer.email || ''}</p>
                 </div>
                 <button
                   onClick={() => { setSelectedCustomer(null); setCustomerRecs([]); }}
-                  className="text-green-600 hover:text-green-800 dark:hover:text-green-300 dark:text-green-300"
+                  className="text-green-700 hover:text-green-800 dark:hover:text-green-300 dark:text-green-300"
                 >
                   Clear
                 </button>
@@ -297,7 +297,7 @@ export default function RecommendationsPage() {
               {customerRecs.map((rec, idx) => (
                 <div key={rec.id || idx} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 flex items-center gap-4 dark:bg-slate-900">
                   <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0 dark:bg-green-950/40">
-                    <Sparkles className="w-6 h-6 text-green-600 dark:text-green-300" />
+                    <Sparkles className="w-6 h-6 text-green-700 dark:text-green-300" />
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900 dark:text-slate-100">{rec.productName || rec.name}</h3>
@@ -374,11 +374,11 @@ export default function RecommendationsPage() {
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between dark:bg-green-950/40">
                 <div>
                   <p className="font-semibold text-green-800 dark:text-green-300">Similar to: {selectedProduct.name}</p>
-                  <p className="text-sm text-green-600 dark:text-green-300">{selectedProduct.category} | ${Number(selectedProduct.price || 0).toFixed(2)}</p>
+                  <p className="text-sm text-green-700 dark:text-green-300">{selectedProduct.category} | ${Number(selectedProduct.price || 0).toFixed(2)}</p>
                 </div>
                 <button
                   onClick={() => { setSelectedProduct(null); setSimilarProducts([]); }}
-                  className="text-green-600 hover:text-green-800 dark:hover:text-green-300 dark:text-green-300"
+                  className="text-green-700 hover:text-green-800 dark:hover:text-green-300 dark:text-green-300"
                 >
                   Clear
                 </button>

@@ -125,7 +125,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
       </div>
 
       <div className="flex items-center gap-4 mb-4 text-xs text-gray-600 dark:text-slate-400">
-        <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-gray-300" />{cfg.jobLabel}</span>
+        <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-gray-300 dark:bg-slate-700 dark:text-slate-100" />{cfg.jobLabel}</span>
         {bookings.length > 0 && <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-orange-500" />Booking</span>}
         {cfg.events && <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-300" />Appointment</span>}
       </div>

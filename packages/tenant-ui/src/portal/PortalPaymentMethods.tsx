@@ -56,7 +56,7 @@ export function PortalPaymentMethods() {
           ) : cards.map((c) => (
             <div key={c.id} className={`${card} p-4 flex items-center justify-between`}>
               <div className="flex items-center gap-3"><CreditCard className="w-5 h-5 text-gray-400" /><div><p className="font-medium text-gray-900 capitalize dark:text-slate-100">{c.brand || 'Card'} ending {c.last4}</p><p className="text-xs text-gray-500 dark:text-slate-400">Expires {c.expMonth}/{c.expYear}</p></div></div>
-              <span className="text-xs text-green-600 flex items-center gap-1 dark:text-green-300"><Check className="w-3 h-3" /> On file</span>
+              <span className="text-xs text-green-700 flex items-center gap-1 dark:text-green-300"><Check className="w-3 h-3" /> On file</span>
             </div>
           ))}
         </div>

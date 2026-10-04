@@ -101,7 +101,7 @@ export default function ServiceMenuPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-            <Scissors className="w-6 h-6 text-teal-600 dark:text-teal-300" /> Service Menu
+            <Scissors className="w-6 h-6 text-teal-700 dark:text-teal-300" /> Service Menu
           </h1>
           <p className="text-gray-500 dark:text-slate-400">What you offer, how long it takes, when they're due back</p>
         </div>

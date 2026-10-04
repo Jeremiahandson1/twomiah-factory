@@ -69,7 +69,7 @@ export default function OrderDetailPage() {
         <div className="divide-y">
           {order.items?.map((it) => (
             <div key={it.id} className="flex items-center gap-3 px-5 py-3">
-              <div className="h-12 w-12 rounded bg-gray-100 overflow-hidden flex-shrink-0">
+              <div className="h-12 w-12 rounded bg-gray-100 overflow-hidden flex-shrink-0 dark:bg-slate-800 dark:text-slate-100">
                 {it.imageUrl && <img src={it.imageUrl} alt="" className="h-full w-full object-cover" />}
               </div>
               <div className="flex-1 min-w-0">
@@ -101,7 +101,7 @@ export default function OrderDetailPage() {
           <div className="card p-5">
             <h2 className="font-semibold text-gray-900 mb-2 dark:text-slate-100">Supplier</h2>
             <div className="text-sm text-gray-600 space-y-1 dark:text-slate-300">
-              <div>Status: <span className={"font-medium " + (order.supplierStatus === 'error' ? 'text-red-600' : order.supplierStatus === 'placed' || order.supplierStatus === 'shipped' ? 'text-green-600' : 'text-yellow-600')}>{order.supplierStatus}</span></div>
+              <div>Status: <span className={"font-medium " + (order.supplierStatus === 'error' ? 'text-red-600 dark:text-red-400' : order.supplierStatus === 'placed' || order.supplierStatus === 'shipped' ? 'text-green-700 dark:text-green-300' : 'text-yellow-700 dark:text-yellow-300')}>{order.supplierStatus}</span></div>
               {order.supplierOrderId && <div>Supplier order: <span className="font-mono text-xs">{order.supplierOrderId}</span></div>}
               {order.supplierCostCents != null && <div>Supplier cost: ${(order.supplierCostCents / 100).toFixed(2)} <span className="text-gray-400">(margin ${((order.totalCents - order.supplierCostCents) / 100).toFixed(2)})</span></div>}
               {order.supplierError && <div className="text-red-600 text-xs dark:text-red-400">{order.supplierError}</div>}

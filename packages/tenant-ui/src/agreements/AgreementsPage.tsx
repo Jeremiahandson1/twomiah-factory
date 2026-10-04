@@ -495,7 +495,7 @@ function AutopayToggle({ agreement, onChanged }: { agreement: Agreement; onChang
         disabled={busy || agreement.status !== 'active' || !mayUpdate}
         title={!mayUpdate ? (on ? 'Autopay is on. Changing it needs permission to edit agreements.' : 'Autopay is off. Changing it needs permission to edit agreements.')
           : agreement.status !== 'active' ? 'Only active agreements can autopay' : 'Charge the customer automatically each billing period'}
-        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${on ? 'bg-green-500' : 'bg-gray-300'}`}
+        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${on ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`}
       >
         <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${on ? 'translate-x-5' : 'translate-x-1'}`} />
       </button>
@@ -585,7 +585,7 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowPro
           {agreement.status === 'active' && mayUpdate && (
             <button
               onClick={onRenew}
-              className="p-1.5 text-green-600 hover:bg-green-50 rounded dark:text-green-300"
+              className="p-1.5 text-green-700 hover:bg-green-50 rounded dark:text-green-300"
               title="Renew"
             >
               <RefreshCw className="w-4 h-4" />

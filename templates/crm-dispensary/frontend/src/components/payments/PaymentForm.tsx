@@ -159,7 +159,7 @@ function CheckoutForm({ amount, onSuccess, onCancel }) {
     return (
       <div className="text-center py-8">
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 dark:bg-green-950/40">
-          <Check className="w-8 h-8 text-green-600 dark:text-green-300" />
+          <Check className="w-8 h-8 text-green-700 dark:text-green-300" />
         </div>
         <h3 className="text-xl font-bold text-gray-900 mb-2 dark:text-slate-100">Payment Successful!</h3>
         <p className="text-gray-500 dark:text-slate-400">Thank you for your payment.</p>

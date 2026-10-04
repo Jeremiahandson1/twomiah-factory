@@ -339,7 +339,7 @@ export default function KioskOrderPage() {
         {/* Header */}
         <div className="bg-white shadow-sm px-6 py-4 flex items-center justify-between sticky top-0 z-10 dark:bg-slate-900">
           <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-            <Leaf className="w-6 h-6 text-green-600" />
+            <Leaf className="w-6 h-6 text-green-700" />
             Browse Menu
           </h1>
           <button
@@ -636,7 +636,7 @@ export default function KioskOrderPage() {
       <div className="min-h-screen bg-green-600 flex items-center justify-center p-8">
         <div className="text-center max-w-lg">
           <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-8">
-            <CheckCircle className="w-14 h-14 text-green-600" />
+            <CheckCircle className="w-14 h-14 text-green-700" />
           </div>
           <h1 className="text-4xl font-bold text-white mb-4">Thank You!</h1>
           <p className="text-xl text-green-100 mb-6">Your order has been placed</p>

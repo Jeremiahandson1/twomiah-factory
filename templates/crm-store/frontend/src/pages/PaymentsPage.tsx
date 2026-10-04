@@ -55,11 +55,11 @@ export default function PaymentsPage() {
 
       {connected ? (
         <div className="card p-5">
-          <div className="flex items-center gap-2 text-green-600 font-medium dark:text-green-300"><CheckCircle2 className="h-5 w-5" /> Connected</div>
+          <div className="flex items-center gap-2 text-green-700 font-medium dark:text-green-300"><CheckCircle2 className="h-5 w-5" /> Connected</div>
           <div className="mt-3 text-sm text-gray-600 space-y-1 dark:text-slate-300">
             <div>Provider: <span className="font-medium capitalize">{status?.config?.provider}</span></div>
             <div>Mode: <span className="font-medium capitalize">{status?.config?.mode}</span>{status?.config?.mode === 'test' && ' (no real charges)'}</div>
-            <div>Payment notifications: {status?.config?.hasWebhookSecret ? 'active' : <span className="text-yellow-600 dark:text-yellow-300">not set up &mdash; orders confirm on the customer&apos;s receipt page instead</span>}</div>
+            <div>Payment notifications: {status?.config?.hasWebhookSecret ? 'active' : <span className="text-yellow-700 dark:text-yellow-300">not set up &mdash; orders confirm on the customer&apos;s receipt page instead</span>}</div>
           </div>
           <button onClick={disconnect} className="btn-danger mt-4 text-xs" disabled={!isOwner} title={isOwner ? undefined : 'Only the store owner can disconnect payments'}>Disconnect</button>
         </div>
@@ -105,7 +105,7 @@ export default function PaymentsPage() {
             <div>
               <p className="text-xs text-gray-500 mb-1 dark:text-slate-400">Point your webhook at:</p>
               <div className="flex items-center gap-2">
-                <code className="flex-1 rounded bg-gray-50 border px-3 py-2 text-xs break-all">{status?.webhookUrl}</code>
+                <code className="flex-1 rounded bg-gray-50 border px-3 py-2 text-xs break-all dark:bg-slate-800 dark:text-slate-100">{status?.webhookUrl}</code>
                 <button onClick={copyWebhook} className="btn-secondary text-xs"><Copy className="h-3 w-3" /> Copy</button>
               </div>
             </div>

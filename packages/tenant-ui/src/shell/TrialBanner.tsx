@@ -23,7 +23,7 @@ export function TrialBanner({ company }: { company: any }) {
   const copy = daysRemaining === 0 ? 'Your free trial ends today' : daysRemaining === 1 ? 'Only 1 day left in your free trial' : `${daysRemaining} days left in your free trial`
   const Icon = urgent ? AlertTriangle : Clock
   return (
-    <div className={`border-b px-4 py-3 ${urgent ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'}`}>
+    <div className={`border-b px-4 py-3 ${urgent ? 'bg-red-50 border-red-200 dark:bg-red-950/40 dark:text-slate-100' : 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950/40 dark:text-slate-100'}`}>
       <div className="flex items-center justify-between gap-4 max-w-screen-2xl mx-auto">
         <div className={`flex items-center gap-2 ${urgent ? 'text-red-900 dark:text-red-400' : 'text-yellow-900 dark:text-yellow-300'}`}>
           <Icon className="w-5 h-5 flex-shrink-0" />

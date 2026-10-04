@@ -335,7 +335,7 @@ const unitOf = (rule: any): string => {
           {/* Add product */}
           <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
             <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
-              <Calculator className="w-5 h-5 text-green-600 dark:text-green-300" />
+              <Calculator className="w-5 h-5 text-green-700 dark:text-green-300" />
               Add Products
             </h3>
             <div className="flex gap-3">
@@ -369,7 +369,7 @@ const unitOf = (rule: any): string => {
                 {Number(totalEquivalentGrams).toFixed(1)}g / {purchaseLimit}g
               </span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+            <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden dark:bg-slate-700 dark:text-slate-100">
               <div
                 className={`h-4 rounded-full transition-all ${
                   overLimit ? 'bg-red-500' : limitPercentage > 80 ? 'bg-yellow-500' : 'bg-green-500'
@@ -427,7 +427,7 @@ const unitOf = (rule: any): string => {
                 <tfoot className="bg-gray-50 dark:bg-slate-900">
                   <tr>
                     <td colSpan={4} className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-slate-100">Total Flower Equivalent:</td>
-                    <td className={`px-4 py-3 text-right font-bold ${overLimit ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>
+                    <td className={`px-4 py-3 text-right font-bold ${overLimit ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`}>
                       {Number(totalEquivalentGrams).toFixed(1)}g
                     </td>
                     <td />

@@ -102,7 +102,7 @@ function VisitCard({ visit }: { visit: any }) {
       {checklist && (
         <div className="border-t dark:border-slate-700">
           <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-slate-800">
-            <div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-600 dark:text-green-300" /><span className="text-gray-700 dark:text-slate-200">Inspection checklist{flagged > 0 && ` — ${flagged} item${flagged > 1 ? 's' : ''} flagged`}</span></div>
+            <div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-700 dark:text-green-300" /><span className="text-gray-700 dark:text-slate-200">Inspection checklist{flagged > 0 && ` — ${flagged} item${flagged > 1 ? 's' : ''} flagged`}</span></div>
             {open ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
           </button>
           {open && (
@@ -215,7 +215,7 @@ export function PortalServiceRequest() {
   if (done) {
     return (
       <div className="py-12 max-w-lg mx-auto text-center">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 dark:bg-green-950/40"><CheckCircle className="w-8 h-8 text-green-600 dark:text-green-300" /></div>
+        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 dark:bg-green-950/40"><CheckCircle className="w-8 h-8 text-green-700 dark:text-green-300" /></div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Request Received</h1>
         <p className="text-gray-600 mb-1 dark:text-slate-400">We'll be in touch <strong>{URGENCY_PROMISE[done.urgency || 'routine'] || `within ${done.responseHours} hours`}</strong>.</p>
         <p className="text-sm text-gray-500 dark:text-slate-400 mb-8">Reference: {done.jobNumber}</p>

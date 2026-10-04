@@ -175,7 +175,7 @@ export default function AnalyticsPage() {
             ${Number(metrics?.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </p>
           {metrics?.revenueChange != null && (
-            <p className={`text-sm mt-1 ${metrics.revenueChange >= 0 ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-400'}`}>
+            <p className={`text-sm mt-1 ${metrics.revenueChange >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400'}`}>
               {metrics.revenueChange >= 0 ? '+' : ''}{Number(metrics.revenueChange).toFixed(1)}% vs prior
             </p>
           )}
@@ -201,7 +201,7 @@ export default function AnalyticsPage() {
           </div>
           <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{metrics?.totalOrders || 0}</p>
           {metrics?.ordersChange != null && (
-            <p className={`text-sm mt-1 ${metrics.ordersChange >= 0 ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-400'}`}>
+            <p className={`text-sm mt-1 ${metrics.ordersChange >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400'}`}>
               {metrics.ordersChange >= 0 ? '+' : ''}{Number(metrics.ordersChange).toFixed(1)}% vs prior
             </p>
           )}
@@ -264,7 +264,7 @@ export default function AnalyticsPage() {
         {/* Revenue Chart */}
         <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
-            <BarChart3 className="w-5 h-5 text-green-600 dark:text-green-300" />
+            <BarChart3 className="w-5 h-5 text-green-700 dark:text-green-300" />
             Revenue Over Time
           </h2>
           <div className="space-y-2">
@@ -363,7 +363,7 @@ export default function AnalyticsPage() {
         {/* Customer Metrics */}
         <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
-            <Users className="w-5 h-5 text-amber-600 dark:text-amber-300" />
+            <Users className="w-5 h-5 text-amber-700 dark:text-amber-300" />
             Customer Insights
           </h2>
           <div className="grid grid-cols-2 gap-4">

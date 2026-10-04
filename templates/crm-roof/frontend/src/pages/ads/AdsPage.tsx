@@ -161,7 +161,7 @@ function ExperimentsTab() {
                         <div className="text-xl font-bold text-gray-900 dark:text-white">{c.toFixed(1)}%</div>
                         <div className="text-xs text-gray-500 dark:text-slate-400">{v.conversions}/{v.assignments}</div>
                         {i > 0 && (
-                          <div className={`text-xs font-medium mt-1 ${l >= 0 ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-400'}`}>
+                          <div className={`text-xs font-medium mt-1 ${l >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400'}`}>
                             {l >= 0 ? '+' : ''}{l.toFixed(1)}% vs control
                           </div>
                         )}

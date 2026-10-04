@@ -410,7 +410,7 @@ export default function CanvassingView() {
               <p className="text-xs text-gray-500 dark:text-slate-400">Answered</p>
             </div>
             <div className="bg-white rounded-xl p-4 border dark:bg-slate-900">
-              <p className="text-2xl font-bold text-green-600 dark:text-green-300">{s.leadsCreated || 0}</p>
+              <p className="text-2xl font-bold text-green-700 dark:text-green-300">{s.leadsCreated || 0}</p>
               <p className="text-xs text-gray-500 dark:text-slate-400">Leads Created</p>
             </div>
             <div className="bg-white rounded-xl p-4 border dark:bg-slate-900">
@@ -513,7 +513,7 @@ export default function CanvassingView() {
                   <div className="flex items-center gap-4 mt-1 text-xs text-gray-500 dark:text-slate-400">
                     <span>{formatDate(s.startedAt || s.createdAt)}</span>
                     <span>{s.totalDoors || 0} doors</span>
-                    <span className="text-green-600 font-medium dark:text-green-300">{s.leadsCreated || 0} leads</span>
+                    <span className="text-green-700 font-medium dark:text-green-300">{s.leadsCreated || 0} leads</span>
                   </div>
                   {s.weatherEvent && (
                     <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 flex items-center gap-1">
@@ -599,7 +599,7 @@ export default function CanvassingView() {
           <p className="text-[10px] text-gray-500 dark:text-slate-400">Answered</p>
         </div>
         <div className="flex-1 text-center">
-          <p className="text-lg font-bold text-green-600 dark:text-green-300">{activeSession.leadsCreated || 0}</p>
+          <p className="text-lg font-bold text-green-700 dark:text-green-300">{activeSession.leadsCreated || 0}</p>
           <p className="text-[10px] text-gray-500 dark:text-slate-400">Leads</p>
         </div>
       </div>
@@ -724,7 +724,7 @@ export default function CanvassingView() {
             <h2 className="font-bold">Log Door Knock</h2>
             <div className="flex gap-1">
               {[0, 1, 2, 3].map((i) => (
-                <div key={i} className={`w-2 h-2 rounded-full ${i <= logStep ? 'bg-blue-600' : 'bg-gray-300'}`} />
+                <div key={i} className={`w-2 h-2 rounded-full ${i <= logStep ? 'bg-blue-600' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`} />
               ))}
             </div>
           </div>
@@ -745,7 +745,7 @@ export default function CanvassingView() {
                 {logGpsStatus === 'success' && logAddress && (
                   <div className="bg-green-50 border border-green-200 rounded-xl p-4 dark:bg-green-950/40">
                     <div className="flex items-center gap-2 mb-1">
-                      <Navigation size={16} className="text-green-600 dark:text-green-300" />
+                      <Navigation size={16} className="text-green-700 dark:text-green-300" />
                       <p className="text-sm font-medium text-green-800 dark:text-green-300">GPS Location Found</p>
                     </div>
                     <p className="text-sm text-gray-700 dark:text-slate-200">{logAddress}{logCity ? `, ${logCity}` : ''}{logState ? `, ${logState}` : ''} {logZip}</p>
@@ -896,7 +896,7 @@ export default function CanvassingView() {
                 <div className="flex items-center justify-between bg-white border rounded-xl p-4 dark:bg-slate-900">
                   <span className="text-sm font-medium">Left door hanger</span>
                   <button onClick={() => setLogDoorHanger(!logDoorHanger)}
-                    className={`w-12 h-6 rounded-full transition ${logDoorHanger ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                    className={`w-12 h-6 rounded-full transition ${logDoorHanger ? 'bg-blue-600' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`}>
                     {/* The knob STAYS white in both themes — it is white to read against its own
                       coloured track, so `dark:bg-white` is the deliberate answer rather than an
                       omission. A dark surface here would hide the knob inside the track. (T41) */}

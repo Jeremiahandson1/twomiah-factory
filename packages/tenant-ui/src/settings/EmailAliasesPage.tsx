@@ -128,7 +128,7 @@ export function EmailAliasesPage(): React.ReactElement {
           ))}
 
           {adding && domain && (
-            <div className="border border-gray-300 rounded-md p-4 bg-gray-50">
+            <div className="border border-gray-300 rounded-md p-4 bg-gray-50 dark:bg-slate-800 dark:text-slate-100">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 mb-1">Address</label>

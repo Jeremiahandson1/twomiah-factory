@@ -132,7 +132,7 @@ export default function DashboardPage() {
       >
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className={`p-3 rounded-lg ${reminderTotal > 0 ? 'bg-red-100' : 'bg-gray-100'}`}>
+            <div className={`p-3 rounded-lg ${reminderTotal > 0 ? 'bg-red-100 dark:bg-red-950/40 dark:text-slate-100' : 'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'}`}>
               <BellRing className={`w-6 h-6 ${reminderTotal > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-slate-400'}`} />
             </div>
             <div>
@@ -187,7 +187,7 @@ export default function DashboardPage() {
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{visits.thisMonth || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1">
-            <DollarSign className="w-3 h-3 text-green-600 dark:text-green-300" />
+            <DollarSign className="w-3 h-3 text-green-700 dark:text-green-300" />
             {money(visits.revenueThisMonth)} revenue
           </p>
         </div>

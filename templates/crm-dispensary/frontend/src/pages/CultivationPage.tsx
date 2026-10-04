@@ -81,11 +81,11 @@ export default function CultivationPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
             <p className="text-sm text-gray-500 dark:text-slate-400">Clones</p>
-            <p className="text-2xl font-bold text-teal-600 dark:text-teal-300">{stats.clones || 0}</p>
+            <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{stats.clones || 0}</p>
           </div>
           <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
             <p className="text-sm text-gray-500 dark:text-slate-400">Vegetative</p>
-            <p className="text-2xl font-bold text-green-600 dark:text-green-300">{stats.vegetative || 0}</p>
+            <p className="text-2xl font-bold text-green-700 dark:text-green-300">{stats.vegetative || 0}</p>
           </div>
           <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
             <p className="text-sm text-gray-500 dark:text-slate-400">Flowering</p>
@@ -93,7 +93,7 @@ export default function CultivationPage() {
           </div>
           <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
             <p className="text-sm text-gray-500 dark:text-slate-400">Rooms at Capacity</p>
-            <p className="text-2xl font-bold text-amber-600 dark:text-amber-300">{stats.roomsAtCapacity || 0}</p>
+            <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{stats.roomsAtCapacity || 0}</p>
           </div>
         </div>
       )}

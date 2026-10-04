@@ -155,7 +155,7 @@ export default function AuditLogPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-          <Shield className="w-6 h-6 text-green-600 dark:text-green-300" />
+          <Shield className="w-6 h-6 text-green-700 dark:text-green-300" />
           Audit Log
         </h1>
         <p className="text-gray-600 dark:text-slate-400">Track all system activity and compliance events</p>
@@ -254,7 +254,7 @@ export default function AuditLogPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+                      <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center dark:bg-slate-700 dark:text-slate-100">
                         <User className="w-3 h-3 text-gray-500 dark:text-slate-400" />
                       </div>
                       <span className="text-sm text-gray-900 dark:text-slate-100">{log.userName || log.userEmail || 'System'}</span>

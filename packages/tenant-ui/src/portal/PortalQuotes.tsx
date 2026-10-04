@@ -134,7 +134,7 @@ export function PortalQuoteDetail() {
         {quote.status === 'approved' && (
           <div className="p-6 bg-green-50 border-t dark:bg-green-950/20 dark:border-slate-700">
             <div className="flex items-start gap-4">
-              <CheckCircle className="w-6 h-6 text-green-600 shrink-0 mt-1 dark:text-green-300" />
+              <CheckCircle className="w-6 h-6 text-green-700 shrink-0 mt-1 dark:text-green-300" />
               <div className="flex-1"><p className="font-medium text-green-800 dark:text-green-300">Quote approved{quote.approvedAt ? ` on ${formatDate(quote.approvedAt)}` : ''}</p>{quote.signature && <SignatureDisplay className="mt-3" signature={quote.signature} signedBy={(quote.signedBy || quote.approvedBy) ?? undefined} signedAt={quote.approvedAt ?? undefined} />}</div>
             </div>
           </div>

@@ -46,6 +46,29 @@ function labelOn(hex: string): string {
   return onBlack >= onWhite ? '#0f172a' : '#ffffff';
 }
 
+/**
+ * …and picking the BETTER of two colours is not the same as picking a readable one.
+ *
+ * labelOn returns whichever of white and slate-900 has more contrast on the bar. On a mid-tone bar
+ * NEITHER clears AA: measured on the live roof tenant, a violet stage bar gave 4.22:1 with the
+ * better of the two, against the 4.5:1 a 12px label needs. (T41 reported this as a 4.22:1 label.)
+ * There is no third colour to try — the bar is the tenant's own stage colour.
+ *
+ * So when the bar cannot carry the label, the label goes BESIDE the bar instead, which is the same
+ * treatment a short bar already gets. Nothing is hidden and nothing is unreadable.
+ */
+function labelFitsOnBar(hex: string): boolean {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return true; // unparseable: labelOn falls back to white, and this is not the place to guess
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16) / 255);
+  const lin = (v: number) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  const DARK_INK_L = 0.2126 * lin(0x0f / 255) + 0.7152 * lin(0x17 / 255) + 0.0722 * lin(0x2a / 255);
+  const onWhite = 1.05 / (L + 0.05);
+  const onDark = (L + 0.05) / (DARK_INK_L + 0.05);
+  return Math.max(onWhite, onDark) >= 4.5;
+}
+
 function Bar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
   const pct = max > 0 ? (value / max) * 100 : 0;
   return (
@@ -53,10 +76,10 @@ function Bar({ label, value, max, color }: { label: string; value: number; max: 
       <span className="w-36 text-gray-600 truncate text-right dark:text-slate-400">{label}</span>
       <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden dark:bg-slate-800">
         <div className="h-full rounded-full flex items-center px-2" style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: color }}>
-          {pct > 15 && <span className="text-xs font-medium" style={{ color: labelOn(color) }}>${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
+          {pct > 15 && labelFitsOnBar(color) && <span className="text-xs font-medium" style={{ color: labelOn(color) }}>${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
         </div>
       </div>
-      {pct <= 15 && <span className="text-xs text-gray-500 w-20 dark:text-slate-400">${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
+      {(pct <= 15 || !labelFitsOnBar(color)) && <span className="text-xs text-gray-500 w-20 dark:text-slate-400">${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
     </div>
   );
 }
@@ -223,7 +246,7 @@ export default function ReportsPage() {
           <div className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center dark:bg-green-950/40">
-                <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-300" />
+                <TrendingUp className="w-5 h-5 text-green-700 dark:text-green-300" />
               </div>
               <span className="text-sm text-gray-500 dark:text-slate-400">Close Rate</span>
             </div>

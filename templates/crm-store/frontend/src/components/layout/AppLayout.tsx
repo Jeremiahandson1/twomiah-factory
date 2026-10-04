@@ -31,7 +31,7 @@ export default function AppLayout() {
   const doLogout = async () => { await logout(); navigate('/login') }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-800 dark:text-slate-100">
       {/* Mobile top bar */}
       <div className="lg:hidden flex items-center justify-between bg-white border-b px-4 py-3 dark:bg-slate-900">
         <div className="flex items-center gap-2 font-semibold text-gray-900 dark:text-slate-100">
@@ -52,7 +52,7 @@ export default function AppLayout() {
             {NAV.map(({ to, label, icon: Icon, end }) => (
               <NavLink key={to} to={to} end={end} onClick={() => setOpen(false)}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-50 dark:text-slate-300'}`}>
                 <Icon className="h-4 w-4" /> {label}
               </NavLink>
             ))}

@@ -88,7 +88,7 @@ export function Toggle({
         )} />
         <div className={clsx(
           s.thumb,
-          'absolute top-0.5 left-0.5 bg-white rounded-full shadow transition-transform duration-200',
+          'absolute top-0.5 left-0.5 bg-white rounded-full shadow transition-transform duration-200 dark:bg-slate-800 dark:text-slate-100',
           checked && s.translate
         )} />
       </div>

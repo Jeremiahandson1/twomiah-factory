@@ -116,7 +116,7 @@ export default function MenuOrderPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-950">
-        <Loader2 className="w-8 h-8 animate-spin text-green-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-green-700" />
       </div>
     );
   }
@@ -134,7 +134,7 @@ export default function MenuOrderPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-6 dark:bg-slate-950">
         <div className="bg-white rounded-2xl border p-8 max-w-md w-full text-center dark:bg-slate-900 dark:border-slate-700">
           <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-            <Check className="w-7 h-7 text-green-600" />
+            <Check className="w-7 h-7 text-green-700" />
           </div>
           <h1 className="text-xl font-bold text-gray-900 mb-1 dark:text-slate-100">Order placed</h1>
           <p className="text-gray-600 mb-5 dark:text-slate-300">
@@ -161,7 +161,7 @@ export default function MenuOrderPage() {
           <div className="flex items-center gap-3">
             {menu?.company?.logo
               ? <img src={menu.company.logo} alt="" className="w-9 h-9 rounded-lg object-cover" />
-              : <Store className="w-7 h-7 text-green-600" />}
+              : <Store className="w-7 h-7 text-green-700" />}
             <div>
               <h1 className="font-bold text-gray-900 dark:text-slate-100">{menu?.company?.name || 'Menu'}</h1>
               <p className="text-xs text-gray-500 dark:text-slate-400">Order ahead for pickup or delivery</p>

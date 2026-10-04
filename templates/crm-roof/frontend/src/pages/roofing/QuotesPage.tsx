@@ -257,7 +257,7 @@ export default function QuotesPage() {
                           )}
                           {(q.status === 'sent' || q.status === 'viewed') && (
                             <>
-                              <button onClick={() => performAction(q.id, 'approve')} title="Approve" className="p-1 text-green-600 hover:bg-green-50 rounded dark:text-green-300">
+                              <button onClick={() => performAction(q.id, 'approve')} title="Approve" className="p-1 text-green-700 hover:bg-green-50 rounded dark:text-green-300">
                                 <Check className="w-4 h-4" />
                               </button>
                               <button onClick={() => performAction(q.id, 'decline')} title="Decline" className="p-1 text-red-600 hover:bg-red-50 rounded dark:text-red-400">

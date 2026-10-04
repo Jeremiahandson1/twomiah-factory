@@ -105,7 +105,7 @@ function Toggle({ enabled, onChange, label }: { enabled: boolean; onChange: (v: 
   return (
     <button type="button" onClick={() => onChange(!enabled)} className="flex items-center gap-3 group">
       {enabled
-        ? <ToggleRight className="w-8 h-8 text-green-600 dark:text-green-300" />
+        ? <ToggleRight className="w-8 h-8 text-green-700 dark:text-green-300" />
         : <ToggleLeft className="w-8 h-8 text-gray-400 group-hover:text-gray-500" />}
       <span className="text-sm font-medium">{label}</span>
     </button>
@@ -727,7 +727,7 @@ export default function SettingsPage() {
                           type="checkbox"
                           checked={!storeHours[day]?.closed}
                           onChange={e => updateHours(day, 'closed', !e.target.checked)}
-                          className="w-4 h-4 rounded text-green-600 focus:ring-green-500 dark:text-green-300"
+                          className="w-4 h-4 rounded text-green-700 focus:ring-green-500 dark:text-green-300"
                         />
                         <span className="text-sm text-gray-500 dark:text-slate-400">{storeHours[day]?.closed ? 'Closed' : 'Open'}</span>
                       </label>
@@ -1215,7 +1215,7 @@ export default function SettingsPage() {
                           <input type="checkbox" checked={(u.extraPermissions || []).includes('users:read')} onChange={() => handleToggleUserListGrant(u)} /> can view user list
                         </label>
                       )}
-                      <button onClick={() => handleToggleUserAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400' : 'text-green-600 hover:text-green-700 dark:hover:text-green-300 dark:text-green-300'}`}>
+                      <button onClick={() => handleToggleUserAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400' : 'text-green-700 hover:text-green-800 dark:hover:text-green-300 dark:text-green-300'}`}>
                                 {u.isActive ? 'Revoke access' : 'Restore access'}
                               </button></>
                             ) : null}

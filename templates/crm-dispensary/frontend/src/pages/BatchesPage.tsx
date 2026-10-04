@@ -462,7 +462,7 @@ export default function BatchesPage() {
                       <tr key={idx}>
                         <td className="px-4 py-2 text-sm text-gray-500 dark:text-slate-400">{adj.date ? formatDate(adj.date) : '—'}</td>
                         <td className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400">{adj.type}</td>
-                        <td className={`px-4 py-2 text-sm text-right font-medium ${adj.quantity < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>
+                        <td className={`px-4 py-2 text-sm text-right font-medium ${adj.quantity < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`}>
                           {adj.quantity > 0 ? '+' : ''}{adj.quantity}
                         </td>
                         <td className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400">{adj.reason || '—'}</td>
@@ -604,13 +604,13 @@ export default function BatchesPage() {
                     <div className="flex gap-2">
                       {isManager && batch.status === 'active' && (
                         <>
-                          <button onClick={() => confirmAction(batch.id, 'quarantine', 'Quarantine')} className="text-xs text-yellow-600 hover:text-yellow-700 dark:hover:text-yellow-300 dark:text-yellow-300">Quarantine</button>
+                          <button onClick={() => confirmAction(batch.id, 'quarantine', 'Quarantine')} className="text-xs text-yellow-700 hover:text-yellow-800 dark:hover:text-yellow-300 dark:text-yellow-300">Quarantine</button>
                           <button onClick={() => confirmAction(batch.id, 'deplete', 'Deplete')} className="text-xs text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 dark:text-slate-400">Deplete</button>
                           <button onClick={() => confirmAction(batch.id, 'recall', 'Recall')} className="text-xs text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400">Recall</button>
                         </>
                       )}
                       {isManager && batch.status === 'quarantine' && (
-                        <button onClick={() => confirmAction(batch.id, 'activate', 'Activate')} className="text-xs text-green-600 hover:text-green-700 dark:hover:text-green-300 dark:text-green-300">Release</button>
+                        <button onClick={() => confirmAction(batch.id, 'activate', 'Activate')} className="text-xs text-green-700 hover:text-green-800 dark:hover:text-green-300 dark:text-green-300">Release</button>
                       )}
                       {isManager && (
                         <button onClick={() => handleDeleteBatch(batch.id)} className="text-xs text-red-600 hover:text-red-700 dark:hover:text-red-300 inline-flex items-center gap-1 dark:text-red-400" title="Delete batch">

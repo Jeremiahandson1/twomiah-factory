@@ -177,7 +177,7 @@ export default function DashboardPage() {
           </div>
           <div className="mt-3 text-3xl font-bold text-gray-900 dark:text-slate-100">{num(inventory.total)}</div>
           <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">
-            <span className="font-medium text-green-600 dark:text-green-300">{num(inventory.available)}</span> available
+            <span className="font-medium text-green-700 dark:text-green-300">{num(inventory.available)}</span> available
           </p>
         </Link>
 

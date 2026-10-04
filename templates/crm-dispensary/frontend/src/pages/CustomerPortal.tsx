@@ -111,7 +111,7 @@ export default function CustomerPortal() {
     violet: { bg: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-200', bar: 'bg-violet-500' },
     blue: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200', bar: 'bg-blue-500' },
     amber: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', bar: 'bg-amber-500' },
-    sky: { bg: 'bg-sky-50', text: 'text-sky-600', border: 'border-sky-200', bar: 'bg-sky-500' },
+    sky: { bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-200', bar: 'bg-sky-500' },
     slate: { bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200', bar: 'bg-slate-400' },
   };
 
@@ -245,7 +245,7 @@ export default function CustomerPortal() {
                 >
                   <div className="w-2 h-2 rounded-full bg-amber-400" />
                   <span className="text-sm text-slate-700 font-medium dark:text-slate-200">{item.name}</span>
-                  <span className="text-xs text-amber-600 ml-auto">
+                  <span className="text-xs text-amber-700 ml-auto">
                     {item.quantity ?? item.stockQuantity ?? 0} remaining
                   </span>
                 </div>
@@ -255,7 +255,7 @@ export default function CustomerPortal() {
                   className="px-6 py-3 text-center cursor-pointer hover:bg-amber-50/50 transition-colors"
                   onClick={() => navigate('/crm/products?filter=low-stock')}
                 >
-                  <span className="text-sm text-amber-600 font-medium">
+                  <span className="text-sm text-amber-700 font-medium">
                     View all {lowStock.length} low stock items
                   </span>
                 </div>

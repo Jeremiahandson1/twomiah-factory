@@ -261,12 +261,12 @@ function WarrantiesList({ warranties, onRefresh }: WarrantiesListProps) {
               <td className="px-4 py-3">
                 <div className="flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    warranty.isExpiringSoon ? 'bg-orange-100' :
-                    warranty.isExpired ? 'bg-red-100' : 'bg-green-100'
+                    warranty.isExpiringSoon ? 'bg-orange-100 dark:bg-orange-950/40 dark:text-slate-100' :
+                    warranty.isExpired ? 'bg-red-100 dark:bg-red-950/40 dark:text-slate-100' : 'bg-green-100 dark:bg-green-950/40 dark:text-slate-100'
                   }`}>
                     <Shield className={`w-5 h-5 ${
                       warranty.isExpiringSoon ? 'text-orange-600 dark:text-orange-300' :
-                      warranty.isExpired ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'
+                      warranty.isExpired ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'
                     }`} />
                   </div>
                   <div>

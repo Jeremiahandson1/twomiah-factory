@@ -323,14 +323,14 @@ export default function OrderDetailPage() {
             // A refund or a cancellation is not a green milestone: the last step of an order that
             // ended that way is marked in red, so the panel reads as what happened. (T41)
             const ended = step === 'refunded' || step === 'partially_refunded' || step === 'cancelled';
-            const onTone = ended ? 'text-red-700 dark:text-red-300' : 'text-green-600';
+            const onTone = ended ? 'text-red-700 dark:text-red-300' : 'text-green-700';
             return (
               <div key={step} className="flex items-center gap-2 flex-1">
                 <div className={`flex items-center gap-2 ${isActive ? onTone : 'text-gray-500 dark:text-slate-400'}`}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                     isCurrent
                       ? (ended ? 'bg-red-600 text-white' : 'bg-green-700 text-white')
-                      : isActive ? (ended ? 'bg-red-100 dark:bg-red-950/40' : 'bg-green-100') : 'bg-gray-100'
+                      : isActive ? (ended ? 'bg-red-100 dark:bg-red-950/40' : 'bg-green-100 dark:bg-green-950/40 dark:text-slate-100') : 'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'
                   }`}>
                     <Icon className="w-4 h-4" />
                   </div>
@@ -339,7 +339,7 @@ export default function OrderDetailPage() {
                   </span>
                 </div>
                 {idx < steps.length - 1 && (
-                  <div className={`flex-1 h-0.5 ${isActive ? (ended ? 'bg-red-300' : 'bg-green-400') : 'bg-gray-200'}`} />
+                  <div className={`flex-1 h-0.5 ${isActive ? (ended ? 'bg-red-300' : 'bg-green-400') : 'bg-gray-200 dark:bg-slate-700 dark:text-slate-100'}`} />
                 )}
               </div>
             );
@@ -382,7 +382,7 @@ export default function OrderDetailPage() {
                     type="checkbox"
                     checked={idChecked}
                     onChange={e => setIdChecked(e.target.checked)}
-                    className="w-4 h-4 rounded text-green-600 focus:ring-green-500 dark:text-green-300"
+                    className="w-4 h-4 rounded text-green-700 focus:ring-green-500 dark:text-green-300"
                   />
                   ID checked, 21+
                 </label>
@@ -472,14 +472,14 @@ export default function OrderDetailPage() {
               </tr>
               {Number(order.discountAmount || 0) > 0 && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-2 text-right text-sm text-green-600 dark:text-green-300">Discount</td>
-                  <td className="px-4 py-2 text-right text-green-600 dark:text-green-300">-${Number(order.discountAmount).toFixed(2)}</td>
+                  <td colSpan={3} className="px-4 py-2 text-right text-sm text-green-700 dark:text-green-300">Discount</td>
+                  <td className="px-4 py-2 text-right text-green-700 dark:text-green-300">-${Number(order.discountAmount).toFixed(2)}</td>
                 </tr>
               )}
               {order.loyaltyDiscount > 0 && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-2 text-right text-sm text-green-600 dark:text-green-300">Loyalty Discount</td>
-                  <td className="px-4 py-2 text-right text-green-600 dark:text-green-300">-${Number(order.loyaltyDiscount).toFixed(2)}</td>
+                  <td colSpan={3} className="px-4 py-2 text-right text-sm text-green-700 dark:text-green-300">Loyalty Discount</td>
+                  <td className="px-4 py-2 text-right text-green-700 dark:text-green-300">-${Number(order.loyaltyDiscount).toFixed(2)}</td>
                 </tr>
               )}
               <tr className="border-t-2">

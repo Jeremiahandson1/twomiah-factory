@@ -178,7 +178,7 @@ function CustomersTab() {
       </div>
     )},
     { key: 'paymentTerms', label: 'Payment Terms', render: (val: string) => <span className="text-gray-700 dark:text-slate-200">{({ cod: 'COD', net15: 'Net 15', net30: 'Net 30', net60: 'Net 60', prepaid: 'Prepaid' } as Record<string, string>)[String(val || '').toLowerCase().replace(/[^a-z0-9]/g, '')] || val || '--'}</span> },
-    { key: 'balance', label: 'Balance', render: (val: number) => val ? <span className={`font-medium ${val > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>${Number(val).toFixed(2)}</span> : <span className="text-gray-500 dark:text-slate-400">$0.00</span> },
+    { key: 'balance', label: 'Balance', render: (val: number) => val ? <span className={`font-medium ${val > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`}>${Number(val).toFixed(2)}</span> : <span className="text-gray-500 dark:text-slate-400">$0.00</span> },
   ];
 
   return (

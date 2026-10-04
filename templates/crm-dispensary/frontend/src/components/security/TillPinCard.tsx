@@ -73,7 +73,7 @@ export function TillPinCard({ user, toast }: { user: any; toast: any }) {
   return (
     <div className="bg-white rounded-lg border p-6 dark:bg-slate-900 dark:border-slate-700">
       <h2 className="text-lg font-semibold mb-1 flex items-center gap-2 text-gray-900 dark:text-slate-100">
-        <KeyRound className="w-4 h-4 text-emerald-600 dark:text-emerald-300" />Till PIN
+        <KeyRound className="w-4 h-4 text-emerald-700 dark:text-emerald-300" />Till PIN
       </h2>
       <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">
         Four to eight digits to sign in at the counter without typing your password. It is for getting
@@ -83,7 +83,7 @@ export function TillPinCard({ user, toast }: { user: any; toast: any }) {
 
       <div className="flex items-center justify-between mb-4">
         <span className="text-sm text-gray-500 dark:text-slate-400">Status</span>
-        <span className={`text-sm font-medium ${pinSet ? 'text-green-600 dark:text-green-300' : 'text-gray-500 dark:text-slate-400'}`}>
+        <span className={`text-sm font-medium ${pinSet ? 'text-green-700 dark:text-green-300' : 'text-gray-500 dark:text-slate-400'}`}>
           {pinSet ? 'Set' : 'Not set'}
         </span>
       </div>

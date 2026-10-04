@@ -131,7 +131,7 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
               <div className={`mt-4 grid ${showCost ? 'grid-cols-3' : 'grid-cols-1'} gap-2 text-sm`}>
                 <div><p className="text-gray-500 dark:text-slate-400">Price</p><p className="font-bold text-gray-900 dark:text-slate-100">{usd(item.price)}</p></div>
                 {showCost && <div><p className="text-gray-500 dark:text-slate-400">Cost</p><p className="font-medium text-gray-700 dark:text-slate-200">{usd(item.totalCost ?? item.cost)}</p></div>}
-                {showCost && <div><p className="text-gray-500 dark:text-slate-400">Margin</p><p className={`font-medium ${Number(item.margin) > 30 ? 'text-green-600 dark:text-green-300' : 'text-orange-600 dark:text-orange-300'}`}>{item.margin}%</p></div>}
+                {showCost && <div><p className="text-gray-500 dark:text-slate-400">Margin</p><p className={`font-medium ${Number(item.margin) > 30 ? 'text-green-700 dark:text-green-300' : 'text-orange-600 dark:text-orange-300'}`}>{item.margin}%</p></div>}
               </div>
               {Number(item.laborHours) > 0 && <div className="mt-2 flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400"><Clock className="w-4 h-4" />{Number(item.laborHours)} hours</div>}
               {Number(item._count?.goodBetterBest) > 0 && <div className="mt-2 flex items-center gap-1 text-sm text-blue-600 dark:text-blue-300"><Star className="w-4 h-4" />{item._count.goodBetterBest} {config?.tiersTitle || 'pricing tier'}{item._count.goodBetterBest === 1 ? '' : 's'}</div>}

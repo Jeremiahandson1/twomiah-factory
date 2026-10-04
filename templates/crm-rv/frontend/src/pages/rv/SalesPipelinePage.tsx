@@ -174,7 +174,7 @@ export default function SalesPipelinePage() {
                       <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><Mail className="w-3 h-3" /> {row.contactEmail}</p>
                     )}
                     {row.lead.tradeInInfo && (
-                      <p className="text-xs text-amber-600 dark:text-amber-300">Trade-in: {row.lead.tradeInInfo}</p>
+                      <p className="text-xs text-amber-700 dark:text-amber-300">Trade-in: {row.lead.tradeInInfo}</p>
                     )}
                     <div className="flex items-center justify-between pt-1 border-t">
                       <span className="text-xs text-gray-500 dark:text-slate-400">{salespersonName(row)}</span>

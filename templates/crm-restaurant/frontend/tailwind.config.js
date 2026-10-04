@@ -93,7 +93,7 @@ function generatePalette(hex) {
     300: hslToHex(h, Math.min(s, 95), 65),
     400: hslToHex(h, Math.min(s, 95), 55),
     500: readableUnderWhite(h, s, l, hex),
-    600: readableUnderWhite(h, Math.min(s + 5, 100), 40),
+    600: readableAsInkOn(h, Math.min(s + 5, 100), 40, '#f9fafb'),
     700: readableAsInkOn(h, Math.min(s + 5, 100), 33, tint100),
     800: hslToHex(h, Math.min(s + 5, 100), 26),
     900: hslToHex(h, Math.min(s + 5, 100), 20),

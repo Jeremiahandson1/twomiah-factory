@@ -166,7 +166,7 @@ function OverviewTab({ api, overview }: { api: AdsApi; overview: AdsOverview }) 
             <div className={`${card} p-4`}>
               <h3 className="font-medium mb-3 text-gray-900 dark:text-slate-100">Campaign health (last 7 days)</h3>
               <div className="grid md:grid-cols-2 gap-3">
-                {data.healthScores.map((h: any) => <div key={h.campaign_id} className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-slate-700 px-3 py-2 text-sm"><span>{h.name} <span className="text-gray-500 dark:text-slate-400">· {PLATFORM_LABEL[h.platform] || h.platform}</span></span><span className={`font-semibold ${h.status === 'healthy' ? 'text-green-600 dark:text-green-300' : h.status === 'critical' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-300'}`}>{h.score}/100</span></div>)}
+                {data.healthScores.map((h: any) => <div key={h.campaign_id} className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-slate-700 px-3 py-2 text-sm"><span>{h.name} <span className="text-gray-500 dark:text-slate-400">· {PLATFORM_LABEL[h.platform] || h.platform}</span></span><span className={`font-semibold ${h.status === 'healthy' ? 'text-green-700 dark:text-green-300' : h.status === 'critical' ? 'text-red-600 dark:text-red-400' : 'text-amber-700 dark:text-amber-300'}`}>{h.score}/100</span></div>)}
               </div>
             </div>
           )}
@@ -379,7 +379,7 @@ function ExperimentsTab({ api, toast, can }: { api: AdsApi; toast: AdsToast; can
                         <div className="flex items-center justify-between mb-1"><span className="text-xs font-medium text-gray-600 dark:text-slate-400">{v.label} <span className="font-mono">({v.key}, {v.trafficPercent}%)</span></span>{e.winnerKey === v.key && <Trophy className="w-3.5 h-3.5 text-orange-500 dark:text-orange-300" />}</div>
                         <div className="text-xl font-bold text-gray-900 dark:text-slate-100">{cvr(v).toFixed(1)}%</div>
                         <div className="text-xs text-gray-500 dark:text-slate-400">{v.conversions} conversions / {v.assignments} visitors</div>
-                        {lift != null && <div className={`text-xs font-medium mt-1 ${lift >= 0 ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-400'}`}>{lift >= 0 ? '+' : ''}{lift.toFixed(1)}% vs {base.label}</div>}
+                        {lift != null && <div className={`text-xs font-medium mt-1 ${lift >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400'}`}>{lift >= 0 ? '+' : ''}{lift.toFixed(1)}% vs {base.label}</div>}
                       </div>
                     )
                   })}
@@ -489,7 +489,7 @@ function SettingsTab({ api, toast, can, overview, config, onChanged }: { api: Ad
           {platforms.map((p: AdsPlatformState) => (
             <div key={p.platform} className="flex flex-wrap items-center justify-between gap-3 py-3">
               <div className="flex items-center gap-3">
-                <span className={`w-2.5 h-2.5 rounded-full ${p.connected && !p.requiresAction ? 'bg-green-500' : p.connected ? 'bg-amber-500' : 'bg-gray-300'}`} />
+                <span className={`w-2.5 h-2.5 rounded-full ${p.connected && !p.requiresAction ? 'bg-green-500' : p.connected ? 'bg-amber-500' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`} />
                 <div>
                   <p className="font-medium">{PLATFORM_LABEL[p.platform] || p.platform}</p>
                   <p className="text-xs text-gray-500 dark:text-slate-400">{p.platform === 'google' ? 'Managed by Twomiah · ' : ''}{p.requiresAction ? ACTION_TEXT[p.requiresAction] || human(p.requiresAction) : p.connected ? `Connected${p.accountId ? ` · account ${p.accountId}` : ''}` : 'Not connected'}</p>
@@ -598,7 +598,7 @@ function Billing({ api, balanceCents }: { api: AdsApi; balanceCents: number }) {
       {entries && entries.length > 0 && (
         <table className="w-full text-sm mt-4">
           <thead><tr>{['Date', 'Type', 'Amount', 'Note'].map((h, i) => <th key={h} className={`${th} ${i === 2 ? 'text-right' : 'text-left'}`}>{h}</th>)}</tr></thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-slate-800">{entries.map((e) => <tr key={e.id}><td className="px-4 py-2">{when(e.created_at)}</td><td className="px-4 py-2">{human(e.kind)}</td><td className={`px-4 py-2 text-right ${Number(e.delta_cents) < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>{usd(e.delta_cents)}</td><td className="px-4 py-2">{e.note || '-'}</td></tr>)}</tbody>
+          <tbody className="divide-y divide-gray-100 dark:divide-slate-800">{entries.map((e) => <tr key={e.id}><td className="px-4 py-2">{when(e.created_at)}</td><td className="px-4 py-2">{human(e.kind)}</td><td className={`px-4 py-2 text-right ${Number(e.delta_cents) < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`}>{usd(e.delta_cents)}</td><td className="px-4 py-2">{e.note || '-'}</td></tr>)}</tbody>
         </table>
       )}
       {entries && entries.length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400 mt-2">No top-ups or charges yet.</p>}

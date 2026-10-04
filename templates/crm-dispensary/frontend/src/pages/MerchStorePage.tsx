@@ -126,7 +126,7 @@ export default function MerchStorePage() {
       key: 'stockQuantity',
       label: 'Stock',
       render: (val: number) => (
-        <span className={`font-medium ${val <= 0 ? 'text-red-600 dark:text-red-400' : val <= 10 ? 'text-amber-600 dark:text-amber-300' : 'text-green-600 dark:text-green-300'}`}>
+        <span className={`font-medium ${val <= 0 ? 'text-red-600 dark:text-red-400' : val <= 10 ? 'text-amber-700 dark:text-amber-300' : 'text-green-700 dark:text-green-300'}`}>
           {val ?? 0}
         </span>
       ),

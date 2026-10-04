@@ -217,7 +217,7 @@ export default function MenuSyncPage() {
                           Last sync: {conn.lastSync ? new Date(conn.lastSync).toLocaleString() : 'Never'}
                         </div>
                         {conn.autoSync && (
-                          <div className="flex items-center gap-1 text-green-600 mt-1 dark:text-green-300">
+                          <div className="flex items-center gap-1 text-green-700 mt-1 dark:text-green-300">
                             <Zap className="w-3 h-3" />Auto-sync enabled
                           </div>
                         )}
@@ -305,7 +305,7 @@ export default function MenuSyncPage() {
                         {log.errors > 0 ? (
                           <span className="text-red-600 font-medium dark:text-red-400">{log.errors}</span>
                         ) : (
-                          <span className="text-green-600 dark:text-green-300">0</span>
+                          <span className="text-green-700 dark:text-green-300">0</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{log.duration || '-'}</td>
@@ -360,7 +360,7 @@ export default function MenuSyncPage() {
                     <div className="p-4">
                       <div className="flex items-start justify-between mb-1">
                         <h3 className="font-semibold">{product.name}</h3>
-                        <span className="text-green-600 font-bold dark:text-green-300">${Number(product.price || 0).toFixed(2)}</span>
+                        <span className="text-green-700 font-bold dark:text-green-300">${Number(product.price || 0).toFixed(2)}</span>
                       </div>
                       <div className="flex gap-2 mb-2">
                         {product.category && (
@@ -418,7 +418,7 @@ export default function MenuSyncPage() {
                   </div>
                   <input type="checkbox" checked={(configForm as any)[opt.key]}
                     onChange={e => setConfigForm({ ...configForm, [opt.key]: e.target.checked })}
-                    className="rounded text-green-600 w-4 h-4 dark:text-green-300" />
+                    className="rounded text-green-700 w-4 h-4 dark:text-green-300" />
                 </label>
               ))}
             </div>

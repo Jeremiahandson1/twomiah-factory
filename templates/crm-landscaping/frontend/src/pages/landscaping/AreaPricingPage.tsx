@@ -145,7 +145,7 @@ export default function AreaPricingPage() {
           <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded dark:bg-green-950/40">
             <div className="text-2xl font-bold text-green-800 dark:text-green-300">${Number(calcResult.price).toFixed(2)}</div>
             <div className="text-sm text-green-700 dark:text-green-300">{calcResult.lineItem?.description}</div>
-            {calcResult.minChargeApplied && <div className="text-xs text-green-600 mt-1 dark:text-green-300">Minimum charge applied.</div>}
+            {calcResult.minChargeApplied && <div className="text-xs text-green-700 mt-1 dark:text-green-300">Minimum charge applied.</div>}
           </div>
         )}
       </section>

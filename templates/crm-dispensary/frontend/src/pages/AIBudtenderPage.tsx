@@ -199,9 +199,9 @@ export default function AIBudtenderPage() {
                 type="checkbox"
                 checked={config.enabled}
                 onChange={(e) => setConfig({ ...config, enabled: e.target.checked })}
-                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
+                className="w-4 h-4 text-green-700 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
               />
-              <span className={`text-sm font-medium ${config.enabled ? 'text-green-600 dark:text-green-300' : 'text-gray-500 dark:text-slate-400'}`}>
+              <span className={`text-sm font-medium ${config.enabled ? 'text-green-700 dark:text-green-300' : 'text-gray-500 dark:text-slate-400'}`}>
                 {config.enabled ? 'Enabled' : 'Disabled'}
               </span>
             </label>
@@ -216,7 +216,7 @@ export default function AIBudtenderPage() {
                   onClick={() => setConfig({ ...config, personality: p.value })}
                   className={`text-left p-3 rounded-lg border-2 transition-colors ${
                     config.personality === p.value
-                      ? 'border-green-500 bg-green-50'
+                      ? 'border-green-500 bg-green-50 dark:bg-green-950/40 dark:text-slate-100'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
@@ -270,7 +270,7 @@ export default function AIBudtenderPage() {
                     type="checkbox"
                     checked={config.channels.includes(ch)}
                     onChange={() => toggleChannel(ch)}
-                    className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
+                    className="w-4 h-4 text-green-700 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
                   />
                   <span className="text-sm text-gray-700 dark:text-slate-200">{ch.replace(/_/g, ' ')}</span>
                 </label>
@@ -406,7 +406,7 @@ export default function AIBudtenderPage() {
               {demoMessages.length === 0 && config.greeting && (
                 <div className="flex gap-3">
                   <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 dark:bg-green-950/40">
-                    <Bot className="w-4 h-4 text-green-600 dark:text-green-300" />
+                    <Bot className="w-4 h-4 text-green-700 dark:text-green-300" />
                   </div>
                   <div className="bg-white rounded-lg p-3 shadow-sm max-w-[80%] dark:bg-slate-900">
                     <p className="text-sm text-gray-900 dark:text-slate-100">{config.greeting}</p>
@@ -425,7 +425,7 @@ export default function AIBudtenderPage() {
                   ) : (
                     <div className="flex gap-3">
                       <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 dark:bg-green-950/40">
-                        <Bot className="w-4 h-4 text-green-600 dark:text-green-300" />
+                        <Bot className="w-4 h-4 text-green-700 dark:text-green-300" />
                       </div>
                       <div className="space-y-2 max-w-[80%]">
                         <div className="bg-white rounded-lg p-3 shadow-sm dark:bg-slate-900">
@@ -440,7 +440,7 @@ export default function AIBudtenderPage() {
                                   <div>
                                     <p className="font-medium text-gray-900 text-sm dark:text-slate-100">{rec.name || rec.productName}</p>
                                     <p className="text-xs text-gray-500 dark:text-slate-400">{rec.category || ''} {rec.thc ? `| THC: ${rec.thc}` : ''}</p>
-                                    {rec.price && <p className="text-sm font-semibold text-green-600 mt-1 dark:text-green-300">${Number(rec.price).toFixed(2)}</p>}
+                                    {rec.price && <p className="text-sm font-semibold text-green-700 mt-1 dark:text-green-300">${Number(rec.price).toFixed(2)}</p>}
                                   </div>
                                   <button
                                     onClick={() => toast.success(`${rec.name || rec.productName} added to cart`)}
@@ -463,13 +463,13 @@ export default function AIBudtenderPage() {
               {demoLoading && (
                 <div className="flex gap-3">
                   <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 dark:bg-green-950/40">
-                    <Bot className="w-4 h-4 text-green-600 dark:text-green-300" />
+                    <Bot className="w-4 h-4 text-green-700 dark:text-green-300" />
                   </div>
                   <div className="bg-white rounded-lg p-3 shadow-sm dark:bg-slate-900">
                     <div className="flex gap-1">
-                      <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" />
-                      <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-                      <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                      <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce dark:bg-slate-700 dark:text-slate-100" />
+                      <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce dark:bg-slate-700 dark:text-slate-100" style={{ animationDelay: '0.1s' }} />
+                      <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce dark:bg-slate-700 dark:text-slate-100" style={{ animationDelay: '0.2s' }} />
                     </div>
                   </div>
                 </div>
@@ -534,7 +534,7 @@ export default function AIBudtenderPage() {
                 <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center dark:bg-green-950/40">
-                      <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-300" />
+                      <TrendingUp className="w-5 h-5 text-green-700 dark:text-green-300" />
                     </div>
                     <div>
                       <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{analytics.conversionRate || 0}%</p>
@@ -545,7 +545,7 @@ export default function AIBudtenderPage() {
                 <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center dark:bg-yellow-950/40">
-                      <Star className="w-5 h-5 text-yellow-600 dark:text-yellow-300" />
+                      <Star className="w-5 h-5 text-yellow-700 dark:text-yellow-300" />
                     </div>
                     <div>
                       <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{Number(analytics.avgSatisfaction || 0).toFixed(1)}/5</p>

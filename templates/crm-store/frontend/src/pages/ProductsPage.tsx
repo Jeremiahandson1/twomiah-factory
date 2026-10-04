@@ -42,7 +42,7 @@ export default function ProductsPage() {
               const inv = totalInventory(p)
               return (
                 <Link key={p.id} to={`/products/${p.id}`} className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50">
-                  <div className="h-12 w-12 flex-shrink-0 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center">
+                  <div className="h-12 w-12 flex-shrink-0 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center dark:bg-slate-800 dark:text-slate-100">
                     {img ? <img src={img.url} alt="" className="h-full w-full object-cover" /> : <Package className="h-5 w-5 text-gray-300" />}
                   </div>
                   <div className="min-w-0 flex-1">

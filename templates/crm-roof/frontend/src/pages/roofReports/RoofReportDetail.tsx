@@ -240,7 +240,7 @@ export default function RoofReportDetail() {
               <div>
                 <p className="text-xs text-gray-500 dark:text-slate-400">Roof Condition</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden dark:bg-slate-700 dark:text-slate-100">
                     <div
                       className={`h-full rounded-full ${
                         report.roofCondition >= 70 ? 'bg-green-500' :

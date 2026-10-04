@@ -352,7 +352,7 @@ function StepVerifyInfo({ profile, onChange, companyName }: { profile: any; onCh
 
       {allFilled && (
         <div className="mb-6 flex items-center gap-2 px-4 py-3 rounded-lg bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30">
-          <Check className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+          <Check className="w-5 h-5 text-green-700 dark:text-green-400 flex-shrink-0" />
           <span className="text-sm text-green-700 dark:text-green-400">Everything looks pre-filled. Make any corrections below, or hit "Looks Good" to continue.</span>
         </div>
       )}
@@ -498,7 +498,7 @@ function StepIntegrations({
                       <div className="flex-1 min-w-0">
                         <span className="font-medium text-gray-900 dark:text-white">{integration.label}</span>
                         {isSkipped && <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">(skipped)</span>}
-                        {isDone && <span className="ml-2 text-xs text-green-600 dark:text-green-400">(marked done)</span>}
+                        {isDone && <span className="ml-2 text-xs text-green-700 dark:text-green-400">(marked done)</span>}
                         <p className="text-sm text-gray-500 dark:text-slate-400">{integration.description}</p>
                       </div>
                       <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
@@ -623,7 +623,7 @@ function StepReady({
   return (
     <div className="text-center py-4">
       <div className="w-20 h-20 bg-green-100 dark:bg-green-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-        <Check className="w-10 h-10 text-green-600 dark:text-green-400" />
+        <Check className="w-10 h-10 text-green-700 dark:text-green-400" />
       </div>
       <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">You're all set!</h2>
       <p className="text-lg text-gray-600 dark:text-slate-400 mb-8">
@@ -649,7 +649,7 @@ function StepReady({
           <h3 className="text-sm font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">Integrations</h3>
           {doneCount > 0 ? (
             <p className="text-sm text-gray-700 dark:text-slate-300">
-              <span className="text-green-600 dark:text-green-400 font-medium">{doneCount} connected</span>
+              <span className="text-green-700 dark:text-green-400 font-medium">{doneCount} connected</span>
               {skippedIntegrations.size > 0 && <>, {skippedIntegrations.size} skipped</>}
               {(totalIntegrations - doneCount - skippedIntegrations.size) > 0 && <>, {totalIntegrations - doneCount - skippedIntegrations.size} remaining</>}
             </p>

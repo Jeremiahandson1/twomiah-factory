@@ -123,7 +123,7 @@ export function EmailAliasesStep({ productId, onBack, onNext, defaultForwardTo }
           <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 mb-2">Additional</div>
           <div className="grid grid-cols-2 gap-2">
             {extraAliases.map(local => (
-              <div key={local} className="flex items-center gap-2 text-sm p-2 border border-gray-200 rounded bg-gray-50">
+              <div key={local} className="flex items-center gap-2 text-sm p-2 border border-gray-200 rounded bg-gray-50 dark:bg-slate-800 dark:text-slate-100">
                 <span>✓</span><span className="font-mono">{local}@</span>
                 <button onClick={() => setExtraAliases(a => a.filter(x => x !== local))} className="ml-auto text-xs text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300">remove</button>
               </div>
@@ -137,7 +137,7 @@ export function EmailAliasesStep({ productId, onBack, onNext, defaultForwardTo }
           <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 mb-1">Add another</label>
           <input type="text" value={newAlias} onChange={e => { setNewAlias(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, '')); setError(''); }} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addExtra(); } }} placeholder="billing" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
         </div>
-        <button onClick={addExtra} className="px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md text-sm">Add</button>
+        <button onClick={addExtra} className="px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md text-sm dark:bg-slate-800 dark:text-slate-100">Add</button>
       </div>
 
       <div className="flex justify-between">

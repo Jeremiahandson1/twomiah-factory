@@ -155,9 +155,9 @@ function GeofenceCard({ geofence, onEdit, onDelete, onToggle }) {
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-            geofence.active ? 'bg-green-100' : 'bg-gray-100'
+            geofence.active ? 'bg-green-100 dark:bg-green-950/40 dark:text-slate-100' : 'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'
           }`}>
-            <Target className={`w-5 h-5 ${geofence.active ? 'text-green-600 dark:text-green-300' : 'text-gray-400'}`} />
+            <Target className={`w-5 h-5 ${geofence.active ? 'text-green-700 dark:text-green-300' : 'text-gray-400'}`} />
           </div>
           <div>
             <h3 className="font-medium text-gray-900 dark:text-slate-100">{geofence.name}</h3>
@@ -166,7 +166,7 @@ function GeofenceCard({ geofence, onEdit, onDelete, onToggle }) {
         </div>
         <button
           onClick={onToggle}
-          className={`p-1 rounded ${geofence.active ? 'text-green-600 dark:text-green-300' : 'text-gray-400'}`}
+          className={`p-1 rounded ${geofence.active ? 'text-green-700 dark:text-green-300' : 'text-gray-400'}`}
           title={geofence.active ? 'Disable' : 'Enable'}
         >
           {geofence.active ? <CheckCircle className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}

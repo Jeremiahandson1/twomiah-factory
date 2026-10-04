@@ -191,7 +191,7 @@ export default function CustomerPortal() {
                 <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center">
-                    <Globe className="w-6 h-6 text-emerald-600" />
+                    <Globe className="w-6 h-6 text-emerald-700" />
                   </div>
                   <ExternalLink className="w-5 h-5 text-slate-300 group-hover:text-slate-500 dark:text-slate-400 transition-all" />
                 </div>
@@ -241,7 +241,7 @@ export default function CustomerPortal() {
               <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
               <div className="flex items-start justify-between mb-4">
                 <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
-                  <BookOpen className="w-6 h-6 text-amber-600" />
+                  <BookOpen className="w-6 h-6 text-amber-700" />
                 </div>
                 <span className="inline-flex items-center gap-1 text-xs font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
                   <Sparkles className="w-3 h-3" />

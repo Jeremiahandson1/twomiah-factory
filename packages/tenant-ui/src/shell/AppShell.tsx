@@ -295,7 +295,7 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
             <div className="flex-1 max-w-md ml-4"><GlobalSearch api={api} placeholder={config.searchPlaceholder} /></div>
 
             <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-gray-300'}`} title={connected ? 'Connected' : 'Disconnected'} aria-label={connected ? 'Real-time updates connected' : 'Real-time updates disconnected'} />
+              <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`} title={connected ? 'Connected' : 'Disconnected'} aria-label={connected ? 'Real-time updates connected' : 'Real-time updates disconnected'} />
 
               <button type="button" onClick={() => setTheme(isDark ? 'light' : 'dark')} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg" aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'} title={isDark ? 'Light mode' : 'Dark mode'}>
                 {isDark ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-gray-600 dark:text-slate-400" />}

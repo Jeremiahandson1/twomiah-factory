@@ -185,7 +185,7 @@ export default function EODReportPage() {
 
               {/* Sales Summary */}
               <div>
-                <h4 className="font-semibold flex items-center gap-2 mb-3"><DollarSign className="w-5 h-5 text-green-600 dark:text-green-300" />Sales Summary</h4>
+                <h4 className="font-semibold flex items-center gap-2 mb-3"><DollarSign className="w-5 h-5 text-green-700 dark:text-green-300" />Sales Summary</h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-white border rounded-lg p-4 dark:bg-slate-900">
                     <div className="text-sm text-gray-500 dark:text-slate-400">Total Orders</div>
@@ -193,7 +193,7 @@ export default function EODReportPage() {
                   </div>
                   <div className="bg-white border rounded-lg p-4 dark:bg-slate-900">
                     <div className="text-sm text-gray-500 dark:text-slate-400">Total Revenue</div>
-                    <div className="text-2xl font-bold text-green-600 dark:text-green-300">${(report.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                    <div className="text-2xl font-bold text-green-700 dark:text-green-300">${(report.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                   </div>
                   <div className="bg-white border rounded-lg p-4 dark:bg-slate-900">
                     <div className="text-sm text-gray-500 dark:text-slate-400">Cash</div>
@@ -209,7 +209,7 @@ export default function EODReportPage() {
               {/* Cash Reconciliation */}
               <div>
                 <h4 className="font-semibold flex items-center gap-2 mb-3">
-                  <DollarSign className="w-5 h-5 text-yellow-600 dark:text-yellow-300" />Cash Reconciliation
+                  <DollarSign className="w-5 h-5 text-yellow-700 dark:text-yellow-300" />Cash Reconciliation
                   {report.cashDrawerStatus === 'closed' && (
                     <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-300">Drawer closed — final at close</span>
                   )}
@@ -240,7 +240,7 @@ export default function EODReportPage() {
                       {drawerOpen ? (
                         <div className="text-xl font-bold text-gray-500 dark:text-slate-400">Pending count</div>
                       ) : (
-                        <div className={`text-xl font-bold ${Math.abs(cashVariance) > 5 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>
+                        <div className={`text-xl font-bold ${Math.abs(cashVariance) > 5 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`}>
                           {cashVariance >= 0 ? '+' : ''}${Number(cashVariance).toFixed(2)}
                           {Math.abs(cashVariance) > 5 && <AlertTriangle className="w-4 h-4 inline ml-1 text-red-500 dark:text-red-400" />}
                         </div>
@@ -276,7 +276,7 @@ export default function EODReportPage() {
                                 <td className="py-1.5 pr-4 text-gray-700 dark:text-slate-200">{d.status === 'open' ? 'Open' : 'Closed'}</td>
                                 <td className="py-1.5 pr-4 text-right tabular-nums text-gray-700 dark:text-slate-200">${Number(d.expected || 0).toFixed(2)}</td>
                                 <td className="py-1.5 pr-4 text-right tabular-nums text-gray-700 dark:text-slate-200">{d.counted == null ? '—' : `$${Number(d.counted).toFixed(2)}`}</td>
-                                <td className={`py-1.5 text-right tabular-nums font-medium ${d.variance == null ? 'text-gray-500 dark:text-slate-400' : Math.abs(Number(d.variance)) > 5 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>
+                                <td className={`py-1.5 text-right tabular-nums font-medium ${d.variance == null ? 'text-gray-500 dark:text-slate-400' : Math.abs(Number(d.variance)) > 5 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`}>
                                   {d.variance == null ? 'Pending' : `${Number(d.variance) >= 0 ? '+' : ''}$${Number(d.variance).toFixed(2)}`}
                                 </td>
                               </tr>
@@ -297,7 +297,7 @@ export default function EODReportPage() {
               {((report.unsettledSales || 0) > 0 || (report.awaitingCollection || 0) > 0) && (
                 <div>
                   <h4 className="font-semibold flex items-center gap-2 mb-3">
-                    <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-300" />Still outstanding at close
+                    <AlertTriangle className="w-5 h-5 text-amber-700 dark:text-amber-300" />Still outstanding at close
                   </h4>
                   <div className="bg-white border rounded-lg p-5 space-y-5 dark:bg-slate-900 dark:border-slate-700">
                     {(report.unsettledSales || 0) > 0 && (
@@ -340,7 +340,7 @@ export default function EODReportPage() {
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="text-xl font-bold text-amber-600 dark:text-amber-400">
+                            <div className="text-xl font-bold text-amber-700 dark:text-amber-400">
                               ${Number(report.awaitingCollectionTotal || 0).toFixed(2)}
                             </div>
                             <div className="text-xs text-gray-500 dark:text-slate-400">
@@ -374,7 +374,7 @@ export default function EODReportPage() {
                     </div>
                     <div>
                       <div className="text-sm text-gray-500 dark:text-slate-400">Shrinkage Value</div>
-                      <div className={`text-xl font-bold ${(report.shrinkageValue || 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>
+                      <div className={`text-xl font-bold ${(report.shrinkageValue || 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`}>
                         ${Number(report.shrinkageValue || 0).toFixed(2)}
                       </div>
                     </div>
@@ -398,7 +398,7 @@ export default function EODReportPage() {
                       <input type="checkbox" checked={checklist[item.id] || false}
                         onChange={e => setChecklist({ ...checklist, [item.id]: e.target.checked })}
                         disabled={report.status === 'submitted'}
-                        className="rounded text-green-600 w-4 h-4 dark:text-green-300" />
+                        className="rounded text-green-700 w-4 h-4 dark:text-green-300" />
                       <span className="text-sm">{item.label}</span>
                     </label>
                   ))}
@@ -505,7 +505,7 @@ export default function EODReportPage() {
                         <td className="px-4 py-3 text-sm">{r.locationName || 'All'}</td>
                         <td className="px-4 py-3 text-sm font-medium">${(r.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                         <td className="px-4 py-3 text-sm">
-                          <span className={Math.abs(variance) > 5 ? 'text-red-600 font-medium' : 'text-green-600'}>
+                          <span className={Math.abs(variance) > 5 ? 'text-red-600 font-medium dark:text-red-400' : 'text-green-700 dark:text-green-300'}>
                             {variance >= 0 ? '+' : ''}${Number(variance).toFixed(2)}
                             {Math.abs(variance) > 5 && <AlertTriangle className="w-3 h-3 inline ml-1" />}
                           </span>
@@ -518,7 +518,7 @@ export default function EODReportPage() {
                         <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{r.submittedBy || '-'}</td>
                         <td className="px-4 py-3">
                           <button onClick={() => viewHistoricReport(r.id)}
-                            className="text-green-600 hover:text-green-800 dark:hover:text-green-300 text-sm font-medium flex items-center gap-1 dark:text-green-300">
+                            className="text-green-700 hover:text-green-800 dark:hover:text-green-300 text-sm font-medium flex items-center gap-1 dark:text-green-300">
                             <Eye className="w-3 h-3" />View
                           </button>
                         </td>

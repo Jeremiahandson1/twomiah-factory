@@ -197,7 +197,7 @@ export default function ProjectDetailPage() {
           <span className="text-sm font-medium text-gray-700 dark:text-slate-200">Progress</span>
           <span className="text-sm font-medium text-orange-700 dark:text-orange-300">{project.progress || 0}%</span>
         </div>
-        <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+        <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden dark:bg-slate-700 dark:text-slate-100">
           <div
             className="h-full bg-orange-500 rounded-full transition-all duration-300"
             style={{ width: `${project.progress || 0}%` }}

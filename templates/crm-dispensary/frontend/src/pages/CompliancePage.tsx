@@ -416,7 +416,7 @@ export default function CompliancePage() {
       {expiringLicenses.length > 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 text-gray-900 dark:text-slate-100 dark:bg-yellow-950/40">
           <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-300" />
+            <AlertTriangle className="w-5 h-5 text-yellow-700 dark:text-yellow-300" />
             <h3 className="font-semibold text-yellow-800 dark:text-yellow-300">Licenses Expiring Soon</h3>
           </div>
           <div className="space-y-1">
@@ -604,7 +604,7 @@ export default function CompliancePage() {
                           <FileText className="w-3 h-3" /> View
                         </button>
                         {report.status !== 'submitted' && (
-                          <button onClick={() => submitReport(report.id)} className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1 dark:text-green-300">
+                          <button onClick={() => submitReport(report.id)} className="text-sm text-green-700 hover:text-green-800 dark:hover:text-green-300 flex items-center gap-1 dark:text-green-300">
                             <Send className="w-3 h-3" /> Submit
                           </button>
                         )}
@@ -681,7 +681,7 @@ export default function CompliancePage() {
                           <button
                             onClick={() => reportWasteToMetrc(entry.id)}
                             disabled={reportingToMetrc === entry.id}
-                            className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1 disabled:opacity-50 dark:text-green-300"
+                            className="text-sm text-green-700 hover:text-green-800 dark:hover:text-green-300 flex items-center gap-1 disabled:opacity-50 dark:text-green-300"
                           >
                             <Send className="w-3 h-3" />
                             {reportingToMetrc === entry.id ? 'Reporting...' : 'Report to Metrc'}

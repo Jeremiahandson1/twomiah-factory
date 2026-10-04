@@ -92,7 +92,7 @@ export default function StormRadarPage() {
       {/* Provider status banner */}
       {!status?.configured && (
         <div className="mb-6 bg-yellow-50 border border-yellow-300 rounded-lg p-4 flex items-start gap-3 dark:bg-yellow-950/40">
-          <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5 dark:text-yellow-300" />
+          <AlertTriangle className="w-5 h-5 text-yellow-700 flex-shrink-0 mt-0.5 dark:text-yellow-300" />
           <div>
             <div className="font-semibold text-yellow-900 dark:text-yellow-300">Storm Radar isn't turned on yet</div>
             <div className="text-sm text-yellow-800 mt-1 dark:text-yellow-300">Live storm tracking for your area isn't enabled on your account yet. Contact support to switch it on and start generating storm-season leads.</div>
@@ -116,7 +116,7 @@ export default function StormRadarPage() {
               events.map((e) => (
                 <tr key={e.id} className="border-b hover:bg-gray-50">
                   <td className="px-4 py-3 text-sm font-semibold">{(e.eventType || '').replace(/_/g, ' ')}</td>
-                  <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${SEVERITY_COLORS[e.severity] || 'bg-gray-100'}`}>{e.severity || '—'}</span></td>
+                  <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${SEVERITY_COLORS[e.severity] || 'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'}`}>{e.severity || '—'}</span></td>
                   <td className="px-4 py-3 text-sm">{e.city ? `${e.city}, ` : ''}{e.state || ''} {e.zip || ''}</td>
                   <td className="px-4 py-3 text-sm">{e.hailSizeInches ? `${e.hailSizeInches}"` : '—'}</td>
                   <td className="px-4 py-3 text-sm">{e.windSpeedMph ? `${e.windSpeedMph} mph` : '—'}</td>
@@ -139,7 +139,7 @@ export default function StormRadarPage() {
                 <tr key={m.id} className="border-b">
                   <td className="px-4 py-3 font-mono text-xs">{(m.contactId || '').substring(0, 8)}…</td>
                   <td className="px-4 py-3 text-sm">{m.distanceMiles ? `${m.distanceMiles} mi` : '—'}</td>
-                  <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${MATCH_STATUS_COLORS[m.status] || 'bg-gray-100'}`}>{(m.status || '').replace(/_/g, ' ')}</span></td>
+                  <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${MATCH_STATUS_COLORS[m.status] || 'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'}`}>{(m.status || '').replace(/_/g, ' ')}</span></td>
                   <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{formatDate(m.createdAt)}</td>
                   <td className="px-4 py-3">
                     <select value={m.status} onChange={(e) => updateMatchStatus(m.id, e.target.value)} className="text-xs border rounded px-2 py-1">

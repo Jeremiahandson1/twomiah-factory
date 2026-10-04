@@ -223,7 +223,7 @@ function CallRow({ call }) {
     <tr className="hover:bg-gray-50 dark:hover:bg-slate-800">
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${statusColors[call.status] || 'bg-gray-100'}`}>
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${statusColors[call.status] || 'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'}`}>
             <StatusIcon className="w-5 h-5" />
           </div>
           <div>

@@ -281,12 +281,12 @@ function ScannerTab() {
               >
                 <div className="flex items-center gap-3">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                    scan.entityType === 'product' ? 'bg-green-100' :
-                    scan.entityType === 'grow_input' ? 'bg-blue-100' :
-                    scan.entityType === 'batch' ? 'bg-purple-100' :
-                    'bg-gray-100'
+                    scan.entityType === 'product' ? 'bg-green-100 dark:bg-green-950/40 dark:text-slate-100' :
+                    scan.entityType === 'grow_input' ? 'bg-blue-100 dark:bg-blue-950/40 dark:text-slate-100' :
+                    scan.entityType === 'batch' ? 'bg-purple-100 dark:bg-purple-950/40 dark:text-slate-100' :
+                    'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'
                   }`}>
-                    {scan.entityType === 'product' ? <Package className="w-4 h-4 text-green-600 dark:text-green-300" /> :
+                    {scan.entityType === 'product' ? <Package className="w-4 h-4 text-green-700 dark:text-green-300" /> :
                      scan.entityType === 'grow_input' ? <Leaf className="w-4 h-4 text-blue-600 dark:text-blue-300" /> :
                      scan.entityType === 'batch' ? <Layers className="w-4 h-4 text-purple-600 dark:text-purple-300" /> :
                      <QrCode className="w-4 h-4 text-gray-600 dark:text-slate-400" />}
@@ -685,7 +685,7 @@ function AnalyticsTab() {
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
           <p className="text-sm text-gray-500 dark:text-slate-400">This Month</p>
-          <p className="text-2xl font-bold text-green-600 dark:text-green-300">{stats?.thisMonth || 0}</p>
+          <p className="text-2xl font-bold text-green-700 dark:text-green-300">{stats?.thisMonth || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">scans</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">

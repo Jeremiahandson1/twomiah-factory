@@ -60,7 +60,7 @@ export default function SuppliersPage() {
 
       {connected ? (
         <div className="card p-5">
-          <div className="flex items-center gap-2 text-green-600 font-medium dark:text-green-300"><CheckCircle2 className="h-5 w-5" /> Connected</div>
+          <div className="flex items-center gap-2 text-green-700 font-medium dark:text-green-300"><CheckCircle2 className="h-5 w-5" /> Connected</div>
           <div className="mt-3 text-sm text-gray-600 space-y-1 dark:text-slate-300">
             <div>Supplier: <span className="font-medium capitalize">{status?.config?.provider}</span></div>
             <div>Mode: <span className="font-medium capitalize">{status?.config?.mode}</span>{status?.config?.mode === 'test' && ' (orders stay as unconfirmed drafts)'}</div>

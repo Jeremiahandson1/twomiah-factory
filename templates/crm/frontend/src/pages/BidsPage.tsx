@@ -128,7 +128,7 @@ export default function BidsPage() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold">{stats.total}</p><p className="text-sm text-gray-500 dark:text-slate-400">Total Bids</p></div>
           <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold text-blue-600 dark:text-blue-300">{stats.submitted || 0}</p><p className="text-sm text-gray-500 dark:text-slate-400">Submitted</p></div>
-          <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold text-green-600 dark:text-green-300">{stats.won || 0}</p><p className="text-sm text-gray-500 dark:text-slate-400">Won</p></div>
+          <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold text-green-700 dark:text-green-300">{stats.won || 0}</p><p className="text-sm text-gray-500 dark:text-slate-400">Won</p></div>
           <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold text-orange-600 dark:text-orange-300">${(stats.pipelineValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p><p className="text-sm text-gray-500 dark:text-slate-400">Pipeline</p></div>
           <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold">{stats.winRate || 0}%</p><p className="text-sm text-gray-500 dark:text-slate-400">Win Rate</p></div>
         </div>

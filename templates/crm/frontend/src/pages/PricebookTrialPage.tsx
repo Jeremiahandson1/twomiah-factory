@@ -44,7 +44,7 @@ export default function PricebookTrialPage() {
     return (
       <div className="max-w-2xl mx-auto py-16 text-center">
         <div className="w-16 h-16 bg-green-100 dark:bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-          <Check className="w-8 h-8 text-green-600 dark:text-green-400" />
+          <Check className="w-8 h-8 text-green-700 dark:text-green-400" />
         </div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
           Trial Request Submitted!
@@ -81,7 +81,7 @@ export default function PricebookTrialPage() {
         {FEATURES.map((f) => (
           <div key={f.title} className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6">
             <div className="w-10 h-10 bg-amber-100 dark:bg-amber-500/20 rounded-lg flex items-center justify-center mb-4">
-              <f.icon className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              <f.icon className="w-5 h-5 text-amber-700 dark:text-amber-400" />
             </div>
             <h3 className="font-semibold text-gray-900 dark:text-white mb-2">{f.title}</h3>
             <p className="text-sm text-gray-600 dark:text-slate-400">{f.desc}</p>
@@ -99,7 +99,7 @@ export default function PricebookTrialPage() {
             <ul className="space-y-3">
               {BENEFITS.map((b) => (
                 <li key={b} className="flex items-start gap-3">
-                  <Check className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                  <Check className="w-5 h-5 text-amber-700 dark:text-amber-400 mt-0.5 flex-shrink-0" />
                   <span className="text-gray-700 dark:text-slate-300 text-sm">{b}</span>
                 </li>
               ))}
@@ -108,7 +108,7 @@ export default function PricebookTrialPage() {
 
           <div className="flex-shrink-0 text-center md:text-left">
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-amber-200 dark:border-amber-500/30 p-6 shadow-sm">
-              <BookOpen className="w-10 h-10 text-amber-600 dark:text-amber-400 mx-auto md:mx-0 mb-3" />
+              <BookOpen className="w-10 h-10 text-amber-700 dark:text-amber-400 mx-auto md:mx-0 mb-3" />
               <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">Free for 30 days</p>
               <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">No credit card required</p>
               {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>}

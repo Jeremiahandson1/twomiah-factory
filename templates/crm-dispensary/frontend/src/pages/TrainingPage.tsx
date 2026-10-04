@@ -270,9 +270,9 @@ export default function TrainingPage() {
                 <p className="font-medium text-lg">{activeQuiz.step.question}</p>
                 <div className="space-y-3">
                   {(activeQuiz.step.options || []).map((opt: string, i: number) => (
-                    <label key={i} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer ${quizAnswers[0] === i ? 'border-green-500 bg-green-50' : 'hover:bg-gray-50'} ${quizSubmitted && activeQuiz.step.correctIndex === i ? 'border-green-500 bg-green-50' : ''} ${quizSubmitted && quizAnswers[0] === i && activeQuiz.step.correctIndex !== i ? 'border-red-500 bg-red-50' : ''}`}>
+                    <label key={i} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer ${quizAnswers[0] === i ? 'border-green-500 bg-green-50 dark:bg-green-950/40 dark:text-slate-100' : 'hover:bg-gray-50'} ${quizSubmitted && activeQuiz.step.correctIndex === i ? 'border-green-500 bg-green-50 dark:bg-green-950/40 dark:text-slate-100' : ''} ${quizSubmitted && quizAnswers[0] === i && activeQuiz.step.correctIndex !== i ? 'border-red-500 bg-red-50 dark:bg-red-950/40 dark:text-slate-100' : ''}`}>
                       <input type="radio" name="quiz" checked={quizAnswers[0] === i} onChange={() => setQuizAnswers({ 0: i })}
-                        disabled={quizSubmitted} className="text-green-600 dark:text-green-300" />
+                        disabled={quizSubmitted} className="text-green-700 dark:text-green-300" />
                       <span>{opt}</span>
                     </label>
                   ))}
@@ -282,7 +282,7 @@ export default function TrainingPage() {
                 ) : (
                   <div className="flex items-center gap-2">
                     {quizAnswers[0] === activeQuiz.step.correctIndex ? (
-                      <span className="text-green-600 font-medium flex items-center gap-1 dark:text-green-300"><Check className="w-5 h-5" />Correct!</span>
+                      <span className="text-green-700 font-medium flex items-center gap-1 dark:text-green-300"><Check className="w-5 h-5" />Correct!</span>
                     ) : (
                       <span className="text-red-600 font-medium flex items-center gap-1 dark:text-red-400"><X className="w-5 h-5" />Incorrect</span>
                     )}
@@ -309,7 +309,7 @@ export default function TrainingPage() {
                         {enrollment.completed && <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40">Completed</span>}
                       </div>
                       <div className="text-sm text-gray-500 mb-2 dark:text-slate-400">{enrollment.courseCategory} &middot; {enrollment.estimatedMinutes || 30} min</div>
-                      <div className="w-64 bg-gray-200 rounded-full h-2">
+                      <div className="w-64 bg-gray-200 rounded-full h-2 dark:bg-slate-700 dark:text-slate-100">
                         <div className="bg-green-500 h-2 rounded-full transition-all" style={{ width: `${progress}%` }} />
                       </div>
                       <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">{enrollment.completedSteps || 0} / {enrollment.totalSteps || 0} steps ({progress}%)</div>
@@ -355,10 +355,10 @@ export default function TrainingPage() {
                         <div className="space-y-1">
                           {(row.courses || []).map((c: any, i: number) => (
                             <div key={i} className="flex items-center gap-2 text-sm">
-                              {c.status === 'completed' && <Check className="w-4 h-4 text-green-600 dark:text-green-300" />}
+                              {c.status === 'completed' && <Check className="w-4 h-4 text-green-700 dark:text-green-300" />}
                               {c.status === 'in_progress' && <Clock className="w-4 h-4 text-yellow-500 dark:text-yellow-300" />}
                               {c.status === 'not_started' && <X className="w-4 h-4 text-red-500 dark:text-red-400" />}
-                              <span className={c.overdue ? 'text-red-600 font-medium' : ''}>{c.title}</span>
+                              <span className={c.overdue ? 'text-red-600 font-medium dark:text-red-400' : ''}>{c.title}</span>
                               {c.overdue && <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded dark:text-red-400 dark:bg-red-950/40">Overdue</span>}
                             </div>
                           ))}
@@ -429,7 +429,7 @@ export default function TrainingPage() {
                 {employees.map(emp => (
                   <label key={emp.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b last:border-b-0">
                     <input type="checkbox" checked={selectedEmployees.includes(emp.id)}
-                      onChange={() => toggleEmployee(emp.id)} className="rounded text-green-600 dark:text-green-300" />
+                      onChange={() => toggleEmployee(emp.id)} className="rounded text-green-700 dark:text-green-300" />
                     <span className="text-sm">{emp.name}</span>
                     <span className="text-xs text-gray-500 dark:text-slate-400">{emp.role}</span>
                   </label>
@@ -477,7 +477,7 @@ export default function TrainingPage() {
             <div className="flex items-end pb-1">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={courseForm.required} onChange={e => setCourseForm({ ...courseForm, required: e.target.checked })}
-                  className="rounded text-green-600 dark:text-green-300" />
+                  className="rounded text-green-700 dark:text-green-300" />
                 <span className="text-sm font-medium">Required</span>
               </label>
             </div>
@@ -520,7 +520,7 @@ export default function TrainingPage() {
                       {(step.options || []).map((opt: string, oi: number) => (
                         <div key={oi} className="flex items-center gap-2">
                           <input type="radio" name={`correct-${i}`} checked={step.correctIndex === oi}
-                            onChange={() => updateStep(i, { correctIndex: oi })} className="text-green-600 dark:text-green-300" />
+                            onChange={() => updateStep(i, { correctIndex: oi })} className="text-green-700 dark:text-green-300" />
                           <input value={opt} onChange={e => {
                             const opts = [...step.options]; opts[oi] = e.target.value;
                             updateStep(i, { options: opts });

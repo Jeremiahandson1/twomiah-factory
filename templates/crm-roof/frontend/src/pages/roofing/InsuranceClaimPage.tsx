@@ -1075,7 +1075,7 @@ export default function InsuranceClaimPage() {
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-mono font-semibold">{sup.supplementNumber}</span>
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded ${SUP_STATUS_COLORS[sup.status] || 'bg-gray-100'}`}>
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded ${SUP_STATUS_COLORS[sup.status] || 'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'}`}>
                             {formatStatus(sup.status)}
                           </span>
                         </div>

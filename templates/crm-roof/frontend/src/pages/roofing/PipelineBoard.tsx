@@ -346,7 +346,7 @@ export default function PipelineBoard() {
                           )}
 
                           {job.source === 'storm' && (
-                            <span className="flex items-center gap-0.5 text-[10px] text-amber-600 font-medium dark:text-amber-300">
+                            <span className="flex items-center gap-0.5 text-[10px] text-amber-700 font-medium dark:text-amber-300">
                               <Zap className="w-3 h-3" />
                               storm
                             </span>

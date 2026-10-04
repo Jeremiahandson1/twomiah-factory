@@ -436,7 +436,7 @@ export default function AppLayout() {
             <div className="flex items-center gap-2">
               {/* Connection status */}
               <div 
-                className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-gray-300'}`}
+                className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`}
                 title={connected ? 'Connected' : 'Disconnected'}
                 aria-label={connected ? 'Real-time updates connected' : 'Real-time updates disconnected'}
               />

@@ -13,7 +13,7 @@ type Tab = 'bookings' | 'services' | 'settings' | 'embed'
 const STATUS_FILTERS: Array<[string, string]> = [['', 'All statuses'], ['pending', 'Pending (deposit unpaid)'], ['confirmed', 'Confirmed'], ['completed', 'Completed'], ['no_show', 'No-show'], ['cancelled', 'Cancelled']]
 // The settled states had no dark-mode variant, so they kept the light-mode gray and read at 3.69:1 on the
 // dark table — the two that say a deposit is no longer coming were the hardest to read. (FS T22)
-const DEPOSIT_CLS: Record<string, string> = { pending: 'text-amber-600 dark:text-amber-300', paid: 'text-green-600 dark:text-green-300', failed: 'text-red-600 dark:text-red-300', refunded: 'text-gray-500 dark:text-slate-400', expired: 'text-gray-500 dark:text-slate-400' }
+const DEPOSIT_CLS: Record<string, string> = { pending: 'text-amber-700 dark:text-amber-300', paid: 'text-green-700 dark:text-green-300', failed: 'text-red-600 dark:text-red-300', refunded: 'text-gray-500 dark:text-slate-400', expired: 'text-gray-500 dark:text-slate-400' }
 
 const whenIn = (iso: string, tz?: string) => {
   const d = new Date(iso)
@@ -214,7 +214,7 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
           <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">Paste this where you want the booking form to appear. If a service requires a deposit, the customer pays it before the slot is confirmed.</p>
           <pre className="bg-gray-900 text-gray-100 text-xs rounded-lg p-4 overflow-x-auto whitespace-pre-wrap">{embed || 'Loading…'}</pre>
           <Button variant="secondary" className="mt-3" disabled={!embed} onClick={() => { navigator.clipboard?.writeText(embed); setCopied(true); setTimeout(() => setCopied(false), 2000) }}>
-            {copied ? <Check className="w-4 h-4 text-green-600 dark:text-green-300" /> : <Copy className="w-4 h-4" />}{copied ? 'Copied' : 'Copy embed code'}
+            {copied ? <Check className="w-4 h-4 text-green-700 dark:text-green-300" /> : <Copy className="w-4 h-4" />}{copied ? 'Copied' : 'Copy embed code'}
           </Button>
         </div>
       )}

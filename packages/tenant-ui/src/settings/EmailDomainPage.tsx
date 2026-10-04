@@ -124,17 +124,17 @@ export function EmailDomainPage(): React.ReactElement {
                       <td className="px-3 py-2 font-mono text-xs break-all">
                         <button onClick={() => copy('host-' + i, r.host)} className="text-left hover:text-orange-600 dark:hover:text-orange-200" title="Copy">
                           {r.host}
-                          {copiedKey === 'host-' + i && <span className="text-green-600 ml-1 dark:text-green-300">✓</span>}
+                          {copiedKey === 'host-' + i && <span className="text-green-700 ml-1 dark:text-green-300">✓</span>}
                         </button>
                       </td>
                       <td className="px-3 py-2 font-mono text-xs break-all">
                         <button onClick={() => copy('data-' + i, r.data)} className="text-left hover:text-orange-600 dark:hover:text-orange-200" title="Copy">
                           {r.data}
-                          {copiedKey === 'data-' + i && <span className="text-green-600 ml-1 dark:text-green-300">✓</span>}
+                          {copiedKey === 'data-' + i && <span className="text-green-700 ml-1 dark:text-green-300">✓</span>}
                         </button>
                       </td>
                       <td className="px-3 py-2">
-                        {r.valid === true ? <span className="text-green-600 font-semibold dark:text-green-300">✓</span>
+                        {r.valid === true ? <span className="text-green-700 font-semibold dark:text-green-300">✓</span>
                           : r.valid === false ? <span className="text-red-600 font-semibold dark:text-red-400">✗</span>
                           : <span className="text-gray-500 dark:text-slate-400">—</span>}
                       </td>

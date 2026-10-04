@@ -205,21 +205,21 @@ export default function ImportPage() {
             <div
               key={entry.name}
               className={`flex items-center justify-between p-4 rounded-lg border ${
-                entry.loading ? 'bg-gray-50 border-gray-200' :
-                entry.detectedType === 'clients' ? 'bg-green-50 border-green-200' :
-                entry.detectedType === 'jobs' ? 'bg-blue-50 border-blue-200' :
-                'bg-yellow-50 border-yellow-200'
+                entry.loading ? 'bg-gray-50 border-gray-200 dark:bg-slate-800 dark:text-slate-100' :
+                entry.detectedType === 'clients' ? 'bg-green-50 border-green-200 dark:bg-green-950/40 dark:text-slate-100' :
+                entry.detectedType === 'jobs' ? 'bg-blue-50 border-blue-200 dark:bg-blue-950/40 dark:text-slate-100' :
+                'bg-yellow-50 border-yellow-200 dark:bg-yellow-950/40 dark:text-slate-100'
               }`}
             >
               <div className="flex items-center gap-3">
                 {entry.loading ? (
                   <Loader2 size={18} className="text-gray-500 dark:text-slate-400 animate-spin" />
                 ) : entry.detectedType === 'clients' ? (
-                  <Users size={18} className="text-green-600 dark:text-green-300" />
+                  <Users size={18} className="text-green-700 dark:text-green-300" />
                 ) : entry.detectedType === 'jobs' ? (
                   <Briefcase size={18} className="text-blue-600 dark:text-blue-400" />
                 ) : (
-                  <AlertCircle size={18} className="text-yellow-600 dark:text-yellow-300" />
+                  <AlertCircle size={18} className="text-yellow-700 dark:text-yellow-300" />
                 )}
                 <div>
                   <p className="font-medium text-gray-900 dark:text-slate-100">{entry.name}</p>

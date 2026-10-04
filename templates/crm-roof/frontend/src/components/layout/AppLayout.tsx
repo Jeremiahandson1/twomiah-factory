@@ -160,7 +160,11 @@ export default function AppLayout() {
             <p className="text-sm font-medium text-white truncate">
               {user?.email || 'User'}
             </p>
-            <p className="text-xs text-gray-500 dark:text-slate-400 capitalize">{user?.role || 'admin'}</p>
+            {/* This sidebar is `bg-gray-900` in BOTH themes, so the light half of a pair is the
+                wrong question here: text-gray-500 on gray-900 measured 3.67:1 in LIGHT mode on the
+                live tenant, while the dark half was fine at 4.9:1. A permanently dark surface wants
+                light ink in both themes — slate-400 on gray-900 is 6.5:1. (T41) */}
+            <p className="text-xs text-slate-400 capitalize">{user?.role || 'admin'}</p>
           </div>
           {/* M4: dark mode shipped as 173 unreachable CSS rules because nothing offered the choice
               and nothing set the class. The hook is the fleet's shared one. */}

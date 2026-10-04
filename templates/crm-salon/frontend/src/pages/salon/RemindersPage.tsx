@@ -201,7 +201,7 @@ export default function RemindersPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-          <BellRing className="w-6 h-6 text-teal-600 dark:text-teal-300" /> Rebooking
+          <BellRing className="w-6 h-6 text-teal-700 dark:text-teal-300" /> Rebooking
         </h1>
         <p className="text-gray-500 dark:text-slate-400">Get clients back in the chair on cadence</p>
       </div>
@@ -456,7 +456,7 @@ function SendReminderModal({ contactIds, defaultMessage, onDone, onClose }: { co
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold flex items-center gap-2"><Send className="w-5 h-5 text-teal-600 dark:text-teal-300" /> Send Text</h2>
+            <h2 className="text-lg font-bold flex items-center gap-2"><Send className="w-5 h-5 text-teal-700 dark:text-teal-300" /> Send Text</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
 

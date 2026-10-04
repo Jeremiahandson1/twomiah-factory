@@ -60,10 +60,10 @@ function ChangeOrderCard({ co, token, highlight }: { co: ChangeOrderData; token?
     <PLink to={`/portal/${token}/change-orders/${co.id}`} className={`block bg-white rounded-xl border p-4 hover:shadow-md transition-all dark:bg-slate-900 ${highlight ? 'border-orange-300 ring-2 ring-orange-100 dark:ring-orange-900/40' : 'border-gray-200 dark:border-slate-700'}`}>
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <div className={`p-2 rounded-lg shrink-0 ${isAddition ? 'bg-red-100' : 'bg-green-100'}`}><ClipboardList className={`w-5 h-5 ${isAddition ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`} /></div>
+          <div className={`p-2 rounded-lg shrink-0 ${isAddition ? 'bg-red-100 dark:bg-red-950/40 dark:text-slate-100' : 'bg-green-100 dark:bg-green-950/40 dark:text-slate-100'}`}><ClipboardList className={`w-5 h-5 ${isAddition ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`} /></div>
           <div className="min-w-0"><p className="font-medium text-gray-900 truncate dark:text-slate-100">{co.title || co.number}</p><p className="text-sm text-gray-500 dark:text-slate-400">{co.number}{projectName ? ` - ${projectName}` : ''}</p></div>
         </div>
-        <div className="text-right shrink-0"><p className={`text-lg font-bold ${isAddition ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>{isAddition ? '+' : '-'}{moneyShort(Math.abs(Number(co.amount)))}</p><span className={pill(STATUS_STYLES[co.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{co.status}</span></div>
+        <div className="text-right shrink-0"><p className={`text-lg font-bold ${isAddition ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`}>{isAddition ? '+' : '-'}{moneyShort(Math.abs(Number(co.amount)))}</p><span className={pill(STATUS_STYLES[co.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{co.status}</span></div>
       </div>
     </PLink>
   )
@@ -110,8 +110,8 @@ export function PortalChangeOrderDetail() {
         </div>
         <div className={`p-6 ${isAddition ? 'bg-red-50 dark:bg-red-950/20' : 'bg-green-50 dark:bg-green-950/20'}`}>
           <div className="flex items-center gap-3">
-            <AlertTriangle className={`w-6 h-6 ${isAddition ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`} />
-            <div><p className="text-sm text-gray-600 dark:text-slate-400">{isAddition ? 'This change order will ADD to your project cost' : 'This change order will REDUCE your project cost'}</p><p className={`text-2xl font-bold ${isAddition ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>{isAddition ? '+' : '-'}{moneyShort(Math.abs(Number(co.amount)))}</p>{!!co.daysAdded && <p className="text-sm text-gray-600 dark:text-slate-400">Schedule impact: {co.daysAdded} day{co.daysAdded === 1 ? '' : 's'}</p>}</div>
+            <AlertTriangle className={`w-6 h-6 ${isAddition ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`} />
+            <div><p className="text-sm text-gray-600 dark:text-slate-400">{isAddition ? 'This change order will ADD to your project cost' : 'This change order will REDUCE your project cost'}</p><p className={`text-2xl font-bold ${isAddition ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`}>{isAddition ? '+' : '-'}{moneyShort(Math.abs(Number(co.amount)))}</p>{!!co.daysAdded && <p className="text-sm text-gray-600 dark:text-slate-400">Schedule impact: {co.daysAdded} day{co.daysAdded === 1 ? '' : 's'}</p>}</div>
           </div>
         </div>
         <div className="p-6 border-b dark:border-slate-700"><h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">Description</h3><p className="text-gray-700 whitespace-pre-wrap dark:text-slate-200">{co.description || 'No description provided.'}</p></div>
@@ -123,7 +123,7 @@ export function PortalChangeOrderDetail() {
           </div>
         )}
         {co.status === 'approved' && (
-          <div className="p-6 bg-green-50 border-t dark:bg-green-950/20 dark:border-slate-700"><div className="flex items-start gap-4"><CheckCircle className="w-6 h-6 text-green-600 shrink-0 mt-1 dark:text-green-300" /><div className="flex-1"><p className="font-medium text-green-800 dark:text-green-300">Approved{approvedOn ? ` on ${formatDate(approvedOn)}` : ''}</p>{co.signature && <SignatureDisplay className="mt-3" signature={co.signature} signedBy={(co.signedBy || co.approvedBy) ?? undefined} signedAt={approvedOn ?? undefined} />}</div></div></div>
+          <div className="p-6 bg-green-50 border-t dark:bg-green-950/20 dark:border-slate-700"><div className="flex items-start gap-4"><CheckCircle className="w-6 h-6 text-green-700 shrink-0 mt-1 dark:text-green-300" /><div className="flex-1"><p className="font-medium text-green-800 dark:text-green-300">Approved{approvedOn ? ` on ${formatDate(approvedOn)}` : ''}</p>{co.signature && <SignatureDisplay className="mt-3" signature={co.signature} signedBy={(co.signedBy || co.approvedBy) ?? undefined} signedAt={approvedOn ?? undefined} />}</div></div></div>
         )}
         {co.status === 'rejected' && <div className="p-6 bg-red-50 border-t dark:bg-red-950/20 dark:border-slate-700"><div className="flex items-center gap-2 text-red-700 dark:text-red-300"><XCircle className="w-5 h-5" /><span className="font-medium">Declined</span></div></div>}
       </div>

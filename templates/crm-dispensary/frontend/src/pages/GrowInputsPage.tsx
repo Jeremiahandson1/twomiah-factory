@@ -167,7 +167,7 @@ export default function GrowInputsPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
             <p className="text-sm text-gray-500 dark:text-slate-400">Total Inputs</p>
-            <p className="text-2xl font-bold text-green-600 dark:text-green-300">{stats.totalInputs || 0}</p>
+            <p className="text-2xl font-bold text-green-700 dark:text-green-300">{stats.totalInputs || 0}</p>
           </div>
           <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
             <p className="text-sm text-gray-500 dark:text-slate-400">Low Stock</p>
@@ -436,7 +436,7 @@ function InventoryTab() {
       render: (val: number, row: any) => {
         const isLow = row.minStock && val <= row.minStock;
         return (
-          <div className={isLow ? 'text-red-600 font-semibold' : 'text-gray-700'}>
+          <div className={isLow ? 'text-red-600 font-semibold dark:text-red-400' : 'text-gray-700 dark:text-slate-200'}>
             {val ?? 0} / {row.minStock ?? 0} {row.unitOfMeasure || ''}
             {isLow && <AlertTriangle className="w-3 h-3 inline ml-1 text-red-500 dark:text-red-400" />}
           </div>
@@ -458,7 +458,7 @@ function InventoryTab() {
         const d = new Date(val);
         const daysLeft = Math.ceil((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
         return (
-          <span className={daysLeft <= 30 ? 'text-red-600 font-medium' : 'text-gray-700'}>
+          <span className={daysLeft <= 30 ? 'text-red-600 font-medium dark:text-red-400' : 'text-gray-700 dark:text-slate-200'}>
             {d.toLocaleDateString()}
             {daysLeft <= 30 && daysLeft > 0 && <span className="text-xs ml-1">({daysLeft}d)</span>}
             {daysLeft <= 0 && <span className="text-xs ml-1 text-red-700 dark:text-red-300">(expired)</span>}
@@ -1770,10 +1770,10 @@ function TraceabilityTab() {
                     <div className="bg-amber-50 rounded-lg p-4 dark:bg-amber-950/40">
                       <h4 className="font-semibold text-amber-900 mb-1 dark:text-amber-300">Grow Details</h4>
                       <div className="grid grid-cols-2 gap-2 text-sm">
-                        {traceData.room && <p><span className="text-amber-600 dark:text-amber-300">Room:</span> {traceData.room.name}</p>}
-                        {traceData.plant && <p><span className="text-amber-600 dark:text-amber-300">Plant Tag:</span> {traceData.plant.metrcTag}</p>}
-                        {traceData.plant?.strainName && <p><span className="text-amber-600 dark:text-amber-300">Strain:</span> {traceData.plant.strainName}</p>}
-                        {traceData.plant?.phase && <p><span className="text-amber-600 dark:text-amber-300">Phase:</span> {traceData.plant.phase}</p>}
+                        {traceData.room && <p><span className="text-amber-700 dark:text-amber-300">Room:</span> {traceData.room.name}</p>}
+                        {traceData.plant && <p><span className="text-amber-700 dark:text-amber-300">Plant Tag:</span> {traceData.plant.metrcTag}</p>}
+                        {traceData.plant?.strainName && <p><span className="text-amber-700 dark:text-amber-300">Strain:</span> {traceData.plant.strainName}</p>}
+                        {traceData.plant?.phase && <p><span className="text-amber-700 dark:text-amber-300">Phase:</span> {traceData.plant.phase}</p>}
                       </div>
                     </div>
                   </div>

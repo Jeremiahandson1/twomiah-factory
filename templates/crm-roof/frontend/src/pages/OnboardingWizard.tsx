@@ -55,7 +55,7 @@ export default function OnboardingWizard() {
                 </div>
                 <span className={`text-xs hidden sm:block ${idx <= currentStep ? 'text-gray-900 dark:text-slate-100 font-medium' : 'text-gray-500 dark:text-slate-400'}`}>{label}</span>
               </div>
-              {idx < STEPS.length - 1 && <div className={`w-10 sm:w-16 h-0.5 ${idx < currentStep ? 'bg-orange-500' : 'bg-gray-200'}`} />}
+              {idx < STEPS.length - 1 && <div className={`w-10 sm:w-16 h-0.5 ${idx < currentStep ? 'bg-orange-500' : 'bg-gray-200 dark:bg-slate-700 dark:text-slate-100'}`} />}
             </div>
           ))}
         </div>

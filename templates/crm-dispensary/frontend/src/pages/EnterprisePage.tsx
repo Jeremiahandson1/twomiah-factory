@@ -376,7 +376,7 @@ function MultiStoreReportsTab() {
                   <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{loc.name}</td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{loc.totalSkus || 0}</td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{(loc.totalUnits || 0).toLocaleString()}</td>
-                  <td className="px-4 py-3"><span className={`font-medium ${(loc.lowStock || 0) > 0 ? 'text-amber-600 dark:text-amber-300' : 'text-gray-500 dark:text-slate-400'}`}>{loc.lowStock || 0}</span></td>
+                  <td className="px-4 py-3"><span className={`font-medium ${(loc.lowStock || 0) > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-slate-400'}`}>{loc.lowStock || 0}</span></td>
                   <td className="px-4 py-3"><span className={`font-medium ${(loc.outOfStock || 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-slate-400'}`}>{loc.outOfStock || 0}</span></td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 </tr>
@@ -420,7 +420,7 @@ function MultiStoreReportsTab() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{loc.lastAudit ? formatDate(loc.lastAudit) : '--'}</td>
-                  <td className="px-4 py-3"><span className={`font-medium ${(loc.issues || 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>{loc.issues || 0}</span></td>
+                  <td className="px-4 py-3"><span className={`font-medium ${(loc.issues || 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`}>{loc.issues || 0}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -687,7 +687,7 @@ function APIDocsTab() {
                           {Object.entries(ep.responses).map(([code, resp]: [string, any]) => (
                             <div key={code} className="text-sm">
                               <div className="flex items-center gap-2">
-                                <span className={`font-mono font-bold ${code.startsWith('2') ? 'text-green-600 dark:text-green-300' : code.startsWith('4') ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-slate-300'}`}>
+                                <span className={`font-mono font-bold ${code.startsWith('2') ? 'text-green-700 dark:text-green-300' : code.startsWith('4') ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-slate-300'}`}>
                                   {code}
                                 </span>
                                 <span className="text-gray-600 dark:text-slate-400">{resp.description || ''}</span>

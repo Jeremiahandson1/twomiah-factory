@@ -256,7 +256,7 @@ export default function ManufacturingPage() {
           </div>
           <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
             <p className="text-sm text-gray-500 dark:text-slate-400">Avg Yield</p>
-            <p className="text-2xl font-bold text-green-600 dark:text-green-300">{stats.avgYield ? `${stats.avgYield}%` : '--'}</p>
+            <p className="text-2xl font-bold text-green-700 dark:text-green-300">{stats.avgYield ? `${stats.avgYield}%` : '--'}</p>
           </div>
           <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
             <p className="text-sm text-gray-500 dark:text-slate-400">Completed This Week</p>

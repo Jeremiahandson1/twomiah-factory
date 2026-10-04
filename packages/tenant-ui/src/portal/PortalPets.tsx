@@ -51,7 +51,7 @@ export function PortalPets() {
                     {speciesLabel(p.species)}{p.breed ? ` · ${p.breed}` : ''}{p.sex ? ` · ${p.sex}` : ''}
                   </p>
                 </div>
-                <PawPrint className="w-5 h-5 text-teal-600 shrink-0 dark:text-teal-300" />
+                <PawPrint className="w-5 h-5 text-teal-700 shrink-0 dark:text-teal-300" />
               </div>
               <div className="mt-4 space-y-2 text-sm">
                 {!!p.vaccinationsDue && p.vaccinationsDue > 0 && (

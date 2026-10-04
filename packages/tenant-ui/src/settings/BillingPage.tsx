@@ -243,7 +243,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
                 {msg && (
                   <div className="text-right">
                     <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Wallet balance</div>
-                    <div className={'text-2xl font-bold ' + (msg.enabled && msg.walletCents <= 0 ? 'text-red-600' : 'text-gray-900 dark:text-slate-100')}>${(msg.walletCents / 100).toFixed(2)}</div>
+                    <div className={'text-2xl font-bold ' + (msg.enabled && msg.walletCents <= 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-slate-100')}>${(msg.walletCents / 100).toFixed(2)}</div>
                   </div>
                 )}
               </div>

@@ -126,14 +126,14 @@ export default function SubmittalsPage() {
                 <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{s.project?.name || '—'}</td>
                 <td className="px-4 py-3 text-sm">{TYPE_LABELS[s.submittalType] || s.submittalType}</td>
                 <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{s.specSection || '—'}</td>
-                <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[s.status] || 'bg-gray-100'}`}>{s.status.replace('_', ' ')}</span></td>
+                <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[s.status] || 'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'}`}>{s.status.replace('_', ' ')}</span></td>
                 <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{s.dueDate ? formatDate(s.dueDate) : '—'}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
                     {s.status === 'draft' && <button onClick={() => runAction(s.id, 'submit')} className="text-blue-600 hover:bg-blue-50 p-1 rounded dark:text-blue-300" title="Submit for review"><Plus className="w-4 h-4 rotate-45" /></button>}
                     {s.status === 'submitted' && (<>
-                      <button onClick={() => runAction(s.id, 'approve')} className="text-green-600 hover:bg-green-50 p-1 rounded dark:text-green-300" title="Approve"><Check className="w-4 h-4" /></button>
-                      <button onClick={() => runAction(s.id, 'revise')} className="text-yellow-600 hover:bg-yellow-50 p-1 rounded dark:text-yellow-300" title="Revise and resubmit"><RotateCcw className="w-4 h-4" /></button>
+                      <button onClick={() => runAction(s.id, 'approve')} className="text-green-700 hover:bg-green-50 p-1 rounded dark:text-green-300" title="Approve"><Check className="w-4 h-4" /></button>
+                      <button onClick={() => runAction(s.id, 'revise')} className="text-yellow-700 hover:bg-yellow-50 p-1 rounded dark:text-yellow-300" title="Revise and resubmit"><RotateCcw className="w-4 h-4" /></button>
                       <button onClick={() => runAction(s.id, 'reject')} className="text-red-600 hover:bg-red-50 p-1 rounded dark:text-red-400" title="Reject"><X className="w-4 h-4" /></button>
                     </>)}
                   </div>

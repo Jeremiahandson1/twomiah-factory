@@ -13,7 +13,7 @@ class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode },
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 dark:bg-slate-800 dark:text-slate-100">
           <div className="max-w-md text-center">
             <h1 className="text-2xl font-bold text-gray-900 mb-3 dark:text-slate-100">Something went wrong</h1>
             <p className="text-gray-600 mb-6 dark:text-slate-300">Please refresh the page.</p>

@@ -44,7 +44,7 @@ export default function EstimatorTrialPage() {
     return (
       <div className="max-w-2xl mx-auto py-16 text-center">
         <div className="w-16 h-16 bg-green-100 dark:bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-          <Check className="w-8 h-8 text-green-600 dark:text-green-400" />
+          <Check className="w-8 h-8 text-green-700 dark:text-green-400" />
         </div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
           Trial Request Submitted!
@@ -81,7 +81,7 @@ export default function EstimatorTrialPage() {
         {FEATURES.map((f) => (
           <div key={f.title} className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6">
             <div className="w-10 h-10 bg-sky-100 dark:bg-sky-500/20 rounded-lg flex items-center justify-center mb-4">
-              <f.icon className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+              <f.icon className="w-5 h-5 text-sky-700 dark:text-sky-400" />
             </div>
             <h3 className="font-semibold text-gray-900 dark:text-white mb-2">{f.title}</h3>
             <p className="text-sm text-gray-600 dark:text-slate-400">{f.desc}</p>
@@ -99,7 +99,7 @@ export default function EstimatorTrialPage() {
             <ul className="space-y-3">
               {BENEFITS.map((b) => (
                 <li key={b} className="flex items-start gap-3">
-                  <Check className="w-5 h-5 text-sky-600 dark:text-sky-400 mt-0.5 flex-shrink-0" />
+                  <Check className="w-5 h-5 text-sky-700 dark:text-sky-400 mt-0.5 flex-shrink-0" />
                   <span className="text-gray-700 dark:text-slate-300 text-sm">{b}</span>
                 </li>
               ))}
@@ -108,7 +108,7 @@ export default function EstimatorTrialPage() {
 
           <div className="flex-shrink-0 text-center md:text-left">
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-sky-200 dark:border-sky-500/30 p-6 shadow-sm">
-              <Ruler className="w-10 h-10 text-sky-600 dark:text-sky-400 mx-auto md:mx-0 mb-3" />
+              <Ruler className="w-10 h-10 text-sky-700 dark:text-sky-400 mx-auto md:mx-0 mb-3" />
               <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">Free for 30 days</p>
               <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">No credit card required</p>
               {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>}

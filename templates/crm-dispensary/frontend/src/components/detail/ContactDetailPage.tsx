@@ -329,7 +329,7 @@ export default function ContactDetailPage() {
                       {loyalty.recentTransactions.slice(0, 5).map((txn: any, idx: number) => (
                         <div key={idx} className="flex items-center justify-between text-sm">
                           <span className="text-gray-600 dark:text-slate-400">{txn.description || txn.type}</span>
-                          <span className={txn.points >= 0 ? 'text-green-600' : 'text-red-600'}>
+                          <span className={txn.points >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400'}>
                             {txn.points >= 0 ? '+' : ''}{txn.points} pts
                           </span>
                         </div>

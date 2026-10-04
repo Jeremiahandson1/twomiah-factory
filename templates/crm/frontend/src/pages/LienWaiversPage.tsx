@@ -72,7 +72,7 @@ export default function LienWaiversPage() {
                     <div className="flex gap-1">
                       {w.status === 'draft' && <button onClick={() => act(w.id, 'request')} className="text-blue-600 hover:bg-blue-50 p-1 rounded dark:text-blue-300" title="Send request">Send</button>}
                       {w.status === 'requested' && <button onClick={() => act(w.id, 'receive')} className="text-purple-600 hover:bg-purple-50 p-1 rounded dark:text-purple-300" title="Mark received">Received</button>}
-                      {w.status === 'received' && <><button onClick={() => act(w.id, 'approve')} className="text-green-600 hover:bg-green-50 p-1 rounded dark:text-green-300"><Check className="w-4 h-4" /></button><button onClick={() => act(w.id, 'reject')} className="text-red-600 hover:bg-red-50 p-1 rounded dark:text-red-400"><X className="w-4 h-4" /></button></>}
+                      {w.status === 'received' && <><button onClick={() => act(w.id, 'approve')} className="text-green-700 hover:bg-green-50 p-1 rounded dark:text-green-300"><Check className="w-4 h-4" /></button><button onClick={() => act(w.id, 'reject')} className="text-red-600 hover:bg-red-50 p-1 rounded dark:text-red-400"><X className="w-4 h-4" /></button></>}
                     </div>
                   </td>
                 </tr>

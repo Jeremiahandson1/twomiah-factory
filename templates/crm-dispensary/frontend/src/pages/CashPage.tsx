@@ -119,7 +119,7 @@ export default function CashPage() {
           <div>
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center dark:bg-green-950/40">
-                <Unlock className="w-5 h-5 text-green-600 dark:text-green-300" />
+                <Unlock className="w-5 h-5 text-green-700 dark:text-green-300" />
               </div>
               <div>
                 <h2 className="font-semibold text-gray-900 dark:text-slate-100">Drawer Open</h2>

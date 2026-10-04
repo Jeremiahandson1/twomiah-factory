@@ -15,10 +15,11 @@ if (!/return c\.json\(\{ data: \[live, \.\.\.versions\.map\(\(row: any\) => \(\{
 if (/return c\.json\(\{ data: versions, currentVersion: versions\.length \+ 1 \}\)/.test(docs)) fail('the old superseded-only list must be gone')
 
 const page = read('packages/tenant-ui/src/files/DocumentsPage.tsx')
-// The class list is matched loosely on purpose: this rule is about the "current" marker being
-// there, not about its exact styling, and pinning the full string made a dark-mode partner added to
-// the same span fail a guard that has nothing to do with contrast. (T41)
-if (!/v\.isCurrent \? <span className="[^"]*text-green-600[^"]*">current<\/span> : null/.test(page)) fail('the version list must show which entry is the live file')
+// The STYLING is not the rule. This is about the live entry being visibly marked as "current", so
+// the class list is not pinned at all — twice now a contrast pass has changed it (a dark-mode
+// partner, then the shade moving 600 → 700 for light-mode AA) and failed a guard about version
+// history. Guard the property, not the paint. (T41)
+if (!/v\.isCurrent \? <span className="[^"]*">current<\/span> : null/.test(page)) fail('the version list must show which entry is the live file')
 if (!/v\.isCurrent \? `\/api\/documents\/\$\{doc\.id\}\/download` : `\/api\/documents\/\$\{doc\.id\}\/versions\/\$\{v\.id\}\/download`/.test(page)) fail('the live entry must download from the document (it has no version row)')
 if (!/\{!v\.isCurrent && <button onClick=\{\(\) => restore\(v\)\}/.test(page)) fail('there must be no Restore button on the file that is already live')
 if (!/Current file: <span className="font-normal">v\{currentVersion\} — \{current\.originalName\}/.test(page)) fail('the current file must be shown with its version number')

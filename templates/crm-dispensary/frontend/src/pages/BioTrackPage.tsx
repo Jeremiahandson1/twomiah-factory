@@ -137,7 +137,7 @@ export default function BioTrackPage() {
     { id: 'sync', label: 'Sync Log', icon: History },
   ];
 
-  const syncStatusColor = syncStatus?.status === 'success' ? 'text-green-600 dark:text-green-300' : syncStatus?.status === 'error' ? 'text-red-600 dark:text-red-300' : 'text-gray-500 dark:text-slate-300';
+  const syncStatusColor = syncStatus?.status === 'success' ? 'text-green-700 dark:text-green-300' : syncStatus?.status === 'error' ? 'text-red-600 dark:text-red-300' : 'text-gray-500 dark:text-slate-300';
 
   return (
     <div>
@@ -153,7 +153,7 @@ export default function BioTrackPage() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             {syncStatus?.status === 'success' ? (
-              <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-300" />
+              <CheckCircle className="w-5 h-5 text-green-700 dark:text-green-300" />
             ) : syncStatus?.status === 'error' ? (
               <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
             ) : (
@@ -263,7 +263,7 @@ export default function BioTrackPage() {
                 type="checkbox"
                 checked={config.autoSync}
                 onChange={(e) => setConfig({ ...config, autoSync: e.target.checked })}
-                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
+                className="w-4 h-4 text-green-700 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
               />
               <span className="text-sm font-medium text-gray-700 dark:text-slate-200">Enable Auto-Sync</span>
             </label>

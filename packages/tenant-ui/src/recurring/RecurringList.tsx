@@ -140,7 +140,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
           <div className="bg-white rounded-xl border p-4 dark:bg-slate-900">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-green-100 rounded-lg dark:bg-green-950/40">
-                <RefreshCw className="w-5 h-5 text-green-600 dark:text-green-300" />
+                <RefreshCw className="w-5 h-5 text-green-700 dark:text-green-300" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.active}</p>
@@ -151,7 +151,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
           <div className="bg-white rounded-xl border p-4 dark:bg-slate-900">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-yellow-100 rounded-lg dark:bg-yellow-950/40">
-                <Pause className="w-5 h-5 text-yellow-600 dark:text-yellow-300" />
+                <Pause className="w-5 h-5 text-yellow-700 dark:text-yellow-300" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.paused}</p>
@@ -219,8 +219,8 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
             <div key={item.id as string} className="p-4 hover:bg-gray-50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className={`p-2 rounded-lg ${item.status === 'active' ? 'bg-green-100' : 'bg-gray-100'}`}>
-                    <RefreshCw className={`w-5 h-5 ${item.status === 'active' ? 'text-green-600 dark:text-green-300' : 'text-gray-400'}`} />
+                  <div className={`p-2 rounded-lg ${item.status === 'active' ? 'bg-green-100 dark:bg-green-950/40 dark:text-slate-100' : 'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'}`}>
+                    <RefreshCw className={`w-5 h-5 ${item.status === 'active' ? 'text-green-700 dark:text-green-300' : 'text-gray-400'}`} />
                   </div>
                   <div>
                     <Link to={`/recurring/${item.id}`} className="font-medium text-gray-900 hover:text-orange-600 dark:hover:text-orange-200 dark:text-slate-100">

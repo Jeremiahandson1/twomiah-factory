@@ -305,7 +305,7 @@ export default function InventoryPage() {
                   <span className="text-gray-500 dark:text-slate-400">{keySpec(u)}</span>
                 </div>
                 <div className="flex items-center gap-1 text-lg font-bold text-gray-900 dark:text-slate-100">
-                  <DollarSign className="w-4 h-4 text-green-600 dark:text-green-300" />
+                  <DollarSign className="w-4 h-4 text-green-700 dark:text-green-300" />
                   {price(u).replace('$', '')}
                 </div>
                 <div className="mt-auto pt-2 flex items-center gap-2 border-t">
@@ -460,7 +460,7 @@ function FeedUrlModal({ onClose }: { onClose: () => void }) {
                         title="Copy"
                         className="p-2 border rounded-lg hover:bg-gray-50"
                       >
-                        {copied === key ? <Check className="w-4 h-4 text-green-600 dark:text-green-300" /> : <Copy className="w-4 h-4 text-gray-500 dark:text-slate-400" />}
+                        {copied === key ? <Check className="w-4 h-4 text-green-700 dark:text-green-300" /> : <Copy className="w-4 h-4 text-gray-500 dark:text-slate-400" />}
                       </button>
                     </div>
                   </div>
@@ -927,7 +927,7 @@ function RecallModal({ unit, onClose }: RecallModalProps) {
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2">
-              <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-300" />
+              <ShieldAlert className="w-5 h-5 text-amber-700 dark:text-amber-300" />
               Recalls — {[unit.year, unit.make, unit.modelName].filter(Boolean).join(' ')}
             </h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>

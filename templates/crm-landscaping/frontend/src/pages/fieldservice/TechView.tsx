@@ -704,7 +704,7 @@ function JobDetailScreen({
           </button>
         )}
         {job.status === 'completed' && (
-          <div className="text-center py-3 text-green-600 font-semibold flex items-center justify-center gap-2 dark:text-green-300">
+          <div className="text-center py-3 text-green-700 font-semibold flex items-center justify-center gap-2 dark:text-green-300">
             <CheckCircle className="w-5 h-5" />
             Job Completed
           </div>
@@ -748,9 +748,9 @@ function ChecklistScreen({ job, onBack, onComplete }: { job: Job; onBack: () => 
   };
 
   const statusIcon = (status: string) => {
-    if (status === 'pass') return <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-300" />;
+    if (status === 'pass') return <CheckCircle className="w-6 h-6 text-green-700 dark:text-green-300" />;
     if (status === 'fail') return <X className="w-6 h-6 text-red-600 dark:text-red-400" />;
-    return <AlertTriangle className="w-6 h-6 text-yellow-600 dark:text-yellow-300" />;
+    return <AlertTriangle className="w-6 h-6 text-yellow-700 dark:text-yellow-300" />;
   };
 
   const statusButtonClass = (current: string, target: string) => {
@@ -791,8 +791,8 @@ function ChecklistScreen({ job, onBack, onComplete }: { job: Job; onBack: () => 
 
       {/* Summary bar */}
       <div className="bg-white border-b px-4 py-2 flex items-center gap-4 text-xs font-semibold dark:bg-slate-900">
-        <span className="text-green-600 dark:text-green-300">{items.filter(i => i.status === 'pass').length} Pass</span>
-        <span className="text-yellow-600 dark:text-yellow-300">{attentionCount} Attention</span>
+        <span className="text-green-700 dark:text-green-300">{items.filter(i => i.status === 'pass').length} Pass</span>
+        <span className="text-yellow-700 dark:text-yellow-300">{attentionCount} Attention</span>
         <span className="text-red-600 dark:text-red-400">{failCount} Fail</span>
       </div>
 

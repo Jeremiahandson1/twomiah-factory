@@ -244,7 +244,7 @@ export default function PlatformPage() {
                         <p className="text-sm font-medium text-gray-900 dark:text-slate-100">{incident.title || incident.message}</p>
                         <p className="text-xs text-gray-500 dark:text-slate-400">
                           {incident.createdAt ? new Date(incident.createdAt).toLocaleString() : '—'}
-                          {incident.resolved && <span className="ml-2 text-green-600 dark:text-green-300">Resolved</span>}
+                          {incident.resolved && <span className="ml-2 text-green-700 dark:text-green-300">Resolved</span>}
                         </p>
                       </div>
                     </div>
@@ -273,9 +273,9 @@ export default function PlatformPage() {
               <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-gray-900 dark:text-slate-100">Setup Progress</h3>
-                  <span className="text-sm font-medium text-green-600 dark:text-green-300">{progressPercent}% complete</span>
+                  <span className="text-sm font-medium text-green-700 dark:text-green-300">{progressPercent}% complete</span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden dark:bg-slate-700 dark:text-slate-100">
                   <div
                     className="h-3 bg-green-500 rounded-full transition-all"
                     style={{ width: `${progressPercent}%` }}
@@ -288,7 +288,7 @@ export default function PlatformPage() {
               {manager && (
                 <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 flex items-center gap-4 dark:bg-slate-900">
                   <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center dark:bg-green-950/40">
-                    <User className="w-6 h-6 text-green-600 dark:text-green-300" />
+                    <User className="w-6 h-6 text-green-700 dark:text-green-300" />
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Your Onboarding Manager</p>
@@ -359,7 +359,7 @@ export default function PlatformPage() {
               {cart.length > 0 && (
                 <div className="bg-green-50 rounded-lg p-4 border border-green-200 flex items-center justify-between dark:bg-green-950/40">
                   <div className="flex items-center gap-3">
-                    <ShoppingCart className="w-5 h-5 text-green-600 dark:text-green-300" />
+                    <ShoppingCart className="w-5 h-5 text-green-700 dark:text-green-300" />
                     <span className="text-sm font-medium text-green-800 dark:text-green-300">
                       {cart.reduce((sum, c) => sum + c.quantity, 0)} items in cart
                     </span>
@@ -431,7 +431,7 @@ export default function PlatformPage() {
               <div>
                 <button
                   onClick={() => setShowOrderHistory(!showOrderHistory)}
-                  className="text-sm font-medium text-green-600 hover:text-green-700 dark:hover:text-green-300 dark:text-green-300"
+                  className="text-sm font-medium text-green-700 hover:text-green-800 dark:hover:text-green-300 dark:text-green-300"
                 >
                   {showOrderHistory ? 'Hide' : 'Show'} Order History
                 </button>

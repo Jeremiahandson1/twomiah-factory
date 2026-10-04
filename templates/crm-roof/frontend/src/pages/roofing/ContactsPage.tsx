@@ -253,7 +253,7 @@ export default function ContactsPage() {
                     key={contact.id}
                     onClick={() => selectContact(contact)}
                     className={`px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors ${
-                      selected?.id === contact.id ? 'bg-blue-50 border-l-2 border-l-blue-600' : ''
+                      selected?.id === contact.id ? 'bg-blue-50 border-l-2 border-l-blue-600 dark:bg-blue-950/40 dark:text-slate-100' : ''
                     }`}
                   >
                     <p className="font-medium text-gray-900 text-sm dark:text-slate-100">
@@ -352,7 +352,7 @@ export default function ContactsPage() {
                             onClick={togglePortal}
                             disabled={togglingPortal}
                             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                              selected.portalEnabled ? 'bg-blue-600' : 'bg-gray-200'
+                              selected.portalEnabled ? 'bg-blue-600' : 'bg-gray-200 dark:bg-slate-700 dark:text-slate-100'
                             }`}
                           >
                             <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
@@ -412,7 +412,7 @@ export default function ContactsPage() {
                                 // The inbound bubble is light grey; the element gives its text
                           // dark:text-slate-100, so the bubble needs its own dark ground or the
                           // customer's words are near-white on light grey. (T41)
-                          ? 'bg-gray-100 dark:bg-slate-700 text-gray-900 mr-auto'
+                          ? 'bg-gray-100 dark:bg-slate-700 text-gray-900 mr-auto dark:text-slate-200'
                                 : 'bg-blue-600 text-white ml-auto'
                             } dark:text-slate-100`}
                           >

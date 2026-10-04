@@ -113,7 +113,7 @@ export default function ProjectsPage() {
     { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} /> },
     { key: 'type', label: 'Type', render: (v: unknown) => (v as string) || '-' },
     { key: 'estimatedValue', label: 'Value', render: (v: unknown) => v ? `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-' },
-    { key: 'progress', label: 'Progress', render: (v: unknown) => <div className="w-20 h-2 bg-gray-200 rounded-full"><div className="h-full bg-orange-500 rounded-full" style={{width:`${v}%`}}/></div> },
+    { key: 'progress', label: 'Progress', render: (v: unknown) => <div className="w-20 h-2 bg-gray-200 rounded-full dark:bg-slate-700 dark:text-slate-100"><div className="h-full bg-orange-500 rounded-full" style={{width:`${v}%`}}/></div> },
   ];
 
   return (

@@ -254,7 +254,7 @@ export default function TaxFilingPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => viewDetail(filing)} className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1 ml-auto dark:text-green-300">
+                        <button onClick={() => viewDetail(filing)} className="text-sm text-green-700 hover:text-green-800 dark:hover:text-green-300 flex items-center gap-1 ml-auto dark:text-green-300">
                           <Eye className="w-3 h-3" /> View
                         </button>
                       </td>
@@ -321,9 +321,9 @@ export default function TaxFilingPage() {
                   <div key={deadline.id || i} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 flex items-center justify-between dark:bg-slate-900">
                     <div className="flex items-center gap-4">
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        isOverdue ? 'bg-red-100' : isUrgent ? 'bg-orange-100' : 'bg-green-100'
+                        isOverdue ? 'bg-red-100 dark:bg-red-950/40 dark:text-slate-100' : isUrgent ? 'bg-orange-100 dark:bg-orange-950/40 dark:text-slate-100' : 'bg-green-100 dark:bg-green-950/40 dark:text-slate-100'
                       }`}>
-                        <Calendar className={`w-5 h-5 ${isOverdue ? 'text-red-600 dark:text-red-400' : isUrgent ? 'text-orange-600 dark:text-orange-300' : 'text-green-600 dark:text-green-300'}`} />
+                        <Calendar className={`w-5 h-5 ${isOverdue ? 'text-red-600 dark:text-red-400' : isUrgent ? 'text-orange-600 dark:text-orange-300' : 'text-green-700 dark:text-green-300'}`} />
                       </div>
                       <div>
                         <p className="font-medium text-gray-900 dark:text-slate-100">
@@ -366,7 +366,7 @@ export default function TaxFilingPage() {
                 <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center dark:bg-green-950/40">
-                      <DollarSign className="w-5 h-5 text-green-600 dark:text-green-300" />
+                      <DollarSign className="w-5 h-5 text-green-700 dark:text-green-300" />
                     </div>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Total Collected (YTD)</p>
                   </div>

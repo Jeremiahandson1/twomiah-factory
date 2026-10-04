@@ -394,7 +394,7 @@ export default function LocationsPage() {
                 <div key={loc.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <MapPin className="w-5 h-5 text-green-600 dark:text-green-300" />
+                      <MapPin className="w-5 h-5 text-green-700 dark:text-green-300" />
                       <h3 className="font-semibold text-gray-900 dark:text-slate-100">{loc.name}</h3>
                     </div>
                     <span className={`px-2 py-0.5 text-xs rounded-full capitalize ${
@@ -503,7 +503,7 @@ export default function LocationsPage() {
                         <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No inventory at this location</td>
                       </tr>
                     ) : inventory.map(item => (
-                      <tr key={item.id} className={`hover:bg-gray-50 ${item.quantity <= (item.minQuantity || 0) ? 'bg-red-50' : ''}`}>
+                      <tr key={item.id} className={`hover:bg-gray-50 ${item.quantity <= (item.minQuantity || 0) ? 'bg-red-50 dark:bg-red-950/40 dark:text-slate-100' : ''}`}>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{item.productName || item.name || '—'}</td>
                         <td className="px-4 py-3 text-sm font-mono text-gray-600 dark:text-slate-400">{item.sku || '—'}</td>
                         <td className={`px-4 py-3 text-sm text-right font-medium ${item.quantity <= (item.minQuantity || 0) ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-slate-200'} dark:text-slate-100`}>
@@ -591,7 +591,7 @@ export default function LocationsPage() {
                         {transfer.status === 'in_transit' && (
                           <button
                             onClick={() => openReceiveTransfer(transfer)}
-                            className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1 dark:text-green-300"
+                            className="text-sm text-green-700 hover:text-green-800 dark:hover:text-green-300 flex items-center gap-1 dark:text-green-300"
                           >
                             <Check className="w-3 h-3" /> Receive
                           </button>
@@ -707,7 +707,7 @@ export default function LocationsPage() {
                           <td className="px-4 py-2 text-sm font-mono text-gray-900 dark:text-slate-100">{d.sku}</td>
                           <td className="px-4 py-2 text-sm text-right text-gray-600 dark:text-slate-400">{d.expected}</td>
                           <td className="px-4 py-2 text-sm text-right text-gray-600 dark:text-slate-400">{d.counted}</td>
-                          <td className={`px-4 py-2 text-sm text-right font-medium ${(d.counted - d.expected) < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`}>
+                          <td className={`px-4 py-2 text-sm text-right font-medium ${(d.counted - d.expected) < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`}>
                             {d.counted - d.expected > 0 ? '+' : ''}{d.counted - d.expected}
                           </td>
                         </tr>
@@ -716,7 +716,7 @@ export default function LocationsPage() {
                   </table>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 text-green-600 dark:text-green-300">
+                <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
                   <Check className="w-5 h-5" />
                   <span>No discrepancies found. All counts match.</span>
                 </div>
@@ -821,7 +821,7 @@ export default function LocationsPage() {
               type="checkbox"
               checked={locationForm.isActive}
               onChange={(e) => setLocationForm({ ...locationForm, isActive: e.target.checked })}
-              className="w-4 h-4 text-green-600 border-slate-500 rounded focus:ring-green-500 dark:text-green-300"
+              className="w-4 h-4 text-green-700 border-slate-500 rounded focus:ring-green-500 dark:text-green-300"
             />
             <span className="text-sm text-slate-300">Active</span>
           </label>

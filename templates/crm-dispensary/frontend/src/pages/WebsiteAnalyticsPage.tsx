@@ -353,7 +353,7 @@ function RealtimeTab() {
       {/* Active Visitors */}
       <div className="bg-white rounded-lg shadow-sm p-8 text-center dark:bg-slate-900">
         <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3 dark:bg-green-950/40">
-          <Activity className="w-8 h-8 text-green-600 dark:text-green-300" />
+          <Activity className="w-8 h-8 text-green-700 dark:text-green-300" />
         </div>
         <p className="text-5xl font-bold text-gray-900 dark:text-slate-100">{realtime?.activeVisitors ?? 0}</p>
         <p className="text-gray-500 mt-1 dark:text-slate-400">Active visitors right now</p>

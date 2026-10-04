@@ -182,12 +182,12 @@ export default function SignagePage() {
                 <div key={screen.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <Monitor className="w-5 h-5 text-green-600 dark:text-green-300" />
+                      <Monitor className="w-5 h-5 text-green-700 dark:text-green-300" />
                       <h3 className="font-semibold text-gray-900 dark:text-slate-100">{screen.name}</h3>
                     </div>
                     <div className="flex items-center gap-2">
                       {screen.online !== false ? (
-                        <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-300">
+                        <span className="flex items-center gap-1 text-xs text-green-700 dark:text-green-300">
                           <span className="w-2 h-2 bg-green-500 rounded-full" />
                           Online
                         </span>
@@ -224,7 +224,7 @@ export default function SignagePage() {
                     )}
                     <button
                       onClick={() => { setSelectedScreen(screen); loadContent(screen.id); setTab('content'); }}
-                      className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1 dark:text-green-300"
+                      className="text-sm text-green-700 hover:text-green-800 dark:hover:text-green-300 flex items-center gap-1 dark:text-green-300"
                     >
                       <List className="w-3 h-3" /> Content
                     </button>
@@ -332,7 +332,7 @@ export default function SignagePage() {
                       <div className="grid grid-cols-2 gap-4 mt-4">
                         <div className="bg-green-50 rounded-lg p-4 text-center dark:bg-green-950/40">
                           <p className="text-3xl font-bold text-green-700 dark:text-green-300">{contentItems[0]?.currentWait || '—'}</p>
-                          <p className="text-sm text-green-600 mt-1 dark:text-green-300">Current Wait</p>
+                          <p className="text-sm text-green-700 mt-1 dark:text-green-300">Current Wait</p>
                         </div>
                         <div className="bg-blue-50 rounded-lg p-4 text-center dark:bg-blue-950/40">
                           <p className="text-3xl font-bold text-blue-700 dark:text-blue-300">{contentItems[0]?.queueSize || '—'}</p>

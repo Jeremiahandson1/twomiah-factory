@@ -226,10 +226,10 @@ export default function StormLeadsPage() {
           {events.length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400 text-center py-8">No storm events yet</p>}
           {events.map(event => (
             <button key={event.id} onClick={() => selectEvent(event)}
-              className={`w-full text-left p-4 border-b hover:bg-gray-50 ${selectedEvent?.id === event.id ? 'bg-blue-50 border-l-2 border-l-blue-600' : ''}`}>
+              className={`w-full text-left p-4 border-b hover:bg-gray-50 ${selectedEvent?.id === event.id ? 'bg-blue-50 border-l-2 border-l-blue-600 dark:bg-blue-950/40 dark:text-slate-100' : ''}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Zap size={14} className={event.status === 'detected' ? 'text-yellow-500' : 'text-gray-400'} />
+                  <Zap size={14} className={event.status === 'detected' ? 'text-yellow-500 dark:text-yellow-300' : 'text-gray-400'} />
                   <span className="text-sm font-medium capitalize">{event.eventType}</span>
                 </div>
                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
@@ -285,7 +285,7 @@ export default function StormLeadsPage() {
             <div className="flex gap-2 px-4 py-2 bg-gray-50 border-b flex-shrink-0 dark:bg-slate-900">
               {Object.entries(stats).map(([k, v]) => (
                 <button key={k} onClick={() => { const next = filterStatus === k ? '' : k; setFilterStatus(next); loadLeads(selectedEvent.id, 1, next) }}
-                  className={`text-xs px-3 py-1 rounded-full font-medium ${filterStatus === k ? 'bg-blue-600 text-white' : STATUS_COLORS[k] || 'bg-gray-100'}`}>
+                  className={`text-xs px-3 py-1 rounded-full font-medium ${filterStatus === k ? 'bg-blue-600 text-white' : STATUS_COLORS[k] || 'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'}`}>
                   {k}: {v}
                 </button>
               ))}
@@ -305,8 +305,8 @@ export default function StormLeadsPage() {
                 )}
               </div>
               <div className="flex items-center gap-1">
-                <button onClick={() => setViewMode('list')} className={`p-1.5 rounded ${viewMode === 'list' ? 'bg-gray-200' : ''}`}><List size={16} /></button>
-                <button onClick={() => setViewMode('map')} className={`p-1.5 rounded ${viewMode === 'map' ? 'bg-gray-200' : ''}`}><MapIcon size={16} /></button>
+                <button onClick={() => setViewMode('list')} className={`p-1.5 rounded ${viewMode === 'list' ? 'bg-gray-200 dark:bg-slate-700 dark:text-slate-100' : ''}`}><List size={16} /></button>
+                <button onClick={() => setViewMode('map')} className={`p-1.5 rounded ${viewMode === 'map' ? 'bg-gray-200 dark:bg-slate-700 dark:text-slate-100' : ''}`}><MapIcon size={16} /></button>
               </div>
             </div>
 
@@ -357,7 +357,7 @@ export default function StormLeadsPage() {
                               className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline">Convert</button>
                           )}
                           {lead.isExistingCustomer && lead.status === 'new' && (
-                            <button className="text-xs text-yellow-600 font-medium hover:underline dark:text-yellow-300">Follow Up</button>
+                            <button className="text-xs text-yellow-700 font-medium hover:underline dark:text-yellow-300">Follow Up</button>
                           )}
                           {lead.jobId && (
                             <button onClick={() => navigate(`/crm/jobs/${lead.jobId}`)}

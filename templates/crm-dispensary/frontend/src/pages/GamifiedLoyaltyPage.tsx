@@ -308,7 +308,7 @@ export default function GamifiedLoyaltyPage() {
                       {isManager && (
                         <button
                           onClick={() => openChallengeModal(challenge)}
-                          className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 dark:text-green-300"
+                          className="text-sm text-green-700 hover:text-green-800 dark:hover:text-green-300 dark:text-green-300"
                         >
                           Edit
                         </button>
@@ -325,7 +325,7 @@ export default function GamifiedLoyaltyPage() {
                         <span>Avg Progress</span>
                         <span>{Math.round(progress)}%</span>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="w-full bg-gray-200 rounded-full h-2 dark:bg-slate-700 dark:text-slate-100">
                         <div
                           className="bg-green-500 h-2 rounded-full transition-all"
                           style={{ width: `${Math.min(100, progress)}%` }}
@@ -390,7 +390,7 @@ export default function GamifiedLoyaltyPage() {
                       onClick={() => setChallengeForm({ ...challengeForm, type: ct.value })}
                       className={`text-left p-2 rounded-lg border-2 text-sm ${
                         challengeForm.type === ct.value
-                          ? 'border-green-500 bg-green-50'
+                          ? 'border-green-500 bg-green-50 dark:bg-green-950/40 dark:text-slate-100'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
@@ -473,7 +473,7 @@ export default function GamifiedLoyaltyPage() {
                   type="checkbox"
                   checked={challengeForm.active}
                   onChange={(e) => setChallengeForm({ ...challengeForm, active: e.target.checked })}
-                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
+                  className="w-4 h-4 text-green-700 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
                 />
                 <span className="text-sm text-gray-700 dark:text-slate-200">Active</span>
               </label>
@@ -547,7 +547,7 @@ export default function GamifiedLoyaltyPage() {
                       <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{entry.memberName || entry.name || 'Unknown'}</td>
                       <td className="px-4 py-3 text-sm text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <div className="w-24 bg-gray-200 rounded-full h-2">
+                          <div className="w-24 bg-gray-200 rounded-full h-2 dark:bg-slate-700 dark:text-slate-100">
                             <div
                               className="bg-green-500 h-2 rounded-full"
                               style={{ width: `${Math.min(100, entry.progress || 0)}%` }}
@@ -620,7 +620,7 @@ export default function GamifiedLoyaltyPage() {
                       {/* The server calls this bonusMultiplier. Reading `multiplier` meant every
                           card fell through to its "2x" placeholder — including the 1000x event the
                           report created. (T45 M14) */}
-                      <span className="text-4xl font-bold text-yellow-600 dark:text-yellow-300">{Number(event.bonusMultiplier ?? event.multiplier ?? 1)}x</span>
+                      <span className="text-4xl font-bold text-yellow-700 dark:text-yellow-300">{Number(event.bonusMultiplier ?? event.multiplier ?? 1)}x</span>
                       <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Point Multiplier</p>
                     </div>
                     <div className="space-y-1 text-sm text-gray-600 dark:text-slate-400">
@@ -752,7 +752,7 @@ export default function GamifiedLoyaltyPage() {
                       <p className="font-medium text-gray-900 dark:text-slate-100">{m.name || `${m.firstName} ${m.lastName}`}</p>
                       <p className="text-sm text-gray-500 dark:text-slate-400">{m.phone || m.email || ''}</p>
                     </div>
-                    <span className="text-sm text-green-600 dark:text-green-300">View Progress</span>
+                    <span className="text-sm text-green-700 dark:text-green-300">View Progress</span>
                   </button>
                 ))}
               </div>
@@ -766,7 +766,7 @@ export default function GamifiedLoyaltyPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center dark:bg-green-950/40">
-                      <Users className="w-5 h-5 text-green-600 dark:text-green-300" />
+                      <Users className="w-5 h-5 text-green-700 dark:text-green-300" />
                     </div>
                     <div>
                       <p className="font-semibold text-gray-900 dark:text-slate-100">{selectedMember.name || `${selectedMember.firstName} ${selectedMember.lastName}`}</p>
@@ -817,7 +817,7 @@ export default function GamifiedLoyaltyPage() {
                             <span className="text-gray-600 dark:text-slate-400">{cp.current || 0} / {cp.target || 0}</span>
                             <span className="font-medium text-gray-900 dark:text-slate-100">{Math.round(pct)}%</span>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div className="w-full bg-gray-200 rounded-full h-3 dark:bg-slate-700 dark:text-slate-100">
                             <div
                               className={`h-3 rounded-full transition-all ${cp.completed ? 'bg-green-500' : 'bg-blue-500'}`}
                               style={{ width: `${pct}%` }}

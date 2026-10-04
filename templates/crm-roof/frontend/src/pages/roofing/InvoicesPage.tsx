@@ -266,7 +266,7 @@ export default function InvoicesPage() {
                           ${Number(inv.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </td>
                         <td className="px-4 py-3 text-right font-medium">
-                          <span className={balance > 0 ? 'text-red-600' : 'text-green-600'}>
+                          <span className={balance > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}>
                             ${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                           </span>
                         </td>
@@ -282,7 +282,7 @@ export default function InvoicesPage() {
                             )}
                             {balance > 0 && inv.status !== 'draft' && (
                               <>
-                                <button onClick={() => markPaid(inv.id)} title="Mark Paid" className="p-1 text-green-600 hover:bg-green-50 rounded dark:text-green-300">
+                                <button onClick={() => markPaid(inv.id)} title="Mark Paid" className="p-1 text-green-700 hover:bg-green-50 rounded dark:text-green-300">
                                   <Check className="w-4 h-4" />
                                 </button>
                                 <button

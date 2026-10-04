@@ -305,7 +305,7 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }: VehicleCardProp
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-            hasAlert ? 'bg-red-100' : 'bg-gray-100'
+            hasAlert ? 'bg-red-100 dark:bg-red-950/40 dark:text-slate-100' : 'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'
           }`}>
             <Truck className={`w-6 h-6 ${hasAlert ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-slate-300'}`} />
           </div>
@@ -450,7 +450,7 @@ function FleetMap({ vehicles }: FleetMapProps) {
                 </div>
               </div>
               {v.currentLocation!.speed > 0 && (
-                <span className="text-sm text-green-600 dark:text-green-300">{Math.round(v.currentLocation!.speed)} mph</span>
+                <span className="text-sm text-green-700 dark:text-green-300">{Math.round(v.currentLocation!.speed)} mph</span>
               )}
             </div>
           ))}

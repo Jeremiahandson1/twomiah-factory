@@ -230,7 +230,7 @@ export default function ClientDetailPage() {
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-teal-50 rounded-lg dark:bg-teal-950/40">
-              <User className="w-6 h-6 text-teal-600 dark:text-teal-300" />
+              <User className="w-6 h-6 text-teal-700 dark:text-teal-300" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{ct.name || 'Unnamed'}</h1>

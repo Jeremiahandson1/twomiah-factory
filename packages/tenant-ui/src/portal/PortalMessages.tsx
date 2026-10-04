@@ -37,7 +37,7 @@ export function PortalMessages() {
             return (
               <button key={m.id} onClick={() => setSelected(m)} className={`w-full text-left p-4 hover:bg-gray-50 transition-colors dark:hover:bg-slate-800 ${isUnread ? 'bg-orange-50 dark:bg-orange-950/20' : ''}`}>
                 <div className="flex items-start gap-3">
-                  <div className={`p-2 rounded-lg shrink-0 ${isUnread ? 'bg-orange-100' : 'bg-gray-100 dark:bg-slate-800'}`}>{isUnread ? <Mail className="w-4 h-4 text-orange-600 dark:text-orange-300" /> : <MailOpen className="w-4 h-4 text-gray-400" />}</div>
+                  <div className={`p-2 rounded-lg shrink-0 ${isUnread ? 'bg-orange-100 dark:bg-orange-950/40 dark:text-slate-100' : 'bg-gray-100 dark:bg-slate-800'}`}>{isUnread ? <Mail className="w-4 h-4 text-orange-600 dark:text-orange-300" /> : <MailOpen className="w-4 h-4 text-gray-400" />}</div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <p className={`text-sm truncate ${isUnread ? 'font-bold text-gray-900 dark:text-slate-100' : 'font-medium text-gray-700 dark:text-slate-200'}`}>{m.subject || '(No subject)'}</p>

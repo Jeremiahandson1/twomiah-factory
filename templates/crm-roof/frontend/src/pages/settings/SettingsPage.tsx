@@ -372,7 +372,7 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center dark:bg-green-950/40">
-                <CreditCard className="w-5 h-5 text-green-600 dark:text-green-300" />
+                <CreditCard className="w-5 h-5 text-green-700 dark:text-green-300" />
               </div>
               <div>
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Billing</h2>
@@ -391,7 +391,7 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center dark:bg-green-950/40">
-                <SlidersHorizontal className="w-5 h-5 text-green-600 dark:text-green-300" />
+                <SlidersHorizontal className="w-5 h-5 text-green-700 dark:text-green-300" />
               </div>
               <div>
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Features</h2>
@@ -448,7 +448,7 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-sky-100 flex items-center justify-center dark:bg-sky-950/40">
-                <Globe className="w-5 h-5 text-sky-600 dark:text-sky-300" />
+                <Globe className="w-5 h-5 text-sky-700 dark:text-sky-300" />
               </div>
               <div>
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Email Domain</h2>
@@ -482,7 +482,7 @@ export default function SettingsPage() {
         {hasQB && (
           <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
             <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
-              <Link2 className="w-4 h-4 text-green-600 dark:text-green-300" /> QuickBooks Integration
+              <Link2 className="w-4 h-4 text-green-700 dark:text-green-300" /> QuickBooks Integration
             </h2>
             {qbStatus?.connected ? (
               <div className="space-y-3">
@@ -651,7 +651,7 @@ export default function SettingsPage() {
                     : canManageUsers ? (
                       <button
                         onClick={() => toggleUserAccess(u.id, u.isActive !== false)}
-                        className={`text-xs font-medium ${u.isActive === false ? 'text-green-600 hover:text-green-700 dark:hover:text-green-300 dark:text-green-300' : 'text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400'}`}
+                        className={`text-xs font-medium ${u.isActive === false ? 'text-green-700 hover:text-green-800 dark:hover:text-green-300 dark:text-green-300' : 'text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400'}`}
                       >
                         {u.isActive === false ? 'Restore access' : 'Revoke access'}
                       </button>

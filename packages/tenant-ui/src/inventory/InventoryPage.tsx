@@ -468,7 +468,7 @@ function LocationsTab({ locations, onAddLocation, onRefresh }: LocationsTabProps
             onClick={() => loadLocationInventory(loc.id)}
             className={`w-full p-4 rounded-xl border text-left transition-colors ${
               selectedLocation === loc.id
-                ? 'border-orange-300 bg-orange-50'
+                ? 'border-orange-300 bg-orange-50 dark:bg-orange-950/40 dark:text-slate-100'
                 : 'hover:bg-gray-50'
             }`}
           >

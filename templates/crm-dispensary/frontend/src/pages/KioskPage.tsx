@@ -135,7 +135,7 @@ export default function KioskPage() {
         <div className="max-w-2xl">
           <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 mb-6 dark:bg-slate-900">
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
-              <Monitor className="w-5 h-5 text-green-600" />
+              <Monitor className="w-5 h-5 text-green-700" />
               Kiosk Setup
             </h2>
 
@@ -340,7 +340,7 @@ export default function KioskPage() {
               <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <CheckCircle className="w-5 h-5 text-green-700" />
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Completion Rate</p>

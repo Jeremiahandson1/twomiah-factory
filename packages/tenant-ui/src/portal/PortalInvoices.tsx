@@ -81,7 +81,7 @@ function InvoiceCard({ invoice, token }: { invoice: PortalInvoiceData; token?: s
     <PLink to={`/portal/${token}/invoices/${invoice.id}`} className={`block bg-white rounded-xl border p-4 hover:shadow-md transition-all dark:bg-slate-900 ${overdue ? 'border-red-200 dark:border-red-900' : 'border-gray-200 dark:border-slate-700'}`}>
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <div className={`p-2 rounded-lg shrink-0 ${overdue ? 'bg-red-100' : 'bg-green-100'}`}><Receipt className={`w-5 h-5 ${overdue ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-300'}`} /></div>
+          <div className={`p-2 rounded-lg shrink-0 ${overdue ? 'bg-red-100 dark:bg-red-950/40 dark:text-slate-100' : 'bg-green-100 dark:bg-green-950/40 dark:text-slate-100'}`}><Receipt className={`w-5 h-5 ${overdue ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`} /></div>
           <div className="min-w-0"><p className="font-medium text-gray-900 dark:text-slate-100">{invoice.number}</p><p className="text-sm text-gray-500 dark:text-slate-400">{invoice.dueDate ? `Due ${formatDate(invoice.dueDate)}` : 'No due date'}</p></div>
         </div>
         <div className="text-right shrink-0">
@@ -92,7 +92,7 @@ function InvoiceCard({ invoice, token }: { invoice: PortalInvoiceData; token?: s
               <p className="text-xs text-gray-500 dark:text-slate-400">of {moneyShort(invoice.total)}</p>
               <span className={`${pill(STATUS_STYLES[invoice.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')} mt-1 dark:text-slate-200`}>{invoiceStatusLabel(invoice.status)}</span>
             </>
-          ) : <p className="text-lg font-bold text-green-600 dark:text-green-300">{settledLabel(invoice.status)}</p>}
+          ) : <p className="text-lg font-bold text-green-700 dark:text-green-300">{settledLabel(invoice.status)}</p>}
         </div>
       </div>
     </PLink>
@@ -141,9 +141,9 @@ export function PortalInvoiceDetail() {
             {Number(invoice.taxAmount || 0) > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Tax ({invoice.taxRate}%)</span><span>{moneyShort(invoice.taxAmount)}</span></div>}
             {Number(invoice.discount || 0) > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Discount</span><span>-{moneyShort(invoice.discount)}</span></div>}
             <div className="flex justify-between font-medium border-t pt-2 dark:border-slate-700"><span>Total</span><span>{moneyShort(invoice.total)}</span></div>
-            {Number(invoice.amountPaid || 0) > 0 && <div className="flex justify-between text-sm text-green-600 dark:text-green-300"><span>Paid</span><span>-{moneyShort(invoice.amountPaid)}</span></div>}
+            {Number(invoice.amountPaid || 0) > 0 && <div className="flex justify-between text-sm text-green-700 dark:text-green-300"><span>Paid</span><span>-{moneyShort(invoice.amountPaid)}</span></div>}
             {Number(invoice.amountRefunded || 0) > 0 && <div className="flex justify-between text-sm text-amber-700 dark:text-amber-300"><span>Refunded</span><span>{moneyShort(invoice.amountRefunded)}</span></div>}
-            <div className="flex justify-between text-lg font-bold border-t pt-2 dark:border-slate-700"><span>Balance Due</span><span className={Number(invoice.balance) > 0 ? 'text-orange-600' : 'text-green-600'}>{moneyShort(invoice.balance)}</span></div>
+            <div className="flex justify-between text-lg font-bold border-t pt-2 dark:border-slate-700"><span>Balance Due</span><span className={Number(invoice.balance) > 0 ? 'text-orange-600 dark:text-orange-300' : 'text-green-700 dark:text-green-300'}>{moneyShort(invoice.balance)}</span></div>
           </div>
         </div>
         {hasBalance && (
@@ -157,7 +157,7 @@ export function PortalInvoiceDetail() {
         {(invoice.payments?.length ?? 0) > 0 && (
           <div className="p-6 border-t dark:border-slate-700">
             <h3 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Payment History</h3>
-            <div className="space-y-2">{invoice.payments!.map((p, i) => <div key={p.id || i} className="flex justify-between text-sm py-2 border-b last:border-0 dark:border-slate-800"><div><span className="text-gray-900 dark:text-slate-100">{formatDate(p.paidAt)}</span><span className="text-gray-500 ml-2 dark:text-slate-400">via {p.method}</span></div><span className="font-medium text-green-600 dark:text-green-300">{moneyShort(p.amount)}</span></div>)}</div>
+            <div className="space-y-2">{invoice.payments!.map((p, i) => <div key={p.id || i} className="flex justify-between text-sm py-2 border-b last:border-0 dark:border-slate-800"><div><span className="text-gray-900 dark:text-slate-100">{formatDate(p.paidAt)}</span><span className="text-gray-500 ml-2 dark:text-slate-400">via {p.method}</span></div><span className="font-medium text-green-700 dark:text-green-300">{moneyShort(p.amount)}</span></div>)}</div>
           </div>
         )}
         <div className="p-6 bg-gray-100 border-t dark:bg-slate-800 dark:border-slate-700"><p className="text-sm text-gray-600 dark:text-slate-400">Questions about this invoice? Contact {invoice.company?.email || invoice.company?.phone}</p></div>

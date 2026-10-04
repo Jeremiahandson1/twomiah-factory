@@ -57,7 +57,7 @@ export default function OnboardingWizard() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col dark:bg-slate-800 dark:text-slate-100">
       <div className="flex justify-center pt-10 pb-4 px-4">
         <div className="flex items-center gap-2 sm:gap-3">
           {STEPS.map((label, idx) => (
@@ -71,7 +71,7 @@ export default function OnboardingWizard() {
                 </div>
                 <span className={`text-xs hidden sm:block ${idx <= currentStep ? 'text-gray-900 font-medium dark:text-slate-200' : 'text-gray-400'} dark:text-slate-100`}>{label}</span>
               </div>
-              {idx < STEPS.length - 1 && <div className={`w-6 sm:w-12 h-0.5 ${idx < currentStep ? 'bg-primary-600' : 'bg-gray-200'}`} />}
+              {idx < STEPS.length - 1 && <div className={`w-6 sm:w-12 h-0.5 ${idx < currentStep ? 'bg-primary-600' : 'bg-gray-200 dark:bg-slate-700 dark:text-slate-100'}`} />}
             </div>
           ))}
         </div>

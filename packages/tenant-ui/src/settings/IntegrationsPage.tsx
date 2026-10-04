@@ -95,11 +95,11 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
 
       <div className="space-y-4">
         <SectionLabel label="Domain" />
-        <GuideCard icon={<Globe className="w-6 h-6 text-sky-600 dark:text-sky-300" />} iconBg="bg-sky-100 dark:bg-sky-500/20" title="Custom Domain (DNS)" description="Point your domain to your CRM so customers see your brand." expanded={expandedGuide === 'dns'} onToggle={() => setExpandedGuide(expandedGuide === 'dns' ? null : 'dns')}
+        <GuideCard icon={<Globe className="w-6 h-6 text-sky-700 dark:text-sky-300" />} iconBg="bg-sky-100 dark:bg-sky-500/20" title="Custom Domain (DNS)" description="Point your domain to your CRM so customers see your brand." expanded={expandedGuide === 'dns'} onToggle={() => setExpandedGuide(expandedGuide === 'dns' ? null : 'dns')}
           steps={['Log into your domain registrar (GoDaddy, Namecheap, Cloudflare, etc.)', 'Go to DNS settings for your domain', 'Add a CNAME record pointing your subdomain (e.g. crm.yourdomain.com) to your CRM URL shown above', 'Save changes — DNS propagation can take up to 24 hours', 'Once propagated, your CRM will be accessible at your custom domain']} />
 
         <SectionLabel label="Accounting" />
-        <Card icon={<BookOpen className="w-6 h-6 text-green-600 dark:text-green-400" />} iconBg="bg-green-100 dark:bg-green-500/20" title="QuickBooks" description={copy.quickbooks}
+        <Card icon={<BookOpen className="w-6 h-6 text-green-700 dark:text-green-400" />} iconBg="bg-green-100 dark:bg-green-500/20" title="QuickBooks" description={copy.quickbooks}
           body={status.quickbooks.configured === false ? (
             // The server has no QuickBooks credentials, so "Connect QuickBooks" cannot work: it answered
             // 503 "not enabled for this CRM yet" AFTER the click. The status endpoint has always carried
@@ -108,7 +108,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
             <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">Not available on your account yet. Email <a href="mailto:support@twomiah.com" className="text-blue-600 dark:text-blue-400 hover:underline">support@twomiah.com</a> and we will switch it on.</p>
           ) : status.quickbooks.connected && (
             <div className="mt-2 text-sm space-y-1">
-              <p className="text-green-600 dark:text-green-400 font-medium">Connected{status.quickbooks.companyName ? ` to ${status.quickbooks.companyName}` : ''}</p>
+              <p className="text-green-700 dark:text-green-400 font-medium">Connected{status.quickbooks.companyName ? ` to ${status.quickbooks.companyName}` : ''}</p>
               {status.quickbooks.lastSync && <p className="text-gray-500 dark:text-slate-400">Last synced: {new Date(status.quickbooks.lastSync).toLocaleString()}</p>}
               <button onClick={qbAutoSync} disabled={saving === 'autosync'} className="flex items-center gap-2 text-gray-700 dark:text-slate-300" data-testid="qb-autosync">
                 {saving === 'autosync' ? <Loader2 className="w-8 h-8 text-gray-400 animate-spin" /> : status.quickbooks.syncEnabled ? <ToggleRight className="w-8 h-8 text-green-500 dark:text-green-300" /> : <ToggleLeft className="w-8 h-8 text-gray-300 dark:text-slate-600" />}
@@ -127,8 +127,8 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
         <Card icon={<CreditCard className="w-6 h-6 text-purple-600 dark:text-purple-400" />} iconBg="bg-purple-100 dark:bg-purple-500/20" title="Stripe Payments" description="Accept credit card payments from customers."
           body={status.stripe.connected && (
             <div className="mt-2 text-sm">
-              {status.stripe.chargesEnabled ? <p className="text-green-600 dark:text-green-400 font-medium">Ready to accept payments</p>
-                : <div className="flex items-center gap-3 flex-wrap"><p className="text-yellow-600 dark:text-yellow-400 font-medium">Setup incomplete — Stripe still needs a few details before payments can be accepted.</p><button onClick={stripeConnect} className="text-sm text-purple-600 dark:text-purple-300 hover:underline">Finish setup</button></div>}
+              {status.stripe.chargesEnabled ? <p className="text-green-700 dark:text-green-400 font-medium">Ready to accept payments</p>
+                : <div className="flex items-center gap-3 flex-wrap"><p className="text-yellow-700 dark:text-yellow-400 font-medium">Setup incomplete — Stripe still needs a few details before payments can be accepted.</p><button onClick={stripeConnect} className="text-sm text-purple-600 dark:text-purple-300 hover:underline">Finish setup</button></div>}
             </div>
           )}
           actions={status.stripe.connected
@@ -146,7 +146,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
               </div>
               {status.twilio.ownAccount ? (
                 <div className="mt-3 space-y-3">
-                  <p className="text-sm text-green-600 dark:text-green-400">Phone: {status.twilio.phoneNumber}</p>
+                  <p className="text-sm text-green-700 dark:text-green-400">Phone: {status.twilio.phoneNumber}</p>
                   <div className="flex flex-wrap items-center gap-2">
                     <input type="tel" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="+15551234567" aria-label="Test text recipient" className="px-3 py-2 text-sm border dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white w-44" />
                     <button onClick={testSms} disabled={saving === 'testsms'} className="px-3 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1">{saving === 'testsms' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}Send test text</button>
@@ -190,8 +190,8 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
 }
 
 const TONE: Record<string, { icon: string; bg: string }> = {
-  emerald: { icon: 'text-emerald-600', bg: 'bg-emerald-100 dark:bg-emerald-500/20' }, blue: { icon: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-500/20' },
-  indigo: { icon: 'text-indigo-600', bg: 'bg-indigo-100 dark:bg-indigo-500/20' }, pink: { icon: 'text-pink-600', bg: 'bg-pink-100 dark:bg-pink-500/20' }, sky: { icon: 'text-sky-600', bg: 'bg-sky-100 dark:bg-sky-500/20' },
+  emerald: { icon: 'text-emerald-700', bg: 'bg-emerald-100 dark:bg-emerald-500/20' }, blue: { icon: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-500/20' },
+  indigo: { icon: 'text-indigo-600', bg: 'bg-indigo-100 dark:bg-indigo-500/20' }, pink: { icon: 'text-pink-700', bg: 'bg-pink-100 dark:bg-pink-500/20' }, sky: { icon: 'text-sky-700', bg: 'bg-sky-100 dark:bg-sky-500/20' },
 }
 
 function SectionLabel({ label }: { label: string }) {

@@ -44,7 +44,7 @@ export default function VisualizerTrialPage() {
     return (
       <div className="max-w-2xl mx-auto py-16 text-center">
         <div className="w-16 h-16 bg-green-100 dark:bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-          <Check className="w-8 h-8 text-green-600 dark:text-green-400" />
+          <Check className="w-8 h-8 text-green-700 dark:text-green-400" />
         </div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
           Trial Request Submitted!

@@ -154,7 +154,7 @@ export default function IDScannerPage() {
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3 dark:bg-slate-900">
           <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center dark:bg-green-950/40">
-            <ScanLine className="w-5 h-5 text-green-600 dark:text-green-300" />
+            <ScanLine className="w-5 h-5 text-green-700 dark:text-green-300" />
           </div>
           <div>
             <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.scansToday || 0}</p>
@@ -308,12 +308,12 @@ export default function IDScannerPage() {
               <div className="space-y-4">
                 {/* Verification Status */}
                 <div className={`p-4 rounded-lg flex items-center gap-3 ${
-                  scanResult.status === 'verified' ? 'bg-green-50 border border-green-200' :
-                  scanResult.status === 'underage' || scanResult.status === 'expired' ? 'bg-red-50 border border-red-200' :
-                  'bg-yellow-50 border border-yellow-200'
+                  scanResult.status === 'verified' ? 'bg-green-50 border border-green-200 dark:bg-green-950/40 dark:text-slate-100' :
+                  scanResult.status === 'underage' || scanResult.status === 'expired' ? 'bg-red-50 border border-red-200 dark:bg-red-950/40 dark:text-slate-100' :
+                  'bg-yellow-50 border border-yellow-200 dark:bg-yellow-950/40 dark:text-slate-100'
                 }`}>
                   {scanResult.status === 'verified' ? (
-                    <CheckCircle className="w-8 h-8 text-green-600 flex-shrink-0 dark:text-green-300" />
+                    <CheckCircle className="w-8 h-8 text-green-700 flex-shrink-0 dark:text-green-300" />
                   ) : (
                     <XCircle className="w-8 h-8 text-red-600 flex-shrink-0 dark:text-red-400" />
                   )}
@@ -356,7 +356,7 @@ export default function IDScannerPage() {
                     <span className="w-4 h-4 text-gray-400 text-center font-bold">A</span>
                     <span className="text-gray-500 w-24 dark:text-slate-400">Age:</span>
                     <span className={`font-bold text-lg ${
-                      (scanResult.age || calculateAge(scanResult.dob)) >= 21 ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-400'
+                      (scanResult.age || calculateAge(scanResult.dob)) >= 21 ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400'
                     }`}>
                       {scanResult.age || calculateAge(scanResult.dob) || '—'}
                     </span>

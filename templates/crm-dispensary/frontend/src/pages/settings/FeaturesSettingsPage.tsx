@@ -84,7 +84,7 @@ export default function FeaturesSettingsPage() {
       <h1 className="text-2xl font-bold mb-1">Features</h1>
       <p className="text-gray-500 mb-6 dark:text-slate-400">
         Every feature is included in your plan — switch on the ones you want. Changes apply to your whole team immediately.
-        {!isAdmin && <span className="block mt-1 text-amber-600 font-medium dark:text-amber-300">Only admins can change features.</span>}
+        {!isAdmin && <span className="block mt-1 text-amber-700 font-medium dark:text-amber-300">Only admins can change features.</span>}
       </p>
 
       {categories.length === 0 && <div className="text-gray-500 dark:text-slate-400">No optional features are available for this product.</div>}
@@ -116,7 +116,7 @@ export default function FeaturesSettingsPage() {
                           aria-label={`${f.name} — ${on ? 'on' : 'off'}`}
                           disabled={!isAdmin}
                           onClick={() => toggle(f.id)}
-                          className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-40 ${on ? 'bg-green-600' : 'bg-gray-300'}`}
+                          className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-40 ${on ? 'bg-green-600' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`}
                         >
                           <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${on ? 'translate-x-6' : 'translate-x-1'} dark:bg-slate-900`} />
                         </button>

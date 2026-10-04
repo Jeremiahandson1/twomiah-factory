@@ -473,7 +473,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                           {eq.warrantyExpiry && (
                             <div className="flex items-center gap-1 justify-end">
                               <Shield className={`w-3.5 h-3.5 ${active ? 'text-green-500 dark:text-green-300' : 'text-gray-400'}`} />
-                              <span className={active ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}>Warranty {active ? 'active' : 'expired'}</span>
+                              <span className={active ? 'text-green-700 dark:text-green-300' : 'text-gray-500 dark:text-slate-400'}>Warranty {active ? 'active' : 'expired'}</span>
                             </div>
                           )}
                           {eq.purchaseDate && <p className="text-gray-500 dark:text-slate-400">Installed {dateOnly(eq.purchaseDate)}</p>}
@@ -615,7 +615,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                       className={`flex items-center gap-1.5 ${noEmail ? 'cursor-not-allowed opacity-60' : ''}`}
                       aria-label={portalStatus?.enabled ? 'Disable portal access' : 'Enable portal access'}>
                       {portalStatus?.enabled ? <ToggleRight className="w-6 h-6 text-green-500 dark:text-green-300" /> : <ToggleLeft className="w-6 h-6 text-gray-400" />}
-                      <span className={`text-sm font-medium ${portalStatus?.enabled ? 'text-green-600 dark:text-green-300' : 'text-gray-500 dark:text-slate-400'}`}>{portalStatus?.enabled ? 'Enabled' : 'Disabled'}</span>
+                      <span className={`text-sm font-medium ${portalStatus?.enabled ? 'text-green-700 dark:text-green-300' : 'text-gray-500 dark:text-slate-400'}`}>{portalStatus?.enabled ? 'Enabled' : 'Disabled'}</span>
                     </button>
                   </div>
                   {noEmail
@@ -629,10 +629,10 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                         <code className="flex-1 min-w-0 break-all text-xs bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200">{portalStatus.portalUrl}</code>
                         <button type="button" onClick={copyPortalLink} aria-label="Copy portal link"
                           className="shrink-0 px-2 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
-                          {portalCopied ? <Check className="w-4 h-4 text-green-600 dark:text-green-300" /> : <Copy className="w-4 h-4" />}
+                          {portalCopied ? <Check className="w-4 h-4 text-green-700 dark:text-green-300" /> : <Copy className="w-4 h-4" />}
                         </button>
                       </div>
-                      {portalCopied && <p className="text-xs text-green-600 mt-1 dark:text-green-300">Copied</p>}
+                      {portalCopied && <p className="text-xs text-green-700 mt-1 dark:text-green-300">Copied</p>}
                     </div>
                   )}
                   {/* Not offered with no address to send to — the portal can be enabled through the

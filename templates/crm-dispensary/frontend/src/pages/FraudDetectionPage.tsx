@@ -196,11 +196,11 @@ export default function FraudDetectionPage() {
         <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between dark:bg-green-950/40">
           <div>
             <div className="font-medium text-green-800 dark:text-green-300">Scan Complete</div>
-            <div className="text-sm text-green-600 dark:text-green-300">
+            <div className="text-sm text-green-700 dark:text-green-300">
               {scanResults.alertsGenerated || 0} new alerts &middot; {scanResults.transactionsScanned || 0} transactions scanned &middot; {scanResults.duration || '0s'}
             </div>
           </div>
-          <button onClick={() => setScanResults(null)} className="text-green-600 hover:text-green-800 dark:hover:text-green-300 dark:text-green-300"><XCircle className="w-5 h-5" /></button>
+          <button onClick={() => setScanResults(null)} className="text-green-700 hover:text-green-800 dark:hover:text-green-300 dark:text-green-300"><XCircle className="w-5 h-5" /></button>
         </div>
       )}
 
@@ -260,7 +260,7 @@ export default function FraudDetectionPage() {
                       <td className="px-4 py-3 text-sm max-w-xs truncate">{alert.description}</td>
                       <td className="px-4 py-3 text-sm">
                         {alert.employeeName ? (
-                          <span className="text-green-600 hover:underline cursor-pointer dark:text-green-300">{alert.employeeName}</span>
+                          <span className="text-green-700 hover:underline cursor-pointer dark:text-green-300">{alert.employeeName}</span>
                         ) : '-'}
                       </td>
                       <td className="px-4 py-3">
@@ -330,7 +330,7 @@ export default function FraudDetectionPage() {
                   </div>
                   <label className="flex items-center gap-2 cursor-pointer ml-4">
                     <span className="text-sm text-gray-500 dark:text-slate-400">{rule.active ? 'Active' : 'Inactive'}</span>
-                    <div className={`relative w-10 h-5 rounded-full transition-colors ${rule.active ? 'bg-green-500' : 'bg-gray-300'}`}
+                    <div className={`relative w-10 h-5 rounded-full transition-colors ${rule.active ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`}
                       onClick={() => toggleRule(rule.id, !rule.active)}>
                       <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${rule.active ? 'translate-x-5' : 'translate-x-0.5'} dark:bg-slate-900`} />
                     </div>
@@ -456,7 +456,7 @@ export default function FraudDetectionPage() {
           </div>
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={ruleForm.active} onChange={e => setRuleForm({ ...ruleForm, active: e.target.checked })}
-              className="rounded text-green-600 dark:text-green-300" />
+              className="rounded text-green-700 dark:text-green-300" />
             <span className="text-sm font-medium">Active</span>
           </label>
         </div>

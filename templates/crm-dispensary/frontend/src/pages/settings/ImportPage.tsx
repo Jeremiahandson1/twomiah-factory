@@ -137,7 +137,7 @@ export default function ImportPage() {
                 : 'border-gray-200 hover:bg-gray-50 dark:border-slate-700 dark:hover:bg-slate-800'
             }`}
           >
-            <t.icon className={`w-5 h-5 ${type === t.id ? 'text-green-600 dark:text-green-300' : 'text-gray-400'}`} />
+            <t.icon className={`w-5 h-5 ${type === t.id ? 'text-green-700 dark:text-green-300' : 'text-gray-400'}`} />
             <span className={`font-medium ${type === t.id ? 'text-green-700 dark:text-green-300' : 'text-gray-700 dark:text-slate-200'}`}>{t.label}</span>
           </button>
         ))}
@@ -210,7 +210,7 @@ export default function ImportPage() {
             ) : (
               <div>
                 <p className="font-medium text-gray-900 dark:text-slate-100">
-                  <Check className="w-4 h-4 inline mr-1 text-green-600 dark:text-green-300" />
+                  <Check className="w-4 h-4 inline mr-1 text-green-700 dark:text-green-300" />
                   {typeof preview.willImport === 'number'
                     ? `${preview.willImport} of ${preview.rowCount} row${preview.rowCount === 1 ? '' : 's'} will import`
                     : `${preview.rowCount} row${preview.rowCount === 1 ? '' : 's'} ready to import`}

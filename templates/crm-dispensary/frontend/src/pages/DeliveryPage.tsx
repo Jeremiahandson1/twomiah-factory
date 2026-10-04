@@ -258,7 +258,7 @@ export default function DeliveryPage() {
               <div key={zone.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-                    <MapPin className="w-4 h-4 text-green-600 dark:text-green-300" />
+                    <MapPin className="w-4 h-4 text-green-700 dark:text-green-300" />
                     {zone.name}
                   </h3>
                 {/* The same names the create and the update use, and the same ones the order path
@@ -348,7 +348,7 @@ export default function DeliveryPage() {
                   type="checkbox"
                   checked={zoneForm.isActive}
                   onChange={(e) => setZoneForm({ ...zoneForm, isActive: e.target.checked })}
-                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
+                  className="w-4 h-4 text-green-700 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700 dark:text-green-300"
                 />
                 <span className="text-sm text-gray-700 dark:text-slate-200">Active</span>
               </label>

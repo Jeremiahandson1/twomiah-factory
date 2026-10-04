@@ -124,7 +124,7 @@ function CampaignsTab({ api, toast, contactTypes, onChanged }: { api: MarketingA
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1 justify-end">
                       {(c.status === 'draft' || c.status === 'failed') && <>
-                        <button onClick={() => setConfirmSend(c)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg dark:text-green-300" title={c.status === 'failed' ? 'Send again' : 'Send now'}><Send className="w-4 h-4" /></button>
+                        <button onClick={() => setConfirmSend(c)} className="p-1.5 text-green-700 hover:bg-green-50 rounded-lg dark:text-green-300" title={c.status === 'failed' ? 'Send again' : 'Send now'}><Send className="w-4 h-4" /></button>
                         <button onClick={() => setSchedule({ campaign: c, when: '' })} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg dark:text-blue-300" title="Schedule"><Calendar className="w-4 h-4" /></button>
                       </>}
                       {c.status === 'scheduled' && <button onClick={() => unschedule(c)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg dark:text-blue-300" title="Cancel schedule"><X className="w-4 h-4" /></button>}
@@ -283,7 +283,7 @@ function SequencesTab({ api, toast, label, onChanged }: { api: MarketingApi; toa
         <div key={s.id} className="bg-white rounded-xl border p-4 dark:bg-slate-900 dark:border-slate-800">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${s.active ? 'bg-green-100' : 'bg-gray-100 dark:bg-slate-800'}`}><Zap className={`w-5 h-5 ${s.active ? 'text-green-600 dark:text-green-300' : 'text-gray-400'}`} /></div>
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${s.active ? 'bg-green-100 dark:bg-green-950/40 dark:text-slate-100' : 'bg-gray-100 dark:bg-slate-800'}`}><Zap className={`w-5 h-5 ${s.active ? 'text-green-700 dark:text-green-300' : 'text-gray-400'}`} /></div>
               <div>
                 <p className="font-medium text-gray-900 dark:text-slate-100">{s.name}</p>
                 <p className="text-sm text-gray-500 dark:text-slate-400">{s.steps?.length || 0} step{s.steps?.length === 1 ? '' : 's'} · {s.activeEnrollments ?? 0} in progress · {s.enrollmentCount ?? 0} enrolled total</p>

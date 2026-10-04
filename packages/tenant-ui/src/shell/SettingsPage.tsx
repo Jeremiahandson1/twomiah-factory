@@ -388,7 +388,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                         <td className="px-4 py-3">{u.firstName} {u.lastName}</td>
                         <td className="px-4 py-3">{u.email}</td>
                         <td className="px-4 py-3">{roleWord(u.role)}</td>
-                        <td className="px-4 py-3">{u.isActive ? <span className="text-green-600 dark:text-green-300">Active</span> : <span className="text-gray-500 dark:text-slate-400">Inactive</span>}</td>
+                        <td className="px-4 py-3">{u.isActive ? <span className="text-green-700 dark:text-green-300">Active</span> : <span className="text-gray-500 dark:text-slate-400">Inactive</span>}</td>
                         <td className="px-4 py-3 text-right">
                           {u.id === myId ? (
                             <>
@@ -425,7 +425,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                               {mayTransfer && u.role !== 'owner' && u.isActive && (
                                 <button type="button" onClick={() => setTransferTo(u)} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 mr-3 dark:text-indigo-300 dark:hover:text-indigo-200">Make owner</button>
                               )}
-                              <button type="button" onClick={() => toggleAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400' : 'text-green-600 hover:text-green-700 dark:hover:text-green-300 dark:text-green-300'}`}>{u.isActive ? 'Revoke access' : 'Restore access'}</button>
+                              <button type="button" onClick={() => toggleAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400' : 'text-green-700 hover:text-green-800 dark:hover:text-green-300 dark:text-green-300'}`}>{u.isActive ? 'Revoke access' : 'Restore access'}</button>
                             </>
                           ) : null}
                         </td>

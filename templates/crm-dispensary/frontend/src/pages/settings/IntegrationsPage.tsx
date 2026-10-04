@@ -252,7 +252,7 @@ export default function IntegrationsPage() {
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center dark:bg-green-950/40">
-                <BookOpen className="w-6 h-6 text-green-600 dark:text-green-300" />
+                <BookOpen className="w-6 h-6 text-green-700 dark:text-green-300" />
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-slate-100">QuickBooks</h3>
@@ -263,7 +263,7 @@ export default function IntegrationsPage() {
                 </p>
                 {integrations.quickbooks.connected && (
                   <div className="mt-2 text-sm">
-                    <p className="text-green-600 font-medium dark:text-green-300">
+                    <p className="text-green-700 font-medium dark:text-green-300">
                       ✓ Connected to {integrations.quickbooks.companyName}
                     </p>
                     {integrations.quickbooks.lastSync && (
@@ -326,9 +326,9 @@ export default function IntegrationsPage() {
                 {integrations.stripe.connected && (
                   <div className="mt-2 text-sm">
                     {integrations.stripe.chargesEnabled ? (
-                      <p className="text-green-600 font-medium dark:text-green-300">✓ Ready to accept payments</p>
+                      <p className="text-green-700 font-medium dark:text-green-300">✓ Ready to accept payments</p>
                     ) : (
-                      <p className="text-yellow-600 font-medium dark:text-yellow-300">⚠ Setup incomplete - check Stripe dashboard</p>
+                      <p className="text-yellow-700 font-medium dark:text-yellow-300">⚠ Setup incomplete - check Stripe dashboard</p>
                     )}
                   </div>
                 )}

@@ -48,7 +48,7 @@ function CountdownTimer({ expiresAt }: { expiresAt: string }) {
   const isUrgent = timeLeft !== 'Expired' && parseInt(timeLeft) < 5;
 
   return (
-    <span className={`text-xs font-mono ${timeLeft === 'Expired' ? 'text-gray-500 dark:text-slate-400' : isUrgent ? 'text-red-600 font-bold dark:text-red-400' : 'text-yellow-600 dark:text-yellow-300'}`}>
+    <span className={`text-xs font-mono ${timeLeft === 'Expired' ? 'text-gray-500 dark:text-slate-400' : isUrgent ? 'text-red-600 font-bold dark:text-red-400' : 'text-yellow-700 dark:text-yellow-300'}`}>
       {timeLeft === 'Expired' ? 'Expired' : `Expires in ${timeLeft}`}
     </span>
   );
@@ -308,7 +308,7 @@ export default function ApprovalsPage() {
                   <div className="font-medium">Voids Require Approval</div>
                   <div className="text-sm text-gray-500 dark:text-slate-400">All void transactions need manager approval</div>
                 </div>
-                <div className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${config.voidsRequireApproval ? 'bg-green-500' : 'bg-gray-300'}`}
+                <div className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${config.voidsRequireApproval ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`}
                   onClick={() => setConfig({ ...config, voidsRequireApproval: !config.voidsRequireApproval })}>
                   <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${config.voidsRequireApproval ? 'translate-x-5' : 'translate-x-0.5'} dark:bg-slate-900`} />
                 </div>
@@ -326,7 +326,7 @@ export default function ApprovalsPage() {
                   <div className="font-medium">Refunds Require Approval</div>
                   <div className="text-sm text-gray-500 dark:text-slate-400">All refund transactions need manager approval</div>
                 </div>
-                <div className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${config.refundsRequireApproval ? 'bg-green-500' : 'bg-gray-300'}`}
+                <div className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${config.refundsRequireApproval ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`}
                   onClick={() => setConfig({ ...config, refundsRequireApproval: !config.refundsRequireApproval })}>
                   <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${config.refundsRequireApproval ? 'translate-x-5' : 'translate-x-0.5'} dark:bg-slate-900`} />
                 </div>
@@ -337,7 +337,7 @@ export default function ApprovalsPage() {
                   <div className="font-medium">Price Overrides Require Approval</div>
                   <div className="text-sm text-gray-500 dark:text-slate-400">Manual price changes need manager approval</div>
                 </div>
-                <div className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${config.priceOverridesRequireApproval ? 'bg-green-500' : 'bg-gray-300'}`}
+                <div className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${config.priceOverridesRequireApproval ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`}
                   onClick={() => setConfig({ ...config, priceOverridesRequireApproval: !config.priceOverridesRequireApproval })}>
                   <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${config.priceOverridesRequireApproval ? 'translate-x-5' : 'translate-x-0.5'} dark:bg-slate-900`} />
                 </div>

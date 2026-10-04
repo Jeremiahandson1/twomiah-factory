@@ -214,7 +214,7 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
         <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2">
-              <Scissors className="w-5 h-5 text-teal-600 dark:text-teal-300" /> {record?.id ? 'Edit Service Record' : 'New Service Record'}
+              <Scissors className="w-5 h-5 text-teal-700 dark:text-teal-300" /> {record?.id ? 'Edit Service Record' : 'New Service Record'}
             </h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>

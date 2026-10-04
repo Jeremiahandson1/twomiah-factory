@@ -213,7 +213,7 @@ export default function ReferralsPage() {
                       onChange={e => setConfig({ ...config, enabled: e.target.checked })}
                       className="sr-only"
                     />
-                    <div className={`w-11 h-6 rounded-full transition-colors ${config.enabled ? 'bg-green-500' : 'bg-gray-300'}`}>
+                    <div className={`w-11 h-6 rounded-full transition-colors ${config.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`}>
                       <div className={`w-5 h-5 bg-white dark:bg-slate-900 rounded-full shadow transition-transform mt-0.5 ${config.enabled ? 'translate-x-5.5 ml-[22px]' : 'translate-x-0.5 ml-[2px]'}`} />
                     </div>
                   </div>
@@ -224,7 +224,7 @@ export default function ReferralsPage() {
                 {/* Referrer Reward */}
                 <div>
                   <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-                    <Gift className="w-4 h-4 text-green-600 dark:text-green-300" />
+                    <Gift className="w-4 h-4 text-green-700 dark:text-green-300" />
                     Referrer Reward (person who refers)
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
@@ -258,7 +258,7 @@ export default function ReferralsPage() {
                 {/* Referred Reward */}
                 <div>
                   <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-                    <Award className="w-4 h-4 text-green-600 dark:text-green-300" />
+                    <Award className="w-4 h-4 text-green-700 dark:text-green-300" />
                     Referred Reward (new customer)
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
@@ -452,7 +452,7 @@ export default function ReferralsPage() {
                 <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center dark:bg-green-950/40">
-                      <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-300" />
+                      <TrendingUp className="w-5 h-5 text-green-700 dark:text-green-300" />
                     </div>
                     <div>
                       <p className="text-sm text-gray-500 dark:text-slate-400">Conversion Rate</p>
@@ -499,7 +499,7 @@ export default function ReferralsPage() {
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-gray-900 dark:text-slate-100">{referrer.count ?? 0} referrals</p>
-                        <p className="text-sm text-green-600 dark:text-green-300">{referrer.successful ?? 0} converted</p>
+                        <p className="text-sm text-green-700 dark:text-green-300">{referrer.successful ?? 0} converted</p>
                       </div>
                     </div>
                   ))}

@@ -22,7 +22,7 @@ function Card({ card }: { card: LoyaltyPunchCard }) {
   return (
     <span className="inline-flex items-center gap-1" title={`${card.progress} of ${card.visitsRequired} orders`}>
       {Array.from({ length: card.visitsRequired }).map((_, i) => (
-        <span key={i} className={`inline-block w-2.5 h-2.5 rounded-full ${i < filled ? 'bg-indigo-500' : 'bg-gray-200'}`} />
+        <span key={i} className={`inline-block w-2.5 h-2.5 rounded-full ${i < filled ? 'bg-indigo-500' : 'bg-gray-200 dark:bg-slate-700 dark:text-slate-100'}`} />
       ))}
       {card.unclaimed > 0 && <span className="ml-1 text-xs font-medium text-indigo-700 dark:text-indigo-300">Reward ready</span>}
     </span>
