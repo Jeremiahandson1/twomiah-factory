@@ -111,9 +111,22 @@ console.log('\n══════════ setting a PIN ══════�
   const clash = await api('PUT', '/api/auth/pin', { pin: '4821' }, owner)
   check('a SECOND person cannot take the same PIN', clash.status === 409 && clash.json?.code === 'pin_in_use',
     { status: clash.status, code: clash.json?.code })
+  /**
+   * …AND SAYS NOTHING ABOUT WHO HOLDS IT. (T42, dispensary HIGH)
+   *
+   * This asserted the words "already uses that PIN". T42 is that those words make the endpoint an
+   * oracle: "the 409 'PIN already in use' message reveals which PINs are live, so an insider can
+   * guess staff PINs unnoticed." The uniqueness rule has to stay — a PIN that points at two people
+   * means the till cannot say who rang a sale — so the refusal stays and the disclosure goes.
+   *
+   * What is asserted now is the property the screen needs (it still explains the till, verbatim) and
+   * the property the finding needs (it does not say somebody else holds it).
+   */
   check('…and the refusal explains the till, which is why the screen shows it verbatim',
-    /already uses that PIN/i.test(String(clash.json?.error)) && /who rang a sale/i.test(String(clash.json?.error)),
+    /who rang a sale/i.test(String(clash.json?.error)) && /different one/i.test(String(clash.json?.error)),
     clash.json?.error)
+  check('…without telling the caller that somebody else holds that PIN',
+    !/somebody else|someone else|already (uses|in use)/i.test(String(clash.json?.error)), clash.json?.error)
 
   const own = await api('PUT', '/api/auth/pin', { pin: '4821' }, bud)
   check('…but the same person may re-save their own PIN', own.status === 200, { status: own.status })

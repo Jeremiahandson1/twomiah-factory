@@ -202,7 +202,10 @@ export const job = pgTable('job', {
   description: text('description'),
   status: text('status').default('scheduled').notNull(),
   priority: text('priority').default('normal').notNull(), // low, normal, high, emergency
-  jobType: text('job_type').default('repair').notNull(), // install, repair, maintenance, emergency
+  // 'service', not 'repair'. The column default came across from crm-fieldservice, which this
+  // template was forked from, so every job a gym, a studio or a food truck created was typed a
+  // repair — visible on the job card and in every export. Migration 0024. (T42)
+  jobType: text('job_type').default('service').notNull(), // service, install, repair, maintenance
   type: text('type'),
   source: text('source'),
   scheduledDate: timestamp('scheduled_date'),

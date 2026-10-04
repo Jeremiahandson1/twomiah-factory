@@ -8,9 +8,24 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { FleetApi, FleetPageProps } from './types';
+import { useMayWrite } from '../auth/PermissionsContext';
 
 // api + the gps flag are injected once at the page root; child components read them via useFleet().
-const FleetCtx = createContext<{ api: FleetApi; gps: boolean }>({ api: null as any, gps: false });
+/**
+ * `mayWrite` TRAVELS WITH THE API, because the controls are on a sibling component. (T42)
+ *
+ *   "The server refuses every write correctly, but staff and viewer still see create/edit buttons on
+ *    many pages … Some fail silently (Showcase Locations, AI Receptionist, Fleet)."
+ *
+ * Every write on the fleet router asks `fleet:create` / `fleet:update` / `fleet:delete`, which
+ * admin and manager hold and `field` and `viewer` do not — so Add Vehicle, Fuel, Service and Edit
+ * were offered to seats whose every click was refused, and on this page refused SILENTLY: the
+ * handlers log to the console and the screen says nothing at all.
+ *
+ * It rides on the context rather than being asked again inside VehicleCard, which is a sibling
+ * component — asking it there would work, but one answer for the page cannot disagree with itself.
+ */
+const FleetCtx = createContext<{ api: FleetApi; gps: boolean; mayWrite: boolean }>({ api: null as any, gps: false, mayWrite: true });
 const useFleet = () => useContext(FleetCtx);
 
 interface VehicleLocation {
@@ -115,6 +130,8 @@ export default function FleetPage({ api, config }: FleetPageProps) {
   const [showFuel, setShowFuel] = useState<boolean>(false);
   const [showMaintenance, setShowMaintenance] = useState<boolean>(false);
   const [tab, setTab] = useState<string>('vehicles'); // vehicles, map, trips
+  // `fleet:update` stands for the three: create, update and delete all sit on the same two rungs.
+  const mayWrite = useMayWrite('fleet:update');
 
   useEffect(() => {
     loadData();
@@ -139,7 +156,7 @@ export default function FleetPage({ api, config }: FleetPageProps) {
   };
 
   return (
-    <FleetCtx.Provider value={{ api, gps: !!config?.gps }}>
+    <FleetCtx.Provider value={{ api, gps: !!config?.gps, mayWrite }}>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -154,13 +171,15 @@ export default function FleetPage({ api, config }: FleetPageProps) {
           >
             <RefreshCw className="w-5 h-5" />
           </button>
-          <button
-            onClick={() => { setSelectedVehicle(null); setShowForm(true); }}
-            className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
-          >
-            <Plus className="w-4 h-4" />
-            Add Vehicle
-          </button>
+          {mayWrite && (
+            <button
+              onClick={() => { setSelectedVehicle(null); setShowForm(true); }}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+            >
+              <Plus className="w-4 h-4" />
+              Add Vehicle
+            </button>
+          )}
         </div>
       </div>
 
@@ -297,6 +316,8 @@ function VehiclesGrid({ vehicles, onSelect, onEdit, onFuel, onMaintenance }: Veh
 }
 
 function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }: VehicleCardProps) {
+  // The page's answer, not a second one. (T42 — see the note beside FleetCtx.)
+  const { mayWrite } = useFleet();
   const hasAlert = vehicle.status === 'maintenance' ||
     (vehicle.nextOilChangeMiles && typeof vehicle.currentMileage === 'number' && vehicle.currentMileage >= vehicle.nextOilChangeMiles - 500);
 
@@ -355,7 +376,10 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }: VehicleCardProp
         </div>
       )}
 
-      {/* Actions */}
+      {/* Actions — a seat that cannot log fuel, book a service or edit the vehicle is not offered
+          any of them. The card still shows the vehicle, its mileage, who has it and its alerts,
+          which is what a driver opens this page for. (T42) */}
+      {mayWrite && (
       <div className="mt-4 pt-4 border-t flex items-center gap-2">
         <button
           onClick={onFuel}
@@ -378,6 +402,7 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }: VehicleCardProp
           <MoreVertical className="w-4 h-4" />
         </button>
       </div>
+      )}
     </div>
   );
 }

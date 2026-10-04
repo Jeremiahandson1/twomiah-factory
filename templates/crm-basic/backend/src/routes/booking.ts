@@ -19,7 +19,19 @@ export default createBookingRoutes({
   requirePermission,
   calendar: jobCalendar(job),
   options: {
-    requireAddress: true,
+    /**
+     * A STUDIO DOES NOT COME TO YOUR HOUSE. (T42, showcase HIGH)
+     *
+     * `requireAddress` is what the shared booking widget asks for because the trades show up at an
+     * address — its own type comment says so. This template serves showcase (gyms, yoga studios,
+     * wedding services, photographers), foodtruck and basic, and every one of those takes the booking
+     * at its OWN premises. A customer booking a strength session was made to type a street address
+     * before the form would submit.
+     *
+     * It stays a per-tenant setting (Online Booking › settings), so a tenant that genuinely travels
+     * can switch it back on; what changes is the answer this template ships with.
+     */
+    requireAddress: false,
     contactType: 'lead',
     notify: {
       email: ({ to, subject, html }) => sendRaw({ to, subject, html }),

@@ -169,6 +169,13 @@
       "when": 1791401200000,
       "tag": "0023_mfa",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791401300000,
+      "tag": "0024_job_type_service",
+      "breakpoints": true
     }
   ]
 }

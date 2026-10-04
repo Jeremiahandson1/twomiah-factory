@@ -30,6 +30,18 @@ import { mfaGateFor, openLoginChallenge, verifyLoginChallenge } from '../shared/
  * change that succeeded and went unlogged is bad; one that is rolled back because the log was
  * unavailable is worse.
  */
+/**
+ * WHO IS ASKING — the caller, not the chain of proxies in front of them.
+ *
+ * `x-forwarded-for` is a list: "client, proxy1, proxy2". The whole header was being stored, so the
+ * Security Events screen showed a chain instead of an address (T42, dispensary low) and the throttle
+ * below could not have grouped attempts by anybody. The first hop is the client.
+ */
+const callerIp = (c: any) =>
+  String(c.req.header('x-forwarded-for') || '').split(',')[0].trim() ||
+  c.req.header('x-real-ip') ||
+  'unknown'
+
 async function recordSecurityEvent(
   c: any, companyId: string, userId: string | null,
   eventType: string, severity: 'info' | 'warning' | 'critical', description: string,
@@ -38,10 +50,73 @@ async function recordSecurityEvent(
     await db.execute(sql`
       INSERT INTO security_events (id, company_id, event_type, severity, description, user_id, ip_address, created_at)
       VALUES (gen_random_uuid(), ${companyId}, ${eventType}, ${severity}, ${description},
-              ${userId}, ${c.req.header('x-forwarded-for') || 'unknown'}, NOW())
+              ${userId}, ${callerIp(c)}, NOW())
     `)
   } catch (e: any) {
     logger.warn('security event not recorded', { eventType, message: e?.message })
+  }
+}
+
+/**
+ * THE TILL PIN HAD NO BRAKE AND NO RECORD. (T42, dispensary HIGH)
+ *
+ *   "Till PIN security: no per-PIN throttle, no logging of PIN sign-ins (successful or failed), and
+ *    the 409 'PIN already in use' message reveals which PINs are live, so an insider can guess staff
+ *    PINs unnoticed."
+ *
+ * THE BRAKE HAS TO BE SOMEWHERE OTHER THAN THE ACCOUNT, and that is what made this awkward. T57
+ * removed per-user counting on a miss, for a good reason that still holds: a failed PIN is
+ * UNATTRIBUTABLE — four digits that matched nobody name no account — so counting the miss against
+ * every PIN-holder let five anonymous requests lock the whole counter out of quick sign-in. The old
+ * comment pointed at "the rate limiter on this route (index.ts)", which is a generic write limit
+ * measured in the hundreds: no help against somebody standing at a till trying 1234, 1111, 2580.
+ *
+ * So the brake is on the SOURCE: this company, this address, this quarter hour. Nobody's account
+ * locks, the email-and-password door stays open and is named in the refusal, and a guessing run stops
+ * after ten misses.
+ *
+ * COUNTED OUT OF security_events, not out of a Map in memory. A per-process counter resets on every
+ * deploy and every restart — and each tenant runs its own small instance, so "restart to clear the
+ * brake" would be a feature of the hosting. The log is the record the shop can also READ: the
+ * failures appear on the Security Events screen, which is the second half of this finding.
+ *
+ * The threshold is deliberately well clear of a fumble. A budtender mis-taps two or three times; ten
+ * misses from one address inside fifteen minutes is somebody trying PINs.
+ */
+const PIN_FAIL_WINDOW_MINUTES = 15
+const PIN_FAIL_LIMIT = 10
+const PIN_COLLISION_LIMIT = 5
+
+/** How many PIN misses this address has made at this shop inside the window. */
+async function recentPinFailures(companyId: string, ip: string): Promise<number> {
+  try {
+    const r: any = await db.execute(sql`
+      SELECT COUNT(*)::int AS n FROM security_events
+      WHERE company_id = ${companyId}
+        AND event_type = 'pin_login_failed'
+        AND ip_address = ${ip}
+        AND created_at > NOW() - (${PIN_FAIL_WINDOW_MINUTES} || ' minutes')::interval
+    `)
+    return Number((r.rows || r)[0]?.n || 0)
+  } catch {
+    // A counter that cannot be read must not shut the till. Fail open and let the miss be logged.
+    return 0
+  }
+}
+
+/** The same question for PIN COLLISIONS, which are how a PIN could be enumerated. */
+async function recentPinCollisions(companyId: string, userId: string): Promise<number> {
+  try {
+    const r: any = await db.execute(sql`
+      SELECT COUNT(*)::int AS n FROM security_events
+      WHERE company_id = ${companyId}
+        AND event_type = 'pin_collision'
+        AND user_id = ${userId}
+        AND created_at > NOW() - (${PIN_FAIL_WINDOW_MINUTES} || ' minutes')::interval
+    `)
+    return Number((r.rows || r)[0]?.n || 0)
+  } catch {
+    return 0
   }
 }
 
@@ -280,11 +355,30 @@ app.post('/pin-login', async (c) => {
     companyId = seeded.id
   }
 
+  /**
+   * The brake, before any hash is checked. (T42 — see the note beside PIN_FAIL_LIMIT.)
+   *
+   * It bounds GUESSING and nothing else: it is keyed on the address, no account is locked, and the
+   * refusal names the door that is still open. A till that has genuinely been mis-tapped ten times in
+   * a quarter of an hour can still be signed into with an email and a password.
+   */
+  const ip = callerIp(c)
+  if (await recentPinFailures(companyId, ip) >= PIN_FAIL_LIMIT) {
+    await recordSecurityEvent(c, companyId, null, 'brute_force_detected', 'critical',
+      `Too many wrong till PINs from ${ip} — quick sign-in paused for ${PIN_FAIL_WINDOW_MINUTES} minutes`)
+    return c.json({
+      error: `Too many wrong PINs from this device. Quick sign-in is paused for a few minutes — sign in with your email and password instead.`,
+      code: 'pin_throttled',
+    }, 429)
+  }
+
   // Find users in this company who have a PIN set
   const users = await db.select().from(user).where(and(eq(user.companyId, companyId), eq(user.isActive, true)))
   const usersWithPin = users.filter(u => u.pinHash)
 
   if (usersWithPin.length === 0) {
+    await recordSecurityEvent(c, companyId, null, 'pin_login_failed', 'warning',
+      'Till PIN entered, and no account in this shop has quick sign-in switched on')
     return c.json({ error: 'No PIN-enabled users found' }, 404)
   }
 
@@ -343,6 +437,11 @@ app.post('/pin-login', async (c) => {
 
     await db.update(user).set({ pinAttempts: 0, lastLogin: new Date(), updatedAt: new Date() } as any).where(eq(user.id, u.id))
 
+    // A sign-in at the till is a sign-in. It was the only door into this product that left no trace,
+    // which on a seed-to-sale counter is the trace that matters most. (T42)
+    await recordSecurityEvent(c, u.companyId, u.id, 'pin_login', 'info',
+      `${[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email} signed in at the till with a PIN`)
+
     const [foundCompany] = await db.select().from(company).where(eq(company.id, u.companyId)).limit(1)
     if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
 
@@ -356,6 +455,16 @@ app.post('/pin-login', async (c) => {
     })
   }
 
+  /**
+   * A miss, logged. The DIGITS ARE NEVER RECORDED — storing the PIN somebody tried would hand an
+   * attacker the near-misses of every real PIN out of the log the manager can read.
+   *
+   * `user_id` is null because this is the unattributable case T57 describes: the digits matched
+   * nobody. What the row carries is the shop, the address and the time, which is exactly what the
+   * throttle above counts and what a manager needs to see a guessing run.
+   */
+  await recordSecurityEvent(c, companyId, null, 'pin_login_failed', 'warning',
+    `A till PIN was entered that belongs to nobody in this shop (attempt from ${ip})`)
   return c.json({ error: 'Invalid PIN' }, 401)
 })
 
@@ -436,13 +545,50 @@ app.put('/pin', authenticate, async (c) => {
    * Checked by VERIFYING against each other hash rather than comparing hashes: bcrypt salts, so two
    * rows holding the same PIN do not look alike.
    */
+  /**
+   * …AND THE REFUSAL MUST NOT SAY WHOSE. (T42)
+   *
+   *   "the 409 'PIN already in use' message reveals which PINs are live, so an insider can guess
+   *    staff PINs unnoticed."
+   *
+   * The old message was "Somebody else in this shop already uses that PIN", which turns this endpoint
+   * into an oracle: set 1234, read the answer, and you know a colleague's PIN without ever going near
+   * the till. The uniqueness rule itself has to stay — a PIN that points at two people means the till
+   * cannot say who rang a sale, which on a regulated counter is the whole point of it — so the
+   * refusal stays and the DISCLOSURE goes:
+   *
+   *   · the wording no longer asserts that anybody holds it, only that this one cannot be used;
+   *   · every collision writes a `pin_collision` row, so trying PINs here is visible to the manager
+   *     where before it was silent;
+   *   · five collisions from one account in fifteen minutes stops the endpoint, so the oracle cannot
+   *     be read in bulk.
+   *
+   * WHAT IS STILL TRUE, AND NOT PRETENDED OTHERWISE: a refusal is one bit, and a patient insider can
+   * still learn "this PIN is taken" one guess at a time. Removing the leak entirely means removing
+   * the uniqueness requirement, which means the till asking WHO before it asks for four digits —
+   * a change to how the counter is used, not a change to this handler. Named in the commit rather
+   * than half-built here.
+   *
+   * Checked by VERIFYING against each other hash rather than comparing hashes: bcrypt salts, so two
+   * rows holding the same PIN do not look alike.
+   */
   const others = await db.select().from(user)
     .where(and(eq(user.companyId, currentUser.companyId), eq(user.isActive, true)))
   for (const other of others) {
     if (other.id === currentUser.userId || !other.pinHash) continue
     if (await Bun.password.verify(data.pin, other.pinHash)) {
+      if (await recentPinCollisions(currentUser.companyId, currentUser.userId) >= PIN_COLLISION_LIMIT) {
+        await recordSecurityEvent(c, currentUser.companyId, currentUser.userId, 'suspicious_activity', 'critical',
+          'Repeatedly tried till PINs that could not be used — setting a PIN is paused for this account')
+        return c.json({
+          error: 'Too many attempts. Wait a few minutes before choosing another PIN.',
+          code: 'pin_throttled',
+        }, 429)
+      }
+      await recordSecurityEvent(c, currentUser.companyId, currentUser.userId, 'pin_collision', 'warning',
+        'Tried to set a till PIN that cannot be used in this shop')
       return c.json({
-        error: 'Somebody else in this shop already uses that PIN. Choose a different one — a PIN has to point at one person, or the till cannot say who rang a sale.',
+        error: 'That PIN cannot be used at this shop. Choose a different one — a PIN has to point at one person, or the till cannot say who rang a sale.',
         code: 'pin_in_use',
       }, 409)
     }

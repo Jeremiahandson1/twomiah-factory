@@ -508,7 +508,10 @@ async function main() {
     'Plumbing':   ['Install', 'Repair', 'Maintenance', 'Emergency', 'Inspection'],
     'Electrical': ['Install', 'Repair', 'Maintenance', 'Emergency', 'Inspection'],
   }
-  const DEFAULT_CATEGORIES = ['Install', 'Repair', 'Maintenance', 'Emergency', 'Inspection']
+  // The fallback for a tenant whose industry is not one of the trades above — which on this
+  // template is most of them: showcase, foodtruck and basic all land here. 'Emergency' and
+  // 'Inspection' are a contractor's day; a studio sells sessions, a truck sells service. (T42)
+  const DEFAULT_CATEGORIES = ['Service', 'Package', 'Hire', 'Extra', 'Other']
 
   type PricebookSeed = { name: string; description?: string; price: string; type: string; category: string }
   const INDUSTRY_PRICEBOOK: Record<string, PricebookSeed[]> = {

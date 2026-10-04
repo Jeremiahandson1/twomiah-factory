@@ -68,7 +68,9 @@ const app = new Hono()
 app.route('/api/auth', (await import('./src/routes/auth.ts')).default)
 app.onError((await import('./src/utils/errors.ts')).errorHandler)
 
-const api = async (method: string, path: string, body?: unknown, token?: string) => {
+// `ip` is the till's address. The T42 throttle counts PIN misses per shop per ADDRESS — no account is
+// locked — so a block that wants a clean counter asks from its own address.
+const api = async (method: string, path: string, body?: unknown, token?: string, ip?: string) => {
   const res = await app.request(path, {
     method,
     headers: {
@@ -76,6 +78,7 @@ const api = async (method: string, path: string, body?: unknown, token?: string)
       // x-test-user is the harness bridge (tests/harness/fixtures/middleware-auth.ts): the REAL
       // middleware still runs when it is absent, so a bearer token is exercised too where it matters.
       ...(token ? (token.includes('.') ? { authorization: 'Bearer ' + token } : { 'x-test-user': token }) : {}),
+      ...(ip ? { 'x-forwarded-for': ip } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
@@ -223,6 +226,116 @@ console.log('\n══════════ 4 · guessing at the challenge ═
   const fresh = await api('POST', '/api/auth/login', { email: bud2.email, password: PASSWORD })
   const ok = await api('POST', '/api/auth/mfa', { challengeId: fresh.json?.challengeId, code: codeFor(secret) })
   check('…and a fresh sign-in still works', ok.status === 200 && !!ok.json?.accessToken, { status: ok.status })
+}
+
+// ══════════ 5 · T42: a brake, a record, and a refusal that names nobody ═══════════════════════
+//
+//   "Till PIN security: no per-PIN throttle, no logging of PIN sign-ins (successful or failed), and
+//    the 409 'PIN already in use' message reveals which PINs are live, so an insider can guess staff
+//    PINs unnoticed."                                                — Dispensary, HIGH
+//
+// The brake cannot be on the ACCOUNT — claim 2 above is the reason, and it still has to hold after
+// this. So it is on the shop + the address + the quarter hour, and these assertions check both
+// halves: a guessing run from one till stops, and the OTHER till is untouched by it.
+//
+// Every address here is its own, so the blocks cannot borrow each other's counter — which is also
+// what the fix is for.
+console.log('\n══════════ 5 · T42 · the till PIN brake and the security log ══════════')
+const secRows = (type: string, ip?: string) => rows(
+  ip
+    ? sql`SELECT * FROM security_events WHERE event_type = ${type} AND ip_address = ${ip} ORDER BY created_at`
+    : sql`SELECT * FROM security_events WHERE event_type = ${type} ORDER BY created_at`,
+)
+{
+  const TILL = '203.0.113.21'
+  await setPin(bud1.id, '7403')
+
+  const ok = await api('POST', '/api/auth/pin-login', { companyId: co.id, pin: '7403' }, undefined, TILL)
+  check('a PIN sign-in at the till still works', ok.status === 200 && !!ok.json?.accessToken,
+    { status: ok.status, error: ok.json?.error })
+  const logged = await secRows('pin_login', TILL)
+  check('…and it is LOGGED — this was the only door into the product that left no trace',
+    logged.length === 1 && String(logged[0].user_id) === bud1.id, logged.map((r: any) => ({ u: r.user_id, d: r.description })))
+  check('…with the person named, and the shop and the address on the row',
+    /bud1/i.test(String(logged[0]?.description || '')) && String(logged[0]?.ip_address) === TILL &&
+    String(logged[0]?.company_id) === co.id, logged[0])
+
+  const miss = await api('POST', '/api/auth/pin-login', { companyId: co.id, pin: '8160' }, undefined, TILL)
+  check('a PIN belonging to nobody is refused', miss.status === 401, { status: miss.status })
+  const missed = await secRows('pin_login_failed', TILL)
+  check('…and the miss is logged too, unattributed — the digits matched nobody, so no account owns it',
+    missed.length === 1 && missed[0].user_id === null, missed.map((r: any) => ({ u: r.user_id, d: r.description })))
+  check('…and the DIGITS SOMEBODY TRIED ARE NOT IN THE LOG — near-misses of a real PIN must not be readable',
+    !missed.some((r: any) => /8160/.test(JSON.stringify(r))), missed[0]?.description)
+}
+
+{
+  // A guessing run from one address. Nine more misses takes this address to ten inside the window.
+  const RUN = '198.51.100.44'
+  for (let i = 0; i < 10; i++) {
+    await api('POST', '/api/auth/pin-login', { companyId: co.id, pin: String(90000 + i) }, undefined, RUN)
+  }
+  const run = await secRows('pin_login_failed', RUN)
+  check('ten misses from one address are all logged', run.length === 10, run.length)
+
+  const stopped = await api('POST', '/api/auth/pin-login', { companyId: co.id, pin: '90011' }, undefined, RUN)
+  check('…and the eleventh is refused with 429, not another "Invalid PIN"',
+    stopped.status === 429 && stopped.json?.code === 'pin_throttled', { status: stopped.status, code: stopped.json?.code })
+  check('…and the refusal names the door that is still open, so nobody is stranded mid-shift',
+    /email/i.test(String(stopped.json?.error || '')) && /password/i.test(String(stopped.json?.error || '')), stopped.json?.error)
+  const alarm = await secRows('brute_force_detected', RUN)
+  check('…and it raises a critical Security Event the manager can see', alarm.length >= 1 && alarm[0].severity === 'critical',
+    alarm.map((r: any) => r.severity))
+
+  // The brake is on the SOURCE. A real PIN from the SAME address is held back…
+  const realFromRun = await api('POST', '/api/auth/pin-login', { companyId: co.id, pin: '7403' }, undefined, RUN)
+  check('…a real PIN from that same device is held back while the brake is on',
+    realFromRun.status === 429, { status: realFromRun.status })
+
+  // …and NO ACCOUNT IS LOCKED, which is the T57 property this must not break.
+  const a1 = await attemptsOf(bud1.id)
+  check('…while bud1\'s account is not locked and not counted against — the T57 rule still holds',
+    a1.attempts === 0 && !a1.lockedUntil, a1)
+  const otherTill = await api('POST', '/api/auth/pin-login', { companyId: co.id, pin: '7403' }, undefined, '203.0.113.99')
+  check('…and the till at the other end of the counter signs in perfectly normally',
+    otherTill.status === 200 && !!otherTill.json?.accessToken, { status: otherTill.status, error: otherTill.json?.error })
+  const pwd = await api('POST', '/api/auth/login', { email: bud1.email, password: PASSWORD }, undefined, RUN)
+  check('…and email and password still work from the throttled device', pwd.status === 200 && !!pwd.json?.accessToken,
+    { status: pwd.status })
+}
+
+{
+  // The oracle: setting a PIN that somebody else holds.
+  const token = (await api('POST', '/api/auth/login', { email: owner.email, password: PASSWORD })).json?.accessToken
+    // the owner owes a second factor, so sign in through the challenge
+  let ownerToken = token
+  if (!ownerToken) {
+    const st = await api('POST', '/api/auth/login', { email: owner.email, password: PASSWORD })
+    const devs = await rows(sql`SELECT secret FROM mfa_devices WHERE user_id = ${owner.id} AND type = 'totp'`)
+    const fin = await api('POST', '/api/auth/mfa', { challengeId: st.json?.challengeId, code: codeFor(String(devs[0].secret)) })
+    ownerToken = fin.json?.accessToken
+  }
+  check('the owner has a token to set a PIN with', !!ownerToken, { hasToken: !!ownerToken })
+
+  const clash = await api('PUT', '/api/auth/pin', { pin: '7403' }, ownerToken)   // 7403 is bud1's
+  check('a PIN another person holds is still refused — a PIN has to point at one person',
+    clash.status === 409 && clash.json?.code === 'pin_in_use', { status: clash.status, code: clash.json?.code })
+  check('…but the refusal NO LONGER SAYS SOMEBODY ELSE HOLDS IT',
+    !/somebody else|someone else|already (uses|in use)/i.test(String(clash.json?.error || '')), clash.json?.error)
+  check('…and still tells the person what to do about it',
+    /different/i.test(String(clash.json?.error || '')), clash.json?.error)
+  const collisions = await secRows('pin_collision')
+  check('…and the attempt is logged against the account that made it, so reading the oracle is visible',
+    collisions.length >= 1 && String(collisions[collisions.length - 1].user_id) === owner.id,
+    collisions.map((r: any) => ({ u: r.user_id, d: r.description })))
+  check('…without recording the digits that were tried',
+    !collisions.some((r: any) => /7403/.test(JSON.stringify(r))), collisions[0]?.description)
+
+  // Five collisions is as far as it goes, so the oracle cannot be read in bulk.
+  for (let i = 0; i < 5; i++) await api('PUT', '/api/auth/pin', { pin: '7403' }, ownerToken)
+  const bulk = await api('PUT', '/api/auth/pin', { pin: '7403' }, ownerToken)
+  check('…and a run of them stops with 429 rather than answering again',
+    bulk.status === 429 && bulk.json?.code === 'pin_throttled', { status: bulk.status, code: bulk.json?.code })
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed`)

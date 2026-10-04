@@ -6,9 +6,18 @@ import {
 } from 'lucide-react';
 import type { WarrantiesApi, WarrantiesPageProps } from './types';
 import { usePrompt } from '../ui/ConfirmProvider'
+import { useMayWrite } from '../auth/PermissionsContext';
 
 // api is injected once at the page root; child components read it via useWarranties().
-const WarrantiesCtx = createContext<{ api: WarrantiesApi }>({ api: null as any });
+/**
+ * RAISING a claim and WORKING one are two permissions, and the claim rows are a sibling component,
+ * so both answers travel with the api. (T42 — "staff and viewer still see create/edit buttons")
+ *
+ * Every write on the warranties router asks `warranties:create` or `warranties:update`; admin and
+ * manager hold them, `field` and `viewer` do not. New Claim, Schedule, Deny and Complete were all
+ * offered to seats the API refuses.
+ */
+const WarrantiesCtx = createContext<{ api: WarrantiesApi; mayRaise: boolean; mayWork: boolean }>({ api: null as any, mayRaise: true, mayWork: true });
 const useWarranties = () => useContext(WarrantiesCtx);
 
 // UTC-safe date formatting (carried from templates' utils/date).
@@ -72,6 +81,8 @@ const CLAIM_STATUS: Record<string, { label: string; color: string; icon: React.C
  * Warranty Management Page
  */
 export default function WarrantiesPage({ api }: WarrantiesPageProps) {
+  const mayRaise = useMayWrite('warranties:create');
+  const mayWork = useMayWrite('warranties:update');
   const [tab, setTab] = useState<string>('warranties'); // warranties, claims
   const [warranties, setWarranties] = useState<WarrantyData[]>([]);
   const [claims, setClaims] = useState<ClaimData[]>([]);
@@ -103,7 +114,7 @@ export default function WarrantiesPage({ api }: WarrantiesPageProps) {
   };
 
   return (
-    <WarrantiesCtx.Provider value={{ api }}>
+    <WarrantiesCtx.Provider value={{ api, mayRaise, mayWork }}>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -111,13 +122,15 @@ export default function WarrantiesPage({ api }: WarrantiesPageProps) {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Warranties</h1>
           <p className="text-gray-500 dark:text-slate-400">Track warranties and service claims</p>
         </div>
-        <button
-          onClick={() => setShowNewClaim(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
-        >
-          <Plus className="w-4 h-4" />
-          New Claim
-        </button>
+        {mayRaise && (
+          <button
+            onClick={() => setShowNewClaim(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+          >
+            <Plus className="w-4 h-4" />
+            New Claim
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -316,7 +329,8 @@ interface ClaimsListProps {
 
 function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
   const ask = usePrompt()
-  const { api } = useWarranties();
+  // The page's answer, read here because this is where the controls are. (T42)
+  const { api, mayWork } = useWarranties();
   const [allClaims, setAllClaims] = useState<ClaimData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -441,7 +455,7 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2 justify-end">
-                        {claim.status === 'open' && (
+                        {mayWork && claim.status === 'open' && (
                           <>
                             <button
                               onClick={() => handleSchedule(claim.id)}
@@ -457,7 +471,7 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
                             </button>
                           </>
                         )}
-                        {(claim.status === 'scheduled' || claim.status === 'in_progress') && (
+                        {mayWork && (claim.status === 'scheduled' || claim.status === 'in_progress') && (
                           <button
                             onClick={() => handleComplete(claim.id)}
                             className="px-3 py-1 text-sm bg-green-700 text-white rounded-lg"
