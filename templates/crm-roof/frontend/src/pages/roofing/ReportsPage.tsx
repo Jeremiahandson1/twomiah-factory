@@ -94,6 +94,8 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   // invoiced / collected / outstanding, computed by the server from invoices (H3)
   const [money, setMoney] = useState<{ invoiced: number; collected: number; outstanding: number } | null>(null);
+  // Whether /api/jobs stripped the money out of the rows this page aggregates. (T42)
+  const [jobMoneyWithheld, setJobMoneyWithheld] = useState(false);
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -102,6 +104,10 @@ export default function ReportsPage() {
   // Page through at the allowed limit instead, so any job count is covered and the numbers are real.
   const fetchAllJobs = async () => {
     const all: any[] = [];
+    // The server says when it has stripped the money from these rows, and that has to be carried
+    // out of here: jobValue is a fallback chain, so missing keys do not produce an empty figure,
+    // they produce a DIFFERENT one. (T42 — see the note on moneyWithheld in routes/jobs.ts.)
+    let withheld = false;
     for (let page = 1; ; page++) {
       const r = await fetch(`/api/jobs?limit=500&page=${page}`, { headers });
       if (!r.ok) throw new Error('jobs request failed');
@@ -109,10 +115,11 @@ export default function ReportsPage() {
       if (Array.isArray(d)) { all.push(...d); break; }
       const rows = d.data || [];
       all.push(...rows);
+      if (d.moneyWithheld) withheld = true;
       const pages = d.pagination?.pages ?? 1;
       if (page >= pages || rows.length === 0) break;
     }
-    return all;
+    return { jobs: all, withheld };
   };
 
   const load = useCallback(async () => {
@@ -125,9 +132,10 @@ export default function ReportsPage() {
         fetch('/api/invoices/summary', { headers }),
       ]);
       setMoney(moneyRes.ok ? await moneyRes.json() : null);
+      setJobMoneyWithheld(jobsAll.withheld);
       const usersData = await usersRes.json();
       const crewsData = await crewsRes.json();
-      setJobs(jobsAll);
+      setJobs(jobsAll.jobs);
       setUsers(Array.isArray(usersData) ? usersData : usersData.data || []);
       setCrews(Array.isArray(crewsData) ? crewsData : crewsData.data || []);
     } catch {
@@ -254,6 +262,9 @@ export default function ReportsPage() {
             <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{signed} signed / {proposalsSent} proposed</p>
           </div>
 
+          {/* Both of these are summed from the job rows, so when the server withholds the money
+              they must be ABSENT, not $0 — see the note on moneyWithheld in routes/jobs.ts. (T42) */}
+          {!jobMoneyWithheld && (
           <div className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center dark:bg-purple-950/40">
@@ -265,7 +276,9 @@ export default function ReportsPage() {
               ${avgJobValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </p>
           </div>
+          )}
 
+          {!jobMoneyWithheld && (
           <div className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center dark:bg-orange-950/40">
@@ -281,6 +294,7 @@ export default function ReportsPage() {
             </p>
             <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">estimated value of all jobs</p>
           </div>
+          )}
         </div>
 
         {/* The money, from invoices rather than estimates (H3) */}
@@ -303,7 +317,8 @@ export default function ReportsPage() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Pipeline Value by Stage */}
+          {/* Pipeline Value by Stage — the bars are money, so they go with the tiles. (T42) */}
+          {!jobMoneyWithheld && (
           <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Pipeline Value by Stage</h2>
             {/* What the bars below add up to, and what they leave out. (T41) */}
@@ -329,6 +344,7 @@ export default function ReportsPage() {
               })}
             </div>
           </div>
+          )}
 
           {/* Jobs by Type */}
           <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
@@ -357,7 +373,9 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          {/* Revenue by Sales Rep */}
+          {/* Revenue by Sales Rep — T41 gated the per-job money in the payload; these two panels are
+              what it was being aggregated into, so they go too. (T42) */}
+          {!jobMoneyWithheld && (
           <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
             <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
               <Users className="w-4 h-4 text-gray-400" /> Revenue by Sales Rep
@@ -373,8 +391,9 @@ export default function ReportsPage() {
               )}
             </div>
           </div>
+          )}
 
-          {/* Revenue by Crew */}
+          {!jobMoneyWithheld && (
           <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
             <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
               <Users className="w-4 h-4 text-gray-400" /> Revenue by Crew
@@ -390,6 +409,7 @@ export default function ReportsPage() {
               )}
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>

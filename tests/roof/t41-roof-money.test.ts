@@ -41,7 +41,7 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
 const { setupSchema } = await import('./setup.ts')
 await setupSchema()
 const { db } = await import('./db/index.ts')
-const { company, user, contact, job, crew, invoice, quote } = await import('./db/schema.ts')
+const { company, user, contact, job, crew, invoice, quote, material } = await import('./db/schema.ts')
 
 const [co] = await db.insert(company).values({
   name: 'Summit Ridge Roofing', slug: 'summit-ridge-money', email: 'money@test.local', state: 'OH',
@@ -74,6 +74,11 @@ const [jobA] = await db.insert(job).values({
   propertyAddress: '144 Shingle Ln', city: 'Columbus', state: 'OH', zip: '43215',
   estimatedRevenue: '48500.00', materialCost: '16200.00', laborCost: '9800.00',
   deductible: '1000.00', rcv: '52000.00', acv: '41000.00',
+  // T42: the four columns the strip MISSED. finalRevenue is what the job actually billed, and
+  // approvedScope is the carrier's approved scope of work — the claim's money written out in words,
+  // which is why it is treated as money and not as a note.
+  finalRevenue: '50750.00',
+  approvedScope: 'Full tear-off approved at 52000.00 RCV, less the 1000.00 deductible.',
 } as any).returning()
 const [jobB] = await db.insert(job).values({
   companyId: co.id, contactId: homeowner.id, assignedCrewId: cr.id, assignedSalesRepId: manager.id,
@@ -107,8 +112,21 @@ await db.insert(quote).values({
   expiresAt: new Date(Date.now() + 30 * 86400000),
 } as any)
 
+// T42: a material order is a supplier's price list for one roof. The canonical line item is
+// {description, qty, unit, unitPrice, total}, written by normaliseLineItems, and `totalCost` is the
+// order's own total — computed on the server, never taken from the client.
+const [order] = await db.insert(material).values({
+  companyId: co.id, jobId: jobA.id, supplier: 'ABC Supply', orderStatus: 'ordered',
+  lineItems: [
+    { description: 'Owens Corning Duration — Onyx Black', qty: 45, unit: 'bundle', unitPrice: 725.10, total: 32629.50 },
+    { description: 'Synthetic underlayment', qty: 6, unit: 'roll', unitPrice: 165.75, total: 994.50 },
+  ],
+  totalCost: '33624.00',
+} as any).returning()
+
 const app = new Hono()
 app.route('/api/invoices', (await import('./src/routes/invoices.ts')).default)
+app.route('/api/materials', (await import('./src/routes/materials.ts')).default)
 app.route('/api/jobs', (await import('./src/routes/jobs.ts')).default)
 app.route('/api/quotes', (await import('./src/routes/quotes.ts')).default)
 app.route('/api/crews', (await import('./src/routes/crews.ts')).default)
@@ -283,6 +301,118 @@ console.log('\n══════════ /api/crews — read because Report
     { status: detail.status, n: (detail.json?.activeJobs || []).length })
   check('…and those job rows carry no money either — the projection is explicit, not a spread',
     !/48500|16200|9800|21750/.test(detail.text || ''), (detail.text || '').slice(0, 300))
+}
+
+// ══════════ T42: the four columns the strip missed, and the signal the SCREEN needed ═════════════
+//
+//   "Staff still see money: GET /api/jobs still returns finalRevenue, rcv, acv and approvedScope;
+//    Reports shows Avg Job Value $13,525 and Pipeline $54,100 (owner sees $9,636 and $115,631, so
+//    the figures are also wrong); Materials shows Total Cost."            — Roofing, HIGH
+//
+// The leak and the WRONG FIGURES were one cause. There were two hand-written field lists, one per
+// read: the list stripped four keys and the detail stripped six. Reports builds Avg Job Value and
+// Pipeline in the browser from `finalRevenue ?? estimatedRevenue ?? rcv ?? 0`, so deleting SOME of
+// those keys did not remove the figure — it moved the chain onto a column nobody had considered, and
+// staff and the owner then computed different totals off the same page with nothing to show either of
+// them that they disagreed. One list (JOB_MONEY) is used by both reads now.
+//
+// Completing the list is necessary and not sufficient: with every key gone the chain reaches `?? 0`
+// and the tiles read "$0", which is T42's own fleet-wide complaint ("Hidden money shown as $0 instead
+// of hidden"). So the list read also says `moneyWithheld`, and the page drops those tiles.
+console.log('\n══════════ T42: finalRevenue, rcv, acv, approvedScope — and moneyWithheld ══════════')
+const T42_JOB_MONEY = ['finalRevenue', 'rcv', 'acv', 'approvedScope'] as const
+{
+  const ownerJobs = await asOwner('GET', '/api/jobs?limit=500')
+  const oRow = rowsOf(ownerJobs.json).find((j: any) => j.jobNumber === 'ROOF-0001')
+  check('the owner\'s job list carries all four', !!oRow && T42_JOB_MONEY.every((k) => k in oRow),
+    T42_JOB_MONEY.map((k) => ({ [k]: oRow?.[k] })))
+  check('…and says nothing about money being withheld', ownerJobs.json?.moneyWithheld === undefined,
+    ownerJobs.json?.moneyWithheld)
+
+  const staffJobs = await asField('GET', '/api/jobs?limit=500')
+  const sRows = rowsOf(staffJobs.json)
+  for (const k of T42_JOB_MONEY) {
+    check(`…the crew seat's list has no ${k}`, sRows.every((j: any) => !(k in j)),
+      sRows.map((j: any) => (k in j ? j[k] : '«absent»')))
+  }
+  check('…and no final-revenue or carrier figure appears anywhere in the list payload',
+    !/50750|52000|41000/.test(staffJobs.text || ''), (staffJobs.text || '').slice(0, 300))
+  // The signal, not the zero: the two browser-computed tiles have to KNOW to hide rather than add up
+  // a list with the money taken out of it.
+  check('…and the list TELLS the page the money was withheld, so the tiles hide instead of reading $0',
+    staffJobs.json?.moneyWithheld === true, staffJobs.json?.moneyWithheld)
+  check('…the jobs themselves are still all there', sRows.length === 2, sRows.length)
+
+  const staffOne = await asField('GET', `/api/jobs/${jobA.id}`)
+  for (const k of T42_JOB_MONEY) {
+    check(`…the detail has no ${k} either — one list, both reads`, !(k in (staffOne.json || {})),
+      (staffOne.json || {})[k])
+  }
+  check('…and the approved scope of work, which states the money in words, is gone with the figures',
+    !/50750|52000/.test(staffOne.text || '') && !/Full tear-off approved/i.test(staffOne.text || ''),
+    (staffOne.text || '').slice(0, 300))
+}
+
+// ══════════ T42: the material order's cost ═══════════════════════════════════════════════════════
+//
+// Every write on this router asked for an inventory permission; neither read asked for anything at
+// all, so the crew seat read the supplier's prices straight off the Materials list. Gated on
+// `invoices:read` — the same question the job and invoice reads ask — and not on inventory:read,
+// because knowing what is on the truck is the part of this screen the crew is there for.
+console.log('\n══════════ T42: Materials shows Total Cost ══════════')
+{
+  const ownerMats = await asOwner('GET', '/api/materials')
+  const oRows = rowsOf(ownerMats.json)
+  check('the owner reads the order with its cost', ownerMats.status === 200 && oRows.length === 1 &&
+    Number(oRows[0]?.totalCost) === 33624, { status: ownerMats.status, n: oRows.length, c: oRows[0]?.totalCost })
+  check('…and each line still carries its unit price and line total',
+    oRows[0]?.lineItems?.[0]?.unitPrice === 725.1 && oRows[0]?.lineItems?.[0]?.total === 32629.5,
+    oRows[0]?.lineItems?.[0])
+  check('…with no withheld flag on it', ownerMats.json?.moneyWithheld === undefined, ownerMats.json?.moneyWithheld)
+
+  // viewer holds invoices:read. Its 200 is what proves this gate asks a permission and not a rank —
+  // the same reason the viewer seat is in the summary assertions above.
+  const viewerMats = await asViewer('GET', '/api/materials')
+  check('the VIEWER seat still reads the cost — a permission, not a rank',
+    viewerMats.status === 200 && Number(rowsOf(viewerMats.json)[0]?.totalCost) === 33624,
+    { status: viewerMats.status, c: rowsOf(viewerMats.json)[0]?.totalCost })
+
+  const staffMats = await asField('GET', '/api/materials')
+  const sRows = rowsOf(staffMats.json)
+  check('the crew seat STILL GETS THE ORDER — it needs to know what is arriving',
+    staffMats.status === 200 && sRows.length === 1, { status: staffMats.status, n: sRows.length })
+  check('…with no totalCost on it', !('totalCost' in (sRows[0] || {})), sRows[0]?.totalCost)
+  check('…and no price inside any line item',
+    (sRows[0]?.lineItems || []).every((li: any) => !('unitPrice' in li) && !('total' in li)),
+    sRows[0]?.lineItems)
+  check('…no figure from the order anywhere in the payload',
+    !/33624|32629|725\.1|165\.75|994\.5/.test(staffMats.text || ''), (staffMats.text || '').slice(0, 300))
+  check('…the list says the money was withheld, so the column goes rather than showing a dash',
+    staffMats.json?.moneyWithheld === true, staffMats.json?.moneyWithheld)
+  // What the crew actually came for. If this fails the gate went too far.
+  check('…while the supplier, the status, the description, the quantity and the unit are all intact',
+    sRows[0]?.supplier === 'ABC Supply' && sRows[0]?.status === 'ordered' &&
+    sRows[0]?.jobNumber === 'ROOF-0001' && sRows[0]?.lineItems?.[0]?.qty === 45 &&
+    sRows[0]?.lineItems?.[0]?.unit === 'bundle' &&
+    sRows[0]?.lineItems?.[0]?.description === 'Owens Corning Duration — Onyx Black', sRows[0])
+
+  // The detail is the same order one request away. The list used to be the only place anybody looked.
+  const staffOne = await asField('GET', `/api/materials/${order.id}`)
+  check('the crew seat opens the order', staffOne.status === 200, { status: staffOne.status })
+  check('…and the detail withholds the same prices the list does',
+    !('totalCost' in (staffOne.json || {})) && staffOne.json?.moneyWithheld === true &&
+    (staffOne.json?.lineItems || []).every((li: any) => !('unitPrice' in li) && !('total' in li)),
+    staffOne.json)
+  check('…no figure in the detail payload either',
+    !/33624|32629|725\.1|165\.75|994\.5/.test(staffOne.text || ''), (staffOne.text || '').slice(0, 300))
+
+  const ownerOne = await asOwner('GET', `/api/materials/${order.id}`)
+  check('the owner opens the same order and sees what it cost',
+    ownerOne.status === 200 && Number(ownerOne.json?.totalCost) === 33624, { status: ownerOne.status, c: ownerOne.json?.totalCost })
+
+  const mat: any = await db.execute(sql`SELECT total_cost FROM material WHERE id = ${order.id}`)
+  check('and the cost is still ON the order — a read gate, not a deletion',
+    Number(((mat as any).rows || mat)[0]?.total_cost) === 33624, ((mat as any).rows || mat)[0])
 }
 
 // ══════════ the database still says what it said ═════════════════════════════════════════════════

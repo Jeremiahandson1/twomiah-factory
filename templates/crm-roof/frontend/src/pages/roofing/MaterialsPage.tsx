@@ -32,6 +32,9 @@ export default function MaterialsPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [suppliers, setSuppliers] = useState<string[]>([]);
+  // The list says so when the role may not see the prices; the Total Cost column then goes away
+  // instead of showing a dash beside a real order. (T42)
+  const [costWithheld, setCostWithheld] = useState(false);
 
   const limit = 25;
   const headers = { Authorization: `Bearer ${token}` };
@@ -50,6 +53,7 @@ export default function MaterialsPage() {
       const items = Array.isArray(data) ? data : data.data || [];
       setOrders(items);
       setTotal(data.pagination?.total || data.total || items.length);
+      setCostWithheld(!!data.moneyWithheld);
 
       // Extract unique suppliers
       const uniqueSuppliers = [...new Set(items.map((o: any) => o.supplier).filter(Boolean))] as string[];
@@ -112,14 +116,16 @@ export default function MaterialsPage() {
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Status</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Order Date</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Delivery Date</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Total Cost</th>
+                  {!costWithheld && (
+                    <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Total Cost</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={6} className="text-center py-12 text-gray-500 dark:text-slate-400">Loading...</td></tr>
+                  <tr><td colSpan={costWithheld ? 5 : 6} className="text-center py-12 text-gray-500 dark:text-slate-400">Loading...</td></tr>
                 ) : orders.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-12 text-gray-500 dark:text-slate-400">No material orders found</td></tr>
+                  <tr><td colSpan={costWithheld ? 5 : 6} className="text-center py-12 text-gray-500 dark:text-slate-400">No material orders found</td></tr>
                 ) : (
                   orders.map((order) => (
                     <tr
@@ -144,9 +150,11 @@ export default function MaterialsPage() {
                       <td className="px-4 py-3 text-gray-600 text-xs dark:text-slate-400">
                         {order.deliveryDate ? formatDate(order.deliveryDate) : '—'}
                       </td>
-                      <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">
-                        {order.totalCost != null ? `$${Number(order.totalCost).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
-                      </td>
+                      {!costWithheld && (
+                        <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">
+                          {order.totalCost != null ? `$${Number(order.totalCost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}

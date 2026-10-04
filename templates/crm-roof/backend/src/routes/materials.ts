@@ -4,11 +4,40 @@ import { db } from '../../db/index.ts'
 import { material, job } from '../../db/schema.ts'
 import { eq, and, desc, count } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { lineItemInput, normaliseLineItems, materialOrderStatus, optional } from '../lib/validation.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+/**
+ * A material order's COST is money, and both reads handed it to anybody who could open the screen.
+ * (T42, Roofing HIGH — "Materials shows Total Cost".) Every write here asks for an inventory
+ * permission; neither read asked for anything, so a viewer read the supplier's prices off the list.
+ *
+ * It is gated on the question roof's job and invoice reads already ask — `invoices:read` — and not on
+ * an inventory permission, because knowing WHAT is on the truck is the part of this screen a crew lead
+ * needs and `inventory:read` is exactly that permission. So the prices go and nothing else does: the
+ * description, quantity and unit stay, and the order still reads as an order.
+ */
+const MATERIAL_MONEY = ['totalCost'] as const
+
+/** The money inside a line item. The canonical line is {code?, description, qty, unit, unitPrice, total}. */
+const MATERIAL_LINE_MONEY = ['unitPrice', 'total'] as const
+
+/** A material row with the prices removed — the order's own total and each line's. Used by BOTH reads. */
+const withoutMaterialMoney = (row: any) => {
+  const out = { ...row }
+  for (const f of MATERIAL_MONEY) delete out[f]
+  if (Array.isArray(out.lineItems)) {
+    out.lineItems = out.lineItems.map((li: any) => {
+      const line = { ...li }
+      for (const f of MATERIAL_LINE_MONEY) delete line[f]
+      return line
+    })
+  }
+  return out
+}
 
 // N1: the write schema and the read shape disagreed, silently.
 //
@@ -61,7 +90,15 @@ app.get('/', async (c) => {
   // `status` too, which is what the list reads.
   const data = rows.map((r: any) => ({ ...r.material, jobNumber: r.jobNumber, status: r.material.orderStatus }))
 
-  return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
+  // `moneyWithheld` so the SCREEN can drop the Total Cost column rather than print "$0" or "—" for a
+  // real order — T42 calls that out fleet-wide ("Hidden money shown as $0 instead of hidden").
+  const maySeeCost = hasPermission(currentUser?.role, 'invoices:read', await getExtraPermissions(currentUser?.userId))
+
+  return c.json({
+    data: maySeeCost ? data : data.map(withoutMaterialMoney),
+    ...(maySeeCost ? {} : { moneyWithheld: true }),
+    pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) },
+  })
 })
 
 // Create material order
@@ -98,6 +135,9 @@ app.get('/:id', async (c) => {
     .where(and(eq(material.id, id), eq(material.companyId, currentUser.companyId)))
     .limit(1)
   if (!found) return c.json({ error: 'Material order not found' }, 404)
+
+  const maySeeCost = hasPermission(currentUser?.role, 'invoices:read', await getExtraPermissions(currentUser?.userId))
+  if (!maySeeCost) return c.json({ ...withoutMaterialMoney(found), moneyWithheld: true })
 
   return c.json(found)
 })

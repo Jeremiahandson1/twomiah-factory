@@ -15,6 +15,31 @@ import { uploadedForm } from '../utils/upload.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+/**
+ * EVERY money field on a roofing job, in ONE place — read straight off the job table.
+ *
+ * There were two hand-maintained lists for this one rule: the list read stripped four fields and the
+ * detail read stripped six, and between them they missed four. T42 found the gap from the outside:
+ *
+ *   "GET /api/jobs still returns finalRevenue, rcv, acv and approvedScope"
+ *
+ * `approvedScope` is here on purpose — it is the insurer's approved scope of work, which is the
+ * claim's money set out in words; stripping rcv and acv while leaving the scope that states them
+ * would be a gate with its own answer printed next to it. `totalSquares` is NOT here: a roof's size
+ * is what the crew is going to install, not what anybody is paid for it.
+ */
+const JOB_MONEY = [
+  'estimatedRevenue', 'finalRevenue', 'materialCost', 'laborCost',
+  'deductible', 'rcv', 'acv', 'approvedScope',
+] as const
+
+/** A job row with every money field removed. Used by BOTH reads, so they cannot drift again. */
+const withoutJobMoney = (row: any) => {
+  const out = { ...row }
+  for (const f of JOB_MONEY) delete out[f]
+  return out
+}
+
 // Date fields arrive as strings from the form; an unparseable one used to reach Postgres as an Invalid
 // Date and 500. '' clears the field, a bad value is a 400 naming the field.
 const JOB_DATE_FIELDS = ['dateOfLoss', 'inspectionDate', 'installDate', 'installEndDate'] as const
@@ -162,14 +187,45 @@ app.get('/', async (c) => {
    *
    * Everything a crew or a rep needs stays: the job, the address, the status, the dates, the
    * contact, the crew. What goes is what the job is worth and what it costs to deliver.
+   *
+   * T42: AND THE LIST WAS STILL FOUR FIELDS SHORT, in a different way from the detail.
+   *
+   *   "GET /api/jobs still returns finalRevenue, rcv, acv and approvedScope"
+   *
+   * The list stripped four fields and the detail stripped six — two hand-maintained lists for one
+   * rule, each missing something the other had. There is one list now (JOB_MONEY, below) and both
+   * reads use it, so a column added to the job table has a single place to be considered.
+   *
+   * `approvedScope` is in it deliberately: it is the insurer's approved scope of work, which is the
+   * claim's money written out in words. Stripping the figures and leaving the scope that states
+   * them would be a gate with its own answer printed beside it.
    */
   const maySeeMoney = hasPermission(currentUser?.role, 'invoices:read', await getExtraPermissions(currentUser?.userId))
-  const JOB_MONEY = ['estimatedRevenue', 'materialCost', 'laborCost', 'deductible'] as const
-  const shaped = maySeeMoney
-    ? dataWithRelations
-    : dataWithRelations.map((j: any) => { const o = { ...j }; for (const f of JOB_MONEY) delete o[f]; return o })
+  const shaped = maySeeMoney ? dataWithRelations : dataWithRelations.map(withoutJobMoney)
 
-  return c.json({ data: shaped, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
+  /**
+   * `moneyWithheld` so the SCREEN can hide a figure instead of computing a wrong one. (T42)
+   *
+   * Reports builds "Avg Job Value" and "Pipeline Value" in the browser from this list, and its
+   * `jobValue` is a fallback chain: `finalRevenue ?? estimatedRevenue ?? rcv ?? 0`. Deleting SOME of
+   * those keys does not make the figure disappear — it makes the chain pick a different column, so
+   * staff and the owner computed different totals off the same page and neither could tell:
+   *
+   *   staff  Avg Job Value $13,525   Pipeline $54,100
+   *   owner  Avg Job Value  $9,636   Pipeline $115,631
+   *
+   * Completing the field list below is necessary but not sufficient: with every money key gone the
+   * chain reaches `?? 0` and the tiles read "$0", which is the other thing T42 calls out
+   * fleet-wide — "Hidden money shown as $0 instead of hidden". A role that may not see the money
+   * should be told so, not shown a zero. The page already does exactly this for the invoice tiles
+   * (`{money && …}`, which fall away when /invoices/summary refuses); this gives it the same signal
+   * for the two tiles built from the job list.
+   */
+  return c.json({
+    data: shaped,
+    ...(maySeeMoney ? {} : { moneyWithheld: true }),
+    pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) },
+  })
 })
 
 // Create job with auto-generated jobNumber
@@ -263,9 +319,10 @@ app.get('/:id', async (c) => {
    * handing the same rows over through a job would walk straight around that.
    */
   const maySeeJobMoney = hasPermission(currentUser?.role, 'invoices:read', await getExtraPermissions(currentUser?.userId))
-  const DETAIL_MONEY = ['estimatedRevenue', 'materialCost', 'laborCost', 'deductible', 'rcv', 'acv'] as const
-  const jobRow: any = { ...foundJob }
-  if (!maySeeJobMoney) for (const f of DETAIL_MONEY) delete jobRow[f]
+  // The SAME list the list read uses (JOB_MONEY, top of file). This had its own copy, two fields
+  // longer than the other one and still two fields short — which is how finalRevenue and
+  // approvedScope stayed readable here after T41. (T42)
+  const jobRow: any = maySeeJobMoney ? { ...foundJob } : withoutJobMoney(foundJob)
 
   return c.json({
     ...jobRow,
