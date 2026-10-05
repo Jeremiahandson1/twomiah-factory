@@ -1553,6 +1553,15 @@ export const warrantyClaim = pgTable('warranty_claim', {
   title: text('title'),
   location: text('location'),
   priority: text('priority').default('normal'),
+  // HOW THE CUSTOMER GOT IN TOUCH, AND WHO TOOK IT DOWN. (T48)
+  //
+  // WarrantiesPage.tsx:605 has asked "Reported Via" since the form was written — Phone, Email,
+  // Client Portal, In Person — and :517 posts the whole form, so the value was always arriving. The
+  // route even adds `reportedBy: user.userId` on top of it and createClaim's signature declares
+  // both. The INSERT listed neither, so a shop chose how the customer reached them and the answer
+  // went nowhere.
+  reportedMethod: text('reported_method'),
+  reportedBy: text('reported_by'),
   description: text('description').notNull(),
   resolution: text('resolution'),
   resolvedAt: timestamp('resolved_at'),

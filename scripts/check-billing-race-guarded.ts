@@ -63,7 +63,22 @@ for (const file of files) {
     if (!billsOnce) continue
     // …and it must be the kind that refuses a second attempt. A handler with no already-billed check
     // is not claiming to bill once, and is out of scope here.
-    if (!/already been billed|invoice_id\b[^\n]*\?|\.invoiceId\)/.test(block) && !/already/i.test(block)) continue
+    /**
+     * "ALREADY" IS NOT A BILLING CHECK. (T48)
+     *
+     * The fallback here was a bare `/already/i` over the whole block, meaning any occurrence of the
+     * word marked the block as an already-billed guard. agreements.ts's service section — one block,
+     * because blocks split on `app.<verb>(` — gained a local helper named `already` for an unrelated
+     * question (does a visit already cover this date), and that one identifier pulled the entire
+     * service into scope and reported `/plans` as an unlocked billing handler. A word is not a
+     * property: ask for the phrase that actually means this.
+     *
+     * The specific forms are kept, so a handler that really does refuse a second attempt is still
+     * checked — and the count printed at the end is the proof that narrowing this did not quietly
+     * switch the guard off.
+     */
+    if (!/already been billed|invoice_id\b[^\n]*\?|\.invoiceId\)/.test(block)
+      && !/already\s+(?:been\s+)?(?:billed|invoiced|raised|charged)/i.test(block)) continue
     handlers++
 
     const route = (/app\.(?:get|post|put|patch|delete)\('([^']*)'/.exec(block) || [, '?'])[1]

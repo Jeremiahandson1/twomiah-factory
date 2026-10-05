@@ -74,8 +74,26 @@ const visits = async () => {
 // ══════════ a job the recurrence engine generated ═══════════════════════════════════════════════
 console.log('\n══════════ what the engine schedules ══════════')
 {
+  /**
+   * UPDATED IN T48, and worth saying why rather than just changing the number.
+   *
+   * This asserted the list starts EMPTY. That was the behaviour, and the owner reported it as the
+   * bug: on fstest there were four agreements, three active with a nextServiceDate — and zero visit
+   * rows and zero agreement-linked jobs, so both sources had nothing to find and the screen was
+   * correctly, uselessly blank. A maintenance plan whose own record says the next service is due HAS
+   * an upcoming visit; the absence of a booked row is the reason to show it, not to hide it.
+   *
+   * So the list now starts with exactly one row, from the plan itself — `live` is active with
+   * nextServiceDate seven days out — and the assertion is stronger than the one it replaces: it pins
+   * the source, and the next block pins that the generated job REPLACES this row rather than
+   * doubling it, because the engine's job lands on the same day the plan predicted.
+   */
   const before = await visits()
-  check('the list starts empty', before.status === 200 && before.rows.length === 0, { status: before.status, n: before.rows.length })
+  check('the list starts with the PLAN\'s own due date — not empty, which was the T48 finding',
+    before.status === 200 && before.rows.length === 1 && before.rows[0].source === 'plan',
+    { status: before.status, n: before.rows.length, sources: before.rows.map((r: any) => r.source) })
+  check('…and that row is marked due rather than scheduled, because nothing is booked yet',
+    before.rows[0]?.status === 'due', { status: before.rows[0]?.status })
 
   // exactly what generateNextJob writes: a scheduled job carrying the agreement
   await db.insert(job).values({

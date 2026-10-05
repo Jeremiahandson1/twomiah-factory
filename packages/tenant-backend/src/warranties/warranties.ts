@@ -12,6 +12,9 @@
 import { Hono } from 'hono';
 import { eq, and, or, count, desc, asc, gte, lte, lt, gt, inArray, sql } from 'drizzle-orm';
 import { withoutPortalCredential } from '../contacts/contacts';
+// The shared JOB- sequence, with its per-company advisory lock. Scheduling a warranty claim was
+// numbering its job `WC-<timestamp>`; see the comment at the insert. (T48)
+import { nextNumber } from '../invoicing/money';
 
 export interface WarrantiesTables {
   warrantyTemplate: any; projectWarranty: any; warrantyClaim: any;
@@ -384,6 +387,20 @@ async function createClaim(companyId: string, data: {
     title: data.title,
     location: data.location ?? null,
     priority: data.priority || 'normal',
+    /**
+     * THE TWO THE FORM HAS ALWAYS SENT AND THIS INSERT HAS ALWAYS DROPPED. (T48)
+     *
+     * WarrantiesPage.tsx:605 asks "Reported Via" — Phone, Email, Client Portal, In Person — :509
+     * defaults it to 'phone', and :517 posts the whole form object, so the value was arriving on
+     * every claim. The route above even adds `reportedBy: user.userId` beside it and this function's
+     * own signature declares both. They were simply not in the column list, so a shop recorded how
+     * the customer reached them and the answer went nowhere.
+     *
+     * The method is validated in the route against the four the select offers, so what lands here is
+     * either one of those or null — never free text, which would make the field useless for counting.
+     */
+    reportedMethod: data.reportedMethod ?? null,
+    reportedBy: data.reportedBy ?? null,
     description: data.description ?? '',
     status: 'open',
   }).returning();
@@ -538,21 +555,40 @@ async function scheduleWarrantyWork(
   const claim = claimRow.claim;
   const jobDescription = `Warranty claim repair:\n\n${claim.description || ''}\n\nNotes: ${notes || 'N/A'}`;
 
-  // Create job for warranty work
-  const [newJob] = await db.insert(job).values({
-    companyId,
-    contactId: claimRow.contact?.id ?? null,
-    projectId: claimRow.project?.id ?? null,
-    title: `Warranty: ${claim.description?.substring(0, 50) || 'Claim'}`,
-    description: jobDescription,
-    type: 'warranty',
-    status: 'scheduled',
-    priority: 'normal',
-    scheduledDate: new Date(scheduledDate),
-    address: claimRow.project?.address ?? null,
-    number: `WC-${Date.now()}`,
-    assignedToId: assignedTo ?? null,
-  }).returning();
+  /**
+   * THE SAME JOB- SEQUENCE AS EVERY OTHER JOB. (T48)
+   *
+   * This numbered the job `WC-${Date.now()}`, so scheduling a warranty claim dropped
+   * "WC-1791601400123" into a list that otherwise reads JOB-00047, JOB-00048 — unreadable, sorted
+   * nowhere, and a hole in a sequence an auditor expects to be unbroken.
+   *
+   * agreements.ts:425 carries the identical comment about `JOB-AGR-<timestamp>`: the same fault was
+   * found and fixed on the agreements path and this one was the sibling nobody went back for.
+   *
+   * nextNumber takes a per-company advisory lock released at commit, which is why this is in a
+   * transaction. The claim row was read BEFORE it opens — a helper reading the outer `db` from inside
+   * a transaction deadlocks.
+   */
+  const newJob = await db.transaction(async (tx: any) => {
+    const number = await nextNumber(tx, job, job.number, job.companyId, companyId, { prefix: 'JOB', pad: 5 });
+    const [created] = await tx.insert(job).values({
+      companyId,
+      contactId: claimRow.contact?.id ?? null,
+      projectId: claimRow.project?.id ?? null,
+      // The claim has a real title since T44 — use it, rather than the first 50 characters of the
+      // description, which is what this said when the title had nowhere to be stored.
+      title: `Warranty: ${claim.title || claim.description?.substring(0, 50) || 'Claim'}`,
+      description: jobDescription,
+      type: 'warranty',
+      status: 'scheduled',
+      priority: claim.priority || 'normal',
+      scheduledDate: new Date(scheduledDate),
+      address: claimRow.project?.address ?? null,
+      number,
+      assignedToId: assignedTo ?? null,
+    }).returning();
+    return created;
+  });
 
   // Assign technician
   if (assignedTo) {
@@ -812,6 +848,12 @@ export function createWarrantiesRoutes(deps: WarrantiesRoutesDeps) {
     const body = await c.req.json();
     if (!body?.warrantyId) return c.json({ error: 'A warranty is required to file a claim.' }, 400);
     if (!body?.title) return c.json({ error: 'A claim title is required.' }, 400);
+    // The four the "Reported Via" select offers. Checked here so the column only ever holds a value
+    // the form could have produced — and so a typo in a caller is a 400 rather than a quiet null.
+    const METHODS = ['phone', 'email', 'portal', 'in-person'];
+    if (body.reportedMethod != null && body.reportedMethod !== '' && !METHODS.includes(body.reportedMethod)) {
+      return c.json({ error: `Reported Via must be one of: ${METHODS.join(', ')}.` }, 400);
+    }
     try {
       const claim = await service.createClaim(user.companyId, {
         ...body,

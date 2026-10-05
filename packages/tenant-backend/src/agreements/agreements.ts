@@ -481,6 +481,9 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     const agreements = await db.select({
       id: serviceAgreement.id, name: serviceAgreement.name, number: serviceAgreement.number,
       planId: serviceAgreement.planId, contactId: serviceAgreement.contactId,
+      // Needed for the third source below: what the PLAN says is next, and whether it still runs.
+      status: serviceAgreement.status, nextServiceDate: serviceAgreement.nextServiceDate,
+      endDate: serviceAgreement.endDate,
     }).from(serviceAgreement).where(eq(serviceAgreement.companyId, companyId))
     if (agreements.length === 0) return []
     const agreementIds = agreements.map((a: any) => a.id)
@@ -545,6 +548,45 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
         title: j.title,
         agreement: agreementById.get(j.agreementId) ?? null,
       })),
+      /**
+       * …AND WHAT THE PLAN ITSELF SAYS IS NEXT. (T48 "Upcoming Visits is empty")
+       *
+       * Measured on fstest before writing this: four agreements, THREE ACTIVE with a nextServiceDate
+       * of 02/11 and 03/11 — and zero agreement_visit rows, zero jobs carrying a serviceAgreementId.
+       * So the two sources above had nothing to find and the list was correctly, uselessly empty.
+       *
+       * That is not what a shop means by "upcoming visits". A maintenance plan whose own record says
+       * the next service is due on the 2nd has an upcoming visit; the absence of a booked visit row is
+       * the reason to SHOW it, not to hide it — nobody has got round to scheduling it yet, which is
+       * exactly what this screen is for.
+       *
+       * Only where the agreement still runs: not ended, not cancelled — the same `ended` test the
+       * decorator uses, so a finished plan cannot reappear here having just been given no next date.
+       * And only where no visit or job already covers that date, so a plan that HAS been scheduled
+       * shows once, as the real thing, rather than twice.
+       */
+      ...agreements
+        .filter((a: any) => {
+          if (!a.nextServiceDate) return false
+          if (a.status !== 'active') return false
+          if (a.endDate && new Date(a.endDate).getTime() < Date.now()) return false
+          const due = new Date(a.nextServiceDate).getTime()
+          if (!(due >= startDate.getTime() && due <= endDate.getTime())) return false
+          const already = (d: Date | string) => new Date(d).toISOString().slice(0, 10) === new Date(a.nextServiceDate).toISOString().slice(0, 10)
+          if (booked.some((v: any) => v.agreementId === a.id && already(v.scheduledDate))) return false
+          if (generated.some((j: any) => j.agreementId === a.id && already(j.scheduledDate))) return false
+          return true
+        })
+        .map((a: any) => ({
+          id: `plan:${a.id}`,
+          scheduledDate: a.nextServiceDate,
+          serviceType: 'Maintenance',
+          // 'due' rather than 'scheduled': nothing has been booked, the plan simply says it is time.
+          status: 'due',
+          notes: null,
+          source: 'plan' as const,
+          agreement: agreementById.get(a.id) ?? null,
+        })),
     ]
     rows.sort((a, b) => new Date(a.scheduledDate as any).getTime() - new Date(b.scheduledDate as any).getTime())
     return rows

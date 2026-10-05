@@ -46,6 +46,12 @@ interface ProjectDetailData {
   rfis?: RelatedItem[];
   changeOrders?: RelatedItem[];
   punchListItems?: RelatedItem[];
+  /**
+   * HOW MANY THERE ARE. The four arrays above are capped by the route (10/10/10/20), so their
+   * `.length` is not a total — printing it reported ten change orders on a project with eleven.
+   * Counted in the database. (T48)
+   */
+  counts?: { jobs: number; rfis: number; changeOrders: number; punchListItems: number };
   /** Money, computed by the server over EVERY change order by status — never summed here. (T32 H4) */
   financials?: {
     budget: number | null;
@@ -385,22 +391,34 @@ export default function ProjectDetailPage() {
           {/* Summary */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Summary</h2>
+            {/*
+              THESE ARE TOTALS, AND THE LISTS THEY CAME FROM ARE CAPPED. (T48: "lists only 10 change
+              orders when there are 11")
+
+              Each of these printed `project.<list>?.length`, and the server caps those lists — jobs
+              10, rfis 10, change orders 10, punch list 20 — so a project with eleven change orders
+              reported ten and the eleventh was nowhere on the page. The route now returns real
+              COUNT(*) figures in `counts`; the capped arrays stay for the five-row previews above.
+
+              The fallback to the array length is for a cached response from before `counts` existed,
+              not a second source of truth — it shows the old number rather than 0 for one load.
+            */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-gray-500 dark:text-slate-400">Jobs</span>
-                <span className="font-medium">{project.jobs?.length || 0}</span>
+                <span className="font-medium">{project.counts?.jobs ?? project.jobs?.length ?? 0}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-500 dark:text-slate-400">RFIs</span>
-                <span className="font-medium">{project.rfis?.length || 0}</span>
+                <span className="font-medium">{project.counts?.rfis ?? project.rfis?.length ?? 0}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-500 dark:text-slate-400">Change Orders</span>
-                <span className="font-medium">{project.changeOrders?.length || 0}</span>
+                <span className="font-medium">{project.counts?.changeOrders ?? project.changeOrders?.length ?? 0}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-500 dark:text-slate-400">Punch List Items</span>
-                <span className="font-medium">{project.punchListItems?.length || 0}</span>
+                <span className="font-medium">{project.counts?.punchListItems ?? project.punchListItems?.length ?? 0}</span>
               </div>
             </div>
           </div>

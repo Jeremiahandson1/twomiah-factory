@@ -69,9 +69,29 @@ export default function DispatchBoard() {
     }
   };
 
-  const unassigned = jobs.filter(j => !j.assignedTo && j.status !== 'completed');
-  const inProgress = jobs.filter(j => j.status === 'in_progress');
+  /**
+   * THE FOUR COLUMNS MUST ACCOUNT FOR EVERY JOB ON THE DAY. (T48: "one job missing, no Scheduled column")
+   *
+   * There were three buckets — unassigned, in_progress, completed — and a job that had been ASSIGNED
+   * and was still `scheduled` matched none of them. It was on the board's data and off its screen.
+   * Measured on fstest: 1 job invisible on 05/10 and 3 on 06/10, every one of them dispatched work
+   * sitting in the normal state dispatched work sits in. The owner's two findings are one hole.
+   *
+   * So `scheduled` is now its own column, and the rule is a PARTITION rather than three guesses:
+   * completed, else in progress, else assigned, else not. Anything with a status nobody here
+   * anticipated — on_hold, dispatched, a status a later round adds — lands in Scheduled if it has an
+   * assignee and in Unassigned if it does not, instead of disappearing. A board that silently drops
+   * work is worse than one with an ugly column.
+   *
+   * `assignedTo` is the joined USER OBJECT and `assignedToId` is the id; the API returns both. Read
+   * through one helper so the two can never drift — testing the object happened to work and reads
+   * like a mistake.
+   */
+  const assigneeOf = (j) => j.assignedToId || j.assignedToMemberId || (j.assignedTo ? (j.assignedTo.id || j.assignedTo) : null);
   const completed = jobs.filter(j => j.status === 'completed');
+  const inProgress = jobs.filter(j => j.status === 'in_progress');
+  const scheduled = jobs.filter(j => j.status !== 'completed' && j.status !== 'in_progress' && !!assigneeOf(j));
+  const unassigned = jobs.filter(j => j.status !== 'completed' && j.status !== 'in_progress' && !assigneeOf(j));
 
   const handleAssign = async (jobId, techId) => {
     try {
@@ -148,9 +168,13 @@ export default function DispatchBoard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
         <StatCard icon={ClipboardList} label="Total Jobs" value={jobs.length} />
         <StatCard icon={AlertTriangle} label="Unassigned" value={unassigned.length} color="orange" />
+        {/* Scheduled is counted too, so the four tiles add up to Total Jobs. They did not before:
+            unassigned + in progress + completed left the assigned-but-not-started work out, which is
+            how a missing job stayed unnoticed on a page that was showing its own numbers. (T48) */}
+        <StatCard icon={Calendar} label="Scheduled" value={scheduled.length} color="indigo" />
         <StatCard icon={Play} label="In Progress" value={inProgress.length} color="blue" />
         <StatCard icon={CheckCircle} label="Completed" value={completed.length} color="green" />
       </div>
@@ -161,7 +185,7 @@ export default function DispatchBoard() {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           {/* Unassigned Column */}
           <div>
             <div className="flex items-center gap-2 mb-4 pb-2 border-b">
@@ -189,8 +213,36 @@ export default function DispatchBoard() {
             </div>
           </div>
 
+          {/* Scheduled Column — assigned work that has not started. Added T48: these jobs were on
+              the board's data and on no column, so they were simply absent. */}
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-4 pb-2 border-b">
+              <div className="w-3 h-3 rounded-full bg-indigo-500" />
+              <h2 className="font-semibold text-gray-900 dark:text-white">Scheduled</h2>
+              <span className="ml-auto text-sm text-gray-600 bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded-full dark:text-slate-300">
+                {scheduled.length}
+              </span>
+            </div>
+            <div className="space-y-3">
+              {scheduled.map(job => (
+                <DispatchCard
+                  key={job.id}
+                  job={job}
+                  techs={techs}
+                  onAssign={handleAssign}
+                  onStatusChange={handleStatusChange}
+                />
+              ))}
+              {scheduled.length === 0 && (
+                <div className="text-center py-8 text-gray-600 dark:text-slate-400 text-sm">
+                  Nothing scheduled yet
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* In Progress Column */}
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2 mb-4 pb-2 border-b">
               <div className="w-3 h-3 rounded-full bg-blue-500" />
               <h2 className="font-semibold text-gray-900 dark:text-white">In Progress</h2>
@@ -254,6 +306,9 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }) {
     orange: 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400',
     blue: 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400',
     green: 'bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400',
+    // Added with the Scheduled tile (T48). A colour missing from this map resolves to `undefined`
+    // and lands in the className as the literal word, so the tile loses its ground entirely.
+    indigo: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400',
   };
 
   return (

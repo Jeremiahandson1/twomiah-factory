@@ -380,11 +380,24 @@ async function estimatedCostsByQuote(quoteIds: string[]): Promise<Map<string, { 
     const lineCost = sql`${quoteLineItem.quantity} * ${quoteLineItem.unitCost}`
     const rows = await db.select({
       quoteId: quoteLineItem.quoteId,
-      labor: sql<string>`COALESCE(SUM(CASE WHEN ${quoteLineItem.type} = 'labor' AND ${quoteLineItem.unitCost} IS NOT NULL THEN ${lineCost} ELSE 0 END), 0)`,
+      /**
+       * 'service' COUNTS AS LABOUR. (T48 "estimated labour cost is still $0")
+       *
+       * This read `type = 'labor'` only, and a field-service catalogue types its work `service` —
+       * AC Tune-Up, Furnace Inspection, Capacitor Replace. So the labour bucket was empty for the
+       * entire trade and the labour inside a costed tune-up was reported as MATERIAL by the `other`
+       * fold-in below: the total stayed right and the split was wrong, which reads as a real figure
+       * and is therefore worse than a blank.
+       *
+       * The proof is two lines down: `laborHours` sums the pricebook item's labor_hours with NO type
+       * filter, so the same line already contributes 1.5 hours of labour while contributing $0 of
+       * labour cost. The hours and the cost must come off the same lines.
+       */
+      labor: sql<string>`COALESCE(SUM(CASE WHEN ${quoteLineItem.type} IN ('labor', 'service') AND ${quoteLineItem.unitCost} IS NOT NULL THEN ${lineCost} ELSE 0 END), 0)`,
       material: sql<string>`COALESCE(SUM(CASE WHEN ${quoteLineItem.type} IN ('material', 'part') AND ${quoteLineItem.unitCost} IS NOT NULL THEN ${lineCost} ELSE 0 END), 0)`,
-      // Anything not costed, whatever its type — including a costed line typed 'service'/'other',
-      // which contributes to neither bucket and would otherwise vanish without trace.
-      other: sql<string>`COALESCE(SUM(CASE WHEN ${quoteLineItem.unitCost} IS NOT NULL AND (${quoteLineItem.type} IS NULL OR ${quoteLineItem.type} NOT IN ('labor', 'material', 'part')) THEN ${lineCost} ELSE 0 END), 0)`,
+      // A costed line that is none of labour/service/material/part — reported with materials below
+      // rather than dropped, because the alternative is an estimate that silently excludes it.
+      other: sql<string>`COALESCE(SUM(CASE WHEN ${quoteLineItem.unitCost} IS NOT NULL AND (${quoteLineItem.type} IS NULL OR ${quoteLineItem.type} NOT IN ('labor', 'service', 'material', 'part')) THEN ${lineCost} ELSE 0 END), 0)`,
       uncosted: sql<string>`COUNT(*) FILTER (WHERE ${quoteLineItem.unitCost} IS NULL)`,
       /**
        * HOW LONG THE CATALOGUE SAYS THE WORK TAKES. (T42 "pricebook labour hours ignored")

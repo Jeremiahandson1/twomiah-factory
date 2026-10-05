@@ -46,12 +46,37 @@ export function staffName(u: StaffMember): string {
   return u.name || [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || u.id;
 }
 
+/**
+ * A MANAGEMENT SEAT IS NOT A CHAIR. (T48: "the owner is still offered as a stylist")
+ *
+ * /api/team/assignable answers "who can be given work", and for field service that rightly includes
+ * the owner — in a small trade shop the owner turns out on jobs. A salon's chair is a different
+ * question, and the owner has now reported twice that the list offers people who do not take clients.
+ *
+ * `user.role` is an ACCESS role, not a job title: `user`/`field`/`staff` are the people who do the
+ * work (qa.staff's `user` normalises to field — the stylist seat), while owner/admin/manager are
+ * seats for running the place. A job title lives on the ROSTER instead, which is why a roster-only
+ * stylist (kind 'member') always belongs here — somebody added them to hold a chair.
+ *
+ * Measured on saltest before writing this rule: Admin User (owner), Morgan Manager and QA2 Manager
+ * (manager) were all offered; QA2 Stylist and Sam Staff (`user`) and T20 Roster Probe (roster
+ * 'stylist') are the three who actually take clients. "Front Desk" had already gone — that was the
+ * viewer seat the shared endpoint stopped offering last round.
+ *
+ * THE LAST CLAUSE IS THE IMPORTANT ONE. If filtering leaves nobody, the management seats come back:
+ * a one-chair salon where the owner IS the stylist must not end up with an empty dropdown and no way
+ * to book anyone. A rule that produces an empty picker is a worse bug than the one it fixes.
+ */
+const MANAGEMENT_ONLY = new Set(['owner', 'admin', 'manager']);
+const takesClients = (u: { role?: string; kind?: string }) =>
+  u.kind === 'member' || !MANAGEMENT_ONLY.has(String(u.role || '').toLowerCase());
+
 export async function fetchStaff(): Promise<StaffMember[]> {
   const res = await api.get('/api/team/assignable');
   const list: any[] = Array.isArray(res) ? res : (res?.data ?? []);
-  return list
-    // A revoked stylist must not stay assignable.
-    .filter((u) => u.active !== false && u.isActive !== false)
+  const active = list.filter((u) => u.active !== false && u.isActive !== false);
+  const serving = active.filter(takesClients);
+  return (serving.length ? serving : active)
     .map((u) => {
       const parts = String(u.name || '').trim().split(/\s+/);
       return {

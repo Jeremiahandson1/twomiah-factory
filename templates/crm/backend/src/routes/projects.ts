@@ -302,6 +302,35 @@ app.get('/:id', async (c) => {
   const pendingChangeOrders = Math.round(sumWhere(['draft', 'submitted', 'pending']) * 100) / 100
   const originalValue = Number(foundProject.estimatedValue || 0)
 
+  /**
+   * HOW MANY THERE REALLY ARE, NOT HOW MANY WERE RETURNED. (T48: "lists only 10 change orders when
+   * there are 11")
+   *
+   * The four related lists above are capped — jobs 10, rfis 10, change orders 10, punch list 20 —
+   * and the project page prints `project.changeOrders?.length` as the total. So a project with
+   * eleven change orders said ten, and the eleventh existed nowhere on the screen.
+   *
+   * The comment above this already knew: it says the money sum "was done on the screen over
+   * changeOrders, which is also capped at 10 rows above". The MONEY was moved here and the COUNT was
+   * left behind — half the fix, and the half that was left is the one the owner read.
+   *
+   * Counted in the database rather than by lengthening the cap: the page shows five rows and a "View
+   * All" link, so fetching more rows to count them would be work nobody looks at, and any cap would
+   * be wrong again at cap+1.
+   */
+  const [jobCount, rfiCount, punchCount] = await Promise.all([
+    db.select({ n: count() }).from(job).where(eq(job.projectId, id)),
+    db.select({ n: count() }).from(rfi).where(eq(rfi.projectId, id)),
+    db.select({ n: count() }).from(punchListItem).where(eq(punchListItem.projectId, id)),
+  ])
+  const counts = {
+    jobs: Number(jobCount[0]?.n || 0),
+    rfis: Number(rfiCount[0]?.n || 0),
+    // coTotals is already grouped by status over EVERY change order, so the total is free here.
+    changeOrders: coTotals.reduce((s, r) => s + Number(r.n || 0), 0),
+    punchListItems: Number(punchCount[0]?.n || 0),
+  }
+
   /*
    * No money for somebody who may not see it — and that means the whole `financials` block AND the
    * raw columns `...foundProject` spreads, which is where Budget $40,000 came from. Returning the
@@ -320,6 +349,9 @@ app.get('/:id', async (c) => {
       jobs, rfis, punchListItems,
       // The changes themselves — what the work needs, and nothing else. See above. (T37 N6 / N9)
       changeOrders: changeOrders.map(changeOrderForWork),
+      // How many there are, which is not how many are in those capped lists. Counts are not money,
+      // so they are returned on this tier too. (T48)
+      counts,
     })
   }
 
@@ -330,6 +362,9 @@ app.get('/:id', async (c) => {
     contact: projectContact[0] || null,
     jobs, rfis, punchListItems,
     changeOrders: signoff ? changeOrders : changeOrders.map(changeOrderWithMoney),
+    // See the note where `counts` is built: the related lists are capped and the page was printing
+    // their length as the total. (T48)
+    counts,
     financials: {
       budget: foundProject.budget === null ? null : Number(foundProject.budget),
       /** What the project was worth before anybody changed it — the value less what approval added. */

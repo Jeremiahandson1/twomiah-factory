@@ -51,6 +51,14 @@ interface ClaimData {
   title: string;
   status: string;
   reportedDate: string;
+  /**
+   * Collected by the create form and stored since T48 — "Reported Via" (phone / email / portal /
+   * in-person) and where on the property the fault is. Both are shown on the row: a field that is
+   * written and never displayed is one nobody can tell is working, which is how reportedMethod sat
+   * unsaved through four rounds.
+   */
+  reportedMethod?: string | null;
+  location?: string | null;
   warranty?: { name: string };
   project?: { name: string };
   contact?: { name: string };
@@ -444,8 +452,20 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
                       <p className="text-gray-900 dark:text-slate-100">{claim.project?.name}</p>
                       <p className="text-sm text-gray-500 dark:text-slate-400">{claim.contact?.name}</p>
                     </td>
-                    <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
+                    <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
                       {formatDate(claim.reportedDate)}
+                      {/*
+                        The form asks "Reported Via" and it is now stored, so show it — a field that
+                        is written and never displayed is one nobody can tell is working, which is
+                        how it sat unsaved through four rounds. Same for the location: both are
+                        collected on the create form and neither appeared anywhere afterwards.
+                      */}
+                      {claim.reportedMethod && (
+                        <span className="block text-xs capitalize">via {String(claim.reportedMethod).replace('-', ' ')}</span>
+                      )}
+                      {claim.location && (
+                        <span className="block text-xs break-words">{claim.location}</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-${status.color}-100 text-${status.color}-700`}>
