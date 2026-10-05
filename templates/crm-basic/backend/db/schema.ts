@@ -293,6 +293,18 @@ export const quoteLineItem = pgTable('quote_line_item', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   description: text('description').notNull(),
   type: text('type'),
+  /**
+   * WHAT THE LINE COSTS US, and the catalogue item it was priced from. (T49)
+   *
+   * Job costing used to estimate cost from `total` — the line's PRICE — which states a 0% margin on
+   * work nobody has costed. crm-fieldservice gained these two in its migration 0024 and these three
+   * templates never ran it, so they kept the price-as-cost behaviour for two more rounds.
+   *
+   * Nullable on purpose: an uncosted line records NO cost rather than zero, and job costing counts it
+   * in `uncostedLines` instead of pricing the work at nothing.
+   */
+  unitCost: decimal('unit_cost', { precision: 12, scale: 2 }),
+  pricebookItemId: text('pricebook_item_id'),
   quantity: decimal('quantity', { precision: 10, scale: 2 }).default('1').notNull(),
   unitPrice: decimal('unit_price', { precision: 12, scale: 2 }).default('0').notNull(),
   total: decimal('total', { precision: 12, scale: 2 }).default('0').notNull(),

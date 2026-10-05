@@ -40,6 +40,9 @@ import {
   project,
   quote,
   quoteLineItem,
+  // The catalogue item a quote line was priced from — read for its labor_hours, so the estimate
+  // knows how long the work takes rather than only what somebody typed on the job. (T49)
+  pricebookItem,
   invoice,
   timeEntry,
   // Where a person's pay rate actually lives. jobCosting used to fall back to
@@ -332,18 +335,61 @@ export async function attributeRevenue(companyId: string, inScope: JobKey[]): Pr
  * Making it a true estimated cost needs a cost column on quote lines and a screen to enter it, and
  * inventing a margin assumption to fill the gap is exactly the fault being fixed elsewhere in here.
  */
-async function estimatedCostsByQuote(quoteIds: string[]): Promise<Map<string, { labor: number; material: number }>> {
-  const out = new Map<string, { labor: number; material: number }>()
+async function estimatedCostsByQuote(quoteIds: string[]): Promise<Map<string, { labor: number; material: number; uncostedLines: number; laborHours: number }>> {
+  const out = new Map<string, { labor: number; material: number; uncostedLines: number; laborHours: number }>()
   for (const ids of chunks(quoteIds)) {
+    /**
+     * COST, NOT PRICE. (T49 — the owner asked for this after T48 named it)
+     *
+     * This summed `quote_line_item.total`, which is what the CUSTOMER pays. Reporting that back as
+     * our cost states a 0% margin on work nobody has costed — the inverse of the 100% margin T41
+     * fixed on crm-fieldservice, and the same kind of invention. crm-fieldservice's own comment has
+     * said so for two rounds; these three templates had never run the migration that gave them
+     * somewhere to put a real cost. They have it now (0038 / 0028 / 0028).
+     *
+     * What it reads, in order of what it actually knows:
+     *
+     *   1. unit_cost × quantity, where the line records a cost — entered by hand in the editor's cost
+     *      column or filled from the pricebook item's `cost` by the picker. The only figure here
+     *      that deserves the name.
+     *   2. nothing, where it does not. NOT the line's price. Those lines are counted in
+     *      `uncostedLines` so a screen can say "3 lines have no cost recorded" instead of implying
+     *      the job breaks even.
+     *
+     * 'service' counts as LABOUR alongside 'labor' (T48): a catalogue types its work `service` far
+     * more often — AC Tune-Up, Spring Cleanup, Kitchen Remodel — and the labour HOURS below already
+     * come off those same lines with no type filter, so excluding them from the cost made one row
+     * report hours of labour and no labour cost.
+     */
+    const lineCost = sql`${quoteLineItem.quantity} * ${quoteLineItem.unitCost}`
     const rows = await db.select({
       quoteId: quoteLineItem.quoteId,
-      labor: sql<string>`COALESCE(SUM(CASE WHEN ${quoteLineItem.type} = 'labor' THEN ${quoteLineItem.total} ELSE 0 END), 0)`,
-      material: sql<string>`COALESCE(SUM(CASE WHEN ${quoteLineItem.type} IN ('material', 'part') THEN ${quoteLineItem.total} ELSE 0 END), 0)`,
+      labor: sql<string>`COALESCE(SUM(CASE WHEN ${quoteLineItem.type} IN ('labor', 'service') AND ${quoteLineItem.unitCost} IS NOT NULL THEN ${lineCost} ELSE 0 END), 0)`,
+      material: sql<string>`COALESCE(SUM(CASE WHEN ${quoteLineItem.type} IN ('material', 'part') AND ${quoteLineItem.unitCost} IS NOT NULL THEN ${lineCost} ELSE 0 END), 0)`,
+      // A costed line that is none of labour/service/material/part — reported with materials below
+      // rather than dropped, because the alternative is an estimate that silently excludes it.
+      other: sql<string>`COALESCE(SUM(CASE WHEN ${quoteLineItem.unitCost} IS NOT NULL AND (${quoteLineItem.type} IS NULL OR ${quoteLineItem.type} NOT IN ('labor', 'service', 'material', 'part')) THEN ${lineCost} ELSE 0 END), 0)`,
+      uncosted: sql<string>`COUNT(*) FILTER (WHERE ${quoteLineItem.unitCost} IS NULL)`,
+      /**
+       * HOW LONG THE CATALOGUE SAYS THE WORK TAKES. The hours live on the pricebook item and the line
+       * records which item it was priced from, so they are summed through that link. Only where the
+       * catalogue states them: a line from an item with no labor_hours contributes nothing rather
+       * than a guess, exactly as an uncosted line contributes no cost.
+       */
+      laborHours: sql<string>`COALESCE(SUM(${quoteLineItem.quantity} * COALESCE(${pricebookItem.laborHours}, 0)), 0)`,
     })
       .from(quoteLineItem)
+      .leftJoin(pricebookItem, eq(pricebookItem.id, quoteLineItem.pricebookItemId))
       .where(inArray(quoteLineItem.quoteId, ids))
       .groupBy(quoteLineItem.quoteId)
-    for (const r of rows) out.set(r.quoteId, { labor: num(r.labor), material: num(r.material) })
+    for (const r of rows) {
+      out.set(r.quoteId, {
+        labor: num(r.labor),
+        laborHours: round1(num(r.laborHours)),
+        material: round2(num(r.material) + num(r.other)),
+        uncostedLines: Number(r.uncosted || 0),
+      })
+    }
   }
   return out
 }
@@ -390,7 +436,7 @@ export async function getJobCostAnalysis(jobId: string, companyId: string) {
   ])
   const rev = byJob.get(jobRow.id)!
   const cost = costMap.get(jobRow.id)!
-  const est = estMap.get(jobRow.quoteId || '') || { labor: 0, material: 0 }
+  const est = estMap.get(jobRow.quoteId || '') || { labor: 0, material: 0, uncostedLines: 0, laborHours: 0 }
 
   // The lines behind each figure. The hourly rate here resolves the same way costsByJob's SQL does.
   const timeEntries = await db.select()
@@ -425,7 +471,8 @@ export async function getJobCostAnalysis(jobId: string, companyId: string) {
     : []
 
   const estimatedRevenue = estimatedRevenueOf(quoteRow, jobRow.estimatedValue)
-  const estimatedLaborHours = num(jobRow.estimatedHours)
+  // The catalogue's hours where the quote was priced from it, else whatever was typed on the job.
+  const estimatedLaborHours = est.laborHours > 0 ? est.laborHours : num(jobRow.estimatedHours)
   const estimatedCost = round2(est.labor + est.material)
 
   const grossProfit = round2(rev.revenue - cost.totalCost)
@@ -451,6 +498,8 @@ export async function getJobCostAnalysis(jobId: string, companyId: string) {
       profit: estimatedProfit,
       margin: round1(estimatedMargin),
       laborHours: estimatedLaborHours,
+      /** Lines with no cost recorded. A $0 estimate that says why beats one that looks like a margin. */
+      uncostedLines: est.uncostedLines,
     },
 
     actual: {
@@ -589,7 +638,7 @@ export async function getJobCostingSummary(
   const rowFor = (j: typeof scope[number]) => {
     const rev = byJob.get(j.id) || { directRevenue: 0, sharedRevenue: 0, revenue: 0, salesTax: 0, collected: 0, invoiceIds: [], invoices: [] }
     const cost = costMap.get(j.id) || EMPTY_COST
-    const est = estMap.get(j.quoteId || '') || { labor: 0, material: 0 }
+    const est = estMap.get(j.quoteId || '') || { labor: 0, material: 0, uncostedLines: 0, laborHours: 0 }
     const estimatedRevenue = estimatedRevenueOf(j.quoteTotal != null ? { total: j.quoteTotal, taxAmount: j.quoteTax } : null, j.estimatedValue)
     const estimatedCost = round2(est.labor + est.material)
     const profit = round2(rev.revenue - cost.totalCost)

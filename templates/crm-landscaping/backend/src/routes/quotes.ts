@@ -21,7 +21,12 @@ export default createQuoteRoutes({
   loadPdf: () => import('../services/pdf.ts').then(m => m.generateQuotePDF),
   // timeZoneFor: the business's own clock decides what "today" is, so an invoice or quote raised
   // in the evening is not stamped with tomorrow. Render runs UTC. (Field Service T28 M4)
-  options: { timeZoneFor: (companyId: string) => companyTimeZone(db, companyId),
+  options: {
+    // quote_line_item carries unit_cost + pricebook_item_id here as of T49, so a line can record
+    // what the work costs as well as what it sells for. Without this the shared service refuses to
+    // write those columns — deliberately, because writing them where they do not exist fails every
+    // quote save.
+    hasLineCost: true, timeZoneFor: (companyId: string) => companyTimeZone(db, companyId),
     extraFields: ['siteId', 'equipmentId', 'customerMessage'],
     hasDeclinedAt: true,
     hasConvertedToJobId: true,

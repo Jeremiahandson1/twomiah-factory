@@ -267,6 +267,13 @@
       "when": 1792400100000,
       "tag": "0037_warranty_claim_reported_method",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1792400200000,
+      "tag": "0038_quote_line_cost",
+      "breakpoints": true
     }
   ]
 }
