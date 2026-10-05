@@ -478,11 +478,26 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     // the old query had no lower bound at all, so a visit scheduled in 2024 counted. (T42)
     const startDate = new Date(); startDate.setHours(0, 0, 0, 0)
 
+    /**
+     * NOT EVERY TEMPLATE STORES A NEXT SERVICE DATE. (T48 — caught live on ctrtest as a 500)
+     *
+     * This file is shared, and the templates' schemas are NOT identical: crm's `service_agreement`
+     * has no `next_service_date` column at all (it derives the figure instead), while crm-basic,
+     * crm-fieldservice and crm-landscaping do store one. Naming the column unconditionally made
+     * `serviceAgreement.nextServiceDate` undefined on crm, drizzle threw building the select, and
+     * GET /visits/upcoming answered 500 on the contractor tenant — a module that had been working.
+     *
+     * esbuild cannot see this and neither can a suite that only runs the templates which HAVE the
+     * column. So the column is asked for through the schema object, and the third source below is
+     * simply absent where there is nothing to read.
+     */
+    const hasNextService = 'nextServiceDate' in (serviceAgreement as any)
     const agreements = await db.select({
       id: serviceAgreement.id, name: serviceAgreement.name, number: serviceAgreement.number,
       planId: serviceAgreement.planId, contactId: serviceAgreement.contactId,
       // Needed for the third source below: what the PLAN says is next, and whether it still runs.
-      status: serviceAgreement.status, nextServiceDate: serviceAgreement.nextServiceDate,
+      status: serviceAgreement.status,
+      ...(hasNextService ? { nextServiceDate: (serviceAgreement as any).nextServiceDate } : {}),
       endDate: serviceAgreement.endDate,
     }).from(serviceAgreement).where(eq(serviceAgreement.companyId, companyId))
     if (agreements.length === 0) return []
@@ -565,7 +580,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
        * And only where no visit or job already covers that date, so a plan that HAS been scheduled
        * shows once, as the real thing, rather than twice.
        */
-      ...agreements
+      ...(!hasNextService ? [] : agreements
         .filter((a: any) => {
           if (!a.nextServiceDate) return false
           if (a.status !== 'active') return false
@@ -586,7 +601,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
           notes: null,
           source: 'plan' as const,
           agreement: agreementById.get(a.id) ?? null,
-        })),
+        }))),
     ]
     rows.sort((a, b) => new Date(a.scheduledDate as any).getTime() - new Date(b.scheduledDate as any).getTime())
     return rows

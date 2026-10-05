@@ -57,11 +57,20 @@ export default function DispatchBoard() {
         // user.id), not the crew-roster team_member table which is empty on a
         // fresh tenant and carries different ids. /api/company/users is a bare
         // array including the owner.
-        api.get('/api/company/users'),
+        // /assignable, NOT /api/company/users — team.ts says so three lines above that endpoint:
+        // "Pickers must read this, never GET /." The comment above used to defend company/users on
+        // the grounds that the roster "is empty on a fresh tenant and carries different ids"; that
+        // stopped being true at T21 M12, when /assignable started returning login users AND roster
+        // crew matched by email. company/users is "a bare array including the owner" by its own
+        // description — which is how the read-only viewer was offered as a technician here, the same
+        // finding closed on crm-fieldservice in T42 and never swept to this copy. (T48)
+        api.get('/api/team/assignable'),
       ]);
       setJobs(jobsRes.data || jobsRes || []);
+      // /assignable answers { data: [...] }; company/users answered a bare array. Both shapes are
+      // accepted so this keeps working either way, and a revoked seat is still dropped.
       const users = Array.isArray(techsRes) ? techsRes : techsRes.data || [];
-      setTechs(users.filter((u) => u.isActive !== false));
+      setTechs(users.filter((u) => u.isActive !== false && u.active !== false));
     } catch (error) {
       console.error('Failed to load dispatch data:', error);
       toast.error('Failed to load dispatch board');
@@ -70,9 +79,22 @@ export default function DispatchBoard() {
     }
   };
 
-  const unassigned = jobs.filter(j => !j.assignedTo && j.status !== 'completed');
-  const inProgress = jobs.filter(j => j.status === 'in_progress');
+  /**
+   * THE FOUR COLUMNS MUST ACCOUNT FOR EVERY JOB ON THE DAY. (T48)
+   *
+   * There were three buckets and an ASSIGNED job still `scheduled` matched none of them, so it was
+   * on the board's data and off its screen. The rule is a PARTITION now — completed, else in
+   * progress, else assigned, else not — so a status nobody anticipated lands in Scheduled or
+   * Unassigned instead of disappearing.
+   *
+   * `assignedTo` is the joined user OBJECT and `assignedToId` the id; read through one helper so
+   * the two cannot drift.
+   */
+  const assigneeOf = (j) => j.assignedToId || j.assignedToMemberId || (j.assignedTo ? (j.assignedTo.id || j.assignedTo) : null);
   const completed = jobs.filter(j => j.status === 'completed');
+  const inProgress = jobs.filter(j => j.status === 'in_progress');
+  const scheduled = jobs.filter(j => j.status !== 'completed' && j.status !== 'in_progress' && !!assigneeOf(j));
+  const unassigned = jobs.filter(j => j.status !== 'completed' && j.status !== 'in_progress' && !assigneeOf(j));
 
   const handleAssign = async (jobId, techId) => {
     try {
@@ -149,9 +171,10 @@ export default function DispatchBoard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
         <StatCard icon={ClipboardList} label="Total Jobs" value={jobs.length} />
         <StatCard icon={AlertTriangle} label="Unassigned" value={unassigned.length} color="orange" />
+        <StatCard icon={Calendar} label="Scheduled" value={scheduled.length} color="indigo" />
         <StatCard icon={Play} label="In Progress" value={inProgress.length} color="blue" />
         <StatCard icon={CheckCircle} label="Completed" value={completed.length} color="green" />
       </div>
@@ -162,7 +185,7 @@ export default function DispatchBoard() {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           {/* Unassigned Column */}
           <div>
             <div className="flex items-center gap-2 mb-4 pb-2 border-b">
@@ -185,6 +208,34 @@ export default function DispatchBoard() {
               {unassigned.length === 0 && (
                 <div className="text-center py-8 text-gray-600 dark:text-slate-400 text-sm">
                   No unassigned jobs
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Scheduled Column — assigned work that has not started. Added T48: these jobs were on
+              the board's data and on no column, so they were simply absent. */}
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-4 pb-2 border-b">
+              <div className="w-3 h-3 rounded-full bg-indigo-500" />
+              <h2 className="font-semibold text-gray-900 dark:text-white">Scheduled</h2>
+              <span className="ml-auto text-sm text-gray-600 bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded-full dark:text-slate-300">
+                {scheduled.length}
+              </span>
+            </div>
+            <div className="space-y-3">
+              {scheduled.map(job => (
+                <DispatchCard
+                  key={job.id}
+                  job={job}
+                  techs={techs}
+                  onAssign={handleAssign}
+                  onStatusChange={handleStatusChange}
+                />
+              ))}
+              {scheduled.length === 0 && (
+                <div className="text-center py-8 text-gray-600 dark:text-slate-400 text-sm">
+                  Nothing scheduled yet
                 </div>
               )}
             </div>
@@ -255,6 +306,9 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }) {
     orange: 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400',
     blue: 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400',
     green: 'bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400',
+    // Added with the Scheduled tile (T48). A colour missing from this map resolves to `undefined`
+    // and lands in the className as the literal word, so the tile loses its ground entirely.
+    indigo: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400',
   };
 
   return (
