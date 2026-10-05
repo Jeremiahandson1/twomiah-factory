@@ -643,6 +643,10 @@ async function createRenderDatabase(slug: string, region = 'ohio', dbPlan = 'bas
     name: dbName,
     ownerId: process.env.RENDER_OWNER_ID,
     plan: dbPlan, region, version: '16',
+    // Render bills storage separately ($0.30/GB/mo) and it can only grow, never
+    // shrink. Without this, Render defaults to 15 GB ($4.50/mo before any data).
+    // Start small; media lives in R2, not Postgres. Grow per-tenant if needed.
+    diskSizeGB: 1,
   }
   if (projectId) body.projectId = projectId
 
