@@ -346,7 +346,7 @@ type SectionType = keyof typeof SECTION_SCHEMA
  * Sanitize the AI's output: drop unknown types/variants, coerce data
  * shapes, cap counts so the renderer doesn't choke on absurd input.
  */
-function sanitizeSections(raw: any): Section[] {
+export function sanitizeSections(raw: any): Section[] {
   if (!Array.isArray(raw)) return []
   const out: Section[] = []
   for (const s of raw.slice(0, 12)) {
@@ -356,7 +356,14 @@ function sanitizeSections(raw: any): Section[] {
     if (!(type in SECTION_SCHEMA)) continue
     const variants = SECTION_SCHEMA[type as SectionType] as Record<string, unknown>
     if (!(variant in variants)) continue
-    const data = (s.data && typeof s.data === 'object') ? s.data : {}
+    // The model sometimes writes a section FLAT — { type, variant, title, … }
+    // with no `data` wrapper. Reading only s.data turned every such section
+    // into an empty husk (the "empty hero title" the husk retry below was
+    // added for); with the facts check after it, the husks are dropped and
+    // the site came back nearly empty. Both shapes carry the same content.
+    let data: Record<string, any>
+    if (s.data && typeof s.data === 'object' && !Array.isArray(s.data)) data = s.data
+    else { const { type: _t, variant: _v, data: _d, ...flat } = s; data = flat }
     // Cap services lists at 8 — past that the renderer becomes a slog.
     if (Array.isArray(data.items)) data.items = data.items.slice(0, 8)
     if (Array.isArray(data.stats)) data.stats = data.stats.slice(0, 6)
@@ -2050,6 +2057,8 @@ reservation/widget: { "heading": "Reserve a table", "intro": "...", "partySizes"
     "contact":  { "sections": [ ... ] }
   }
 }
+Every section is an object of exactly this form — the shapes listed above go INSIDE "data":
+{ "type": "hero", "variant": "full-bleed", "data": { "image": "...", "title": "...", ... } }
 
 # Few-shot examples — match this tier of voice and specificity
 (Every number and name in these came from THAT business's own intake. Match the
@@ -2159,7 +2168,8 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
     if (!Array.isArray(home) || home.length === 0) return true
     const hero = home.find((s: any) => s?.type === 'hero')
     if (!hero) return false
-    const heroTitle = (hero.data?.title || hero.data?.headline || '').trim()
+    // Same two shapes sanitizeSections accepts — a flat hero is not a husk.
+    const heroTitle = String(hero.data?.title || hero.data?.headline || hero.title || hero.headline || '').trim()
     return heroTitle.length === 0
   }
 

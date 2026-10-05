@@ -23,7 +23,7 @@
 //   bun scripts/check-composer-facts.ts
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { enforceIntakeFacts, extractNumbers, parseIntakeFacts } from '../apps/api/src/services/composerFacts.ts'
-import { SECTION_SCHEMA, type ComposerInput, type Section } from '../apps/api/src/services/sectionComposer.ts'
+import { SECTION_SCHEMA, sanitizeSections, type ComposerInput, type Section } from '../apps/api/src/services/sectionComposer.ts'
 
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 let failed = 0
@@ -184,6 +184,21 @@ const invented = (): Record<string, Section[]> => ({
 {
   const r = run({ home: [sec('hero', 'full-bleed', { image: STOCK, title: 'Hi' })], pricing: [] }, higgs)
   check(r.heldPages.includes('pricing'), 'an empty page must be held back')
+}
+
+// The model sometimes writes sections FLAT ({ type, variant, title, … }) instead of wrapping the
+// fields in `data`. Live compose 2026-10-04 (Ridgeline test intake): sanitize read only s.data, every
+// section reached the facts check empty, and the site came back with an empty home page.
+{
+  const [flat, wrapped] = sanitizeSections([
+    { type: 'hero', variant: 'full-bleed', image: STOCK, title: 'Kitchens and baths in Eau Claire' },
+    { type: 'cta', variant: 'banner', data: { heading: 'Talk to us' } },
+  ])
+  check(flat?.data.title === 'Kitchens and baths in Eau Claire' && flat?.data.image === STOCK && !('type' in flat.data),
+    'sanitizeSections must read a flat section\'s fields as its data')
+  check(wrapped?.data.heading === 'Talk to us', 'sanitizeSections still reads the wrapped shape')
+  const r = run({ home: sanitizeSections([{ type: 'hero', variant: 'full-bleed', image: STOCK, title: 'Kitchens and baths' }]) }, higgs)
+  check(r.pages.home.length === 1 && r.pages.home[0].data.title === 'Kitchens and baths', 'a flat hero survives the facts check')
 }
 
 // Numbers: what counts as a claim.
