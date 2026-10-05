@@ -44,6 +44,23 @@ const FILES = [
   ...['crm', 'crm-basic', 'crm-fieldservice', 'crm-landscaping'].map((t) => `templates/${t}/frontend/src/components/features/AIReceptionistPage.tsx`),
   'templates/crm-roof/frontend/src/pages/roofing/AIReceptionistPage.tsx',
   ...['crm', 'crm-basic', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet'].map((t) => `templates/${t}/frontend/src/pages/support/SupportPage.tsx`),
+  /**
+   * …AND THE SHARED PRIMITIVES, which is the gap that let the AI Receptionist ship broken twice.
+   *
+   * This guard was green on AIReceptionistPage.tsx while the rendered pass measured that very page at
+   * 1.00:1 — because the failing text was not in the page at all. It was in `Table.tsx`'s EmptyState
+   * ("No auto-reply rules", white on white) and `Tabs.tsx`'s inactive trigger ("Call Log", 1.23:1 on
+   * a bar that composites to rgb(140,146,155)). A per-page guard cannot see a component the page
+   * merely renders, and these four are rendered by nearly every screen in five templates — so a fault
+   * here is five verticals wide and only shows on the states a screenshot of a populated list misses.
+   *
+   * Only these four. `AccessibleButton` and `DataTable` carry brand-coloured buttons
+   * (`bg-orange-500 text-white` measures 3.56:1), which is a brand-palette judgement owned by
+   * check-brand-hex-under-white-text.ts — pulling them in here would make this guard fail on a
+   * decision somebody already made, and a guard that reports settled decisions gets switched off.
+   */
+  ...['crm', 'crm-basic', 'crm-dispensary', 'crm-fieldservice', 'crm-landscaping'].flatMap((t) =>
+    ['Table.tsx', 'Tabs.tsx', 'Card.tsx', 'Checkbox.tsx', 'Modal.tsx'].map((f) => `templates/${t}/frontend/src/components/ui/${f}`)),
 ]
 
 /** Tailwind v3, the shades these screens use. */
@@ -137,6 +154,25 @@ for (const rel of FILES) {
       if (!/text-/.test(cls)) continue
       // an inline brand colour behind the ink is a judgement this check cannot make
       if (/style=\{\{\s*(?:background|backgroundColor)/.test(light)) continue
+      /**
+       * THIS GUARD MEASURES TEXT, AND AN ICON IS NOT TEXT. (added the day the guard first ran over
+       * components/ui)
+       *
+       * A class whose only other utilities are `w-` / `h-` sizing is colouring an ICON, and an icon's
+       * ground is routinely a SIBLING class — the checkbox tick is `w-3.5 h-3.5 text-white` inside a
+       * div that is `bg-brand-500` when checked, so white is correct and this check, which falls back
+       * to the page ground, called it 1.05:1. I had already "fixed" it on that advice and would have
+       * shipped near-black ink on the brand colour.
+       *
+       * So: sizing utilities and no text-size or font-weight means it is a glyph, not a label, and
+       * this rule does not judge it. The two real faults this guard found are both untouched by the
+       * exemption — the EmptyState title carries `text-lg font-medium`, and the Tabs trigger's ink
+       * carries no `w-`/`h-` at all. Icons are covered by the rendered pass instead, which can see
+       * the ground a parent or sibling actually paints.
+       */
+      const sized = /\b[wh]-(?:\d|px|full|screen|\[)/.test(cls)
+      const textual = /\btext-(?:xs|sm|base|lg|[0-9]?xl)\b|\bfont-(?:medium|semibold|bold|normal|light)\b|\bleading-|\buppercase\b/.test(cls)
+      if (sized && !textual) continue
 
       let bg = PAGE, bgName = 'the page'
       const own = [...cls.matchAll(/(?:^|\s)bg-([a-z]+-\d{2,3}|white|black)(?:\/(\d{1,3}))?(?![\w-])/g)].pop()

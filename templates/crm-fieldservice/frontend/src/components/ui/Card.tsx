@@ -14,8 +14,8 @@ export function CardHeader({ children, className, title, subtitle, action }) {
     return (
       <div className={clsx('card-header flex items-center justify-between', className)}>
         <div>
-          {title && <h3 className="text-lg font-semibold text-white">{title}</h3>}
-          {subtitle && <p className="text-sm text-slate-400 mt-0.5">{subtitle}</p>}
+          {title && <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h3>}
+          {subtitle && <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">{subtitle}</p>}
         </div>
         {action}
       </div>
@@ -38,7 +38,7 @@ export function StatCard({ label, value, icon: Icon, trend, trendUp, className }
           {trend && (
             <p className={clsx(
               'text-xs mt-2',
-              trendUp ? 'text-emerald-400' : 'text-red-400'
+              trendUp ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'
             )}>
               {trendUp ? '↑' : '↓'} {trend}
             </p>

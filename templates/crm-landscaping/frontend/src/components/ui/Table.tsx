@@ -56,13 +56,13 @@ export function EmptyState({
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
       {Icon && (
-        <div className="p-4 bg-slate-800 rounded-full mb-4">
+        <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-full mb-4">
           <Icon className="w-8 h-8 text-slate-500 dark:text-slate-400" />
         </div>
       )}
-      <h3 className="text-lg font-medium text-white mb-1">{title}</h3>
+      <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-1">{title}</h3>
       {description && (
-        <p className="text-sm text-slate-400 max-w-sm mb-4">{description}</p>
+        <p className="text-sm text-slate-600 dark:text-slate-400 max-w-sm mb-4">{description}</p>
       )}
       {action}
     </div>
@@ -99,7 +99,7 @@ export function Pagination({
             'w-8 h-8 rounded-lg text-sm font-medium transition-colors',
             page === currentPage 
               ? 'bg-brand-500 text-white' 
-              : 'text-slate-400 hover:bg-slate-800'
+              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
           )}
         >
           {page}

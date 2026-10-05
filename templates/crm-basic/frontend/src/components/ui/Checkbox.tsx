@@ -29,7 +29,7 @@ export function Checkbox({
           'flex items-center justify-center',
           checked 
             ? 'bg-brand-500 border-brand-500' 
-            : 'bg-slate-800 border-slate-600 group-hover:border-slate-500'
+            : 'bg-white border-slate-300 group-hover:border-slate-400 dark:bg-slate-800 dark:border-slate-600 dark:group-hover:border-slate-500'
         )}>
           {checked && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
         </div>
@@ -37,7 +37,7 @@ export function Checkbox({
       {(label || description) && (
         <div className="flex-1">
           {label && (
-            <span className="text-sm font-medium text-slate-200 group-hover:text-white">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white">
               {label}
             </span>
           )}
@@ -94,7 +94,7 @@ export function Toggle({
       </div>
       {(label || description) && (
         <div>
-          {label && <span className="text-sm font-medium text-slate-200">{label}</span>}
+          {label && <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</span>}
           {description && <p className="text-xs text-slate-500 dark:text-slate-400">{description}</p>}
         </div>
       )}

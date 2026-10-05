@@ -70,8 +70,17 @@ const FIXED_LIGHT_BG = /(?<!:)\bbg-(?:white|gray-(?:50|100|200|300))\b/
  * (`hover:bg-red-50` with no `dark:hover:bg-`), in which case the hover text must stay dark and a dark
  * partner would paint light-on-light.
  */
-const HOVER_TEXT = /(?<!:)\bhover:text-[a-z]+-(\d{2,3})\b/
-const DARK_HOVER = /\bdark:hover:text-/
+/**
+ * `group-hover:` COUNTS ON BOTH SIDES, OR NEITHER. (T47)
+ *
+ * These two regexes disagreed. HOVER_TEXT's lookbehind only rejects a preceding `:`, so
+ * `group-hover:text-slate-900` matched as a hover needing a partner — correctly, it is one. But
+ * DARK_HOVER accepted only `dark:hover:text-`, so the partner that pairs it,
+ * `dark:group-hover:text-white`, was invisible to the check and a properly-paired class was reported
+ * as a fault. Whichever way the guard reads `group-hover`, it has to read it the same way twice.
+ */
+const HOVER_TEXT = /(?<!:)\b(?:group-)?hover:text-[a-z]+-(\d{2,3})\b/
+const DARK_HOVER = /\bdark:(?:group-)?hover:text-/
 const PINNED_HOVER_BG = /(?<!:)\bhover:bg-(?:white|[a-z]+-(?:50|100|200))\b/
 
 // crm-automotive is parked and crm-homecare is being handled separately; neither is swept here.

@@ -116,7 +116,7 @@ export default function DispatchBoard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dispatch Board</h1>
-          <p className="text-gray-500 dark:text-slate-400">{dateDisplay}</p>
+          <p className="text-gray-600 dark:text-slate-400">{dateDisplay}</p>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -183,7 +183,7 @@ export default function DispatchBoard() {
                 />
               ))}
               {unassigned.length === 0 && (
-                <div className="text-center py-8 text-gray-500 dark:text-slate-400 text-sm">
+                <div className="text-center py-8 text-gray-600 dark:text-slate-400 text-sm">
                   No unassigned jobs
                 </div>
               )}
@@ -210,7 +210,7 @@ export default function DispatchBoard() {
                 />
               ))}
               {inProgress.length === 0 && (
-                <div className="text-center py-8 text-gray-500 dark:text-slate-400 text-sm">
+                <div className="text-center py-8 text-gray-600 dark:text-slate-400 text-sm">
                   No jobs in progress
                 </div>
               )}
@@ -237,7 +237,7 @@ export default function DispatchBoard() {
                 />
               ))}
               {completed.length === 0 && (
-                <div className="text-center py-8 text-gray-500 dark:text-slate-400 text-sm">
+                <div className="text-center py-8 text-gray-600 dark:text-slate-400 text-sm">
                   No completed jobs
                 </div>
               )}
@@ -279,7 +279,7 @@ function DispatchCard({ job, techs, onAssign, onStatusChange }) {
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
           <ServiceIcon className="w-4 h-4 text-gray-600 dark:text-slate-300" />
-          <span className="text-xs font-medium uppercase text-gray-500 dark:text-slate-400">
+          <span className="text-xs font-medium uppercase text-gray-600 dark:text-slate-400">
             {serviceType}
           </span>
           {job.serviceAgreementId && (
@@ -302,7 +302,7 @@ function DispatchCard({ job, techs, onAssign, onStatusChange }) {
       {(job.address || job.contact?.address) && (
         <div className="flex items-start gap-1 mt-1">
           <MapPin className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-gray-500 dark:text-slate-400 line-clamp-2">
+          <p className="text-xs text-gray-600 dark:text-slate-400 line-clamp-2">
             {job.address || job.contact?.address}
           </p>
         </div>
@@ -312,7 +312,7 @@ function DispatchCard({ job, techs, onAssign, onStatusChange }) {
       {(job.scheduledTime || job.timeWindow) && (
         <div className="flex items-center gap-1 mt-1">
           <Clock className="w-3.5 h-3.5 text-gray-400" />
-          <p className="text-xs text-gray-500 dark:text-slate-400">
+          <p className="text-xs text-gray-600 dark:text-slate-400">
             {job.scheduledTime || job.timeWindow}
           </p>
         </div>
@@ -322,7 +322,7 @@ function DispatchCard({ job, techs, onAssign, onStatusChange }) {
       {(job.contact?.phone) && (
         <div className="flex items-center gap-1 mt-1">
           <Phone className="w-3.5 h-3.5 text-gray-400" />
-          <p className="text-xs text-gray-500 dark:text-slate-400">{job.contact.phone}</p>
+          <p className="text-xs text-gray-600 dark:text-slate-400">{job.contact.phone}</p>
         </div>
       )}
 

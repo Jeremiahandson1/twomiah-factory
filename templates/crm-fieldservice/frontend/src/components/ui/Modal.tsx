@@ -40,24 +40,24 @@ export function Modal({
       <div className="flex min-h-full items-center justify-center p-4">
         <div 
           className={clsx(
-            'relative w-full bg-slate-900 border border-slate-700 rounded-xl shadow-2xl',
+            'relative w-full bg-white border border-gray-200 dark:bg-slate-900 dark:border-slate-700 rounded-xl shadow-2xl',
             sizes[size]
           )}
         >
           {title && (
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
-              <h3 className="text-lg font-semibold text-white">{title}</h3>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h3>
               {showClose && (
                 <button 
                   onClick={onClose}
-                  className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                  className="p-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
               )}
             </div>
           )}
-          <div className="p-6 text-slate-200 [&_label]:text-slate-200 [&_select]:text-gray-900 [&_input]:text-gray-900 [&_textarea]:text-gray-900 dark:text-slate-100">{children}</div>
+          <div className="p-6 text-slate-700 [&_label]:text-slate-700 [&_select]:text-gray-900 [&_input]:text-gray-900 [&_textarea]:text-gray-900 dark:text-slate-100 dark:[&_label]:text-slate-200">{children}</div>
         </div>
       </div>
     </div>
@@ -76,7 +76,7 @@ export function ConfirmDialog({
 }) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
-      <p className="text-slate-300 mb-6">{message}</p>
+      <p className="text-slate-700 dark:text-slate-300 mb-6">{message}</p>
       <div className="flex justify-end gap-3">
         <button onClick={onClose} className="btn btn-secondary">
           {cancelText}

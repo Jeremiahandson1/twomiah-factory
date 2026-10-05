@@ -24,7 +24,7 @@ export function Input({
           {...props}
         />
       </div>
-      {error && <p className="mt-1 text-sm text-red-400">{error}</p>}
+      {error && <p className="mt-1 text-sm text-red-700 dark:text-red-400">{error}</p>}
     </div>
   );
 }
@@ -47,7 +47,7 @@ export function Textarea({
         )}
         {...props}
       />
-      {error && <p className="mt-1 text-sm text-red-400">{error}</p>}
+      {error && <p className="mt-1 text-sm text-red-700 dark:text-red-400">{error}</p>}
     </div>
   );
 }
@@ -77,7 +77,7 @@ export function Select({
           </option>
         ))}
       </select>
-      {error && <p className="mt-1 text-sm text-red-400">{error}</p>}
+      {error && <p className="mt-1 text-sm text-red-700 dark:text-red-400">{error}</p>}
     </div>
   );
 }
