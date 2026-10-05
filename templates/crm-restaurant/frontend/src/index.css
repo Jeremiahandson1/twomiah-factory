@@ -15,9 +15,26 @@
   /* Dark mode was half-applied: the page went dark but white cards stayed white,
      so any value on them with no explicit color inherited the body's light text
      and vanished (H-04). White surfaces always carry dark text; explicit text-*
-     utilities still win since this is @layer base. */
-  .bg-white,
-  .card {
+     utilities still win since this is @layer base.
+
+     …BUT ONLY A SURFACE THAT STAYS WHITE. (T42: "the dark-mode pop-up titles are
+     invisible") An element written `bg-white … dark:bg-slate-900` keeps the
+     .bg-white class in dark mode, so this rule went on pinning gray-900 ink on a
+     slate-900 ground — 1.01:1, which is not low contrast but no text at all. It hit
+     every Events modal: `<h2 className="text-lg font-bold">` and
+     `<button … >Cancel</button>` carry no colour of their own and inherit, so the
+     title and the Cancel of all seven pop-ups simply were not there. Twenty-three
+     elements in this template declare both.
+
+     The premise is what needed the condition, not the colour: an element declaring a
+     dark ground of its own is excluded and inherits the body's light ink instead.
+     crm-rv found this on its Accounting table (129 invisible labels) and fixed it
+     exactly this way; the fix never reached here.
+
+     .card is dropped from the selector rather than excluded, because .card ALWAYS
+     declares a dark ground (see its own rule below) — pinning light ink on it was
+     never right in dark mode. */
+  .bg-white:not([class*="dark:bg-"]) {
     @apply text-gray-900;
   }
 

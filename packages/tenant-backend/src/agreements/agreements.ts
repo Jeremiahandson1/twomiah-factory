@@ -237,8 +237,22 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       const visitsCompleted = thisTerm.filter((v) => v.status === 'completed').length
       const visitsScheduled = thisTerm.filter((v) => v.status === 'scheduled').length
       const visitsIncluded = Number((plan as any)?.visitsIncluded || 0)
+      /**
+       * A CONTRACT THAT HAS ENDED HAS NO NEXT VISIT. (T42 "expired agreement still shows a next date")
+       *
+       * `nextServiceDate` is left on the row when an agreement expires or is cancelled — which is
+       * right, because renewing it should resume from where it was. But every surface that reads the
+       * agreement showed that date as the next visit, on a contract nobody is going to attend.
+       *
+       * Reported as null when the agreement is not active, or when its end date has passed —
+       * BOTH, because expiry by date arrives before anything flips the status, and that gap is
+       * exactly where the tester found it. The stored value is untouched, so a renewal still knows
+       * where the schedule was.
+       */
+      const ended = r.status !== 'active' || (!!r.endDate && new Date(r.endDate).getTime() < Date.now())
       return {
         ...r,
+        nextServiceDate: ended ? null : (r as any).nextServiceDate ?? null,
         contact: contactById.get(r.contactId) || null,
         plan,
         visitsIncluded,
@@ -439,17 +453,101 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     return updated
   }
 
+  /**
+   * WHAT IS COMING UP ON THE MAINTENANCE CONTRACTS — from both places it can come from. (T42)
+   *
+   * This used to read `agreement_visit` alone and was therefore empty on any shop that uses
+   * "Auto-schedule recurring visits", because that engine creates JOBS (generateNextJob →
+   * job.serviceAgreementId), not agreement_visit rows. Two parallel ideas of a visit; the list
+   * displayed the one nothing writes to.
+   *
+   * So it reads both, shaped identically, newest-first by date:
+   *   · jobs the recurrence engine generated against an agreement
+   *   · agreement_visit rows somebody booked by hand
+   *
+   * Each carries its agreement, that agreement's plan and the customer, because the screen renders
+   * `visit.agreement?.contact?.name` and `visit.agreement?.plan?.name` and the old bare-row query
+   * sent neither — so a hand-booked visit showed as a blank line with a date on it.
+   *
+   * `source` is reported so a screen can tell them apart if it ever wants to, and so this is
+   * debuggable without reading the query.
+   */
   async function getUpcomingVisits(companyId: string, { days = 30 }: { days?: number } = {}) {
     const endDate = new Date(); endDate.setDate(endDate.getDate() + days)
-    const agreements = await db.select({ id: serviceAgreement.id }).from(serviceAgreement).where(eq(serviceAgreement.companyId, companyId))
+    // From the start of TODAY, not from this instant: work due earlier today is still upcoming, and
+    // the old query had no lower bound at all, so a visit scheduled in 2024 counted. (T42)
+    const startDate = new Date(); startDate.setHours(0, 0, 0, 0)
+
+    const agreements = await db.select({
+      id: serviceAgreement.id, name: serviceAgreement.name, number: serviceAgreement.number,
+      planId: serviceAgreement.planId, contactId: serviceAgreement.contactId,
+    }).from(serviceAgreement).where(eq(serviceAgreement.companyId, companyId))
+    if (agreements.length === 0) return []
     const agreementIds = agreements.map((a: any) => a.id)
-    if (agreementIds.length === 0) return []
-    // inArray, not a raw "= ANY(${jsArray})" — the array didn't serialise cleanly and 500'd this endpoint.
-    return db.select().from(agreementVisit).where(and(
-      eq(agreementVisit.status, 'scheduled'),
-      lte(agreementVisit.scheduledDate, endDate),
-      inArray(agreementVisit.agreementId, agreementIds),
-    )).orderBy(asc(agreementVisit.scheduledDate))
+
+    const planIds = [...new Set(agreements.map((a: any) => a.planId).filter(Boolean))] as string[]
+    const contactIds = [...new Set(agreements.map((a: any) => a.contactId).filter(Boolean))] as string[]
+    const [plans, contacts] = await Promise.all([
+      planIds.length
+        ? db.select({ id: agreementPlan.id, name: agreementPlan.name }).from(agreementPlan).where(inArray(agreementPlan.id, planIds))
+        : Promise.resolve([] as any[]),
+      contactIds.length
+        ? db.select({ id: contact.id, name: contact.name, phone: contact.phone, email: contact.email })
+            .from(contact).where(inArray(contact.id, contactIds))
+        : Promise.resolve([] as any[]),
+    ])
+    const planById = new Map(plans.map((p: any) => [p.id, p]))
+    const contactById = new Map(contacts.map((x: any) => [x.id, x]))
+    const agreementById = new Map(agreements.map((a: any) => [a.id, {
+      id: a.id, name: a.name, number: a.number,
+      plan: a.planId ? planById.get(a.planId) ?? null : null,
+      contact: a.contactId ? contactById.get(a.contactId) ?? null : null,
+    }]))
+
+    // inArray, not a raw "= ANY(${jsArray})" — the array didn't serialise cleanly and 500'd this.
+    const [booked, generated] = await Promise.all([
+      db.select().from(agreementVisit).where(and(
+        eq(agreementVisit.status, 'scheduled'),
+        gte(agreementVisit.scheduledDate, startDate),
+        lte(agreementVisit.scheduledDate, endDate),
+        inArray(agreementVisit.agreementId, agreementIds),
+      )),
+      db.select({
+        id: job.id, number: job.number, title: job.title, status: job.status,
+        scheduledDate: job.scheduledDate, jobType: job.jobType, agreementId: job.serviceAgreementId,
+      }).from(job).where(and(
+        eq(job.companyId, companyId),
+        inArray(job.status, ['scheduled', 'in_progress']),
+        gte(job.scheduledDate, startDate),
+        lte(job.scheduledDate, endDate),
+        inArray(job.serviceAgreementId, agreementIds),
+      )),
+    ])
+
+    const rows = [
+      ...booked.map((v: any) => ({
+        id: v.id,
+        scheduledDate: v.scheduledDate,
+        serviceType: v.serviceType ?? 'Maintenance',
+        status: v.status,
+        notes: v.notes ?? null,
+        source: 'visit' as const,
+        agreement: agreementById.get(v.agreementId) ?? null,
+      })),
+      ...generated.map((j: any) => ({
+        id: j.id,
+        scheduledDate: j.scheduledDate,
+        serviceType: j.jobType ?? 'Maintenance',
+        status: j.status,
+        notes: null,
+        source: 'job' as const,
+        jobNumber: j.number,
+        title: j.title,
+        agreement: agreementById.get(j.agreementId) ?? null,
+      })),
+    ]
+    rows.sort((a, b) => new Date(a.scheduledDate as any).getTime() - new Date(b.scheduledDate as any).getTime())
+    return rows
   }
 
   // ---- billing ----

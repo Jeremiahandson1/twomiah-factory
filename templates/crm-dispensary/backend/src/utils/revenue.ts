@@ -84,6 +84,22 @@ export const grossExpr = sql`COALESCE(o.total::numeric, 0)`
  */
 export const netExpr = sql`GREATEST(0, COALESCE(o.total::numeric, 0) - COALESCE(NULLIF(o.refunded_amount, '')::numeric, 0))`
 
+/**
+ * THE GOODS VALUE, DERIVED FROM WHAT WAS COLLECTED RATHER THAN RE-SUMMED. (T42 tax report)
+ *
+ * `SUM(o.subtotal)` cannot be made to reconcile with the other columns on a tax row, for two
+ * independent reasons: it is gross where the tax is net, and `total` is subtotal − discount + tax,
+ * so a discounted day never added up either even before refunds existed.
+ *
+ * Taking the tax out of the net collected total gives the goods value that was ACTUALLY collected,
+ * and makes "subtotal + tax = collected" hold by construction on every day instead of by hoping three
+ * separate sums agree. Clamped at zero like its neighbours so a pathological row cannot go negative.
+ */
+export const subtotalNetExpr = sql`GREATEST(0,
+  GREATEST(0, COALESCE(o.total::numeric, 0) - COALESCE(NULLIF(o.refunded_amount, '')::numeric, 0))
+  - GREATEST(0, COALESCE(NULLIF(o.total_tax, '')::numeric, 0) - COALESCE(NULLIF(o.refunded_tax, '')::numeric, 0))
+)`
+
 /** The same three, for a query with no `o.` alias on the orders table. */
 export const refundedExprBare = sql`COALESCE(NULLIF(refunded_amount, '')::numeric, 0)`
 export const grossExprBare = sql`COALESCE(total::numeric, 0)`

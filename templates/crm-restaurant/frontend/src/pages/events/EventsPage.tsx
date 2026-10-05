@@ -178,7 +178,7 @@ function PipelineView({ events }: { events: EventRow[] }) {
       {columns.map((col) => {
         const rows = events.filter((e) => (e.status || 'enquiry') === col);
         return (
-          <div key={col} className="bg-gray-50 rounded-xl border p-3 dark:bg-slate-900">
+          <div key={col} className="bg-gray-50 rounded-xl border p-3 min-w-0 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-3 px-1">
               <h2 className="font-semibold text-gray-700 capitalize text-sm dark:text-slate-200">{col}</h2>
               <span className="text-xs bg-white text-gray-500 px-2 py-0.5 rounded-full border dark:bg-slate-900 dark:text-slate-400">{rows.length}</span>
@@ -188,8 +188,8 @@ function PipelineView({ events }: { events: EventRow[] }) {
                 <p className="text-xs text-gray-500 dark:text-slate-400 text-center py-6">Nothing here</p>
               ) : rows.map((e) => (
                 <Link key={e.id} to={`/crm/events/${e.id}`} className="block bg-white rounded-lg border p-3 hover:shadow-md transition dark:bg-slate-900">
-                  <p className="font-medium text-gray-900 text-sm dark:text-slate-100">{e.name || 'Untitled'}</p>
-                  <p className="text-xs text-gray-500 mt-0.5 dark:text-slate-400">{e.clientName || 'No client attached'}</p>
+                  <p className="font-medium text-gray-900 text-sm break-words dark:text-slate-100">{e.name || 'Untitled'}</p>
+                  <p className="text-xs text-gray-500 mt-0.5 break-words dark:text-slate-400">{e.clientName || 'No client attached'}</p>
                   <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 dark:text-slate-400 flex-wrap">
                     <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" /> {fmtEventDate(e.eventDate)}</span>
                     {(e.guestCountFinal || e.guestCount) && (
@@ -232,7 +232,7 @@ function ListView({ events }: { events: EventRow[] }) {
                 {fmtEventDate(e.eventDate)}
                 {e.startTime && <span className="block text-xs text-gray-500 dark:text-slate-400">{e.startTime}{e.endTime ? `–${e.endTime}` : ''}</span>}
               </td>
-              <td className="px-4 py-3">
+              <td className="px-4 py-3 max-w-xs break-words">
                 <Link to={`/crm/events/${e.id}`} className="font-medium text-gray-900 hover:text-orange-600 dark:hover:text-orange-200 dark:text-slate-100">{e.name || 'Untitled'}</Link>
                 <span className="block text-xs text-gray-500 dark:text-slate-400 capitalize">{prettyType(e.eventType)}</span>
               </td>

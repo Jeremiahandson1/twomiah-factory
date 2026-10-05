@@ -85,8 +85,8 @@ function AutoReplyForm({ item, onSave, onClose }: AutoReplyFormProps) {
       <Textarea label="Auto-Reply Message" value={form.messageTemplate} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, messageTemplate: e.target.value })} placeholder="Thanks for contacting {{company}}! We'll get back to you shortly..." rows={4} required />
       <p className="text-xs text-slate-500 dark:text-slate-400">Use {'{{company}}'} for company name, {'{{name}}'} for caller name</p>
       <label className="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" checked={form.isActive} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, isActive: e.target.checked })} className="w-4 h-4 rounded border-slate-600 bg-slate-800" />
-        <span className="text-sm text-slate-300">Active</span>
+        <input type="checkbox" checked={form.isActive} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, isActive: e.target.checked })} className="w-4 h-4 rounded border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800" />
+        <span className="text-sm text-slate-700 dark:text-slate-300">Active</span>
       </label>
       <div className="flex justify-end gap-3 pt-4"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit">{item ? 'Update' : 'Create'}</Button></div>
     </form>
@@ -187,12 +187,12 @@ export function AIReceptionistPage() {
 
   const activeRules = rules.filter((r: Record<string, unknown>) => r.isActive).length;
 
-  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-slate-400" /></div>;
+  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-slate-600 dark:text-slate-400" /></div>;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div><h1 className="text-2xl font-bold text-white">AI Receptionist</h1><p className="text-slate-400 mt-1">Automatic call handling with AI transcription & smart replies</p></div>
+        <div><h1 className="text-2xl font-bold text-slate-900 dark:text-white">AI Receptionist</h1><p className="text-slate-600 dark:text-slate-400 mt-1">Automatic call handling with AI transcription & smart replies</p></div>
         <div className="flex gap-2">
           <Button variant={settings.isEnabled ? 'primary' : 'secondary'} onClick={toggleEnabled} icon={settings.isEnabled ? Check : Zap}>
             {settings.isEnabled ? 'Enabled' : 'Enable AI'}
@@ -203,12 +203,12 @@ export function AIReceptionistPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Status', value: settings.isEnabled ? 'Active' : 'Disabled', icon: Bot, color: settings.isEnabled ? 'text-emerald-400' : 'text-slate-400' },
+          { label: 'Status', value: settings.isEnabled ? 'Active' : 'Disabled', icon: Bot, color: settings.isEnabled ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-400' },
           { label: 'Auto-Reply Rules', value: rules.length, icon: MessageSquare },
-          { label: 'Active Rules', value: activeRules, icon: Zap, color: 'text-emerald-400' },
+          { label: 'Active Rules', value: activeRules, icon: Zap, color: 'text-emerald-700 dark:text-emerald-400' },
           { label: 'Recent Calls', value: calls.length, icon: Phone },
         ].map((s, i) => (
-          <Card key={i} className="p-4"><div className="flex items-center justify-between"><div><p className={`text-xl font-bold ${s.color || 'text-white'}`}>{s.value}</p><p className="text-sm text-slate-400">{s.label}</p></div><s.icon className="w-8 h-8" style={{ color: primaryColor }} /></div></Card>
+          <Card key={i} className="p-4"><div className="flex items-center justify-between"><div><p className={`text-xl font-bold ${s.color || 'text-slate-900 dark:text-white'}`}>{s.value}</p><p className="text-sm text-slate-600 dark:text-slate-400">{s.label}</p></div><s.icon className="w-8 h-8" style={{ color: primaryColor }} /></div></Card>
         ))}
       </div>
 
@@ -225,15 +225,15 @@ export function AIReceptionistPage() {
               <Table><TableHead><TableRow><TableHeader>Rule</TableHeader><TableHeader>Trigger</TableHeader><TableHeader>Channel</TableHeader><TableHeader>Message Preview</TableHeader><TableHeader>Status</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>
                 {rules.map((rule: Record<string, unknown>) => (
                   <TableRow key={rule.id as string}>
-                    <TableCell className="font-medium text-white">{rule.name as string}</TableCell>
+                    <TableCell className="font-medium text-slate-900 dark:text-white">{rule.name as string}</TableCell>
                     <TableCell><span className="px-2 py-0.5 rounded text-xs" style={{ backgroundColor: `${primaryColor}20`, color: primaryColor }}>{(rule.trigger as string)?.replace('_', ' ')}</span></TableCell>
-                    <TableCell className="text-slate-400">{rule.channel as string}</TableCell>
-                    <TableCell className="text-slate-400 text-sm max-w-xs truncate">{((rule.messageTemplate as string) || '').substring(0, 50)}...</TableCell>
-                    <TableCell>{rule.isActive ? <span className="text-emerald-400 text-sm">Active</span> : <span className="text-slate-500 text-sm dark:text-slate-400">Inactive</span>}</TableCell>
+                    <TableCell className="text-slate-600 dark:text-slate-400">{rule.channel as string}</TableCell>
+                    <TableCell className="text-slate-600 dark:text-slate-400 text-sm max-w-xs truncate">{((rule.messageTemplate as string) || '').substring(0, 50)}...</TableCell>
+                    <TableCell>{rule.isActive ? <span className="text-emerald-700 dark:text-emerald-400 text-sm">Active</span> : <span className="text-slate-500 text-sm dark:text-slate-400">Inactive</span>}</TableCell>
                     <TableCell><div className="flex gap-1">
-                      <button onClick={() => toggleRuleActive(rule)} className={`p-1.5 hover:bg-slate-700 rounded ${rule.isActive ? 'text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}><Check className="w-4 h-4" /></button>
-                      <button onClick={() => { setEditItem(rule); setShowForm(true); }} className="p-1.5 hover:bg-slate-700 rounded"><Edit2 className="w-4 h-4 text-slate-400" /></button>
-                      <button onClick={() => setDeleteTarget(rule)} className="p-1.5 hover:bg-red-500/20 rounded"><Trash2 className="w-4 h-4 text-red-400" /></button>
+                      <button onClick={() => toggleRuleActive(rule)} className={`p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded ${rule.isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}><Check className="w-4 h-4" /></button>
+                      <button onClick={() => { setEditItem(rule); setShowForm(true); }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"><Edit2 className="w-4 h-4 text-slate-600 dark:text-slate-400" /></button>
+                      <button onClick={() => setDeleteTarget(rule)} className="p-1.5 hover:bg-red-500/20 rounded"><Trash2 className="w-4 h-4 text-red-700 dark:text-red-400" /></button>
                     </div></TableCell>
                   </TableRow>
                 ))}
@@ -249,16 +249,16 @@ export function AIReceptionistPage() {
                 {calls.map((call: Record<string, unknown>) => (
                   <TableRow key={call.id as string}>
                     <TableCell><div className="flex items-center gap-2">
-                      {call.status === 'completed' && <PhoneIncoming className="w-4 h-4 text-emerald-400" />}
-                      {call.status === 'missed' && <Phone className="w-4 h-4 text-red-400" />}
-                      {call.status === 'voicemail' && <VoicemailIcon className="w-4 h-4 text-amber-400" />}
-                      <span className="text-slate-300">{(call.direction as string) || 'inbound'}</span>
+                      {call.status === 'completed' && <PhoneIncoming className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />}
+                      {call.status === 'missed' && <Phone className="w-4 h-4 text-red-700 dark:text-red-400" />}
+                      {call.status === 'voicemail' && <VoicemailIcon className="w-4 h-4 text-amber-700 dark:text-amber-400" />}
+                      <span className="text-slate-700 dark:text-slate-300">{(call.direction as string) || 'inbound'}</span>
                     </div></TableCell>
-                    <TableCell className="font-medium text-white">{(call.caller_number as string) || (call.callerNumber as string) || '-'}</TableCell>
-                    <TableCell className="text-slate-400">{call.duration ? `${Math.floor((call.duration as number) / 60)}:${String((call.duration as number) % 60).padStart(2, '0')}` : '-'}</TableCell>
+                    <TableCell className="font-medium text-slate-900 dark:text-white">{(call.caller_number as string) || (call.callerNumber as string) || '-'}</TableCell>
+                    <TableCell className="text-slate-600 dark:text-slate-400">{call.duration ? `${Math.floor((call.duration as number) / 60)}:${String((call.duration as number) % 60).padStart(2, '0')}` : '-'}</TableCell>
                     <TableCell><StatusBadge status={call.status === 'completed' ? 'completed' : call.ai_response_sent ? 'pending' : 'in_progress'} /></TableCell>
-                    <TableCell className="text-slate-400 text-sm max-w-xs truncate">{(call.ai_summary as string) || (call.aiSummary as string) || (call.transcription ? 'Transcribed' : '-')}</TableCell>
-                    <TableCell className="text-slate-400 text-sm">{call.start_time || call.startTime ? format(new Date((call.start_time || call.startTime) as string), 'MMM d, h:mm a') : '-'}</TableCell>
+                    <TableCell className="text-slate-600 dark:text-slate-400 text-sm max-w-xs truncate">{(call.ai_summary as string) || (call.aiSummary as string) || (call.transcription ? 'Transcribed' : '-')}</TableCell>
+                    <TableCell className="text-slate-600 dark:text-slate-400 text-sm">{call.start_time || call.startTime ? format(new Date((call.start_time || call.startTime) as string), 'MMM d, h:mm a') : '-'}</TableCell>
                   </TableRow>
                 ))}
               </TableBody></Table>
@@ -270,16 +270,16 @@ export function AIReceptionistPage() {
 
         <TabsContent value="settings">
           <Card><CardHeader title="AI Receptionist Settings" /><CardBody className="space-y-6">
-            <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg">
-              <div><p className="font-medium text-white">AI Receptionist</p><p className="text-sm text-slate-400">Automatically transcribe voicemails and send smart replies</p></div>
+            <div className="flex items-center justify-between p-4 bg-slate-100 dark:bg-slate-800/50 rounded-lg">
+              <div><p className="font-medium text-slate-900 dark:text-white">AI Receptionist</p><p className="text-sm text-slate-600 dark:text-slate-400">Automatically transcribe voicemails and send smart replies</p></div>
               <Button variant={settings.isEnabled ? 'primary' : 'secondary'} onClick={toggleEnabled}>{settings.isEnabled ? 'Enabled' : 'Disabled'}</Button>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div><label className="block text-sm text-slate-400 mb-1">Business Hours Start</label><Input type="time" value={settings.businessHoursStart || '09:00'} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ businessHoursStart: e.target.value })} /></div>
-              <div><label className="block text-sm text-slate-400 mb-1">Business Hours End</label><Input type="time" value={settings.businessHoursEnd || '17:00'} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ businessHoursEnd: e.target.value })} /></div>
+              <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Business Hours Start</label><Input type="time" value={settings.businessHoursStart || '09:00'} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ businessHoursStart: e.target.value })} /></div>
+              <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Business Hours End</label><Input type="time" value={settings.businessHoursEnd || '17:00'} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ businessHoursEnd: e.target.value })} /></div>
             </div>
             <div>
-              <label className="block text-sm text-slate-400 mb-1">Timezone</label>
+              <label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Timezone</label>
               <Select value={settings.timezone || 'America/Chicago'} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateSettings({ timezone: e.target.value })} options={[
                 { value: 'America/New_York', label: 'Eastern' },
                 { value: 'America/Chicago', label: 'Central' },
@@ -287,8 +287,8 @@ export function AIReceptionistPage() {
                 { value: 'America/Los_Angeles', label: 'Pacific' },
               ]} />
             </div>
-            <div><label className="block text-sm text-slate-400 mb-1">Default Greeting</label><Textarea value={settings.greetingText || ''} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateSettings({ greetingText: e.target.value })} placeholder="Hi, thanks for calling! We're currently away but will get back to you soon." rows={3} /></div>
-            <div><label className="block text-sm text-slate-400 mb-1">Forwarding Number</label><Input value={settings.forwardingNumber || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ forwardingNumber: e.target.value })} placeholder="(555) 123-4567" /></div>
+            <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Default Greeting</label><Textarea value={settings.greetingText || ''} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateSettings({ greetingText: e.target.value })} placeholder="Hi, thanks for calling! We're currently away but will get back to you soon." rows={3} /></div>
+            <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Forwarding Number</label><Input value={settings.forwardingNumber || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ forwardingNumber: e.target.value })} placeholder="(555) 123-4567" /></div>
           </CardBody></Card>
         </TabsContent>
       </Tabs>

@@ -366,10 +366,25 @@ async function createClaim(companyId: string, data: {
   if (warranty.status === 'expired') throw new Error('Warranty has expired');
   if (warranty.status === 'voided') throw new Error('Warranty has been voided');
 
+  /**
+   * THE TITLE IS A COLUMN NOW, NOT A PREFIX ON THE DESCRIPTION. (T44)
+   *
+   * This used to store `title + ': ' + description` in one field because the table had no title
+   * column, and the claims list — which renders {claim.title} — showed nothing at all. `location`
+   * and `priority` were accepted by the route and dropped on the floor for the same reason, so a
+   * claim filed as "Roof leak over the kitchen / North bedroom / high" arrived unlabelled, with no
+   * location and no urgency.
+   *
+   * Priority falls back to 'normal' rather than being required: the form defaults it, and a claim
+   * somebody filed in a hurry should not be refused over a dropdown.
+   */
   const [claim] = await db.insert(warrantyClaim).values({
     companyId,
     warrantyId: data.warrantyId,
-    description: data.title + (data.description ? ': ' + data.description : ''),
+    title: data.title,
+    location: data.location ?? null,
+    priority: data.priority || 'normal',
+    description: data.description ?? '',
     status: 'open',
   }).returning();
 

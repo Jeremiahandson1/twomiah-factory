@@ -4,7 +4,7 @@ import { db } from '../../db/index.ts'
 import { sql, eq } from 'drizzle-orm'
 import { company } from '../../db/schema.ts'
 import { storeTimeZone, storeDayRange, storeDateString, isNaiveTimestamp, toIsoUtc, zoneFor } from '../utils/isoTime.ts'
-import { settledSale, taxCollected, taxNetExpr, exciseNetExpr, salesNetExpr, netExpr } from '../utils/revenue.ts'
+import { settledSale, taxCollected, taxNetExpr, exciseNetExpr, salesNetExpr, netExpr, subtotalNetExpr } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
@@ -647,7 +647,14 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
           -- fixed on the filing, still open on this one. The MONEY below stays on taxCollected;
           -- only the count is a different question. (Dispensary T33 L2)
           COUNT(*)::int as order_count,
-          COALESCE(SUM(o.subtotal::numeric) FILTER (WHERE o.status IN ${taxCollected}), 0) as subtotal,
+          -- DERIVED, not re-summed: net collected minus net tax. SUM(o.subtotal) was GROSS where the
+          -- tax beside it was NET, so any day with a refund left a gap exactly the size of the tax
+          -- handed back — and the total column is subtotal − discount + tax, so a DISCOUNTED day never
+          -- reconciled either. Two causes, one symptom. Deriving the goods value from the two figures
+          -- that are already netted makes "subtotal + tax = collected" true by construction on every
+          -- day, instead of true only when three independent sums happen to agree.
+          -- (T42: "$5.68 gap on 09-23; subtotal + tax ≠ collected on five days")
+          COALESCE(SUM(${subtotalNetExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0) as subtotal,
           -- NET of tax handed back with returns, per component, so the lines below still add up to
           -- the total once refunds are subtracted. Filing the gross overstated the liability. (T29 M4)
           COALESCE(SUM(${taxNetExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0) as total_tax,
@@ -656,7 +663,10 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
           -- orders has no city_tax column (that reference 500'd every tax report); local tax
           -- is whatever total tax isn't excise or sales.
           GREATEST(0, COALESCE(SUM(${taxNetExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0) - COALESCE(SUM(${exciseNetExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0) - COALESCE(SUM(${salesNetExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0)) as local_tax,
-          COALESCE(SUM(o.total::numeric) FILTER (WHERE o.status IN ${taxCollected}), 0) as total_collected
+          -- Netted per sale, the way the dashboard, analytics and the compliance daily report all
+          -- already do it. This report being the only gross surface is precisely the failure
+          -- utils/revenue.ts exists to prevent.
+          COALESCE(SUM(${netExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0) as total_collected
         FROM orders o
         WHERE o.company_id = ${currentUser.companyId}
           AND o.status IN ${settledSale}

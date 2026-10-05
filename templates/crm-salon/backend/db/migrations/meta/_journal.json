@@ -225,6 +225,13 @@
       "when": 1792100400000,
       "tag": "0031_warranty_claim_fk_project_warranty",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792200400000,
+      "tag": "0032_warranty_claim_title_location_priority",
+      "breakpoints": true
     }
   ]
 }

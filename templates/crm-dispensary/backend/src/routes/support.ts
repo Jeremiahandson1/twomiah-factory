@@ -264,6 +264,26 @@ app.patch('/tickets/:id', async (c) => {
     return c.json({ error: 'Assigning a support ticket to somebody needs support:update.' }, 403);
   }
 
+  /**
+   * A STATUS THE PRODUCT DOES NOT KNOW IS WORSE THAN A REFUSAL. (T42 "accepts any status or priority")
+   *
+   * These went straight through unchecked, so a ticket could be set to 'bogus' — after which it
+   * matches no filter on the desk screen, lands in no bucket on the stats endpoint, and never equals
+   * 'resolved', so it can never be closed through the UI either. The lists below are the ones written
+   * beside the columns in schema.ts, not a new opinion.
+   *
+   * `category` is deliberately NOT constrained: it is a free-text label a shop uses how it likes,
+   * and nothing in the product branches on it.
+   */
+  const TICKET_STATUSES = ['open', 'in_progress', 'waiting', 'resolved', 'closed'];
+  const TICKET_PRIORITIES = ['low', 'normal', 'high', 'urgent', 'critical'];
+  if (body.status !== undefined && !TICKET_STATUSES.includes(body.status)) {
+    return c.json({ error: `"${body.status}" is not a ticket status. Use one of: ${TICKET_STATUSES.join(', ')}.` }, 400);
+  }
+  if (body.priority !== undefined && !TICKET_PRIORITIES.includes(body.priority)) {
+    return c.json({ error: `"${body.priority}" is not a ticket priority. Use one of: ${TICKET_PRIORITIES.join(', ')}.` }, 400);
+  }
+
   const updates: any = { updatedAt: new Date() };
   if (body.status) updates.status = body.status;
   if (body.priority) updates.priority = body.priority;

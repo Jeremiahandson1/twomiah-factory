@@ -39,18 +39,18 @@ type Message = {
 };
 
 const priorityColors: Record<string, string> = {
-  critical: 'bg-red-500/20 text-red-400',
-  urgent: 'bg-orange-500/20 text-orange-400',
-  high: 'bg-yellow-500/20 text-yellow-400',
-  normal: 'bg-blue-500/20 text-blue-400',
+  critical: 'bg-red-500/20 text-red-700 dark:text-red-400',
+  urgent: 'bg-orange-500/20 text-orange-800 dark:text-orange-400',
+  high: 'bg-yellow-500/20 text-yellow-800 dark:text-yellow-400',
+  normal: 'bg-blue-500/20 text-blue-700 dark:text-blue-400',
   low: 'bg-gray-500/20 text-gray-600 dark:text-gray-400',
 };
 
 const statusColors: Record<string, string> = {
-  open: 'bg-blue-500/20 text-blue-400',
-  in_progress: 'bg-yellow-500/20 text-yellow-400',
-  waiting: 'bg-purple-500/20 text-purple-400',
-  resolved: 'bg-green-500/20 text-green-400',
+  open: 'bg-blue-500/20 text-blue-700 dark:text-blue-400',
+  in_progress: 'bg-yellow-500/20 text-yellow-800 dark:text-yellow-400',
+  waiting: 'bg-purple-500/20 text-purple-700 dark:text-purple-400',
+  resolved: 'bg-green-500/20 text-green-800 dark:text-green-300',
   closed: 'bg-gray-500/20 text-gray-600 dark:text-gray-400',
 };
 
@@ -185,7 +185,7 @@ export default function SupportPage() {
           <ArrowLeft size={16} /> Back
         </button>
         <div className="flex items-center gap-2 mb-6">
-          <Bot size={24} className="text-purple-400" />
+          <Bot size={24} className="text-purple-700 dark:text-purple-400" />
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">AI Support Assistant</h1>
         </div>
 
@@ -221,7 +221,7 @@ export default function SupportPage() {
             </button>
           </div>
         </div>
-        <p className="text-xs text-gray-600 mt-2 dark:text-slate-400">Can't find an answer? <button onClick={() => setShowCreate(true)} className="text-blue-400 hover:underline">Create a ticket</button></p>
+        <p className="text-xs text-gray-600 mt-2 dark:text-slate-400">Can't find an answer? <button onClick={() => setShowCreate(true)} className="text-blue-700 dark:text-blue-400 hover:underline">Create a ticket</button></p>
       </div>
     );
   }
@@ -240,7 +240,7 @@ export default function SupportPage() {
               <span className="text-gray-500 text-xs font-mono dark:text-slate-400">{selected.number}</span>
               <span className={'text-xs px-2 py-0.5 rounded-full font-medium capitalize ' + (statusColors[selected.status] || '')}>{selected.status.replace('_', ' ')}</span>
               <span className={'text-xs px-2 py-0.5 rounded-full font-medium capitalize ' + (priorityColors[selected.priority] || '')}>{selected.priority}</span>
-              {isSlaBreached(selected) && <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">SLA BREACHED</span>}
+              {isSlaBreached(selected) && <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-700 dark:text-red-400">SLA BREACHED</span>}
             </div>
             <h2 className="text-lg font-bold text-gray-900 dark:text-white mt-1">{selected.subject}</h2>
           </div>
@@ -265,8 +265,8 @@ export default function SupportPage() {
           {messages.map(msg => (
             <div key={msg.id} className={'border rounded-lg p-3 ' + (msg.isInternal ? 'bg-yellow-900/10 border-yellow-800/30' : msg.userId ? 'bg-blue-900/10 border-blue-800/30' : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800')}>
               <div className="flex items-center gap-2 mb-1">
-                {msg.isInternal && <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1 py-0.5 rounded">Internal</span>}
-                {msg.isAi && <span className="text-xs bg-purple-500/20 text-purple-400 px-1 py-0.5 rounded">AI</span>}
+                {msg.isInternal && <span className="text-xs bg-yellow-500/20 text-yellow-800 dark:text-yellow-400 px-1 py-0.5 rounded">Internal</span>}
+                {msg.isAi && <span className="text-xs bg-purple-500/20 text-purple-700 dark:text-purple-400 px-1 py-0.5 rounded">AI</span>}
                 <span className="text-xs text-gray-600 ml-auto dark:text-slate-400">{new Date(msg.createdAt).toLocaleString()}</span>
               </div>
               <p className="text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap">{msg.body}</p>
@@ -281,7 +281,7 @@ export default function SupportPage() {
             <div className="flex items-center gap-1 mb-2">
               {[1, 2, 3, 4, 5].map(n => (
                 <button key={n} onClick={() => setRatingValue(n)} className="p-1">
-                  <Star size={20} className={n <= ratingValue ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400 dark:text-gray-600'} />
+                  <Star size={20} className={n <= ratingValue ? 'text-yellow-700 dark:text-yellow-400 fill-yellow-400' : 'text-gray-500 dark:text-gray-400'} />
                 </button>
               ))}
               {ratingValue > 0 && (
@@ -292,8 +292,8 @@ export default function SupportPage() {
         )}
         {selected.rating && (
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-3 mb-4 flex items-center gap-2">
-            <Star size={16} className="text-yellow-400 fill-yellow-400" />
-            <span className="text-yellow-400 text-sm font-medium">{selected.rating}/5</span>
+            <Star size={16} className="text-yellow-700 dark:text-yellow-400 fill-yellow-400" />
+            <span className="text-yellow-700 dark:text-yellow-400 text-sm font-medium">{selected.rating}/5</span>
             {selected.ratingComment && <span className="text-gray-500 dark:text-slate-400 text-sm">{selected.ratingComment}</span>}
           </div>
         )}
@@ -324,7 +324,7 @@ export default function SupportPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">Support Tickets</h1>
         <div className="flex gap-2">
-          <button onClick={() => setView('ai-chat')} className="flex items-center gap-1.5 px-3 py-2 bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 rounded-lg text-sm">
+          <button onClick={() => setView('ai-chat')} className="flex items-center gap-1.5 px-3 py-2 bg-purple-600/20 text-purple-700 dark:text-purple-400 hover:bg-purple-600/30 rounded-lg text-sm">
             <Bot size={16} /> AI Chat
           </button>
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">
@@ -336,10 +336,10 @@ export default function SupportPage() {
       {/* Quick stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         {[
-          { label: 'Open', value: stats.open || 0, color: 'text-blue-400' },
-          { label: 'In Progress', value: stats.in_progress || 0, color: 'text-yellow-400' },
-          { label: 'Resolved', value: stats.resolved || 0, color: 'text-green-400' },
-          { label: 'SLA Breach', value: stats.sla_breached || 0, color: (stats.sla_breached || 0) > 0 ? 'text-red-400' : 'text-gray-600 dark:text-gray-400' },
+          { label: 'Open', value: stats.open || 0, color: 'text-blue-700 dark:text-blue-400' },
+          { label: 'In Progress', value: stats.in_progress || 0, color: 'text-yellow-700 dark:text-yellow-400' },
+          { label: 'Resolved', value: stats.resolved || 0, color: 'text-green-700 dark:text-green-400' },
+          { label: 'SLA Breach', value: stats.sla_breached || 0, color: (stats.sla_breached || 0) > 0 ? 'text-red-700 dark:text-red-400' : 'text-gray-600 dark:text-gray-400' },
         ].map(s => (
           <div key={s.label} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-3">
             <p className="text-xs text-gray-500 dark:text-slate-400">{s.label}</p>
@@ -382,7 +382,7 @@ export default function SupportPage() {
                   <span className="text-gray-900 dark:text-white text-sm font-medium">{t.subject}</span>
                   <span className={'text-xs px-1.5 py-0.5 rounded-full font-medium capitalize ' + (statusColors[t.status] || '')}>{t.status.replace('_', ' ')}</span>
                   <span className={'text-xs px-1.5 py-0.5 rounded-full font-medium capitalize ' + (priorityColors[t.priority] || '')}>{t.priority}</span>
-                  {isSlaBreached(t) && <AlertTriangle size={12} className="text-red-400" />}
+                  {isSlaBreached(t) && <AlertTriangle size={12} className="text-red-700 dark:text-red-400" />}
                 </div>
                 <div className="text-xs text-gray-500 mt-0.5 dark:text-slate-400">
                   {t.number} &middot; {t.category || 'General'} &middot; {formatDate(t.createdAt)}

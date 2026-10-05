@@ -116,7 +116,7 @@ export default function MenusPage() {
                           {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                         </button>
                         <div className="flex-1 min-w-[200px]">
-                          <p className="font-semibold text-gray-900 dark:text-slate-100">
+                          <p className="font-semibold text-gray-900 break-words dark:text-slate-100">
                             {p.name || 'Untitled'}
                             {!p.active && <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">Retired</span>}
                           </p>

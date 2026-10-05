@@ -40,8 +40,15 @@ import {
   project,
   quote,
   quoteLineItem,
+  // The catalogue item a quote line was priced from — read for its labor_hours, so the estimate
+  // knows how long the work takes rather than only what somebody typed on the job. (T42)
+  pricebookItem,
   invoice,
   timeEntry,
+  // Where a person's pay rate actually lives. jobCosting used to fall back to
+  // user.hourly_rate, a column nothing in the codebase writes, so labour cost read $0 on every
+  // entry that had no rate stamped on it. time.ts has always priced these hours off the roster. (T42)
+  teamMember,
   inventoryUsage,
   inventoryItem,
   expense,
@@ -125,7 +132,7 @@ export async function costsByJob(companyId: string, jobIds: string[]): Promise<M
      * the entry, else the person's own rate. COALESCE in SQL rather than in JavaScript so the
      * grouped sum and the per-row detail cannot drift apart.
      */
-    const rate = sql`COALESCE(${timeEntry.hourlyRate}, ${user.hourlyRate})`
+    const rate = sql`COALESCE(${timeEntry.hourlyRate}, ${user.hourlyRate}, NULLIF(${teamMember.hourlyRate}, 0))`
     const labour = await db.select({
       jobId: timeEntry.jobId,
       hours: sql<string>`COALESCE(SUM(${timeEntry.hours}), 0)`,
@@ -134,6 +141,7 @@ export async function costsByJob(companyId: string, jobIds: string[]): Promise<M
     })
       .from(timeEntry)
       .leftJoin(user, eq(timeEntry.userId, user.id))
+      .leftJoin(teamMember, and(eq(teamMember.companyId, companyId), sql`lower(${teamMember.email}) = lower(${user.email})`))
       .where(and(eq(timeEntry.companyId, companyId), inArray(timeEntry.jobId, ids)))
       .groupBy(timeEntry.jobId)
 
@@ -363,8 +371,8 @@ export async function attributeRevenue(companyId: string, inScope: JobKey[]): Pr
  * That is the same principle as unratedLaborHours above: a cost the system made up is worse than a
  * cost it admits it does not know.
  */
-async function estimatedCostsByQuote(quoteIds: string[]): Promise<Map<string, { labor: number; material: number; uncostedLines: number }>> {
-  const out = new Map<string, { labor: number; material: number; uncostedLines: number }>()
+async function estimatedCostsByQuote(quoteIds: string[]): Promise<Map<string, { labor: number; material: number; uncostedLines: number; laborHours: number }>> {
+  const out = new Map<string, { labor: number; material: number; uncostedLines: number; laborHours: number }>()
   for (const ids of chunks(quoteIds)) {
     // `unit_cost` exists on templates that ran the quote-line-cost migration (crm-fieldservice
     // 0024). Addressed through the schema object so a template without it fails loudly at build
@@ -378,13 +386,24 @@ async function estimatedCostsByQuote(quoteIds: string[]): Promise<Map<string, { 
       // which contributes to neither bucket and would otherwise vanish without trace.
       other: sql<string>`COALESCE(SUM(CASE WHEN ${quoteLineItem.unitCost} IS NOT NULL AND (${quoteLineItem.type} IS NULL OR ${quoteLineItem.type} NOT IN ('labor', 'material', 'part')) THEN ${lineCost} ELSE 0 END), 0)`,
       uncosted: sql<string>`COUNT(*) FILTER (WHERE ${quoteLineItem.unitCost} IS NULL)`,
+      /**
+       * HOW LONG THE CATALOGUE SAYS THE WORK TAKES. (T42 "pricebook labour hours ignored")
+       *
+       * The hours live on the pricebook item and the line records which item it was priced from, so
+       * they are summed through that link — quantity × the item's labor_hours. Summed only where the
+       * catalogue states them: a line from an item with no labor_hours contributes nothing rather
+       * than a guess, exactly as an uncosted line contributes no cost.
+       */
+      laborHours: sql<string>`COALESCE(SUM(${quoteLineItem.quantity} * COALESCE(${pricebookItem.laborHours}, 0)), 0)`,
     })
       .from(quoteLineItem)
+      .leftJoin(pricebookItem, eq(pricebookItem.id, quoteLineItem.pricebookItemId))
       .where(inArray(quoteLineItem.quoteId, ids))
       .groupBy(quoteLineItem.quoteId)
     for (const r of rows) {
       out.set(r.quoteId, {
         labor: num(r.labor),
+        laborHours: round1(num(r.laborHours)),
         // A costed line that is neither labour nor material is still money out of the door; it is
         // reported with materials rather than dropped, because the alternative is an estimate that
         // silently excludes it.
@@ -438,12 +457,13 @@ export async function getJobCostAnalysis(jobId: string, companyId: string) {
   ])
   const rev = byJob.get(jobRow.id)!
   const cost = costMap.get(jobRow.id)!
-  const est = estMap.get(jobRow.quoteId || '') || { labor: 0, material: 0, uncostedLines: 0 }
+  const est = estMap.get(jobRow.quoteId || '') || { labor: 0, material: 0, uncostedLines: 0, laborHours: 0 }
 
   // The lines behind each figure. The hourly rate here resolves the same way costsByJob's SQL does.
   const timeEntries = await db.select()
     .from(timeEntry)
     .leftJoin(user, eq(timeEntry.userId, user.id))
+    .leftJoin(teamMember, and(eq(teamMember.companyId, companyId), sql`lower(${teamMember.email}) = lower(${user.email})`))
     .where(and(eq(timeEntry.jobId, jobId), eq(timeEntry.companyId, companyId)))
 
   const materialUsage = await db.select()
@@ -472,7 +492,14 @@ export async function getJobCostAnalysis(jobId: string, companyId: string) {
     : []
 
   const estimatedRevenue = estimatedRevenueOf(quoteRow, jobRow.estimatedValue)
-  const estimatedLaborHours = num(jobRow.estimatedHours)
+  /**
+   * The catalogue's hours when the quote has them, the job's typed figure when it does not. (T42)
+   *
+   * Not added together: they are two answers to the same question, and a quote priced from the
+   * catalogue is the better one. Falling back rather than overriding means a hand-typed estimate, and
+   * every quote already in the system, keeps exactly the meaning it had.
+   */
+  const estimatedLaborHours = est.laborHours > 0 ? est.laborHours : num(jobRow.estimatedHours)
   const estimatedCost = round2(est.labor + est.material)
 
   const grossProfit = round2(rev.revenue - cost.totalCost)
@@ -538,7 +565,10 @@ export async function getJobCostAnalysis(jobId: string, companyId: string) {
     },
 
     laborDetail: timeEntries.map((e) => {
-      const rate = e.time_entry.hourlyRate ?? e.user?.hourlyRate ?? null
+      // The same three steps the grouped SQL above uses, in the same order — a roster rate of 0
+      // is a blank rather than "free", which is the rule time.ts applies too.
+      const rosterRate = Number(e.team_member?.hourlyRate)
+      const rate = e.time_entry.hourlyRate ?? e.user?.hourlyRate ?? (Number.isFinite(rosterRate) && rosterRate > 0 ? e.team_member!.hourlyRate : null)
       return {
         id: e.time_entry.id,
         date: e.time_entry.date,
@@ -640,7 +670,7 @@ export async function getJobCostingSummary(
   const rowFor = (j: typeof scope[number]) => {
     const rev = byJob.get(j.id) || { directRevenue: 0, sharedRevenue: 0, revenue: 0, salesTax: 0, collected: 0, invoiceIds: [], invoices: [] }
     const cost = costMap.get(j.id) || EMPTY_COST
-    const est = estMap.get(j.quoteId || '') || { labor: 0, material: 0, uncostedLines: 0 }
+    const est = estMap.get(j.quoteId || '') || { labor: 0, material: 0, uncostedLines: 0, laborHours: 0 }
     const estimatedRevenue = estimatedRevenueOf(j.quoteTotal != null ? { total: j.quoteTotal, taxAmount: j.quoteTax } : null, j.estimatedValue)
     const estimatedCost = round2(est.labor + est.material)
     const profit = round2(rev.revenue - cost.totalCost)

@@ -84,6 +84,15 @@ const changeOrderSchema = z.object({
   // ...coData once accepted. Guided transitions still use /submit,/approve,/reject.
   status: z.string().optional(),
   lineItems: z.array(lineItemSchema).default([]),
+  /**
+   * A LUMP-SUM CHANGE ORDER. (T44 — "a change order sent with only an amount saves as $0")
+   *
+   * This field was missing entirely, so zod stripped it and the amount was then computed from the
+   * line items — of which there were none — giving $0. A change order for a flat figure is an
+   * ordinary thing to raise; itemising it is optional. Line items still win when they are present,
+   * because an itemised total is the sum of its items.
+   */
+  amount: z.number().optional(),
 })
 
 /**
@@ -192,7 +201,7 @@ const CREATABLE = ['draft', 'submitted', 'pending']
 app.post('/', requirePermission('change-orders:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = changeOrderSchema.parse(await c.req.json())
-  const { lineItems, ...coData } = data
+  const { lineItems, amount: sentAmount, ...coData } = data
 
   if (coData.status !== undefined && !CREATABLE.includes(coData.status)) {
     return c.json({
@@ -204,7 +213,11 @@ app.post('/', requirePermission('change-orders:create'), async (c) => {
     }, 400)
   }
 
-  const amount = lineItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
+  // Line items are authoritative when given; a flat amount is honoured when there are none, and
+  // only then does $0 mean somebody actually raised a change order worth nothing. (T44)
+  const amount = lineItems.length > 0
+    ? lineItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
+    : (sentAmount ?? 0)
   const [{ value: cnt }] = await db.select({ value: count() }).from(changeOrder).where(and(eq(changeOrder.companyId, currentUser.companyId), eq(changeOrder.projectId, data.projectId)))
 
   const [newCo] = await db.insert(changeOrder).values({
@@ -234,7 +247,7 @@ app.put('/:id', requirePermission('change-orders:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const data = changeOrderSchema.partial().parse(await c.req.json())
-  const { lineItems, ...coData } = data
+  const { lineItems, amount: sentAmount, ...coData } = data
   /**
    * `status` flows through this handler (it was added so PUT {status} would stop silently no-opping),
    * which means it is also a way round every guard below. APPROVING is the one transition that has
@@ -256,7 +269,9 @@ app.put('/:id', requirePermission('change-orders:update'), async (c) => {
   // stayed Approved.
   if (!EDITABLE.includes(existing.status)) return refuse(c, existing, 'edited', EDITABLE)
 
-  let amount = Number(existing.amount)
+  // Same rule as create: items win, then a sent flat amount, then what it already was — so an
+  // edit that mentions neither leaves the figure alone instead of zeroing it. (T44)
+  let amount = sentAmount ?? Number(existing.amount)
   if (lineItems) {
     await db.delete(changeOrderLineItem).where(eq(changeOrderLineItem.changeOrderId, id))
     amount = lineItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0)

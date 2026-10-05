@@ -117,7 +117,14 @@ for (const t of fs.readdirSync(TPL).sort()) {
       const src = read(p)
       checkedFiles++
       for (const m of src.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"]([^'"]*db\/schema(?:\.ts)?)['"]/g)) {
-        for (const part of m[1].split(',')) {
+        // A COMMENT INSIDE THE BRACES IS NOT AN IMPORT NAME. (T42)
+        //
+        // A multi-line import list with a line comment above one of its names is legal TypeScript,
+        // and a sentence saying why that table is needed belongs exactly there. Splitting the brace
+        // body on commas read the prose itself as two unresolved names, so the build failed over a
+        // comment — which is how people learn to stop writing them. Comments go before the split.
+        const names = m[1].replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ')
+        for (const part of names.split(',')) {
           const name = part.trim().split(/\s+as\s+/)[0].trim().replace(/^type\s+/, '')
           if (!name || exports.has(name)) continue
           bad.push({

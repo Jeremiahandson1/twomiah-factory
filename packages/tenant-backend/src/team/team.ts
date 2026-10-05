@@ -5,7 +5,7 @@
 // Before: two copies differing only in whether a negative hourly rate was refused; phone was free text; paging unclamped.
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq, and, count, asc, ilike, or, inArray } from 'drizzle-orm'
+import { eq, and, ne, count, asc, ilike, or, inArray } from 'drizzle-orm'
 import { isValidPhone } from '../contacts/contacts'
 
 export interface TeamTables { teamMember: any; user: any
@@ -178,7 +178,22 @@ export function createTeamRoutes(deps: TeamDeps) {
   app.get('/assignable', requirePermission('team:read'), async (c) => {
     const user = (c as any).get('user')
     const rows = await db.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName, email: t.user.email, role: t.user.role, isActive: t.user.isActive })
-      .from(t.user).where(and(eq(t.user.companyId, user.companyId), eq(t.user.isActive, true))).orderBy(asc(t.user.firstName))
+      /**
+       * A READ-ONLY SEAT CANNOT BE SENT TO A JOB. (T42 "viewer offered as a technician in Dispatch")
+       *
+       * This offered every active login whatever its role, so the Dispatch board and every
+       * "Assign To" picker listed the viewer. Assigning work to that seat is not a thing that can
+       * happen — the person cannot start the job, log time against it or complete it — so the
+       * assignment would sit there until somebody noticed.
+       *
+       * ONLY viewer is excluded. A manager, an admin and an owner all turn out on jobs in a small
+       * shop, and leaving them out of the picker would be the opposite bug.
+       */
+      .from(t.user).where(and(
+        eq(t.user.companyId, user.companyId),
+        eq(t.user.isActive, true),
+        ne(t.user.role, 'viewer'),
+      )).orderBy(asc(t.user.firstName))
     const data = rows.map((u: any) => ({ id: u.id, name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email, email: u.email, role: u.role, active: u.isActive, kind: 'user' as const }))
     // Roster-only crew can be assigned work too, so they belong in the picker — matched to the login users by
     // email so somebody who has both a login and a roster card is offered once, as their login. (T21 M12)

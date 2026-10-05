@@ -52,7 +52,12 @@ export default function DispatchBoard() {
     try {
       const [jobsRes, techsRes] = await Promise.all([
         api.get(`/api/jobs?date=${selectedDate}&limit=200`),
-        api.get('/api/team?role=technician&limit=100'),
+        // /assignable, NOT /api/team — team.ts says so three lines above that endpoint: "Pickers
+        // must read this, never GET /." GET /api/team ignores ?role entirely (it honours page,
+        // limit, active, department and search), so this board listed everybody including the
+        // read-only viewer, while roster-only crew — whom /assignable has included since T21 M12 —
+        // were being looked for in the wrong place. One line, both halves of the finding. (T42)
+        api.get('/api/team/assignable'),
       ]);
       setJobs(jobsRes.data || jobsRes || []);
       setTechs(techsRes.data || techsRes || []);

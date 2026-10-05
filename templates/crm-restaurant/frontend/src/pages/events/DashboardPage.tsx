@@ -216,7 +216,7 @@ export default function DashboardPage() {
               {(activity.newEnquiries || []).map((e) => (
                 <li key={e.id} className="py-2">
                   <Link to={`/crm/events/${e.id}`} className="block hover:bg-gray-50 -mx-2 px-2 rounded">
-                    <p className="font-medium text-gray-900 dark:text-slate-100">{e.name || 'Untitled'}</p>
+                    <p className="font-medium text-gray-900 break-words min-w-0 dark:text-slate-100">{e.name || 'Untitled'}</p>
                     <p className="text-xs text-gray-500 capitalize dark:text-slate-400">
                       {fmtEventDate(e.eventDate)}{e.guestCount ? ` · ${e.guestCount} guests` : ''}{e.eventType ? ` · ${prettyType(e.eventType)}` : ''}
                     </p>
@@ -240,7 +240,7 @@ export default function DashboardPage() {
                 <li key={e.id} className="py-2">
                   <Link to={`/crm/events/${e.id}`} className="block hover:bg-gray-50 -mx-2 px-2 rounded">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-medium text-gray-900 dark:text-slate-100">{e.name || 'Untitled'}</p>
+                      <p className="font-medium text-gray-900 break-words min-w-0 dark:text-slate-100">{e.name || 'Untitled'}</p>
                       {(e.guestCountFinal || e.guestCount) && (
                         <span className="text-xs text-gray-500 flex items-center gap-1 dark:text-slate-400">
                           <Users className="w-3 h-3" /> {e.guestCountFinal ?? e.guestCount}

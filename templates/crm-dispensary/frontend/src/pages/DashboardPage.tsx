@@ -53,6 +53,10 @@ export default function DashboardPage() {
         todayPending: statsData?.today?.pendingOrders || 0,
         avgOrderValue: statsData?.today?.avgOrderValue || 0,
         lowStockCount: statsData?.lowStockCount || 0,
+        // What went back today. The endpoint has sent this since T21 H8 ("reported, never applied by
+        // omission") and this screen dropped it, so a day whose only sale was refunded showed
+        // "Today's Revenue $0.00" with nothing to explain it. (T44)
+        todayRefunded: statsData?.today?.refunded || 0,
       });
       setLowStock(Array.isArray(statsData?.lowStockAlerts) ? statsData.lowStockAlerts.map((i: any) => ({
         id: i.id, name: i.name, category: i.category, stock: Number(i.stock_quantity || 0),
@@ -83,6 +87,16 @@ export default function DashboardPage() {
     {
       label: "Today's Revenue",
       value: `$${(stats?.todayRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+      /**
+       * A ZERO THAT EXPLAINS ITSELF. (T44)
+       *
+       * Revenue is net and floored per sale, so a day whose only sale came back reads $0.00 — which
+       * is right, and indistinguishable from a broken till if the screen says nothing. Only shown
+       * when something was actually refunded, so an ordinary day gains no clutter.
+       */
+      note: Number(stats?.todayRefunded || 0) > 0
+        ? `$${Number(stats?.todayRefunded).toLocaleString(undefined, { minimumFractionDigits: 2 })} refunded today`
+        : null,
       icon: DollarSign,
       color: 'green',
       link: '/crm/orders',
@@ -152,6 +166,12 @@ export default function DashboardPage() {
               </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stat.value}</p>
               <p className="text-sm text-gray-500 dark:text-slate-400">{stat.label}</p>
+              {/* Why the figure above is what it is, when it needs saying — today a refund is the
+                  only case. A $0.00 revenue tile beside "1 sale today" is indistinguishable from a
+                  broken till unless the screen explains it. (T44) */}
+              {'note' in stat && stat.note ? (
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">{stat.note}</p>
+              ) : null}
             </>
           );
           const card = 'bg-white rounded-lg p-5 shadow-sm dark:bg-slate-900';

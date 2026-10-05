@@ -40,15 +40,15 @@ type Message = {
 
 const priorityColors: Record<string, string> = {
   critical: 'bg-red-500/20 text-red-700 dark:text-red-400',
-  urgent: 'bg-orange-500/20 text-orange-700 dark:text-orange-400',
-  high: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400',
+  urgent: 'bg-orange-500/20 text-orange-800 dark:text-orange-400',
+  high: 'bg-yellow-500/20 text-yellow-800 dark:text-yellow-400',
   normal: 'bg-blue-500/20 text-blue-700 dark:text-blue-400',
   low: 'bg-gray-500/20 text-gray-600 dark:text-gray-400',
 };
 
 const statusColors: Record<string, string> = {
   open: 'bg-blue-500/20 text-blue-700 dark:text-blue-400',
-  in_progress: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400',
+  in_progress: 'bg-yellow-500/20 text-yellow-800 dark:text-yellow-400',
   waiting: 'bg-purple-500/20 text-purple-700 dark:text-purple-400',
   resolved: 'bg-green-500/20 text-green-800 dark:text-green-300',
   closed: 'bg-gray-500/20 text-gray-600 dark:text-gray-400',
@@ -265,7 +265,7 @@ export default function SupportPage() {
           {messages.map(msg => (
             <div key={msg.id} className={'border rounded-lg p-3 ' + (msg.isInternal ? 'bg-yellow-900/10 border-yellow-800/30' : msg.userId ? 'bg-blue-900/10 border-blue-800/30' : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800')}>
               <div className="flex items-center gap-2 mb-1">
-                {msg.isInternal && <span className="text-xs bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 px-1 py-0.5 rounded">Internal</span>}
+                {msg.isInternal && <span className="text-xs bg-yellow-500/20 text-yellow-800 dark:text-yellow-400 px-1 py-0.5 rounded">Internal</span>}
                 {msg.isAi && <span className="text-xs bg-purple-500/20 text-purple-700 dark:text-purple-400 px-1 py-0.5 rounded">AI</span>}
                 <span className="text-xs text-gray-600 ml-auto dark:text-slate-400">{new Date(msg.createdAt).toLocaleString()}</span>
               </div>
@@ -281,7 +281,7 @@ export default function SupportPage() {
             <div className="flex items-center gap-1 mb-2">
               {[1, 2, 3, 4, 5].map(n => (
                 <button key={n} onClick={() => setRatingValue(n)} className="p-1">
-                  <Star size={20} className={n <= ratingValue ? 'text-yellow-700 dark:text-yellow-400 fill-yellow-400' : 'text-gray-400 dark:text-gray-600'} />
+                  <Star size={20} className={n <= ratingValue ? 'text-yellow-700 dark:text-yellow-400 fill-yellow-400' : 'text-gray-500 dark:text-gray-400'} />
                 </button>
               ))}
               {ratingValue > 0 && (

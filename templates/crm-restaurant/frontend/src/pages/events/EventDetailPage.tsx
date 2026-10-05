@@ -10,6 +10,7 @@ import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
 import { confirmEventRisks } from '../../lib/eventWarnings';
 import { openPrintable } from '../../lib/printable';
 import { PAYMENT_METHODS, useMayWrite } from '../../shared';
+import ClientPicker from '../../components/events/ClientPicker';
 
 /**
  * The event file — GET /api/events/:id returns
@@ -216,7 +217,7 @@ export default function EventDetailPage() {
       <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{ev.name || 'Untitled event'}</h1>
+            <h1 className="text-2xl font-bold text-gray-900 break-words dark:text-slate-100">{ev.name || 'Untitled event'}</h1>
             <p className="text-gray-500 capitalize dark:text-slate-400">
               {prettyType(ev.eventType)}
               {client?.name ? ` · ${client.name}` : ''}
@@ -530,7 +531,7 @@ export default function EventDetailPage() {
         </div>
       )}
 
-      {showEdit && <EditEventModal event={ev} onSave={() => { setShowEdit(false); load(); }} onClose={() => setShowEdit(false)} />}
+      {showEdit && <EditEventModal event={ev} clientLabel={client?.name} onSave={() => { setShowEdit(false); load(); }} onClose={() => setShowEdit(false)} />}
       {showMenu && <MenuLineModal eventId={ev.id} heads={heads} onSave={() => { setShowMenu(false); load(); }} onClose={() => setShowMenu(false)} />}
       {showTimeline && <TimelineModal eventId={ev.id} nextOrder={timeline.length + 1} onSave={() => { setShowTimeline(false); load(); }} onClose={() => setShowTimeline(false)} />}
       {showPayment && (
@@ -588,8 +589,11 @@ function FormButtons({ saving, onClose, label = 'Save' }: { saving: boolean; onC
 
 /* ---------------- Edit Event ---------------- */
 
-function EditEventModal({ event: ev, onSave, onClose }: { event: EventFull; onSave: () => void; onClose: () => void }) {
+function EditEventModal({ event: ev, clientLabel, onSave, onClose }: { event: EventFull; clientLabel?: string; onSave: () => void; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
+  // Held outside `form`, which is all strings keyed by input name — the same shape the New Enquiry
+  // modal uses for its picker, so the two forms read the same way.
+  const [contactId, setContactId] = useState<string>(ev.contactId || '');
   const [spaces, setSpaces] = useState<SpaceOption[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [form, setForm] = useState({
@@ -632,6 +636,7 @@ function EditEventModal({ event: ev, onSave, onClose }: { event: EventFull; onSa
     try {
       await api.put(`/api/events/${ev.id}`, {
         name: form.name.trim(),
+        contactId: contactId || null,
         eventType: form.eventType,
         eventDate: form.eventDate,
         startTime: form.startTime || null,
@@ -661,6 +666,11 @@ function EditEventModal({ event: ev, onSave, onClose }: { event: EventFull; onSa
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Event name <span className="text-red-500 dark:text-red-400">*</span></label>
           <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Client</label>
+          <ClientPicker value={contactId} onChange={(id) => setContactId(id)} initialLabel={clientLabel} />
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Leave empty for an enquiry you have not put a name to yet.</p>
         </div>
         <div className="grid grid-cols-3 gap-4">
           <div>

@@ -207,7 +207,7 @@ export default function AIReceptionistPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-slate-900">
-        <RefreshCw className="animate-spin text-blue-400" size={32} />
+        <RefreshCw className="animate-spin text-blue-700 dark:text-blue-400" size={32} />
       </div>
     )
   }
@@ -217,7 +217,7 @@ export default function AIReceptionistPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Bot size={28} className="text-blue-400" />
+          <Bot size={28} className="text-blue-700 dark:text-blue-400" />
           <h1 className="text-2xl font-bold">AI Receptionist</h1>
         </div>
         {tab === 'rules' && (
@@ -234,7 +234,7 @@ export default function AIReceptionistPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700">
           <p className="text-sm text-gray-500 dark:text-slate-400 mb-1">Status</p>
-          <p className={`text-lg font-bold ${settings.isEnabled ? 'text-green-400' : 'text-red-400'}`}>
+          <p className={`text-lg font-bold ${settings.isEnabled ? 'text-green-800 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
             {settings.isEnabled ? 'Active' : 'Inactive'}
           </p>
         </div>
@@ -244,7 +244,7 @@ export default function AIReceptionistPage() {
         </div>
         <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700">
           <p className="text-sm text-gray-500 dark:text-slate-400 mb-1">Active Rules</p>
-          <p className="text-lg font-bold text-blue-400">{activeRulesCount}</p>
+          <p className="text-lg font-bold text-blue-700 dark:text-blue-400">{activeRulesCount}</p>
         </div>
         <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700">
           <p className="text-sm text-gray-500 dark:text-slate-400 mb-1">Recent Calls</p>
@@ -304,7 +304,7 @@ export default function AIReceptionistPage() {
                     <td className="px-4 py-3">
                       {mayWriteReceptionist && (<button onClick={() => toggleRule(rule)} className="text-gray-700 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white">
                         {rule.isActive ? (
-                          <ToggleRight size={22} className="text-green-400" />
+                          <ToggleRight size={22} className="text-green-800 dark:text-green-400" />
                         ) : (
                           <ToggleLeft size={22} className="text-gray-500 dark:text-slate-400" />
                         )}
@@ -364,9 +364,9 @@ export default function AIReceptionistPage() {
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                          call.status === 'completed' ? 'bg-green-500/20 text-green-400' :
-                          call.status === 'missed' ? 'bg-red-500/20 text-red-400' :
-                          call.status === 'voicemail' ? 'bg-yellow-500/20 text-yellow-400' :
+                          call.status === 'completed' ? 'bg-green-500/20 text-green-800 dark:text-green-400' :
+                          call.status === 'missed' ? 'bg-red-500/20 text-red-700 dark:text-red-400' :
+                          call.status === 'voicemail' ? 'bg-yellow-500/20 text-yellow-800 dark:text-yellow-400' :
                           'bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-slate-300'
                         }`}>
                           {call.status}
@@ -398,7 +398,7 @@ export default function AIReceptionistPage() {
               className="text-gray-700 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white"
             >
               {settings.isEnabled ? (
-                <ToggleRight size={32} className="text-green-400" />
+                <ToggleRight size={32} className="text-green-800 dark:text-green-400" />
               ) : (
                 <ToggleLeft size={32} className="text-gray-500 dark:text-slate-400" />
               )}

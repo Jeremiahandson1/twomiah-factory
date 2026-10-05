@@ -55,6 +55,8 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
   const [data, setData] = useState<Row[]>([])
   const [contacts, setContacts] = useState<Row[]>([])
   const [projects, setProjects] = useState<Row[]>([])
+  /** The catalogue, when this vertical prices from it. Empty everywhere else. (T42) */
+  const [pricebook, setPricebook] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
   const [pagination, setPagination] = useState<any>(null)
   const [statusFilter, setStatusFilter] = useState('')
@@ -83,6 +85,19 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
     // pickers load on their own so a failure there never blanks the list
     api.get('/api/contacts', { limit: 200 }).then((r: any) => setContacts(r?.data || [])).catch(() => setContacts([]))
     if (cfg.projects) api.get('/api/projects', { limit: 100 }).then((r: any) => setProjects(r?.data || [])).catch(() => setProjects([]))
+    /**
+     * The pricebook, on exactly the terms the quote screen asks for it: active items only, because a
+     * retired item must not be offered on a new document, and 200 because that is the endpoint's own
+     * ceiling (getItems clamps limit) so asking for more would misrepresent what arrives.
+     *
+     * A failure leaves the picker hidden rather than blocking the page — and a tenant without the
+     * pricebook feature gets a 403 here, which is precisely when it should not appear. (T42)
+     */
+    if (cfg.pricebook) {
+      api.get('/api/pricebook/items', { limit: 200, active: 'true' })
+        .then((r: any) => setPricebook(Array.isArray(r) ? r : r?.data || []))
+        .catch(() => setPricebook([]))
+    }
   }, [page, statusFilter]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [load])
 
@@ -199,7 +214,22 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
             {cfg.projects && <Field label="Project"><select value={form.projectId} onChange={e => setForm({ ...form, projectId: e.target.value })} className={inputCls}><option value="">None</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
             <Field label="Due Date" hint={`Defaults to ${termsDays === 0 ? 'the day it is created' : `${termsDays} days out`} from Settings → Company`}><input type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} className={inputCls} /></Field>
           </div>
-          <Field label="Line Items"><LineItemsEditor items={form.lineItems} onChange={items => setForm({ ...form, lineItems: items })} /></Field>
+          <Field label="Line Items">
+              <LineItemsEditor
+                items={form.lineItems}
+                onChange={items => setForm({ ...form, lineItems: items })}
+                /*
+                 * canSeeCost: false is about the DOCUMENT, not the person. An invoice line is
+                 * description + quantity + unitPrice and nothing else — invoices.ts's lineItemSchema
+                 * has no unitCost, no type, no pricebookItemId, and zod drops unknown keys without a
+                 * word. Showing the cost columns here would offer two fields whose values disappear
+                 * on save. The picker itself still fills in the description and the price, which is
+                 * what it is for. Quotes DO record cost, which is why that screen passes the real
+                 * permission instead. (T42)
+                 */
+                pricebook={cfg.pricebook && pricebook.length > 0 ? { items: pricebook as any, canSeeCost: false } : undefined}
+              />
+            </Field>
           <div className="grid md:grid-cols-2 gap-4">
             <Field label="Tax Rate (%)"><NumberInput min="0" max="100" step="0.01" value={form.taxRate} onValue={n => setForm({ ...form, taxRate: n })} className={inputCls} /></Field>
             <Field label="Discount ($)"><NumberInput min="0" step="0.01" value={form.discount} onValue={n => setForm({ ...form, discount: n })} className={inputCls} /></Field>

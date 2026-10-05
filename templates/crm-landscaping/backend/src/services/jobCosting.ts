@@ -42,6 +42,10 @@ import {
   quoteLineItem,
   invoice,
   timeEntry,
+  // Where a person's pay rate actually lives. jobCosting used to fall back to
+  // user.hourly_rate, a column nothing in the codebase writes, so labour cost read $0 on every
+  // entry that had no rate stamped on it. time.ts has always priced these hours off the roster. (T42)
+  teamMember,
   inventoryUsage,
   inventoryItem,
   expense,
@@ -125,7 +129,7 @@ export async function costsByJob(companyId: string, jobIds: string[]): Promise<M
      * the entry, else the person's own rate. COALESCE in SQL rather than in JavaScript so the
      * grouped sum and the per-row detail cannot drift apart.
      */
-    const rate = sql`COALESCE(${timeEntry.hourlyRate}, ${user.hourlyRate})`
+    const rate = sql`COALESCE(${timeEntry.hourlyRate}, ${user.hourlyRate}, NULLIF(${teamMember.hourlyRate}, 0))`
     const labour = await db.select({
       jobId: timeEntry.jobId,
       hours: sql<string>`COALESCE(SUM(${timeEntry.hours}), 0)`,
@@ -134,6 +138,7 @@ export async function costsByJob(companyId: string, jobIds: string[]): Promise<M
     })
       .from(timeEntry)
       .leftJoin(user, eq(timeEntry.userId, user.id))
+      .leftJoin(teamMember, and(eq(teamMember.companyId, companyId), sql`lower(${teamMember.email}) = lower(${user.email})`))
       .where(and(eq(timeEntry.companyId, companyId), inArray(timeEntry.jobId, ids)))
       .groupBy(timeEntry.jobId)
 
@@ -391,6 +396,7 @@ export async function getJobCostAnalysis(jobId: string, companyId: string) {
   const timeEntries = await db.select()
     .from(timeEntry)
     .leftJoin(user, eq(timeEntry.userId, user.id))
+    .leftJoin(teamMember, and(eq(teamMember.companyId, companyId), sql`lower(${teamMember.email}) = lower(${user.email})`))
     .where(and(eq(timeEntry.jobId, jobId), eq(timeEntry.companyId, companyId)))
 
   const materialUsage = await db.select()
@@ -478,7 +484,10 @@ export async function getJobCostAnalysis(jobId: string, companyId: string) {
     },
 
     laborDetail: timeEntries.map((e) => {
-      const rate = e.time_entry.hourlyRate ?? e.user?.hourlyRate ?? null
+      // The same three steps the grouped SQL above uses, in the same order — a roster rate of 0
+      // is a blank rather than "free", which is the rule time.ts applies too.
+      const rosterRate = Number(e.team_member?.hourlyRate)
+      const rate = e.time_entry.hourlyRate ?? e.user?.hourlyRate ?? (Number.isFinite(rosterRate) && rosterRate > 0 ? e.team_member!.hourlyRate : null)
       return {
         id: e.time_entry.id,
         date: e.time_entry.date,

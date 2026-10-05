@@ -1617,6 +1617,15 @@ export const warranty = pgTable('warranty', {
 export const warrantyClaim = pgTable('warranty_claim', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   status: text('status').default('open').notNull(),
+  // THE FORM COLLECTS THESE THREE AND THE TABLE HAD NOWHERE TO PUT THEM. (T44)
+  //
+  // WarrantiesPage.tsx asks for a title (:560), a location (:584) and a priority (:595), and the
+  // route refuses a claim with no title — while `title` was being welded onto the front of the
+  // description and the other two were silently discarded. The claims list renders {claim.title},
+  // so every row's label came back blank and nobody could tell what a claim was about.
+  title: text('title'),
+  location: text('location'),
+  priority: text('priority').default('normal'),
   description: text('description').notNull(),
   resolution: text('resolution'),
   resolvedAt: timestamp('resolved_at'),

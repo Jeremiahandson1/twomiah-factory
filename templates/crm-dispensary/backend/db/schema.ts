@@ -266,6 +266,10 @@ export const order = pgTable('orders', {
   // Drawer Closed" belonged to no session, so no close-out would ever expect it and the shortage
   // would surface as an unexplained variance on some later count. (Dispensary T29 M9)
   cashSessionId: text('cash_session_id'),
+  // Which drawer the money went back OUT of. Not the same as cashSessionId above: that is the session
+  // the sale went into, and a refund days later leaves whichever drawer is open then. Without this a
+  // cash refund belonged to no session, so no close-out expected the shortfall. (T44)
+  refundCashSessionId: text('refund_cash_session_id'),
   total: text('total').default('0'),
   totalCannabisWeightOz: text('total_cannabis_weight_oz').default('0'),
   paymentMethod: text('payment_method'), // cash|debit|ach

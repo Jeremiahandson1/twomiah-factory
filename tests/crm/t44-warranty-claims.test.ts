@@ -17,7 +17,7 @@
 // This file is the test that was supposed to be impossible. It files a claim through the real route
 // and then works it, which is exactly what "the claim actions can't be tested" was blocking.
 import { Hono } from 'hono'
-import { sql } from 'drizzle-orm'
+import { sql, eq } from 'drizzle-orm'
 
 let failed = 0, passed = 0
 const check = (name: string, ok: boolean, detail?: unknown) => {
@@ -103,12 +103,54 @@ let claimId = ''
   check('the crew seat may not file one — warranties:create is manager and up', crewTry.status === 403, { status: crewTry.status })
 }
 
+// ══════════ the three fields the table had nowhere to put ═══════════════════════════════════════
+// T44: "warranty claims drop their title, location and priority, so the claims list doesn't say what
+// the claim is about." The form collects all three (WarrantiesPage.tsx:560/584/595), the service's
+// own type declared all three, the route refuses a claim with no title — and the TABLE had none of
+// them, so the title was welded onto the front of the description and the other two were discarded.
+// The list renders {claim.title}, so every row's label was blank.
+console.log('\n══════════ a claim keeps its subject, place and urgency ══════════')
+{
+  const r = await asManager('POST', '/api/warranties/claims', {
+    warrantyId: pw.id,
+    title: 'Ridge tiles lifted',
+    location: 'North elevation, above the landing',
+    priority: 'high',
+    description: 'Three ridge tiles lifted after the February gale.',
+  })
+  check('a claim with a title, a location and a priority is accepted', r.status === 201 || r.status === 200, { status: r.status })
+  const id = r.json?.id ?? r.json?.claim?.id
+
+  const [row] = await db.select().from(warrantyClaim).where(eq(warrantyClaim.id, id))
+  check('T44: the TITLE is stored in its own column', row?.title === 'Ridge tiles lifted', row?.title)
+  check('T44: …the LOCATION too', row?.location === 'North elevation, above the landing', row?.location)
+  check('T44: …and the PRIORITY', row?.priority === 'high', row?.priority)
+  check('T44: …and the description is the description, not title + ": " + description',
+    row?.description === 'Three ridge tiles lifted after the February gale.', row?.description)
+
+  // the list is what the tester was reading
+  const list = await asOwner('GET', '/api/warranties/claims')
+  const rows = Array.isArray(list.json) ? list.json : (list.json?.data ?? [])
+  const mine = rows.find((x: any) => (x.claim?.id ?? x.id) === id)
+  check('T44: …so the claims LIST says what the claim is about', /Ridge tiles lifted/.test(JSON.stringify(mine ?? {})), mine)
+
+  // priority defaults rather than refusing — the form defaults it and a hurried claim should land
+  const noPri = await asManager('POST', '/api/warranties/claims', { warrantyId: pw.id, title: 'Gutter overflow' })
+  const [row2] = await db.select().from(warrantyClaim).where(eq(warrantyClaim.id, noPri.json?.id ?? ''))
+  check('a claim filed without a priority defaults to normal rather than being refused',
+    (noPri.status === 201 || noPri.status === 200) && row2?.priority === 'normal', { status: noPri.status, priority: row2?.priority })
+}
+
 // ══════════ …and then the claim ACTIONS the finding said could not be reached ═══════════════════
 console.log('\n══════════ the claim actions ══════════')
 {
   const list = await asOwner('GET', '/api/warranties/claims')
   const rows = Array.isArray(list.json) ? list.json : (list.json?.data ?? [])
-  check('the claim appears in the list', list.status === 200 && rows.length === 1, { status: list.status, n: rows.length })
+  // Asserted by IDENTITY, not by count: a later section files more claims, and a test that breaks
+  // when another test adds a row is measuring the wrong thing.
+  check('the claim appears in the list',
+    list.status === 200 && rows.some((x: any) => (x.claim?.id ?? x.id) === claimId),
+    { status: list.status, n: rows.length })
   check('…with the warranty it belongs to joined on — the join the FK used to contradict',
     /Roof covering/.test(JSON.stringify(rows[0] ?? {})), rows[0])
 

@@ -1982,6 +1982,39 @@ jobs:
       - name: "Support page theme"
         run: bun run scripts/check-support-page-theme.ts
 
+  light-mode-ink:
+    name: "The AI Receptionist and Support read in LIGHT mode, measured"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Light-mode ink"
+        run: bun run scripts/check-light-mode-ink.ts
+
+  white-surface-ink-rule:
+    name: "A .bg-white ink rule exempts surfaces that go dark"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "White-surface ink rule"
+        run: bun run scripts/check-white-surface-ink-rule.ts
+
+  pricebook-picker-both-documents:
+    name: "A quote and an invoice are both offered the pricebook"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Pricebook picker"
+        run: bun run scripts/check-pricebook-picker-both-documents.ts
+
   refresh-outcomes:
     name: "A failed refresh is not a dead session"
     runs-on: ubuntu-latest

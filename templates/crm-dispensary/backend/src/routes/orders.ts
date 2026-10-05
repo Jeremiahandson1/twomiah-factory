@@ -1486,6 +1486,39 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
     return c.json({ error: 'Can only refund completed or partially-refunded orders' }, 400)
   }
 
+  /**
+   * CASH GOING BACK OUT NEEDS A DRAWER TOO. (T42 "a cash refund goes through with no drawer open")
+   *
+   * The SALE path has required this since T29 M9 and been narrowed twice since; this mirrors it
+   * rather than inventing a second rule. A shop that has never opened a drawer, or has switched Cash
+   * Management off, is not running its cash that way and is not refused — the till must not teach a
+   * workflow nobody asked for. A shop that DOES run drawers gets the refusal, and the refund records
+   * which drawer the money left, which is the half the finding was actually about.
+   *
+   * Cash only: a debit or ACH refund goes back the way it came and never touches the till.
+   */
+  let refundCashSessionId: string | null = null
+  if (existing.paymentMethod === 'cash') {
+    const openRow = ((await db.execute(sql`
+      SELECT id FROM cash_sessions WHERE company_id = ${currentUser.companyId} AND status = 'open'
+      ORDER BY opened_at DESC LIMIT 1
+    `)) as any).rows?.[0]
+    if (openRow) {
+      refundCashSessionId = String(openRow.id)
+    } else {
+      const stillRunsDrawers = await isFeatureEnabled(currentUser.companyId, 'cash_management')
+      const everUsed = stillRunsDrawers && ((await db.execute(sql`
+        SELECT 1 FROM cash_sessions WHERE company_id = ${currentUser.companyId} LIMIT 1
+      `)) as any).rows?.length > 0
+      if (everUsed) {
+        return c.json({
+          error: 'No cash drawer is open, so this refund has nowhere to be counted from. Open a drawer on the Cash page, then give the refund.',
+          code: 'no_open_cash_drawer',
+        }, 409)
+      }
+    }
+  }
+
   const items = await db.select().from(orderItem).where(eq(orderItem.orderId, id))
   const orderTotal = round2(Number(existing.total) || 0)
   const alreadyRefunded = round2(Number(existing.refundedAmount) || 0)
@@ -1688,6 +1721,8 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
     // Order status follows how much has been returned: fully refunded closes it; a partial keeps
     // the order alive as 'partially_refunded' so the rest still stands. Cumulative $ is tracked.
     await tx.update(order).set({
+      // the drawer this money left, so the close-out expects the shortfall (T44)
+      ...(refundCashSessionId ? { refundCashSessionId } : {}),
       status: fullyRefunded ? 'refunded' : 'partially_refunded',
       paymentStatus: fullyRefunded ? 'refunded' : 'partially_refunded',
       refundedAmount: sql`(COALESCE(NULLIF(refunded_amount, ''), '0')::numeric + ${refundAmount})::text`,
