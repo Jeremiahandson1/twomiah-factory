@@ -8,6 +8,10 @@ import { z } from 'zod'
 import { eq, and, or, count, desc, asc, ilike, inArray, sql } from 'drizzle-orm'
 import { round2, calcTotals, rawSubtotal, businessToday, defaultTaxRateFrom, dueDateFromTerms, quoteExpiryFromTerms, normalizeDateInput, nextNumber, type NumberingOptions, money } from './money'
 import { checkFilter } from '../listFilter'
+// A quote carries its customer's record, and that record carries their portal credential. Stripped
+// on the way out with the same helper the contact routes use — one definition, so a column added to
+// the credential set is removed everywhere at once. (T43)
+import { withoutPortalCredential } from '../contacts/contacts'
 
 
 export interface QuoteTables {
@@ -233,7 +237,10 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       extra.has('equipmentId') && t.equipment && found.equipmentId ? db.select({ id: t.equipment.id, name: t.equipment.name, manufacturer: t.equipment.manufacturer, model: t.equipment.model }).from(t.equipment).where(and(eq(t.equipment.id, found.equipmentId), eq(t.equipment.companyId, cid))).limit(1) : Promise.resolve([]),
       extra.has('siteId') && t.site && found.siteId ? db.select({ id: t.site.id, name: t.site.name, address: t.site.address }).from(t.site).where(and(eq(t.site.id, found.siteId), eq(t.site.companyId, cid))).limit(1) : Promise.resolve([]),
     ])
-    const out: any = { ...found, contact: ct[0] || null, project: pr[0] || null, lineItems }
+    // THE LEAK T43 FOUND, and the shape guard #201 could not see: the row is indexed and
+    // defaulted on its way into the payload, so its bare name never appears. Measured live on
+    // ctrtest, basictest and lndtest — owner and manager both received a working portalToken.
+    const out: any = { ...found, contact: withoutPortalCredential(ct[0]) || null, project: pr[0] || null, lineItems }
     if (extra.has('equipmentId')) out.equipment = eq_[0] || null
     if (extra.has('siteId')) out.site = st[0] || null
     return c.json(out)
@@ -394,7 +401,10 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (o.onSent && r.updated.contactId) {
       const [ct] = await db.select().from(t.contact).where(and(eq(t.contact.id, r.updated.contactId), eq(t.contact.companyId, r.cid))).limit(1)
       const [co] = await db.select().from(t.company).where(eq(t.company.id, r.cid)).limit(1)
-      if (ct) o.onSent({ companyId: r.cid, quote: r.updated, contact: ct, company: co }).catch(() => {})
+      // Stripped here too, so this file needs no entry in the portal-token guard's allow list at
+      // all. The hook's own consumers want the name and the phone number; none of them wants the
+      // credential, and an allow entry written for this site is what hid the leak above. (T43)
+      if (ct) o.onSent({ companyId: r.cid, quote: r.updated, contact: withoutPortalCredential(ct), company: co }).catch(() => {})
     }
     return c.json(r.updated)
   })
@@ -544,7 +554,9 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       lineRows(id),
       db.select().from(t.company).where(eq(t.company.id, cid)),
     ])
-    const pdfBuffer = await generateQuotePDF({ ...found, contact: ct[0] || null, lineItems }, co)
+    // Same strip for the PDF payload. The renderer does not print a token today, but handing it
+    // one is how it ends up in a file somebody emails.
+    const pdfBuffer = await generateQuotePDF({ ...found, contact: withoutPortalCredential(ct[0]) || null, lineItems }, co)
     return new Response(pdfBuffer, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="quote-${found.number}.pdf"` } })
   })
 

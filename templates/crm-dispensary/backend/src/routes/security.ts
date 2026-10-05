@@ -722,7 +722,9 @@ app.get('/sessions', async (c) => {
     ORDER BY last_activity_at DESC
   `)
 
-  return c.json((result as any).rows || result)
+  // Raw SQL answers the database's names; the screen (and the rest of this app) reads camelCase.
+  // The column list above is already explicit — token_hash is deliberately not in it. (T43)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
 // List all sessions for company (admin only)
@@ -734,7 +736,13 @@ app.get('/sessions/all', requireRole('owner'), async (c) => {
 
   const [dataResult, countResult] = await Promise.all([
     db.execute(sql`
-      SELECT s.*, u.email as user_email, u.first_name, u.last_name
+      -- Named columns, NOT s.*: that wildcard also returned token_hash — the hash of the refresh
+      -- token for every live session in the company — to the browser. Nothing renders it and nothing
+      -- needs it, and a credential hash in a response is an offline attack surface. /sessions above
+      -- was already written this way. (T43)
+      SELECT s.id, s.user_id, s.device_type, s.ip_address, s.location, s.user_agent,
+             s.last_activity_at, s.expires_at, s.created_at, s.is_active,
+             u.email as user_email, u.first_name, u.last_name
       FROM active_sessions s
       LEFT JOIN "user" u ON u.id = s.user_id
       WHERE s.company_id = ${currentUser.companyId}
@@ -752,7 +760,7 @@ app.get('/sessions/all', requireRole('owner'), async (c) => {
     `),
   ])
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number(((countResult as any).rows || countResult)[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -890,7 +898,10 @@ app.get('/events', requireRole('manager'), async (c) => {
     `),
   ])
 
-  const data = (dataResult as any).rows || dataResult
+  // THE BLANK COLUMNS. `SELECT se.*` answers event_type / ip_address / created_at / user_email,
+  // and the screen reads eventType / ipAddress / createdAt / userEmail. Four cells empty on every
+  // row, while severity and description rendered because they are single words. (T43)
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number(((countResult as any).rows || countResult)[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })

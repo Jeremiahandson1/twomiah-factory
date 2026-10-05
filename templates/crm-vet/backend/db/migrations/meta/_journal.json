@@ -211,6 +211,13 @@
       "when": 1792000600000,
       "tag": "0029_bill_once_constraints",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792100600000,
+      "tag": "0030_warranty_claim_fk_project_warranty",
+      "breakpoints": true
     }
   ]
 }

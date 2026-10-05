@@ -826,8 +826,25 @@ export function createWarrantiesRoutes(deps: WarrantiesRoutesDeps) {
   app.post('/claims/:id/schedule', requirePermission('warranties:update'), async (c) => {
     const user = c.get('user') as any;
     const body = await c.req.json();
-    const job = await service.scheduleWarrantyWork(c.req.param('id'), user.companyId, body);
-    return c.json(job, 201);
+    /**
+     * A MISSING OR UNPARSEABLE DATE IS THE CALLER'S 400, NOT A CRASH. (T43)
+     *
+     * scheduleWarrantyWork takes `scheduledDate`. Without it, `new Date(undefined)` is an Invalid
+     * Date that throws on toISOString() and came back as {"error":"Invalid Date"} with a 500. The
+     * endpoint had never been exercised before now — no claim could be created to schedule — so the
+     * first call it ever received was the one that broke it.
+     */
+    const when = new Date(body?.scheduledDate);
+    if (!body?.scheduledDate || Number.isNaN(when.getTime())) {
+      return c.json({ error: 'scheduledDate is required, as a date the calendar can read (YYYY-MM-DD).' }, 400);
+    }
+    try {
+      const job = await service.scheduleWarrantyWork(c.req.param('id'), user.companyId, body);
+      return c.json(job, 201);
+    } catch (e: any) {
+      if (/not found/i.test(e?.message || '')) return c.json({ error: e.message }, 404);
+      throw e;
+    }
   });
 
   // Deny claim

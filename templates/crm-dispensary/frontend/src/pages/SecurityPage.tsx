@@ -897,7 +897,10 @@ export default function SecurityPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
-                          {session.lastActivity ? relativeTime(session.lastActivity) : '—'}
+                          {/* the column is last_activity_at. (T43) */}
+                          {session.lastActivityAt || session.lastActivity
+                            ? relativeTime(session.lastActivityAt || session.lastActivity)
+                            : '—'}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                           {session.createdAt ? formatDate(session.createdAt) : '—'}
@@ -1036,7 +1039,10 @@ export default function SecurityPage() {
                       onClick={() => setSelectedEvent(event)}
                     >
                       <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-300">
-                        {(event.type || '').replace(/_/g, ' ')}
+                        {/* The column is event_type, so camelCase is eventType; `type` was this
+                            screen's own shortening and rendered blank on every row. The fallback is
+                            kept so neither shape can empty the cell. (T43) */}
+                        {(event.eventType || event.type || '').replace(/_/g, ' ')}
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant={severityColor(event.severity)} dot>
@@ -1073,7 +1079,7 @@ export default function SecurityPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">Type</p>
-                    <p className="text-gray-900 dark:text-slate-100">{(selectedEvent.type || '').replace(/_/g, ' ')}</p>
+                    <p className="text-gray-900 dark:text-slate-100">{(selectedEvent.eventType || selectedEvent.type || '').replace(/_/g, ' ')}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">Severity</p>

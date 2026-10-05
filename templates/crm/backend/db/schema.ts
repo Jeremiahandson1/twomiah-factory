@@ -1707,7 +1707,11 @@ export const warrantyClaim = pgTable('warranty_claim', {
   resolution: text('resolution'),
   resolvedAt: timestamp('resolved_at'),
 
-  warrantyId: text('warranty_id').notNull().references(() => warranty.id, { onDelete: 'cascade' }),
+  // Every read in the shared warranties module joins project_warranty on this column, and
+  // createClaim looks the id up there before inserting it — so this is a project_warranty id and the
+  // FK was pointing at the wrong table. While it pointed at the warranty table, EVERY insert
+  // violated it and no claim could be filed at all. (T43, confirmed on Contractor and Field service)
+  warrantyId: text('warranty_id').notNull().references(() => projectWarranty.id, { onDelete: 'cascade' }),
   projectWarrantyId: text('project_warranty_id'),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 

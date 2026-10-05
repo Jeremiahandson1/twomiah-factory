@@ -204,6 +204,13 @@
       "when": 1792000300000,
       "tag": "0028_mfa",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792100300000,
+      "tag": "0029_warranty_claim_fk_project_warranty",
+      "breakpoints": true
     }
   ]
 }

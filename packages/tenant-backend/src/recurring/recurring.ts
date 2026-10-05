@@ -49,6 +49,20 @@ import { rowsOf as rows, camelRow, camelRows } from '../sqlRows'
 import { companyRowTimeZone, storeDateString, storeDayStart } from '../time/businessDay'
 
 /** Aliases in this file that are table rows, and so are safe to camelise inside. */
+/**
+ * THE CONTACT IS SERIALISED WHOLE HERE, so it is subtracted in SQL. (T43)
+ *
+ * This module is raw SQL, not Drizzle, and `row_to_json(c.*)` returns EVERY column of the joined
+ * contact — including portal_token. Measured live: the recurring list and detail both handed a
+ * working portal credential to the owner and the manager on three tenants. Guard #201 had nothing to
+ * catch, because it reasons about `db.select().from(contact)` and there is no such call in this file.
+ *
+ * `to_jsonb(c.*) - 'portal_token' - 'portal_token_exp'` rather than an explicit column list: every
+ * other field stays exactly as the screen expects it (name, email, phone, address), a column added
+ * later arrives visible — the right default for a contact field — and the two credential keys are
+ * named, so removing one is a one-line change in one place. jsonb rather than json because the
+ * `-` operator is only defined on jsonb; the serialised result is identical.
+ */
 const NESTED = ['contact', 'project', 'company']
 
 /**
@@ -178,7 +192,7 @@ export function createRecurringService(deps: RecurringServiceDeps) {
 
   async function generateInvoiceFromRecurring(recurringId: string) {
     const [recurring] = rows(await db.execute(sql`
-      SELECT ri.*, row_to_json(c.*) as contact, row_to_json(co.*) as company
+      SELECT ri.*, to_jsonb(c.*) - 'portal_token' - 'portal_token_exp' as contact, row_to_json(co.*) as company
       FROM recurring_invoice ri
       LEFT JOIN contact c ON c.id = ri.contact_id
       LEFT JOIN company co ON co.id = ri.company_id
@@ -292,7 +306,7 @@ export function createRecurringService(deps: RecurringServiceDeps) {
     const limitN = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Math.min(200, Math.floor(Number(limit))) : 25
     const offset = (pageN - 1) * limitN
     const data = rows(await db.execute(sql`
-      SELECT ri.*, row_to_json(c.*) as contact, row_to_json(p.*) as project
+      SELECT ri.*, to_jsonb(c.*) - 'portal_token' - 'portal_token_exp' as contact, row_to_json(p.*) as project
       FROM recurring_invoice ri
       LEFT JOIN contact c ON c.id = ri.contact_id
       LEFT JOIN project p ON p.id = ri.project_id
@@ -306,7 +320,7 @@ export function createRecurringService(deps: RecurringServiceDeps) {
 
   async function getRecurringInvoice(id: string, companyId: string) {
     const [result] = rows(await db.execute(sql`
-      SELECT ri.*, row_to_json(c.*) as contact, row_to_json(p.*) as project
+      SELECT ri.*, to_jsonb(c.*) - 'portal_token' - 'portal_token_exp' as contact, row_to_json(p.*) as project
       FROM recurring_invoice ri
       LEFT JOIN contact c ON c.id = ri.contact_id
       LEFT JOIN project p ON p.id = ri.project_id
