@@ -96,6 +96,11 @@ export default function InsuranceClaimPage() {
   // Offer a write only where we know it is allowed. Each permission is the one its own route
   // asks for; crm-roof could not ask this until T41 gave its client the permission list.
   const mayWriteClaim = useMayWrite('insurance:create');
+  // The claim's own fields are a PUT, and that route asks for the update verb rather than create.
+  // Both sit on the manager row, so in practice the same people get both — but asking the question
+  // the route actually asks is the whole rule, and a later matrix change must not widen one of
+  // them by accident.
+  const mayEditClaim = useMayWrite('insurance:update');
   const { id: jobId } = useParams<{ id: string }>();
   const { token, user } = useAuth();
   const toast = useToast();
@@ -593,11 +598,15 @@ export default function InsuranceClaimPage() {
               <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">
                 Start one to track the adjuster, inspection, supplements and the Xactimate scope.
               </p>
-              <button
-                onClick={() => setStartOpen(true)}
-                className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">
-                <Plus className="w-4 h-4" /> Start insurance claim
-              </button>
+              {mayWriteClaim ? (
+                <button
+                  onClick={() => setStartOpen(true)}
+                  className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">
+                  <Plus className="w-4 h-4" /> Start insurance claim
+                </button>
+              ) : (
+                <p className="mt-5 text-sm text-gray-500 dark:text-slate-400">A manager opens the claim on this job.</p>
+              )}
             </>
           ) : (
             <div className="mt-5 text-left space-y-3">
@@ -782,10 +791,14 @@ export default function InsuranceClaimPage() {
                     <div key={stage} className="flex items-center">
                       <button
                         onClick={() => updateStatus(stage)}
-                        className={`flex flex-col items-center px-2 py-1.5 rounded-lg text-[10px] font-medium transition min-w-[80px] ${
+                        disabled={!mayWriteClaim}
+                        title={mayWriteClaim ? undefined : 'A manager moves the claim along'}
+                        className={`flex flex-col items-center px-2 py-1.5 rounded-lg text-[10px] font-medium transition min-w-[80px] ${mayWriteClaim ? '' : 'cursor-default'} ${
                           isActive ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-300 dark:text-blue-300 dark:bg-blue-950/40' :
                           isPast ? 'bg-green-50 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
-                          'bg-gray-50 text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:bg-slate-800'
+                          (mayWriteClaim
+                            ? 'bg-gray-50 text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:bg-slate-800'
+                            : 'bg-gray-50 text-gray-600 dark:text-slate-300 dark:bg-slate-800')
                         } ${isDenied && isActive ? 'bg-red-100 text-red-700 ring-red-300 dark:text-red-400 dark:bg-red-950/40' : ''} dark:text-blue-300`}
                       >
                         <div className={`w-5 h-5 rounded-full flex items-center justify-center mb-1 ${
@@ -817,23 +830,23 @@ export default function InsuranceClaimPage() {
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Claim Number</label>
-                  <input defaultValue={claim.claimNumber || ''} onBlur={(e) => saveClaim({ claimNumber: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                  <input defaultValue={claim.claimNumber || ''} readOnly={!mayEditClaim} onBlur={(e) => saveClaim({ claimNumber: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Insurance Company</label>
-                  <input defaultValue={claim.insuranceCompany || ''} onBlur={(e) => saveClaim({ insuranceCompany: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                  <input defaultValue={claim.insuranceCompany || ''} readOnly={!mayEditClaim} onBlur={(e) => saveClaim({ insuranceCompany: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Policy Number</label>
-                  <input defaultValue={claim.policyNumber || ''} onBlur={(e) => saveClaim({ policyNumber: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                  <input defaultValue={claim.policyNumber || ''} readOnly={!mayEditClaim} onBlur={(e) => saveClaim({ policyNumber: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Date of Loss</label>
-                  <input type="date" defaultValue={claim.dateOfLoss ? new Date(claim.dateOfLoss).toISOString().split('T')[0] : ''} onBlur={(e) => saveClaim({ dateOfLoss: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                  <input type="date" defaultValue={claim.dateOfLoss ? new Date(claim.dateOfLoss).toISOString().split('T')[0] : ''} readOnly={!mayEditClaim} onBlur={(e) => saveClaim({ dateOfLoss: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Cause of Loss</label>
-                  <select defaultValue={claim.causeOfLoss || ''} onChange={(e) => saveClaim({ causeOfLoss: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
+                  <select defaultValue={claim.causeOfLoss || ''} disabled={!mayEditClaim} onChange={(e) => saveClaim({ causeOfLoss: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
                     <option value="">Select...</option>
                     <option value="hail">Hail</option>
                     <option value="wind">Wind</option>
@@ -844,7 +857,7 @@ export default function InsuranceClaimPage() {
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Adjuster Inspection Date</label>
-                  <input type="date" defaultValue={claim.adjusterInspectionDate ? new Date(claim.adjusterInspectionDate).toISOString().split('T')[0] : ''} onBlur={(e) => saveClaim({ adjusterInspectionDate: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                  <input type="date" defaultValue={claim.adjusterInspectionDate ? new Date(claim.adjusterInspectionDate).toISOString().split('T')[0] : ''} readOnly={!mayEditClaim} onBlur={(e) => saveClaim({ adjusterInspectionDate: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
               </div>
 
@@ -853,24 +866,26 @@ export default function InsuranceClaimPage() {
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Name</label>
-                  <input defaultValue={claim.adjusterName || ''} onBlur={(e) => saveClaim({ adjusterName: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                  <input defaultValue={claim.adjusterName || ''} readOnly={!mayEditClaim} onBlur={(e) => saveClaim({ adjusterName: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Phone</label>
-                  <input defaultValue={claim.adjusterPhone || ''} onBlur={(e) => saveClaim({ adjusterPhone: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                  <input defaultValue={claim.adjusterPhone || ''} readOnly={!mayEditClaim} onBlur={(e) => saveClaim({ adjusterPhone: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Email</label>
-                  <input defaultValue={claim.adjusterEmail || ''} onBlur={(e) => saveClaim({ adjusterEmail: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                  <input defaultValue={claim.adjusterEmail || ''} readOnly={!mayEditClaim} onBlur={(e) => saveClaim({ adjusterEmail: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Company</label>
-                  <input defaultValue={claim.adjusterCompany || ''} onBlur={(e) => saveClaim({ adjusterCompany: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                  <input defaultValue={claim.adjusterCompany || ''} readOnly={!mayEditClaim} onBlur={(e) => saveClaim({ adjusterCompany: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
               </div>
-              <button onClick={saveAdjusterToDirectory} className="mt-3 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium">
-                Save to Adjuster Directory
-              </button>
+              {mayWriteClaim && (
+                <button onClick={saveAdjusterToDirectory} className="mt-3 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium">
+                  Save to Adjuster Directory
+                </button>
+              )}
             </div>
 
             {/* Financials */}
@@ -881,19 +896,19 @@ export default function InsuranceClaimPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Deductible</label>
-                  <input defaultValue={claim.deductible || ''} onBlur={(e) => saveClaim({ deductible: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="$0.00" />
+                  <input defaultValue={claim.deductible || ''} readOnly={!mayEditClaim} onBlur={(e) => saveClaim({ deductible: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="$0.00" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">RCV</label>
-                  <input defaultValue={claim.rcv || ''} onBlur={(e) => saveClaim({ rcv: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="$0.00" />
+                  <input defaultValue={claim.rcv || ''} readOnly={!mayEditClaim} onBlur={(e) => saveClaim({ rcv: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="$0.00" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">ACV</label>
-                  <input defaultValue={claim.acv || ''} onBlur={(e) => saveClaim({ acv: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="$0.00" />
+                  <input defaultValue={claim.acv || ''} readOnly={!mayEditClaim} onBlur={(e) => saveClaim({ acv: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="$0.00" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Depreciation Held</label>
-                  <input defaultValue={claim.depreciationHeld || ''} onBlur={(e) => saveClaim({ depreciationHeld: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="$0.00" />
+                  <input defaultValue={claim.depreciationHeld || ''} readOnly={!mayEditClaim} onBlur={(e) => saveClaim({ depreciationHeld: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="$0.00" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Supplement Total</label>
@@ -901,7 +916,7 @@ export default function InsuranceClaimPage() {
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Final Approved</label>
-                  <input defaultValue={claim.finalApprovedAmount || ''} onBlur={(e) => saveClaim({ finalApprovedAmount: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="$0.00" />
+                  <input defaultValue={claim.finalApprovedAmount || ''} readOnly={!mayEditClaim} onBlur={(e) => saveClaim({ finalApprovedAmount: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="$0.00" />
                 </div>
               </div>
               {/* NOTHING APPROVED YET MEANS THERE IS NO CHEQUE TO WORK OUT. (T41)
@@ -998,6 +1013,7 @@ export default function InsuranceClaimPage() {
                 )}
               </div>
               {/* Two documents, named for what they are rather than hidden behind one button. (T41) */}
+              {mayWriteClaim && (
               <div className="flex flex-wrap items-center gap-2">
                 <button onClick={() => generateExport('ask')} disabled={exporting} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
                   {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
@@ -1008,6 +1024,7 @@ export default function InsuranceClaimPage() {
                   {exporting ? 'Building scope...' : 'Scope as approved'}
                 </button>
               </div>
+              )}
               <p className="mt-2 text-xs text-gray-500 dark:text-slate-400 max-w-prose">
                 <strong>As requested</strong> is the document you send the carrier: every supplement that has
                 not been denied, at the amounts you asked for. <strong>As approved</strong> is the settled

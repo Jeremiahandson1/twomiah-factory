@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useMayWrite } from '../../shared'
 import { useAuth } from '../../contexts/AuthContext'
 import { format } from 'date-fns'
 import {
@@ -71,6 +72,11 @@ const TIMEZONES = [
 ]
 
 export default function AIReceptionistPage() {
+  // ai-receptionist:* is ADMIN and above — the matrix gives the manager row ai-receptionist:read
+  // only, because what the receptionist says to a customer who rings is configuration, not
+  // day-to-day work. Confirmed live: a manager gets 403 from PUT /settings. (T42)
+  const mayWriteReceptionist = useMayWrite('ai-receptionist:update');
+  const mayRemoveRule = useMayWrite('ai-receptionist:delete');
   const { token } = useAuth()
 
   const [tab, setTab] = useState<'rules' | 'calls' | 'settings'>('rules')
@@ -215,12 +221,12 @@ export default function AIReceptionistPage() {
           <h1 className="text-2xl font-bold">AI Receptionist</h1>
         </div>
         {tab === 'rules' && (
-          <button
+          mayWriteReceptionist && (<button
             onClick={openCreate}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
           >
             <Plus size={16} /> New Rule
-          </button>
+          </button>)
         )}
       </div>
 
@@ -269,12 +275,12 @@ export default function AIReceptionistPage() {
               <Bot size={48} className="mx-auto mb-4 opacity-50" />
               <p className="text-lg font-medium mb-2">No rules yet</p>
               <p className="text-sm mb-4">Create your first AI receptionist rule to get started.</p>
-              <button
+              {mayWriteReceptionist && (<button
                 onClick={openCreate}
                 className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
               >
                 <Plus size={16} /> Create Rule
-              </button>
+              </button>)}
             </div>
           ) : (
             <table className="w-full text-sm">
@@ -296,28 +302,28 @@ export default function AIReceptionistPage() {
                     <td className="px-4 py-3 text-gray-700 dark:text-slate-300 uppercase">{rule.channel}</td>
                     <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{rule.delayMinutes}m</td>
                     <td className="px-4 py-3">
-                      <button onClick={() => toggleRule(rule)} className="text-gray-700 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white">
+                      {mayWriteReceptionist && (<button onClick={() => toggleRule(rule)} className="text-gray-700 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white">
                         {rule.isActive ? (
                           <ToggleRight size={22} className="text-green-400" />
                         ) : (
                           <ToggleLeft size={22} className="text-gray-500 dark:text-slate-400" />
                         )}
-                      </button>
+                      </button>)}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button
+                        {mayWriteReceptionist && (<button
                           onClick={() => openEdit(rule)}
                           className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition"
                         >
                           <Pencil size={15} />
-                        </button>
-                        <button
+                        </button>)}
+                        {mayRemoveRule && (<button
                           onClick={() => deleteRule(rule.id)}
                           className="p-1.5 rounded hover:bg-red-600/20 text-gray-500 dark:text-slate-400 hover:text-red-400 transition"
                         >
                           <Trash2 size={15} />
-                        </button>
+                        </button>)}
                       </div>
                     </td>
                   </tr>
@@ -387,7 +393,7 @@ export default function AIReceptionistPage() {
               <p className="font-medium">AI Receptionist</p>
               <p className="text-sm text-gray-500 dark:text-slate-400">Enable or disable the AI receptionist for your business</p>
             </div>
-            <button
+            {mayWriteReceptionist && (<button
               onClick={() => setSettings(s => ({ ...s, isEnabled: !s.isEnabled }))}
               className="text-gray-700 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white"
             >
@@ -396,7 +402,7 @@ export default function AIReceptionistPage() {
               ) : (
                 <ToggleLeft size={32} className="text-gray-500 dark:text-slate-400" />
               )}
-            </button>
+            </button>)}
           </div>
 
           <hr className="border-gray-200 dark:border-slate-700" />
@@ -459,13 +465,13 @@ export default function AIReceptionistPage() {
             />
           </div>
 
-          <button
+          {mayWriteReceptionist && (<button
             onClick={saveSettings}
             disabled={saving}
             className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg text-sm font-medium transition"
           >
             {saving ? 'Saving...' : 'Save Settings'}
-          </button>
+          </button>)}
         </div>
       )}
 

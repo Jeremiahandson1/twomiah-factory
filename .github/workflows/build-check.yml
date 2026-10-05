@@ -2305,3 +2305,25 @@ jobs:
           bun-version: latest
       - name: "check write controls ask permission"
         run: bun run scripts/check-write-controls-ask-permission.ts
+
+  authenticate-runs-before-authorize:
+    name: "A route authenticates before it authorises"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "check authenticate runs before authorize"
+        run: bun run scripts/check-authenticate-runs-before-authorize.ts
+
+  roof-write-controls-ask-permission:
+    name: "A crm-roof screen that writes asks whether this person may"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "check roof write controls ask permission"
+        run: bun run scripts/check-roof-write-controls-ask-permission.ts

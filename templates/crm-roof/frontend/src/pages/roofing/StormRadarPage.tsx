@@ -7,6 +7,7 @@
  * shows recent events + matched contacts.
  */
 import { useState, useEffect } from 'react';
+import { useMayWrite } from '../../shared';
 import { formatDate } from '../../utils/date';
 import { Radio, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react';
 import api from '../../api/client';
@@ -27,6 +28,9 @@ const MATCH_STATUS_COLORS: Record<string, string> = {
 };
 
 export default function StormRadarPage() {
+  // routes/stormRadar.ts puts sync, match and the match decision all on storms:create — manager
+  // and above. A crew reads the radar; it does not pull the feed or claim a match. (T42)
+  const mayWorkStorms = useMayWrite('storms:create');
   const [status, setStatus] = useState<any>(null);
   const [events, setEvents] = useState<any[]>([]);
   const [matches, setMatches] = useState<any[]>([]);
@@ -83,10 +87,10 @@ export default function StormRadarPage() {
           <h1 className="text-2xl font-bold flex items-center gap-2"><Radio className="w-6 h-6 text-orange-500 dark:text-orange-300" />Storm Radar</h1>
           <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Weather events overlaid on your customer base — drive storm-season lead generation</p>
         </div>
-        <button onClick={sync} disabled={syncing || !status?.configured} className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+        {mayWorkStorms && (<button onClick={sync} disabled={syncing || !status?.configured} className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg flex items-center gap-2">
           <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
           {syncing ? 'Syncing...' : 'Sync Now'}
-        </button>
+        </button>)}
       </div>
 
       {/* Provider status banner */}
@@ -121,7 +125,7 @@ export default function StormRadarPage() {
                   <td className="px-4 py-3 text-sm">{e.hailSizeInches ? `${e.hailSizeInches}"` : '—'}</td>
                   <td className="px-4 py-3 text-sm">{e.windSpeedMph ? `${e.windSpeedMph} mph` : '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{e.startedAt ? formatDate(e.startedAt) : '—'}</td>
-                  <td className="px-4 py-3"><button onClick={() => matchEvent(e.id)} className="text-xs text-orange-600 hover:underline dark:text-orange-300">Match Contacts</button></td>
+                  <td className="px-4 py-3">{mayWorkStorms && (<button onClick={() => matchEvent(e.id)} className="text-xs text-orange-600 hover:underline dark:text-orange-300">Match Contacts</button>)}</td>
                 </tr>
               ))}
           </tbody>
@@ -142,7 +146,7 @@ export default function StormRadarPage() {
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${MATCH_STATUS_COLORS[m.status] || 'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'}`}>{(m.status || '').replace(/_/g, ' ')}</span></td>
                   <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{formatDate(m.createdAt)}</td>
                   <td className="px-4 py-3">
-                    <select value={m.status} onChange={(e) => updateMatchStatus(m.id, e.target.value)} className="text-xs border rounded px-2 py-1">
+                    <select disabled={!mayWorkStorms} value={m.status} onChange={(e) => updateMatchStatus(m.id, e.target.value)} className="text-xs border rounded px-2 py-1">
                       <option value="new">New</option><option value="contacted">Contacted</option><option value="quoted">Quoted</option><option value="booked">Booked</option><option value="not_interested">Not Interested</option>
                     </select>
                   </td>

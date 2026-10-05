@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useMayWrite } from '../../shared'
 import { formatDate } from '../../utils/date';
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
@@ -41,6 +42,15 @@ function isSummerMonth(dateStr: string): boolean {
 }
 
 export default function RoofReportsPage() {
+  // The two buttons in this form are not the same act and no longer the same permission: DIY
+  // Measurement draws a preview by hand and costs nothing, Professional Report is $9.99 through
+  // Stripe. They both posted /purchase, which was gated roof-reports:purchase, so a MANAGER was
+  // refused the free drawing tool — measured live, 403. routes/roofReports.ts now asks
+  // roof-reports:create for the manual mode, and the screen offers each button to whoever can
+  // actually use it. (T42)
+  const mayDrawReport = useMayWrite('roof-reports:create');
+  const mayBuyReport = useMayWrite('roof-reports:purchase');
+  const mayRemoveReport = useMayWrite('roof-reports:delete');
   const { token } = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
@@ -251,14 +261,14 @@ export default function RoofReportsPage() {
                 : ' Your report is being prepared and will be delivered shortly.'}
             </p>
           </div>
-          <button
+          {mayDrawReport && (<button
             onClick={() => handleFinalize(preview.edges, preview.measurements)}
             disabled={finalizing}
             className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-800 disabled:opacity-50 transition-colors"
           >
             {finalizing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             {finalizing ? 'Creating...' : 'Create Report'}
-          </button>
+          </button>)}
         </div>
 
         <RoofEdgeEditor
@@ -286,13 +296,13 @@ export default function RoofReportsPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Roof Reports</h1>
           <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Professional satellite-based roof measurement reports</p>
         </div>
-        <button
+        {(mayDrawReport || mayBuyReport) && (<button
           onClick={() => setShowForm(!showForm)}
           className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
           New Report
-        </button>
+        </button>)}
       </div>
 
       {/* New Report Form */}
@@ -377,7 +387,7 @@ export default function RoofReportsPage() {
             </div>
             <div className="pt-4 border-t space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <button
+                {mayDrawReport && (<button
                   type="button"
                   onClick={() => handleGenerate('manual')}
                   disabled={purchasing}
@@ -386,8 +396,8 @@ export default function RoofReportsPage() {
                   <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">DIY Measurement</span>
                   <span className="text-xs text-gray-500 dark:text-slate-400">Draw lines on satellite image yourself</span>
                   <span className="mt-1 px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase dark:text-green-300 dark:bg-green-950/40">Free</span>
-                </button>
-                <button
+                </button>)}
+                {mayBuyReport && (<button
                   type="button"
                   onClick={() => handleGenerate('auto')}
                   disabled={purchasing}
@@ -396,7 +406,7 @@ export default function RoofReportsPage() {
                   <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">Professional Report</span>
                   <span className="text-xs text-blue-500 dark:text-blue-300">Verified measurements, delivered fast</span>
                   <span className="mt-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full uppercase dark:text-blue-300 dark:bg-blue-950/40">$9.99</span>
-                </button>
+                </button>)}
               </div>
               {purchasing && (
                 <div className="flex items-center justify-center gap-2 py-2 text-sm text-gray-500 dark:text-slate-400">
@@ -432,13 +442,13 @@ export default function RoofReportsPage() {
           <h3 className="text-lg font-medium text-gray-900 mb-1 dark:text-slate-100">No roof reports yet</h3>
           <p className="text-sm text-gray-500 mb-1 dark:text-slate-400">Professional satellite-based roof measurements for $9.99/report.</p>
           <p className="text-xs text-gray-500 dark:text-slate-400 mb-4">Ridges, valleys, hips, rakes, eaves, waste factor, ice & water shield — all computed from satellite data.</p>
-          <button
+          {(mayDrawReport || mayBuyReport) && (<button
             onClick={() => setShowForm(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Generate First Report
-          </button>
+          </button>)}
         </div>
       ) : (
         <div className="bg-white rounded-xl shadow-sm border overflow-x-auto dark:bg-slate-900">
@@ -508,14 +518,14 @@ export default function RoofReportsPage() {
                       >
                         <Download className="w-4 h-4" />
                       </button>
-                      <button
+                      {mayRemoveReport && (<button
                         onClick={() => handleDelete(report.id)}
                         disabled={deleting === report.id}
                         className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 dark:text-slate-400"
                         title="Delete report"
                       >
                         <Trash2 className="w-4 h-4" />
-                      </button>
+                      </button>)}
                     </div>
                   </td>
                 </tr>

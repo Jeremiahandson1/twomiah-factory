@@ -242,6 +242,11 @@ app.put('/stops/:id', requirePermission('canvassing:update'), async (c) => {
   if (body.doorHangerLeft !== undefined) updates.doorHangerLeft = body.doorHangerLeft
   if (body.followUpDate !== undefined) updates.followUpDate = body.followUpDate ? new Date(body.followUpDate) : null
   if (body.photos !== undefined) updates.photos = body.photos
+  // Same as storms' PUT /leads/:id: an empty SET clause makes Drizzle throw, and a caller who sent
+  // no recognised field gets a 500 that reads as a server fault. (T42)
+  if (Object.keys(updates).length === 0) {
+    return c.json({ error: 'Nothing to update' }, 400)
+  }
 
   const [updated] = await db.update(canvassingStop).set(updates)
     .where(and(eq(canvassingStop.id, id), eq(canvassingStop.companyId, companyId)))

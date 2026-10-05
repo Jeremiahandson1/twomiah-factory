@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useMayWrite } from '../../shared';
 import { formatDate } from '../../utils/date';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
@@ -52,6 +53,13 @@ function daysSince(date: string): number {
 }
 
 export default function JobDetailPage() {
+  // "viewer also sees Close Job and Advance Stage" — the report's own words, and the reason this
+  // is jobs:update and not something narrower: the FIELD rung holds jobs:update, so a crew keeps
+  // closing and advancing its own work, uploading photos and adding notes. The read-only office
+  // seat holds jobs:read only, and loses all of it. (T42)
+  const mayWorkJob = useMayWrite('jobs:update');
+  // Ordering a measurement is a different module with its own route and its own verb.
+  const mayOrderMeasurement = useMayWrite('measurements:create');
   const { id } = useParams<{ id: string }>();
   const { token, hasFeature } = useAuth();
   // The claims module is optional — a retail-only roofer never touches a carrier. With the API gated,
@@ -339,32 +347,32 @@ export default function JobDetailPage() {
                   Closed as <span className="font-semibold">{job.status}</span>
                   {job.lostReason ? ` — ${job.lostReason}` : ''}
                 </span>
-                <button
+                {mayWorkJob && (<button
                   onClick={reopenJob}
                   disabled={closing}
                   className="px-4 py-2 border border-gray-300 dark:border-slate-700 text-sm font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 disabled:opacity-50"
                 >
                   {closing ? 'Reopening…' : 'Reopen'}
-                </button>
+                </button>)}
               </>
             ) : (
               <>
                 {job.status !== 'collected' && (
-                  <button
+                  mayWorkJob && (<button
                     onClick={() => { setCloseStatus(job.status === 'signed' || job.status === 'material_ordered' || job.status === 'in_production' ? 'cancelled' : 'lost'); setCloseOpen(true); }}
                     className="px-4 py-2 border border-gray-300 dark:border-slate-700 text-sm font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800"
                   >
                     Close Job
-                  </button>
+                  </button>)
                 )}
-                <button
+                {mayWorkJob && (<button
                   onClick={advanceStage}
                   disabled={advancing || job.status === 'collected'}
                   className="flex items-center gap-1.5 px-4 py-2 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-800 disabled:opacity-50"
                 >
                   <ChevronRight className="w-4 h-4" />
                   {advancing ? 'Advancing...' : 'Advance Stage'}
-                </button>
+                </button>)}
               </>
             )}
           </div>
@@ -600,12 +608,12 @@ export default function JobDetailPage() {
                     )}
                     {!job.totalSquares && <p className="text-sm text-gray-500 dark:text-slate-400">No measurement report</p>}
                   </div>
-                  <button
+                  {mayOrderMeasurement && (<button
                     onClick={orderMeasurement}
                     className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
                   >
                     Order Report
-                  </button>
+                  </button>)}
                 </div>
               )}
             </div>
@@ -716,14 +724,14 @@ export default function JobDetailPage() {
                 className="hidden"
                 onChange={(e) => e.target.files && uploadPhotos(e.target.files)}
               />
-              <button
+              {mayWorkJob && (<button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-200"
               >
                 <Upload className="w-4 h-4" />
                 {uploading ? 'Uploading...' : 'Upload Photos'}
-              </button>
+              </button>)}
             </div>
             )}
 
@@ -753,13 +761,13 @@ export default function JobDetailPage() {
                   placeholder="Add a note..."
                   className="flex-1 text-sm border rounded-lg px-3 py-2"
                 />
-                <button
+                {mayWorkJob && (<button
                   onClick={addNote}
                   disabled={savingNote || !noteText.trim()}
                   className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
                   {savingNote ? '...' : 'Add'}
-                </button>
+                </button>)}
               </div>
             </div>
 
@@ -824,7 +832,7 @@ export default function JobDetailPage() {
               <div className="space-y-3">
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Sales Rep</label>
-                  <select
+                  <select disabled={!mayWorkJob}
                     value={job.salesRepId || ''}
                     onChange={(e) => updateAssignment('salesRepId', e.target.value)}
                     className="w-full text-sm border rounded-lg px-3 py-2"
@@ -837,7 +845,7 @@ export default function JobDetailPage() {
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Crew</label>
-                  <select
+                  <select disabled={!mayWorkJob}
                     value={job.crewId || ''}
                     onChange={(e) => updateAssignment('crewId', e.target.value)}
                     className="w-full text-sm border rounded-lg px-3 py-2"

@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { useMayWrite } from '../../shared'
 import { MousePointer2, Plus, Trash2, Undo2, Redo2, Save, RotateCcw, Sparkles, Loader2 } from 'lucide-react'
 import maplibregl from 'maplibre-gl'
 import { getAccessToken } from '../../lib/authToken'
@@ -94,6 +95,10 @@ export default function MapEdgeEditor({
   aerialImageUrl, nearmapTileUrl, mapWidth = 800, mapHeight = 600,
   initialMode = 'select', onSave, onRevert, userEdited,
 }: Props) {
+  // The AI Segment mode is not a local drawing tool: clicking the map posts the canvas to
+  // /api/roof-reports/sam-segment, which asks roof-reports:create. The other three modes are
+  // pure client-side editing of a report this seat is already allowed to open. (T42)
+  const mayDrawReport = useMayWrite('roof-reports:create')
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [mapReady, setMapReady] = useState(false)
@@ -635,14 +640,14 @@ export default function MapEdgeEditor({
             >
               <Trash2 className="w-3.5 h-3.5" /> Delete
             </button>
-            <button
+            {mayDrawReport && (<button
               onClick={() => { setMode('ai_segment'); setAddStart(null) }}
               className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-l transition-colors ${mode === 'ai_segment' ? 'bg-purple-50 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40' : 'text-gray-600 hover:bg-gray-50 dark:text-slate-300'}`}
               title="AI Segment — click on a roof face to auto-detect its boundary"
             >
               {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
               AI Segment
-            </button>
+            </button>)}
           </div>
 
           {/* Edge type selector (for add mode) */}

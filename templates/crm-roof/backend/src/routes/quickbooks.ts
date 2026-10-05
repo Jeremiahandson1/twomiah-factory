@@ -48,7 +48,7 @@ app.get('/callback', async (c) => {
 })
 
 // POST /disconnect
-app.post('/disconnect', requirePermission('integrations:create'), authenticate, async (c) => {
+app.post('/disconnect', authenticate, requirePermission('integrations:create'), async (c) => {
   const { companyId } = c.get('user')
   await qb.disconnect(companyId)
   return c.json({ success: true })
@@ -75,7 +75,7 @@ app.get('/status', authenticate, async (c) => {
 })
 
 // POST /sync — full sync
-app.post('/sync', requirePermission('integrations:create'), authenticate, async (c) => {
+app.post('/sync', authenticate, requirePermission('integrations:create'), async (c) => {
   const { companyId } = c.get('user')
   try {
     await qb.fullSync(companyId)
@@ -86,7 +86,7 @@ app.post('/sync', requirePermission('integrations:create'), authenticate, async 
 })
 
 // POST /sync/invoice/:id
-app.post('/sync/invoice/:id', requirePermission('integrations:create'), authenticate, async (c) => {
+app.post('/sync/invoice/:id', authenticate, requirePermission('integrations:create'), async (c) => {
   const { companyId } = c.get('user')
   const id = c.req.param('id')
   try {
@@ -98,7 +98,7 @@ app.post('/sync/invoice/:id', requirePermission('integrations:create'), authenti
 })
 
 // POST /sync/contact/:id
-app.post('/sync/contact/:id', requirePermission('integrations:create'), authenticate, async (c) => {
+app.post('/sync/contact/:id', authenticate, requirePermission('integrations:create'), async (c) => {
   const { companyId } = c.get('user')
   const id = c.req.param('id')
   try {

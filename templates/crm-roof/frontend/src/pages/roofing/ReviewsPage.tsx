@@ -3,6 +3,7 @@
  * Review requests (ask customers) + received reviews.
  */
 import { useState, useEffect } from 'react';
+import { useMayWrite } from '../../shared';
 import { formatDate } from '../../utils/date';
 import { Star, Send, Plus } from 'lucide-react';
 import api from '../../api/client';
@@ -16,6 +17,10 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function ReviewsPage() {
+  // Roof's reviews router had NO permission on any write until this round — see the note in
+  // routes/reviews.ts. Asking a customer for a review is marketing:create, which the manager
+  // row holds and the field rung does not. Both sides move together. (T42)
+  const mayAskForReview = useMayWrite('marketing:create');
   const [tab, setTab] = useState<'received' | 'requests'>('received');
   const [reviews, setReviews] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
@@ -48,7 +53,7 @@ export default function ReviewsPage() {
           <h1 className="text-2xl font-bold flex items-center gap-2"><Star className="w-6 h-6 text-orange-500 dark:text-orange-300" />Reviews</h1>
           {summary && <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">{Number(summary.averageRating || 0).toFixed(1)} ★ average · {summary.totalReviews} reviews</p>}
         </div>
-        {tab === 'requests' && <button onClick={() => setShowRequest(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />Request Review</button>}
+        {tab === 'requests' && mayAskForReview && (<button onClick={() => setShowRequest(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />Request Review</button>)}
       </div>
 
       <div className="flex gap-2 mb-4 border-b">
@@ -84,7 +89,7 @@ export default function ReviewsPage() {
                     <td className="px-4 py-3 text-sm">{r.channel}</td>
                     <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[r.status]}`}>{r.status}</span></td>
                     <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{r.sentAt ? formatDate(r.sentAt) : '—'}</td>
-                    <td className="px-4 py-3">{r.status === 'pending' && <button onClick={() => markSent(r.id)} className="text-blue-600 dark:text-blue-400 text-xs hover:underline flex items-center gap-1"><Send className="w-3 h-3" />Mark Sent</button>}</td>
+                    <td className="px-4 py-3">{r.status === 'pending' && mayAskForReview && (<button onClick={() => markSent(r.id)} className="text-blue-600 dark:text-blue-400 text-xs hover:underline flex items-center gap-1"><Send className="w-3 h-3" />Mark Sent</button>)}</td>
                   </tr>
                 ))}
             </tbody>

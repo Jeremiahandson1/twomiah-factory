@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useMayWrite } from '../../shared';
 import { formatDate } from '../../utils/date';
 import { useNavigate } from 'react-router-dom';
 import { Ruler, ChevronLeft, ChevronRight, Plus, X, RefreshCw, CreditCard, AlertTriangle, CheckCircle, Loader2, Edit3 } from 'lucide-react';
@@ -24,6 +25,12 @@ function formatStatus(s: string) {
 }
 
 export default function MeasurementsPage() {
+  // Three different verbs on one screen, and they do not land on the same people: a manager
+  // orders and corrects a measurement but does not BUY credits — measurements:purchase is the
+  // spend, and the matrix withholds it from the manager row on purpose. (T42)
+  const mayOrderMeasurement = useMayWrite('measurements:create');
+  const mayCorrectMeasurement = useMayWrite('measurements:update');
+  const mayBuyCredits = useMayWrite('measurements:purchase');
   const { token } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -179,21 +186,21 @@ export default function MeasurementsPage() {
           <div className="flex items-center gap-3">
             {/* Credits badge */}
             {credits !== null && (
-              <button
+              mayBuyCredits && (<button
                 onClick={() => setBuyOpen(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-white border rounded-lg text-sm hover:bg-gray-50 dark:bg-slate-900"
               >
                 <CreditCard className="w-4 h-4 text-gray-400" />
                 <span className="font-medium">{credits}</span>
                 <span className="text-gray-500 dark:text-slate-400">credits</span>
-              </button>
+              </button>)
             )}
-            <button
+            {mayOrderMeasurement && (<button
               onClick={() => setOrderOpen(true)}
               className="flex items-center gap-1.5 px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700"
             >
               <Plus className="w-4 h-4" /> Order Report
-            </button>
+            </button>)}
           </div>
         </div>
 
@@ -253,13 +260,13 @@ export default function MeasurementsPage() {
                       </td>
                       <td className="px-4 py-3">
                         {m.status === 'failed' && (
-                          <button
+                          mayCorrectMeasurement && (<button
                             onClick={(e) => { e.stopPropagation(); regenerateReport(m.id); }}
                             className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
                             title="Retry"
                           >
                             <RefreshCw className="w-4 h-4" />
-                          </button>
+                          </button>)
                         )}
                       </td>
                     </tr>
@@ -296,7 +303,7 @@ export default function MeasurementsPage() {
             {credits !== null && credits <= 0 && (
               <div className="flex items-start gap-2 p-3 mb-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800 dark:text-yellow-300 dark:bg-yellow-950/40">
                 <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <span>No credits remaining. <button onClick={() => { setOrderOpen(false); setBuyOpen(true); }} className="underline font-medium">Purchase credits</button> to order reports.</span>
+                <span>No credits remaining. {mayBuyCredits && (<button onClick={() => { setOrderOpen(false); setBuyOpen(true); }} className="underline font-medium">Purchase credits</button>)} to order reports.</span>
               </div>
             )}
             <div className="space-y-3">
@@ -364,9 +371,9 @@ export default function MeasurementsPage() {
                   <div>
                     <p className="font-medium">Low quality imagery</p>
                     <p className="text-xs mt-0.5">Satellite data for this area is limited. Consider entering measurements manually for more accurate results.</p>
-                    <button onClick={() => { setManualOpen(true); setManualSquares(selectedReport.totalSquares || ''); }} className="flex items-center gap-1 mt-2 text-xs font-medium text-yellow-900 underline dark:text-yellow-300">
+                    {mayCorrectMeasurement && (<button onClick={() => { setManualOpen(true); setManualSquares(selectedReport.totalSquares || ''); }} className="flex items-center gap-1 mt-2 text-xs font-medium text-yellow-900 underline dark:text-yellow-300">
                       <Edit3 className="w-3 h-3" /> Enter manually
-                    </button>
+                    </button>)}
                   </div>
                 </div>
               )}
@@ -432,9 +439,9 @@ export default function MeasurementsPage() {
               {/* Actions */}
               <div className="flex gap-2 pt-2">
                 {selectedReport.status === 'failed' && (
-                  <button onClick={() => { regenerateReport(selectedReport.id); setSelectedReport(null); }} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  mayCorrectMeasurement && (<button onClick={() => { regenerateReport(selectedReport.id); setSelectedReport(null); }} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                     <RefreshCw className="w-4 h-4" /> Retry
-                  </button>
+                  </button>)
                 )}
                 {selectedReport.jobId && (
                   <button onClick={() => { setSelectedReport(null); navigate(`/crm/jobs/${selectedReport.jobId}`); }} className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-200">

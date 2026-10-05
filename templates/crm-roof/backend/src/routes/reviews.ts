@@ -16,6 +16,7 @@ import { db } from '../../db/index.ts'
 import { reviewRequest, review } from '../../db/schema.ts'
 import { eq, and, desc, avg, count } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import logger from '../services/logger.ts'
 import gmb, { GmbNotConfiguredError } from '../services/gmb.ts'
 
@@ -42,6 +43,21 @@ app.get('/track/:requestId/click', async (c) => {
 // All other routes require auth
 app.use('*', authenticate)
 
+/**
+ * …AND AUTHENTICATED IS NOT AUTHORISED, which is why this file was missed. (T42)
+ *
+ * Every other roof router got its resource in the Sep-27 gating pass. This one looked gated because
+ * of the line above, and the writes below carried nothing: confirmed live on rooftest, where the
+ * `user` seat reached POST /requests and was turned back only by the body schema.
+ *
+ * Asking a customer for a review is marketing — the same resource the shared
+ * integrations/reviews.ts already puts on `/request/:jobId` — and the manager row holds
+ * marketing:read/create/update while the field rung holds none of them. The READS stay open on
+ * purpose: a crew seeing the shop's rating is not a leak, and the summary feeds a dashboard tile.
+ */
+const asksForAReview = requirePermission('marketing:create')   // send one, and record the answer
+const tidiesTheRecord = requirePermission('marketing:update')  // remove a request, pull from Google
+
 // ─────────────────────────────────────────────────────────────
 // REVIEW REQUESTS
 // ─────────────────────────────────────────────────────────────
@@ -63,7 +79,7 @@ app.get('/requests', async (c) => {
   return c.json({ data })
 })
 
-app.post('/requests', async (c) => {
+app.post('/requests', asksForAReview, async (c) => {
   const currentUser = c.get('user') as any
   const data = requestSchema.parse(await c.req.json())
   const [created] = await db
@@ -74,7 +90,7 @@ app.post('/requests', async (c) => {
 })
 
 // Mark as sent (e.g., after SMS/email delivered)
-app.post('/requests/:id/mark-sent', async (c) => {
+app.post('/requests/:id/mark-sent', asksForAReview, async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   // Scoped to the caller's company like the list above, not matched on id alone. (The public
@@ -88,7 +104,7 @@ app.post('/requests/:id/mark-sent', async (c) => {
   return c.json(updated)
 })
 
-app.delete('/requests/:id', async (c) => {
+app.delete('/requests/:id', tidiesTheRecord, async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   // `returning()` so a delete that matched nothing is a 404 rather than a silent "deleted".
@@ -124,7 +140,7 @@ app.get('/', async (c) => {
   return c.json({ data: filtered })
 })
 
-app.post('/', async (c) => {
+app.post('/', asksForAReview, async (c) => {
   const currentUser = c.get('user') as any
   const data = reviewBodySchema.parse(await c.req.json())
   const [created] = await db
@@ -153,7 +169,7 @@ app.get('/sync/gmb/status', (c) => {
   return c.json({ configured: gmb.isConfigured() })
 })
 
-app.post('/sync/gmb', async (c) => {
+app.post('/sync/gmb', tidiesTheRecord, async (c) => {
   const currentUser = c.get('user') as any
   try {
     const result = await gmb.syncReviews(currentUser.companyId)

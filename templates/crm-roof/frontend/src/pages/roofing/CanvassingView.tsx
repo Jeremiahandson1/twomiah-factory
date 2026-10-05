@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useMayWrite } from '../../shared'
 import { formatDate } from '../../utils/date';
 import { useNavigate } from 'react-router-dom'
 import {
@@ -34,6 +35,11 @@ type Stop = any
 type Script = any
 
 export default function CanvassingView() {
+  // canvassing:create, not marketing — the field rung HOLDS it, because door-knocking is that
+  // rung's job (T41: "a canvasser cannot log a door knock, and that is the bug"). Gating these
+  // on anything higher would take the screen back off the only people who use it. What it does
+  // remove is the viewer's ability to start a session it is not walking. (T42)
+  const mayCanvass = useMayWrite('canvassing:create');
   const { token } = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
@@ -555,10 +561,10 @@ export default function CanvassingView() {
                   <input type="number" value={newRadius} onChange={(e) => setNewRadius(e.target.value)}
                     className="w-full mt-1 border rounded-lg px-3 py-2.5 text-sm" placeholder="e.g. 0.5" />
                 </div>
-                <button onClick={handleStartSession}
+                {mayCanvass && (<button onClick={handleStartSession}
                   className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold active:bg-blue-700">
                   Start Canvassing
-                </button>
+                </button>)}
               </div>
             </div>
           </div>
@@ -582,10 +588,10 @@ export default function CanvassingView() {
             </p>
           )}
         </div>
-        <button onClick={() => setShowEndConfirm(true)}
+        {mayCanvass && (<button onClick={() => setShowEndConfirm(true)}
           className="text-xs font-semibold text-red-700 bg-red-50 px-3 py-1.5 rounded-lg active:bg-red-100 dark:text-red-400 dark:bg-red-950/40">
           End Session
-        </button>
+        </button>)}
       </div>
 
       {/* Live Stats */}
@@ -622,10 +628,10 @@ export default function CanvassingView() {
             </div>
 
             {/* FAB */}
-            <button onClick={openLogModal}
+            {mayCanvass && (<button onClick={openLogModal}
               className="absolute bottom-6 right-6 w-16 h-16 bg-blue-600 text-white rounded-full shadow-xl flex items-center justify-center active:bg-blue-700 z-[1000]">
               <DoorOpen size={28} />
-            </button>
+            </button>)}
           </div>
         )}
 

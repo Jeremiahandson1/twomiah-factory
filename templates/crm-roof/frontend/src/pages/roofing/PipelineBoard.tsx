@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useMayWrite } from '../../shared';
 import { useNavigate } from 'react-router-dom';
 import { Filter, GripVertical, User, Users, Ruler, Clock, DollarSign, AlertTriangle, MapPin, Zap } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -65,6 +66,11 @@ function getInitials(name: string): string {
 }
 
 export default function PipelineBoard() {
+  // Dragging a card between columns posts /jobs/:id/advance — the same write as the Advance
+  // Stage button, so it answers the same permission. A drag has no button to hide, so the card
+  // simply stops being draggable and the drop handler refuses. field holds jobs:update and
+  // keeps the board; the viewer can read it and no longer move the work. (T42)
+  const mayMoveJob = useMayWrite('jobs:update');
   const { token } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -135,6 +141,9 @@ export default function PipelineBoard() {
   };
 
   const handleDrop = async (e: React.DragEvent, targetStage: string) => {
+    // A drop is a write. Refuse it here as well as making the card undraggable, because a drag can
+    // also start from outside this list.
+    if (!mayMoveJob) return
     e.preventDefault();
     const jobId = e.dataTransfer.getData('text/plain') || dragJobId;
     if (!jobId) return;
@@ -275,7 +284,7 @@ export default function PipelineBoard() {
                     return (
                       <div
                         key={job.id}
-                        draggable
+                        draggable={mayMoveJob}
                         onDragStart={(e) => handleDragStart(e, String(job.id))}
                         onClick={() => navigate(`/crm/jobs/${job.id}`)}
                         className="bg-white rounded-lg p-3 shadow-sm border border-gray-200 cursor-pointer hover:shadow-md transition-shadow group dark:bg-slate-900 dark:border-slate-700"

@@ -11,7 +11,7 @@ import { withoutPortalCredential } from '../shared/index.ts'
 const app = new Hono()
 
 // Send SMS (authenticated)
-app.post('/send', requirePermission('sms:create'), authenticate, async (c) => {
+app.post('/send', authenticate, requirePermission('sms:create'), async (c) => {
   const currentUser = c.get('user') as any
 
   const sendSchema = z.object({
@@ -104,7 +104,7 @@ app.get('/conversation/:contactId', authenticate, async (c) => {
 })
 
 // Opt-out contact from SMS
-app.post('/opt-out/:contactId', requirePermission('sms:create'), authenticate, async (c) => {
+app.post('/opt-out/:contactId', authenticate, requirePermission('sms:create'), async (c) => {
   const currentUser = c.get('user') as any
   const contactId = c.req.param('contactId')
 

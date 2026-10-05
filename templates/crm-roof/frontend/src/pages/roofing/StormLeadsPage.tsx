@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useMayWrite } from '../../shared'
 import { formatDate } from '../../utils/date';
 import { useNavigate } from 'react-router-dom'
 import {
@@ -21,6 +22,9 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 export default function StormLeadsPage() {
+  // The whole board writes through storms:create: raise an event, generate the leads, dismiss
+  // one, convert in bulk or one at a time. The reads stay — a crew can see the storm. (T42)
+  const mayWorkStorms = useMayWrite('storms:create');
   const { token } = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
@@ -218,9 +222,9 @@ export default function StormLeadsPage() {
       <div className="w-80 border-r bg-white flex-shrink-0 flex flex-col dark:bg-slate-900">
         <div className="p-4 border-b flex items-center justify-between">
           <h2 className="text-sm font-bold flex items-center gap-1.5"><Zap size={16} className="text-yellow-500 dark:text-yellow-300" /> Storm Events</h2>
-          <button onClick={() => setShowNewEvent(true)} className="text-xs bg-blue-600 text-white px-2.5 py-1 rounded-lg font-medium flex items-center gap-1">
+          {mayWorkStorms && (<button onClick={() => setShowNewEvent(true)} className="text-xs bg-blue-600 text-white px-2.5 py-1 rounded-lg font-medium flex items-center gap-1">
             <Plus size={12} /> New
-          </button>
+          </button>)}
         </div>
         <div className="flex-1 overflow-y-auto">
           {events.length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400 text-center py-8">No storm events yet</p>}
@@ -271,12 +275,12 @@ export default function StormLeadsPage() {
               </div>
               <div className="flex items-center gap-2">
                 {selectedEvent.status === 'detected' && (
-                  <button onClick={generateLeads} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-medium">
+                  mayWorkStorms && (<button onClick={generateLeads} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-medium">
                     Generate Leads
-                  </button>
+                  </button>)
                 )}
                 {selectedEvent.status !== 'dismissed' && (
-                  <button onClick={dismissEvent} className="text-xs text-gray-500 px-3 py-1.5 border rounded-lg dark:text-slate-400">Dismiss</button>
+                  mayWorkStorms && (<button onClick={dismissEvent} className="text-xs text-gray-500 px-3 py-1.5 border rounded-lg dark:text-slate-400">Dismiss</button>)
                 )}
               </div>
             </div>
@@ -299,8 +303,8 @@ export default function StormLeadsPage() {
                 <span className="text-xs text-gray-500 dark:text-slate-400">{selectedLeads.size} selected</span>
                 {selectedLeads.size > 0 && (
                   <>
-                    <button onClick={bulkConvert} className="text-xs bg-green-700 text-white px-2.5 py-1 rounded font-medium">Convert Selected</button>
-                    <button onClick={bulkDismiss} className="text-xs text-gray-500 px-2.5 py-1 border rounded dark:text-slate-400">Dismiss Selected</button>
+                    {mayWorkStorms && (<button onClick={bulkConvert} className="text-xs bg-green-700 text-white px-2.5 py-1 rounded font-medium">Convert Selected</button>)}
+                    {mayWorkStorms && (<button onClick={bulkDismiss} className="text-xs text-gray-500 px-2.5 py-1 border rounded dark:text-slate-400">Dismiss Selected</button>)}
                   </>
                 )}
               </div>
@@ -353,8 +357,8 @@ export default function StormLeadsPage() {
                         </td>
                         <td className="px-4 py-2">
                           {lead.status === 'new' && !lead.isExistingCustomer && (
-                            <button onClick={() => { setShowConvertModal(lead.id); setConvertName(''); setConvertPhone(''); setConvertEmail('') }}
-                              className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline">Convert</button>
+                            mayWorkStorms && (<button onClick={() => { setShowConvertModal(lead.id); setConvertName(''); setConvertPhone(''); setConvertEmail('') }}
+                              className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline">Convert</button>)
                           )}
                           {lead.isExistingCustomer && lead.status === 'new' && (
                             <button className="text-xs text-yellow-700 font-medium hover:underline dark:text-yellow-300">Follow Up</button>

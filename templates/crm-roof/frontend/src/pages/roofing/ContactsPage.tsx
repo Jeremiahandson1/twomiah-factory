@@ -3,12 +3,25 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Phone, Mail, MapPin, Briefcase, MessageSquare, Key, Send, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMayWrite } from '../../shared';
+import { useFeature } from '../../hooks/useFeature';
 import { useToast } from '../../contexts/ToastContext';
 
 export default function ContactsPage() {
   // Offer a write only where we know it is allowed. Each permission is the one its own route
   // asks for; crm-roof could not ask this until T41 gave its client the permission list.
   const mayCreateContact = useMayWrite('contacts:create');
+  // Create was already asked. Edit, delete and the portal invitation were not, and they are
+  // three different verbs on routes/contacts.ts. The portal pair is contacts:update because
+  // handing a homeowner a login is a change to that homeowner's record. (T42)
+  const mayEditContact = useMayWrite('contacts:update');
+  const mayDeleteContact = useMayWrite('contacts:delete');
+  // Texting a customer is its own resource and its own cost. sms:* is manager and above.
+  const mayTextContact = useMayWrite('sms:create');
+  // …and it is also an OPTIONAL module. /api/sms is gated on two_way_texting in index.ts, so a shop
+  // that has not bought it must not be shown the thread or the composer at all — otherwise the
+  // screen offers a conversation the API refuses. Permission and feature are different questions and
+  // both have to be asked: one is "is this seat allowed", the other is "did this shop buy it".
+  const hasTexting = useFeature('two_way_texting');
   const { token } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -105,15 +118,20 @@ export default function ContactsPage() {
     if (!smsText.trim() || !selected) return;
     setSendingSms(true);
     try {
-      const res = await fetch(`/api/contacts/${selected.id}/sms`, {
+      const res = await fetch('/api/sms/send', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: smsText }),
+        body: JSON.stringify({ contactId: selected.id, message: smsText }),
       });
       if (!res.ok) throw new Error();
-      const msg = await res.json();
-      setSmsThread((prev) => [...prev, msg]);
       setSmsText('');
+      // /api/sms/send answers { success, sid }, not the stored message, so re-read the thread from
+      // the same place the initial load reads it — keeping the order identical — rather than
+      // appending a response that has no message in it.
+      const detail = await fetch(`/api/contacts/${selected.id}`, { headers })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+      if (detail) setSmsThread(Array.isArray(detail.smsThread) ? detail.smsThread : []);
     } catch {
       toast.error('Failed to send SMS');
     } finally {
@@ -299,8 +317,8 @@ export default function ContactsPage() {
                       </h2>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button onClick={() => openEdit(selected)} className="px-2.5 py-1 text-xs font-medium border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200">Edit</button>
-                      <button onClick={() => deleteContact(selected)} className="px-2.5 py-1 text-xs font-medium border border-red-200 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10">Delete</button>
+                      {mayEditContact && (<button onClick={() => openEdit(selected)} className="px-2.5 py-1 text-xs font-medium border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200">Edit</button>)}
+                      {mayDeleteContact && (<button onClick={() => deleteContact(selected)} className="px-2.5 py-1 text-xs font-medium border border-red-200 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10">Delete</button>)}
                       <button onClick={() => setSelected(null)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200 ml-1">
                         <X className="w-4 h-4" />
                       </button>
@@ -310,7 +328,7 @@ export default function ContactsPage() {
 
                 {/* Tabs */}
                 <div className="flex border-b">
-                  {(['info', 'jobs', 'sms'] as const).map((tab) => (
+                  {((hasTexting ? ['info', 'jobs', 'sms'] : ['info', 'jobs']) as readonly ('info' | 'jobs' | 'sms')[]).map((tab) => (
                     <button
                       key={tab}
                       onClick={() => setDetailTab(tab)}
@@ -348,7 +366,7 @@ export default function ContactsPage() {
                         <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-slate-400">Customer Portal</h3>
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-gray-700 dark:text-slate-200">Portal Access</span>
-                          <button
+                          {mayEditContact && (<button
                             onClick={togglePortal}
                             disabled={togglingPortal}
                             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
@@ -358,15 +376,15 @@ export default function ContactsPage() {
                             <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
                               selected.portalEnabled ? 'translate-x-6' : 'translate-x-1'
                             } dark:bg-slate-900`} />
-                          </button>
+                          </button>)}
                         </div>
                         {selected.portalEnabled && (
-                          <button
+                          mayEditContact && (<button
                             onClick={resendInvite}
                             className="flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline"
                           >
                             <Send className="w-3.5 h-3.5" /> Resend Invite
-                          </button>
+                          </button>)
                         )}
                       </div>
                     </div>
@@ -398,7 +416,7 @@ export default function ContactsPage() {
                     </div>
                   )}
 
-                  {detailTab === 'sms' && (
+                  {detailTab === 'sms' && hasTexting && (
                     <div>
                       <div className="space-y-2 max-h-[300px] overflow-y-auto mb-4">
                         {smsThread.length === 0 && (
@@ -432,13 +450,13 @@ export default function ContactsPage() {
                           placeholder="Type a message..."
                           className="flex-1 text-sm border rounded-lg px-3 py-2"
                         />
-                        <button
+                        {mayTextContact && (<button
                           onClick={sendSms}
                           disabled={sendingSms || !smsText.trim()}
                           className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                         >
                           <Send className="w-4 h-4" />
-                        </button>
+                        </button>)}
                       </div>
                     </div>
                   )}

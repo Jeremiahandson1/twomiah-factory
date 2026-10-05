@@ -1,9 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useMayWrite } from '../../shared';
 import { Users, Plus, X, Save, Phone, Mail } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 
 export default function AdjusterDirectoryPage() {
+  // Each control asks what its own route asks: POST /adjusters is create, PUT /adjusters/:id is
+  // update. Both sit on insurance:* — the manager row and above — so a crew seat sees the
+  // directory (it needs the adjuster's phone number) and cannot rewrite it. (T42)
+  const mayAddAdjuster = useMayWrite('insurance:create');
+  const mayEditAdjuster = useMayWrite('insurance:update');
   const { token } = useAuth();
   const toast = useToast();
 
@@ -79,9 +85,9 @@ export default function AdjusterDirectoryPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Adjuster Directory</h1>
             <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{adjusters.length} adjusters</p>
           </div>
-          <button onClick={openAdd} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+          {mayAddAdjuster && (<button onClick={openAdd} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
             <Plus className="w-4 h-4" /> Add Adjuster
-          </button>
+          </button>)}
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border overflow-x-auto dark:bg-slate-900">
@@ -131,7 +137,7 @@ export default function AdjusterDirectoryPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => openEdit(adj)} className="text-xs font-medium text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">Edit</button>
+                        {mayEditAdjuster && (<button onClick={() => openEdit(adj)} className="text-xs font-medium text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">Edit</button>)}
                       </td>
                     </tr>
                   ))

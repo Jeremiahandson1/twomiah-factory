@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useMayWrite } from '../../shared';
 import { formatDate } from '../../utils/date';
 import { useNavigate } from 'react-router-dom';
 import { Settings, Building2, Palette, Users, Plus, Send, X, Save, Calculator, ChevronRight, Zap, MessageSquare, Link2, Unlink, RefreshCw, CloudLightning, CreditCard, SlidersHorizontal, AtSign, Globe, Inbox } from 'lucide-react';
@@ -7,6 +8,14 @@ import { useToast } from '../../contexts/ToastContext';
 import { useFeature } from '../../hooks/useFeature';
 
 export default function SettingsPage() {
+  // Two blocks on this page were open to every seat. The company and branding saves above were
+  // already mirrored on requireAdmin; these were not mirrored on anything.
+  //   · the QuickBooks connection is integrations:create — admin and above, like every other
+  //     write on that router
+  //   · the storm service area is storms:update — manager and above, since a manager runs the
+  //     storm board
+  const mayManageIntegrations = useMayWrite('integrations:create');
+  const mayWriteStormArea = useMayWrite('storms:update');
   const { token, user: currentUser } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -17,8 +26,10 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [savingCompany, setSavingCompany] = useState(false);
   const [savingBranding, setSavingBranding] = useState(false);
-  // Mirrors the server's requireAdmin (admin|owner) — this app has no PermissionsContext, and the
-  // same expression is already used by FeaturesSettingsPage. It gated user administration; since T27
+  // Mirrors the server's requireAdmin (admin|owner) — the right shape here, because the routes
+  // behind these two saves really are rank-gated (`app.use('*', authenticate, requireAdmin)`) rather
+  // than keyed on a resource. The gates at the top of this component are the ones that had to ask a
+  // permission instead. The same expression is already used by FeaturesSettingsPage. It gated user administration; since T27
   // the company record and branding need it too, because the API refuses those to anyone else and a
   // visible Save button that 403s is worse than no button. Reading stays open to everyone.
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'owner';
@@ -498,20 +509,20 @@ export default function SettingsPage() {
                   <p className="text-xs text-gray-500 dark:text-slate-400">Connected since: {formatDate(qbStatus.connectedSince)}</p>
                 )}
                 <div className="flex gap-2 pt-2">
-                  <button onClick={syncQB} disabled={syncing} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  {mayManageIntegrations && (<button onClick={syncQB} disabled={syncing} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50">
                     <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} /> {syncing ? 'Syncing...' : 'Full Sync'}
-                  </button>
-                  <button onClick={disconnectQB} disabled={qbLoading} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 text-xs rounded-lg hover:bg-red-100 disabled:opacity-50 dark:text-red-400 dark:bg-red-950/40">
+                  </button>)}
+                  {mayManageIntegrations && (<button onClick={disconnectQB} disabled={qbLoading} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 text-xs rounded-lg hover:bg-red-100 disabled:opacity-50 dark:text-red-400 dark:bg-red-950/40">
                     <Unlink className="w-3.5 h-3.5" /> Disconnect
-                  </button>
+                  </button>)}
                 </div>
               </div>
             ) : (
               <div className="space-y-3">
                 <p className="text-sm text-gray-500 dark:text-slate-400">Connect QuickBooks to automatically sync contacts and invoices.</p>
-                <button onClick={connectQB} className="flex items-center gap-1.5 px-4 py-2 bg-green-700 text-white text-sm rounded-lg hover:bg-green-800">
+                {mayManageIntegrations && (<button onClick={connectQB} className="flex items-center gap-1.5 px-4 py-2 bg-green-700 text-white text-sm rounded-lg hover:bg-green-800">
                   <Link2 className="w-4 h-4" /> Connect QuickBooks
-                </button>
+                </button>)}
               </div>
             )}
           </div>
@@ -536,13 +547,13 @@ export default function SettingsPage() {
                     className="w-32 text-sm border rounded-lg px-3 py-1.5"
                     maxLength={5}
                   />
-                  <button onClick={addZip} className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">Add</button>
+                  {mayWriteStormArea && (<button onClick={addZip} className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">Add</button>)}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {stormSettings.zipCodes.map((zip) => (
                     <span key={zip} className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full dark:bg-slate-800 dark:text-slate-200">
                       {zip}
-                      <button onClick={() => removeZip(zip)} className="text-gray-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-300"><X className="w-3 h-3" /></button>
+                      {mayWriteStormArea && (<button onClick={() => removeZip(zip)} className="text-gray-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-300"><X className="w-3 h-3" /></button>)}
                     </span>
                   ))}
                   {stormSettings.zipCodes.length === 0 && <span className="text-xs text-gray-500 dark:text-slate-400">No zip codes configured</span>}
@@ -596,9 +607,9 @@ export default function SettingsPage() {
               </div>
 
               <div className="flex justify-end">
-                <button onClick={saveStormSettings} disabled={savingStorm} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {mayWriteStormArea && (<button onClick={saveStormSettings} disabled={savingStorm} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">
                   <Save className="w-4 h-4" /> {savingStorm ? 'Saving...' : 'Save Storm Settings'}
-                </button>
+                </button>)}
               </div>
             </div>
           </div>

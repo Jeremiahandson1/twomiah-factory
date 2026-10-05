@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import { useTheme, meetsRole } from '../../shared'
+import { useTheme, meetsRole, usePermissions } from '../../shared'
 import { TrialBanner } from '../trial/TrialBanner'
 import {
   LayoutDashboard,
@@ -40,8 +40,9 @@ const baseNavItems = [
   { label: 'Crews', icon: HardHat, to: '/crm/crews' },
   { label: 'Measurements', icon: Ruler, to: '/crm/measurements' },
   { label: 'Materials', icon: Package, to: '/crm/materials', feature: 'materials' },
-  { label: 'Quotes', icon: FileText, to: '/crm/quotes' },
-  { label: 'Invoices', icon: Receipt, to: '/crm/invoices' },
+  // viewer holds these reads and field does not — see the note on `enabled` below. (T42)
+  { label: 'Quotes', icon: FileText, to: '/crm/quotes', permission: 'quotes:read' },
+  { label: 'Invoices', icon: Receipt, to: '/crm/invoices', permission: 'invoices:read' },
   { label: 'Adjusters', icon: Shield, to: '/crm/adjusters', feature: 'insurance_workflow' },
   // M7: lead_inbox is a real feature a tenant can switch off in Settings, and the API refuses it when
   // it is off — so the nav must hide it too, or switching it off leaves a link that 403s.
@@ -76,10 +77,11 @@ const bottomNavItems = [
   // They are the ONLY two roof routers that require a rank; import, reports, ads, financing and the
   // receptionist are all plain `authenticate`, so nothing else here is touched.
   //
-  // Quotes and Invoices are the other half of that finding and are NOT fixed here: they need
-  // invoices:read / quotes:read, which `viewer` holds and `field` does not — a rank cannot express
-  // that, and roof's client has no permission list to ask yet (its /api/auth/me does not return
-  // one, and it mounts no PermissionsProvider). That is its own piece of work, not a rank fudge.
+  // Quotes and Invoices were the other half of that finding, and T41 could not close them because
+  // a rank cannot express "viewer yes, field no". They are closed now, on `permission` rather than
+  // on a rung — see the keys on those two items above. The reason T41 gave (no permission list on
+  // the client) no longer holds: the login answers a `permissions` array and App.tsx mounts
+  // PermissionsProvider with it. (T42)
   { label: 'Email', icon: Mail, to: '/crm/email', feature: 'branded_email', minRole: 'admin' },
   { label: 'Google Reviews', icon: Star, to: '/crm/google-reviews', feature: 'google_business', minRole: 'admin' },
   { label: 'Documents', icon: FileText, to: '/crm/documents', feature: 'documents' },
@@ -100,8 +102,16 @@ export default function AppLayout() {
   // …and the same rule for the rank: an item with no `minRole` is always shown, one with it only to
   // a role that meets it. `meetsRole` is the shell's own ladder (packages/tenant-ui/src/shell/types),
   // so this cannot drift from the rung names the server uses. (T41)
-  const enabled = <T extends { feature?: string; minRole?: string }>(items: T[]) =>
-    items.filter(i => (!i.feature || hasFeature(i.feature)) && meetsRole(user?.role, i.minRole))
+  // …and the same rule once more for a PERMISSION, which is the only one of the three that can say
+  // "the read-only office seat yes, the crew no". `known` is why this is not a bare `can(…)`: a
+  // context that has not loaded answers false to everything, and a sidebar that empties itself for a
+  // moment on every refresh is its own bug. Hide only what we positively know is refused. (T42)
+  const { known, can } = usePermissions()
+  const enabled = <T extends { feature?: string; minRole?: string; permission?: string }>(items: T[]) =>
+    items.filter(i =>
+      (!i.feature || hasFeature(i.feature))
+      && meetsRole(user?.role, i.minRole)
+      && (!i.permission || !known || can(i.permission)))
 
   const navItems = [
     ...enabled(baseNavItems),

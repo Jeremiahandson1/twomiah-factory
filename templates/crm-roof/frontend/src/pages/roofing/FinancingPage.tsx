@@ -3,6 +3,7 @@
  * Consumer financing applications (Wisetack, GreenSky, Sunlight).
  */
 import { useState, useEffect } from 'react';
+import { useMayWrite } from '../../shared';
 import { CreditCard, Plus, Check, X } from 'lucide-react';
 import api from '../../api/client';
 
@@ -23,6 +24,12 @@ const LENDER_LABELS: Record<string, string> = {
 };
 
 export default function FinancingPage() {
+  // routes/financing.ts draws the line the matrix draws: a manager files an application and
+  // chases it, and financing:approve — approve, decline, mark funded — is admin and above.
+  // Those three buttons were offered to every seat, including the one that cannot read money. (T42)
+  const mayApplyFinancing = useMayWrite('financing:create');
+  const mayChaseFinancing = useMayWrite('financing:update');
+  const mayDecideFinancing = useMayWrite('financing:approve');
   const [apps, setApps] = useState<any[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ contactId: '', jobId: '', quoteId: '', lender: 'wisetack' as const, amountRequested: '', termMonths: '60', notes: '' });
@@ -43,7 +50,7 @@ export default function FinancingPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div><h1 className="text-2xl font-bold flex items-center gap-2"><CreditCard className="w-6 h-6 text-orange-500 dark:text-orange-300" />Consumer Financing</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Track financing applications across Wisetack, GreenSky, and other lenders</p></div>
-        <button onClick={() => setShowCreate(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Application</button>
+        {mayApplyFinancing && (<button onClick={() => setShowCreate(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Application</button>)}
       </div>
 
       <div className="bg-white rounded-lg border overflow-x-auto dark:bg-slate-900">
@@ -61,9 +68,9 @@ export default function FinancingPage() {
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[a.status]}`}>{a.status}</span></td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
-                      {a.status === 'pending' && <button onClick={() => act(a.id, 'mark-sent', { applicationUrl: prompt('Application URL:') || '', lenderReference: prompt('Lender ref #:') || '' })} className="text-blue-600 dark:text-blue-400 text-xs hover:underline">Send</button>}
-                      {a.status === 'sent' && <><button onClick={() => { const amt = prompt('Approved amount:'); if (amt) act(a.id, 'approve', { amountApproved: Number(amt), termMonths: a.termMonths }); }} className="text-green-700 hover:bg-green-50 p-1 rounded dark:text-green-300" title="Approve"><Check className="w-4 h-4" /></button><button onClick={() => act(a.id, 'decline', { notes: prompt('Decline reason:') || '' })} className="text-red-600 hover:bg-red-50 p-1 rounded dark:text-red-400" title="Decline"><X className="w-4 h-4" /></button></>}
-                      {a.status === 'approved' && <button onClick={() => act(a.id, 'mark-funded')} className="text-emerald-700 text-xs hover:underline dark:text-emerald-300">Funded</button>}
+                      {a.status === 'pending' && mayChaseFinancing && (<button onClick={() => act(a.id, 'mark-sent', { applicationUrl: prompt('Application URL:') || '', lenderReference: prompt('Lender ref #:') || '' })} className="text-blue-600 dark:text-blue-400 text-xs hover:underline">Send</button>)}
+                      {a.status === 'sent' && <>{mayDecideFinancing && (<button onClick={() => { const amt = prompt('Approved amount:'); if (amt) act(a.id, 'approve', { amountApproved: Number(amt), termMonths: a.termMonths }); }} className="text-green-700 hover:bg-green-50 p-1 rounded dark:text-green-300" title="Approve"><Check className="w-4 h-4" /></button>)}{mayDecideFinancing && (<button onClick={() => act(a.id, 'decline', { notes: prompt('Decline reason:') || '' })} className="text-red-600 hover:bg-red-50 p-1 rounded dark:text-red-400" title="Decline"><X className="w-4 h-4" /></button>)}</>}
+                      {a.status === 'approved' && mayDecideFinancing && (<button onClick={() => act(a.id, 'mark-funded')} className="text-emerald-700 text-xs hover:underline dark:text-emerald-300">Funded</button>)}
                     </div>
                   </td>
                 </tr>

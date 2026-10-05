@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { escapeHtml, escapeRow } from '../utils/sanitize.ts'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions, roleLabel } from '../middleware/permissions.ts'
 import { db } from '../../db/index.ts'
 import { roofReport, contact, company } from '../../db/schema.ts'
 import { eq, and, desc } from 'drizzle-orm'
@@ -500,11 +500,34 @@ export async function generateAndSaveReport(
 // PURCHASE REPORT — Stripe Checkout ($9.99)
 // ============================================
 
-app.post('/purchase', requirePermission('roof-reports:purchase'), authenticate, requireRoofReports, async (c) => {
+/**
+ * ONE ROUTE, TWO PRICES, SO IT CANNOT BE ONE GATE. (T42 — found while gating this screen's buttons)
+ *
+ * Measured on rooftest before changing anything: a MANAGER got 403 here, for both modes. The screen
+ * offers "DIY Measurement — Free" and "Professional Report — $9.99" and sends both to this route, so
+ * a flat `roof-reports:purchase` refused the free drawing tool to every seat below admin. The matrix
+ * note on the manager row says the opposite in words: "a manager can run a report, take a
+ * measurement or file a finance application and still not buy or settle one."
+ *
+ * So the permission is decided by what the request IS, after the body is read:
+ *   mode: 'manual'  → roof-reports:create    nothing is bought; a preview is drawn by hand
+ *   anything else   → roof-reports:purchase  Stripe checkout for $9.99, or the dev-mode shortcut
+ *
+ * The gate still answers BEFORE the body is validated, so an unauthorised caller gets 403 and not a
+ * description of what the endpoint wanted. `authenticate` leads now: it already ran via the feature
+ * mount in index.ts (`app.use('/api/roof-reports', skipPublic(authenticate), …)`), which is the only
+ * reason the old order worked at all, and a route should not depend on that to have a caller.
+ */
+app.post('/purchase', authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const { address, city, state, zip, contactId, eaveOverhangInches, mode } = await c.req.json()
   const overhang = typeof eaveOverhangInches === 'number' ? Math.max(0, Math.min(36, eaveOverhangInches)) : 12
   const isManual = mode === 'manual' // free manual tool vs beta auto-detect
+
+  const needed = isManual ? 'roof-reports:create' : 'roof-reports:purchase'
+  if (!hasPermission(user?.role, needed, await getExtraPermissions(user?.userId))) {
+    return c.json({ error: 'Permission denied', required: needed, yourRole: roleLabel(user?.role) }, 403)
+  }
 
   if (!address || !city || !state || !zip) {
     return c.json({ error: 'Address, city, state, and zip are required' }, 400)
@@ -582,7 +605,7 @@ app.post('/purchase', requirePermission('roof-reports:purchase'), authenticate, 
 // CONFIRM PURCHASE — called after Stripe success redirect
 // ============================================
 
-app.post('/confirm-purchase', requirePermission('roof-reports:purchase'), authenticate, requireRoofReports, async (c) => {
+app.post('/confirm-purchase', authenticate, requirePermission('roof-reports:purchase'), requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const { sessionId } = await c.req.json()
 
@@ -635,7 +658,7 @@ app.post('/confirm-purchase', requirePermission('roof-reports:purchase'), authen
 // GENERATE FOR CONTACT (with payment)
 // ============================================
 
-app.post('/purchase-for-contact/:contactId', requirePermission('roof-reports:purchase'), authenticate, requireRoofReports, async (c) => {
+app.post('/purchase-for-contact/:contactId', authenticate, requirePermission('roof-reports:purchase'), requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const contactId = c.req.param('contactId')
 
@@ -855,7 +878,7 @@ app.get('/:id/pdf', authenticate, requireRoofReports, async (c) => {
 // DELETE REPORT
 // ============================================
 
-app.delete('/:id', requirePermission('roof-reports:delete'), authenticate, requireRoofReports, async (c) => {
+app.delete('/:id', authenticate, requirePermission('roof-reports:delete'), requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
 
@@ -875,7 +898,7 @@ app.delete('/:id', requirePermission('roof-reports:delete'), authenticate, requi
 // FINALIZE REPORT — save preview + user edits to DB
 // ============================================
 
-app.post('/finalize', requirePermission('roof-reports:create'), authenticate, requireRoofReports, async (c) => {
+app.post('/finalize', authenticate, requirePermission('roof-reports:create'), requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const { preview, edges, measurements } = await c.req.json()
 
@@ -899,7 +922,7 @@ app.post('/finalize', requirePermission('roof-reports:create'), authenticate, re
 // EDIT EDGES (manual corrections on existing report)
 // ============================================
 
-app.patch('/:id/edges', requirePermission('roof-reports:update'), authenticate, requireRoofReports, async (c) => {
+app.patch('/:id/edges', authenticate, requirePermission('roof-reports:update'), requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
 
@@ -938,7 +961,7 @@ app.patch('/:id/edges', requirePermission('roof-reports:update'), authenticate, 
 // REVERT TO ORIGINAL (undo all manual edits)
 // ============================================
 
-app.post('/:id/revert', requirePermission('roof-reports:update'), authenticate, requireRoofReports, async (c) => {
+app.post('/:id/revert', authenticate, requirePermission('roof-reports:update'), requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
 
@@ -967,7 +990,7 @@ app.post('/:id/revert', requirePermission('roof-reports:update'), authenticate, 
 // AI ROOF DETECTION — Nearmap AI (primary) + SAM 2 (fallback)
 // ============================================
 
-app.post('/sam-segment', requirePermission('roof-reports:create'), authenticate, requireRoofReports, async (c) => {
+app.post('/sam-segment', authenticate, requirePermission('roof-reports:create'), requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json()
   const { imageBase64, clickPoints, labels, imageWidth, imageHeight, centerLat, centerLng, zoom } = body

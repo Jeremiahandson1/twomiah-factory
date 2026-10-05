@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useMayWrite } from '../../shared'
 import { formatDate } from '../../utils/date';
 import { useNavigate } from 'react-router-dom'
 import {
@@ -32,6 +33,10 @@ type Stop = any
 type Script = any
 
 export default function CanvassingDashboard() {
+  // The script library is the shop's pitch and sits on marketing:update — deliberately NOT
+  // canvassing:*, which the field rung holds so it can log a knock. A grant that hands over the
+  // playbook along with the clipboard is the over-widening the T41 note already undid. (T42)
+  const mayWriteScripts = useMayWrite('marketing:update');
   const { token } = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
@@ -304,10 +309,10 @@ export default function CanvassingDashboard() {
           <h1 className="text-2xl font-bold">Canvassing Dashboard</h1>
           <p className="text-sm text-gray-500 dark:text-slate-400">Review canvassing activity and manage scripts</p>
         </div>
-        <button onClick={() => openScriptEditor()}
+        {mayWriteScripts && (<button onClick={() => openScriptEditor()}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
           <Plus size={16} /> Manage Scripts
-        </button>
+        </button>)}
       </div>
 
       {/* Filters */}
@@ -414,7 +419,7 @@ export default function CanvassingDashboard() {
           <div className="bg-white rounded-xl border p-4 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold">Canvassing Scripts</h3>
-              <button onClick={() => openScriptEditor()} className="text-xs text-blue-600 dark:text-blue-400 font-medium">+ New</button>
+              {mayWriteScripts && (<button onClick={() => openScriptEditor()} className="text-xs text-blue-600 dark:text-blue-400 font-medium">+ New</button>)}
             </div>
             {scripts.length > 0 ? (
               <div className="space-y-2">
@@ -428,13 +433,13 @@ export default function CanvassingDashboard() {
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button onClick={(e) => { e.stopPropagation(); openScriptEditor(script) }}
-                        className="text-xs text-gray-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 px-2 py-1">Edit</button>
+                      {mayWriteScripts && (<button onClick={(e) => { e.stopPropagation(); openScriptEditor(script) }}
+                        className="text-xs text-gray-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 px-2 py-1">Edit</button>)}
                       {!script.isDefault && (
-                        <button onClick={(e) => { e.stopPropagation(); deleteScript(script) }}
+                        mayWriteScripts && (<button onClick={(e) => { e.stopPropagation(); deleteScript(script) }}
                           className="text-gray-400 hover:text-red-600 px-1 py-1">
                           <Trash2 size={12} />
-                        </button>
+                        </button>)
                       )}
                     </div>
                   </div>

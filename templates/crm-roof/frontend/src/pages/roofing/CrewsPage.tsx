@@ -1,9 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useMayWrite } from '../../shared';
 import { Plus, Users, Phone, Briefcase, X, HardHat } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 
 export default function CrewsPage() {
+  // crews:* is manager and above. A crew member reads the roster — who is on which crew is the
+  // point of the screen — and does not build, rename or disband one. (T42)
+  const mayAddCrew = useMayWrite('crews:create');
+  const mayEditCrew = useMayWrite('crews:update');
+  const mayRemoveCrew = useMayWrite('crews:delete');
   const { token } = useAuth();
   const toast = useToast();
 
@@ -92,12 +98,12 @@ export default function CrewsPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Crews</h1>
             <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{crews.length} {crews.length === 1 ? 'crew' : 'crews'}</p>
           </div>
-          <button
+          {mayAddCrew && (<button
             onClick={openCreate}
             className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
           >
             <Plus className="w-4 h-4" /> Add Crew
-          </button>
+          </button>)}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -116,8 +122,8 @@ export default function CrewsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => openEdit(crew)} className="px-2 py-0.5 text-xs font-medium border border-gray-200 rounded text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200">Edit</button>
-                  <button onClick={() => deleteCrew(crew)} className="px-2 py-0.5 text-xs font-medium border border-red-200 text-red-700 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-500/10">Delete</button>
+                  {mayEditCrew && (<button onClick={() => openEdit(crew)} className="px-2 py-0.5 text-xs font-medium border border-gray-200 rounded text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200">Edit</button>)}
+                  {mayRemoveCrew && (<button onClick={() => deleteCrew(crew)} className="px-2 py-0.5 text-xs font-medium border border-red-200 text-red-700 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-500/10">Delete</button>)}
                 </div>
               </div>
 

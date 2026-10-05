@@ -23,6 +23,9 @@ export default function InvoicesPage() {
   // Offer a write only where we know it is allowed. Each permission is the one its own route
   // asks for; crm-roof could not ask this until T41 gave its client the permission list.
   const mayCreateInvoice = useMayWrite('invoices:create');
+  // Raising one was asked; sending it, marking it paid and taking a payment were not. All three
+  // are invoices:update on routes/invoices.ts. (T42)
+  const mayBillInvoice = useMayWrite('invoices:update');
   const { token } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -276,22 +279,22 @@ export default function InvoicesPage() {
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
                             {inv.status === 'draft' && (
-                              <button onClick={() => sendInvoice(inv.id)} title="Send" className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded">
+                              mayBillInvoice && (<button onClick={() => sendInvoice(inv.id)} title="Send" className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded">
                                 <Send className="w-4 h-4" />
-                              </button>
+                              </button>)
                             )}
                             {balance > 0 && inv.status !== 'draft' && (
                               <>
-                                <button onClick={() => markPaid(inv.id)} title="Mark Paid" className="p-1 text-green-700 hover:bg-green-50 rounded dark:text-green-300">
+                                {mayBillInvoice && (<button onClick={() => markPaid(inv.id)} title="Mark Paid" className="p-1 text-green-700 hover:bg-green-50 rounded dark:text-green-300">
                                   <Check className="w-4 h-4" />
-                                </button>
-                                <button
+                                </button>)}
+                                {mayBillInvoice && (<button
                                   onClick={() => { setPaymentInvoice(inv); setPayment({ amount: String(balance.toFixed(2)), method: 'card', reference: '', notes: '' }); setPaymentOpen(true); }}
                                   title="Record Payment"
                                   className="p-1 text-purple-600 hover:bg-purple-50 rounded dark:text-purple-300"
                                 >
                                   <DollarSign className="w-4 h-4" />
-                                </button>
+                                </button>)}
                               </>
                             )}
                           </div>

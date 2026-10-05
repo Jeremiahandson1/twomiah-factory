@@ -27,11 +27,20 @@ app.get('/events', async (c) => {
 app.post('/events', requirePermission('storms:create'), async (c) => {
   const { companyId } = c.get('user')
   const body = await c.req.json()
+  // An event with no affected zips cannot do its job: generate-leads matches customer addresses
+  // against this list, so the row would sit on the board forever producing nothing. Every field
+  // here was defaulted, which meant `{}` inserted one and answered 201. The screen already refuses
+  // to send that ("Enter at least one zip code" in createEvent), so this refuses nothing the UI
+  // can produce. (T42)
+  const zips = Array.isArray(body.affectedZipCodes) ? body.affectedZipCodes.filter((z: unknown) => String(z ?? '').trim()) : []
+  if (zips.length === 0) {
+    return c.json({ error: 'At least one affected zip code is required' }, 400)
+  }
   const [event] = await db.insert(stormEvent).values({
     companyId,
     eventDate: body.eventDate ? new Date(body.eventDate) : new Date(),
     eventType: body.eventType || 'hail',
-    affectedZipCodes: body.affectedZipCodes || [],
+    affectedZipCodes: zips,
     hailSizeInches: body.hailSizeInches ? String(body.hailSizeInches) : null,
     windSpeedMph: body.windSpeedMph || null,
     description: body.description || null,
@@ -141,6 +150,11 @@ app.put('/leads/:id', requirePermission('storms:update'), async (c) => {
   if (body.status !== undefined) updates.status = body.status
   if (body.notes !== undefined) updates.notes = body.notes
   if (body.estimatedDamage !== undefined) updates.estimatedDamage = body.estimatedDamage
+  // Drizzle throws on an empty SET clause, which surfaced as a 500 for a caller who simply sent no
+  // recognised field. That is the caller's 400, not a server fault. (T42)
+  if (Object.keys(updates).length === 0) {
+    return c.json({ error: 'Nothing to update — send status, notes or estimatedDamage' }, 400)
+  }
 
   const [updated] = await db.update(stormLead).set(updates)
     .where(and(eq(stormLead.id, id), eq(stormLead.companyId, companyId)))

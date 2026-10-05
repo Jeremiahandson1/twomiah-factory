@@ -38,6 +38,8 @@ export default function QuotesPage() {
   // Offer a write only where we know it is allowed. Each permission is the one its own route
   // asks for; crm-roof could not ask this until T41 gave its client the permission list.
   const mayCreateQuote = useMayWrite('quotes:create');
+  // The four row actions all post /quotes/:id/<action>, every one of them quotes:update. (T42)
+  const mayWorkQuote = useMayWrite('quotes:update');
   const { token } = useAuth();
   const toast = useToast();
 
@@ -251,24 +253,24 @@ export default function QuotesPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
                           {q.status === 'draft' && (
-                            <button onClick={() => performAction(q.id, 'send')} title="Send" className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded">
+                            mayWorkQuote && (<button onClick={() => performAction(q.id, 'send')} title="Send" className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded">
                               <Send className="w-4 h-4" />
-                            </button>
+                            </button>)
                           )}
                           {(q.status === 'sent' || q.status === 'viewed') && (
                             <>
-                              <button onClick={() => performAction(q.id, 'approve')} title="Approve" className="p-1 text-green-700 hover:bg-green-50 rounded dark:text-green-300">
+                              {mayWorkQuote && (<button onClick={() => performAction(q.id, 'approve')} title="Approve" className="p-1 text-green-700 hover:bg-green-50 rounded dark:text-green-300">
                                 <Check className="w-4 h-4" />
-                              </button>
-                              <button onClick={() => performAction(q.id, 'decline')} title="Decline" className="p-1 text-red-600 hover:bg-red-50 rounded dark:text-red-400">
+                              </button>)}
+                              {mayWorkQuote && (<button onClick={() => performAction(q.id, 'decline')} title="Decline" className="p-1 text-red-600 hover:bg-red-50 rounded dark:text-red-400">
                                 <X className="w-4 h-4" />
-                              </button>
+                              </button>)}
                             </>
                           )}
                           {q.status === 'approved' && !q.jobId && (
-                            <button onClick={() => performAction(q.id, 'convert')} title="Convert to Job" className="p-1 text-purple-600 hover:bg-purple-50 rounded dark:text-purple-300">
+                            mayWorkQuote && (<button onClick={() => performAction(q.id, 'convert')} title="Convert to Job" className="p-1 text-purple-600 hover:bg-purple-50 rounded dark:text-purple-300">
                               <ArrowRight className="w-4 h-4" />
-                            </button>
+                            </button>)
                           )}
                         </div>
                       </td>
