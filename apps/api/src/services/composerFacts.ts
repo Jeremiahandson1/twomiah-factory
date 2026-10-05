@@ -211,6 +211,9 @@ function buildCorpus(input: ComposerInput, now: Date): Corpus {
   const text = parts.join('\n')
 
   const numbers = new Set(extractNumbers(text))
+  // "Four things we do" counts the services the owner listed — that number is theirs.
+  const serviceCount = (input.services || []).filter(Boolean).length
+  if (serviceCount > 1) numbers.add(norm(serviceCount))
   if (f.yearFounded && Number.isFinite(f.yearFounded)) {
     numbers.add(norm(f.yearFounded))
     // "since 2014" and "11 years" both trace to a founding year; allow the
@@ -538,7 +541,12 @@ export function enforceIntakeFacts(
         droppedByPage[slug].add(policed.type)
         continue
       }
-      const missing = opts.requiredOf(policed.type, policed.variant).filter(k => isEmpty(data[k]))
+      // Only a field THIS check emptied. One the model never wrote is not an
+      // unsupplied fact — the partial has its own fallback (reservation/cta
+      // renders "Schedule now" without a buttonLabel), and dropping the
+      // section for it removed a working booking button.
+      const missing = opts.requiredOf(policed.type, policed.variant)
+        .filter(k => isEmpty(data[k]) && !isEmpty(original.data?.[k]))
       if (missing.length > 0) {
         removed.push(policed.type + '/' + policed.variant + ' — required ' + missing.join(', ') + ' was an unsupplied fact')
         droppedByPage[slug].add(policed.type)

@@ -180,6 +180,21 @@ const invented = (): Record<string, Section[]> => ({
     'supplied facts are not reported as gaps')
 }
 
+// Live compose 2026-10-04 (Ridgeline test #3): the model left out reservation/cta's buttonLabel and
+// the section was dropped as "an unsupplied fact" — a label is not a fact, and the partial renders
+// "Schedule now" without one. Only a required field THE CHECK emptied drops a section. And "Four
+// things we do" for an owner who listed four services is the owner's number.
+{
+  const r = run({ home: [
+    sec('hero', 'full-bleed', { image: STOCK, title: 'Hi', subtitle: 'Four things, done well.' }),
+    sec('reservation', 'cta', { heading: 'Ready to talk about your project?' }),
+    sec('cta', 'banner', { heading: 'Since 1999 and counting' }),
+  ] }, higgs)
+  check(r.pages.home.some(s => s.type === 'reservation'), 'a section missing a required field the MODEL omitted is kept (the partial has a fallback)')
+  check(!r.pages.home.some(s => s.type === 'cta'), 'a section whose required field the CHECK emptied is still dropped')
+  check(r.pages.home[0].data.subtitle === 'Four things, done well.', 'a count of the owner\'s listed services is the owner\'s number')
+}
+
 // A page the model left empty (a pricing page with no prices) is held, not published blank.
 {
   const r = run({ home: [sec('hero', 'full-bleed', { image: STOCK, title: 'Hi' })], pricing: [] }, higgs)
