@@ -248,10 +248,29 @@ app.get('/:id', async (c) => {
 
   const items = await db.select().from(orderItem).where(eq(orderItem.orderId, id))
 
-  // Get customer info if linked
+  /**
+   * NAMED COLUMNS, NEVER select(). (T51 — the last `select().from(contact)` in this file)
+   *
+   * This handed back the WHOLE contact row as `order.customer`, which is the shape that leaked a
+   * customer's `portal_token` out of GET /api/projects/:id on the contractor template — the
+   * credential that opens the portal AS that client. The owner found it here with the token columns
+   * empty on this tenant; empty today is not the same as safe, because the leak is the projection,
+   * not the data that happens to be in it.
+   *
+   * Every other contact read in this file already names its columns — the medical-card check at the
+   * top, the list's name resolution, the delivery-address default. This one was the exception.
+   *
+   * What the order detail actually shows: who they are and how to reach them. The buyer's DOB and
+   * medical card are deliberately NOT here — they are taken at the till, stored on the order, and
+   * gated by canSeeCustomerIdentity above; reading them off the contact instead would walk around
+   * that gate.
+   */
   let customer = null
   if (foundOrder.contactId) {
-    const [c] = await db.select().from(contact).where(eq(contact.id, foundOrder.contactId)).limit(1)
+    const [c] = await db.select({
+      id: contact.id, name: contact.name, email: contact.email, phone: contact.phone,
+      address: contact.address, city: contact.city, state: contact.state, zip: contact.zip,
+    }).from(contact).where(eq(contact.id, foundOrder.contactId)).limit(1)
     customer = c || null
   }
 
@@ -1423,7 +1442,11 @@ app.post('/:id/complete', requireRole('budtender'), async (c) => {
   // Send SMS order notification if requested
   if (data.sendSmsNotification && existing.contactId) {
     try {
-      const [customerContact] = await db.select().from(contact).where(eq(contact.id, existing.contactId)).limit(1)
+      // One column, because one column is used. The bare select() above this was the shape that
+      // put a customer's portal_token in an API response; a text-message handler has even less
+      // business reading the whole row. (T51)
+      const [customerContact] = await db.select({ phone: contact.phone })
+        .from(contact).where(eq(contact.id, existing.contactId)).limit(1)
       if (customerContact?.phone) {
         // Fire and forget — don't block the response
         import('../services/sms.ts').then(smsModule => {

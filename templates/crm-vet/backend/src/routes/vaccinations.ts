@@ -7,6 +7,9 @@ import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
+// The practice's own clock decides what "today" is, so a shot entered at 4pm in Hawaii is not
+// refused for being tomorrow in UTC — which is what Render runs on. (T51)
+import { companyTimeZone, storeDateString } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -32,10 +35,29 @@ app.use('*', authenticate)
  */
 const isDay = (v: unknown): v is string =>
   typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`))
+/**
+ * …AND A SHOT CANNOT HAVE BEEN GIVEN TOMORROW. (T51)
+ *
+ *   "A future-dated vaccination is accepted."
+ *
+ * `given_date` is a record that an animal was injected. A date in the future is not an unusual case
+ * either — it is the same typo class as the one above, a year or a month mistyped — and it is worse
+ * than a wrong due date because of what reads it: the rabies certificate prints "Date Administered"
+ * as a legal assertion, and the reminder engine computes the next booster from it, so a shot dated
+ * next year silences a reminder that is actually due now.
+ *
+ * TODAY IS THE PRACTICE'S TODAY, not the server's. Render runs UTC; a clinic in Hawaii entering a
+ * shot at 4pm local is already tomorrow in UTC, and refusing that is refusing a correct record.
+ * `today` is passed in, computed by the caller from the clinic's own zone with storeDateString.
+ */
 /** The complaint, or null. Compares the date strings, which sort correctly in ISO form. */
-function vaccinationDateError(givenDate: unknown, dueDate: unknown): string | null {
+function vaccinationDateError(givenDate: unknown, dueDate: unknown, today?: string): string | null {
   if (givenDate !== undefined && givenDate !== null && givenDate !== '' && !isDay(givenDate)) {
     return 'The date given must be a date (YYYY-MM-DD).'
+  }
+  if (isDay(givenDate) && today && givenDate > today) {
+    return `This says the shot was given on ${givenDate}, which is in the future. `
+      + 'A vaccination record is a record of something that has happened — check the date, or book an appointment instead.'
   }
   if (dueDate === undefined || dueDate === null || dueDate === '') return null
   if (!isDay(dueDate)) return 'The next-due date must be a date (YYYY-MM-DD).'
@@ -67,7 +89,8 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.json()
 
-  const dateError = vaccinationDateError(body.givenDate, body.dueDate)
+  const today = storeDateString(new Date(), await companyTimeZone(db, currentUser.companyId))
+  const dateError = vaccinationDateError(body.givenDate, body.dueDate, today)
   if (dateError) return c.json({ error: dateError, code: 'vaccination_dates' }, 400)
 
   const [created] = await db.insert(vaccination).values({
@@ -116,6 +139,9 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const dateError = vaccinationDateError(
     'givenDate' in updates ? updates.givenDate : existing.givenDate,
     'dueDate' in updates ? updates.dueDate : existing.dueDate,
+    // Same rule on the edit — the edit form is exactly where a date gets corrected, and where it
+    // gets mistyped again. Correcting an OLD record is unaffected: its given date is in the past.
+    storeDateString(new Date(), await companyTimeZone(db, currentUser.companyId)),
   )
   if (dateError) return c.json({ error: dateError, code: 'vaccination_dates' }, 400)
 

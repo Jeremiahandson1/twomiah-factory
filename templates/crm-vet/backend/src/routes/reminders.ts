@@ -241,6 +241,29 @@ app.get('/rabies/:vaccinationId', requirePermission('contacts:read'), async (c) 
   const id = c.req.param('vaccinationId')
   const [vax] = await db.select().from(vaccination).where(and(eq(vaccination.id, id), eq(vaccination.companyId, u.companyId))).limit(1)
   if (!vax) return c.json({ error: 'Vaccination not found' }, 404)
+
+  /**
+   * A RABIES CERTIFICATE IS ONLY A RABIES CERTIFICATE. (T51)
+   *
+   * This route looked the vaccination up by id and printed. Nothing checked what the vaccination WAS,
+   * so handing it a DHPP record returned a document headed "Rabies Vaccination Certificate" carrying
+   * DHPP's lot number, site and dates — a legal record asserting a rabies administration that never
+   * happened. A rabies certificate is the document a licence, a boarding kennel, a groomer and a bite
+   * investigation are settled with; the one thing it must never do is describe a different vaccine.
+   *
+   * Accepted when the record SAYS it is rabies — either the flag, or a vaccine named rabies for a row
+   * written before the flag existed or imported without it. Refusing on the flag alone would deny a
+   * genuine certificate on a bookkeeping technicality, which is the opposite failure and just as bad
+   * for the practice.
+   */
+  const looksRabies = vax.isRabies === true || /rabies/i.test(String(vax.vaccine || ''))
+  if (!looksRabies) {
+    return c.json({
+      error: `${vax.vaccine || 'That vaccination'} is not a rabies vaccination, so it cannot be issued as a rabies certificate. Mark the record as rabies if that is what it is.`,
+      code: 'NOT_A_RABIES_VACCINATION',
+      vaccine: vax.vaccine || null,
+    }, 400)
+  }
   const [pet] = await db.select().from(patient).where(eq(patient.id, vax.patientId)).limit(1)
   const [owner] = pet ? await db.select().from(contact).where(eq(contact.id, pet.ownerId)).limit(1) : [null as any]
   const [clinic] = await db.select().from(company).where(eq(company.id, u.companyId)).limit(1)

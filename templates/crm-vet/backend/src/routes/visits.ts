@@ -1,10 +1,13 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { visit, user, patient, invoice, invoiceLineItem } from '../../db/schema.ts'
+// `company` is read for its settings blob, which is where Invoice Payment Terms live. (T51)
+import { visit, user, patient, invoice, invoiceLineItem, company } from '../../db/schema.ts'
 import { eq, and, desc, sql } from 'drizzle-orm'
 // insertInvoice is the ONE write path for a new invoice — it numbers under an advisory lock, which is
 // what stops two concurrent bills taking the same number. See POST /:id/invoice. (T41)
-import { insertInvoice } from '../shared/index.ts'
+// dueDateFromTerms: the shared net-30-by-default rule every other invoicing path already uses, so a
+// visit invoice stops being due the day it is raised. A terms value of 0 still means due today. (T51)
+import { insertInvoice, dueDateFromTerms } from '../shared/index.ts'
 
 /** Same numbering as this CRM's invoices route, so a billed visit continues the same sequence. */
 const INVOICE_NUMBERING = { prefix: 'INV', pad: 5, seed: 0 }
@@ -174,6 +177,26 @@ app.post('/:id/invoice', requirePermission('invoices:create'), async (c) => {
 
     const amount = Math.round(charge * 100) / 100
     const when = v.visit_date ? new Date(v.visit_date) : null
+
+    /**
+     * THE PRACTICE'S PAYMENT TERMS, NOT "DUE NOW". (T51)
+     *
+     *   "Visit invoices are due the day they're issued."
+     *
+     * This passed `dueDate: new Date()`, so every invoice raised from a visit was due the moment it
+     * existed — and `isOverdue` waits only for the day to end, so it went overdue overnight. The
+     * practice sets Invoice Payment Terms in Settings → Company and every other invoicing path in
+     * the fleet reads it; this one path ignored it, so the vet's Invoices list filled with overdue
+     * rows nobody was late paying, and the Reports overdue figure counted them.
+     *
+     * dueDateFromTerms is the shared helper the rest of the app uses: net-30 when unset, and a terms
+     * value of 0 — "due on receipt", which is a real choice for a clinic taking payment at the desk —
+     * still comes out as today. So a practice that genuinely wants due-on-receipt keeps it; one that
+     * never set terms stops being told its invoices are late.
+     */
+    const [co] = await tx.select({ settings: company.settings }).from(company)
+      .where(eq(company.id, currentUser.companyId)).limit(1)
+    const dueDate = dueDateFromTerms(co?.settings)
     const inv = await insertInvoice(
       tx,
       { invoice, invoiceLineItem } as any,
@@ -181,7 +204,7 @@ app.post('/:id/invoice', requirePermission('invoices:create'), async (c) => {
       {
         companyId: currentUser.companyId,
         contactId: pet.ownerId,
-        issueDate: new Date(), dueDate: new Date(),
+        issueDate: new Date(), dueDate,
         taxRate: 0, status: 'draft',
         // The owner is billed, but the charges are this animal's — the chart's Invoices tab reads it. (T12 M6)
         extra: { patientId: v.patient_id },

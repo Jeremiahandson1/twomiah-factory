@@ -17,7 +17,12 @@ interface Stats {
   contacts?: number;
   patients?: { total?: number; active?: number; bySpecies?: Record<string, number> };
   appointments?: { today?: number; upcoming7?: number; byStatus?: Record<string, number> };
-  visits?: { thisMonth?: number; revenueThisMonth?: number };
+  /**
+   * `revenueThisMonth` is work done AND billed. It used to include visits still in the future and
+   * visits nobody had invoiced, so on the 1st of a month the tile reported the month ahead as earned.
+   * The other two are those excluded amounts, shown beneath it so the figure accounts for itself. (T51)
+   */
+  visits?: { thisMonth?: number; revenueThisMonth?: number; unbilledThisMonth?: number; scheduledThisMonth?: number };
   reminders?: { overdue?: number; dueSoon?: number };
   wellness?: { activeEnrollments?: number };
 }
@@ -188,8 +193,19 @@ export default function DashboardPage() {
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{visits.thisMonth || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1">
             <DollarSign className="w-3 h-3 text-green-700 dark:text-green-300" />
-            {money(visits.revenueThisMonth)} revenue
+            {money(visits.revenueThisMonth)} billed
           </p>
+          {/*
+            What the figure above leaves out, where there is anything to leave out. "Billed" on its
+            own invites "billed out of what?", and the unbilled number is the one a practice chases
+            at month end. Both stay hidden when they are zero rather than printing two empty rows.
+          */}
+          {!!visits.unbilledThisMonth && (
+            <p className="text-xs text-amber-700 dark:text-amber-300">{money(visits.unbilledThisMonth)} done, not yet invoiced</p>
+          )}
+          {!!visits.scheduledThisMonth && (
+            <p className="text-xs text-gray-600 dark:text-slate-400">{money(visits.scheduledThisMonth)} still to come this month</p>
+          )}
         </div>
 
         {/* Wellness */}
