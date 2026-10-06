@@ -11,6 +11,39 @@ app.use('*', authenticate)
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
+/**
+ * A ROUTE RUNS ON A DAY OF THE WEEK, AND THERE ARE SEVEN. (T58)
+ *
+ *   "Landscaping: the route day-of-week checks."
+ *
+ * dayOfWeek was `parseInt(body.dayOfWeek, 10)` on create, the same on edit, and the same again on the
+ * list filter — three places, no validation in any of them. What that allows:
+ *
+ *   dayOfWeek: 9        stored. DAYS[9] is undefined, so dayName comes back '' — and the WEEK BOARD
+ *                       builds itself by walking DAYS 0..6, so the route and every stop on it vanish
+ *                       from the only screen a crew works off, while the row sits in the table. A
+ *                       day's work disappearing is worse than a refusal.
+ *   dayOfWeek: 'Monday' parseInt gives NaN, which is not caught by `== null`.
+ *   dayOfWeek: -1       stored, same disappearance.
+ *   ?dayOfWeek=abc      NaN into the WHERE clause.
+ *
+ * One parser for all three, so the filter cannot accept a day the writers refuse — and so the edit
+ * path holds the same rule as create, which it did not.
+ *
+ * Returns null for anything that is not one of the seven. Callers decide whether that is a 400 (a
+ * write) or "no filter" (a read), because those are different answers to a bad value: a query for a
+ * day that does not exist should not silently return every route.
+ */
+const DAY_INDEX_HELP = 'dayOfWeek must be a whole number from 0 (Sunday) to 6 (Saturday)'
+const dayIndex = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null
+  // Number(), not parseInt(): parseInt('3days') is 3, and a route is not scheduled by a string that
+  // happens to start with a digit.
+  const n = Number(value)
+  if (!Number.isInteger(n) || n < 0 || n > 6) return null
+  return n
+}
+
 async function routeWithStops(routeId: string, companyId: string) {
   const [route] = await db.select().from(recurringRoute)
     .where(and(eq(recurringRoute.id, routeId), eq(recurringRoute.companyId, companyId)))
@@ -36,8 +69,15 @@ async function routeWithStops(routeId: string, companyId: string) {
 app.get('/', requirePermission('jobs:read'), async (c) => {
   const u = c.get('user') as any
   const dow = c.req.query('dayOfWeek')
-  const where = dow != null && dow !== ''
-    ? and(eq(recurringRoute.companyId, u.companyId), eq(recurringRoute.dayOfWeek, parseInt(dow, 10)))
+  // A filter that was ASKED FOR and is not a day is refused, rather than quietly becoming "all days".
+  // Returning the whole week to a board that asked for Tuesday is the kind of wrong answer nobody
+  // notices. An absent filter is still absent.
+  if (dow != null && dow !== '' && dayIndex(dow) === null) {
+    return c.json({ error: DAY_INDEX_HELP, code: 'BAD_DAY_OF_WEEK' }, 400)
+  }
+  const day = dayIndex(dow)
+  const where = day !== null
+    ? and(eq(recurringRoute.companyId, u.companyId), eq(recurringRoute.dayOfWeek, day))
     : eq(recurringRoute.companyId, u.companyId)
   const routes = await db.select().from(recurringRoute).where(where).orderBy(asc(recurringRoute.dayOfWeek))
   const stops = await db.select().from(recurringRouteStop).where(eq(recurringRouteStop.companyId, u.companyId))
@@ -60,19 +100,44 @@ app.get('/board', requirePermission('jobs:read'), async (c) => {
   const routes = await db.select().from(recurringRoute)
     .where(eq(recurringRoute.companyId, u.companyId)).orderBy(asc(recurringRoute.dayOfWeek))
   const stops = await db.select().from(recurringRouteStop).where(eq(recurringRouteStop.companyId, u.companyId))
-  const board = DAYS.map((dayName, dayOfWeek) => {
-    const dayRoutes = routes.filter(r => r.dayOfWeek === dayOfWeek).map(r => {
-      const rs = stops.filter(s => s.recurringRouteId === r.id)
-      return {
-        ...r,
-        stopCount: rs.length,
-        estimatedMinutes: rs.reduce((t, s) => t + (s.estimatedMinutes || 0), 0),
-        weeklyRevenue: Math.round(rs.reduce((t, s) => t + Number(s.pricePerVisit), 0) * 100) / 100,
-      }
-    })
-    return { dayOfWeek, dayName, routes: dayRoutes }
+  const withCounts = (r: any) => {
+    const rs = stops.filter(s => s.recurringRouteId === r.id)
+    return {
+      ...r,
+      stopCount: rs.length,
+      estimatedMinutes: rs.reduce((t, s) => t + (s.estimatedMinutes || 0), 0),
+      weeklyRevenue: Math.round(rs.reduce((t, s) => t + Number(s.pricePerVisit), 0) * 100) / 100,
+    }
+  }
+  const board = DAYS.map((dayName, dayOfWeek) => ({
+    dayOfWeek,
+    dayName,
+    routes: routes.filter(r => r.dayOfWeek === dayOfWeek).map(withCounts),
+  }))
+
+  /**
+   * ROUTES ON NO DAY OF THE WEEK — shown, not swallowed. (T58)
+   *
+   * The write paths now refuse a dayOfWeek outside 0–6, but a fixed writer does nothing for rows
+   * already stored: this board builds itself by walking DAYS 0..6, so a route sitting on day 9 (or on
+   * NaN, which the old parseInt could produce) matched no column and simply was not on the screen,
+   * with its stops and its weekly revenue. A crew's day missing from the only board they work off is
+   * the worst version of this, because nothing says anything is wrong.
+   *
+   * So they come back in their own group, with a note the screen can show. An empty array when the
+   * data is clean, which it is for every tenant that has only ever used the UI.
+   */
+  const stray = routes.filter(r => dayIndex(r.dayOfWeek) === null).map(withCounts)
+
+  return c.json({
+    data: board,
+    ...(stray.length
+      ? {
+          unscheduled: stray,
+          unscheduledNote: `${stray.length} ${stray.length === 1 ? 'route is' : 'routes are'} stored against a day that is not a day of the week, so ${stray.length === 1 ? 'it does' : 'they do'} not appear on any column above. Edit ${stray.length === 1 ? 'it' : 'them'} and pick a day.`,
+        }
+      : {}),
   })
-  return c.json({ data: board })
 })
 
 app.get('/:id', requirePermission('jobs:read'), async (c) => {
@@ -86,10 +151,12 @@ app.post('/', requirePermission('jobs:create'), async (c) => {
   const u = c.get('user') as any
   const body = await c.req.json()
   if (!body.name || body.dayOfWeek == null) return c.json({ error: 'name and dayOfWeek are required' }, 400)
+  const day = dayIndex(body.dayOfWeek)
+  if (day === null) return c.json({ error: DAY_INDEX_HELP, code: 'BAD_DAY_OF_WEEK' }, 400)
   const [route] = await db.insert(recurringRoute).values({
     companyId: u.companyId,
     name: String(body.name),
-    dayOfWeek: parseInt(body.dayOfWeek, 10),
+    dayOfWeek: day,
     assignedToId: body.assignedToId ?? null,
     estimatedHours: String(body.estimatedHours ?? '0'),
     status: body.status ?? 'active',
@@ -105,7 +172,13 @@ app.put('/:id', requirePermission('jobs:update'), async (c) => {
   const body = await c.req.json()
   const patch: Record<string, unknown> = { updatedAt: new Date() }
   if (body.name != null) patch.name = String(body.name)
-  if (body.dayOfWeek != null) patch.dayOfWeek = parseInt(body.dayOfWeek, 10)
+  // The same rule create holds. Moving a route to day 9 took it off the board just as surely as
+  // creating it there, and this path had no check at all.
+  if (body.dayOfWeek != null) {
+    const day = dayIndex(body.dayOfWeek)
+    if (day === null) return c.json({ error: DAY_INDEX_HELP, code: 'BAD_DAY_OF_WEEK' }, 400)
+    patch.dayOfWeek = day
+  }
   if (body.assignedToId !== undefined) patch.assignedToId = body.assignedToId || null
   if (body.estimatedHours != null) patch.estimatedHours = String(body.estimatedHours)
   if (body.status) patch.status = body.status

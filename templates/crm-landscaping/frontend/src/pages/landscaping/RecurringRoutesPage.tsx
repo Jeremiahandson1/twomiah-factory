@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, MapPin, Loader2, Clock, DollarSign } from 'lucide-react';
+import { Plus, Trash2, MapPin, Loader2, Clock, DollarSign, AlertTriangle } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { useMayWrite } from '../../shared';
@@ -27,6 +27,17 @@ export default function RecurringRoutesPage() {
   const mayCreateRoute = useMayWrite('jobs:create');
   const mayDeleteRoute = useMayWrite('jobs:delete');
   const [board, setBoard] = useState<any[]>([]);
+  /**
+   * Routes stored against something that is not a day of the week. (T58)
+   *
+   * The board is built from the seven day columns, so a route on day 9 — which the old write path
+   * accepted without a word — matched no column and was simply not on the screen, with its stops and
+   * its weekly revenue. The server now hands those back separately rather than leaving them out, and
+   * this is where they get said: a crew's day missing from the board they work off is worse than a
+   * refusal, and worst of all when nothing mentions it.
+   */
+  const [unscheduled, setUnscheduled] = useState<any[]>([]);
+  const [unscheduledNote, setUnscheduledNote] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any>(null);
   const [detail, setDetail] = useState<any>(null);
@@ -38,6 +49,8 @@ export default function RecurringRoutesPage() {
     try {
       const res = await api.get('/api/recurring-routes/board');
       setBoard(res.data || []);
+      setUnscheduled(Array.isArray(res.unscheduled) ? res.unscheduled : []);
+      setUnscheduledNote(typeof res.unscheduledNote === 'string' ? res.unscheduledNote : '');
     } catch { toast.error('Failed to load route board'); }
     finally { setLoading(false); }
   };
@@ -123,6 +136,31 @@ export default function RecurringRoutesPage() {
           </div>
         ))}
       </div>
+
+      {/* Routes the seven columns above cannot hold. Empty for any tenant that has only used this
+          screen; the write path refuses these now, but rows already stored would otherwise stay
+          invisible for ever. (T58) */}
+      {unscheduled.length > 0 && (
+        <div className="border border-amber-300 bg-amber-50 rounded-lg p-4 mb-6 dark:border-amber-700 dark:bg-amber-950/30">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-amber-900 dark:text-amber-200">Not on any day</p>
+              <p className="text-xs text-amber-800 dark:text-amber-300 mt-0.5">{unscheduledNote}</p>
+              <div className="flex flex-wrap gap-2 mt-3">
+                {unscheduled.map((r: any) => (
+                  <div key={r.id} onClick={() => openRoute(r.id)}
+                    className={`border rounded-lg p-2 bg-white cursor-pointer hover:shadow text-xs min-w-0 ${selected === r.id ? 'ring-2 ring-green-500' : ''} dark:bg-slate-900`}>
+                    <div className="font-medium truncate">{r.name}</div>
+                    <div className="text-gray-500 flex items-center gap-1 mt-1 dark:text-slate-400"><MapPin className="w-3 h-3" />{r.stopCount} stops</div>
+                    <div className="text-gray-500 flex items-center gap-1 dark:text-slate-400"><Clock className="w-3 h-3" />{Math.round(r.estimatedMinutes / 60 * 10) / 10}h</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {detail && (
         <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
