@@ -37,8 +37,20 @@ const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
  * crm-automotive and crm-homecare are PARKED. Their numbers are recorded so that parking them does
  * not quietly become permission to add more, but no work is planned against them.
  */
+/**
+ * A TEMPLATE AT ZERO IS NOT A BUNDLE AT ZERO. (T58, after measuring the deployed build)
+ *
+ * This file counts source directories, and `packages/tenant-ui` is vendored into every template's
+ * frontend at generation. So "crm-restaurant: 0" was true of templates/crm-restaurant and NOT true
+ * of what the tenant actually serves: the deployed Events bundle still carried one pop-up, from
+ * ReviewsPage's follow-up handler in tenant-ui. The ceiling list below was right; the claim made
+ * from it was wrong.
+ *
+ * Driving packages/tenant-ui to zero is therefore worth more than any single template, because it
+ * is the only directory that can reintroduce a pop-up into a template already cleaned.
+ */
 const CEILING: Record<string, number> = {
-  'packages/tenant-ui/src': 30, // ships into EVERY vertical — the most valuable 30 to remove next
+  'packages/tenant-ui/src': 29, // ships into EVERY vertical — the most valuable to remove next
   'templates/crm-vet': 27,
   'templates/crm-homecare': 21, // parked
   'templates/crm-automotive': 16, // parked
@@ -135,7 +147,8 @@ if (under.length) {
 if (failed) { console.error(`\nrefusals render on the page: ${failed} check(s) FAILED`); process.exit(1) }
 const remaining = Object.values(CEILING).reduce((s, n) => s + n, 0)
 console.log(
-  `refusals render on the page: every door is at or under its ceiling; ` +
-  `crm-restaurant, crm-salon and crm-store render refusals with no native pop-up at all ` +
-  `(${remaining} still to remove elsewhere, 37 of them in parked templates)`,
+  `refusals render on the page: every door is at or under its ceiling. ` +
+  `crm-restaurant, crm-salon and crm-store have none of their OWN; ` +
+  `${remaining} remain across the other doors, and until packages/tenant-ui reaches 0 every ` +
+  `template's shipped bundle can still carry one from there`,
 )

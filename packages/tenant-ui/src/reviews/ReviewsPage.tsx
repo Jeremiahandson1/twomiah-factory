@@ -62,6 +62,8 @@ function DashboardTab({ api, toast, copy, onFeatureOff }: { api: SettingsApi; to
   const [requests, setRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
+  // Shown on the page when a follow-up is refused, for the templates that pass no toast. (T58)
+  const [pageErr, setPageErr] = useState('')
   const load = async () => {
     try { const [s, r] = await Promise.all([api.get('/api/reviews/stats'), api.get('/api/reviews', { limit: 20 })]); setStats(s); setRequests(r?.data || []) }
     catch (err) {
@@ -74,12 +76,31 @@ function DashboardTab({ api, toast, copy, onFeatureOff }: { api: SettingsApi; to
   const followUp = async (id: string) => {
     setBusy(id)
     try { await api.post(`/api/reviews/follow-up/${id}`); toast?.success('Follow-up sent'); await load() }
-    catch (e: any) { toast ? toast.error(e?.message || 'Failed to send follow-up') : alert(e?.message || 'Failed to send follow-up') } finally { setBusy(null) }
+    catch (e: any) {
+      /**
+       * NOT alert(), EVEN AS A FALLBACK. (T58)
+       *
+       * This was `toast ? toast.error(...) : alert(...)`, and the alert half is how a native pop-up
+       * survived in the Events bundle after all twenty-three in crm-restaurant were removed: this
+       * file is in packages/tenant-ui, which is vendored into every template at generation. A sweep
+       * of templates/ cannot see it, and guard #217 counted the template directory, so it reported
+       * crm-restaurant at zero while the DEPLOYED bundle still carried one. The guard now reads the
+       * packages too.
+       */
+      setPageErr(e?.message || 'Could not send the follow-up.')
+      toast?.error(e?.message || 'Could not send the follow-up.')
+    } finally { setBusy(null) }
   }
   if (loading) return <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
   const n = (v: any) => Number(v || 0)
   return (
     <div className="space-y-6">
+      {pageErr ? (
+        <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          <span className="flex-1">{pageErr}</span>
+          <button type="button" onClick={() => setPageErr('')} className="shrink-0 hover:opacity-70" aria-label="Dismiss">×</button>
+        </div>
+      ) : null}
       {stats && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="Requests Sent" value={n(stats.sent) + n(stats.clicked) + n(stats.completed)} icon={Send} />
