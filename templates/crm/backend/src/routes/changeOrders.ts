@@ -6,6 +6,8 @@ import { eq, and, count, desc, asc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { createActorName } from '../shared/index.ts'
+// Approving a change order moves the contract value. This module wrote no audit row of any kind. (T58)
+import audit from '../services/audit.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -387,6 +389,38 @@ app.post('/:id/approve', requirePermission('change-orders:update'), async (c) =>
   })
 
   if (outcome.status === 'conflict') return refuse(c, outcome.body as any, 'approved', APPROVABLE)
+
+  /**
+   * THE AGREEMENT, IN THE LOG. (T58)
+   *
+   * This module wrote no audit row at all — not create, not edit, and not this: the moment somebody
+   * agrees to move the contract value and the end date. The generic request floor (middleware/
+   * auditWrites.ts) now covers every write in this template, and for THIS event a floor is not
+   * enough: what matters is the amount, the days, who agreed and what the contract became, and the
+   * handler is the only place that knows them.
+   *
+   * After the transaction, so the row describes a change that actually committed.
+   */
+  if (outcome.status === 200) {
+    const body: any = outcome.body
+    audit.log({
+      action: audit.ACTIONS.STATUS_CHANGE,
+      entity: 'change_order',
+      entityId: id,
+      entityName: body?.number || existing.number,
+      changes: { status: { old: existing.status, new: 'approved' } },
+      metadata: {
+        amount: body?.amount ?? existing.amount,
+        daysAdded: body?.daysAdded ?? existing.daysAdded,
+        approvedBy: approver,
+        projectId: existing.projectId,
+        // What the contract became, so the log answers "what did this do" without a second lookup.
+        ...(body?.project ? { projectValueAfter: body.project.estimatedValue, projectEndDateAfter: body.project.endDate } : {}),
+      },
+      req: c,
+    })
+  }
+
   return c.json(outcome.body, outcome.status)
 })
 
@@ -399,6 +433,17 @@ app.post('/:id/reject', requirePermission('change-orders:update'), async (c) => 
   // report walked approved → rejected → approved straight through.
   if (!REJECTABLE.includes(existing.status)) return refuse(c, existing, 'rejected', REJECTABLE)
   const [updated] = await db.update(changeOrder).set({ status: 'rejected', updatedAt: new Date() }).where(eq(changeOrder.id, id)).returning()
+  // The other half of the agreement. "Who turned this down, and when" is asked as often as who
+  // approved it, and it had no answer either. (T58)
+  audit.log({
+    action: audit.ACTIONS.STATUS_CHANGE,
+    entity: 'change_order',
+    entityId: id,
+    entityName: updated?.number || existing.number,
+    changes: { status: { old: existing.status, new: 'rejected' } },
+    metadata: { amount: existing.amount, daysAdded: existing.daysAdded, projectId: existing.projectId },
+    req: c,
+  })
   return c.json(updated)
 })
 

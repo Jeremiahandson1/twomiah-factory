@@ -18,6 +18,7 @@ import { setEmailRecorder } from './services/email.ts'
 import { initializeSocket, io } from './services/socket.ts'
 import { authenticate } from './middleware/auth.ts'
 import { requireEnabledFeature } from './middleware/enabledFeature.ts'
+import { auditWrites } from './middleware/auditWrites.ts'
 import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
 import { syncFeatures } from './startup/featureSync.ts'
 import { startReviewProcessor } from './services/reviews.ts'
@@ -192,6 +193,20 @@ app.use('*', cors({
   allowHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Request-ID'],
   credentials: true,
 }))
+
+/**
+ * Every successful write leaves a row in the audit log. (T58)
+ *
+ * Mounted here, above the routes, but it does its work AFTER them: it awaits next() and then reads
+ * the settled response and the user the route's own `authenticate` put on the context. That ordering
+ * is the point — a middleware above authenticate cannot see who acted, and one below the routes would
+ * never run.
+ *
+ * 146 of this template's 163 write endpoints wrote nothing before this. See the file for what it
+ * records, what it deliberately leaves out (bodies — they carry credentials), and why it cannot fail
+ * the request it is recording.
+ */
+app.use('*', auditWrites)
 
 function createRateLimiter(windowMs: number, max: number, countMethod?: (m: string) => boolean) {
   const hits = new Map<string, { count: number; resetAt: number }>()
