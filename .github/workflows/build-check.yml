@@ -2026,6 +2026,17 @@ jobs:
       - name: "Link parameters"
         run: bun run scripts/check-link-params-are-read.ts
 
+  toast-outranks-modals:
+    name: "A toast is never hidden behind the modal whose error it reports"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Toast z-index"
+        run: bun run scripts/check-toast-outranks-modals.ts
+
   refresh-outcomes:
     name: "A failed refresh is not a dead session"
     runs-on: ubuntu-latest

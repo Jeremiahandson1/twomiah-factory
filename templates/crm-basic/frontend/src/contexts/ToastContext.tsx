@@ -70,7 +70,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={toast}>
       {children}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
+      {/* z-[100], above the z-50 modals: a toast reporting a modal's error is useless
+          underneath it, and at equal z-index which one paints on top is DOM order, i.e. luck.
+          The owner hit exactly that — a refusal where "nothing visible appeared at all". */}
+      <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
         {toasts.map(t => {
           const Icon = icons[t.type];
           return (

@@ -40,7 +40,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={toast}>
       {children}
-      <div className="fixed bottom-4 right-4 z-50 space-y-2">
+      {/* z-[100], above the z-50 modals: a toast reporting a modal's error is useless
+          underneath it, and at equal z-index which one paints on top is DOM order, i.e. luck.
+          The owner hit exactly that — a refusal where "nothing visible appeared at all". */}
+      <div className="fixed bottom-4 right-4 z-[100] space-y-2">
         {toasts.map(t => (
           <div key={t.id} className={`px-4 py-3 rounded-lg shadow-lg text-sm text-white ${t.type === 'success' ? 'bg-green-700' : t.type === 'error' ? 'bg-red-600' : 'bg-gray-800'}`}>
             {t.msg}

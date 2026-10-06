@@ -10,6 +10,25 @@ import { DollarSign, Plus, Check, Loader2 } from 'lucide-react';
 import api from '../services/api';
 import { usePermissions } from '../contexts/PermissionsContext';
 
+/**
+ * THE STORED VALUE, AND THE WORD THIS PRODUCT USES FOR IT. (T51 and its follow-up)
+ *
+ * The four keys are what the route's enum accepts (routes/commissions.ts:56) and what plans already
+ * created carry, so they do not change. The words are this product's: its roles are
+ * viewer / field (shown as Staff) / manager / admin, not crm-fieldservice's technician and sales rep,
+ * and this template is shared by showcase, foodtruck and basic — a gym, a venue and a food truck.
+ *
+ * ONE mapping, read by both the dropdown and the plan card. T51 relabelled only the dropdown, so
+ * every existing card still printed the raw "technician" and the owner re-reported it. A label that
+ * lives in two places drifts; this is why it lives in one.
+ */
+const ROLE_WORDS: Record<string, string> = {
+  technician: 'Staff',
+  sales_rep: 'Sales',
+  manager: 'Managers',
+  all: 'Everyone',
+};
+
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
   approved: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
@@ -138,7 +157,18 @@ export default function CommissionsPage() {
                   )}
                 </h3>
                 <div className="text-sm text-gray-500 mb-3 dark:text-slate-400">
-                  {p.planType.replace(/_/g, ' ')} · {p.appliesToRole}
+                  {/*
+                    THE CARD, NOT ONLY THE DROPDOWN. (T51 follow-up)
+
+                    T51 relabelled the select and left this printing the RAW stored value, so every
+                    existing plan card still read "technician" — the owner re-reported it, correctly.
+                    Fixing the input and leaving the display is the same miss as fixing one site and
+                    not its sibling: the dropdown is where the value is CHOSEN, this is where it is
+                    READ, and the reader only ever sees this one.
+
+                    ROLE_WORDS is the single mapping both now use.
+                  */}
+                  {p.planType.replace(/_/g, ' ')} · {ROLE_WORDS[p.appliesToRole] || p.appliesToRole}
                   {p.isActive === false && ' · no longer applied to new work'}
                 </div>
                 <div className="font-mono text-sm">
@@ -184,10 +214,9 @@ export default function CommissionsPage() {
                   by role, so this is a note on the plan rather than a rule.
                 */}
                 <select aria-label="Intended for" value={planForm.appliesToRole} onChange={(e) => setPlanForm({ ...planForm, appliesToRole: e.target.value })} className="border rounded-lg px-3 py-2">
-                  <option value="technician">Intended for: Staff</option>
-                  <option value="sales_rep">Intended for: Sales</option>
-                  <option value="manager">Intended for: Managers</option>
-                  <option value="all">Intended for: Everyone</option>
+                  {Object.entries(ROLE_WORDS).map(([value, word]) => (
+                    <option key={value} value={value}>Intended for: {word}</option>
+                  ))}
                 </select>
               </div>
               {planForm.planType === 'flat_rate' && <div><label className="text-xs text-gray-500 dark:text-slate-400">Flat amount per job</label><input type="number" step="0.01" value={planForm.flatRateAmount} onChange={(e) => setPlanForm({ ...planForm, flatRateAmount: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>}
