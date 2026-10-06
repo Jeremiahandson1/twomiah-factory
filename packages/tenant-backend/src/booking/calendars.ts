@@ -110,36 +110,30 @@ export function jobCalendar(job: any, opts: { numbering?: { prefix: string; pad?
       await exec.update(job).set({ status: statusFor(status), updatedAt: new Date() }).where(eq(job.id, id))
     },
     /**
-     * …AND WHAT THE BOOKING WAS FOR. (T58)
+     * NUMBER AND STATUS ONLY. Not the service name — I tried that and it was a regression. (T58)
      *
-     * NOT the Showcase finding. Chasing "the service name is still lost" led here and the measurement
-     * says otherwise: on a WIDGET service `legacyServiceId` is the bookable_service id (catalog.ts), so
-     * the booking row carries serviceId and bookingOut resolves the name from it. Showcase's column is
-     * empty because that tenant has never created a bookable service — 31 of 31 bookings with
-     * serviceId null and zero services on the company, measured at T51 — which the bookings screen now
-     * says in as many words instead of printing "No service" per row.
+     * Chasing "Showcase: the service name is still lost" I had this return the job's `title` as the
+     * booking's service name, reasoning that create() writes the service name into it. The owner's
+     * next pass: *"a 'JOB-' number shows in the Service column when no service was chosen."* Jobs
+     * created by other paths carry their NUMBER as the title, so the Service column started printing
+     * JOB-00007 — a worse answer than the blank it replaced, and on the exact tenant the change was
+     * supposed to help.
      *
-     * What IS missing is the MENU-sourced case. `fromMenu` sets legacyServiceId null and menuServiceId
-     * instead, so the booking row has no serviceId and the name has to come from the calendar. The
-     * appointment calendar supplies it from its service column; this one returned the number and the
-     * status and stopped, so a job-calendar tenant whose services come off a menu would lose it. No
-     * template wires a menu into a jobCalendar today, which is why nobody has reported this — it is
-     * the gap a vertical that did would fall into, and the contract (types.ts) always expected it.
+     * The premise was wrong anyway, and the measurement said so at the time: on a widget service
+     * `legacyServiceId` IS the bookable_service id (catalog.ts), so the booking row carries serviceId
+     * and bookingOut resolves the name from it without any help from here. Showcase's column is empty
+     * because that tenant has never created a bookable service — 31 of 31 bookings with serviceId
+     * null against zero services, measured at T51. That is a setup answer, and the bookings screen
+     * already says so rather than printing "No service" per row.
      *
-     * `title` IS the service name on a booked job: create() writes `serviceName || 'Online Booking'`
-     * into it a few lines above. The generic fallback is returned as NULL rather than as a service
-     * called "Online Booking" — a list that invents a service name is worse than one that admits it
-     * does not have it. If the office has since retitled the job, that title is the better answer
-     * anyway: it is what the work is now called.
+     * A menu-sourced booking on a job calendar would still have nowhere to get the name from, but no
+     * template wires a menu into a jobCalendar, so that is a hole rather than a fault — and guessing
+     * at it from a column that means something else is how this went wrong.
      */
     async lookup(exec, ids) {
       if (!ids.length) return {}
-      const rows = await exec.select({ id: job.id, number: job.number, status: job.status, title: job.title }).from(job).where(inArray(job.id, ids))
-      return Object.fromEntries(rows.map((r: any) => [r.id, {
-        label: r.number,
-        status: r.status,
-        serviceName: r.title && r.title !== 'Online Booking' ? r.title : null,
-      }]))
+      const rows = await exec.select({ id: job.id, number: job.number, status: job.status }).from(job).where(inArray(job.id, ids))
+      return Object.fromEntries(rows.map((r: any) => [r.id, { label: r.number, status: r.status }]))
     },
   }
 }

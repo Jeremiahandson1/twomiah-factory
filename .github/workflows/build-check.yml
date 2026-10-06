@@ -2092,6 +2092,17 @@ jobs:
       - name: "Every write is audited"
         run: bun run scripts/check-every-write-is-audited.ts
 
+  audit-page-reads-both-shapes:
+    name: "The Audit Log page reads the shape the API sends"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Audit page shapes"
+        run: bun run scripts/check-audit-page-reads-both-shapes.ts
+
   refresh-outcomes:
     name: "A failed refresh is not a dead session"
     runs-on: ubuntu-latest

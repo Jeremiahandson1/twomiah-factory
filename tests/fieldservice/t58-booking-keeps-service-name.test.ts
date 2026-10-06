@@ -158,6 +158,18 @@ console.log('\n══════════ a booking with no service ══�
   // inventing one; the row says it has none.
   check('…and it reports NO service rather than a service called "Online Booking"',
     bo && (bo.serviceName === null || bo.serviceName === undefined), { serviceName: bo?.serviceName })
+  /**
+   * …and NOT the job number either. (T58 follow-up)
+   *
+   * I briefly had the job calendar hand its `title` back as the service name, on the reasoning that
+   * create() writes the service name into it. Jobs made by other paths carry their NUMBER as the
+   * title, so the Service column started printing "JOB-00007" — a worse answer than the blank, on the
+   * tenant the change was meant to help. The column must stay empty when nothing was chosen.
+   */
+  check('…and certainly not the JOB number', !/^JOB-/.test(String(bo?.serviceName || '')),
+    { serviceName: bo?.serviceName, calendarLabel: bo?.calendar?.label })
+  check('…though the job number IS on the row, where it belongs', /^JOB-\d+/.test(String(bo?.calendar?.label || '')),
+    { calendar: bo?.calendar })
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)

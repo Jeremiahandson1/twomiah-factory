@@ -29,7 +29,7 @@
  * write is wrapped: an audit log that can 500 an invoice is worse than one with gaps.
  */
 import type { Context, Next } from 'hono'
-import audit from '../services/audit.ts'
+import audit, { requestAudit } from '../services/audit.ts'
 
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
@@ -48,12 +48,66 @@ const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
  */
 const SKIP = [/^\/api\/auth(\/|$)/, /^\/api\/internal(\/|$)/, /^\/api\/audit(\/|$)/, /\/webhook(s)?(\/|$)/, /^\/api\/support\/ai-chat$/]
 
-/** POST → create, DELETE → delete, PUT/PATCH → update. The log's own vocabulary. */
+/** The HTTP verb, when the path says nothing more specific. */
 const ACTION_FOR: Record<string, string> = {
   POST: audit.ACTIONS?.CREATE || 'create',
   PUT: audit.ACTIONS?.UPDATE || 'update',
   PATCH: audit.ACTIONS?.UPDATE || 'update',
   DELETE: audit.ACTIONS?.DELETE || 'delete',
+}
+
+/**
+ * WHAT THE PATH SAYS HAPPENED. (T58 follow-up)
+ *
+ * Owner: "payments, approvals and disabling the portal are all labelled 'create'." They were — the
+ * action came from the HTTP verb alone, and every one of those is a POST. A log whose action column
+ * says "create" for taking a payment, approving a change order and switching a customer's portal off
+ * is a log you cannot scan, which is the only thing an action column is for.
+ *
+ * REST puts the verb in the last segment of these paths, so that is where it is read from. Anything
+ * not named here still falls back to the HTTP verb, so a new endpoint is labelled roughly rather than
+ * wrongly.
+ */
+const STATUS_WORDS = [
+  'approve', 'reject', 'submit', 'dismiss', 'enable', 'disable', 'complete', 'cancel', 'void',
+  'archive', 'restore', 'supersede', 'file', 'review', 'status', 'mark-paid', 'activate',
+  'deactivate', 'close', 'reopen', 'publish', 'sign',
+]
+const ACTION_WORDS: Record<string, string> = {
+  payments: 'payment', payment: 'payment', pay: 'payment',
+  refund: 'refund', refunds: 'refund', credit: 'credit', credits: 'credit',
+  convert: 'convert', assign: 'assign', reschedule: 'reschedule',
+  send: 'send', resend: 'send', export: audit.ACTIONS?.EXPORT || 'export',
+  duplicate: 'duplicate', merge: 'merge',
+}
+
+export const actionFromPath = (path: string, method: string): string => {
+  const parts = path.replace(/^\/api\//, '').split('/').filter(Boolean)
+  const last = (parts[parts.length - 1] || '').toLowerCase()
+  if (ACTION_WORDS[last]) return ACTION_WORDS[last]
+  if (STATUS_WORDS.includes(last)) return audit.ACTIONS?.STATUS_CHANGE || 'status_change'
+  return ACTION_FOR[method] || 'update'
+}
+
+/**
+ * The SINGULAR of a mount segment. (T58 follow-up)
+ *
+ * Owner: *"'Warranty' is spelled 'Warrantie'."* It was: the first version stripped a trailing "s",
+ * so `warranties` became `warrantie`. English plurals are not one rule, and the handful this
+ * vocabulary actually uses are:
+ *
+ *   warranties → warranty      -ies becomes -y
+ *   addresses  → address       -sses keeps its stem, drop the -es
+ *   taxes      → tax           -xes, -ches, -shes, -zes drop the -es
+ *   status     → status        -us is already singular
+ *   invoices   → invoice       the ordinary case
+ */
+const singular = (word: string): string => {
+  if (/ies$/.test(word)) return word.replace(/ies$/, 'y')
+  if (/(ss|ch|sh|x|z)es$/.test(word)) return word.replace(/es$/, '')
+  if (/(us|ss|is)$/.test(word)) return word
+  if (/s$/.test(word)) return word.replace(/s$/, '')
+  return word
 }
 
 /**
@@ -63,11 +117,9 @@ const ACTION_FOR: Record<string, string> = {
  * 'change_order') and the audit screen's filter groups them together rather than offering
  * "draw-schedules" next to "draw_schedule".
  */
-const entityFromPath = (path: string): string => {
+export const entityFromPath = (path: string): string => {
   const seg = path.replace(/^\/api\//, '').split('/')[0] || 'request'
-  const base = seg.replace(/-/g, '_')
-  // crude but right for this vocabulary: strip a trailing plural 's', keep 'address'/'status' intact
-  return /(ss|us|s_s)$/.test(base) ? base : base.replace(/s$/, '')
+  return singular(seg).replace(/-/g, '_')
 }
 
 /**
@@ -89,13 +141,23 @@ const idFromPath = (path: string): string | undefined => {
 }
 
 export async function auditWrites(c: Context, next: Next) {
-  await next()
+  /**
+   * The request runs inside a scope any audit.log can mark, whatever it was handed. (T58 follow-up)
+   *
+   * A handler that writes its own entry — with the amount, the old and new status, the field diff —
+   * must not get a second, duller row beside it. The owner saw every payment and every settings
+   * change logged twice, and that is the floor writing over work already done properly.
+   */
+  const scope = { logged: false }
+  await requestAudit.run(scope, next)
 
   try {
     const method = c.req.method.toUpperCase()
     if (!MUTATING.has(method)) return
     const path = new URL(c.req.url).pathname
     if (SKIP.some((re) => re.test(path))) return
+    // Already recorded, and better than this would. The floor is a floor, not a second opinion.
+    if (scope.logged) return
     // Only what actually happened. A refused write is the gate doing its job, not a change to record —
     // and 401/403/404 would otherwise fill the log with noise from scanners and stale tabs.
     const status = c.res.status
@@ -106,7 +168,7 @@ export async function auditWrites(c: Context, next: Next) {
     if (!user?.companyId) return
 
     await audit.log({
-      action: ACTION_FOR[method] || 'update',
+      action: actionFromPath(path, method),
       entity: entityFromPath(path),
       entityId: idFromPath(path),
       metadata: { method, path, status, via: 'request' },

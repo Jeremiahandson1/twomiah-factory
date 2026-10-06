@@ -586,11 +586,13 @@ app.post('/:id/payments', requirePermission('invoices:update'), async (c) => {
    * shared rule for "is this a sane amount at all", then the stricter `> 0` this route needs.
    * (T51 and its follow-up — see moneyRefusal in services/eventBooking.ts)
    */
+  // zeroAllowed: false — an instalment of nothing is never meant, and saying so HERE stops the
+  // shared message offering "enter 0" on the one path that then refuses it. (T58 follow-up)
   const amt = Number(body.amount)
-  const mErr = moneyRefusal(body.amount, 'Amount')
+  const mErr = moneyRefusal(body.amount, 'Amount', { zeroAllowed: false })
   if (mErr) return c.json({ error: mErr }, 400)
   if (!Number.isFinite(amt) || round2(amt) <= 0) {
-    return c.json({ error: 'Amount must be a positive number' }, 400)
+    return c.json({ error: 'Amount must be more than $0.00.' }, 400)
   }
   if (body.dueDate && !DATE_RE.test(body.dueDate)) return c.json({ error: 'dueDate must be YYYY-MM-DD' }, 400)
 
@@ -643,11 +645,13 @@ app.put('/:id/payments/:paymentId', requirePermission('invoices:update'), async 
   // The same two rules as POST, from the same helper, because the edit form is where an amount gets
   // corrected and re-mistyped. (T51 and its follow-up)
   if ('amount' in updates) {
-    const mErr = moneyRefusal(updates.amount, 'Amount')
+    // Same rule the create path holds, and the same wording: an instalment of nothing is never
+    // meant, so the message must not suggest entering 0. (T58 follow-up)
+    const mErr = moneyRefusal(updates.amount, 'Amount', { zeroAllowed: false })
     if (mErr) return c.json({ error: mErr }, 400)
     const amt = Number(updates.amount)
     if (updates.amount === null || updates.amount === '' || !Number.isFinite(amt) || round2(amt) <= 0) {
-      return c.json({ error: 'Amount must be a positive number' }, 400)
+      return c.json({ error: 'Amount must be more than $0.00.' }, 400)
     }
     updates.amount = round2(amt).toString()
   }

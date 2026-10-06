@@ -81,8 +81,26 @@ else {
 for (const [name, src] of [['eventSpaces', spaces], ['menuPackages', menus]] as const) {
   if (!/return `\$\{label\} must be a number`[\s\S]*return `\$\{label\} cannot be negative`/.test(src)) fail(`${name}: negativeFieldError must distinguish "must be a number" from "cannot be negative"`)
 }
+/**
+ * The instalment EDIT refuses a non-positive amount before it writes.
+ *
+ * This pinned the refusal's exact words ('Amount must be a positive number') and went red when the
+ * wording was corrected — the message used to end up telling the operator to "enter 0" on the one
+ * path where zero is also refused, which is the fault being fixed. A guard that fails because the
+ * sentence it quotes got BETTER is a guard for the past. What matters is the rule: the amount is
+ * checked, and the check happens before the update.
+ */
 const payPut = handler(events, 'put', '/:id/payments/:paymentId')
-if (!/'Amount must be a positive number'[\s\S]*(db|tx)\.update/.test(payPut)) fail('PUT /:id/payments/:paymentId must refuse a non-positive amount before update')
+{
+  const refusalAt = payPut.search(/round2\(amt\)\s*<=\s*0/)
+  const updateAt = payPut.search(/(db|tx)\.update/)
+  if (refusalAt < 0) fail('PUT /:id/payments/:paymentId must refuse a non-positive amount')
+  else if (updateAt >= 0 && refusalAt > updateAt) fail('…and must do it BEFORE the update, not after')
+  // An instalment is the one money field where zero is wrong too, so its refusal must not offer it.
+  if (!/zeroAllowed:\s*false/.test(payPut)) {
+    fail('PUT /:id/payments/:paymentId must pass zeroAllowed: false — otherwise the shared message tells the operator to enter 0, which this path then refuses')
+  }
+}
 
 // (3) CSV import applies the same rule before insert.
 const impSpaces = imp.slice(imp.indexOf('export async function importSpaces'), imp.indexOf('export async function importMenus'))

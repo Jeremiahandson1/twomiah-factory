@@ -29,6 +29,7 @@
  */
 import { useState, useEffect, useCallback } from 'react'
 import { Shield, Search, User } from 'lucide-react'
+import { field, who, whatChanged, humanise } from './auditFields'
 
 export interface AuditLogApi {
   get: (path: string, params?: Record<string, unknown>) => Promise<any>
@@ -54,6 +55,20 @@ export interface AuditLogPageProps {
  * because the whole point of the T41 fix was that an audit entry has to line up with the record it
  * belongs to — a dispensary read 14:32 on an order and 19:32 in the log. With no zone configured it
  * falls back to the reader's, which is the best available answer rather than a wrong one.
+ */
+/**
+ * THE API SENDS snake_case. THIS PAGE READ camelCase. (T58 follow-up)
+ *
+ * Owner: "the new Audit Log page shows '—' and 'System' in every row. The data is in the API, so the
+ * page is probably reading the wrong field names." Exactly right. The rows come straight off a raw
+ * `db.execute`, so they arrive as `created_at`, `user_name`, `user_email`, `entity_name`,
+ * `ip_address` — and this page asked for `createdAt`, `userName`, `entityName`, `ipAddress`, got
+ * undefined for every one, and printed its fallbacks.
+ *
+ * This is the SECOND shape mismatch on this page: the filter options differed per template too. The
+ * lesson both times is that a shared screen cannot assume a shape — nine templates feed it. So it
+ * reads either spelling, which costs nothing and cannot be wrong whichever way a template's route is
+ * written.
  */
 const whenIn = (value: string, tz?: string) => {
   const d = new Date(value)
@@ -85,8 +100,9 @@ const whenIn = (value: string, tz?: string) => {
   }
 }
 
-/** 'status_change' → 'Status change', 'kiosk_age_denied' → 'Kiosk age denied'. */
-const humanise = (v: string) => v.replace(/_/g, ' ').replace(/^./, (ch) => ch.toUpperCase())
+// humanise, field, who and whatChanged live in ./auditFields — pure, with no imports, so CI can run
+// real API rows through them. They were inside this .tsx before, which is why two shape mismatches
+// shipped: nothing could execute them, so they were only ever checked by being looked at. (T58)
 
 /**
  * Colour by what the action DID, keyed on the values that are really stored — `action` from the
@@ -248,14 +264,14 @@ export function AuditLogPage({ api, toast, timeZone, canReadUsers = false }: Aud
               {logs.map((log: any, idx: number) => (
                 <tr key={log.id || idx} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap dark:text-slate-200">
-                    {log.createdAt ? whenIn(log.createdAt, timeZone) : '—'}
+                    {field(log, 'createdAt') ? whenIn(field(log, 'createdAt'), timeZone) : '—'}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center dark:bg-slate-700">
                         <User className="w-3 h-3 text-gray-500 dark:text-slate-400" />
                       </div>
-                      <span className="text-sm text-gray-900 dark:text-slate-100">{log.userName || log.userEmail || 'System'}</span>
+                      <span className="text-sm text-gray-900 dark:text-slate-100">{who(log)}</span>
                     </div>
                   </td>
                   <td className="px-4 py-3">
@@ -265,12 +281,12 @@ export function AuditLogPage({ api, toast, timeZone, canReadUsers = false }: Aud
                   </td>
                   {/* The entity is its own column, because "update" on its own says nothing. */}
                   <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap dark:text-slate-200">
-                    {log.entityName || (log.entity ? humanise(log.entity) : '—')}
+                    {field(log, 'entityName') || (log.entity ? humanise(log.entity) : '—')}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700 max-w-md truncate dark:text-slate-200">
-                    {log.description || log.details || '—'}
+                  <td className="px-4 py-3 text-sm text-gray-700 max-w-md truncate dark:text-slate-200" title={whatChanged(log)}>
+                    {whatChanged(log)}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-500 font-mono dark:text-slate-400">{log.ipAddress || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500 font-mono dark:text-slate-400">{field(log, 'ipAddress') || '—'}</td>
                 </tr>
               ))}
               {logs.length === 0 && (

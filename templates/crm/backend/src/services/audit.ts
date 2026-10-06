@@ -3,9 +3,29 @@
  * Tracks who changed what when
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { db } from '../../db/index.ts';
 import { sql } from 'drizzle-orm';
 import { auditLog } from '../../db/schema.ts';
+
+/**
+ * DID A HANDLER ALREADY LOG THIS REQUEST? (T58 follow-up)
+ *
+ * The floor middleware writes one row per successful write so nothing goes unrecorded, and a handler
+ * that writes its own richer entry must not then get a second, duller row beside it — the owner saw
+ * every payment and every settings change twice.
+ *
+ * It cannot be answered from what the call was PASSED. Handlers hand `log()` three different things:
+ * the Hono context, `{ user }`, or bare userId/companyId — the shared modules in packages/ almost all
+ * use `{ user: currentUser }`, so a flag set on the context would miss exactly the calls that are
+ * duplicating. Async storage asks the question the right way round: not "what did you give me" but
+ * "are we inside a request that has already logged".
+ *
+ * Fails SAFE. If the scope is ever lost across an await, `getStore()` is undefined, the middleware
+ * sees nothing recorded and writes its row — a duplicate, which is what we have today, rather than a
+ * missing audit entry. The failure mode of the mechanism is the bug it is fixing, never a worse one.
+ */
+export const requestAudit = new AsyncLocalStorage<{ logged: boolean }>();
 
 export const ACTIONS = {
   CREATE: 'create',
@@ -125,6 +145,14 @@ function resolveActor(req: any): { userId: string | null; email: string | null; 
  * Create audit log entry
  */
 export async function log({ action, entity, entityId, entityName, changes, metadata, userId, companyId, req }: AuditLogInput): Promise<void> {
+  /**
+   * Marked HERE, before the first await, so it is recorded even when the caller does not await this
+   * — most do not, and an async function runs synchronously up to its first await, so the mark lands
+   * inside the request's own async scope either way. (T58 follow-up)
+   */
+  const scope = requestAudit.getStore();
+  if (scope) scope.logged = true;
+
   try {
     const actor = resolveActor(req);
     // The explicit userId/companyId arguments stay as the fallback, not the other way round: bulk,

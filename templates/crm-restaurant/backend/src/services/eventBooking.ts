@@ -58,13 +58,28 @@ const has = (input: Record<string, any>, k: string) => k in input
  * means that, it cannot be told apart from a deliberate zero afterwards, and it quietly makes a
  * priced line free.
  */
-export function moneyRefusal(value: unknown, label: string): string | null {
+export function moneyRefusal(value: unknown, label: string, opts: { zeroAllowed?: boolean } = {}): string | null {
+  const zeroAllowed = opts.zeroAllowed !== false
   const v = num(value)
   if (v == null) return null
   if (!Number.isFinite(v)) return `${label} must be a number.`
   if (v < 0) return `${label} cannot be negative.`
+  /**
+   * THE REFUSAL MUST NOT OFFER A WAY OUT THAT IS ALSO REFUSED. (T58 follow-up)
+   *
+   * Owner: *"refusing a 0.001 payment says 'Enter 0 if it is complimentary', but 0 is then refused
+   * too."* Both rules were right on their own — a menu line CAN be complimentary, and a scheduled
+   * payment of nothing never makes sense — but this message is shared and spoke for both. So the one
+   * path where zero is also wrong told the operator to enter the one other value it would reject,
+   * which is worse than a blunt refusal: it sends them round a loop.
+   *
+   * The caller says which rule it is holding, and the sentence follows it.
+   */
+  if (v === 0 && !zeroAllowed) return `${label} must be more than $0.00.`
   if (v > 0 && Math.round(v * 100) / 100 === 0) {
-    return `${label} of ${v} rounds to $0.00. Enter 0 if it is complimentary, or at least one cent.`
+    return zeroAllowed
+      ? `${label} of ${v} rounds to $0.00. Enter 0 if it is complimentary, or at least one cent.`
+      : `${label} of ${v} rounds to $0.00. Enter at least one cent.`
   }
   return null
 }

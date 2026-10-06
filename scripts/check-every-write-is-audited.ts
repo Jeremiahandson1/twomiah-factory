@@ -44,12 +44,38 @@ else {
 const mw = read(MW)
 if (!mw) { fail(`${MW} is missing — the audit floor is gone`); }
 else {
-  // 3. the actor is read after the handler has run.
-  const nextAt = mw.indexOf('await next()')
+  /**
+   * 3. The handler runs FIRST, and the actor is read after it.
+   *
+   * This pinned the literal `await next()` and went red when the middleware began running the request
+   * inside an async scope — `await requestAudit.run(scope, next)` — which is the same thing done
+   * properly. The rule is the ordering, not the spelling: whatever invokes the handler must be
+   * awaited, and `c.get('user')` must come after it, because the route's own authenticate is what
+   * puts the user on the context.
+   */
+  const runAt = mw.search(/await\s+(?:next\(\)|requestAudit\.run\(\s*\w+\s*,\s*next\s*\))/)
   const userAt = mw.indexOf("c.get('user')")
-  if (nextAt < 0) fail(`${MW} must await next() — a middleware that answers before the handler cannot know whether the write succeeded`)
-  else if (userAt < 0 || userAt < nextAt) {
-    fail(`${MW} must read the user AFTER next() — the route's own authenticate is what puts it on the context, so reading it first records every write as nobody`)
+  if (runAt < 0) fail(`${MW} must await the handler — a middleware that answers before it cannot know whether the write succeeded`)
+  else if (userAt < 0 || userAt < runAt) {
+    fail(`${MW} must read the user AFTER the handler has run, or every write is recorded as nobody`)
+  }
+
+  /**
+   * 4. One row per write. The floor must stand down when a handler has already logged.
+   *
+   * The first version wrote its row unconditionally, so every payment and every settings change
+   * appeared twice — once with the amount and the field diff, once as "update · via request". The
+   * handler's entry is always the better one.
+   */
+  if (!/requestAudit\.run\(/.test(mw)) {
+    fail(`${MW} must run the request inside requestAudit so it can tell whether a handler already logged it`)
+  }
+  if (!/scope\.logged/.test(mw)) {
+    fail(`${MW} must skip its own row when the request has already been logged — a floor that files a second copy of a richer entry is noise in the one place that has to stay readable`)
+  }
+  const audit = read('templates/crm/backend/src/services/audit.ts')
+  if (!/requestAudit\.getStore\(\)/.test(audit)) {
+    fail('services/audit.ts must mark the request scope when it writes, or the middleware cannot know a handler logged')
   }
 
   // 4. the body never reaches the log.

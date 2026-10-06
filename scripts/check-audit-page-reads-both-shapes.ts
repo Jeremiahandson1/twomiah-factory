@@ -1,0 +1,92 @@
+// CI guard: the Audit Log page reads the shape the API actually sends.
+//
+//   Owner: "the new Audit Log page shows '—' and 'System' in every row. The data is in the API, so
+//   the page is probably reading the wrong field names."
+//
+// It was. Rows come off a raw db.execute and arrive snake_case — created_at, user_name, user_email,
+// entity_name, ip_address — and the page asked for createdAt, userName, entityName, ipAddress. And
+// "What changed" read log.description || log.details, neither of which the API sends: a description
+// sits in metadata, a field edit sits in changes.
+//
+// This was the SECOND shape mismatch on that screen — the filter options differed per template too —
+// and the reason both shipped is that the readers lived inside a .tsx nothing could execute without
+// React. So they now live in a pure module and this guard RUNS them, against rows copied verbatim
+// from GET /api/audit on the live contractor and salon tenants. A fixture I invent cannot catch the
+// mistake of inventing a fixture, which is exactly the mistake that was made twice.
+//
+//   bun scripts/check-audit-page-reads-both-shapes.ts
+import { readFileSync } from 'node:fs'
+const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
+let failed = 0
+const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
+
+const { field, who, whatChanged } = await import(`${ROOT}packages/tenant-ui/src/audit/auditFields.ts`)
+
+// ── rows copied from the live API, field for field ────────────────────────────────────────────────
+const loginRow = {
+  id: 'fpen7vq64qs1e7f2uq2mul1w', action: 'login', entity: 'user',
+  entity_id: 'e6rld4yvmuhurjbr4crfcxqq', entity_name: 'twomiah14@gmail.com',
+  changes: null, metadata: { description: 'Signed in', role: 'owner' },
+  ip_address: '173.40.6.248', user_agent: 'Bun/1.4.2',
+  created_at: '2026-10-06 15:24:45.192932',
+  user_id: 'e6rld4yvmuhurjbr4crfcxqq', user_name: null, user_email: null,
+}
+const floorRow = {
+  id: 'uv17mjqeort0naru7t357ebu', action: 'update', entity: 'contact',
+  entity_id: 'fo6kuqrpo5fco3choc5ngq4b', entity_name: null, changes: null,
+  metadata: { method: 'PUT', path: '/api/contacts/fo6', status: 200, via: 'request' },
+  ip_address: null, user_agent: null, created_at: '2026-10-06 15:02:08.503808',
+  user_id: 'e6rld4yvmuhurjbr4crfcxqq', user_name: 'twomiah14@gmail.com', user_email: 'twomiah14@gmail.com',
+}
+const paymentRow = {
+  id: 'gpyrgj2qlgiboqvwuhnleacz', action: 'payment', entity: 'invoice',
+  entity_id: 'dbb4pjcwv6s9mqa1l6on48o4', entity_name: 'INV-00375', changes: null,
+  metadata: { total: '48.83', balance: '28.83', status: 'partial', amount: '20.00', method: 'cash' },
+  ip_address: '173.40.6.248', created_at: '2026-10-04 08:31:09',
+  user_name: 'twomiah14@gmail.com', user_email: 'twomiah14@gmail.com',
+}
+/** In case a template's route ever camelises on the way out — nine of them feed this screen. */
+const camelRow = {
+  id: 'x1', action: 'update', entity: 'invoice', entityId: 'inv1', entityName: 'INV-00001',
+  changes: { status: { old: 'draft', new: 'open' } }, metadata: null,
+  ipAddress: '10.0.0.1', createdAt: '2026-10-06T12:00:00Z', userName: 'Pat Ellery',
+}
+
+const is = (what: string, got: unknown, want: unknown) => {
+  if (got !== want) fail(`${what}: got ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`)
+}
+
+// When — the column that was "—" on every row.
+is('created_at is read', field(loginRow, 'createdAt'), '2026-10-06 15:24:45.192932')
+is('createdAt is read too', field(camelRow, 'createdAt'), '2026-10-06T12:00:00Z')
+if (!field(floorRow, 'createdAt')) fail('a floor row has no readable timestamp — this is the "—" the owner saw')
+
+// Who — the column that was "System" on every row.
+is('the acting user is named', who(floorRow), 'twomiah14@gmail.com')
+is('…on a payment too', who(paymentRow), 'twomiah14@gmail.com')
+is('…and camelCase is read', who(camelRow), 'Pat Ellery')
+is('a sign-in falls back to the account it signed in as', who(loginRow), 'twomiah14@gmail.com')
+is('a row with genuinely nobody still reads System', who({ action: 'x' }), 'System')
+
+// Record.
+is('entity_name is read', field(paymentRow, 'entityName'), 'INV-00375')
+is('entityName is read', field(camelRow, 'entityName'), 'INV-00001')
+
+// What changed.
+is('a described event says what it was', whatChanged(loginRow), 'Signed in')
+if (!/Status: draft → open/.test(whatChanged(camelRow))) fail(`a field edit must show the change, got ${JSON.stringify(whatChanged(camelRow))}`)
+if (!/20\.00/.test(whatChanged(paymentRow))) fail(`a payment must show its amount, got ${JSON.stringify(whatChanged(paymentRow))}`)
+is('a row with nothing to say still reads —', whatChanged({ action: 'x', metadata: null, changes: null }), '—')
+
+// IP.
+is('ip_address is read', field(loginRow, 'ipAddress'), '173.40.6.248')
+
+// ── and the page must USE them, not reach for raw camelCase again ─────────────────────────────────
+const page = readFileSync(`${ROOT}packages/tenant-ui/src/audit/AuditLogPage.tsx`, 'utf8')
+if (!/from '\.\/auditFields'/.test(page)) fail('AuditLogPage must read rows through ./auditFields, not with its own property access')
+for (const raw of ['log.createdAt', 'log.userName', 'log.entityName', 'log.ipAddress', 'log.userEmail']) {
+  if (page.includes(raw)) fail(`AuditLogPage still reads ${raw} directly — the API sends snake_case, which is how every row came back "—"`)
+}
+
+if (failed) { console.error(`\naudit page reads both shapes: ${failed} check(s) FAILED`); process.exit(1) }
+console.log('audit page reads both shapes: real snake_case rows from the live API render a time, a person, a record and what changed')

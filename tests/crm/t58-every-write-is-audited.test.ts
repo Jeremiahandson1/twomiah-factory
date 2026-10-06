@@ -154,22 +154,74 @@ console.log('\n══════════ reads, refusals and secrets ══
   check('…though the row is still there', all.length >= 1, { rows: all.length })
 }
 
-// ══════════ a handler's own richer entry survives ══════════════════════════════════════════════════
-console.log('\n══════════ the generic row does not replace a real one ══════════')
+// ══════════ ONE row per write, not two ═════════════════════════════════════════════════════════════
+//
+// Owner, after the first version shipped: "each payment and each settings change is logged twice."
+// They were. The floor wrote its row beside the handler's own richer one, so the screen showed the
+// same event twice — once properly and once as "update · via request".
+//
+// The handler's entry wins, always: it has the field diff, the amount, the old and new status. The
+// floor exists for the writes nobody logged at all, and a floor that files a second copy of work
+// already done is noise in the one place that has to stay readable.
+console.log('\n══════════ one row per write ══════════')
 {
   await clear()
-  // contacts.ts writes its own audit entry with a field-level diff. The middleware adds the floor; it
-  // must not stand in for the better record.
+  // contacts.ts writes its own audit entry with a field-level diff.
   await api('PUT', `/api/contacts/${contactId}`, { name: 'Marit R-H', phone: '555-0150' })
   const all: any[] = (await rows()) as any[]
   const rich = all.find((r) => r.changes && Object.keys(r.changes).length > 0)
-  const generic = all.find((r) => (r.metadata || {}).via === 'request')
+  const generic = all.filter((r) => (r.metadata || {}).via === 'request')
+
   check('the handler\'s own entry, with the field diff, is there', !!rich,
     { rows: all.map((r) => ({ action: r.action, changes: r.changes, metadata: r.metadata })) })
-  check('…and the floor\'s entry is there too, marked as coming from the request',
-    !!generic, { rows: all.map((r) => r.metadata) })
   check('…so the diff was not lost', rich && JSON.stringify(rich.changes).includes('name'),
     { changes: rich?.changes })
+  check('…and the floor did NOT file a second row beside it', generic.length === 0,
+    { generic: generic.map((r) => r.metadata) })
+  check('…so the write produced exactly one entry', all.length === 1,
+    { count: all.length, rows: all.map((r) => ({ action: r.action, via: (r.metadata || {}).via })) })
+}
+
+// ══════════ what the action column says ════════════════════════════════════════════════════════════
+//
+// Owner: "payments, approvals and disabling the portal are all labelled 'create'." They were — the
+// action came off the HTTP verb, and all three are a POST. An action column that says "create" for
+// taking a payment is a column you cannot scan.
+console.log('\n══════════ the action says what happened ══════════')
+{
+  const { actionFromPath, entityFromPath } = await import('./src/middleware/auditWrites.ts') as any
+  if (typeof actionFromPath !== 'function') {
+    check('actionFromPath is exported so it can be checked directly', false, null)
+  } else {
+    for (const [method, path, expected, why] of [
+      ['POST', '/api/invoices/abc123/payments', 'payment', 'taking a payment'],
+      ['POST', '/api/change-orders/abc123/approve', 'status_change', 'approving a change order'],
+      ['POST', '/api/portal/contacts/abc123/disable', 'status_change', 'switching a portal off'],
+      ['POST', '/api/portal/contacts/abc123/enable', 'status_change', 'switching one on'],
+      ['POST', '/api/invoices/abc123/refund', 'refund', 'refunding'],
+      ['POST', '/api/quotes/abc123/send', 'send', 'sending a quote'],
+      ['POST', '/api/contacts', 'create', 'an ordinary create still reads as create'],
+      ['PUT', '/api/contacts/abc123', 'update', '…and an ordinary edit as update'],
+      ['DELETE', '/api/contacts/abc123', 'delete', '…and a delete as delete'],
+    ] as [string, string, string, string][]) {
+      const got = actionFromPath(path, method)
+      check(`${why} is logged as "${expected}"`, got === expected, { method, path, got, expected })
+    }
+  }
+
+  // "Warranty" was spelled "Warrantie": the first version stripped a trailing s.
+  if (typeof entityFromPath === 'function') {
+    for (const [path, expected] of [
+      ['/api/warranties/abc', 'warranty'],
+      ['/api/invoices/abc', 'invoice'],
+      ['/api/addresses/abc', 'address'],
+      ['/api/change-orders/abc', 'change_order'],
+      ['/api/status/abc', 'status'],
+    ] as [string, string][]) {
+      check(`${path} is the "${expected}" entity`, entityFromPath(path) === expected,
+        { path, got: entityFromPath(path), expected })
+    }
+  }
 }
 
 // ══════════ the event that moves the contract ══════════════════════════════════════════════════════

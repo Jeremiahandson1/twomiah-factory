@@ -448,6 +448,34 @@ console.log('\n══════════ the money rule, on every field tha
   }
 
   /**
+   * THE REFUSAL MUST NOT OFFER A WAY OUT THAT IS ALSO REFUSED. (T58 follow-up)
+   *
+   * Owner: *"refusing a 0.001 payment says 'Enter 0 if it is complimentary', but 0 is then refused
+   * too."* Both rules were right — a menu line CAN be complimentary, a scheduled payment of nothing
+   * never is — but one shared message spoke for both, so the stricter path sent the operator round a
+   * loop. The two messages must stay DIFFERENT, which is what these four assertions hold.
+   */
+  {
+    const sub = await asOwner('POST', `/api/events/${wedding.id}/payments`, { label: 'T58 wording', amount: 0.001, dueDate: '2027-04-01' })
+    check('a sub-cent INSTALMENT is refused', sub.status === 400, { status: sub.status, error: sub.json?.error })
+    check('…and does NOT tell the operator to enter 0, which this path also refuses',
+      !/enter 0\b/i.test(String(sub.json?.error ?? '')), { error: sub.json?.error })
+    check('…it asks for at least a cent instead', /at least one cent/i.test(String(sub.json?.error ?? '')),
+      { error: sub.json?.error })
+
+    const zero = await asOwner('POST', `/api/events/${wedding.id}/payments`, { label: 'T58 zero', amount: 0, dueDate: '2027-04-01' })
+    check('…and an instalment of exactly 0 is refused too, as it always was', zero.status === 400,
+      { status: zero.status, error: zero.json?.error })
+    check('…saying it must be more than nothing', /more than \$0\.00/i.test(String(zero.json?.error ?? '')),
+      { error: zero.json?.error })
+
+    // The menu line keeps the OTHER message, because there zero is a real answer.
+    const line = await menuLine({ unitPrice: 0.001, quantity: 1 })
+    check('a menu line still gets the complimentary wording, because 0 IS allowed there',
+      /enter 0 if it is complimentary/i.test(String(line.json?.error ?? '')), { error: line.json?.error })
+  }
+
+  /**
    * ZERO MONEY IS STILL ALLOWED — the half a blunt `> 0` would have broken. A venue throwing in a
    * celebration cake puts it on the banquet order at $0.00 so the kitchen makes it.
    */
