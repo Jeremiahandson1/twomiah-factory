@@ -8,6 +8,7 @@ import { ErrorBoundary, ProtectedRoute, PublicRoute } from './shared';
 
 // Pages
 import LoginPage from './pages/LoginPage';
+import AuditLog from './pages/AuditLog';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import CustomerPortal from './pages/CustomerPortal';
@@ -152,6 +153,8 @@ function App() {
                     <Route path="schedule" element={<SchedulePage />} />
                     <Route path="documents" element={<DocumentsPage />} />
                     <Route path="team" element={<TeamPage />} />
+                    {/* Who changed what — the log has always been written and had nowhere to be read. (T51) */}
+                    <Route path="audit" element={<AuditLog />} />
                     <Route path="settings" element={<SettingsPage />} />
                     <Route path="contact-support" element={<ContactSupportPage />} />
                     <Route path="paywall" element={<PaywallPage />} />

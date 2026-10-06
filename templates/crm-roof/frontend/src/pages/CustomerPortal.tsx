@@ -170,7 +170,7 @@ export default function CustomerPortal() {
                 <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
                   <BookOpen className="w-6 h-6 text-amber-700" />
                 </div>
-                <span className="inline-flex items-center gap-1 text-xs font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                <span className="inline-flex items-center gap-1 text-xs font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded-full dark:bg-amber-950/40 dark:text-amber-300">
                   <Sparkles className="w-3 h-3" />
                   FREE TRIAL
                 </span>
@@ -193,7 +193,7 @@ export default function CustomerPortal() {
                 <div className="w-12 h-12 rounded-xl bg-violet-50 flex items-center justify-center">
                   <Camera className="w-6 h-6 text-violet-600" />
                 </div>
-                <span className="inline-flex items-center gap-1 text-xs font-bold bg-violet-100 text-violet-700 px-2 py-1 rounded-full">
+                <span className="inline-flex items-center gap-1 text-xs font-bold bg-violet-100 text-violet-700 px-2 py-1 rounded-full dark:bg-violet-950/40 dark:text-violet-300">
                   <Sparkles className="w-3 h-3" />
                   FREE TRIAL
                 </span>
@@ -216,7 +216,7 @@ export default function CustomerPortal() {
                 <div className="w-12 h-12 rounded-xl bg-sky-50 flex items-center justify-center">
                   <Ruler className="w-6 h-6 text-sky-700" />
                 </div>
-                <span className="inline-flex items-center gap-1 text-xs font-bold bg-sky-100 text-sky-700 px-2 py-1 rounded-full">
+                <span className="inline-flex items-center gap-1 text-xs font-bold bg-sky-100 text-sky-700 px-2 py-1 rounded-full dark:bg-sky-950/40 dark:text-sky-300">
                   <Sparkles className="w-3 h-3" />
                   FREE TRIAL
                 </span>

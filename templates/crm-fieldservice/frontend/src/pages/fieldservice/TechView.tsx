@@ -760,7 +760,7 @@ function ChecklistScreen({ job, onBack, onComplete }: { job: Job; onBack: () => 
       if (target === 'fail') return `${base} bg-red-600 text-white`;
       return `${base} bg-yellow-700 text-white`;
     }
-    return `${base} bg-gray-100 text-gray-600 active:bg-gray-200`;
+    return `${base} bg-gray-100 text-gray-600 active:bg-gray-200 dark:bg-slate-800 dark:text-slate-200`;
   };
 
   const CHECKLIST_ICONS: Record<string, any> = {

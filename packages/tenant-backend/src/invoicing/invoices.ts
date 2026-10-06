@@ -353,7 +353,7 @@ export async function recordInvoiceRefund(db: any, t: { invoice: any; payment: a
     if (net <= 0.005) { outcome = { ok: false, status: 400, error: 'Everything collected on this invoice has already been refunded.' }; return }
     if (amount > net + 0.005) { outcome = { ok: false, status: 400, error: `Refund exceeds what was collected — ${money(net)} still refundable on this invoice.` }; return }
     // Default to how the money came in — the most recent positive payment's method.
-    const [last] = await tx.select({ method: t.payment.method }).from(t.payment).where(and(eq(t.payment.invoiceId, id), sql`${t.payment.amount}::numeric > 0`)).orderBy(desc(t.payment.paidAt)).limit(1)
+    const [last] = await tx.select({ method: t.payment.method }).from(t.payment).where(and(eq(t.payment.invoiceId, id), sql`${t.payment.amount}::numeric > 0`)).orderBy(desc(t.payment.paidAt), asc(t.payment.id)).limit(1)
     const method = input.method || last?.method || 'other'
     // "Refund it to their account" — the money leaves the invoice as a refund exactly as it would to a
     // card, and lands on the client's balance in the same transaction. If the credit cannot be written
@@ -420,7 +420,7 @@ export async function applyInvoiceCredit(db: any, t: { invoice: any; invoiceLine
     const figures = { status: row.status, total: row.total, amountPaid: row.amount_paid, amountRefunded: row.amount_refunded }
     const balanceBefore = invoiceBalance(figures)
     if (balanceBefore <= 0.005) { outcome = { ok: false, status: 400, error: 'Nothing is owed on this invoice, so there is nothing to credit.' }; return }
-    const current = await tx.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder))
+    const current = await tx.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder), asc(t.invoiceLineItem.id))
     const lines = current.map((li: any) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) }))
     const taxRate = Number(row.tax_rate) || 0
     const newDiscount = round2(Number(row.discount || 0) + amount)
@@ -614,15 +614,15 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
 
     const where = and(...conditions)
     const [data, [{ value: total }]] = await Promise.all([
-      db.select().from(t.invoice).where(where).orderBy(desc(t.invoice.createdAt)).offset((page - 1) * limit).limit(limit),
+      db.select().from(t.invoice).where(where).orderBy(desc(t.invoice.createdAt), asc(t.invoice.id)).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(t.invoice).where(where),
     ])
     const invoiceIds: string[] = data.map((inv: any) => inv.id)
     const contactIds: string[] = [...new Set<string>(data.filter((inv: any) => inv.contactId).map((inv: any) => inv.contactId))]
     const [contacts, lineItems, payments] = await Promise.all([
       contactIds.length ? db.select({ id: t.contact.id, name: t.contact.name }).from(t.contact).where(and(eq(t.contact.companyId, currentUser.companyId), inArray(t.contact.id, contactIds))) : Promise.resolve([]),
-      invoiceIds.length ? db.select().from(t.invoiceLineItem).where(inArray(t.invoiceLineItem.invoiceId, invoiceIds)).orderBy(asc(t.invoiceLineItem.sortOrder)) : Promise.resolve([]),
-      invoiceIds.length ? db.select().from(t.payment).where(inArray(t.payment.invoiceId, invoiceIds)).orderBy(desc(t.payment.paidAt)) : Promise.resolve([]),
+      invoiceIds.length ? db.select().from(t.invoiceLineItem).where(inArray(t.invoiceLineItem.invoiceId, invoiceIds)).orderBy(asc(t.invoiceLineItem.sortOrder), asc(t.invoiceLineItem.id)) : Promise.resolve([]),
+      invoiceIds.length ? db.select().from(t.payment).where(inArray(t.payment.invoiceId, invoiceIds)).orderBy(desc(t.payment.paidAt), asc(t.payment.id)) : Promise.resolve([]),
     ])
     const contactMap = Object.fromEntries(contacts.map((ct: any) => [ct.id, ct]))
     const lineItemMap: Record<string, any[]> = {}; lineItems.forEach((li: any) => { (lineItemMap[li.invoiceId] ||= []).push(li) })
@@ -714,8 +714,8 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       found.contactId ? db.select().from(t.contact).where(and(eq(t.contact.id, found.contactId), eq(t.contact.companyId, cid))).limit(1) : Promise.resolve([]),
       found.projectId ? db.select().from(t.project).where(and(eq(t.project.id, found.projectId), eq(t.project.companyId, cid))).limit(1) : Promise.resolve([]),
       found.quoteId ? db.select().from(t.quote).where(and(eq(t.quote.id, found.quoteId), eq(t.quote.companyId, cid))).limit(1) : Promise.resolve([]),
-      db.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder)),
-      db.select().from(t.payment).where(eq(t.payment.invoiceId, id)).orderBy(desc(t.payment.paidAt)),
+      db.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder), asc(t.invoiceLineItem.id)),
+      db.select().from(t.payment).where(eq(t.payment.invoiceId, id)).orderBy(desc(t.payment.paidAt), asc(t.payment.id)),
     ])
     const balance = invoiceBalance(found)
     // What this client has on account, when the business keeps balances at all. The screen needs it to
@@ -803,7 +803,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const recompute = data.lineItems !== undefined || data.taxRate !== undefined || data.discount !== undefined
     let lines: z.infer<typeof lineItemSchema>[] | undefined = data.lineItems
     if (recompute && !lines) {
-      const current = await db.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder))
+      const current = await db.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder), asc(t.invoiceLineItem.id))
       lines = current.map((li: any) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) }))
     }
     const update: Record<string, any> = { updatedAt: new Date() }
@@ -826,7 +826,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       let items: any[]
       if (data.lineItems !== undefined) {
         items = await replaceInvoiceLines(tx, t, id, data.lineItems)
-      } else items = await tx.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder))
+      } else items = await tx.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder), asc(t.invoiceLineItem.id))
       return { ...updated, lineItems: items }
     })
     emitToCompany(cid, EVENTS.INVOICE_UPDATED, result)
@@ -1020,8 +1020,8 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     if (!found) return c.json({ error: 'Invoice not found' }, 404)
     const [ct, lineItems, payments, [co]] = await Promise.all([
       found.contactId ? db.select().from(t.contact).where(and(eq(t.contact.id, found.contactId), eq(t.contact.companyId, cid))).limit(1) : Promise.resolve([]),
-      db.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder)),
-      db.select().from(t.payment).where(eq(t.payment.invoiceId, id)).orderBy(desc(t.payment.paidAt)),
+      db.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder), asc(t.invoiceLineItem.id)),
+      db.select().from(t.payment).where(eq(t.payment.invoiceId, id)).orderBy(desc(t.payment.paidAt), asc(t.payment.id)),
       db.select().from(t.company).where(eq(t.company.id, cid)),
     ])
     const pdfBuffer = await generateInvoicePDF({ ...found, status: derive(found), contact: ct[0] ? withoutPortalCredential(ct[0]) : null, lineItems, payments }, co)

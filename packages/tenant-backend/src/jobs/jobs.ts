@@ -428,7 +428,7 @@ export function createJobRoutes(deps: JobDeps) {
     const { date: localToday } = storeDayRange(tz)
     const rows = await db.select().from(t.job)
       .where(and(eq(t.job.companyId, currentUser.companyId), sql`${jobLocalDay(t.job.scheduledDate, t.job.source, tz)} = ${localToday}::date`))
-      .orderBy(asc(t.job.scheduledTime))
+      .orderBy(asc(t.job.scheduledTime), asc(t.job.id))
     /**
      * …and /today, which is the TECHNICIAN'S OWN SCREEN and therefore the one most likely to be
      * read by the seat this withholds from. Missing it would have left the value on the single
@@ -466,7 +466,7 @@ export function createJobRoutes(deps: JobDeps) {
       const currentUser = c.get('user') as any
       const id = c.req.param('id')
       if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
-      return c.json(await db.select().from(t.jobPhoto).where(and(eq(t.jobPhoto.jobId, id), eq(t.jobPhoto.companyId, currentUser.companyId))).orderBy(desc(t.jobPhoto.createdAt)))
+      return c.json(await db.select().from(t.jobPhoto).where(and(eq(t.jobPhoto.jobId, id), eq(t.jobPhoto.companyId, currentUser.companyId))).orderBy(desc(t.jobPhoto.createdAt), asc(t.jobPhoto.id)))
     })
 
     app.delete('/:id/photos/:photoId', requirePermission('jobs:update'), async (c) => {
@@ -489,7 +489,7 @@ export function createJobRoutes(deps: JobDeps) {
       t.project && found.projectId ? db.select().from(t.project).where(and(eq(t.project.id, found.projectId), eq(t.project.companyId, currentUser.companyId))).limit(1) : Promise.resolve([]),
       found.contactId ? db.select().from(t.contact).where(and(eq(t.contact.id, found.contactId), eq(t.contact.companyId, currentUser.companyId))).limit(1) : Promise.resolve([]),
       found.assignedToId ? db.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName, email: t.user.email, phone: t.user.phone }).from(t.user).where(and(eq(t.user.id, found.assignedToId), eq(t.user.companyId, currentUser.companyId))).limit(1) : Promise.resolve([]),
-      t.timeEntry ? db.select().from(t.timeEntry).where(eq(t.timeEntry.jobId, found.id)).orderBy(desc(t.timeEntry.date)).limit(10) : Promise.resolve([]),
+      t.timeEntry ? db.select().from(t.timeEntry).where(eq(t.timeEntry.jobId, found.id)).orderBy(desc(t.timeEntry.date), asc(t.timeEntry.id)).limit(10) : Promise.resolve([]),
       t.equipment && found.equipmentId ? db.select({ id: t.equipment.id, name: t.equipment.name, manufacturer: t.equipment.manufacturer, model: t.equipment.model, serialNumber: t.equipment.serialNumber, location: t.equipment.location }).from(t.equipment).where(and(eq(t.equipment.id, found.equipmentId), eq(t.equipment.companyId, currentUser.companyId))).limit(1) : Promise.resolve([]),
     ])
     const { portalToken, portalTokenExp, ...safeContact } = (jobContact[0] || {}) as any

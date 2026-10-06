@@ -9,7 +9,7 @@
  * did import('./email.ts'), which cannot resolve from the vendored shared/ folder).
  */
 import { Hono } from 'hono'
-import { eq, desc, sql } from 'drizzle-orm'
+import { eq, desc, sql, asc } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 
 export interface RecurringTables { invoice: any; invoiceLineItem: any }
@@ -147,7 +147,7 @@ export function createRecurringService(deps: RecurringServiceDeps) {
 
   async function generateInvoiceNumber(companyId: string): Promise<string> {
     const [lastInvoice] = await db.select({ number: invoice.number }).from(invoice)
-      .where(eq(invoice.companyId, companyId)).orderBy(desc(invoice.createdAt)).limit(1)
+      .where(eq(invoice.companyId, companyId)).orderBy(desc(invoice.createdAt), asc(invoice.id)).limit(1)
     if (!lastInvoice) return 'INV-00001'
     const match = lastInvoice.number.match(/(\d+)$/)
     if (match) {

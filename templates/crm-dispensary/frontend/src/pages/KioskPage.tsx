@@ -9,10 +9,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button, PageHeader } from '../components/ui/DataTable';
 
 const sessionStatusColors: Record<string, string> = {
-  active: 'bg-blue-100 text-blue-700',
-  completed: 'bg-green-100 text-green-700',
-  abandoned: 'bg-yellow-100 text-yellow-700',
-  expired: 'bg-gray-100 text-gray-600',
+  active: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+  completed: 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300',
+  abandoned: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-300',
+  expired: 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-200',
 };
 
 export default function KioskPage() {
@@ -143,7 +143,7 @@ export default function KioskPage() {
               {/* These steps used to start at "Launch Kiosk", from before tablets were paired. Following
                   them landed the operator on the "Pair this kiosk" screen holding no code, because the
                   code is minted one level down in Settings → Kiosks and this page never said so. (T28 M-g) */}
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-gray-900 dark:text-slate-100">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-gray-900 dark:text-slate-100 dark:bg-green-950/40 dark:border-green-900">
                 <h3 className="font-medium text-green-800 mb-2 dark:text-green-300">How to set up a kiosk</h3>
                 <ol className="list-decimal list-inside space-y-1 text-sm text-green-700 dark:text-green-300">
                   {/* Settings is admin-only in this UI, so sending a manager there is a dead end —
@@ -266,7 +266,7 @@ export default function KioskPage() {
                         <td className="px-4 py-3 font-mono text-gray-900 dark:text-slate-100">{session.id?.slice(0, 8)}</td>
                         <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{session.locationName || '--'}</td>
                         <td className="px-4 py-3">
-                          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${sessionStatusColors[session.status] || 'bg-gray-100 text-gray-600'}`}>
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${sessionStatusColors[session.status] || 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-200'}`}>
                             {session.status || 'unknown'}
                           </span>
                         </td>

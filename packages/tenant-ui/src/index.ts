@@ -50,6 +50,10 @@ export { JobsDashboardPage } from './reporting/JobsDashboardPage'
 // Job Costing — estimate vs actual cost per job. Ships only to the verticals the registry entitles
 // (crm, crm-basic, crm-fieldservice, crm-landscaping); the API is /api/job-costing.
 export { JobCostingPage } from './reporting/JobCostingPage'
+// Audit Log — who changed what, and when. NINE templates record to /api/audit and only the
+// dispensary had a screen that could read it, and none had a nav entry. (T51 follow-up)
+export { AuditLogPage } from './audit/AuditLogPage'
+export type { AuditLogApi, AuditLogPageProps } from './audit/AuditLogPage'
 export type { ReportingConfig, ReportsPageProps, JobCostingConfig, JobCostingPageProps, JobsDashboardConfig, JobsDashboardPageProps } from './reporting/types'
 // Documents — one page for every CRM (upload, preview, authenticated download, versions, markup).
 export { DocumentsPage } from './files/DocumentsPage'

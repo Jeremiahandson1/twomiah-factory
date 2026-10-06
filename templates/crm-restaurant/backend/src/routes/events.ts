@@ -10,7 +10,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { deriveStatus, round2, withoutPortalCredential } from '../shared/index.ts'
 import { LedgerError, EXIT_STATUSES, loadEventLedger, ensureEventInvoice, syncEventInvoice, closeEventInvoice, backfillEventInvoices } from '../services/eventLedger.ts'
 // What an event may hold and how a booking is written — shared with the CSV importer (#162).
-import { HELD, DATE_RE, SpaceClash, eventLock, findClash, syncHireLine, createEvent, validateEventInput, validateTimelineInput, coordinatorRefusal, eventWarnings } from '../services/eventBooking.ts'
+import { HELD, DATE_RE, SpaceClash, eventLock, findClash, syncHireLine, createEvent, validateEventInput, validateTimelineInput, coordinatorRefusal, eventWarnings, moneyRefusal, quantityRefusal } from '../services/eventBooking.ts'
 
 // A package minimum is a billing floor, not an entry limit: fewer guests than the minimum are billed at
 // the minimum and the line says so — that is how catering minimums work. A quantity at or above the
@@ -329,10 +329,13 @@ app.post('/:id/menu', requirePermission('contacts:update'), async (c) => {
   // Reject negative money/quantities — a -$50 line was accepted and subtracted
   // from the total (H-01).
   // Say which it is: "abc" is not a number, -50 is negative (T16 L5).
-  if (unitPrice !== null && unitPrice !== undefined && !Number.isFinite(Number(unitPrice))) return c.json({ error: 'Unit price must be a number' }, 400)
-  if (unitPrice !== null && unitPrice !== undefined && Number(unitPrice) < 0) return c.json({ error: 'Unit price cannot be negative' }, 400)
-  if (body.quantity !== undefined && body.quantity !== null && !Number.isFinite(Number(body.quantity))) return c.json({ error: 'Quantity must be a number' }, 400)
-  if (body.quantity !== undefined && body.quantity !== null && Number(body.quantity) < 0) return c.json({ error: 'Quantity cannot be negative' }, 400)
+  // One rule, shared with the edit below and with the event's own quotedTotal: zero is allowed (a
+  // complimentary line), a sub-cent price that would store as $0.00 is not, and a quantity of
+  // nought is not a line. (T51 follow-up — see moneyRefusal in services/eventBooking.ts)
+  {
+    const mErr = moneyRefusal(unitPrice, 'Unit price') || quantityRefusal(body.quantity)
+    if (mErr) return c.json({ error: mErr }, 400)
+  }
 
   // Per-head lines default to the event's head count so the quote follows the guest number instead of
   // being re-typed every time it moves; a package's minimum is then the billing floor.
@@ -382,10 +385,13 @@ app.put('/:id/menu/:lineId', requirePermission('contacts:update'), async (c) => 
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
   // Same guard as POST — the edit path let a line go negative after it was added (H-01); "abc" is not a number (T16 L5).
-  if (updates.unitPrice !== null && updates.unitPrice !== undefined && !Number.isFinite(Number(updates.unitPrice))) return c.json({ error: 'Unit price must be a number' }, 400)
-  if (updates.unitPrice !== null && updates.unitPrice !== undefined && Number(updates.unitPrice) < 0) return c.json({ error: 'Unit price cannot be negative' }, 400)
-  if (updates.quantity !== undefined && updates.quantity !== null && !Number.isFinite(Number(updates.quantity))) return c.json({ error: 'Quantity must be a number' }, 400)
-  if (updates.quantity !== undefined && updates.quantity !== null && Number(updates.quantity) < 0) return c.json({ error: 'Quantity cannot be negative' }, 400)
+  // The same rule on the edit — which is where a price gets corrected and re-mistyped, and the half
+  // the first version of this fix forgot on the instalment route. (T51 follow-up)
+  {
+    const mErr = ('unitPrice' in updates ? moneyRefusal(updates.unitPrice, 'Unit price') : null)
+      || ('quantity' in updates ? quantityRefusal(updates.quantity) : null)
+    if (mErr) return c.json({ error: mErr }, 400)
+  }
   // The billing floor holds on edit too: a package line edited below its minimum is billed at the minimum. (T16 M9)
   if (existing.packageId && ('quantity' in updates || 'perPerson' in updates || 'notes' in updates)) {
     const [pkg] = await db.select().from(menuPackage).where(and(eq(menuPackage.id, existing.packageId), eq(menuPackage.companyId, currentUser.companyId))).limit(1)
@@ -572,21 +578,19 @@ app.post('/:id/payments', requirePermission('invoices:update'), async (c) => {
   if (body.amount === undefined || body.amount === null || body.amount === '') {
     return c.json({ error: 'amount is required' }, 400)
   }
-  // Money must be a positive number (H-01); the schedule total is checked against the invoice below.
-  const amt = Number(body.amount)
-  if (!Number.isFinite(amt) || amt <= 0) {
-    return c.json({ error: 'Amount must be a positive number' }, 400)
-  }
   /**
-   * …AND POSITIVE AFTER ROUNDING. (T51 events: "0.001 amounts are accepted")
+   * Money must be a positive number (H-01); the schedule total is checked against the invoice below.
    *
-   * `amt <= 0` let 0.001 through and the very next line stores `round2(amt)` — "0". So the venue
-   * ended up with an installment on the deposit schedule for $0.00: it appears on the schedule and
-   * on the BEO, it can never be paid, and it cannot be told apart from a real line that someone
-   * has not filled in yet. A cent is the smallest amount money has.
+   * An instalment is the one money field here where ZERO is also wrong — unlike a menu line, which
+   * can be complimentary, scheduling a payment of nothing is never a thing anyone means. So: the
+   * shared rule for "is this a sane amount at all", then the stricter `> 0` this route needs.
+   * (T51 and its follow-up — see moneyRefusal in services/eventBooking.ts)
    */
-  if (round2(amt) <= 0) {
-    return c.json({ error: `${amt} rounds to $0.00 — an installment has to be at least one cent.` }, 400)
+  const amt = Number(body.amount)
+  const mErr = moneyRefusal(body.amount, 'Amount')
+  if (mErr) return c.json({ error: mErr }, 400)
+  if (!Number.isFinite(amt) || round2(amt) <= 0) {
+    return c.json({ error: 'Amount must be a positive number' }, 400)
   }
   if (body.dueDate && !DATE_RE.test(body.dueDate)) return c.json({ error: 'dueDate must be YYYY-MM-DD' }, 400)
 
@@ -636,16 +640,14 @@ app.put('/:id/payments/:paymentId', requirePermission('invoices:update'), async 
   const EDITABLE = ['label', 'amount', 'dueDate', 'notes'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
-  // Same guard as POST — editing a scheduled payment could set a zero/negative amount.
+  // The same two rules as POST, from the same helper, because the edit form is where an amount gets
+  // corrected and re-mistyped. (T51 and its follow-up)
   if ('amount' in updates) {
+    const mErr = moneyRefusal(updates.amount, 'Amount')
+    if (mErr) return c.json({ error: mErr }, 400)
     const amt = Number(updates.amount)
-    if (updates.amount === null || updates.amount === '' || !Number.isFinite(amt) || amt <= 0) {
+    if (updates.amount === null || updates.amount === '' || !Number.isFinite(amt) || round2(amt) <= 0) {
       return c.json({ error: 'Amount must be a positive number' }, 400)
-    }
-    // …including the sub-cent case, which rounds to $0.00 on the line below. The edit form is where
-    // an amount gets corrected and re-mistyped, so the rule has to hold here too. (T51)
-    if (round2(amt) <= 0) {
-      return c.json({ error: `${amt} rounds to $0.00 — an installment has to be at least one cent.` }, 400)
     }
     updates.amount = round2(amt).toString()
   }

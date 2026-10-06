@@ -1,5 +1,6 @@
 import React from 'react';
 import NotFoundPage from './pages/NotFoundPage';
+import AuditLog from './pages/AuditLog';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -169,6 +170,8 @@ function App() {
                     <Route path="bills" element={<BillsPage />} />
                     <Route path="documents" element={<DocumentsPage />} />
                     <Route path="team" element={<TeamPage />} />
+                    {/* Who changed what — the log has always been written and had nowhere to be read. (T51) */}
+                    <Route path="audit" element={<AuditLog />} />
                     <Route path="rfis" element={<RFIsPage />} />
                     <Route path="submittals" element={<SubmittalsPage />} />
                     <Route path="lien-waivers" element={<LienWaiversPage />} />

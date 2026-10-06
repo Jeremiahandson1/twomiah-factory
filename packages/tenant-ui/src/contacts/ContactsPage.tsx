@@ -76,6 +76,27 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
     setModalOpen(true)
   }
 
+  /**
+   * WHERE TO GO BACK TO WHEN THE DIALOG CLOSES. (T51 follow-up)
+   *
+   * Owner: "Contact Edit goes back to the list."
+   *
+   * The Edit button on a contact's own page is a link to `/crm/contacts?edit=<id>` — this list, with
+   * the modal opened over it. So editing a record you were reading took you off that record, and
+   * closing the dialog (or saving) left you on the list with your place lost. On a company with 204
+   * contacts that means scrolling back to find the person you were already looking at.
+   *
+   * `returnTo` is sent explicitly by the detail page rather than inferred from `?edit=` being
+   * present: other callers may well want the list, and a navigation that happens by inference is
+   * the kind nobody can predict from reading either file.
+   */
+  const returnTo = searchParams.get('returnTo')
+  const leaveModal = () => {
+    setModalOpen(false)
+    setDuplicate(null)
+    if (returnTo) navigate(returnTo)
+  }
+
   // Detail pages link here as ?edit=<id>. Fetch that record directly (it may not be on this page),
   // open the modal, then clear the param.
   useEffect(() => {
@@ -104,8 +125,9 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
         await api.post('/api/contacts', allowDuplicate ? { ...form, allowDuplicate: true } : form)
         toast.success('Contact created')
       }
-      setModalOpen(false)
-      setDuplicate(null)
+      // …and back to the record if that is where the edit came from, so a save returns you to what
+      // you were reading rather than to the top of a 204-row list. (T51 follow-up)
+      leaveModal()
       load()
     } catch (err: any) {
       if (err?.status === 409 && err?.data?.duplicate) {
@@ -231,7 +253,7 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
       />
 
       {/* The dialog echoes the button that opened it: "Add Contact" opened something headed "New Contact". (T14 L3) */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Contact' : 'Add Contact'} size="lg">
+      <Modal isOpen={modalOpen} onClose={leaveModal} title={editing ? 'Edit Contact' : 'Add Contact'} size="lg">
         <div className="grid md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
             <Field label="Type">

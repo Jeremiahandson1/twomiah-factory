@@ -206,7 +206,7 @@ export function createSmsService(deps: SmsServiceDeps) {
     const [data, [{ value: total }]] = await Promise.all([
       db.select({ conversation: t.smsConversation, contact: { id: t.contact.id, name: t.contact.name, email: t.contact.email } })
         .from(t.smsConversation).leftJoin(t.contact, eq(t.smsConversation.contactId, t.contact.id))
-        .where(where).orderBy(desc(t.smsConversation.lastMessageAt)).offset((page - 1) * limit).limit(limit),
+        .where(where).orderBy(desc(t.smsConversation.lastMessageAt), asc(t.smsConversation.id)).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(t.smsConversation).where(where),
     ])
     return { data, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } }
@@ -220,7 +220,7 @@ export function createSmsService(deps: SmsServiceDeps) {
     if (conversation.contactId) [contactRow] = await db.select().from(t.contact).where(eq(t.contact.id, conversation.contactId))
     const messages = await db.select({ message: t.smsMessage, sentBy: { firstName: t.user.firstName, lastName: t.user.lastName } })
       .from(t.smsMessage).leftJoin(t.user, eq(t.smsMessage.sentById, t.user.id))
-      .where(eq(t.smsMessage.conversationId, conversationId)).orderBy(asc(t.smsMessage.createdAt)).limit(100)
+      .where(eq(t.smsMessage.conversationId, conversationId)).orderBy(asc(t.smsMessage.createdAt), asc(t.smsMessage.id)).limit(100)
     await db.update(t.smsConversation).set({ unreadCount: 0 }).where(eq(t.smsConversation.id, conversationId))
     // Flat rows: every inbox renders message.direction / message.body directly. (SALON-C3)
     return { ...conversation, contact: withoutPortalCredential(contactRow), messages: messages.map((r: any) => ({ ...r.message, sentBy: r.sentBy })) }
@@ -238,7 +238,7 @@ export function createSmsService(deps: SmsServiceDeps) {
   function getTemplates(companyId: string, { category }: { category?: string } = {}) {
     const conditions: any[] = [eq(t.smsTemplate.companyId, companyId), eq(t.smsTemplate.active, true)]
     if (category) conditions.push(eq(t.smsTemplate.category, category))
-    return db.select().from(t.smsTemplate).where(and(...conditions)).orderBy(asc(t.smsTemplate.name))
+    return db.select().from(t.smsTemplate).where(and(...conditions)).orderBy(asc(t.smsTemplate.name), asc(t.smsTemplate.id))
   }
   function updateTemplate(templateId: string, companyId: string, data: any) {
     const updateData: any = {}

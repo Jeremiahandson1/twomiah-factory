@@ -9,7 +9,7 @@
  * stub shapes the crm build always returned (no location_log/vehicle_trip dependency executed).
  */
 import { Hono } from 'hono'
-import { eq, and, desc, count, gte, lte, sql } from 'drizzle-orm'
+import { eq, and, desc, count, gte, lte, sql, asc } from 'drizzle-orm'
 
 const METERS_PER_MILE = 1609.344
 export type LivePosition = { lat: number; lng: number; speed: number | null; accuracy: number | null; timestamp: Date }
@@ -89,8 +89,8 @@ export function createFleetService(deps: FleetServiceDeps) {
   async function getVehicle(vehicleId: string, companyId: string) {
     const [found] = await db.select().from(vehicle).where(and(eq(vehicle.id, vehicleId), eq(vehicle.companyId, companyId)))
     if (!found) return null
-    const maintenanceLogs = await db.select().from(vehicleMaintenance).where(eq(vehicleMaintenance.vehicleId, vehicleId)).orderBy(desc(vehicleMaintenance.performedAt)).limit(10)
-    const fuelEntries = await db.select().from(fuelLog).where(eq(fuelLog.vehicleId, vehicleId)).orderBy(desc(fuelLog.createdAt)).limit(10)
+    const maintenanceLogs = await db.select().from(vehicleMaintenance).where(eq(vehicleMaintenance.vehicleId, vehicleId)).orderBy(desc(vehicleMaintenance.performedAt), asc(vehicleMaintenance.id)).limit(10)
+    const fuelEntries = await db.select().from(fuelLog).where(eq(fuelLog.vehicleId, vehicleId)).orderBy(desc(fuelLog.createdAt), asc(fuelLog.id)).limit(10)
     return { ...found, maintenanceLogs, fuelEntries }
   }
 
@@ -130,7 +130,7 @@ export function createFleetService(deps: FleetServiceDeps) {
     if (opts.startDate) conditions.push(gte(locationLog.timestamp, new Date(opts.startDate)))
     if (opts.endDate) conditions.push(lte(locationLog.timestamp, new Date(opts.endDate)))
     return db.select({ lat: locationLog.lat, lng: locationLog.lng, accuracy: locationLog.accuracy, timestamp: locationLog.timestamp })
-      .from(locationLog).where(and(...conditions)).orderBy(desc(locationLog.timestamp)).limit(500)
+      .from(locationLog).where(and(...conditions)).orderBy(desc(locationLog.timestamp), asc(locationLog.id)).limit(500)
   }
 
   async function getFleetLocations(companyId: string) {
@@ -188,7 +188,7 @@ export function createFleetService(deps: FleetServiceDeps) {
       vehicleName: vehicle.name, driverFirst: user.firstName, driverLast: user.lastName,
     })
       .from(vehicleTrip).leftJoin(vehicle, eq(vehicleTrip.vehicleId, vehicle.id)).leftJoin(user, eq(vehicleTrip.userId, user.id))
-      .where(eq(vehicleTrip.companyId, companyId)).orderBy(desc(vehicleTrip.startTime)).limit(100)
+      .where(eq(vehicleTrip.companyId, companyId)).orderBy(desc(vehicleTrip.startTime), asc(vehicleTrip.id)).limit(100)
     const data = rowsArr.map((r: any) => ({
       id: r.id,
       vehicle: { name: r.vehicleName },
@@ -224,7 +224,7 @@ export function createFleetService(deps: FleetServiceDeps) {
     const due: Array<{ vehicle: any; alerts: Array<{ type: string; message: string }> }> = []
     const soon = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     for (const v of vehicles) {
-      const logs = await db.select().from(vehicleMaintenance).where(eq(vehicleMaintenance.vehicleId, v.id)).orderBy(desc(vehicleMaintenance.performedAt))
+      const logs = await db.select().from(vehicleMaintenance).where(eq(vehicleMaintenance.vehicleId, v.id)).orderBy(desc(vehicleMaintenance.performedAt), asc(vehicleMaintenance.id))
       const alerts: Array<{ type: string; message: string }> = []
       for (const log of logs) {
         if (log.nextDueDate && new Date(log.nextDueDate) <= soon) alerts.push({ type: log.type || 'service', message: `${log.type || 'Service'} due by ${new Date(log.nextDueDate).toLocaleDateString()}` })
@@ -254,7 +254,7 @@ export function createFleetService(deps: FleetServiceDeps) {
   async function getFuelStats(vehicleId: string, companyId: string, { months = 3 }: { months?: number } = {}) {
     if (!(await ownedVehicle(vehicleId, companyId))) return { entries: [], totalCost: 0, totalGallons: 0, avgMpg: 0, fillUps: 0 }
     const since = new Date(Date.now() - months * 30 * 24 * 60 * 60 * 1000)
-    const entries = await db.select().from(fuelLog).where(and(eq(fuelLog.vehicleId, vehicleId), gte(fuelLog.createdAt, since))).orderBy(desc(fuelLog.createdAt))
+    const entries = await db.select().from(fuelLog).where(and(eq(fuelLog.vehicleId, vehicleId), gte(fuelLog.createdAt, since))).orderBy(desc(fuelLog.createdAt), asc(fuelLog.id))
     const totalCost = entries.reduce((s: number, e: any) => s + Number(e.totalCost || 0), 0)
     const totalGallons = entries.reduce((s: number, e: any) => s + Number(e.gallons || 0), 0)
     return { entries, totalCost, totalGallons, avgMpg: 0, fillUps: entries.length }

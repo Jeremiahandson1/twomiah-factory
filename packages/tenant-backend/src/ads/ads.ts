@@ -21,7 +21,7 @@
 // the monthly budget from it). The upstream request body is rebuilt from validated fields — nothing else is forwarded.
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq, and, desc, sql, inArray } from 'drizzle-orm'
+import { eq, and, desc, sql, inArray, asc } from 'drizzle-orm'
 
 export interface AdsTables { company: any; adsExperiment: any; adsExperimentAssignment: any; adsExperimentConversion: any }
 export interface AdsDeps {
@@ -364,7 +364,7 @@ export function createAdsRoutes(deps: AdsDeps) {
   }
 
   app.get('/experiments', requirePermission('ads:read'), async (c) => {
-    const rows = await db.select().from(E).where(eq(E.companyId, (c.get('user') as any).companyId)).orderBy(desc(E.createdAt))
+    const rows = await db.select().from(E).where(eq(E.companyId, (c.get('user') as any).companyId)).orderBy(desc(E.createdAt), asc(E.id))
     return c.json({ experiments: await hydrate(rows) })
   })
   app.post('/experiments', requirePermission('ads:update'), async (c) => {
@@ -428,7 +428,7 @@ export function createAdsPublicRoutes(deps: AdsPublicDeps) {
     const b = await read(c)
     const path = str(b.path, 300), visitorId = str(b.visitorId, 100)
     if (!path || !visitorId) return c.json({ variant: null })
-    const [exp] = await db.select().from(E).where(and(eq(E.path, path), eq(E.status, 'running'))).orderBy(desc(E.startedAt)).limit(1)
+    const [exp] = await db.select().from(E).where(and(eq(E.path, path), eq(E.status, 'running'))).orderBy(desc(E.startedAt), asc(E.id)).limit(1)
     if (!exp) return c.json({ variant: null })
     const [existing] = await db.select({ variantKey: A.variantKey }).from(A).where(and(eq(A.experimentId, exp.id), eq(A.visitorId, visitorId))).limit(1)
     if (existing) return c.json({ experimentId: exp.id, variant: existing.variantKey })

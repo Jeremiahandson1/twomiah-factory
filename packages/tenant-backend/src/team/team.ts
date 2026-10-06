@@ -124,7 +124,7 @@ export function createTeamRoutes(deps: TeamDeps) {
     if (search) { const p = `%${escapeLike(search)}%`; conditions.push(or(ilike(t.teamMember.name, p), ilike(t.teamMember.email, p), ilike(t.teamMember.role, p))!) }
     const where = and(...conditions)
     const [data, [{ value: total }]] = await Promise.all([
-      db.select().from(t.teamMember).where(where).orderBy(asc(t.teamMember.name)).offset((page - 1) * limit).limit(limit),
+      db.select().from(t.teamMember).where(where).orderBy(asc(t.teamMember.name), asc(t.teamMember.id)).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(t.teamMember).where(where),
     ])
     // ONE Team list: the roster plus every login account not already on it (matched by email), the login
@@ -139,7 +139,7 @@ export function createTeamRoutes(deps: TeamDeps) {
       if (activeFilter !== undefined) uConds.push(eq(t.user.isActive, activeFilter))
       const [users, roster] = await Promise.all([
         db.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName, email: t.user.email, phone: t.user.phone, role: t.user.role, isActive: t.user.isActive })
-          .from(t.user).where(and(...uConds)).orderBy(asc(t.user.firstName)),
+          .from(t.user).where(and(...uConds)).orderBy(asc(t.user.firstName), asc(t.user.id)),
         db.select({ email: t.teamMember.email }).from(t.teamMember).where(eq(t.teamMember.companyId, user.companyId)),
       ])
       const onRoster = new Set(roster.map((r: any) => String(r.email || '').toLowerCase()).filter(Boolean))
@@ -193,13 +193,13 @@ export function createTeamRoutes(deps: TeamDeps) {
         eq(t.user.companyId, user.companyId),
         eq(t.user.isActive, true),
         ne(t.user.role, 'viewer'),
-      )).orderBy(asc(t.user.firstName))
+      )).orderBy(asc(t.user.firstName), asc(t.user.id))
     const data = rows.map((u: any) => ({ id: u.id, name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email, email: u.email, role: u.role, active: u.isActive, kind: 'user' as const }))
     // Roster-only crew can be assigned work too, so they belong in the picker — matched to the login users by
     // email so somebody who has both a login and a roster card is offered once, as their login. (T21 M12)
     const seen = new Set(rows.map((u: any) => String(u.email || '').toLowerCase()).filter(Boolean))
     const members = await db.select({ id: t.teamMember.id, name: t.teamMember.name, email: t.teamMember.email, role: t.teamMember.role })
-      .from(t.teamMember).where(and(eq(t.teamMember.companyId, user.companyId), eq(t.teamMember.active, true))).orderBy(asc(t.teamMember.name))
+      .from(t.teamMember).where(and(eq(t.teamMember.companyId, user.companyId), eq(t.teamMember.active, true))).orderBy(asc(t.teamMember.name), asc(t.teamMember.id))
     for (const m of members) {
       if (m.email && seen.has(String(m.email).toLowerCase())) continue
       data.push({ id: m.id, name: m.name, email: m.email, role: m.role, active: true, kind: 'member' as const } as any)

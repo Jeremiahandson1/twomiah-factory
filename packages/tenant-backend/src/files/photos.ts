@@ -5,7 +5,7 @@
 import { Hono } from 'hono'
 import crypto from 'crypto'
 import sharp from 'sharp'
-import { eq, and, desc, count } from 'drizzle-orm'
+import { eq, and, desc, count, asc } from 'drizzle-orm'
 import type { FileStorage } from './storage'
 
 export interface PhotoTables { document: any; user: any; project: any; job: any }
@@ -111,7 +111,7 @@ export function createPhotoRoutes(deps: PhotoDeps) {
     if (q.category) conditions.push(eq(t.document.type, q.category))
     const where = and(...conditions)
     const [rows, [{ value: total }]] = await Promise.all([
-      withRelations(where).orderBy(desc(t.document.createdAt)).offset((page - 1) * limit).limit(limit),
+      withRelations(where).orderBy(desc(t.document.createdAt), asc(t.document.id)).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(t.document).where(where),
     ])
     return c.json({ data: rows.map(shape), pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })

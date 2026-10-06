@@ -29,7 +29,11 @@ for (const need of ['export function validateEventInput(', 'export function vali
 const tl = svc.slice(svc.indexOf('export function validateTimelineInput('), svc.indexOf('export class SpaceClash'))
 if (!/TIME_RE\.test\(input\.time\.trim\(\)\)/.test(tl) || !/TIMELINE_DEPARTMENTS as readonly string\[\]\)\.includes\(input\.department\)/.test(tl)) fail('validateTimelineInput must check HH:MM time and the department list')
 const v = svc.slice(svc.indexOf('export function validateEventInput('), svc.indexOf('export class SpaceClash'))
-for (const [re, what] of [[/isCalendarDate\(input\.eventDate\)/, 'a real calendar date'], [/EVENT_STATUSES\.includes\(input\.status\)/, 'status in the enum'], [/EVENT_TYPES\.includes\(input\.eventType\)/, 'type in the enum'], [/TIME_RE\.test\(v\)/, 'HH:MM times'], [/End time must be after the start time/, 'end after start'], [/Guest count must be between 0 and 1,000,000/, 'guest range'], [/cannot be negative/, 'non-negative money']] as const) {
+// `moneyRefusal`, not the literal 'cannot be negative': the money rule moved into one helper so
+// quotedTotal and depositRequired get the sub-cent check too, and pinning the old inline string
+// would have failed on a change that made the rule STRICTER. The helper's own branches are asserted
+// in check-events-nonneg.ts. (T51 follow-up)
+for (const [re, what] of [[/isCalendarDate\(input\.eventDate\)/, 'a real calendar date'], [/EVENT_STATUSES\.includes\(input\.status\)/, 'status in the enum'], [/EVENT_TYPES\.includes\(input\.eventType\)/, 'type in the enum'], [/TIME_RE\.test\(v\)/, 'HH:MM times'], [/End time must be after the start time/, 'end after start'], [/Guest count must be between 0 and 1,000,000/, 'guest range'], [/moneyRefusal\(input\[k\], label\)/, 'quotedTotal and depositRequired through the money rule']] as const) {
   if (!re.test(v)) fail(`validateEventInput must check ${what}`)
 }
 

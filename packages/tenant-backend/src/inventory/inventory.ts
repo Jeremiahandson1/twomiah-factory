@@ -178,7 +178,7 @@ async function getItems(companyId: string, {
     db.select()
       .from(inventoryItem)
       .where(whereClause)
-      .orderBy(asc(inventoryItem.name))
+      .orderBy(asc(inventoryItem.name), asc(inventoryItem.id))
       .offset((page - 1) * limit)
       .limit(limit),
     db.select({ value: count() })
@@ -245,7 +245,7 @@ async function getItem(itemId: string, companyId: string) {
     .leftJoin(job, eq(inventoryUsage.jobId, job.id))
     .leftJoin(user, eq(inventoryUsage.userId, user.id))
     .where(eq(inventoryUsage.itemId, itemId))
-    .orderBy(desc(inventoryUsage.createdAt))
+    .orderBy(desc(inventoryUsage.createdAt), asc(inventoryUsage.id))
     .limit(20)
 
   return {
@@ -317,7 +317,7 @@ async function getLocations(companyId: string, { type, active = true }: { type?:
     .from(inventoryLocation)
     .leftJoin(user, eq(inventoryLocation.assignedUserId, user.id))
     .where(and(...conditions))
-    .orderBy(asc(inventoryLocation.name))
+    .orderBy(asc(inventoryLocation.name), asc(inventoryLocation.id))
 
   // Get stock level counts per location
   const locationIds = locations.map(l => l.inventory_location.id)
@@ -354,7 +354,7 @@ async function getLocationInventory(locationId: string, companyId: string) {
     .from(stockLevel)
     .innerJoin(inventoryItem, eq(stockLevel.itemId, inventoryItem.id))
     .where(and(eq(stockLevel.locationId, locationId), gt(stockLevel.quantity, 0)))
-    .orderBy(asc(inventoryItem.name))
+    .orderBy(asc(inventoryItem.name), asc(inventoryItem.id))
 
   return {
     ...location,
@@ -779,7 +779,7 @@ async function getPurchaseOrders(companyId: string, { status, page = 1, limit = 
       .from(purchaseOrder)
       .leftJoin(inventoryLocation, eq(purchaseOrder.locationId, inventoryLocation.id))
       .where(whereClause)
-      .orderBy(desc(purchaseOrder.createdAt))
+      .orderBy(desc(purchaseOrder.createdAt), asc(purchaseOrder.id))
       .offset((page - 1) * limit)
       .limit(limit),
     db.select({ value: count() })

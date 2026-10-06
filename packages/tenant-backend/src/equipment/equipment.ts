@@ -92,7 +92,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
     return result
   }
   async function getEquipmentTypes(companyId: string) {
-    return db.select().from(equipmentCategory).where(eq(equipmentCategory.companyId, companyId)).orderBy(asc(equipmentCategory.name))
+    return db.select().from(equipmentCategory).where(eq(equipmentCategory.companyId, companyId)).orderBy(asc(equipmentCategory.name), asc(equipmentCategory.id))
   }
 
   // ---- equipment ----
@@ -244,7 +244,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
     const whereClause = and(...conditions)
 
     const [data, [{ value: total }]] = await Promise.all([
-      db.select().from(equipment).where(whereClause).orderBy(desc(equipment.createdAt)).offset((page - 1) * limit).limit(limit),
+      db.select().from(equipment).where(whereClause).orderBy(desc(equipment.createdAt), asc(equipment.id)).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(equipment).where(whereClause),
     ])
 
@@ -294,7 +294,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
     if (!result) return null
 
     const [maintenanceHistory, categoryResult, contactResult, linkedJobs] = await Promise.all([
-      db.select().from(equipmentMaintenance).where(eq(equipmentMaintenance.equipmentId, equipmentId)).orderBy(desc(equipmentMaintenance.performedAt)),
+      db.select().from(equipmentMaintenance).where(eq(equipmentMaintenance.equipmentId, equipmentId)).orderBy(desc(equipmentMaintenance.performedAt), asc(equipmentMaintenance.id)),
       result.categoryId
         ? db.select().from(equipmentCategory).where(eq(equipmentCategory.id, result.categoryId)).limit(1)
         : Promise.resolve([]),
@@ -305,7 +305,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
         ? db.select({
             id: job.id, number: job.number, title: job.title, status: job.status, jobType: job.jobType,
             scheduledDate: job.scheduledDate, completedAt: job.completedAt, assignedToId: job.assignedToId,
-          }).from(job).where(and(eq(job.equipmentId, equipmentId), eq(job.companyId, companyId))).orderBy(desc(job.scheduledDate))
+          }).from(job).where(and(eq(job.equipmentId, equipmentId), eq(job.companyId, companyId))).orderBy(desc(job.scheduledDate), asc(job.id))
         : Promise.resolve([]),
     ])
 
@@ -397,7 +397,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
   }
   async function getServiceHistory(equipmentId: string, companyId: string) {
     if (!(await ownsEquipment(equipmentId, companyId))) return null
-    return db.select().from(equipmentMaintenance).where(eq(equipmentMaintenance.equipmentId, equipmentId)).orderBy(desc(equipmentMaintenance.performedAt))
+    return db.select().from(equipmentMaintenance).where(eq(equipmentMaintenance.equipmentId, equipmentId)).orderBy(desc(equipmentMaintenance.performedAt), asc(equipmentMaintenance.id))
   }
 
   // ---- reports & alerts ----
@@ -423,7 +423,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
       stillOwned(),
       gte(equipment.warrantyExpiry, new Date()),
       lte(equipment.warrantyExpiry, expiryDate),
-    )).orderBy(asc(equipment.warrantyExpiry))
+    )).orderBy(asc(equipment.warrantyExpiry), asc(equipment.id))
   }
 
   async function getAgingEquipment(companyId: string, { minAgeYears = 10 }: { minAgeYears?: number } = {}) {
@@ -432,7 +432,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
       eq(equipment.companyId, companyId),
       stillOwned(),
       lte(equipment.purchaseDate, cutoffDate),
-    )).orderBy(asc(equipment.purchaseDate))
+    )).orderBy(asc(equipment.purchaseDate), asc(equipment.id))
   }
 
   /**

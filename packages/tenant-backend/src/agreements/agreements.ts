@@ -135,7 +135,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
   async function getPlans(companyId: string, { active }: { active?: boolean | null } = {}) {
     const conditions = [eq(agreementPlan.companyId, companyId)]
     if (active !== null && active !== undefined) conditions.push(eq(agreementPlan.active, active))
-    return db.select().from(agreementPlan).where(and(...conditions)).orderBy(asc(agreementPlan.name))
+    return db.select().from(agreementPlan).where(and(...conditions)).orderBy(asc(agreementPlan.name), asc(agreementPlan.id))
   }
   async function createPlan(companyId: string, data: any) {
     const [plan] = await db.insert(agreementPlan).values({
@@ -359,7 +359,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     }
     const whereClause = and(...conditions)
     const [rows, [{ value: total }]] = await Promise.all([
-      db.select().from(serviceAgreement).where(whereClause).orderBy(asc(serviceAgreement.endDate)).offset((page - 1) * limit).limit(limit),
+      db.select().from(serviceAgreement).where(whereClause).orderBy(asc(serviceAgreement.endDate), asc(serviceAgreement.id)).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(serviceAgreement).where(whereClause),
     ])
     const data = await withRelations(companyId, rows)
@@ -371,7 +371,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     const [result] = await db.select().from(serviceAgreement)
       .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId))).limit(1)
     if (!result) return null
-    const visits = await db.select().from(agreementVisit).where(eq(agreementVisit.agreementId, agreementId)).orderBy(desc(agreementVisit.scheduledDate))
+    const visits = await db.select().from(agreementVisit).where(eq(agreementVisit.agreementId, agreementId)).orderBy(desc(agreementVisit.scheduledDate), asc(agreementVisit.id))
     const [withRel] = await withRelations(companyId, [result])
     return { ...withRel, visits }
   }
@@ -808,7 +808,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     return db.select().from(serviceAgreement).where(and(
       eq(serviceAgreement.companyId, companyId), eq(serviceAgreement.status, 'active'),
       lte(serviceAgreement.endDate, endDate), gte(serviceAgreement.endDate, new Date()), eq(serviceAgreement.renewalType, 'manual'),
-    )).orderBy(asc(serviceAgreement.endDate))
+    )).orderBy(asc(serviceAgreement.endDate), asc(serviceAgreement.id))
   }
 
   // ---- recurrence (fs / landscaping maintenance contracts) ----

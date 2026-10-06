@@ -389,7 +389,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       const [next] = ids.length && t.appointment
         ? await db.select({ startTime: t.appointment.startTime }).from(t.appointment)
             .where(and(inArray(t.appointment.patientId, ids), gte(t.appointment.startTime, new Date()), notInArray(t.appointment.status, ['cancelled', 'no_show'])))
-            .orderBy(asc(t.appointment.startTime)).limit(1)
+            .orderBy(asc(t.appointment.startTime), asc(t.appointment.id)).limit(1)
         : [undefined]
       pets = { pets: ids.length, vaccinationsDue: Number(due?.value || 0), nextAppointment: next?.startTime ? new Date(next.startTime).toISOString() : null }
     }
@@ -412,7 +412,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   // chart, the notes and the prescriptions stay inside the practice. (T12 H6)
   if (has.pets) {
     const myPets = async (contactId: string, companyId: string) =>
-      db.select().from(t.patient).where(and(eq(t.patient.companyId, companyId), eq(t.patient.ownerId, contactId))).orderBy(asc(t.patient.name))
+      db.select().from(t.patient).where(and(eq(t.patient.companyId, companyId), eq(t.patient.ownerId, contactId))).orderBy(asc(t.patient.name), asc(t.patient.id))
 
     app.get('/p/:token/pets', portalAuth, async (c) => {
       const { contact } = P(c)
@@ -420,11 +420,11 @@ export function createPortalRoutes(deps: PortalDeps) {
       const ids = rows.map((p: any) => p.id)
       const vaccinations = ids.length && t.vaccination
         ? await db.select({ patientId: t.vaccination.patientId, vaccine: t.vaccination.vaccine, dueDate: t.vaccination.dueDate }).from(t.vaccination)
-            .where(and(inArray(t.vaccination.patientId, ids), sql`${t.vaccination.dueDate} IS NOT NULL`)).orderBy(asc(t.vaccination.dueDate))
+            .where(and(inArray(t.vaccination.patientId, ids), sql`${t.vaccination.dueDate} IS NOT NULL`)).orderBy(asc(t.vaccination.dueDate), asc(t.vaccination.id))
         : []
       const upcoming = ids.length && t.appointment
         ? await db.select({ patientId: t.appointment.patientId, startTime: t.appointment.startTime, reason: t.appointment.reason, status: t.appointment.status }).from(t.appointment)
-            .where(and(inArray(t.appointment.patientId, ids), gte(t.appointment.startTime, new Date()), notInArray(t.appointment.status, ['cancelled', 'no_show']))).orderBy(asc(t.appointment.startTime))
+            .where(and(inArray(t.appointment.patientId, ids), gte(t.appointment.startTime, new Date()), notInArray(t.appointment.status, ['cancelled', 'no_show']))).orderBy(asc(t.appointment.startTime), asc(t.appointment.id))
         : []
       const todayIso = new Date().toISOString().slice(0, 10)
       return c.json(rows.map((p: any) => {
@@ -447,11 +447,11 @@ export function createPortalRoutes(deps: PortalDeps) {
       if (!pet) return c.json({ error: 'Pet not found' }, 404)
       const [vaccinations, appointments, visits] = await Promise.all([
         t.vaccination ? db.select({ id: t.vaccination.id, vaccine: t.vaccination.vaccine, givenDate: t.vaccination.givenDate, dueDate: t.vaccination.dueDate })
-          .from(t.vaccination).where(eq(t.vaccination.patientId, pet.id)).orderBy(desc(t.vaccination.givenDate)) : Promise.resolve([]),
+          .from(t.vaccination).where(eq(t.vaccination.patientId, pet.id)).orderBy(desc(t.vaccination.givenDate), asc(t.vaccination.id)) : Promise.resolve([]),
         t.appointment ? db.select({ id: t.appointment.id, startTime: t.appointment.startTime, endTime: t.appointment.endTime, reason: t.appointment.reason, status: t.appointment.status })
-          .from(t.appointment).where(and(eq(t.appointment.patientId, pet.id), notInArray(t.appointment.status, ['cancelled', 'no_show']))).orderBy(desc(t.appointment.startTime)).limit(20) : Promise.resolve([]),
+          .from(t.appointment).where(and(eq(t.appointment.patientId, pet.id), notInArray(t.appointment.status, ['cancelled', 'no_show']))).orderBy(desc(t.appointment.startTime), asc(t.appointment.id)).limit(20) : Promise.resolve([]),
         t.visit ? db.select({ id: t.visit.id, visitDate: t.visit.visitDate, reason: t.visit.reason }).from(t.visit)
-          .where(eq(t.visit.patientId, pet.id)).orderBy(desc(t.visit.visitDate)).limit(20) : Promise.resolve([]),
+          .where(eq(t.visit.patientId, pet.id)).orderBy(desc(t.visit.visitDate), asc(t.visit.id)).limit(20) : Promise.resolve([]),
       ])
       // The chart's clinical detail (notes, alerts, prescriptions) is deliberately not in this payload.
       return c.json({
@@ -466,7 +466,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     app.get('/p/:token/projects', portalAuth, gate('projects'), async (c) => {
       const { contact } = P(c)
       const rows = await db.select({ id: t.project.id, number: t.project.number, name: t.project.name, status: t.project.status, progress: t.project.progress, startDate: t.project.startDate, endDate: t.project.endDate, address: t.project.address, city: t.project.city, state: t.project.state })
-        .from(t.project).where(eq(t.project.contactId, contact.id)).orderBy(desc(t.project.createdAt))
+        .from(t.project).where(eq(t.project.contactId, contact.id)).orderBy(desc(t.project.createdAt), asc(t.project.id))
       return c.json(rows)
     })
     app.get('/p/:token/projects/:projectId', portalAuth, gate('projects'), async (c) => {
@@ -475,7 +475,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       const [found] = await db.select().from(t.project).where(and(eq(t.project.id, projectId), eq(t.project.contactId, contact.id))).limit(1)
       if (!found) return c.json({ error: 'Project not found' }, 404)
       const jobs = t.job
-        ? await db.select({ id: t.job.id, number: t.job.number, title: t.job.title, status: t.job.status, scheduledDate: t.job.scheduledDate }).from(t.job).where(eq(t.job.projectId, projectId)).orderBy(desc(t.job.scheduledDate)).limit(10)
+        ? await db.select({ id: t.job.id, number: t.job.number, title: t.job.title, status: t.job.status, scheduledDate: t.job.scheduledDate }).from(t.job).where(eq(t.job.projectId, projectId)).orderBy(desc(t.job.scheduledDate), asc(t.job.id)).limit(10)
         : []
       return c.json({ ...found, jobs })
     })
@@ -485,7 +485,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   app.get('/p/:token/quotes', portalAuth, async (c) => {
     const { contact } = P(c)
     const rows = await db.select({ id: t.quote.id, number: t.quote.number, name: t.quote.name, status: t.quote.status, total: t.quote.total, expiryDate: t.quote.expiryDate, createdAt: t.quote.createdAt })
-      .from(t.quote).where(and(eq(t.quote.contactId, contact.id), notInArray(t.quote.status, PORTAL_QUOTE_HIDDEN))).orderBy(desc(t.quote.createdAt))
+      .from(t.quote).where(and(eq(t.quote.contactId, contact.id), notInArray(t.quote.status, PORTAL_QUOTE_HIDDEN))).orderBy(desc(t.quote.createdAt), asc(t.quote.id))
     return c.json(rows)
   })
   const visibleQuote = async (quoteId: string, contactId: string) => {
@@ -497,7 +497,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     const quoteId = c.req.param('quoteId')
     const found = await visibleQuote(quoteId, contact.id)
     if (!found) return c.json({ error: 'Quote not found' }, 404)
-    const lineItems = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder))
+    const lineItems = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
     let projectInfo = null
     if (found.projectId && t.project) {
       const [p] = await db.select({ name: t.project.name, number: t.project.number }).from(t.project).where(eq(t.project.id, found.projectId)).limit(1)
@@ -569,7 +569,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     const quoteId = c.req.param('quoteId')
     const found = await visibleQuote(quoteId, contact.id)
     if (!found) return c.json({ error: 'Quote not found' }, 404)
-    const lineItems = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder))
+    const lineItems = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
     const generate = await loadQuotePdf()
     const pdf = await generate({ ...found, lineItems, contact }, await fullCompany(contact.companyId))
     return new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="quote-${found.number}.pdf"` } })
@@ -586,7 +586,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     // total) owes nothing; otherwise total − money actually kept (paid − refunded). A refunded *deposit*
     // therefore reopens the balance, matching the owner side to the cent.
     const rows = await db.select({ id: t.invoice.id, number: t.invoice.number, status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, balance: sql<string>`CASE WHEN ${t.invoice.status} = 'void' OR COALESCE(${t.invoice.amountRefunded}, 0) >= ${t.invoice.total} OR ${t.invoice.amountPaid} >= ${t.invoice.total} THEN 0 ELSE GREATEST(0, ${t.invoice.total} - (${t.invoice.amountPaid} - COALESCE(${t.invoice.amountRefunded}, 0))) END`, dueDate: t.invoice.dueDate, createdAt: t.invoice.createdAt })
-      .from(t.invoice).where(and(eq(t.invoice.contactId, contact.id), notInArray(t.invoice.status, PORTAL_INVOICE_HIDDEN))).orderBy(desc(t.invoice.createdAt))
+      .from(t.invoice).where(and(eq(t.invoice.contactId, contact.id), notInArray(t.invoice.status, PORTAL_INVOICE_HIDDEN))).orderBy(desc(t.invoice.createdAt), asc(t.invoice.id))
     // Show "overdue" (derived from due date + balance), matching the owner side — a past-due invoice
     // used to still read "sent" here. deriveStatus only flips open+past-due+owing rows; the rest pass through.
     return c.json(rows.map(r => ({ ...r, status: deriveStatus(r) })))
@@ -596,8 +596,8 @@ export function createPortalRoutes(deps: PortalDeps) {
     const invoiceId = c.req.param('invoiceId')
     const found = await visibleInvoice(invoiceId, contact.id)
     if (!found) return c.json({ error: 'Invoice not found' }, 404)
-    const lineItems = await db.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, invoiceId)).orderBy(asc(t.invoiceLineItem.sortOrder))
-    const payments = await db.select().from(t.payment).where(eq(t.payment.invoiceId, invoiceId)).orderBy(desc(t.payment.paidAt))
+    const lineItems = await db.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, invoiceId)).orderBy(asc(t.invoiceLineItem.sortOrder), asc(t.invoiceLineItem.id))
+    const payments = await db.select().from(t.payment).where(eq(t.payment.invoiceId, invoiceId)).orderBy(desc(t.payment.paidAt), asc(t.payment.id))
     let projectInfo = null
     if (found.projectId && t.project) {
       const [p] = await db.select({ name: t.project.name, number: t.project.number }).from(t.project).where(eq(t.project.id, found.projectId)).limit(1)
@@ -611,8 +611,8 @@ export function createPortalRoutes(deps: PortalDeps) {
     const invoiceId = c.req.param('invoiceId')
     const found = await visibleInvoice(invoiceId, contact.id)
     if (!found) return c.json({ error: 'Invoice not found' }, 404)
-    const lineItems = await db.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, invoiceId)).orderBy(asc(t.invoiceLineItem.sortOrder))
-    const payments = await db.select().from(t.payment).where(eq(t.payment.invoiceId, invoiceId)).orderBy(desc(t.payment.paidAt))
+    const lineItems = await db.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, invoiceId)).orderBy(asc(t.invoiceLineItem.sortOrder), asc(t.invoiceLineItem.id))
+    const payments = await db.select().from(t.payment).where(eq(t.payment.invoiceId, invoiceId)).orderBy(desc(t.payment.paidAt), asc(t.payment.id))
     const generate = await loadInvoicePdf()
     const pdf = await generate({ ...found, lineItems, payments, contact }, await fullCompany(contact.companyId))
     return new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="invoice-${found.number}.pdf"` } })
@@ -651,7 +651,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       const projectIds = await contactProjectIds(contact.id)
       if (projectIds.length === 0) return c.json([])
       const rows = await db.select(coSelect()).from(t.changeOrder).leftJoin(t.project, eq(t.changeOrder.projectId, t.project.id))
-        .where(and(inArray(t.changeOrder.projectId, projectIds), inArray(t.changeOrder.status, CLIENT_VISIBLE))).orderBy(desc(t.changeOrder.createdAt))
+        .where(and(inArray(t.changeOrder.projectId, projectIds), inArray(t.changeOrder.status, CLIENT_VISIBLE))).orderBy(desc(t.changeOrder.createdAt), asc(t.changeOrder.id))
       return c.json(rows)
     })
     const ownCo = async (changeOrderId: string, contactId: string) => {
@@ -782,7 +782,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   }
   app.get('/p/:token/messages', portalAuth, async (c) => {
     const { contact, companyId } = P(c)
-    const rows = await db.select().from(t.message).where(and(eq(t.message.companyId, companyId), eq(t.message.contactId, contact.id))).orderBy(desc(t.message.createdAt))
+    const rows = await db.select().from(t.message).where(and(eq(t.message.companyId, companyId), eq(t.message.contactId, contact.id))).orderBy(desc(t.message.createdAt), asc(t.message.id))
     return c.json(rows)
   })
   app.post('/p/:token/messages', portalAuth, async (c) => {
@@ -824,7 +824,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       if (isCollaborator(contact)) { cols.notes = t.job.notes; if (t.job.estimatedHours) cols.estimatedHours = t.job.estimatedHours; if (t.job.estimatedValue) cols.estimatedValue = t.job.estimatedValue }
       if (t.project) { cols.projectId = t.job.projectId; cols.projectName = t.project.name; cols.projectNumber = t.project.number }
       const base = t.project ? db.select(cols).from(t.job).leftJoin(t.project, eq(t.job.projectId, t.project.id)) : db.select(cols).from(t.job)
-      const rows = await base.where(and(eq(t.job.companyId, contact.companyId), myJobsWhere(contact))).orderBy(desc(t.job.scheduledDate))
+      const rows = await base.where(and(eq(t.job.companyId, contact.companyId), myJobsWhere(contact))).orderBy(desc(t.job.scheduledDate), asc(t.job.id))
       return c.json(rows)
     })
     app.post('/p/:token/my-jobs/:jobId/complete', portalAuth, async (c) => {
@@ -847,7 +847,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       const q = t.project
         ? db.select({ ...base, projectName: t.project.name, projectNumber: t.project.number }).from(t.lienWaiver).leftJoin(t.project, eq(t.lienWaiver.projectId, t.project.id))
         : db.select(base).from(t.lienWaiver)
-      const rows = await q.where(and(eq(t.lienWaiver.companyId, contact.companyId), eq(t.lienWaiver.vendorId, contact.id))).orderBy(desc(t.lienWaiver.createdAt))
+      const rows = await q.where(and(eq(t.lienWaiver.companyId, contact.companyId), eq(t.lienWaiver.vendorId, contact.id))).orderBy(desc(t.lienWaiver.createdAt), asc(t.lienWaiver.id))
       return c.json(rows)
     })
     app.post('/p/:token/lien-waivers/:waiverId/sign', portalAuth, async (c) => {
@@ -871,7 +871,7 @@ export function createPortalRoutes(deps: PortalDeps) {
         ? db.select({ ...base, projectName: t.project.name, projectNumber: t.project.number }).from(t.submittal).leftJoin(t.project, eq(t.submittal.projectId, t.project.id))
         : db.select(base).from(t.submittal)
       // Architects see the company's submittals (scoped by company); per-project assignment is a later refinement.
-      const rows = await q.where(eq(t.submittal.companyId, contact.companyId)).orderBy(desc(t.submittal.createdAt))
+      const rows = await q.where(eq(t.submittal.companyId, contact.companyId)).orderBy(desc(t.submittal.createdAt), asc(t.submittal.id))
       return c.json(rows)
     })
     const ownSubmittal = async (id: string, companyId: string) => { const [row] = await db.select().from(t.submittal).where(and(eq(t.submittal.id, id), eq(t.submittal.companyId, companyId))).limit(1); return row || null }
@@ -905,7 +905,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       const q = t.project
         ? db.select({ ...base, projectName: t.project.name, projectNumber: t.project.number }).from(t.rfi).leftJoin(t.project, eq(t.rfi.projectId, t.project.id))
         : db.select(base).from(t.rfi)
-      const rows = await q.where(and(eq(t.rfi.companyId, contact.companyId), eq(t.rfi.assignedTo, contact.name))).orderBy(desc(t.rfi.createdAt))
+      const rows = await q.where(and(eq(t.rfi.companyId, contact.companyId), eq(t.rfi.assignedTo, contact.name))).orderBy(desc(t.rfi.createdAt), asc(t.rfi.id))
       return c.json(rows)
     })
     app.post('/p/:token/rfis-assigned/:rfiId/respond', portalAuth, async (c) => {
@@ -928,7 +928,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       const q = t.project
         ? db.select({ ...base, projectName: t.project.name }).from(t.documentShare).innerJoin(t.document, eq(t.documentShare.documentId, t.document.id)).leftJoin(t.project, eq(t.document.projectId, t.project.id))
         : db.select(base).from(t.documentShare).innerJoin(t.document, eq(t.documentShare.documentId, t.document.id))
-      const rows = await q.where(and(eq(t.documentShare.contactId, contact.id), eq(t.document.companyId, contact.companyId))).orderBy(desc(t.documentShare.sharedAt))
+      const rows = await q.where(and(eq(t.documentShare.contactId, contact.id), eq(t.document.companyId, contact.companyId))).orderBy(desc(t.documentShare.sharedAt), asc(t.documentShare.id))
       return c.json(rows)
     })
   }
@@ -956,11 +956,11 @@ export function createPortalRoutes(deps: PortalDeps) {
       const access = await projectAccess(contact.id, contact.companyId, projectId)
       if (!access) return c.json({ error: 'Project not found' }, 404)
       if (access === 'owner') {
-        return c.json(await db.select(docCols()).from(t.document).where(and(eq(t.document.companyId, contact.companyId), eq(t.document.projectId, projectId))).orderBy(desc(t.document.createdAt)))
+        return c.json(await db.select(docCols()).from(t.document).where(and(eq(t.document.companyId, contact.companyId), eq(t.document.projectId, projectId))).orderBy(desc(t.document.createdAt), asc(t.document.id)))
       }
       if (!t.documentShare) return c.json([])
       return c.json(await db.select({ ...docCols(), sharedAt: t.documentShare.sharedAt }).from(t.documentShare).innerJoin(t.document, eq(t.documentShare.documentId, t.document.id))
-        .where(and(eq(t.documentShare.contactId, contact.id), eq(t.document.projectId, projectId), eq(t.document.companyId, contact.companyId))).orderBy(desc(t.documentShare.sharedAt)))
+        .where(and(eq(t.documentShare.contactId, contact.id), eq(t.document.projectId, projectId), eq(t.document.companyId, contact.companyId))).orderBy(desc(t.documentShare.sharedAt), asc(t.documentShare.id)))
     })
     app.post('/p/:token/projects/:projectId/files', portalAuth, gate('projectFiles'), async (c) => {
       const { contact } = P(c)
@@ -998,7 +998,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     app.get('/p/:token/equipment', portalAuth, gate('equipment'), async (c) => {
       const { contact } = P(c)
       const list = await db.select({ id: t.equipment.id, name: t.equipment.name, model: t.equipment.model, manufacturer: t.equipment.manufacturer, serialNumber: t.equipment.serialNumber, status: t.equipment.status, location: t.equipment.location, purchaseDate: t.equipment.purchaseDate, warrantyExpiry: t.equipment.warrantyExpiry })
-        .from(t.equipment).where(and(eq(t.equipment.contactId, contact.id), eq(t.equipment.companyId, contact.companyId))).orderBy(asc(t.equipment.name))
+        .from(t.equipment).where(and(eq(t.equipment.contactId, contact.id), eq(t.equipment.companyId, contact.companyId))).orderBy(asc(t.equipment.name), asc(t.equipment.id))
       if (list.length === 0 || !t.job.equipmentId) return c.json(list.map((e: any) => ({ ...e, lastServiceDate: null })))
       const last = await db.select({ equipmentId: t.job.equipmentId, completedAt: sql<string>`MAX(${t.job.completedAt})` }).from(t.job)
         .where(and(inArray(t.job.equipmentId, list.map((e: any) => e.id)), eq(t.job.status, 'completed'))).groupBy(t.job.equipmentId)
@@ -1012,7 +1012,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       if (!unit) return c.json({ error: 'Equipment not found' }, 404)
       if (!t.job.equipmentId) return c.json({ equipment: unit, history: [] })
       const jobs = await db.select({ id: t.job.id, title: t.job.title, status: t.job.status, jobType: t.job.jobType, scheduledDate: t.job.scheduledDate, completedAt: t.job.completedAt, notes: t.job.notes, assignedToId: t.job.assignedToId })
-        .from(t.job).where(and(eq(t.job.equipmentId, equipmentId), eq(t.job.companyId, contact.companyId))).orderBy(desc(t.job.scheduledDate))
+        .from(t.job).where(and(eq(t.job.equipmentId, equipmentId), eq(t.job.companyId, contact.companyId))).orderBy(desc(t.job.scheduledDate), asc(t.job.id))
       const techIds = [...new Set(jobs.filter((j: any) => j.assignedToId).map((j: any) => j.assignedToId))] as string[]
       const techs = techIds.length ? await db.select({ id: t.user.id, firstName: t.user.firstName }).from(t.user).where(inArray(t.user.id, techIds)) : []
       const techMap = Object.fromEntries(techs.map((u: any) => [u.id, u.firstName]))
@@ -1033,7 +1033,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     app.get('/p/:token/agreements', portalAuth, gate('agreements'), async (c) => {
       const { contact } = P(c)
       const rows = await db.select({ id: t.serviceAgreement.id, name: t.serviceAgreement.name, status: t.serviceAgreement.status, startDate: t.serviceAgreement.startDate, endDate: t.serviceAgreement.endDate, renewalType: t.serviceAgreement.renewalType, billingFrequency: t.serviceAgreement.billingFrequency, amount: t.serviceAgreement.amount, terms: t.serviceAgreement.terms, notes: t.serviceAgreement.notes, nextServiceDate: t.serviceAgreement.nextServiceDate })
-        .from(t.serviceAgreement).where(and(eq(t.serviceAgreement.contactId, contact.id), eq(t.serviceAgreement.companyId, contact.companyId))).orderBy(desc(t.serviceAgreement.startDate))
+        .from(t.serviceAgreement).where(and(eq(t.serviceAgreement.contactId, contact.id), eq(t.serviceAgreement.companyId, contact.companyId))).orderBy(desc(t.serviceAgreement.startDate), asc(t.serviceAgreement.id))
       if (!t.agreementVisit || rows.length === 0) return c.json(rows.map((a: any) => ({ ...a, nextVisitDate: a.nextServiceDate || null })))
       const visits = await db.select({ agreementId: t.agreementVisit.agreementId, scheduledDate: sql<string>`MIN(${t.agreementVisit.scheduledDate})` }).from(t.agreementVisit)
         .where(and(inArray(t.agreementVisit.agreementId, rows.map((a: any) => a.id)), eq(t.agreementVisit.status, 'scheduled'))).groupBy(t.agreementVisit.agreementId)

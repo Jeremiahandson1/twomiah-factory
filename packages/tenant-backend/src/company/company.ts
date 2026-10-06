@@ -149,6 +149,25 @@ const safeUrl = z.string().trim()
 const DEFAULT_ROLES = ['admin', 'manager', 'user', 'field', 'viewer']
 const USER_COLUMNS = (user: any) => ({ id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role, isActive: user.isActive })
 
+/**
+ * ONE SPELLING OF ONE ROLE. (T51 follow-up)
+ *
+ * Owner: "'field' and 'user' are both labelled 'Staff'."
+ *
+ * They are labelled the same because they ARE the same role: `user` carries an empty permission list
+ * of its own (auth/permissions.ts:243) and the role mapping always folds `user → field` before any
+ * permission is resolved. So the label is right and the DATA is what is wrong — a company ends up
+ * holding two spellings of one role, and the Team page then shows two people as "Staff" whose stored
+ * roles differ, which reads as a bug because it is one.
+ *
+ * It got that way because POST /users DEFAULTED to `'user'`: every account created without an
+ * explicit role took the legacy spelling. `user` is still ACCEPTED — old clients and scripts send it
+ * — but it is stored as `field` from here on, so the data converges on one value without a migration
+ * and without anybody's access changing. Existing rows keep working: the label map and the role
+ * mapping both still know the old word.
+ */
+const canonicalRole = (role?: string) => (role === 'user' ? 'field' : role)
+
 export function createCompanyRoutes(deps: CompanyDeps) {
   const { db, tables: t, authenticate, requireAdmin, requirePermission, requireAnyPermission, canSee, invalidateExtraPermissions, template, roleLabel } = deps
   const roles = (deps.options?.roles && deps.options.roles.length ? deps.options.roles : DEFAULT_ROLES) as [string, ...string[]]
@@ -433,6 +452,9 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     const parsed = schema.safeParse(body)
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Invalid user details' }, 400)
     const { password, ...rest } = parsed.data
+    // One spelling from here on — see canonicalRole. The schema still DEFAULTS to 'user' because
+    // that default is also what older callers rely on; what changes is what gets stored. (T51)
+    rest.role = canonicalRole(rest.role) as typeof rest.role
     // Hash before opening the transaction — bcrypt takes ~100ms and must not run under a row lock.
     const passwordHash = await Bun.password.hash(password, 'bcrypt')
 
@@ -476,6 +498,10 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     const parsed = schema.safeParse(await readBody(c))
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Invalid changes' }, 400)
     const data = parsed.data
+    // …and on the edit too, so saving an existing 'user' row converts it rather than keeping the
+    // legacy spelling alive. The owner-demotion check below reads data.role, and `field` and `user`
+    // are the same role to it either way. (T51)
+    if (data.role !== undefined) data.role = canonicalRole(data.role) as typeof data.role
     // Grants are the owner's alone to give — an admin cannot widen their own or anyone's access.
     if (data.extraPermissions !== undefined && currentUser.role !== 'owner') return c.json({ error: 'Only the owner can grant or revoke permissions.' }, 403)
     const target = await findTarget(id, currentUser.companyId)

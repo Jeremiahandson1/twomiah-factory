@@ -57,18 +57,25 @@ const defaultPasswordPolicy = {
   mfaRequiredRoles: [] as string[],
 };
 
-const EVENT_TYPES = [
-  { value: '', label: 'All Types' },
-  { value: 'login_failed', label: 'Login Failed' },
-  { value: 'login_success', label: 'Login Success' },
-  { value: 'mfa_enabled', label: 'MFA Enabled' },
-  { value: 'mfa_disabled', label: 'MFA Disabled' },
-  { value: 'password_changed', label: 'Password Changed' },
-  { value: 'session_revoked', label: 'Session Revoked' },
-  { value: 'account_locked', label: 'Account Locked' },
-  { value: 'permission_change', label: 'Permission Change' },
-  { value: 'suspicious_activity', label: 'Suspicious Activity' },
-];
+/**
+ * THE TYPE FILTER IS BUILT FROM THE EVENTS THIS COMPANY HAS. (T51 follow-up)
+ *
+ * Owner: "the type filter has no PIN types."
+ *
+ * This was a hardcoded list of nine — Login Failed, MFA Enabled, Password Changed and so on — and
+ * NOT ONE of them is a value anything in the server writes. The thirteen that are actually written
+ * (pin_login_failed, brute_force_detected, pin_changed, pin_set, pin_removed, and the mfa_* family)
+ * were all absent, so every option in the dropdown filtered the list to nothing, and the PIN events
+ * — the ones that matter on a dispensary, because the till PIN is the credential people share —
+ * could not be isolated at all.
+ *
+ * GET /api/security/events/types returns the distinct types with their counts, so the filter cannot
+ * drift away from the writers again. The label is derived from the value, which means a new event
+ * type appears here the day it is first recorded with no second edit.
+ */
+const typeLabel = (v: string) =>
+  v.replace(/_/g, ' ').replace(/\b(pin|mfa|id)\b/gi, (m) => m.toUpperCase())
+    .replace(/^./, (ch) => ch.toUpperCase());
 
 const SEVERITY_OPTIONS = [
   { value: '', label: 'All Severities' },
@@ -130,6 +137,8 @@ export default function SecurityPage() {
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [eventSummary, setEventSummary] = useState({ critical: 0, warning: 0, info: 0 });
   const [eventTypeFilter, setEventTypeFilter] = useState('');
+  /** The types this company actually has, with counts — see typeLabel above. (T51 follow-up) */
+  const [eventTypes, setEventTypes] = useState<Array<{ value: string; count: number }>>([]);
   const [severityFilter, setSeverityFilter] = useState('');
   const [eventDateFrom, setEventDateFrom] = useState('');
   const [eventDateTo, setEventDateTo] = useState('');
@@ -193,7 +202,9 @@ export default function SecurityPage() {
       if (eventDateTo) params.dateTo = eventDateTo;
       const data = await api.get('/api/security/events', params);
       setEvents(Array.isArray(data) ? data : data?.data || []);
-      if (data?.summary) setEventSummary(data.summary);
+      // GET /events returns { data, pagination } and never a `summary`, so this branch could not
+      // fire. Removed rather than left: two apparent writers for one piece of state is how the real
+      // one stopped being looked at. loadEventSummary below is the only source. (T51 follow-up)
     } catch {
       toast.error('Failed to load security events');
     } finally {
@@ -201,11 +212,39 @@ export default function SecurityPage() {
     }
   }, [eventPage, eventTypeFilter, severityFilter, eventDateFrom, eventDateTo]);
 
+  /**
+   * The filter's own options. Loaded once — the set of event types a company has changes when a new
+   * KIND of thing happens, not on every page of the list. (T51 follow-up)
+   */
+  useEffect(() => {
+    api.get('/api/security/events/types')
+      .then((d: any) => setEventTypes(Array.isArray(d) ? d : d?.data || []))
+      .catch(() => setEventTypes([]));
+  }, []);
+
   // Load event summary
   const loadEventSummary = useCallback(async () => {
     try {
       const data = await api.get('/api/security/events/summary');
-      if (data) setEventSummary(data);
+      /**
+       * THE THREE CARDS READ A SHAPE THE ENDPOINT HAS NEVER SENT. (T51 follow-up)
+       *
+       * Owner: "the Security Events cards are blank."
+       *
+       * This did `setEventSummary(data)` and the cards then read `.critical`, `.warning` and
+       * `.info`. The endpoint returns
+       *     { last24h: { byType: [...], bySeverity: [{severity, count}] }, last7d: …, last30d: … }
+       * so all three were `undefined` and all three cards rendered empty — on a tenant with 41
+       * events, which is the worst version of this: the screen looks like nothing has happened.
+       *
+       * The cards are labelled "(24h)", so they want last24h.bySeverity flattened by severity.
+       * Written tolerantly — a flat {critical,warning,info} is accepted too — so this keeps working
+       * if the endpoint is ever simplified.
+       */
+      const sev: Array<{ severity: string; count: number }> = data?.last24h?.bySeverity ?? [];
+      const of = (k: string) =>
+        Number(sev.find((s) => String(s.severity) === k)?.count ?? data?.[k] ?? 0);
+      setEventSummary({ critical: of('critical'), warning: of('warning'), info: of('info') });
     } catch {
       // silent
     }
@@ -979,8 +1018,9 @@ export default function SecurityPage() {
                 onChange={(e) => { setEventTypeFilter(e.target.value); setEventPage(1); }}
                 className="px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               >
-                {EVENT_TYPES.map(t => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
+                <option value="">All Types</option>
+                {eventTypes.map(t => (
+                  <option key={t.value} value={t.value}>{typeLabel(t.value)} ({t.count})</option>
                 ))}
               </select>
               <select

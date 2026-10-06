@@ -57,6 +57,10 @@ export default function DashboardPage() {
         // omission") and this screen dropped it, so a day whose only sale was refunded showed
         // "Today's Revenue $0.00" with nothing to explain it. (T44)
         todayRefunded: statsData?.today?.refunded || 0,
+        // How many sales came back, beside how much money did — so the Sales Today count and the
+        // revenue under it stop appearing to contradict each other. (T51 follow-up)
+        todayFullyRefunded: statsData?.today?.fullyRefundedOrders || 0,
+        todayPartlyRefunded: statsData?.today?.partlyRefundedOrders || 0,
       });
       setLowStock(Array.isArray(statsData?.lowStockAlerts) ? statsData.lowStockAlerts.map((i: any) => ({
         id: i.id, name: i.name, category: i.category, stock: Number(i.stock_quantity || 0),
@@ -104,6 +108,24 @@ export default function DashboardPage() {
     {
       label: stats?.todayPending ? `Sales Today · ${stats.todayPending} open` : 'Sales Today',
       value: stats?.todayOrders || 0,
+      /**
+       * HOW MANY OF THOSE SALES CAME BACK. (T51 follow-up: "refunds still count in Sales Today")
+       *
+       * The count is the SETTLED count — completed, partially refunded and refunded — because it
+       * has to match the rows the revenue and the average beside it are computed over (T23 H1, and
+       * T29 L1 when this tile read total_orders instead and said 27 against an average drawn from
+       * 22). The figure is right.
+       *
+       * What was wrong is that it said nothing: on a day whose only order was returned in full the
+       * card read "Sales Today 1" directly above "Today's Revenue $0.00", and the reader has to
+       * guess which one is lying. Neither is. The revenue tile gained exactly this note in T44 for
+       * the same reason; this is its other half.
+       */
+      note: Number(stats?.todayFullyRefunded || 0) > 0
+        ? `${stats.todayFullyRefunded} returned in full${Number(stats?.todayPartlyRefunded || 0) > 0 ? `, ${stats.todayPartlyRefunded} in part` : ''}`
+        : Number(stats?.todayPartlyRefunded || 0) > 0
+          ? `${stats.todayPartlyRefunded} partly returned`
+          : null,
       icon: ShoppingCart,
       color: 'blue',
       link: '/crm/orders',

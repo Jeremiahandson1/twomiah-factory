@@ -197,7 +197,7 @@ export function createQuickBooksService(deps: QuickBooksServiceDeps) {
     const results: Array<{ id: string; number: string; success: boolean; action?: string; error?: string }> = []
     for (const inv of invoices) {
       try {
-        const lineItems = await db.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, inv.id)).orderBy(asc(t.invoiceLineItem.sortOrder))
+        const lineItems = await db.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, inv.id)).orderBy(asc(t.invoiceLineItem.sortOrder), asc(t.invoiceLineItem.id))
         const [c] = inv.contactId ? await db.select().from(t.contact).where(eq(t.contact.id, inv.contactId)) : [null]
         if (c && !(c as any).qbCustomerId) await createCustomer(companyId, c)
         const withItems = { ...inv, lineItems, contact: c }
@@ -338,7 +338,7 @@ export function createQuickBooksRoutes(deps: QuickBooksRoutesDeps) {
     const u = user(c)
     const [foundInvoice] = await db.select().from(t.invoice).where(and(eq(t.invoice.id, c.req.param('invoiceId')), eq(t.invoice.companyId, u.companyId))).limit(1)
     if (!foundInvoice) return c.json({ error: 'Invoice not found' }, 404)
-    const lineItems = await db.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, foundInvoice.id)).orderBy(asc(t.invoiceLineItem.sortOrder))
+    const lineItems = await db.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, foundInvoice.id)).orderBy(asc(t.invoiceLineItem.sortOrder), asc(t.invoiceLineItem.id))
     const [invoiceContact] = foundInvoice.contactId ? await db.select().from(t.contact).where(eq(t.contact.id, foundInvoice.contactId)).limit(1) : [null]
     const withRelations = { ...foundInvoice, lineItems, contact: invoiceContact }
     try {

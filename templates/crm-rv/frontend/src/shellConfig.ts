@@ -58,6 +58,9 @@ const NAV: NavItem[] = [
 
   // Insights & Team
   { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], section: 'Insights & Team', permission: 'reports:read' },
+  // The audit trail. Behind reports:read, the same permission the /api/audit route requires, so the
+  // entry never offers a seat a page it would be refused. (T51)
+  { to: '/crm/audit', icon: FileText, label: 'Audit Log', permission: 'reports:read' },
   { to: '/crm/team', icon: Users, label: 'Team', section: 'Insights & Team', permission: 'team:read' },
 
   // Help

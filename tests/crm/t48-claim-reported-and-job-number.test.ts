@@ -217,5 +217,58 @@ check('the migration landed: a claim can point at its job',
   check('…and it is untouched', after?.status === 'open', { status: after?.status })
 }
 
+/**
+ * T51 follow-up — "warranty 'days left' shows no number."
+ *
+ * WarrantiesPage renders `{warranty.daysRemaining} days left` and colours the row from
+ * `isExpiringSoon`. getProjectWarranties computed all three; getActiveWarranties — which is what
+ * GET /api/warranties serves to that screen — returned the raw row, so the number was `undefined`,
+ * the cell read " days left", and the expiring-soon highlight could never fire on the list a builder
+ * actually looks at. Two readers of one fact, only one of which derived it.
+ */
+console.log('\n══════════ how long a warranty has left ══════════')
+{
+  const r = await call('GET', '/api/warranties')
+  const rows = Array.isArray(r.json) ? r.json : (r.json?.data ?? [])
+  check('the warranties list answers', r.status === 200 && rows.length > 0, { status: r.status, n: rows.length })
+  const mine = rows.find((x: any) => x.id === pw.id)
+  check('…and carries the warranty under test', !!mine, { ids: rows.map((x: any) => x.id).slice(0, 3) })
+  if (mine) {
+    check('T51: daysRemaining is a NUMBER, not undefined', typeof mine.daysRemaining === 'number',
+      { daysRemaining: mine.daysRemaining, type: typeof mine.daysRemaining })
+    // The fixture expires 2036-01-10, so it is years out: a big positive number, not expiring soon.
+    check('…and it is the real distance to the expiry', mine.daysRemaining > 3000,
+      { daysRemaining: mine.daysRemaining })
+    check('…isExpired is false for a warranty running until 2036', mine.isExpired === false, { isExpired: mine.isExpired })
+    check('…and isExpiringSoon is false too', mine.isExpiringSoon === false, { isExpiringSoon: mine.isExpiringSoon })
+  }
+
+  // A warranty that really is nearly up must come back as expiring soon — the colour on that row is
+  // the only warning a builder gets before the cover lapses.
+  const [soon] = await db.insert(projectWarranty).values({
+    companyId: co.id, projectId: proj.id, contactId: client.id,
+    name: 'Sealant — 1 year', category: 'other', status: 'active',
+    startsAt: new Date(Date.now() - 350 * 86400000), expiresAt: new Date(Date.now() + 10 * 86400000),
+  } as any).returning()
+  const r2 = await call('GET', '/api/warranties')
+  const rows2 = Array.isArray(r2.json) ? r2.json : (r2.json?.data ?? [])
+  const near = rows2.find((x: any) => x.id === soon.id)
+  check('T51: one with ten days left reports about ten', near && near.daysRemaining >= 9 && near.daysRemaining <= 11,
+    { daysRemaining: near?.daysRemaining })
+  check('…and is flagged as expiring soon', near?.isExpiringSoon === true, { isExpiringSoon: near?.isExpiringSoon })
+
+  // …and an expired one does not report negative days.
+  const [gone] = await db.insert(projectWarranty).values({
+    companyId: co.id, projectId: proj.id, contactId: client.id,
+    name: 'Paint — lapsed', category: 'other', status: 'active',
+    startsAt: new Date(Date.now() - 800 * 86400000), expiresAt: new Date(Date.now() - 40 * 86400000),
+  } as any).returning()
+  const r3 = await call('GET', '/api/warranties')
+  const rows3 = Array.isArray(r3.json) ? r3.json : (r3.json?.data ?? [])
+  const dead = rows3.find((x: any) => x.id === gone.id)
+  check('T51: a lapsed warranty reports 0 days, never a negative', dead?.daysRemaining === 0, { daysRemaining: dead?.daysRemaining })
+  check('…and says so through isExpired instead', dead?.isExpired === true, { isExpired: dead?.isExpired })
+}
+
 console.log(`\n${passed} passed, ${failed} failed`)
 if (failed > 0) process.exit(1)

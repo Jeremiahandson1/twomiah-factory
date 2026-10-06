@@ -1,7 +1,7 @@
 // This vertical's sidebar + URL gates for the shared app shell (see ./shared). Items without `features`
 // are core; items with `features` show when ANY listed feature is enabled. routeGates cover routes
 // that exist without a sidebar entry, so a module the tenant doesn't have is not reachable by URL.
-import { BarChart3, BellRing, BookOpen, Bot, Calendar, CalendarCheck, ExternalLink, FolderOpen, HeartPulse, Home, Inbox, LifeBuoy, ListTodo, Mail, Megaphone, MessageSquare, PawPrint, Phone, Receipt, Repeat, ShieldCheck, Star, Target, Users } from 'lucide-react';
+import { BarChart3, BellRing, BookOpen, Bot, Calendar, CalendarCheck, ExternalLink, FolderOpen, HeartPulse, Home, Inbox, LifeBuoy, ListTodo, Mail, Megaphone, MessageSquare, PawPrint, Phone, Receipt, Repeat, ShieldCheck, Star, Target, Users, FileText } from 'lucide-react';
 import type { NavItem, ShellConfig } from './shared';
 
 const NAV: NavItem[] = [
@@ -22,6 +22,9 @@ const NAV: NavItem[] = [
   { to: '/crm/tasks', icon: ListTodo, label: 'Tasks' },
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], permission: 'sms:send' },
   { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'reports:read' },
+  // The audit trail. Behind reports:read, the same permission the /api/audit route requires, so the
+  // entry never offers a seat a page it would be refused. (T51)
+  { to: '/crm/audit', icon: FileText, label: 'Audit Log', permission: 'reports:read' },
   { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'] },
   { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'] },
   { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'] },

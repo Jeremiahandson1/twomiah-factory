@@ -38,6 +38,54 @@ const num = (v: any) => (v === '' || v == null ? null : Number(v))
 const has = (input: Record<string, any>, k: string) => k in input
 
 /**
+ * THE MONEY RULE, IN ONE PLACE. (T51 follow-up)
+ *
+ * The owner reported "0.001 amounts are accepted" twice: first on a deposit instalment, and then —
+ * after I fixed only that one route — on menu prices and quantities. That second report is the
+ * point. Every money field on this vertical was validated with `< 0`, which lets through a value
+ * that is positive but rounds to $0.00 when it is stored, and I fixed the one path that was named
+ * instead of the rule behind it. Six entry points had it: the menu line's price and quantity on
+ * both create and edit, the event's quotedTotal, and its depositRequired.
+ *
+ * ZERO IS ALLOWED, and that distinction is the whole reason this is a helper rather than `> 0`:
+ *   · a menu line at $0.00 is a complimentary item — a celebration cake the venue throws in — and
+ *     it belongs on the banquet order so the kitchen makes it;
+ *   · depositRequired of 0 is a booking taken with no deposit;
+ *   · quotedTotal of 0 is an event not yet priced.
+ * Refusing those would be the opposite fault: a rule that stops real work.
+ *
+ * What is refused is a SUB-CENT amount — positive, so it passes `< 0`, but stored as 0.00. Nobody
+ * means that, it cannot be told apart from a deliberate zero afterwards, and it quietly makes a
+ * priced line free.
+ */
+export function moneyRefusal(value: unknown, label: string): string | null {
+  const v = num(value)
+  if (v == null) return null
+  if (!Number.isFinite(v)) return `${label} must be a number.`
+  if (v < 0) return `${label} cannot be negative.`
+  if (v > 0 && Math.round(v * 100) / 100 === 0) {
+    return `${label} of ${v} rounds to $0.00. Enter 0 if it is complimentary, or at least one cent.`
+  }
+  return null
+}
+
+/**
+ * A QUANTITY OF NOTHING IS NOT A LINE. (T51 follow-up: "quantity 0 is accepted")
+ *
+ * Unlike money, zero is NOT meaningful here: a menu line for nought guests is priced at nothing,
+ * prints on the banquet event order as a line the kitchen has to read and ignore, and the way to say
+ * "we are not having this" is to remove the line. The guest count is where "not yet known" lives.
+ */
+export function quantityRefusal(value: unknown, label = 'Quantity'): string | null {
+  const v = num(value)
+  if (v == null) return null
+  if (!Number.isFinite(v)) return `${label} must be a number.`
+  if (v < 0) return `${label} cannot be negative.`
+  if (v === 0) return `${label} must be at least 1 — remove the line instead of setting it to nought.`
+  return null
+}
+
+/**
  * The rules, on a create body or an update patch. `existing` supplies the other half of a pair (start/end
  * times, guest counts) when a patch changes only one of them — the same "effective values" check PUT
  * always did. Returns the first problem as the message the form shows.
@@ -70,12 +118,12 @@ export function validateEventInput(input: Record<string, any>, existing?: Record
   if (g != null && (isNaN(g) || g < 0 || g > 1000000)) return 'Guest count must be between 0 and 1,000,000.'
   if (gf != null && (isNaN(gf) || gf < 0 || gf > 1000000)) return 'Final guest count must be between 0 and 1,000,000.'
 
+  // Through the one money rule, so a sub-cent quoted total is refused here too and not only on the
+  // instalment route the owner happened to name first. (T51 follow-up)
   for (const [k, label] of [['quotedTotal', 'Quoted total'], ['depositRequired', 'Deposit']] as const) {
     if (!has(input, k)) continue
-    const v = num(input[k])
-    if (v == null) continue
-    if (isNaN(v)) return `${label} must be a number.`
-    if (v < 0) return `${label} cannot be negative.`
+    const mErr = moneyRefusal(input[k], label)
+    if (mErr) return mErr
   }
   return null
 }

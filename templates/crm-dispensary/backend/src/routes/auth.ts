@@ -13,6 +13,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { storeTimeZone, storeDateString } from '../utils/isoTime.ts'
 import emailService from '../services/email.ts'
 import logger from '../services/logger.ts'
+import { callerIp, recordSecurityEvent } from '../utils/securityEvents.ts'
 import { passwordSchema } from '../shared/index.ts'
 import { sql } from 'drizzle-orm'  // for the security_events row the code step writes
 // Two-factor at sign-in. The gate answers "is there a factor to ask for", which is not the same
@@ -30,32 +31,9 @@ import { mfaGateFor, openLoginChallenge, verifyLoginChallenge } from '../shared/
  * change that succeeded and went unlogged is bad; one that is rolled back because the log was
  * unavailable is worse.
  */
-/**
- * WHO IS ASKING — the caller, not the chain of proxies in front of them.
- *
- * `x-forwarded-for` is a list: "client, proxy1, proxy2". The whole header was being stored, so the
- * Security Events screen showed a chain instead of an address (T42, dispensary low) and the throttle
- * below could not have grouped attempts by anybody. The first hop is the client.
- */
-const callerIp = (c: any) =>
-  String(c.req.header('x-forwarded-for') || '').split(',')[0].trim() ||
-  c.req.header('x-real-ip') ||
-  'unknown'
-
-async function recordSecurityEvent(
-  c: any, companyId: string, userId: string | null,
-  eventType: string, severity: 'info' | 'warning' | 'critical', description: string,
-) {
-  try {
-    await db.execute(sql`
-      INSERT INTO security_events (id, company_id, event_type, severity, description, user_id, ip_address, created_at)
-      VALUES (gen_random_uuid(), ${companyId}, ${eventType}, ${severity}, ${description},
-              ${userId}, ${callerIp(c)}, NOW())
-    `)
-  } catch (e: any) {
-    logger.warn('security event not recorded', { eventType, message: e?.message })
-  }
-}
+// callerIp and the security-event writer moved to utils/securityEvents.ts, which is now the only
+// place that INSERTs into security_events. There were NINE copies of that statement and none of them
+// stored the user agent. (T51 follow-up — see the file for why.)
 
 /**
  * THE TILL PIN HAD NO BRAKE AND NO RECORD. (T42, dispensary HIGH)
@@ -273,16 +251,15 @@ app.post('/mfa', async (c) => {
 
   // A recovery code being spent is a security event: it means the authenticator was not to hand,
   // and it is the thing an owner wants to see if it happens and they did not do it.
-  try {
-    await db.execute(sql`
-      INSERT INTO security_events (id, company_id, event_type, severity, description, user_id, ip_address, created_at)
-      VALUES (gen_random_uuid(), ${mfaUser.companyId},
-        ${outcome.usedRecoveryCode ? 'mfa_recovery_code_used' : 'mfa_login_verified'},
-        ${outcome.usedRecoveryCode ? 'warning' : 'info'},
-        ${outcome.usedRecoveryCode ? 'Signed in with a recovery code' : 'Signed in with two-factor'},
-        ${mfaUser.id}, ${c.req.header('x-forwarded-for') || 'unknown'}, NOW())
-    `)
-  } catch { /* never fail a sign-in for want of an event row */ }
+  // Through the one writer, so this event carries the user agent and a parsed ip like the rest.
+  // recordSecurityEvent swallows its own failures — a sign-in is never failed for want of an event
+  // row. (T51 follow-up)
+  await recordSecurityEvent(
+    c, mfaUser.companyId, mfaUser.id,
+    outcome.usedRecoveryCode ? 'mfa_recovery_code_used' : 'mfa_login_verified',
+    outcome.usedRecoveryCode ? 'warning' : 'info',
+    outcome.usedRecoveryCode ? 'Signed in with a recovery code' : 'Signed in with two-factor',
+  )
 
   const gate = await mfaGateFor(db, mfaUser.companyId, mfaUser.id)
   return c.json({ ...(await signedInPayload(mfaUser, mfaCompany, gate)), usedRecoveryCode: outcome.usedRecoveryCode })

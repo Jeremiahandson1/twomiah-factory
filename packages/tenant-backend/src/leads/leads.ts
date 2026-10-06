@@ -19,7 +19,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { withoutPortalCredential } from '../contacts/contacts'
-import { eq, and, or, ilike, count, desc, gte, sql } from 'drizzle-orm'
+import { eq, and, or, ilike, count, desc, gte, sql, asc } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import crypto from 'crypto'
 
@@ -165,7 +165,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     const currentUser = (c as any).get('user')
     const sources = await db.select().from(t.leadSource)
       .where(eq(t.leadSource.companyId, currentUser.companyId))
-      .orderBy(desc(t.leadSource.createdAt))
+      .orderBy(desc(t.leadSource.createdAt), asc(t.leadSource.id))
     // Self-heal the addresses we hand out: rows created before the tenant-id prefix fix (or before FRONTEND_URL /
     // a custom domain was set) still carry values that can't route. Recompute and persist so the page shows the truth.
     for (const s of sources) {
@@ -252,7 +252,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     }
     const where = and(...conditions)
     const [data, [{ value: total }]] = await Promise.all([
-      db.select().from(t.lead).where(where).orderBy(desc(t.lead.receivedAt)).offset((page - 1) * limit).limit(limit),
+      db.select().from(t.lead).where(where).orderBy(desc(t.lead.receivedAt), asc(t.lead.id)).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(t.lead).where(where),
     ])
     return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.max(1, Math.ceil(Number(total) / limit)) } })
@@ -342,7 +342,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     }
     let contactRow: any = null
     if (conds.length) {
-      const [match] = await db.select().from(t.contact).where(and(eq(t.contact.companyId, currentUser.companyId), or(...conds))).orderBy(desc(t.contact.createdAt)).limit(1)
+      const [match] = await db.select().from(t.contact).where(and(eq(t.contact.companyId, currentUser.companyId), or(...conds))).orderBy(desc(t.contact.createdAt), asc(t.contact.id)).limit(1)
       contactRow = match || null
     }
     const matched = !!contactRow

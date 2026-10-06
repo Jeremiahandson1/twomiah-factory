@@ -2,7 +2,7 @@
 // today's board, and the three recent-activity lists. Salon, vet, events and RV have their own dashboards
 // built on their own tables; this is the one the three job-based CRMs used to carry as identical copies.
 import { Hono } from 'hono'
-import { eq, and, gte, lt, count, desc, inArray, sql } from 'drizzle-orm'
+import { eq, and, gte, lt, count, desc, inArray, sql, asc } from 'drizzle-orm'
 import { companyTimeZone, storeDayRange, jobLocalDay } from '../time/businessDay'
 import { invoiceBalance } from '../invoicing/money'
 
@@ -147,11 +147,11 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
     const companyId = (c.get('user') as any).companyId
     const [recentJobs, recentQuotes, recentInvoices] = await Promise.all([
       safe(() => db.select({ id: t.job.id, number: t.job.number, title: t.job.title, status: t.job.status, scheduledDate: t.job.scheduledDate, updatedAt: t.job.updatedAt })
-        .from(t.job).where(eq(t.job.companyId, companyId)).orderBy(desc(t.job.updatedAt)).limit(5), [] as any[]),
+        .from(t.job).where(eq(t.job.companyId, companyId)).orderBy(desc(t.job.updatedAt), asc(t.job.id)).limit(5), [] as any[]),
       safe(() => db.select({ id: t.quote.id, number: t.quote.number, name: t.quote.name, status: t.quote.status, total: t.quote.total, updatedAt: t.quote.updatedAt })
-        .from(t.quote).where(eq(t.quote.companyId, companyId)).orderBy(desc(t.quote.updatedAt)).limit(5), [] as any[]),
+        .from(t.quote).where(eq(t.quote.companyId, companyId)).orderBy(desc(t.quote.updatedAt), asc(t.quote.id)).limit(5), [] as any[]),
       safe(() => db.select({ id: t.invoice.id, number: t.invoice.number, status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate, updatedAt: t.invoice.updatedAt })
-        .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), sql`${t.invoice.status} <> 'draft'`)).orderBy(desc(t.invoice.updatedAt)).limit(5), [] as any[]),
+        .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), sql`${t.invoice.status} <> 'draft'`)).orderBy(desc(t.invoice.updatedAt), asc(t.invoice.id)).limit(5), [] as any[]),
     ])
     const now = new Date()
     // A quote total and an invoice balance are both company money. Recent JOBS are the work itself and

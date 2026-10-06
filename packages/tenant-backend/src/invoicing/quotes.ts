@@ -176,7 +176,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
   const ownContact = async (companyId: string, id: string) => (await db.select({ id: t.contact.id }).from(t.contact).where(and(eq(t.contact.id, id), eq(t.contact.companyId, companyId))).limit(1))[0]
   const ownProject = async (companyId: string, id: string) => (await db.select({ id: t.project.id }).from(t.project).where(and(eq(t.project.id, id), eq(t.project.companyId, companyId))).limit(1))[0]
   const findOwn = async (companyId: string, id: string) => (await db.select().from(t.quote).where(and(eq(t.quote.id, id), eq(t.quote.companyId, companyId))).limit(1))[0]
-  const lineRows = (id: string) => db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, id)).orderBy(asc(t.quoteLineItem.sortOrder))
+  const lineRows = (id: string) => db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, id)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
 
   // ---------------------------------------------------------------- list
   app.get('/', requirePermission('quotes:read'), async (c) => {
@@ -195,14 +195,14 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (search) { const p = `%${search}%`; conditions.push(or(ilike(t.quote.number, p), ilike(t.quote.name, p))) }
     const where = and(...conditions)
     const [data, [{ value: total }]] = await Promise.all([
-      db.select().from(t.quote).where(where).orderBy(desc(t.quote.createdAt)).offset((page - 1) * limit).limit(limit),
+      db.select().from(t.quote).where(where).orderBy(desc(t.quote.createdAt), asc(t.quote.id)).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(t.quote).where(where),
     ])
     const quoteIds: string[] = data.map((q: any) => q.id)
     const contactIds: string[] = [...new Set<string>(data.filter((q: any) => q.contactId).map((q: any) => q.contactId))]
     const [contacts, lineItems] = await Promise.all([
       contactIds.length ? db.select({ id: t.contact.id, name: t.contact.name }).from(t.contact).where(and(eq(t.contact.companyId, currentUser.companyId), inArray(t.contact.id, contactIds))) : Promise.resolve([]),
-      quoteIds.length ? db.select().from(t.quoteLineItem).where(inArray(t.quoteLineItem.quoteId, quoteIds)).orderBy(asc(t.quoteLineItem.sortOrder)) : Promise.resolve([]),
+      quoteIds.length ? db.select().from(t.quoteLineItem).where(inArray(t.quoteLineItem.quoteId, quoteIds)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id)) : Promise.resolve([]),
     ])
     const contactMap = Object.fromEntries(contacts.map((ct: any) => [ct.id, ct]))
     const lineItemMap: Record<string, any[]> = {}; lineItems.forEach((li: any) => { (lineItemMap[li.quoteId] ||= []).push(li) })
@@ -325,7 +325,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       // read the existing lines on the SAME connection as the transaction — going back to the pool for them while
       // this transaction is open waits on a second connection, which deadlocks when the pool is busy (and always on
       // a single-connection database). Every other caller reads before the transaction opens.
-      } else items = await tx.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, id)).orderBy(asc(t.quoteLineItem.sortOrder))
+      } else items = await tx.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, id)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
       return { ...updated, lineItems: items }
     })
     emitToCompany(cid, EVENTS.QUOTE_UPDATED, result)

@@ -1,7 +1,7 @@
 // Online booking — ONE implementation for every CRM template, vendored into each tenant at generation.
 // Settings, the bookable catalog, availability (business-local time, capacity-aware, race-safe),
 // booking submission, the owner's list, cancel/status, deposits and owner notifications.
-import { eq, and, desc, count, lt, lte, gte, inArray, sql } from 'drizzle-orm'
+import { eq, and, desc, count, lt, lte, gte, inArray, sql, asc } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { BookingError } from './types'
 import type { BookingDeps, BookingStatus, CatalogService } from './types'
@@ -549,7 +549,7 @@ ${b.depositRequired ? `<tr><td style="padding:2px 12px 2px 0;color:#555">Deposit
     const where = and(...conds)
     const offset = (page - 1) * limit
     const [rows, [{ value: total }]] = await Promise.all([
-      db.select().from(t.onlineBooking).where(where).orderBy(desc(t.onlineBooking.scheduledDate)).limit(limit).offset(offset),
+      db.select().from(t.onlineBooking).where(where).orderBy(desc(t.onlineBooking.scheduledDate), asc(t.onlineBooking.id)).limit(limit).offset(offset),
       db.select({ value: count() }).from(t.onlineBooking).where(where),
     ])
     return { data: await decorate(rows), pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } }

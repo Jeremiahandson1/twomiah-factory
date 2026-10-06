@@ -62,6 +62,26 @@ app.get('/stats', async (c) => {
         -- sitting under a revenue figure that came from 33 of them, and an average order value that divides
         -- one by the other. A refunded sale still happened. (T23 H1)
         COUNT(CASE WHEN status IN ${settledSale} THEN 1 END)::int as completed,
+        /**
+         * …AND HOW MANY OF THEM CAME BACK IN FULL. (T51 follow-up)
+         *
+         * Owner: "refunds still count in Sales Today." The money does not — revenue is
+         * GREATEST(0, total − refunded) and a sale returned in full nets to zero, which is right.
+         * What they were reading is the COUNT beside it: on a day whose only order was refunded in
+         * full, the tile said "1 completed order" over "$0", and those two statements contradict
+         * each other on the same card.
+         *
+         * The row set is NOT changed. T23 settled that deliberately (see the note above): the count
+         * has to match the rows the revenue and the average order value are computed over, or the
+         * tile divides one population by another. Reversing that would trade this confusion for a
+         * worse one.
+         *
+         * So the missing figure is supplied instead, the same way the vet's revenue tile gained its
+         * companion lines: the screen can now say "1 sale · returned in full" and the card stops
+         * contradicting itself.
+         */
+        COUNT(CASE WHEN status = 'refunded' THEN 1 END)::int as fully_refunded,
+        COUNT(CASE WHEN status = 'partially_refunded' THEN 1 END)::int as partly_refunded,
         COUNT(CASE WHEN status = 'pending' OR status = 'processing' OR status = 'ready' THEN 1 END)::int as pending,
         -- Revenue is what the business KEPT, over every settled sale — not the gross of the ones that happen
         -- not to have been refunded. This tile, Analytics and the compliance report each used to answer this
@@ -173,6 +193,12 @@ app.get('/stats', async (c) => {
       refunded: Number(todayOrders.refunded || 0),
       orderCount: Number(todayOrders.total_orders || 0),
       completedOrders: Number(todayOrders.completed || 0),
+      /**
+       * Of those completed sales, the ones that came back. Without these two the card can read
+       * "1 completed order" over "$0 revenue" and both are true, which reads as a bug. (T51)
+       */
+      fullyRefundedOrders: Number(todayOrders.fully_refunded || 0),
+      partlyRefundedOrders: Number(todayOrders.partly_refunded || 0),
       pendingOrders: Number(todayOrders.pending || 0),
       taxCollected: Number(todayOrders.tax_collected || 0),
       avgOrderValue: Number(todayOrders.avg_order_value || 0),

@@ -333,6 +333,28 @@ app.post('/sessions/:id/close', requireRole('budtender'), async (c) => {
   // Round so variance stores 0 / -113.4, not a float artifact like -113.39999999999998. (retest#12)
   const variance = round2(data.closingAmount - expectedCash)
 
+  /**
+   * A SEPARATOR ONLY WHERE THERE IS SOMETHING TO SEPARATE. (T51 follow-up)
+   *
+   * Owner: "cash-close notes start with a blank line."
+   *
+   * The old expression concatenated COALESCE(notes,'') with a newline plus the closing note, which
+   * prepends that newline unconditionally. A drawer opened WITHOUT an opening note therefore closed
+   * with a leading blank line on the note — which is most closes — and on screen that reads as an
+   * empty first row.
+   *
+   * Three cases, and the old expression only got one of them right:
+   *   · no closing note    leave whatever is there alone. The old version appended an empty string,
+   *                        which also turned a NULL into '' and is why some rows read as present
+   *                        but empty rather than absent.
+   *   · nothing there yet  the closing note IS the note, with no separator.
+   *   · an opening note    separate the two with one newline.
+   *
+   * The explanation lives HERE rather than inside the sql template because a backtick in a template
+   * literal ends it: the first version of this comment quoted the old expression in backticks and
+   * silently truncated the statement. chr(10) rather than an escape for the same reason — nothing in
+   * the SQL needs escaping that the template might eat.
+   */
   const result = await db.execute(sql`
     UPDATE cash_sessions
     SET status = 'closed',
@@ -345,7 +367,12 @@ app.post('/sessions/:id/close', requireRole('budtender'), async (c) => {
         variance = ${variance},
         closed_by_id = ${currentUser.userId},
         closed_at = NOW(),
-        notes = COALESCE(notes, '') || ${data.notes ? '\n' + data.notes : ''},
+        -- A separator only where there is something to separate. See the note above. (T51)
+        notes = CASE
+                  WHEN ${data.notes ?? null}::text IS NULL THEN notes
+                  WHEN COALESCE(notes, '') = '' THEN ${data.notes ?? null}::text
+                  ELSE notes || chr(10) || ${data.notes ?? null}::text
+                END,
         denominations = ${data.denominations ? JSON.stringify(data.denominations) : null}::jsonb
     WHERE id = ${id}
     RETURNING *

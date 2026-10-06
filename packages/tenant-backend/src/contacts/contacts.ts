@@ -196,7 +196,7 @@ export function createContactRoutes(deps: ContactDeps) {
     }
     const where = and(...conditions)
     const [data, [{ value: total }]] = await Promise.all([
-      db.select().from(t.contact).where(where).orderBy(desc(t.contact.createdAt)).offset((page - 1) * limit).limit(limit),
+      db.select().from(t.contact).where(where).orderBy(desc(t.contact.createdAt), asc(t.contact.id)).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(t.contact).where(where),
     ])
     return c.json({ data: data.map(withoutPortalCredential), pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
@@ -231,11 +231,11 @@ export function createContactRoutes(deps: ContactDeps) {
       const currentUser = c.get('user') as any
       const contactId = c.req.param('id')
       if (!(await findOwned(contactId, currentUser.companyId))) return c.json({ error: 'Contact not found' }, 404)
-      const sites = await db.select().from(site).where(eq(site.contactId, contactId)).orderBy(asc(site.name))
+      const sites = await db.select().from(site).where(eq(site.contactId, contactId)).orderBy(asc(site.name), asc(site.id))
       const enriched = await Promise.all(sites.map(async (s: any) => {
         const [eqCount] = await db.select({ value: count() }).from(equipment).where(eq(equipment.siteId, s.id))
         const [lastJob] = await db.select({ completedAt: job.completedAt }).from(job)
-          .where(and(eq(job.siteId, s.id), eq(job.status, 'completed'))).orderBy(desc(job.completedAt)).limit(1)
+          .where(and(eq(job.siteId, s.id), eq(job.status, 'completed'))).orderBy(desc(job.completedAt), asc(job.id)).limit(1)
         return { ...s, equipmentCount: Number(eqCount.value), lastServiceDate: lastJob?.completedAt || null }
       }))
       return c.json(enriched)
@@ -263,7 +263,7 @@ export function createContactRoutes(deps: ContactDeps) {
         db.select({
           id: job.id, number: job.number, title: job.title, status: job.status,
           jobType: job.jobType, scheduledDate: job.scheduledDate, completedAt: job.completedAt,
-        }).from(job).where(eq(job.siteId, existing.id)).orderBy(desc(job.scheduledDate)).limit(20),
+        }).from(job).where(eq(job.siteId, existing.id)).orderBy(desc(job.scheduledDate), asc(job.id)).limit(20),
       ])
       return c.json({ ...existing, equipment: siteEquipment, jobs: siteJobs })
     })

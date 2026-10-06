@@ -18,10 +18,10 @@ interface CartItem {
 }
 
 const strainColors: Record<string, string> = {
-  sativa: 'bg-orange-100 text-orange-700 border-orange-200',
-  indica: 'bg-purple-100 text-purple-700 border-purple-200',
-  hybrid: 'bg-green-100 text-green-700 border-green-200',
-  cbd: 'bg-blue-100 text-blue-700 border-blue-200',
+  sativa: 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900',
+  indica: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900',
+  hybrid: 'bg-green-100 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-300 dark:border-green-900',
+  cbd: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900',
 };
 
 const INACTIVITY_TIMEOUT = 60000; // 60 seconds
@@ -425,7 +425,7 @@ export default function KioskOrderPage() {
                   {/* Strain badge */}
                   <div className="flex gap-1 mb-2 flex-wrap">
                     {product.strainType && (
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full border capitalize ${strainColors[product.strainType?.toLowerCase()] || 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full border capitalize ${strainColors[product.strainType?.toLowerCase()] || 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700'}`}>
                         {product.strainType}
                       </span>
                     )}
@@ -580,7 +580,7 @@ export default function KioskOrderPage() {
               <h2 className="text-2xl font-bold text-gray-900 mb-6 dark:text-slate-100">Pickup Information</h2>
 
               {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 mb-6">
+                <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 mb-6 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900">
                   {error}
                 </div>
               )}

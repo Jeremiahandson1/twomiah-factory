@@ -37,13 +37,46 @@ for (const [name, src, cols] of [
   if (!/negativeFieldError\(updates\)[\s\S]*db\.update/.test(put)) fail(`${name}: PUT must run negativeFieldError(updates) before update`)
 }
 
-// (2) events: menu line + payment edits carry the same guards as their POSTs.
+/**
+ * (2) events: the menu line's price and quantity go through THE RULE, on both create and edit.
+ *
+ * This used to pin the literal strings 'Unit price cannot be negative' and 'Quantity must be a
+ * number' in each handler. That was a guard for the shape of the fix rather than for the rule, and
+ * it failed the moment the four hand-written checks were replaced by one shared helper — while the
+ * behaviour it was protecting got STRICTER, not weaker. (T51 follow-up)
+ *
+ * The owner had to report "0.001 is accepted" twice because the rule lived in four copies; pinning
+ * those copies is what a guard should never do. So: each handler must call the helpers, and the
+ * helpers must carry every branch — not a number, negative, and a positive amount that rounds away
+ * to nothing.
+ */
 const menuPut = handler(events, 'put', '/:id/menu/:lineId')
-if (!/'Unit price cannot be negative'[\s\S]*'Quantity cannot be negative'[\s\S]*(db|tx)\.update/.test(menuPut)) fail('PUT /:id/menu/:lineId must refuse negative unitPrice and quantity before update')
-// "abc" is not negative, it is not a number — said so on every path (T16 L5)
 const menuPost = handler(events, 'post', '/:id/menu')
-for (const [name, src] of [['POST /:id/menu', menuPost], ['PUT /:id/menu/:lineId', menuPut]] as const) {
-  if (!/'Unit price must be a number'/.test(src) || !/'Quantity must be a number'/.test(src)) fail(`${name} must say "must be a number" for a non-numeric price/quantity`)
+for (const [name, src, write] of [
+  ['POST /:id/menu', menuPost, /(db|tx)\.insert/],
+  ['PUT /:id/menu/:lineId', menuPut, /(db|tx)\.update/],
+] as const) {
+  if (!/moneyRefusal\([^)]*nitPrice/.test(src)) fail(`${name} must put the unit price through moneyRefusal`)
+  if (!/quantityRefusal\(/.test(src)) fail(`${name} must put the quantity through quantityRefusal`)
+  if (!new RegExp(`moneyRefusal[\\s\\S]*${write.source}`).test(src)) fail(`${name} must refuse BEFORE it writes`)
+}
+
+// …and the rule itself covers all three ways an amount can be wrong. The messages are asserted
+// because "abc is not negative, it is not a number" was its own report (T16 L5).
+const booking = read('services/eventBooking.ts')
+const moneyRule = booking.slice(booking.indexOf('export function moneyRefusal'), booking.indexOf('export function quantityRefusal'))
+const qtyRule = booking.slice(booking.indexOf('export function quantityRefusal'))
+if (!moneyRule) fail('services/eventBooking.ts must export moneyRefusal — the one money rule')
+else {
+  if (!/must be a number/.test(moneyRule)) fail('moneyRefusal must say "must be a number" for a non-numeric amount')
+  if (!/cannot be negative/.test(moneyRule)) fail('moneyRefusal must refuse a negative amount')
+  if (!/Math\.round\([^)]*100\)\s*\/\s*100\s*===\s*0/.test(moneyRule)) fail('moneyRefusal must refuse an amount that ROUNDS to zero — the 0.001 case the owner reported twice')
+  if (!/v > 0 &&/.test(moneyRule)) fail('moneyRefusal must still ALLOW an exact zero — a complimentary line is real')
+}
+if (!qtyRule) fail('services/eventBooking.ts must export quantityRefusal')
+else {
+  if (!/must be a number/.test(qtyRule)) fail('quantityRefusal must say "must be a number"')
+  if (!/v === 0/.test(qtyRule)) fail('quantityRefusal must refuse a quantity of 0 — a line for nothing is not a line')
 }
 for (const [name, src] of [['eventSpaces', spaces], ['menuPackages', menus]] as const) {
   if (!/return `\$\{label\} must be a number`[\s\S]*return `\$\{label\} cannot be negative`/.test(src)) fail(`${name}: negativeFieldError must distinguish "must be a number" from "cannot be negative"`)

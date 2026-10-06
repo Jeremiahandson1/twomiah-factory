@@ -2037,6 +2037,17 @@ jobs:
       - name: "Toast z-index"
         run: bun run scripts/check-toast-outranks-modals.ts
 
+  status-chip-dark-ground:
+    name: "A light status chip has a dark ground too"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Status chips"
+        run: bun run scripts/check-status-chip-has-dark-ground.ts
+
   refresh-outcomes:
     name: "A failed refresh is not a dead session"
     runs-on: ubuntu-latest

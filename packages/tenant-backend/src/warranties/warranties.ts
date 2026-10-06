@@ -17,6 +17,38 @@ import { withoutPortalCredential } from '../contacts/contacts';
 import { nextNumber } from '../invoicing/money';
 
 /**
+ * HOW LONG A WARRANTY HAS LEFT — computed in ONE place. (T51 follow-up)
+ *
+ * Owner: "warranty 'days left' shows no number."
+ *
+ * WarrantiesPage renders `{warranty.daysRemaining} days left` and colours the row from
+ * `isExpiringSoon`. getProjectWarranties computed all three; getActiveWarranties — which is what
+ * GET /api/warranties serves to that very screen — returned the raw row and nothing else. So the
+ * number was `undefined` and the cell read " days left", and the "expiring soon" highlight could
+ * never fire on the list a builder actually looks at.
+ *
+ * Two readers of the same fact, one of which derived it. The fix is not to copy the arithmetic into
+ * the second one — that is how they drifted in the first place — but to have one function both call.
+ *
+ * `daysRemaining` floors at 0 rather than going negative: "−12 days left" is not a sentence, and
+ * `isExpired` is the field that carries that case.
+ */
+const EXPIRING_SOON_DAYS = 30;
+function withExpiry<T extends { expiresAt?: Date | null }>(w: T, now = new Date()) {
+  const expires = w.expiresAt ? new Date(w.expiresAt) : null;
+  return {
+    ...w,
+    isExpired: expires ? expires < now : false,
+    daysRemaining: expires
+      ? Math.max(0, Math.ceil((expires.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+      : 0,
+    isExpiringSoon: expires
+      ? expires > now && expires < new Date(now.getTime() + EXPIRING_SOON_DAYS * 24 * 60 * 60 * 1000)
+      : false,
+  };
+}
+
+/**
  * The five statuses a claim can be in — the exact set WarrantiesPage's CLAIM_STATUS map renders and
  * its filter offers (WarrantiesPage.tsx:81-85, :415-419), and the buckets getWarrantyStats counts.
  * PUT /claims/:id/status wrote whatever it was handed, so a typo or a stale client could park a
@@ -238,17 +270,10 @@ async function getProjectWarranties(projectId: string, companyId: string) {
     .orderBy(asc(projectWarranty.expiresAt));
 
   const now = new Date();
-  return warranties.map(({ warranty: w, claimCount }) => ({
+  return warranties.map(({ warranty: w, claimCount }) => withExpiry({
     ...w,
     _count: { claims: claimCount },
-    isExpired: w.expiresAt ? w.expiresAt < now : false,
-    daysRemaining: w.expiresAt
-      ? Math.max(0, Math.ceil((w.expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
-      : 0,
-    isExpiringSoon: w.expiresAt
-      ? w.expiresAt > now && w.expiresAt < new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
-      : false,
-  }));
+  }, now));
 }
 
 /**
@@ -296,12 +321,15 @@ async function getActiveWarranties(
     .from(projectWarranty)
     .where(whereClause);
 
-  const result = data.map(({ warranty: w, project: p, contact: c, claimCount }) => ({
+  // …through the SAME derivation the per-project read uses, which is the whole point: this list is
+  // what WarrantiesPage renders "days left" from, and it was the one that did not compute it. (T51)
+  const now = new Date();
+  const result = data.map(({ warranty: w, project: p, contact: c, claimCount }) => withExpiry({
     ...w,
     project: p,
     contact: c,
     _count: { claims: claimCount },
-  }));
+  }, now));
 
   return { data: result, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
 }
@@ -327,13 +355,16 @@ async function getExpiringWarranties(companyId: string, { days = 30 }: { days?: 
       gte(projectWarranty.expiresAt, new Date()),
       lte(projectWarranty.expiresAt, expiryDate),
     ))
-    .orderBy(asc(projectWarranty.expiresAt));
+    .orderBy(asc(projectWarranty.expiresAt), asc(projectWarranty.id));
 
-  return rows.map(({ warranty: w, project: p, contact: c }) => ({
+  // The third reader of the same fact. This one feeds the expiring-soon notification, where the
+  // number of days left is the entire content of the message. (T51 follow-up)
+  const now = new Date();
+  return rows.map(({ warranty: w, project: p, contact: c }) => withExpiry({
     ...w,
     project: p,
     contact: c,
-  }));
+  }, now));
 }
 
 /**
@@ -457,7 +488,7 @@ async function getClaims(
     .leftJoin(project, eq(project.id, projectWarranty.projectId))
     .leftJoin(contact, eq(contact.id, projectWarranty.contactId))
     .where(whereClause)
-    .orderBy(desc(warrantyClaim.createdAt))
+    .orderBy(desc(warrantyClaim.createdAt), asc(warrantyClaim.id))
     .limit(limit)
     .offset(offset);
 

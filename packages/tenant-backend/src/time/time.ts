@@ -350,7 +350,7 @@ export function createTimeRoutes(deps: TimeDeps) {
     const end = new Date(start); end.setUTCDate(end.getUTCDate() + 7)
     const rows = await db.select().from(t.timeEntry)
       .where(and(eq(t.timeEntry.userId, userId), eq(t.timeEntry.companyId, currentUser.companyId), gte(t.timeEntry.date, start), lt(t.timeEntry.date, end)))
-      .orderBy(asc(t.timeEntry.date))
+      .orderBy(asc(t.timeEntry.date), asc(t.timeEntry.id))
     const entries = await withRelations(currentUser.companyId, rows)
     const dayOf = (v: any) => new Date(v).toISOString().slice(0, 10)
     const days = []

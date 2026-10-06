@@ -232,7 +232,7 @@ export default function CustomerPortal() {
                 <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
                   <BookOpen className="w-6 h-6 text-amber-700" />
                 </div>
-                <span className="inline-flex items-center gap-1 text-xs font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                <span className="inline-flex items-center gap-1 text-xs font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded-full dark:bg-amber-950/40 dark:text-amber-300">
                   <Sparkles className="w-3 h-3" />
                   FREE TRIAL
                 </span>

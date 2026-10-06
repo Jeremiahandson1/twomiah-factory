@@ -10,12 +10,12 @@ import { Button, PageHeader } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
 
 const ROLE_COLORS: Record<string, string> = {
-  budtender: 'bg-green-200 text-green-800 border-green-300',
-  manager: 'bg-blue-200 text-blue-800 border-blue-300',
-  security: 'bg-red-200 text-red-800 border-red-300',
-  driver: 'bg-purple-200 text-purple-800 border-purple-300',
-  inventory: 'bg-yellow-200 text-yellow-800 border-yellow-300',
-  receptionist: 'bg-pink-200 text-pink-800 border-pink-300',
+  budtender: 'bg-green-200 text-green-800 border-green-300 dark:bg-green-950/40 dark:text-green-300 dark:border-green-900',
+  manager: 'bg-blue-200 text-blue-800 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900',
+  security: 'bg-red-200 text-red-800 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900',
+  driver: 'bg-purple-200 text-purple-800 border-purple-300 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900',
+  inventory: 'bg-yellow-200 text-yellow-800 border-yellow-300 dark:bg-yellow-950/40 dark:text-yellow-300 dark:border-yellow-900',
+  receptionist: 'bg-pink-200 text-pink-800 border-pink-300 dark:bg-pink-950/40 dark:text-pink-300 dark:border-pink-900',
 };
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];

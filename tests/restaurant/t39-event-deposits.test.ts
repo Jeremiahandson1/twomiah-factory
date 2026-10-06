@@ -416,5 +416,69 @@ console.log('\n══════════ T41 · what the floor seat may rea
   check('T41: …and the totals', /Food &amp; beverage total/.test(beoOwner.text), null)
 }
 
+/**
+ * EVERY money field on this vertical, not just the one that got reported. (T51 follow-up)
+ *
+ * The owner reported "0.001 amounts are accepted" about a deposit instalment. I fixed that route and
+ * they came back with "0.001 menu prices and quantity 0 are accepted" — because every money field
+ * here was validated with `< 0`, and I had fixed the path instead of the rule behind it. Six places.
+ *
+ * The distinction the rule must hold is why this is a table and not a blunt `> 0`: a menu line at
+ * $0.00 is a COMPLIMENTARY item and has to stay allowed, while 0.001 is a typo that stores as 0.00
+ * and silently makes a priced line free. A quantity of nought is never meaningful.
+ */
+console.log('\n══════════ the money rule, on every field that takes money ══════════')
+{
+  const menuLine = async (body: any) => asOwner('POST', `/api/events/${wedding.id}/menu`, { name: 'T51 rule probe', ...body })
+
+  for (const [where, call] of [
+    ['a menu line', () => menuLine({ unitPrice: 0.001, quantity: 2 })],
+    ["the event's quoted total", () => asOwner('PUT', `/api/events/${wedding.id}`, { quotedTotal: 0.004 })],
+    ["the event's deposit required", () => asOwner('PUT', `/api/events/${wedding.id}`, { depositRequired: 0.002 })],
+  ] as Array<[string, () => Promise<any>]>) {
+    const r = await call()
+    check(`T51: a sub-cent price on ${where} is refused`, r.status === 400, { status: r.status, error: r.json?.error })
+    check('…and the message says it rounds to $0.00', /rounds to \$0\.00/.test(String(r.json?.error ?? '')), { error: r.json?.error })
+  }
+
+  {
+    const r = await menuLine({ unitPrice: 85, quantity: 0 })
+    check('T51: a menu line with quantity 0 is refused', r.status === 400, { status: r.status, error: r.json?.error })
+    check('…and it says to remove the line instead', /remove the line/i.test(String(r.json?.error ?? '')), { error: r.json?.error })
+  }
+
+  /**
+   * ZERO MONEY IS STILL ALLOWED — the half a blunt `> 0` would have broken. A venue throwing in a
+   * celebration cake puts it on the banquet order at $0.00 so the kitchen makes it.
+   */
+  {
+    const r = await menuLine({ name: 'Complimentary celebration cake', unitPrice: 0, quantity: 1 })
+    check('a COMPLIMENTARY menu line at $0.00 is still allowed', r.status === 201,
+      { status: r.status, body: r.text?.slice(0, 200) })
+    if (r.status === 201 && r.json?.id) await asOwner('DELETE', `/api/events/${wedding.id}/menu/${r.json.id}`)
+  }
+  {
+    const r = await asOwner('PUT', `/api/events/${wedding.id}`, { depositRequired: 0 })
+    check('…and a booking taken with NO deposit is still allowed', r.status === 200 || r.status === 201,
+      { status: r.status, error: r.json?.error })
+  }
+
+  {
+    const made = await menuLine({ name: 'T51 canapés', unitPrice: 12.5, quantity: 40 })
+    check('a real priced line saves', made.status === 201, { status: made.status, body: made.text?.slice(0, 200) })
+    const lid = made.json?.id
+    if (lid) {
+      const sub = await asOwner('PUT', `/api/events/${wedding.id}/menu/${lid}`, { unitPrice: 0.001 })
+      check('T51: a sub-cent price is refused on the EDIT too', sub.status === 400, { status: sub.status, error: sub.json?.error })
+      const q0 = await asOwner('PUT', `/api/events/${wedding.id}/menu/${lid}`, { quantity: 0 })
+      check('T51: …and so is a quantity of 0', q0.status === 400, { status: q0.status, error: q0.json?.error })
+      const still = await one(sql`SELECT unit_price::numeric AS p, quantity::numeric AS q FROM event_menu_item WHERE id = ${lid}`)
+      check('…and neither refusal changed the line', Number(still?.p) === 12.5 && Number(still?.q) === 40,
+        { price: still?.p, quantity: still?.q })
+      await asOwner('DELETE', `/api/events/${wedding.id}/menu/${lid}`)
+    }
+  }
+}
+
 console.log(`\n${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

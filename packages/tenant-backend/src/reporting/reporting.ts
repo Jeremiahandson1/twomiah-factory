@@ -10,7 +10,7 @@
 // (Landscaping T14 H4: refunding the rest of a paid $1,000 invoice took it out of "invoiced" retroactively,
 // while a partial refund kept it at full value.)
 import { Hono } from 'hono'
-import { eq, and, or, gte, lte, lt, sql, count, sum, inArray, desc, isNotNull } from 'drizzle-orm'
+import { eq, and, or, gte, lte, lt, sql, count, sum, inArray, desc, isNotNull, asc } from 'drizzle-orm'
 import { overdueCutoff } from '../invoicing/money'
 
 export interface ReportingTables {
@@ -229,7 +229,7 @@ export function createReportingService(deps: ReportingDeps) {
   async function projectProfitability(companyId: string, limitRaw: number) {
     const limit = Math.min(100, Math.max(1, Math.round(num(limitRaw) || 10)))
     const projects = await db.select({ id: t.project.id, name: t.project.name, number: t.project.number, estimatedValue: t.project.estimatedValue, status: t.project.status })
-      .from(t.project).where(eq(t.project.companyId, companyId)).orderBy(desc(t.project.estimatedValue)).limit(limit)
+      .from(t.project).where(eq(t.project.companyId, companyId)).orderBy(desc(t.project.estimatedValue), asc(t.project.id)).limit(limit)
     const ids = projects.map((p: any) => p.id)
     if (!ids.length) return []
     const [invoiceTotals, jobCounts] = await Promise.all([
@@ -295,9 +295,9 @@ export function createReportingService(deps: ReportingDeps) {
 
   async function recentActivity(companyId: string, limit = 10) {
     const [invoices, jobs, quotes] = await Promise.all([
-      db.select({ id: t.invoice.id, number: t.invoice.number, total: t.invoice.total, status: t.invoice.status, createdAt: t.invoice.createdAt }).from(t.invoice).where(eq(t.invoice.companyId, companyId)).orderBy(desc(t.invoice.createdAt)).limit(5),
-      db.select({ id: t.job.id, number: t.job.number, title: t.job.title, status: t.job.status, createdAt: t.job.createdAt }).from(t.job).where(eq(t.job.companyId, companyId)).orderBy(desc(t.job.createdAt)).limit(5),
-      db.select({ id: t.quote.id, number: t.quote.number, total: t.quote.total, status: t.quote.status, createdAt: t.quote.createdAt }).from(t.quote).where(eq(t.quote.companyId, companyId)).orderBy(desc(t.quote.createdAt)).limit(5),
+      db.select({ id: t.invoice.id, number: t.invoice.number, total: t.invoice.total, status: t.invoice.status, createdAt: t.invoice.createdAt }).from(t.invoice).where(eq(t.invoice.companyId, companyId)).orderBy(desc(t.invoice.createdAt), asc(t.invoice.id)).limit(5),
+      db.select({ id: t.job.id, number: t.job.number, title: t.job.title, status: t.job.status, createdAt: t.job.createdAt }).from(t.job).where(eq(t.job.companyId, companyId)).orderBy(desc(t.job.createdAt), asc(t.job.id)).limit(5),
+      db.select({ id: t.quote.id, number: t.quote.number, total: t.quote.total, status: t.quote.status, createdAt: t.quote.createdAt }).from(t.quote).where(eq(t.quote.companyId, companyId)).orderBy(desc(t.quote.createdAt), asc(t.quote.id)).limit(5),
     ])
     return [
       ...invoices.map((i: any) => ({ type: 'invoice' as const, ...i })),

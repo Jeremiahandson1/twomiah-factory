@@ -118,7 +118,7 @@ export function createPricebookService(deps: PricebookServiceDeps) {
     async getCategories(companyId: string, { flat = false, active = true }: { flat?: boolean; active?: boolean | null } = {}) {
       const where = [eq(C.companyId, companyId)]
       if (active !== null) where.push(eq(C.active, active))
-      const cats = await db.select().from(C).where(and(...where)).orderBy(asc(C.sortOrder))
+      const cats = await db.select().from(C).where(and(...where)).orderBy(asc(C.sortOrder), asc(C.id))
       const ids = cats.map((c: any) => c.id)
       const counts = ids.length ? await db.select({ categoryId: I.categoryId, n: count() }).from(I).where(inArray(I.categoryId, ids)).groupBy(I.categoryId) : []
       const withCounts = cats.map((c: any) => ({ ...c, _count: { items: Number(counts.find((x: any) => x.categoryId === c.id)?.n || 0), children: cats.filter((x: any) => x.parentId === c.id).length } }))
@@ -155,7 +155,7 @@ export function createPricebookService(deps: PricebookServiceDeps) {
       if (q.search?.trim()) { const s = `%${escLike(q.search.trim())}%`; where.push(or(ilike(I.name, s), ilike(I.code, s), ilike(I.description, s))!) }
       const w = and(...where)
       const [rows, [tot]] = await Promise.all([
-        db.select().from(I).leftJoin(C, eq(I.categoryId, C.id)).where(w).orderBy(asc(I.name)).offset((page - 1) * limit).limit(limit),
+        db.select().from(I).leftJoin(C, eq(I.categoryId, C.id)).where(w).orderBy(asc(I.name), asc(I.id)).offset((page - 1) * limit).limit(limit),
         db.select({ n: count() }).from(I).where(w),
       ])
       const itemIds = rows.map((r: any) => r.pricebook_item.id)
@@ -234,7 +234,7 @@ export function createPricebookService(deps: PricebookServiceDeps) {
       return { updated: rows.length }
     },
     async exportItems(companyId: string) {
-      const rows = await db.select().from(I).leftJoin(C, eq(I.categoryId, C.id)).where(eq(I.companyId, companyId)).orderBy(asc(I.name))
+      const rows = await db.select().from(I).leftJoin(C, eq(I.categoryId, C.id)).where(eq(I.companyId, companyId)).orderBy(asc(I.name), asc(I.id))
       return rows.map((r: any) => ({ code: r.pricebook_item.code, name: r.pricebook_item.name, category: r.pricebook_category?.name || '', description: r.pricebook_item.description || '', price: r.pricebook_item.price, cost: r.pricebook_item.cost, taxable: r.pricebook_item.taxable, active: r.pricebook_item.active }))
     },
     async importItems(companyId: string, input: any) {
@@ -260,7 +260,7 @@ export function createPricebookService(deps: PricebookServiceDeps) {
     },
     async searchForQuoting(companyId: string, query: string) {
       const s = `%${escLike(String(query || '').trim().slice(0, 100))}%`
-      const rows = await db.select().from(I).leftJoin(C, eq(I.categoryId, C.id)).where(and(eq(I.companyId, companyId), eq(I.active, true), or(ilike(I.name, s), ilike(I.code, s), ilike(C.name, s)))).orderBy(asc(I.name)).limit(20)
+      const rows = await db.select().from(I).leftJoin(C, eq(I.categoryId, C.id)).where(and(eq(I.companyId, companyId), eq(I.active, true), or(ilike(I.name, s), ilike(I.code, s), ilike(C.name, s)))).orderBy(asc(I.name), asc(I.id)).limit(20)
       return rows.map((r: any) => shape(r.pricebook_item, r.pricebook_category))
     },
   }

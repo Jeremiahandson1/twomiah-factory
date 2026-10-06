@@ -4,7 +4,7 @@
 // it, unknown project/job ids surfaced as FK 500s, paging unclamped.
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq, and, gte, lte, count, desc, sql, inArray } from 'drizzle-orm'
+import { eq, and, gte, lte, count, desc, asc, sql, inArray } from 'drizzle-orm'
 import { checkFilter } from '../listFilter'
 import { hasHappened } from '../dateInput'
 import { createStaffBalanceStore, SETTLE_ROUTES, payrollDeductionsAllowed, PAYROLL_DEDUCTION_SETTING, type SettleRoute } from '../team/staffBalance'
@@ -192,7 +192,25 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     if (q.endDate && !isNaN(new Date(q.endDate).getTime())) { const end = new Date(q.endDate); end.setHours(23, 59, 59, 999); conditions.push(lte(t.expense.date, end)) }
     const where = and(...conditions)
     const [rows, [{ value: total }]] = await Promise.all([
-      db.select().from(t.expense).where(where).orderBy(desc(t.expense.date)).offset((page - 1) * limit).limit(limit),
+      /**
+       * A TOTAL ORDER, so a row does not move when it is saved. (T51 follow-up)
+       *
+       * Owner, on the salon: "expense rows reorder after a save."
+       *
+       * This ordered by `date` alone. A salon enters most of a week's expenses on the same day, so
+       * most rows TIE — and with a tie Postgres is free to return them in any order, which in
+       * practice is physical row order. An UPDATE rewrites the row at the end of the heap, so the
+       * one you just edited jumps somewhere else in the list and the rows around it shuffle. Nothing
+       * is wrong with the data; the query simply never said what order it wanted.
+       *
+       * `createdAt` breaks almost every tie in the order people actually entered them, and `id` is
+       * unique so the order is fully determined — the same list, every time, for the same filters.
+       * This also makes the paging honest: with ties, a row could appear on page 1 and page 2 of the
+       * same read, or on neither.
+       */
+      db.select().from(t.expense).where(where)
+        .orderBy(desc(t.expense.date), desc(t.expense.createdAt), asc(t.expense.id))
+        .offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(t.expense).where(where),
     ])
     return c.json({ data: await withRelations(currentUser.companyId, rows), pagination: { page, limit, total: Number(total), pages: Math.max(1, Math.ceil(Number(total) / limit)) } })

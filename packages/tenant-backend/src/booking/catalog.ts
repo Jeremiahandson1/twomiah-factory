@@ -60,7 +60,7 @@ export function createMenuCatalog(db: any, t: { bookableService: any; serviceMen
   return {
     retired,
     async publicServices(companyId, exec = db) {
-      const items = await exec.select().from(menu).where(flagged(companyId)).orderBy(asc(menu.name))
+      const items = await exec.select().from(menu).where(flagged(companyId)).orderBy(asc(menu.name), asc(menu.id))
       const out = items.map(fromMenu)
       if (out.length) return out
       return widget.publicServices(companyId, exec)

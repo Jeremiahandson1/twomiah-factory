@@ -11,7 +11,7 @@
 // seven schemas): email_template, email_recipient, email_click, drip_sequence, sequence_enrollment.
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq, and, or, desc, count, sql, gte, ilike, inArray } from 'drizzle-orm'
+import { eq, and, or, desc, count, sql, gte, ilike, inArray, asc } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 
 export interface MarketingTables { campaign: any; contact: any; emailLog: any }
@@ -168,7 +168,7 @@ export function createMarketingService(deps: MarketingServiceDeps) {
     if (status) conditions.push(eq(t.campaign.status, status))
     const where = and(...conditions)
     const [data, [tot]] = await Promise.all([
-      db.select().from(t.campaign).where(where).orderBy(desc(t.campaign.createdAt)).offset((page - 1) * limit).limit(limit),
+      db.select().from(t.campaign).where(where).orderBy(desc(t.campaign.createdAt), asc(t.campaign.id)).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(t.campaign).where(where),
     ])
     const total = Number(tot?.value ?? 0)

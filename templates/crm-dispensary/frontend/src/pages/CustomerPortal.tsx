@@ -232,7 +232,7 @@ export default function CustomerPortal() {
             <div className="px-6 py-4 border-b border-amber-100 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-500" />
               <h3 className="font-semibold text-slate-900 dark:text-slate-100">Low Stock Alerts</h3>
-              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium ml-auto">
+              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium ml-auto dark:bg-amber-950/40 dark:text-amber-300">
                 {lowStock.length} item{lowStock.length !== 1 ? 's' : ''}
               </span>
             </div>

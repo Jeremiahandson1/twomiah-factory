@@ -4,7 +4,7 @@
 // where the template has the table, plan markups (annotation layers stored as JSON).
 import { Hono } from 'hono'
 import path from 'path'
-import { eq, and, or, ilike, count, desc } from 'drizzle-orm'
+import { eq, and, or, ilike, count, desc, asc } from 'drizzle-orm'
 import type { FileStorage } from './storage'
 import { INLINE_IMAGE_TYPES } from './storage'
 
@@ -208,7 +208,7 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     }
     const where = and(...conditions)
     const [rows, [{ value: total }]] = await Promise.all([
-      withRelations(where).orderBy(desc(t.document.createdAt)).offset((page - 1) * limit).limit(limit),
+      withRelations(where).orderBy(desc(t.document.createdAt), asc(t.document.id)).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(t.document).where(where),
     ])
     return c.json({ data: rows.map(flat), pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
@@ -395,7 +395,7 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     app.get('/:id/versions', async (c) => {
       const doc = await owned(c)
       if (!doc) return c.json({ error: 'Document not found' }, 404)
-      const versions = await db.select().from(v).where(eq(v.documentId, doc.id)).orderBy(desc(v.versionNumber))
+      const versions = await db.select().from(v).where(eq(v.documentId, doc.id)).orderBy(desc(v.versionNumber), asc(v.id))
       const currentVersion = versions.length + 1
       // The file that is live now is part of its own history. Listing only the superseded copies meant the newest
       // thing the list knew about was the file that had just been replaced, so nothing said which version you are
@@ -454,7 +454,7 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     app.get('/:id/markups', async (c) => {
       const doc = await owned(c)
       if (!doc) return c.json({ error: 'Document not found' }, 404)
-      return c.json({ data: await db.select().from(m).where(eq(m.documentId, doc.id)).orderBy(desc(m.updatedAt)) })
+      return c.json({ data: await db.select().from(m).where(eq(m.documentId, doc.id)).orderBy(desc(m.updatedAt), asc(m.id)) })
     })
     app.post('/:id/markups', requirePermission('documents:create'), async (c) => {
       const { userId } = actor(c)

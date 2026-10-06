@@ -8,6 +8,9 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { sendSMS } from '../services/sms.ts'
+// The one writer for security_events. There were seven hand-rolled copies of that INSERT in this
+// file alone and none of them stored the user agent. (T51 follow-up)
+import { recordSecurityEvent } from '../utils/securityEvents.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -204,16 +207,8 @@ app.post('/mfa/verify', async (c) => {
   }
 
   if (!valid) {
-    await db.execute(sql`
-      INSERT INTO security_events (
-        id, company_id, event_type, severity, description,
-        user_id, ip_address, created_at
-      ) VALUES (
-        gen_random_uuid(), ${currentUser.companyId}, 'mfa_verify_failed', 'warning',
-        'MFA setup verification failed', ${currentUser.userId},
-        ${c.req.header('x-forwarded-for') || 'unknown'}, NOW()
-      )
-    `)
+    await recordSecurityEvent(c, currentUser.companyId, currentUser.userId,
+      'mfa_verify_failed', 'warning', 'MFA setup verification failed')
     return c.json({ error: 'Invalid verification code' }, 400)
   }
 
@@ -273,18 +268,9 @@ app.post('/mfa/challenge', async (c) => {
         await sendSMS(currentUser.companyId, { toPhone: device.phone_number, message: `Your verification code is ${code}` })
       } catch { /* delivery failure must not block the challenge — user can resend */ }
     }
-    await db.execute(sql`
-      INSERT INTO security_events (
-        id, company_id, event_type, severity, description,
-        user_id, ip_address, metadata, created_at
-      ) VALUES (
-        gen_random_uuid(), ${currentUser.companyId}, 'mfa_code_sent', 'info',
-        'MFA challenge code sent via SMS', ${data.userId},
-        ${c.req.header('x-forwarded-for') || 'unknown'},
-        ${JSON.stringify({ deviceType: 'sms', challengeId: challenge.id })}::jsonb,
-        NOW()
-      )
-    `)
+    await recordSecurityEvent(c, currentUser.companyId, data.userId,
+      'mfa_code_sent', 'info', 'MFA challenge code sent via SMS',
+      { metadata: { deviceType: 'sms', challengeId: challenge.id } })
   }
 
   return c.json({ challengeId: challenge.id, expiresAt: challenge.expires_at })
@@ -309,16 +295,8 @@ app.post('/mfa/challenge/verify', async (c) => {
 
   // Check expiry
   if (new Date(challenge.expires_at) < new Date()) {
-    await db.execute(sql`
-      INSERT INTO security_events (
-        id, company_id, event_type, severity, description,
-        user_id, ip_address, created_at
-      ) VALUES (
-        gen_random_uuid(), ${currentUser.companyId}, 'mfa_challenge_expired', 'warning',
-        'MFA challenge expired', ${challenge.user_id},
-        ${c.req.header('x-forwarded-for') || 'unknown'}, NOW()
-      )
-    `)
+    await recordSecurityEvent(c, currentUser.companyId, challenge.user_id,
+      'mfa_challenge_expired', 'warning', 'MFA challenge expired')
     return c.json({ error: 'Challenge has expired' }, 400)
   }
 
@@ -336,16 +314,8 @@ app.post('/mfa/challenge/verify', async (c) => {
   }
 
   if (!valid) {
-    await db.execute(sql`
-      INSERT INTO security_events (
-        id, company_id, event_type, severity, description,
-        user_id, ip_address, created_at
-      ) VALUES (
-        gen_random_uuid(), ${currentUser.companyId}, 'mfa_challenge_failed', 'warning',
-        'MFA challenge verification failed', ${challenge.user_id},
-        ${c.req.header('x-forwarded-for') || 'unknown'}, NOW()
-      )
-    `)
+    await recordSecurityEvent(c, currentUser.companyId, challenge.user_id,
+      'mfa_challenge_failed', 'warning', 'MFA challenge verification failed')
     return c.json({ success: false, error: 'Invalid code' }, 400)
   }
 
@@ -355,16 +325,8 @@ app.post('/mfa/challenge/verify', async (c) => {
   `)
 
   // Log success event
-  await db.execute(sql`
-    INSERT INTO security_events (
-      id, company_id, event_type, severity, description,
-      user_id, ip_address, created_at
-    ) VALUES (
-      gen_random_uuid(), ${currentUser.companyId}, 'mfa_challenge_verified', 'info',
-      'MFA challenge verified successfully', ${challenge.user_id},
-      ${c.req.header('x-forwarded-for') || 'unknown'}, NOW()
-    )
-  `)
+  await recordSecurityEvent(c, currentUser.companyId, challenge.user_id,
+    'mfa_challenge_verified', 'info', 'MFA challenge verified successfully')
 
   audit.log({
     action: audit.ACTIONS.LOGIN,
@@ -907,6 +869,40 @@ app.get('/events', requireRole('manager'), async (c) => {
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
 })
 
+/**
+ * THE TYPES THIS COMPANY ACTUALLY HAS. (T51 follow-up)
+ *
+ * Owner: "the type filter has no PIN types."
+ *
+ * SecurityPage hardcoded nine options — login_failed, mfa_enabled, password_changed and so on — and
+ * NOT ONE of them is a value anything in this codebase writes. The thirteen that are actually
+ * written (pin_login_failed, brute_force_detected, pin_changed, pin_set, pin_removed, and the mfa_*
+ * family) were all missing, so every option in that dropdown filtered to nothing and the PIN events
+ * — the ones a dispensary cares about, because the till PIN is the thing people share — could not be
+ * isolated at all.
+ *
+ * Returning the distinct types rather than lengthening the hardcoded list: a list in the screen and
+ * a set of writers in the server drift the moment anybody adds an event, which is exactly what
+ * happened here. This cannot drift — it IS the data.
+ *
+ * Declared BEFORE any `/events/:id` would be: a literal segment under a parameterised sibling is how
+ * /api/team/assignable ended up answering "Team member not found" on this very template.
+ */
+app.get('/events/types', requireRole('manager'), async (c) => {
+  const currentUser = c.get('user') as any
+  const result = await db.execute(sql`
+    SELECT event_type, COUNT(*)::int AS count
+    FROM security_events
+    WHERE company_id = ${currentUser.companyId}
+    GROUP BY event_type
+    ORDER BY count DESC, event_type ASC
+  `)
+  const rows = ((result as any).rows || result) as Array<{ event_type: string; count: number }>
+  return c.json({
+    data: rows.map((r) => ({ value: r.event_type, count: Number(r.count) })),
+  })
+})
+
 // Event summary: counts by type and severity for last 24h/7d/30d
 app.get('/events/summary', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
@@ -1025,21 +1021,14 @@ app.post('/events/log', async (c) => {
   const currentUser = c.get('user') as any
   const data = securityEventLogSchema.parse(await c.req.json())
 
-  const result = await db.execute(sql`
-    INSERT INTO security_events (
-      id, company_id, event_type, severity, description,
-      user_id, ip_address, metadata, created_at
-    ) VALUES (
-      gen_random_uuid(), ${currentUser.companyId},
-      ${data.eventType}, ${data.severity}, ${data.description || null},
-      ${data.userId || currentUser.userId},
-      ${data.ipAddress || c.req.header('x-forwarded-for') || 'unknown'},
-      ${data.metadata ? JSON.stringify(data.metadata) : null}::jsonb,
-      NOW()
-    ) RETURNING *
-  `)
-
-  const created = ((result as any).rows || result)[0]
+  // The one caller that records an event on someone else's behalf, so it may supply the address —
+  // and the one that hands the row back, which is why the helper returns it. (T51 follow-up)
+  const created = await recordSecurityEvent(
+    c, currentUser.companyId, data.userId || currentUser.userId,
+    data.eventType, data.severity, data.description || null,
+    { metadata: data.metadata, ip: data.ipAddress || null },
+  )
+  if (!created) return c.json({ error: 'The security event could not be recorded.' }, 500)
 
   return c.json(created, 201)
 })
@@ -1102,18 +1091,9 @@ app.post('/encryption/keys/rotate', requireRole('owner'), async (c) => {
 
   const newKey = camel(((result as any).rows || result)[0])
 
-  await db.execute(sql`
-    INSERT INTO security_events (
-      id, company_id, event_type, severity, description,
-      user_id, ip_address, metadata, created_at
-    ) VALUES (
-      gen_random_uuid(), ${currentUser.companyId}, 'encryption_key_rotated', 'info',
-      'Encryption key rotated', ${currentUser.userId},
-      ${c.req.header('x-forwarded-for') || 'unknown'},
-      ${JSON.stringify({ keyName: currentKey.key_alias, oldVersion: currentKey.key_version, newVersion: newKey.version })}::jsonb,
-      NOW()
-    )
-  `)
+  await recordSecurityEvent(c, currentUser.companyId, currentUser.userId,
+    'encryption_key_rotated', 'info', 'Encryption key rotated',
+    { metadata: { keyName: currentKey.key_alias, oldVersion: currentKey.key_version, newVersion: newKey.version } })
 
   audit.log({
     action: audit.ACTIONS.UPDATE,
