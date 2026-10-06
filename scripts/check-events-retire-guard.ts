@@ -31,9 +31,49 @@ for (const [file, counter, refusal, notFound] of [
   if (!new RegExp(`if \\(updates\\.active === false && existing\\.active\\) \\{\\s*const n = await ${counter}\\(currentUser\\.companyId, existing\\.id\\)\\s*if \\(n > 0\\) return c\\.json\\(\\{ error: ${refusal}\\(existing\\.name, n\\), upcomingEvents: n \\}, 409\\)`).test(put)) fail(`${file} PUT {active:false} must apply the same refusal`)
 }
 
+/**
+ * The screen must SHOW the server's reason — "The Cellar is held by 3 upcoming bookings" — and not
+ * swallow it for a generic "Failed to retire".
+ *
+ * This used to pin the exact expression `alert((err as Error).message || 'Failed to retire space')`,
+ * which made it a guard for one spelling rather than for the rule: the moment those refusals moved
+ * out of a native pop-up and onto the page (T58), a strictly better screen failed the check. So it
+ * now asserts what actually matters, in the retire handler's own catch block:
+ *
+ *   1. the caught error is read — the SERVER's sentence, not a constant the frontend invented;
+ *   2. it reaches something that renders — not console alone, which is a message to nobody.
+ *
+ * How it is rendered (a page banner, a toast, a pop-up) is the screen's business and may change again.
+ */
 for (const [file, what] of [['frontend/src/pages/events/SpacesPage.tsx', 'space'], ['frontend/src/pages/events/MenusPage.tsx', 'package']] as const) {
   const src = read(file)
-  if (!new RegExp(`alert\\(\\(err as Error\\)\\.message \\|\\| 'Failed to retire ${what}'\\)`).test(src)) fail(`${file} retire must show the server's reason (the 409 message), not a generic failure`)
+
+  // the retire handler, by balanced braces from its declaration
+  const at = src.search(/const retire\s*=\s*async/)
+  if (at < 0) { fail(`${file} has no retire handler to check`); continue }
+  let depth = 0, end = -1
+  for (let i = src.indexOf('{', at); i < src.length && i >= 0; i++) {
+    if (src[i] === '{') depth++
+    else if (src[i] === '}') { depth--; if (depth === 0) { end = i; break } }
+  }
+  const fn = src.slice(at, end > 0 ? end + 1 : undefined)
+
+  const m = fn.match(/catch\s*\(\s*([A-Za-z_$][\w$]*)\s*\)\s*\{([\s\S]*)$/)
+  if (!m) { fail(`${file} retire must handle the 409 refusal — it has no catch block`); continue }
+  const [, caught, body] = m
+
+  // 1. the server's sentence is read
+  if (!new RegExp(`(?<![\\w$])${caught}(?![\\w$])`).test(body)) {
+    fail(`${file} retire discards the caught error — the owner would see a generic failure instead of "${what} is held by N upcoming bookings"`)
+  }
+  // 2. and it is handed to something that renders, not only to the console
+  const rendering = body
+    .split('\n')
+    .filter((l) => !/^\s*console\./.test(l.trim()))
+    .join('\n')
+  if (!new RegExp(`(?<![\\w$])${caught}(?![\\w$])`).test(rendering)) {
+    fail(`${file} retire only logs the refusal to the console — nothing on the screen tells the owner why the ${what} would not retire`)
+  }
 }
 
 if (failed) { console.error(`\nevents retire guard: ${failed} check(s) FAILED`); process.exit(1) }

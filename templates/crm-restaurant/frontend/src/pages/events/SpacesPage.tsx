@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Loader2, X, DoorOpen, Edit2, Trash2, Users, Wallet } from 'lucide-react';
 import api from '../../services/api';
+import FormError, { errorText } from '../../components/ui/FormError';
 
 /**
  * Spaces — the rooms you can sell. Minimum spend is the number the sales
@@ -32,6 +33,8 @@ export default function SpacesPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [showForm, setShowForm] = useState<boolean>(false);
   const [editing, setEditing] = useState<Space | null>(null);
+  // A refusal from a page-level action — retiring a room — shown here rather than in a pop-up. (T58)
+  const [pageErr, setPageErr] = useState<string>('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -40,6 +43,7 @@ export default function SpacesPage() {
       setSpaces(res.data || []);
     } catch (error) {
       console.error('Failed to load spaces:', error);
+      setPageErr(errorText(error, 'Could not load spaces. Try again.'));
     } finally {
       setLoading(false);
     }
@@ -49,12 +53,13 @@ export default function SpacesPage() {
 
   const retire = async (s: Space) => {
     if (!confirm(`Retire "${s.name}"? Past events keep it in their history.`)) return;
+    setPageErr('');
     try {
       await api.delete('/api/event-spaces', s.id);
       load();
     } catch (err) {
       // a room with upcoming bookings is refused with the count — show that, not a generic failure
-      alert((err as Error).message || 'Failed to retire space');
+      setPageErr(errorText(err, 'Could not retire that space.'));
     }
   };
 
@@ -71,6 +76,8 @@ export default function SpacesPage() {
           <Plus className="w-4 h-4" /> New Space
         </button>
       </div>
+
+      <FormError message={pageErr} onDismiss={() => setPageErr('')} />
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
@@ -144,6 +151,7 @@ export default function SpacesPage() {
 
 function SpaceModal({ space, onSave, onClose }: { space: Space | null; onSave: () => void; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string>('');
   const [amenities, setAmenities] = useState<string[]>(space?.amenities || []);
   const [form, setForm] = useState({
     name: space?.name || '',
@@ -162,7 +170,8 @@ function SpaceModal({ space, onSave, onClose }: { space: Space | null; onSave: (
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) { alert('Space name is required'); return; }
+    if (!form.name.trim()) { setErr('Give the space a name — it is what the room is called on the booking.'); return; }
+    setErr('');
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -178,8 +187,8 @@ function SpaceModal({ space, onSave, onClose }: { space: Space | null; onSave: (
       if (space) await api.put(`/api/event-spaces/${space.id}`, payload);
       else await api.post('/api/event-spaces', payload);
       onSave();
-    } catch (err) {
-      alert((err as Error).message || 'Failed to save space');
+    } catch (e2) {
+      setErr(errorText(e2, 'Could not save the space.'));
     } finally {
       setSaving(false);
     }
@@ -240,6 +249,7 @@ function SpaceModal({ space, onSave, onClose }: { space: Space | null; onSave: (
               <input id="spaceActive" type="checkbox" checked={form.active} onChange={(e) => set('active', e.target.checked)} className="w-4 h-4" />
               <label htmlFor="spaceActive" className="text-sm font-medium text-gray-700 dark:text-slate-200">Bookable</label>
             </div>
+            <FormError message={err} />
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">

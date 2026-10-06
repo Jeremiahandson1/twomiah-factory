@@ -5,6 +5,7 @@ import api from '../../services/api';
 import ClientPicker from '../../components/events/ClientPicker';
 import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
 import { confirmEventRisks } from '../../lib/eventWarnings';
+import FormError, { errorText } from '../../components/ui/FormError';
 
 /**
  * Events — the pipeline and the book, over the same list.
@@ -259,6 +260,7 @@ interface SpaceOption { id: string; name?: string; seatedCapacity?: number; stan
 
 function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => void; onClose: () => void; initialContactId?: string }) {
   const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string>('');
   const [spaces, setSpaces] = useState<SpaceOption[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [contactId, setContactId] = useState<string>(initialContactId || '');
@@ -285,9 +287,10 @@ function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => vo
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) { alert('Event name is required'); return; }
-    if (!form.eventDate) { alert('Event date is required'); return; }
+    if (!form.name.trim()) { setErr('Give the enquiry a name — "Harper / Diaz wedding" is enough to find it again.'); return; }
+    if (!form.eventDate) { setErr('Pick the event date. It is what puts the enquiry in the book.'); return; }
     if (!confirmEventRisks(form, spaces)) return; // past date / over capacity: warn, allow (T16 L1 / L2)
+    setErr('');
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -306,8 +309,8 @@ function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => vo
       if (form.notes) payload.notes = form.notes;
       await api.post('/api/events', payload);
       onSave();
-    } catch (err) {
-      alert((err as Error).message || 'Failed to create event');
+    } catch (e2) {
+      setErr(errorText(e2, 'Could not create the enquiry.'));
     } finally {
       setSaving(false);
     }
@@ -388,6 +391,7 @@ function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => vo
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
+            <FormError message={err} />
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">

@@ -2103,6 +2103,17 @@ jobs:
       - name: "Audit page shapes"
         run: bun run scripts/check-audit-page-reads-both-shapes.ts
 
+  refusals-render-on-the-page:
+    name: "A refusal renders on the page, not in a native pop-up"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "No new native pop-ups"
+        run: bun run scripts/check-refusals-render-on-the-page.ts
+
   refresh-outcomes:
     name: "A failed refresh is not a dead session"
     runs-on: ubuntu-latest

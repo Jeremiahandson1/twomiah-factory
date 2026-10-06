@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   Loader2, CalendarDays, Users, DoorOpen, Phone, Mail, Plus, X, ArrowLeft,
-  UtensilsCrossed, Clock, Wallet, AlertTriangle, ExternalLink, Trash2, Check,
+  UtensilsCrossed, Clock, Wallet, AlertTriangle, AlertCircle, ExternalLink, Trash2, Check,
 } from 'lucide-react';
 import api from '../../services/api';
 import { STATUSES, STATUS_COLORS, EVENT_TYPES, fmtEventDate, money, prettyType, localDay } from './EventsPage';
@@ -109,6 +109,8 @@ export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [detail, setDetail] = useState<Detail>({});
   const [loading, setLoading] = useState<boolean>(true);
+  // A refusal from a page-level action, shown at the top of the page rather than in a pop-up. (T58)
+  const [pageErr, setPageErr] = useState<string>('');
   const [tab, setTab] = useState<Tab>('menu');
   const [showEdit, setShowEdit] = useState<boolean>(false);
   const [showMenu, setShowMenu] = useState<boolean>(false);
@@ -143,23 +145,26 @@ export default function EventDetailPage() {
       if (!keep) { load(); return; }
       body.keepDeposit = true;
     }
+    setPageErr('');
     try {
       await api.put(`/api/events/${id}`, body);
       load();
-    } catch (err) {
+    } catch (e2) {
       // A 409 here is the double-book guard (another event holds the room) or money still to settle.
-      alert((err as Error).message || 'Failed to change status');
+      // Both name something the coordinator has to decide about, so it stays on the page.
+      setPageErr((e2 as Error).message || 'Failed to change status');
       load();
     }
   };
 
   const removeLine = async (kind: 'menu' | 'timeline' | 'payments', lineId: string) => {
     if (!id) return;
+    setPageErr('');
     try {
       await api.delete(`/api/events/${id}/${kind}`, lineId);
       load();
-    } catch {
-      alert('Failed to remove');
+    } catch (e2) {
+      setPageErr((e2 as Error).message || 'Could not remove that line.');
     }
   };
 
@@ -213,6 +218,22 @@ export default function EventDetailPage() {
         <ArrowLeft className="w-4 h-4" /> Events
       </Link>
 
+      {/*
+        A refusal from a page-level action — changing the status, removing a line — has no form to
+        sit on, so it sits here, at the top of the event it is about. It stays until the next
+        attempt rather than timing out: "another event already holds that room" is a sentence the
+        coordinator needs while they decide what to do, not for four seconds. (T58 follow-up)
+      */}
+      {pageErr ? (
+        <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span className="flex-1">{pageErr}</span>
+          <button onClick={() => setPageErr('')} className="shrink-0 hover:opacity-70" aria-label="Dismiss">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      ) : null}
+
       {/* Header */}
       <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
         <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -238,7 +259,11 @@ export default function EventDetailPage() {
             </select>
             {mayEdit && <button onClick={() => setShowEdit(true)} className="px-3 py-1.5 border rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-700">Edit</button>}
             <button
-              onClick={() => openPrintable(`/api/events/${ev.id}/beo`)}
+              onClick={async () => {
+                setPageErr('');
+                try { await openPrintable(`/api/events/${ev.id}/beo`); }
+                catch (e2) { setPageErr((e2 as Error)?.message || 'Could not open the banquet event order.'); }
+              }}
               className="flex items-center gap-1 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm"
             >
               <ExternalLink className="w-4 h-4" /> Print BEO
@@ -576,14 +601,41 @@ function ModalShell({ title, onClose, children }: { title: string; onClose: () =
   );
 }
 
-function FormButtons({ saving, onClose, label = 'Save' }: { saving: boolean; onClose: () => void; label?: string }) {
+/**
+ * A REFUSAL BELONGS ON THE FORM THAT CAUSED IT. (T58 follow-up)
+ *
+ *   Owner: "when Schedule Payment is refused, the message now goes to a browser pop-up instead of
+ *   showing on the page. In this browser nothing visible appeared at all." And then, next round:
+ *   "24 other pop-up error messages remain."
+ *
+ * window.alert is routed through the toast by ToastContext, and that was still the wrong answer
+ * twice over. A toast is a notification — it slides in at the corner, times out, and lives outside
+ * the modal the person is looking at, so a refusal about the amount they just typed appears away
+ * from the amount they just typed and then disappears. And when it does not paint at all, for any
+ * reason, the refusal is simply lost: the save did nothing and the screen said nothing.
+ *
+ * So the error renders inside the form, above the buttons, next to the fields it is about, and stays
+ * until the next attempt. Every modal on this page already ends with FormButtons, which is why it
+ * lives here rather than in twenty places.
+ *
+ * role="alert" so a screen reader announces it, and so a rendered-page check can find it.
+ */
+function FormButtons({ saving, onClose, label = 'Save', error = '' }: { saving: boolean; onClose: () => void; label?: string; error?: string }) {
   return (
-    <div className="flex gap-3 pt-2">
-      <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-      <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
-        {saving ? 'Saving...' : label}
-      </button>
-    </div>
+    <>
+      {error ? (
+        <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      ) : null}
+      <div className="flex gap-3 pt-2">
+        <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+        <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
+          {saving ? 'Saving...' : label}
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -591,6 +643,7 @@ function FormButtons({ saving, onClose, label = 'Save' }: { saving: boolean; onC
 
 function EditEventModal({ event: ev, clientLabel, onSave, onClose }: { event: EventFull; clientLabel?: string; onSave: () => void; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
   // Held outside `form`, which is all strings keyed by input name — the same shape the New Enquiry
   // modal uses for its picker, so the two forms read the same way.
   const [contactId, setContactId] = useState<string>(ev.contactId || '');
@@ -630,7 +683,8 @@ function EditEventModal({ event: ev, clientLabel, onSave, onClose }: { event: Ev
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) { alert('Event name is required'); return; }
+    setErr('');
+    if (!form.name.trim()) { setErr('Event name is required'); return; }
     if (!confirmEventRisks(form, spaces, ev)) return; // a changed past date / over-capacity room: warn, allow (T16 L1 / L2)
     setSaving(true);
     try {
@@ -653,8 +707,8 @@ function EditEventModal({ event: ev, clientLabel, onSave, onClose }: { event: Ev
         notes: form.notes || null,
       });
       onSave();
-    } catch (err) {
-      alert((err as Error).message || 'Failed to save event');
+    } catch (e2) {
+      setErr((e2 as Error).message || 'Failed to save event');
     } finally {
       setSaving(false);
     }
@@ -744,7 +798,7 @@ function EditEventModal({ event: ev, clientLabel, onSave, onClose }: { event: Ev
           <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
           <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
         </div>
-        <FormButtons saving={saving} onClose={onClose} />
+        <FormButtons saving={saving} onClose={onClose} error={err} />
       </form>
     </ModalShell>
   );
@@ -754,6 +808,7 @@ function EditEventModal({ event: ev, clientLabel, onSave, onClose }: { event: Ev
 
 function MenuLineModal({ eventId, heads, onSave, onClose }: { eventId: string; heads: number; onSave: () => void; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
   const [packages, setPackages] = useState<PackageOption[]>([]);
   const [form, setForm] = useState({
     packageId: '', name: '', perPerson: true,
@@ -785,7 +840,8 @@ function MenuLineModal({ eventId, heads, onSave, onClose }: { eventId: string; h
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.packageId && !form.name.trim()) { alert('Pick a package or type a line name'); return; }
+    setErr('');
+    if (!form.packageId && !form.name.trim()) { setErr('Pick a package or type a line name'); return; }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -798,9 +854,10 @@ function MenuLineModal({ eventId, heads, onSave, onClose }: { eventId: string; h
       if (form.notes) payload.notes = form.notes;
       await api.post(`/api/events/${eventId}/menu`, payload);
       onSave();
-    } catch (err) {
-      // A 400 here is usually the package minimum-guest guard.
-      alert((err as Error).message || 'Failed to add line');
+    } catch (e2) {
+      // A 400 here is usually the package minimum-guest guard, or the sub-cent money rule — both
+      // say something the coordinator can act on, so they belong on the form.
+      setErr((e2 as Error).message || 'Failed to add line');
     } finally {
       setSaving(false);
     }
@@ -850,7 +907,7 @@ function MenuLineModal({ eventId, heads, onSave, onClose }: { eventId: string; h
           <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
           <input type="text" value={form.notes} onChange={(e) => set('notes', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
         </div>
-        <FormButtons saving={saving} onClose={onClose} label="Add" />
+        <FormButtons saving={saving} onClose={onClose} label="Add" error={err} />
       </form>
     </ModalShell>
   );
@@ -860,13 +917,15 @@ function MenuLineModal({ eventId, heads, onSave, onClose }: { eventId: string; h
 
 function TimelineModal({ eventId, nextOrder, onSave, onClose }: { eventId: string; nextOrder: number; onSave: () => void; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
   const [form, setForm] = useState({ time: '', title: '', department: 'floor', details: '' });
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.time.trim()) { alert('Time is required'); return; }
-    if (!form.title.trim()) { alert('Title is required'); return; }
+    setErr('');
+    if (!form.time.trim()) { setErr('Time is required'); return; }
+    if (!form.title.trim()) { setErr('Title is required'); return; }
     setSaving(true);
     try {
       await api.post(`/api/events/${eventId}/timeline`, {
@@ -877,8 +936,8 @@ function TimelineModal({ eventId, nextOrder, onSave, onClose }: { eventId: strin
         sortOrder: nextOrder,
       });
       onSave();
-    } catch (err) {
-      alert((err as Error).message || 'Failed to add step');
+    } catch (e2) {
+      setErr((e2 as Error).message || 'Failed to add step');
     } finally {
       setSaving(false);
     }
@@ -907,7 +966,7 @@ function TimelineModal({ eventId, nextOrder, onSave, onClose }: { eventId: strin
           <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Details</label>
           <textarea value={form.details} onChange={(e) => set('details', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
         </div>
-        <FormButtons saving={saving} onClose={onClose} label="Add" />
+        <FormButtons saving={saving} onClose={onClose} label="Add" error={err} />
       </form>
     </ModalShell>
   );
@@ -918,6 +977,9 @@ function TimelineModal({ eventId, nextOrder, onSave, onClose }: { eventId: strin
 // Schedule an installment (what is due, and when). The first one raises the event's invoice.
 function PaymentModal({ eventId, suggested, onSave, onClose }: { eventId: string; suggested: number; onSave: () => void; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
+  // The refusal this form is about, shown ON this form. The owner's report was specifically here:
+  // a refused Schedule Payment produced a pop-up, and then nothing visible at all. (T58 follow-up)
+  const [err, setErr] = useState('');
   const [form, setForm] = useState({
     label: 'Deposit',
     amount: suggested > 0 ? suggested.toFixed(2) : '',
@@ -927,7 +989,8 @@ function PaymentModal({ eventId, suggested, onSave, onClose }: { eventId: string
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.amount === '') { alert('Amount is required'); return; }
+    setErr('');
+    if (form.amount === '') { setErr('Amount is required'); return; }
     setSaving(true);
     try {
       await api.post(`/api/events/${eventId}/payments`, {
@@ -936,8 +999,10 @@ function PaymentModal({ eventId, suggested, onSave, onClose }: { eventId: string
         dueDate: form.dueDate || null,
       });
       onSave();
-    } catch (err) {
-      alert((err as Error).message || 'Failed to schedule payment');
+    } catch (e2) {
+      // The server's own words — "Amount of 0.001 rounds to $0.00. Enter at least one cent." is a
+      // sentence the person can act on, and it belongs beside the box they typed it into.
+      setErr((e2 as Error).message || 'Failed to schedule payment');
     } finally {
       setSaving(false);
     }
@@ -961,7 +1026,7 @@ function PaymentModal({ eventId, suggested, onSave, onClose }: { eventId: string
           <input type="date" value={form.dueDate} onChange={(e) => set('dueDate', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
         </div>
         <p className="text-xs text-gray-500 dark:text-slate-400">Already paid? Schedule it, then use Record payment on the row.</p>
-        <FormButtons saving={saving} onClose={onClose} label="Schedule" />
+        <FormButtons saving={saving} onClose={onClose} label="Schedule" error={err} />
       </form>
     </ModalShell>
   );
@@ -973,13 +1038,15 @@ function PaymentModal({ eventId, suggested, onSave, onClose }: { eventId: string
 // Invoices page, so it counts in Reports and follows the refund rules.
 function RecordPaymentModal({ invoiceId, installment, balance, onSave, onClose }: { invoiceId: string; installment: PaymentLine; balance: number; onSave: () => void; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
   const due = Math.max(0, Math.min(Number(installment.amount || 0) - Number(installment.paidAmount || 0), balance));
   const [form, setForm] = useState({ amount: due > 0 ? due.toFixed(2) : '', method: 'card', reference: '' });
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.amount === '' || !(Number(form.amount) > 0)) { alert('Enter the amount received'); return; }
+    setErr('');
+    if (form.amount === '' || !(Number(form.amount) > 0)) { setErr('Enter the amount received'); return; }
     setSaving(true);
     try {
       await api.post(`/api/invoices/${invoiceId}/payments`, {
@@ -989,8 +1056,8 @@ function RecordPaymentModal({ invoiceId, installment, balance, onSave, onClose }
         notes: installment.label || undefined,
       });
       onSave();
-    } catch (err) {
-      alert((err as Error).message || 'Failed to record payment');
+    } catch (e2) {
+      setErr((e2 as Error).message || 'Failed to record payment');
     } finally {
       setSaving(false);
     }
@@ -1016,7 +1083,7 @@ function RecordPaymentModal({ invoiceId, installment, balance, onSave, onClose }
           <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Reference</label>
           <input type="text" value={form.reference} onChange={(e) => set('reference', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Card last 4, cheque no., transfer ref" />
         </div>
-        <FormButtons saving={saving} onClose={onClose} label="Record" />
+        <FormButtons saving={saving} onClose={onClose} label="Record" error={err} />
       </form>
     </ModalShell>
   );

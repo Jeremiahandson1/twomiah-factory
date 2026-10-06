@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Loader2, X, UtensilsCrossed, Edit2, Trash2, Users, ChevronDown, ChevronRight } from 'lucide-react';
 import api from '../../services/api';
+import FormError, { errorText } from '../../components/ui/FormError';
 
 /**
  * Catering menus — packages priced per head.
@@ -37,6 +38,8 @@ export default function MenusPage() {
   const [showForm, setShowForm] = useState<boolean>(false);
   const [editing, setEditing] = useState<Package | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // A refusal from a page-level action — retiring a package — shown here rather than in a pop-up. (T58)
+  const [pageErr, setPageErr] = useState<string>('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -45,6 +48,7 @@ export default function MenusPage() {
       setPackages(res.data || []);
     } catch (error) {
       console.error('Failed to load menus:', error);
+      setPageErr(errorText(error, 'Could not load the menus. Try again.'));
     } finally {
       setLoading(false);
     }
@@ -54,12 +58,13 @@ export default function MenusPage() {
 
   const retire = async (p: Package) => {
     if (!confirm(`Retire "${p.name}"? Booked events keep it on their menu.`)) return;
+    setPageErr('');
     try {
       await api.delete('/api/menu-packages', p.id);
       load();
     } catch (err) {
       // a package on upcoming menus is refused with the count — show that, not a generic failure
-      alert((err as Error).message || 'Failed to retire package');
+      setPageErr(errorText(err, 'Could not retire that package.'));
     }
   };
 
@@ -88,6 +93,8 @@ export default function MenusPage() {
           <Plus className="w-4 h-4" /> New Package
         </button>
       </div>
+
+      <FormError message={pageErr} onDismiss={() => setPageErr('')} />
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
@@ -177,6 +184,7 @@ interface CourseDraft { course: string; options: string }
 
 function PackageModal({ pkg, onSave, onClose }: { pkg: Package | null; onSave: () => void; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string>('');
   // Options are edited as one-per-line text — fastest to type, and converted
   // back into the structured shape on save.
   const [courses, setCourses] = useState<CourseDraft[]>(
@@ -199,7 +207,8 @@ function PackageModal({ pkg, onSave, onClose }: { pkg: Package | null; onSave: (
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) { alert('Package name is required'); return; }
+    if (!form.name.trim()) { setErr('Give the package a name — it is what the client sees on their quote.'); return; }
+    setErr('');
     setSaving(true);
     try {
       const structured = courses
@@ -221,8 +230,8 @@ function PackageModal({ pkg, onSave, onClose }: { pkg: Package | null; onSave: (
       if (pkg) await api.put(`/api/menu-packages/${pkg.id}`, payload);
       else await api.post('/api/menu-packages', payload);
       onSave();
-    } catch (err) {
-      alert((err as Error).message || 'Failed to save package');
+    } catch (e2) {
+      setErr(errorText(e2, 'Could not save the package.'));
     } finally {
       setSaving(false);
     }
@@ -311,6 +320,7 @@ function PackageModal({ pkg, onSave, onClose }: { pkg: Package | null; onSave: (
               <input id="pkgActive" type="checkbox" checked={form.active} onChange={(e) => set('active', e.target.checked)} className="w-4 h-4" />
               <label htmlFor="pkgActive" className="text-sm font-medium text-gray-700 dark:text-slate-200">Offered</label>
             </div>
+            <FormError message={err} />
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">

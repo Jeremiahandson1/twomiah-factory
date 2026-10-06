@@ -9,6 +9,11 @@
  * JWT in a URL leaks into browser history, referrer headers and server logs.
  * Instead the document is fetched with the header and handed to the tab as a
  * blob, which prints identically.
+ *
+ * ON FAILURE IT THROWS, and the caller renders the reason. (T58)
+ * It used to alert(), which is the wrong place twice over: this helper has no idea which screen it
+ * was called from, and a pop-up takes the reason away from the page the coordinator is working on.
+ * The caller has somewhere to put it; the helper's job is to say what went wrong, not where.
  */
 export async function openPrintable(path: string): Promise<void> {
   const token = localStorage.getItem('accessToken') || '';
@@ -36,6 +41,6 @@ export async function openPrintable(path: string): Promise<void> {
     }
   } catch (err) {
     tab?.close();
-    alert((err as Error).message || 'Could not open the document');
+    throw err instanceof Error ? err : new Error('Could not open the document');
   }
 }
