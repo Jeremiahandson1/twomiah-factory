@@ -30,6 +30,8 @@ export default function StormLeadsPage() {
   const navigate = useNavigate()
 
   const [events, setEvents] = useState<any[]>([])
+  // Dismissed events are off the board now, so there has to be a way back to them. (T58)
+  const [showDismissed, setShowDismissed] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<any>(null)
   const [leads, setLeads] = useState<any[]>([])
   const [leadPagination, setLeadPagination] = useState<any>({})
@@ -55,14 +57,22 @@ export default function StormLeadsPage() {
 
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
 
+  /**
+   * The board, and a way back to what has been put away. (T58)
+   *
+   * Dismissing an event used to change nothing you could see: the server's list ignored status, so
+   * the row came back on the next load with a toast saying it had been dismissed. The list now leaves
+   * dismissed events out, which means this screen needs somewhere they can still be found — an event
+   * is a record of weather and is never deleted, only put away.
+   */
   const loadEvents = useCallback(async () => {
     try {
-      const res = await fetch('/api/storms/events', { headers })
+      const res = await fetch(`/api/storms/events${showDismissed ? '?status=dismissed' : ''}`, { headers })
       const data = await res.json()
       setEvents(Array.isArray(data) ? data : [])
     } catch { toast.error('Failed to load storm events') }
     finally { setLoading(false) }
-  }, [token])
+  }, [token, showDismissed])
 
   useEffect(() => { loadEvents() }, [loadEvents])
 
@@ -226,8 +236,22 @@ export default function StormLeadsPage() {
             <Plus size={12} /> New
           </button>)}
         </div>
+        {/* Dismissed events leave the board; this is the way back to them. Without it, putting one
+            away would make it unreachable, which is deleting with extra steps. (T58) */}
+        <div className="px-4 py-2 border-b">
+          <button
+            onClick={() => { setLoading(true); setSelectedEvent(null); setLeads([]); setShowDismissed(!showDismissed) }}
+            className="text-xs text-gray-600 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-200 underline"
+          >
+            {showDismissed ? 'Back to active events' : 'Show dismissed events'}
+          </button>
+        </div>
         <div className="flex-1 overflow-y-auto">
-          {events.length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400 text-center py-8">No storm events yet</p>}
+          {events.length === 0 && (
+            <p className="text-sm text-gray-500 dark:text-slate-400 text-center py-8">
+              {showDismissed ? 'Nothing has been dismissed' : 'No storm events yet'}
+            </p>
+          )}
           {events.map(event => (
             <button key={event.id} onClick={() => selectEvent(event)}
               className={`w-full text-left p-4 border-b hover:bg-gray-50 ${selectedEvent?.id === event.id ? 'bg-blue-50 border-l-2 border-l-blue-600 dark:bg-blue-950/40 dark:text-slate-100' : ''}`}>

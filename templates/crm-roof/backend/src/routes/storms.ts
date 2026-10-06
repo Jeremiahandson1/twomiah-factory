@@ -9,13 +9,30 @@ import { generateStormLeads, checkExistingCustomers } from '../services/stormDat
 const app = new Hono()
 app.use('*', authenticate)
 
-// GET /events — list storm events
+/**
+ * GET /events — the storm board. DISMISSED events are not on it. (T58)
+ *
+ *   "Roofing: the probe storm events are still listed."
+ *
+ * They were, and so is every event anyone has ever dismissed. This list ignored status unless one was
+ * asked for, and the page asks for none — so `dismissEvent` POSTed the dismiss, toasted "Event
+ * dismissed", called loadEvents(), and the event it had just dismissed came straight back onto the
+ * board. A control whose whole purpose is to take a row off the screen, reporting success, changing
+ * nothing visible. There is no DELETE for a storm event by design — it is a record of weather, and
+ * dismissing is how you put it away — so dismiss not working meant nothing could be put away at all.
+ *
+ * `?status=dismissed` still returns them, which is what the toggle on the page now uses, and
+ * `?includeDismissed=true` returns the lot. So nothing becomes unreachable: an event that was put
+ * away can still be found, which is the difference between dismissing and deleting.
+ */
 app.get('/events', async (c) => {
   const { companyId } = c.get('user')
   const status = c.req.query('status')
+  const includeDismissed = /^(1|true|yes)$/i.test(String(c.req.query('includeDismissed') || ''))
 
   const conditions: any[] = [eq(stormEvent.companyId, companyId)]
   if (status) conditions.push(eq(stormEvent.status, status))
+  else if (!includeDismissed) conditions.push(sql`${stormEvent.status} <> 'dismissed'`)
 
   const events = await db.select().from(stormEvent)
     .where(and(...conditions))
