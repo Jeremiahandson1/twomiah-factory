@@ -267,8 +267,19 @@ app.post('/:id/count', requireRole('manager'), async (c) => {
   const skus = [...new Set(data.items.filter((i) => !i.productId?.trim() && i.sku?.trim()).map((i) => i.sku!.trim()))]
   const bySku = new Map<string, string>()
   if (skus.length) {
+    /**
+     * `sku IN (...)` with each value bound separately — NOT `= ANY(${skus})`.
+     *
+     * A JS array handed to a sql template binds as ONE parameter, so Postgres saw a single text
+     * value where it wanted an array and refused with 22P02, which the error handler maps to "One of
+     * the values is not in a valid format." A VALID sku failed exactly like an invalid one. Caught by
+     * the live verification after this had already deployed, which is the only reason it is not
+     * still broken. (T58c)
+     */
     const found = rowsOf(await db.execute(sql`
-      SELECT id, sku FROM products WHERE company_id = ${currentUser.companyId} AND sku = ANY(${skus})
+      SELECT id, sku FROM products
+       WHERE company_id = ${currentUser.companyId}
+         AND sku IN (${sql.join(skus.map((s) => sql`${s}`), sql`, `)})
     `))
     for (const r of found) bySku.set(String(r.sku), String(r.id))
     const unknown = skus.filter((s) => !bySku.has(s))
