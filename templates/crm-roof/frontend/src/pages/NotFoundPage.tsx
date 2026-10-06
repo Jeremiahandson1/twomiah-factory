@@ -18,7 +18,19 @@ export default function NotFoundPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 dark:bg-slate-900">
       <div className="text-center">
-        <p className="text-6xl font-bold" style={{ color: brand }}>404</p>
+        {/*
+          NOT the brand colour. (T51 follow-up)
+
+          This was `style={{ color: brand }}`, so the contrast of the one glyph that says what
+          happened depended on a colour the CUSTOMER picks. Measured on this tenant in dark mode:
+          blue-700 on slate-900 is 2.66:1, and 60px text still needs 3:1. Any brand dark enough to
+          look good on a white site fails on the dark ground, and no guard can see it — it is an
+          inline style, which every contrast check in scripts/ reads straight past.
+
+          A token colour that clears AA in both themes. The brand still appears on the button below,
+          where it is a BACKGROUND with white text and that pair is managed deliberately.
+        */}
+        <p className="text-6xl font-bold text-gray-500 dark:text-slate-400">404</p>
         <h1 className="mt-4 text-2xl font-bold text-gray-900 dark:text-slate-100">Page not found</h1>
         <p className="mt-2 text-gray-500 dark:text-slate-400">The page you’re looking for doesn’t exist or has moved.</p>
         <div className="mt-6 flex items-center justify-center gap-3">

@@ -154,6 +154,17 @@ export default function SettingsPage() {
   });
   // What the server says Automatic resolves to, so the manager can see the default rather than guess.
   const [effectiveTz, setEffectiveTz] = useState('');
+  /**
+   * …and the same for the rates the till will CHARGE. (T58, "two tax-rate settings disagree")
+   *
+   * An unset sales-tax rate showed as 0% in the box below while the server charged its 8.75% fallback
+   * and recorded the order at that — Settings, the register and the receipt giving three answers. The
+   * box still shows what is STORED (nothing is written that the operator did not type), and a note
+   * beside it names what is actually being charged when nothing is stored.
+   */
+  const [effectiveRates, setEffectiveRates] = useState<{
+    taxRate: number | null; exciseTaxRate: number | null; taxIsDefault: boolean; exciseIsDefault: boolean;
+  }>({ taxRate: null, exciseTaxRate: null, taxIsDefault: false, exciseIsDefault: false });
   const [storeHours, setStoreHours] = useState<StoreHours>(defaultHours());
 
   // Loyalty
@@ -229,6 +240,12 @@ export default function SettingsPage() {
           paymentTermsDays: co.settings?.paymentTermsDays != null && co.settings.paymentTermsDays !== '' ? String(co.settings.paymentTermsDays) : prev.paymentTermsDays,
         }));
         setEffectiveTz(co.effectiveTimeZone || '');
+        setEffectiveRates({
+          taxRate: Number.isFinite(Number(co.effectiveTaxRate)) ? Number(co.effectiveTaxRate) : null,
+          exciseTaxRate: Number.isFinite(Number(co.effectiveExciseTaxRate)) ? Number(co.effectiveExciseTaxRate) : null,
+          taxIsDefault: co.taxRateIsDefault === true,
+          exciseIsDefault: co.exciseTaxRateIsDefault === true,
+        });
         // Store hours live in the column too, and that is where the seed puts them. Prefer it;
         // fall back to the blob for tenants that only ever saved there.
         if (co.storeHours) setStoreHours(normalizeHours(co.storeHours));
@@ -611,6 +628,13 @@ export default function SettingsPage() {
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400 text-sm">%</span>
                   </div>
+                  {/* What the till is charging while this box is empty. Showing 0% here and charging
+                      8.75% at the counter is the disagreement. (T58) */}
+                  {effectiveRates.taxIsDefault && effectiveRates.taxRate != null && (
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                      No rate set — sales are being taxed at {effectiveRates.taxRate}%. Enter your rate so the till charges what you decide.
+                    </p>
+                  )}
                 </div>
 
                 <div className="w-48">
@@ -637,6 +661,11 @@ export default function SettingsPage() {
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400 text-sm">%</span>
                   </div>
+                  {effectiveRates.exciseIsDefault && effectiveRates.exciseTaxRate != null && (
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                      No rate set — cannabis excise is being charged at {effectiveRates.exciseTaxRate}%. Enter your rate so the till charges what you decide.
+                    </p>
+                  )}
                 </div>
 
                 <div className="w-64">

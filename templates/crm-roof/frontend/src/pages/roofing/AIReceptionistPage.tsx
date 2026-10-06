@@ -283,6 +283,23 @@ export default function AIReceptionistPage() {
               </button>)}
             </div>
           ) : (
+            /*
+              THE RULES TABLE WAS LOSING ITS LAST COLUMNS WITH NO WAY TO REACH THEM. (T51 follow-up)
+
+              Measured in the browser at 390px: this box showed 340px of a 504px table and dropped
+              164px — Active and Actions, so on a phone you could see that a rule existed and not
+              whether it was switched on or do anything about it. The card around it is
+              `overflow-hidden` (for the rounded corners), which clips without scrolling.
+
+              The Calls tab in this same file already wraps its table in overflow-x-auto. One of the
+              two tabs got it; this is the other one.
+
+              It did not show up in the width sweep because a clipped element cannot push the page
+              wider — the sweep excludes them on purpose. It took adding a separate check for content
+              being LOST to see it at all, which is why "the page fits" and "the page is readable"
+              are two different questions.
+            */
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-slate-700 text-left text-gray-500 dark:text-slate-400">
@@ -330,6 +347,7 @@ export default function AIReceptionistPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}

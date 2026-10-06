@@ -135,17 +135,31 @@ export function AuditLogPage({ api, toast, timeZone, canReadUsers = false }: Aud
   useEffect(() => { loadLogs() }, [loadLogs])
   useEffect(() => { setPage(1) }, [actionFilter, entityFilter, userFilter, dateFrom, dateTo, search])
 
-  // The filter vocabulary, once. A log with no rows yet leaves the dropdowns at "All", which filters
-  // nothing and shows everything, rather than blocking the page.
+  /**
+   * The filter vocabulary, once. A log with no rows yet leaves the dropdowns at "All", which filters
+   * nothing and shows everything, rather than blocking the page.
+   *
+   * TWO SHAPES ACCEPTED, deliberately. /filters returns `{ value, count }` where it reads the
+   * company's own rows, and a bare string[] on a tenant still serving the older handler that
+   * returned the whole static vocabulary. Reading `.value` off a string gives `undefined`, and that
+   * is precisely what the live tenants showed on the day this page shipped — every option rendering
+   * "undefined (undefined)". The server side is fixed; this stays tolerant because a tenant mid-roll
+   * should get a usable filter rather than a row of undefineds. (T51 follow-up)
+   */
   useEffect(() => {
     let cancelled = false
+    const normalise = (v: unknown): { value: string; count: number }[] => {
+      if (!Array.isArray(v)) return []
+      return v
+        .map((x: any) => (typeof x === 'string'
+          ? { value: x, count: 0 }
+          : { value: String(x?.value ?? ''), count: Number(x?.count ?? 0) }))
+        .filter((x) => x.value)
+    }
     api.get('/api/audit/filters')
       .then((d: any) => {
         if (cancelled) return
-        setOptions({
-          actions: Array.isArray(d?.actions) ? d.actions : [],
-          entities: Array.isArray(d?.entities) ? d.entities : [],
-        })
+        setOptions({ actions: normalise(d?.actions), entities: normalise(d?.entities) })
       })
       .catch(() => {})
     return () => { cancelled = true }
@@ -184,11 +198,11 @@ export function AuditLogPage({ api, toast, timeZone, canReadUsers = false }: Aud
           </div>
           <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} aria-label="Filter by action" className={inputCls}>
             <option value="">All actions</option>
-            {options.actions.map((a) => <option key={a.value} value={a.value}>{humanise(a.value)} ({a.count})</option>)}
+            {options.actions.map((a) => <option key={a.value} value={a.value}>{humanise(a.value)}{a.count ? ` (${a.count})` : ''}</option>)}
           </select>
           <select value={entityFilter} onChange={(e) => setEntityFilter(e.target.value)} aria-label="Filter by record type" className={inputCls}>
             <option value="">All records</option>
-            {options.entities.map((e) => <option key={e.value} value={e.value}>{humanise(e.value)} ({e.count})</option>)}
+            {options.entities.map((e) => <option key={e.value} value={e.value}>{humanise(e.value)}{e.count ? ` (${e.count})` : ''}</option>)}
           </select>
           {canReadUsers && (
             <select value={userFilter} onChange={(e) => setUserFilter(e.target.value)} aria-label="Filter by person" className={inputCls}>

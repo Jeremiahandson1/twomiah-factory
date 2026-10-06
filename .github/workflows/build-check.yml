@@ -2048,6 +2048,28 @@ jobs:
       - name: "Status chips"
         run: bun run scripts/check-status-chip-has-dark-ground.ts
 
+  one-tax-split:
+    name: "A tax report's excise + sales + local adds up to its total"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "One tax split"
+        run: bun run scripts/check-one-tax-split.ts
+
+  commission-role-words:
+    name: "A commission plan card prints the word its dropdown offered"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Commission role words"
+        run: bun run scripts/check-commission-role-words.ts
+
   refresh-outcomes:
     name: "A failed refresh is not a dead session"
     runs-on: ubuntu-latest

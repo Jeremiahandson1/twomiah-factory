@@ -1,18 +1,18 @@
-/**
+﻿/**
  * MEASURE page width on the live fleet, in a real browser.
  *
- * NOT A CI GUARD — it needs a browser on a debugging port and the ten live tenants:
+ * NOT A CI GUARD â€” it needs a browser on a debugging port and the ten live tenants:
  *
  *     msedge --headless=new --remote-debugging-port=9223 about:blank
  *     bun scripts/measure-width-live.ts 390
  *     bun scripts/measure-width-live.ts 1280
  *
- * Its companion is scripts/measure-contrast-live.ts. Keep the page list current — the whole reason
+ * Its companion is scripts/measure-contrast-live.ts. Keep the page list current â€” the whole reason
  * this file exists is a page that was missing from the previous one.
  *
  * WHY THIS IS NOT JUST t41-width-measure.ts RE-RUN. That script's page list for `events` is
  * `spaces, bookings, menus, contacts`. **`events` itself is not in it.** So T41's width run came back
- * 79/79 clean while the Events pipeline — the default landing view of that vertical's main screen —
+ * 79/79 clean while the Events pipeline â€” the default landing view of that vertical's main screen â€”
  * was 35,110 pixels wide. A sweep's WALK matters as much as its rule, and a page that is not in the
  * list cannot fail.
  *
@@ -21,7 +21,7 @@
  * toggle, so it gets its own target.
  *
  * Measured the way the earlier round learned to: `documentElement.clientWidth`, never
- * `window.innerWidth` — under mobile emulation Chrome widens the layout viewport when content
+ * `window.innerWidth` â€” under mobile emulation Chrome widens the layout viewport when content
  * overflows, so innerWidth reports the widened figure and every broken page reads as "fits".
  * An element inside a scroll/clip container is not a cause, so those are excluded.
  *
@@ -45,19 +45,31 @@ type Page = { path: string; click?: string }
 const PAGES: Record<string, Page[]> = {
   // The whole point of this run. `events` defaults to the pipeline; the list view needs the toggle.
   events: [
+    { path: 'dashboard' },
     { path: 'events' }, { path: 'events', click: 'List' },
     { path: 'spaces' }, { path: 'menus' }, { path: 'contacts' },
     { path: 'support' }, { path: 'invoices' },
   ],
-  contractor: [{ path: 'ai-receptionist' }, { path: 'support' }, { path: 'invoices' }, { path: 'warranties' }],
-  gym: [{ path: 'ai-receptionist' }, { path: 'support' }, { path: 'invoices' }, { path: 'jobs' }, { path: 'quotes' }],
-  hvac: [{ path: 'ai-receptionist' }, { path: 'support' }, { path: 'invoices' }, { path: 'dispatch' }],
-  landscaping: [{ path: 'ai-receptionist' }, { path: 'support' }, { path: 'invoices' }, { path: 'dispatch' }],
-  roofing: [{ path: 'ai-receptionist' }, { path: 'contact-support' }, { path: 'invoices' }],
-  rv: [{ path: 'support' }, { path: 'invoices' }],
-  salon: [{ path: 'support' }, { path: 'invoices' }],
-  veterinary: [{ path: 'support' }, { path: 'invoices' }],
-  dispensary: [{ path: 'contact-support' }, { path: 'dashboard' }, { path: 'compliance' }],
+  /**
+   * THE PAGES THE OWNER NAMED, ADDED BECAUSE THEY WERE NOT HERE. (T51 follow-up)
+   *
+   * The owner reported "the 390px dashboard is 12px too wide" on showcase and "Canvassing is clipped
+   * at 390" on roofing. This run came back 36 of 36 clean â€” because neither `gym/dashboard` nor
+   * `roofing/canvassing` was in the list. That is the fault documented at the top of this very file,
+   * repeated: a page that is not in the list cannot fail.
+   *
+   * `dashboard` is added for EVERY vertical, not just the one that was reported. It is the landing
+   * screen of every tenant and it was missing from all ten.
+   */
+  contractor: [{ path: 'dashboard' }, { path: 'ai-receptionist' }, { path: 'support' }, { path: 'invoices' }, { path: 'warranties' }, { path: 'audit' }],
+  gym: [{ path: 'dashboard' }, { path: 'ai-receptionist' }, { path: 'support' }, { path: 'invoices' }, { path: 'jobs' }, { path: 'quotes' }, { path: 'commissions' }, { path: 'booking' }, { path: 'audit' }],
+  hvac: [{ path: 'dashboard' }, { path: 'ai-receptionist' }, { path: 'support' }, { path: 'invoices' }, { path: 'dispatch' }, { path: 'equipment' }, { path: 'warranties' }, { path: 'audit' }],
+  landscaping: [{ path: 'dashboard' }, { path: 'ai-receptionist' }, { path: 'support' }, { path: 'invoices' }, { path: 'dispatch' }, { path: 'audit' }],
+  roofing: [{ path: '' }, { path: 'ai-receptionist' }, { path: 'contact-support' }, { path: 'invoices' }, { path: 'canvassing' }],
+  rv: [{ path: 'dashboard' }, { path: 'support' }, { path: 'invoices' }, { path: 'audit' }],
+  salon: [{ path: 'dashboard' }, { path: 'support' }, { path: 'invoices' }, { path: 'expenses' }, { path: 'audit' }],
+  veterinary: [{ path: 'dashboard' }, { path: 'support' }, { path: 'invoices' }, { path: 'audit' }],
+  dispensary: [{ path: 'contact-support' }, { path: 'dashboard' }, { path: 'compliance' }, { path: 'security' }, { path: 'scheduling' }, { path: 'audit' }],
 }
 
 const rows: any[] = await (await fetch(
@@ -105,7 +117,7 @@ const cdp = async (ws: WebSocket, id: number, method: string, params: any = {}) 
 
 const list = await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json() as any[]
 const page = list.find((t) => t.type === 'page')
-if (!page) { console.error('no page target — the browser needs --remote-debugging-port=9223'); process.exit(1) }
+if (!page) { console.error('no page target â€” the browser needs --remote-debugging-port=9223'); process.exit(1) }
 const ws = new WebSocket(page.webSocketDebuggerUrl)
 await new Promise((r) => ws.addEventListener('open', r, { once: true }))
 let id = 0
@@ -133,10 +145,48 @@ const EXPR = `(() => {
     }
   }
   over.sort((a, b) => b.right - a.right);
+
+  /**
+   * CLIPPED is not the same fault as OVERFLOWING, and this script was blind to it. (T51 follow-up)
+   *
+   * The loop above deliberately SKIPS anything inside a clipping ancestor, because such an element
+   * cannot push the document wider — correct for "is the page too wide". But the owner reported
+   * "Canvassing is clipped at 390", which is the other failure: content cut off INSIDE a box, with
+   * no way to reach it. This run said roofing/canvassing fits, and it does; nobody had looked for
+   * content being lost.
+   *
+   * A box is losing content when its scrollWidth exceeds its clientWidth AND it cannot be scrolled
+   * — overflow hidden/clip. Where it is auto/scroll the content is reachable, which is a legitimate
+   * pattern this fleet uses for wide tables, so those are not reported.
+   */
+  const cut = [];
+  for (const el of document.querySelectorAll('*')) {
+    const cs = getComputedStyle(el);
+    const ox = cs.overflowX;
+    if (ox !== 'hidden' && ox !== 'clip') continue;
+    const lost = el.scrollWidth - el.clientWidth;
+    if (lost <= 1 || el.clientWidth === 0) continue;
+    // VISUALLY HIDDEN IS NOT CLIPPED. The first version reported every page: the sr-only idiom is a
+    // 1px box whose content is clipped ON PURPOSE (the live-region announcement, the "Skip to main
+    // content" link) and is meant for a screen reader. Nothing readable fits under 8px.
+    if (el.clientWidth < 8) continue;
+    // A truncating line (ellipsis) is a deliberate, reversible cut — the full value is in the title
+    // or on the detail page. Only report content with nowhere else to be read.
+    if (cs.textOverflow === 'ellipsis') continue;
+    cut.push({
+      tag: el.tagName.toLowerCase(),
+      cls: String(el.className || '').slice(0, 95),
+      txt: String(el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 40),
+      lost: Math.round(lost), cw: Math.round(el.clientWidth),
+    });
+  }
+  cut.sort((a, b) => b.lost - a.lost);
+
   const txt = (document.body ? document.body.innerText : '') || '';
   return JSON.stringify({
     iw: VW, sw: de.scrollWidth, over: de.scrollWidth - VW,
     count: over.length, worst: over.filter(o => o.wider).slice(0, 3).concat(over.slice(0, 3)),
+    clipped: cut.length, cut: cut.slice(0, 3),
     sample: txt.trim().slice(0, 50).replace(/\\s+/g, ' '),
   });
 })()`
@@ -151,8 +201,9 @@ const CLICK = (label: string) => `(() => {
   return 'clicked';
 })()`
 
-let fits = 0, bad = 0, skipped = 0
+let fits = 0, bad = 0, skipped = 0, clipped = 0
 const failures: string[] = []
+const clippedPages: string[] = []
 let lastOrigin = ''
 for (const t of targets) {
   await cdp(ws, ++id, 'Emulation.setDeviceMetricsOverride', { width: WIDTH, height: HEIGHT, deviceScaleFactor: 2, mobile: WIDTH < 500 })
@@ -194,7 +245,20 @@ for (const t of targets) {
       console.log(`         class="${o.cls}"`)
     }
   } else { fits++; console.log(`ok   ${t.label.padEnd(30)} fits (sw ${v.sw})`) }
+
+  // …and separately, content being LOST inside an unscrollable box. A page can fit perfectly and
+  // still be hiding half a table. See the note in EXPR. (T51 follow-up)
+  if (v.clipped > 0) {
+    clipped++
+    clippedPages.push(t.label)
+    console.log(`CLIP ${t.label.padEnd(30)} ${v.clipped} box(es) cutting content off with no scroll`)
+    for (const c of v.cut) {
+      console.log(`       <${c.tag} visible=${c.cw}px losing=${c.lost}px> "${c.txt}"`)
+      console.log(`         class="${c.cls}"`)
+    }
+  }
 }
 ws.close()
-console.log(`\n${WIDTH}px: ${fits} fit, ${bad} overflow, ${skipped} not measured`)
+console.log(`\n${WIDTH}px: ${fits} fit, ${bad} overflow, ${clipped} clipping content, ${skipped} not measured`)
 if (failures.length) console.log(`overflowing: ${failures.join(', ')}`)
+if (clippedPages.length) console.log(`clipping:    ${clippedPages.join(', ')}`)

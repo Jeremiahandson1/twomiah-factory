@@ -4,7 +4,7 @@ import { db } from '../../db/index.ts'
 import { sql, eq } from 'drizzle-orm'
 import { company } from '../../db/schema.ts'
 import { storeTimeZone, storeDayRange, storeDateString, isNaiveTimestamp, toIsoUtc, zoneFor } from '../utils/isoTime.ts'
-import { settledSale, taxCollected, taxNetExpr, exciseNetExpr, salesNetExpr, netExpr, subtotalNetExpr } from '../utils/revenue.ts'
+import { settledSale, taxCollected, taxNetExpr, exciseKeptExpr, salesKeptExpr, localKeptExpr, netExpr, subtotalNetExpr } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
@@ -655,14 +655,17 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
           -- day, instead of true only when three independent sums happen to agree.
           -- (T42: "$5.68 gap on 09-23; subtotal + tax ≠ collected on five days")
           COALESCE(SUM(${subtotalNetExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0) as subtotal,
-          -- NET of tax handed back with returns, per component, so the lines below still add up to
-          -- the total once refunds are subtracted. Filing the gross overstated the liability. (T29 M4)
+          -- NET of tax handed back with returns. Filing the gross overstated the liability. (T29 M4)
           COALESCE(SUM(${taxNetExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0) as total_tax,
-          COALESCE(SUM(${exciseNetExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0) as excise_tax,
-          COALESCE(SUM(${salesNetExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0) as sales_tax,
-          -- orders has no city_tax column (that reference 500'd every tax report); local tax
-          -- is whatever total tax isn't excise or sales.
-          GREATEST(0, COALESCE(SUM(${taxNetExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0) - COALESCE(SUM(${exciseNetExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0) - COALESCE(SUM(${salesNetExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0)) as local_tax,
+          -- The three components come from the additive split in utils/revenue.ts, so excise + sales +
+          -- local equals total_tax on every day. Summing the raw netted components and clamping the
+          -- residual at the SUM level is what left the gap of 5.68 on 09-23: the per-component floor is
+          -- not additive, so the parts exceeded the whole and the local line absorbed the difference.
+          COALESCE(SUM(${exciseKeptExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0) as excise_tax,
+          COALESCE(SUM(${salesKeptExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0) as sales_tax,
+          -- orders has no city_tax column (that reference 500'd every tax report); local tax is the
+          -- residual, non-negative by construction rather than by clamp.
+          COALESCE(SUM(${localKeptExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0) as local_tax,
           -- Netted per sale, the way the dashboard, analytics and the compliance daily report all
           -- already do it. This report being the only gross surface is precisely the failure
           -- utils/revenue.ts exists to prevent.

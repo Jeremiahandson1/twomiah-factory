@@ -7,6 +7,28 @@ import { withinHorizon, MAX_PLAN_YEARS } from '../dateInput'
 export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
 /**
+ * A POSITIVE AMOUNT THAT STORES AS NOTHING. (T51 follow-up)
+ *
+ * The owner reported "0.001 amounts are accepted" twice — first on an event deposit instalment, then
+ * on menu prices — because every money field in that vertical was validated with `< 0`, which admits
+ * a value that is positive and then rounds to 0.00 when it is written to a 2-decimal column. The
+ * price is silently free, and afterwards it cannot be told apart from a deliberate zero.
+ *
+ * Thirteen more fields across salon, RV and the dispensary had the same shape. This is the predicate
+ * they all now use, so there is one answer to "is this a real amount" in the fleet instead of
+ * fourteen.
+ *
+ * EXACT ZERO IS NOT CAUGHT, on purpose. A $0 line is meaningful in every vertical that has one — a
+ * complimentary item on a banquet order, a service offered free, a unit whose cost has not been
+ * entered — and refusing those would be the opposite fault: a rule that stops real work. What this
+ * catches is only the range between nothing and a cent.
+ */
+export const roundsToNothing = (v: unknown): boolean => {
+  const n = Number(v)
+  return Number.isFinite(n) && n > 0 && round2(n) === 0
+}
+
+/**
  * A dollar figure as a PERSON reads it — the other end of round2.
  *
  * `toFixed(2)` has no thousands separator, so a five-figure sum printed to someone came out as

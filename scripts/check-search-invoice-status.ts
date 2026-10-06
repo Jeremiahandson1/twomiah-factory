@@ -35,8 +35,29 @@ for (const t of TEMPLATES) {
 const money = read('packages/tenant-backend/src/invoicing/money.ts')
 if (!/export function isOverdue\(/.test(money)) fail('isOverdue must remain the one definition of overdue')
 if (!/export const deriveStatus =/.test(money)) fail('…and deriveStatus the one way to ask for it')
-if (!/export \{ round2, calcTotals, isOverdue, deriveStatus/.test(read('packages/tenant-backend/src/index.ts'))) {
-  fail('…exported from the shared barrel, or a template cannot use it')
+// Membership, not a contiguous literal list. This check used to pin the exact opening of the export
+// statement, so adding ANY new money export next to round2 failed a guard about invoice status — a guard
+// for the shape the file happened to have, not for the rule. What the rule needs is that each of these
+// names leaves the barrel; where it sits in the list is nobody's business.
+// …and the union of EVERY such statement, because the barrel carries more than one (line 20 re-exports the
+// zod schemas, line 60 the rules). Taking the first match reported all four names missing.
+const barrel = read('packages/tenant-backend/src/index.ts')
+const moneyExports = barrel.split('\n').filter((l) => /^export \{[^}]*\} from '\.\/invoicing\/money'/.test(l))
+if (!moneyExports.length) fail('the shared barrel must re-export the money rules from ./invoicing/money')
+else {
+  const exported = new Set(
+    moneyExports.flatMap((l) =>
+      l
+        .replace(/^export \{/, '')
+        .replace(/\} from .*$/, '')
+        .split(',')
+        .map((s) => s.trim().split(/\s+as\s+/).pop()!.trim())
+        .filter(Boolean),
+    ),
+  )
+  for (const name of ['round2', 'calcTotals', 'isOverdue', 'deriveStatus']) {
+    if (!exported.has(name)) fail(`${name} must be exported from the shared barrel, or a template cannot use it`)
+  }
 }
 
 if (failed) { console.error(`\nsearch invoice status: ${failed} check(s) FAILED`); process.exit(1) }

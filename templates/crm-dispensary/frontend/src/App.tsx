@@ -101,7 +101,14 @@ import ContactSupportPage from './pages/support/ContactSupportPage';
 function CrmNotFound() {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center">
-      <p className="text-6xl font-bold text-gray-300 dark:text-slate-700">404</p>
+      {/*
+        gray-400, not gray-300. Measured at 60px: gray-300 on the page ground is 1.41:1, and large
+        text still needs 3:1 — "404" is the one thing on this page that says what happened, so it is
+        content and not decoration. gray-400 clears it in light mode, and slate-600 does in dark.
+        (T51 follow-up; found by the rendered sweep, which reached this page because a wrong path in
+        my own page list 404'd.)
+      */}
+      <p className="text-6xl font-bold text-gray-500 dark:text-slate-400">404</p>
       <h1 className="mt-4 text-xl font-semibold text-gray-900 dark:text-slate-100">Page not found</h1>
       <p className="mt-2 text-gray-500 dark:text-slate-400">This page doesn’t exist. Check the address or head back to your dashboard.</p>
       <Link to="/crm" className="mt-6 px-4 py-2 bg-green-700 hover:bg-green-800 text-white text-sm font-semibold rounded-lg">Back to Dashboard</Link>

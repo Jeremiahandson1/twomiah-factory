@@ -10,6 +10,24 @@ import { DollarSign, Plus, Check, Loader2 } from 'lucide-react';
 import api from '../services/api';
 import { usePermissions } from '../contexts/PermissionsContext';
 
+/**
+ * THE STORED VALUE, AND THE WORD THIS PRODUCT USES FOR IT. (T58)
+ *
+ * The four keys are what the route's enum accepts and what plans already created carry, so they do
+ * not change. ONE mapping, read by both the dropdown and the plan card: the card printed the raw
+ * `appliesToRole`, so a plan created as "Sales Rep" read back on its own card as "sales_rep".
+ *
+ * The words are landscaping's. A lawn-care crew are not technicians — this template's own team
+ * screen prompts for "Crew Lead" (peopleConfig.ts) — and the dropdown offering "Technician" was
+ * crm-fieldservice's vocabulary left behind in a fork.
+ */
+const ROLE_WORDS: Record<string, string> = {
+  technician: 'Crew',
+  sales_rep: 'Sales',
+  manager: 'Manager',
+  all: 'All roles',
+};
+
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
   approved: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
@@ -125,7 +143,9 @@ export default function CommissionsPage() {
             plans.map((p) => (
               <div key={p.id} className="bg-white rounded-lg border p-5 dark:bg-slate-900">
                 <h3 className="font-bold text-lg">{p.name}</h3>
-                <div className="text-sm text-gray-500 mb-3 dark:text-slate-400">{p.planType.replace(/_/g, ' ')} · {p.appliesToRole}</div>
+                {/* One mapping for the card and the dropdown. The card printed the raw stored value,
+                    so a plan made as "Sales Rep" read back as "sales_rep". (T58, sibling of T51) */}
+                <div className="text-sm text-gray-500 mb-3 dark:text-slate-400">{p.planType.replace(/_/g, ' ')} · {ROLE_WORDS[p.appliesToRole] || p.appliesToRole}</div>
                 <div className="font-mono text-sm">
                   {p.planType === 'flat_rate' && <>${Number(p.flatRateAmount || 0).toFixed(2)} per job</>}
                   {(p.planType === 'percent_of_invoice' || p.planType === 'percent_of_margin') && <>{Number(p.percentRate || 0)}% of {p.planType === 'percent_of_invoice' ? 'invoice' : 'margin'}</>}
@@ -149,10 +169,9 @@ export default function CommissionsPage() {
                   <option value="percent_of_margin">% of margin</option>
                 </select>
                 <select value={planForm.appliesToRole} onChange={(e) => setPlanForm({ ...planForm, appliesToRole: e.target.value })} className="border rounded-lg px-3 py-2">
-                  <option value="technician">Technician</option>
-                  <option value="sales_rep">Sales Rep</option>
-                  <option value="manager">Manager</option>
-                  <option value="all">All roles</option>
+                  {Object.entries(ROLE_WORDS).map(([value, word]) => (
+                    <option key={value} value={value}>{word}</option>
+                  ))}
                 </select>
               </div>
               {planForm.planType === 'flat_rate' && <div><label className="text-xs text-gray-500 dark:text-slate-400">Flat amount per job</label><input type="number" step="0.01" value={planForm.flatRateAmount} onChange={(e) => setPlanForm({ ...planForm, flatRateAmount: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>}

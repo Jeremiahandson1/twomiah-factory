@@ -73,7 +73,9 @@ app.post('/rules', requireRole('admin'), async (c) => {
     equivalencyGrams: z.coerce.number().min(0).optional(),
     // The dialog is grams-based and collects no unit; default to grams.
     unitOfMeasure: z.string().min(1).optional().default('g'),
-    purchaseLimitGrams: z.coerce.number().optional(),
+    // Nullable like the edit path: no category cap is not a cap of zero. z.coerce.number() turns a
+    // null into 0 all on its own, which is how a blank box became "none of this may be sold".
+    purchaseLimitGrams: z.coerce.number().min(0).nullable().optional(),
     description: z.string().optional(),
     effectiveDate: z.string().optional(),
   })
@@ -135,21 +137,57 @@ app.put('/rules/:id', requireRole('admin'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
+  /**
+   * THE EDIT PATH ACCEPTED NOTHING THE EDIT DIALOG SENDS. (T58)
+   *
+   * The reported symptom was a purchase limit that stayed blank. The cause was three separate
+   * mismatches between this schema and the only screen that calls it, and together they made editing a
+   * rule impossible on a tenant that had never hand-created one:
+   *
+   *   1. `state` required exactly two characters. "Blank means all states" is the POST's own rule, and
+   *      BOTH seed paths store state = '' — so every rule a tenant starts with has a blank state, and
+   *      saving an edit to one threw a ZodError. There is no try/catch here, so that surfaced as a 500,
+   *      not even a refusal that said what was wrong.
+   *   2. the dialog sends the factor as `equivalencyGrams` — the name POST accepts as a synonym — and
+   *      this schema only knew `equivalencyFactor`. So the number that decides what a gram is WORTH
+   *      against the purchase limit was silently dropped on every edit.
+   *   3. `purchaseLimitGrams` was absent entirely, so the field in the dialog could be typed into,
+   *      saved, and never stored. That is the bare "g" the owner saw: the limit could only ever be set
+   *      at creation, and nothing a tenant was seeded with was created through that path.
+   *
+   * Rule: anything the create path accepts, the edit path accepts. The shapes are deliberately the same
+   * as POST's now, synonym included, and a bad body is a 400 that names the field.
+   */
   const ruleSchema = z.object({
-    state: z.string().length(2).transform(v => v.toUpperCase()).optional(),
+    state: z.string().optional().transform(v => (v == null ? undefined : v.trim().toUpperCase())),
     category: z.string().min(1).optional(),
-    equivalencyFactor: z.number().min(0).optional(),
+    equivalencyFactor: z.coerce.number().min(0).optional(),
+    equivalencyGrams: z.coerce.number().min(0).optional(),
     unitOfMeasure: z.string().min(1).optional(),
+    // Nullable on purpose: clearing the box means this category has no cap of its own, which is not
+    // the same as a cap of zero — that would say none of it may be sold.
+    purchaseLimitGrams: z.coerce.number().min(0).nullable().optional(),
     description: z.string().optional(),
     effectiveDate: z.string().optional(),
   })
-  const data = ruleSchema.parse(await c.req.json())
+  let data: z.infer<typeof ruleSchema>
+  try {
+    data = ruleSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json(zodRefusal(err), 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
 
   const sets: any[] = []
   if (data.state !== undefined) sets.push(sql`state = ${data.state}`)
   if (data.category !== undefined) sets.push(sql`category = ${data.category}`)
-  if (data.equivalencyFactor !== undefined) sets.push(sql`equivalency_factor = ${data.equivalencyFactor}`)
+  // Either spelling, the way POST takes it.
+  const factor = data.equivalencyFactor ?? data.equivalencyGrams
+  if (factor !== undefined) sets.push(sql`equivalency_factor = ${String(factor)}`)
   if (data.unitOfMeasure !== undefined) sets.push(sql`unit_of_measure = ${data.unitOfMeasure}`)
+  if (data.purchaseLimitGrams !== undefined) {
+    sets.push(sql`purchase_limit_grams = ${data.purchaseLimitGrams == null ? null : String(data.purchaseLimitGrams)}`)
+  }
   if (data.description !== undefined) sets.push(sql`description = ${data.description}`)
   if (data.effectiveDate !== undefined) sets.push(sql`effective_date = ${new Date(data.effectiveDate)}`)
 

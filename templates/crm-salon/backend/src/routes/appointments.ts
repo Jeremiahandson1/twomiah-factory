@@ -1,4 +1,5 @@
-import { Hono } from 'hono'
+﻿import { Hono } from 'hono'
+import { roundsToNothing } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { appointment, serviceMenu, contact, user, serviceRecord, teamMember, invoice } from '../../db/schema.ts'
 import { eq, and, gte, lte, ne, sql, or } from 'drizzle-orm'
@@ -38,7 +39,7 @@ async function syncOnlineBooking(appointmentId: string, status: string) {
 // Resolve endTime: explicit > service duration > 60 min.
 /**
  * The service, if it is on THIS salon's menu. An unknown id used to reach the insert and come back as the
- * generic foreign-key message ("A related record does not exist, or is still in use.", 409) — which names
+ * generic foreign-key message ("A related record does not exist, or is still in use.", 409) â€” which names
  * no field, suggests a conflict where there is none, and offers the opposite problem as a possibility.
  * A service from another tenant is as absent as one that was never created. (Salon T27 N17)
  */
@@ -71,12 +72,12 @@ const apptLock = (tx: any, companyId: string) => tx.execute(sql`SELECT pg_adviso
 // A stylist can only be in one chair at a time. Overlap is start < otherEnd &&
 // end > otherStart; cancelled/no-show rows free the slot back up.
 async function findConflict(companyId: string, stylist: StylistRef, start: Date, end: Date, ignoreId?: string, exec: any = db) {
-  // Match on whichever column holds this stylist — a roster stylist can be double-booked exactly as
+  // Match on whichever column holds this stylist â€” a roster stylist can be double-booked exactly as
   // easily as a login one, and the check has to follow them into their own column. (T20 H1)
   const heldBy = stylist.stylistId
     ? eq(appointment.stylistId, stylist.stylistId)
     : eq(appointment.stylistMemberId, stylist.stylistMemberId!)
-  // Bound the scan to the surrounding day — a candidate overlap must start
+  // Bound the scan to the surrounding day â€” a candidate overlap must start
   // before our end, and no salon service runs longer than 24h.
   const rows = await exec.select().from(appointment)
     .where(and(
@@ -115,7 +116,7 @@ async function findStationConflict(companyId: string, station: string, start: Da
   })
 }
 
-// Closing a visit: create the sale once and queue the review request. Never throws — the status
+// Closing a visit: create the sale once and queue the review request. Never throws â€” the status
 // change must succeed even if billing or reviews hiccup. (SALON-H4 / H2)
 async function onVisitCompleted(row: typeof appointment.$inferSelect): Promise<string | null> {
   if (!row.contactId) return null
@@ -125,8 +126,8 @@ async function onVisitCompleted(row: typeof appointment.$inferSelect): Promise<s
   //
   // RR0929 N8: the sale below resolved the price as "what was quoted, else what the menu charges",
   // and the visit record further down re-declared `const price = Number(row.quotedPrice)` with no
-  // menu fallback. So a booking taken without a quoted price — which is most of them, the price
-  // comes off the service — billed the client correctly and wrote the visit at priceCharged null,
+  // menu fallback. So a booking taken without a quoted price â€” which is most of them, the price
+  // comes off the service â€” billed the client correctly and wrote the visit at priceCharged null,
   // and the client's chart showed $0.00 beside an invoice for $32.55. The same function, two
   // prices, the second shadowing the first.
   //
@@ -146,13 +147,13 @@ async function onVisitCompleted(row: typeof appointment.$inferSelect): Promise<s
     const inv = await ensureInvoiceForVisit({ companyId: row.companyId, contactId: row.contactId, appointmentId: row.id, serviceName, price })
     invoiceId = inv?.id || null
   } catch (e: any) { console.warn('[appointments] sale not created:', e?.message || e) }
-  // The visit itself: a completed appointment IS a visit, so write the service record (once) —
+  // The visit itself: a completed appointment IS a visit, so write the service record (once) â€”
   // visit count, last visit, due-back and the formula history all hang off it. The stylist adds the
   // formula from the client's page; Log Service still works and simply edits this row. (SALON-H4)
   try {
     const [rec] = await db.select({ id: serviceRecord.id }).from(serviceRecord).where(and(eq(serviceRecord.appointmentId, row.id), eq(serviceRecord.companyId, row.companyId))).limit(1)
     if (!rec) {
-      // …the price resolved above, not a second reading of quotedPrice. (RR0929 N8)
+      // â€¦the price resolved above, not a second reading of quotedPrice. (RR0929 N8)
       await db.insert(serviceRecord).values({
         // carry the chair through to the visit, whichever column holds the stylist (T20 H1)
         id: createId(), contactId: row.contactId, appointmentId: row.id,
@@ -165,7 +166,7 @@ async function onVisitCompleted(row: typeof appointment.$inferSelect): Promise<s
   } catch (e: any) { console.warn('[appointments] visit record not created:', e?.message || e) }
   // Loyalty rides on the same event: the client sat in the chair and paid, which is the moment
   // points are earned and a punch card gets its punch. Idempotent on the appointment id, so a
-  // status flipped back and forth cannot pay out twice. Never fatal — a misconfigured programme
+  // status flipped back and forth cannot pay out twice. Never fatal â€” a misconfigured programme
   // must not stop a visit being completed or its invoice raised.
   try {
     const price = await priceForVisit(row.companyId, row.serviceId, row.quotedPrice)
@@ -188,25 +189,25 @@ async function onVisitCompleted(row: typeof appointment.$inferSelect): Promise<s
  * import them from this file. One definition, deliberately: that module is the one that decides what
  * counts as a stylist's own work when it lifts a formula onto a client, and a second copy of the
  * string is a second answer to the same question, waiting to disagree. The first version of this did
- * leave the decision to each caller, and the two callers promptly disagreed — the repair stripped the
+ * leave the decision to each caller, and the two callers promptly disagreed â€” the repair stripped the
  * system's note and the cancel path kept it, so cancelling an untouched visit wrote "Logged
- * automatically…" onto a client's card as if a colourist had typed it. (FULL0929 F1)
+ * automaticallyâ€¦" onto a client's card as if a colourist had typed it. (FULL0929 F1)
  */
 export { AUTO_VISIT_NOTE, CANCELLED_VISIT_LABEL, REPAIR_MARK as CANCELLED_VISIT_NOTE }
 
-// Reopening a visit: give back what it earned. Never throws — cancelling has to succeed. (LY0928 M1)
+// Reopening a visit: give back what it earned. Never throws â€” cancelling has to succeed. (LY0928 M1)
 async function onVisitUncompleted(row: typeof appointment.$inferSelect): Promise<void> {
   try {
     await reverseForCancelledVisit({ companyId: row.companyId, appointmentId: row.id, serviceId: row.serviceId })
   } catch (e: any) { console.warn('[appointments] loyalty not reversed:', e?.message || e) }
 
-  // …and the bill goes with them. LYR N5: a completed $65 visit set to cancelled gave back its
+  // â€¦and the bill goes with them. LYR N5: a completed $65 visit set to cancelled gave back its
   // points, its punch and its earned-to-date, and left INV-00240 for $70.53 sitting in Outstanding
-  // — the salon showing money owed for an appointment it had just agreed did not happen.
+  // â€” the salon showing money owed for an appointment it had just agreed did not happen.
   //
   // The decision, stated because the retest asked for one: cancelling voids the bill, on the same
   // rule the visit-delete path uses. Voiding keeps the number and the audit trail instead of
-  // deleting anything, and money that was actually collected stops it — a client who paid is owed
+  // deleting anything, and money that was actually collected stops it â€” a client who paid is owed
   // a refund or a credit, which is a person's decision, not something a status flip should make.
   // Completing the appointment again puts the same bill back (see ensureInvoiceForVisit).
   try {
@@ -226,22 +227,22 @@ async function onVisitUncompleted(row: typeof appointment.$inferSelect): Promise
     }
   } catch (e: any) { console.warn('[appointments] sale not voided:', e?.message || e) }
 
-  // …and so does the VISIT RECORD.
+  // â€¦and so does the VISIT RECORD.
   //
   // FULL0929 F1: the points went back and the bill was voided, and the service record stayed. So
-  // the client's chart still held a visit that did not happen — counted in their visit total, used
+  // the client's chart still held a visit that did not happen â€” counted in their visit total, used
   // as their last visit, and, worst of all, feeding the rebooking reminder: LYR2 Papa sits on the
   // Due to Rebook list for 8 October because of a cut that was cancelled. A reminder to come back
   // for an appointment the salon agreed never took place is the one thing here a CLIENT sees.
   //
   // Deleting a visit has voided its invoice since T22; this is the other direction, which was never
   // built. The record is DELETED rather than flagged, because the salon's own rule is that a
-  // completed appointment IS the visit — re-completing writes it again (onVisitCompleted), so a
+  // completed appointment IS the visit â€” re-completing writes it again (onVisitCompleted), so a
   // disowned row left behind would become a duplicate the moment anyone reopened the appointment.
   //
   // It used to have to CHOOSE. A record a stylist had written a formula or a note on was kept and
   // marked, because a colourist's record of what went on a real head of hair is not a status flip's
-  // to destroy — and the cost was that the phantom visit went on counting toward that client's
+  // to destroy â€” and the cost was that the phantom visit went on counting toward that client's
   // rebooking reminder. That was a compromise, and it was named as one in the retest brief.
   //
   // It no longer has to choose. A formula belongs to the CLIENT, not to a booking (Mangomint keeps
@@ -261,12 +262,12 @@ async function onVisitUncompleted(row: typeof appointment.$inferSelect): Promise
   } catch (e: any) { console.warn('[appointments] visit record not removed:', e?.message || e) }
 }
 
-// GET /appointments — ?from=&to= on startTime, ?contactId=, ?stylistId=, ?status=, ?page=&limit=
+// GET /appointments â€” ?from=&to= on startTime, ?contactId=, ?stylistId=, ?status=, ?page=&limit=
 //
 // Two things were wrong with this list, and the second one cost a tenant its book.
 //
 // It took no contactId. Asking for one client's appointments returned EVERY appointment the
-// company has, with no error and no clue — the answer to a different question, in the shape of
+// company has, with no error and no clue â€” the answer to a different question, in the shape of
 // the right one. An operator script asked for one client's visits so it could tidy up after
 // itself, got all 525, and cancelled the lot. Silently ignoring a filter is not a smaller bug
 // than refusing it; it is a bigger one, because the caller cannot tell.
@@ -276,7 +277,7 @@ async function onVisitUncompleted(row: typeof appointment.$inferSelect): Promise
 //
 // Bounding it needed care, because the book is the one caller and it must not silently lose
 // appointments off the end of a day. So: a date WINDOW is itself a bound, and a windowed request
-// stays unlimited exactly as before — the calendar's behaviour does not change. It is the
+// stays unlimited exactly as before â€” the calendar's behaviour does not change. It is the
 // WINDOWLESS request that gets a page, and it says so in the response, so a caller can tell the
 // difference between "that is all of them" and "that is the first hundred".
 app.get('/', requirePermission('contacts:read'), async (c) => {
@@ -291,7 +292,7 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
   if (from) conditions.push(gte(appointment.startTime, new Date(from)))
   if (to) conditions.push(lte(appointment.startTime, new Date(to)))
   if (contactId) conditions.push(eq(appointment.contactId, contactId))
-  // filter on either column — the caller knows one stylist id, not which table it came from (T20 H1)
+  // filter on either column â€” the caller knows one stylist id, not which table it came from (T20 H1)
   if (stylistId) conditions.push(or(eq(appointment.stylistId, stylistId), eq(appointment.stylistMemberId, stylistId))!)
   if (status) conditions.push(eq(appointment.status, status))
 
@@ -321,12 +322,12 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
     .where(and(...conditions))
     .orderBy(appointment.startTime)
 
-  // A windowed request is left exactly as it was — no LIMIT at all, rather than a large one
+  // A windowed request is left exactly as it was â€” no LIMIT at all, rather than a large one
   // standing in for none. The book asks for one day and must get all of it.
   const data = windowed ? await q : await q.limit(limit).offset(offset)
 
   const rows = data.map((r: any) => {
-    // The book asked for a stylist and gets one back the same way, whichever column holds them —
+    // The book asked for a stylist and gets one back the same way, whichever column holds them â€”
     // the caller never has to know there are two. (T20 H1)
     const memberFirst = String(r.stylistMemberName || '').trim().split(/\s+/)[0] || null
     const memberLast = String(r.stylistMemberName || '').trim().split(/\s+/).slice(1).join(' ') || null
@@ -354,23 +355,27 @@ app.post('/', requirePermission('schedule:create'), async (c) => {
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
   if (!body.startTime) return c.json({ error: 'startTime is required' }, 400)
 
-  // 30 February is not a day. JS does not say so — it rolls to 2 March — so a booking for 2027-02-30
+  // 30 February is not a day. JS does not say so â€” it rolls to 2 March â€” so a booking for 2027-02-30
   // came back 201 and landed five weeks from where anyone would look for it. (Salon T27 N8)
   if (!isRealCalendarDay(body.startTime)) {
-    return c.json({ error: `${String(body.startTime).slice(0, 10)} is not a real calendar date — check the day and month.`, code: 'BAD_DATE' }, 400)
+    return c.json({ error: `${String(body.startTime).slice(0, 10)} is not a real calendar date â€” check the day and month.`, code: 'BAD_DATE' }, 400)
   }
   if (body.endTime && !isRealCalendarDay(body.endTime)) {
-    return c.json({ error: `${String(body.endTime).slice(0, 10)} is not a real calendar date — check the day and month.`, code: 'BAD_DATE' }, 400)
+    return c.json({ error: `${String(body.endTime).slice(0, 10)} is not a real calendar date â€” check the day and month.`, code: 'BAD_DATE' }, 400)
   }
   const startTime = new Date(body.startTime)
   if (Number.isNaN(startTime.getTime())) return c.json({ error: 'startTime is not a valid date' }, 400)
   if (body.status && !APPT_STATUSES.includes(body.status)) return c.json({ error: `status must be one of ${APPT_STATUSES.join(', ')}` }, 400)
   if (body.quotedPrice != null && body.quotedPrice !== '' && (isNaN(Number(body.quotedPrice)) || Number(body.quotedPrice) < 0)) return c.json({ error: 'Quoted price cannot be negative.' }, 400)
+  // â€¦and not a positive amount that stores as 0.00 on a decimal(â€¦,2) column: a chair quoted at
+  // nothing, which the stylist then has to argue about at the till. Zero stays allowed â€” a
+  // complimentary fringe trim is real. (T51 follow-up)
+  if (roundsToNothing(body.quotedPrice)) return c.json({ error: `${body.quotedPrice} rounds to $0.00 â€” enter 0 if it is free, or at least one cent.` }, 400)
   // An appointment is a chair booked for somebody. Without a client it could still be created AND
-  // completed, which then wrote a visit belonging to nobody — and the New Appointment form has always
+  // completed, which then wrote a visit belonging to nobody â€” and the New Appointment form has always
   // refused it ("A client is required"), so the server was the only thing that disagreed. A contractor
   // job with no customer is a real case; a salon appointment with no client is not. (Salon T30 L3)
-  if (!body.contactId) return c.json({ error: 'An appointment needs a client — choose one before saving.' }, 400)
+  if (!body.contactId) return c.json({ error: 'An appointment needs a client â€” choose one before saving.' }, 400)
   {
     const [ct] = await db.select({ id: contact.id }).from(contact).where(and(eq(contact.id, body.contactId), eq(contact.companyId, currentUser.companyId))).limit(1)
     if (!ct) return c.json({ error: 'That client does not exist.' }, 404)
@@ -379,14 +384,14 @@ app.post('/', requirePermission('schedule:create'), async (c) => {
   // Named here, the way the client two lines up already is. (Salon T27 N17)
   if (serviceId && !(await ownService(currentUser.companyId, serviceId))) return c.json({ error: 'That service is not on your Service Menu.' }, 404)
   const endTime = await resolveEnd(currentUser.companyId, startTime, serviceId, body.endTime || null)
-  // A manually-set end before the start was saved verbatim ("9:00 AM – 8:00 AM"). (SCHED-01)
+  // A manually-set end before the start was saved verbatim ("9:00 AM â€“ 8:00 AM"). (SCHED-01)
   if (endTime.getTime() <= startTime.getTime()) return c.json({ error: 'The end time must be after the start time.' }, 400)
   if (endTime.getTime() - startTime.getTime() > MAX_APPT_MS) return c.json({ error: 'An appointment cannot run longer than 12 hours.' }, 400)
 
   // A stylist may be a login user or a roster member; work out which before writing. An id that is
   // neither is a 400 naming the field, not a foreign-key 409 that names nothing. (T20 H1)
   // Either field. This read body.stylistId alone, so a caller sending stylistMemberId got their
-  // value echoed back with nobody assigned — silent, and the roster stylist is exactly the case
+  // value echoed back with nobody assigned â€” silent, and the roster stylist is exactly the case
   // resolveStylist() was written for: it has taken a user id OR a team-member id since T20 H1.
   // (Salon T27 N17)
   const stylist = await resolveStylist(currentUser.companyId, body.stylistId ?? body.stylistMemberId)
@@ -442,12 +447,14 @@ app.put('/:id', requirePermission('schedule:update'), async (c) => {
     .limit(1)
   if (!existing) return c.json({ error: 'Appointment not found' }, 404)
 
-  // Whitelist editable columns — never let companyId/id be reassigned from the body.
+  // Whitelist editable columns â€” never let companyId/id be reassigned from the body.
   const EDITABLE = ['contactId', 'stylistId', 'serviceId', 'status', 'station', 'startTime', 'endTime', 'quotedPrice', 'notes'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
   if ('status' in updates && !APPT_STATUSES.includes(updates.status)) return c.json({ error: `status must be one of ${APPT_STATUSES.join(', ')}` }, 400)
   if ('quotedPrice' in updates && updates.quotedPrice != null && updates.quotedPrice !== '' && (isNaN(Number(updates.quotedPrice)) || Number(updates.quotedPrice) < 0)) return c.json({ error: 'Quoted price cannot be negative.' }, 400)
+  // The same rule on the edit â€” where a price gets corrected and re-mistyped. (T51 follow-up)
+  if ('quotedPrice' in updates && roundsToNothing(updates.quotedPrice)) return c.json({ error: `${updates.quotedPrice} rounds to $0.00 â€” enter 0 if it is free, or at least one cent.` }, 400)
   if (updates.startTime) {
     updates.startTime = new Date(updates.startTime)
     if (Number.isNaN(updates.startTime.getTime())) return c.json({ error: 'startTime is not a valid date' }, 400)
@@ -474,13 +481,13 @@ app.put('/:id', requirePermission('schedule:update'), async (c) => {
   }
   const nextStatus = 'status' in updates ? updates.status : existing.status
   // Completing an appointment WRITES A VISIT dated to its start time, and a visit can only be dated to
-  // a day that has happened — Log Service says so in as many words and refuses. Complete did not ask,
+  // a day that has happened â€” Log Service says so in as many words and refuses. Complete did not ask,
   // so an appointment five weeks out could be completed from The Book, producing a service record
   // dated in the future and a sale to go with it. Two doors into the same act, one of them unlocked.
   // (Salon T27 N4)
   //
   // The test is a future DAY, not a future instant. Finishing the 2pm client at 1:55 is an ordinary
-  // afternoon, and an earlier version of this refused it — the existing roster test books today at
+  // afternoon, and an earlier version of this refused it â€” the existing roster test books today at
   // 22:00 and completes it, and went red, correctly. "A day that has happened" is the same wording the
   // visit rule uses, so the two now agree instead of one being stricter than the act it guards.
   if (nextStatus === 'completed' && existing.status !== 'completed') {
@@ -489,12 +496,12 @@ app.put('/:id', requirePermission('schedule:update'), async (c) => {
     const today = calendarDateIn(new Date(), tz)
     if (apptDay > today) {
       return c.json({
-        error: `That appointment is booked for ${apptDay}, which has not happened yet — completing it would record a visit on a future date. Move it to today first if the client came in early.`,
+        error: `That appointment is booked for ${apptDay}, which has not happened yet â€” completing it would record a visit on a future date. Move it to today first if the client came in early.`,
         code: 'FUTURE_APPOINTMENT',
       }, 400)
     }
   }
-  // Re-validate the effective pair — editing the end (or dragging the start) must not
+  // Re-validate the effective pair â€” editing the end (or dragging the start) must not
   // produce an end at/before the start. (SCHED-01)
   if (nextEnd.getTime() <= nextStart.getTime()) return c.json({ error: 'The end time must be after the start time.' }, 400)
   if (nextEnd.getTime() - nextStart.getTime() > MAX_APPT_MS) return c.json({ error: 'An appointment cannot run longer than 12 hours.' }, 400)
@@ -522,13 +529,13 @@ app.put('/:id', requirePermission('schedule:update'), async (c) => {
   await audit.log({ action: 'update', entity: 'appointment', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'appointment' })
   if (nextStatus !== existing.status) await syncOnlineBooking(id, nextStatus)
-  // Completing it raises the sale. NOT completing it — because it was already completed, which is
-  // what five of six simultaneous requests see — still answers with the bill this visit has, so a
+  // Completing it raises the sale. NOT completing it â€” because it was already completed, which is
+  // what five of six simultaneous requests see â€” still answers with the bill this visit has, so a
   // screen that links to the invoice afterwards has something to link to. (Salon RR8 observation)
   const invoiceId = nextStatus === 'completed'
     ? (existing.status !== 'completed' ? await onVisitCompleted(updated) : await invoiceIdForVisit(currentUser.companyId, id))
     : null
-  // …and the other direction. A visit that is cancelled or marked a no-show after it was completed
+  // â€¦and the other direction. A visit that is cancelled or marked a no-show after it was completed
   // gives its points and its punch back, or a salon could fill a card by completing and cancelling
   // the same appointment over and over. (LY0928 M1)
   if (existing.status === 'completed' && CANCELLED.includes(nextStatus)) await onVisitUncompleted(updated)
@@ -560,7 +567,7 @@ app.post('/:id/check-in', requirePermission('schedule:update'), async (c) => {
 
   // Checking someone in says they are HERE, so it cannot happen weeks before the appointment. A visit 25
   // days out checked in with 200 while Complete on that same appointment was correctly refused as not
-  // yet happened (T27 N4) — the two halves of one visit disagreeing about whether it had started.
+  // yet happened (T27 N4) â€” the two halves of one visit disagreeing about whether it had started.
   // Answered on the shop's calendar: an early client on the day is fine, next month's is not. (T28 L5)
   {
     const tz = await salonTimezone(currentUser.companyId)
@@ -568,7 +575,7 @@ app.post('/:id/check-in', requirePermission('schedule:update'), async (c) => {
     const apptDay = calendarDateIn(new Date(existing.startTime), tz)
     if (apptDay > today) {
       return c.json({
-        error: `That appointment is on ${apptDay}, not today — check the client in when they arrive.`,
+        error: `That appointment is on ${apptDay}, not today â€” check the client in when they arrive.`,
         code: 'APPOINTMENT_NOT_TODAY',
       }, 409)
     }
@@ -584,7 +591,7 @@ app.post('/:id/check-in', requirePermission('schedule:update'), async (c) => {
   return c.json({ ...updated, stylistId: stylistIdOf(updated) })
 })
 
-// DELETE /appointments/:id — cancel, keeping the row so no-show/cancel rates
+// DELETE /appointments/:id â€” cancel, keeping the row so no-show/cancel rates
 // stay measurable.
 app.delete('/:id', requirePermission('schedule:update'), async (c) => {
   const currentUser = c.get('user') as any

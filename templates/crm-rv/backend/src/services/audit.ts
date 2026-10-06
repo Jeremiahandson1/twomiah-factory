@@ -240,4 +240,40 @@ export async function getHistory(companyId: string, entity: string, entityId: st
   return (result as any).rows || result;
 }
 
-export default { log, diff, query, getHistory, ACTIONS, ENTITIES };
+
+/**
+ * What this company's log can actually be filtered BY — the distinct actions and record types
+ * present in its OWN rows, most-used first.
+ *
+ * The /filters route used to return Object.values(ACTIONS) and Object.values(ENTITIES): the whole
+ * static vocabulary, ~110 entity types, almost none of which a given company has any rows for. So
+ * the screen's dropdown was mostly options that filter to nothing — the same fault T41 fixed on the
+ * dispensary, which the other templates never received. A filter built from the data cannot
+ * disagree with the data.
+ *
+ * Shape is { value, count }, which is what the shared AuditLogPage reads. Returning bare strings is
+ * what made every option render as "undefined (undefined)". (T51 follow-up)
+ */
+export async function filterOptions(companyId: string) {
+  const result = await db.execute(sql`
+    SELECT action, entity, COUNT(*)::int AS n
+    FROM audit_log
+    WHERE company_id = ${companyId}
+    GROUP BY action, entity
+  `)
+  const rows = ((result as any).rows || result) as any[]
+  const tally = (key: 'action' | 'entity') => {
+    const counts = new Map<string, number>()
+    for (const r of rows) {
+      const v = r[key]
+      if (!v) continue
+      counts.set(String(v), (counts.get(String(v)) || 0) + Number(r.n || 0))
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([value, count]) => ({ value, count }))
+  }
+  return { actions: tally('action'), entities: tally('entity') }
+}
+
+export default { log, diff, query, getHistory, ACTIONS, ENTITIES, filterOptions };

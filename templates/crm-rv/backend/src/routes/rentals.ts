@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { roundsToNothing } from '../shared/index.ts'
 import { and, eq, desc, notInArray, sql } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { rentalReservation, unit, contact } from '../../db/schema.ts'
@@ -83,7 +84,7 @@ app.post('/create', requirePermission('contacts:create'), async (c) => {
   if (days > MAX_DAYS) return c.json({ error: `A rental can't be longer than ${MAX_DAYS} days.` }, 400)
   const rateText = typeof b.rate === 'string' ? b.rate.trim() : b.rate
   const rate = typeof rateText === 'number' ? rateText : typeof rateText === 'string' && /^\d+(\.\d{1,2})?$/.test(rateText) ? Number(rateText) : NaN
-  if (!Number.isFinite(rate) || rate < 0 || rate > MAX_RATE) return c.json({ error: `Daily rate must be a number from 0 to ${MAX_RATE.toLocaleString('en-US')}.` }, 400)
+  if (!Number.isFinite(rate) || rate < 0 || roundsToNothing(rate) || rate > MAX_RATE) return c.json({ error: `Daily rate must be a number from 0 to ${MAX_RATE.toLocaleString('en-US')}.` }, 400)
   const dailyRate = Math.round(rate * 100) / 100
   const notes = typeof b.notes === 'string' && b.notes.trim() ? b.notes.trim().slice(0, 2000) : null
 

@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { roundsToNothing } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { serviceMenu } from '../../db/schema.ts'
 import { eq, and, asc, sql } from 'drizzle-orm'
@@ -51,7 +52,7 @@ app.post('/', requirePermission('pricebook:create'), async (c) => {
   if (body.price != null && isNaN(Number(body.price))) {
     return c.json({ error: 'Price must be a number.' }, 400)
   }
-  if (body.price != null && Number(body.price) < 0) {
+  if (body.price != null && (Number(body.price) < 0 || roundsToNothing(body.price))) {
     return c.json({ error: 'Price cannot be negative.' }, 400)
   }
   if (body.durationMin != null && (isNaN(Number(body.durationMin)) || Number(body.durationMin) < 1 || Number(body.durationMin) > 720)) {
@@ -100,7 +101,7 @@ app.put('/:id', requirePermission('pricebook:update'), async (c) => {
   if (body.price != null && isNaN(Number(body.price))) {
     return c.json({ error: 'Price must be a number.' }, 400)
   }
-  if (body.price != null && Number(body.price) < 0) {
+  if (body.price != null && (Number(body.price) < 0 || roundsToNothing(body.price))) {
     return c.json({ error: 'Price cannot be negative.' }, 400)
   }
   if (body.durationMin != null && (isNaN(Number(body.durationMin)) || Number(body.durationMin) < 1)) {

@@ -37,10 +37,9 @@ app.get('/:entity/:entityId', requireRole('admin'), async (c) => {
 
 // Get available filter options
 app.get('/filters', requireRole('admin'), async (c) => {
-  return c.json({
-    actions: Object.values(audit.ACTIONS),
-    entities: Object.values(audit.ENTITIES),
-  })
+  const currentUser = c.get('user') as any
+  // What THIS company's log holds, not the static vocabulary. (T51 follow-up)
+  return c.json(await audit.filterOptions(currentUser.companyId))
 })
 
 export default app

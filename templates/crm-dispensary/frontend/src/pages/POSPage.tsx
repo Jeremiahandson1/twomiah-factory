@@ -98,10 +98,27 @@ export default function POSPage() {
   useEffect(() => {
     api.get('/api/company').then((c: any) => {
       const co = c?.data || c;
-      const r = Number(co?.taxRate);
-      if (Number.isFinite(r)) setTaxRate(r / 100);
-      const e = co?.exciseTaxRate != null && co?.exciseTaxRate !== '' ? Number(co.exciseTaxRate) : NaN;
-      if (Number.isFinite(e)) setExciseRate(e / 100);
+      /**
+       * THE RATE THE SERVER WILL CHARGE, not the column and not a default of our own. (T58)
+       *
+       * This read company.taxRate straight. `Number(null)` and `Number('')` are both a finite 0, so a
+       * shop that had never typed a sales-tax rate was QUOTED 0% here while the server charged its
+       * 8.75% fallback and recorded the order at that — the customer told one total and charged
+       * another. The excise line had the same hole wearing a different guard: its default lived here
+       * as 0.15, which only happened to match the server's.
+       *
+       * GET /api/company now resolves both through utils/tax.ts — the module that computes the charge
+       * — so there is one answer. The raw columns stay as the fallback for a tenant whose API has not
+       * been redeployed yet, so this screen is never worse than it was mid-rollout.
+       */
+      const resolved = (effective: any, column: any, fallback: number) => {
+        const e = Number(effective);
+        if (Number.isFinite(e)) return e / 100;
+        const col = column != null && column !== '' ? Number(column) : NaN;
+        return Number.isFinite(col) ? col / 100 : fallback;
+      };
+      setTaxRate(resolved(co?.effectiveTaxRate, co?.taxRate, 0));
+      setExciseRate(resolved(co?.effectiveExciseTaxRate, co?.exciseTaxRate, 0.15));
       const lim = Number(co?.purchaseLimitOz);
       if (Number.isFinite(lim) && lim > 0) setWeightLimitOz(lim);
     }).catch(() => {});

@@ -135,19 +135,39 @@ export function JobsDashboardPage({ api, user, company, config }: JobsDashboardP
   )
 }
 
+/**
+ * THE CARD HAS TO BE ALLOWED TO SHRINK. (T51 follow-up)
+ *
+ * Owner, on showcase: "the 390px dashboard is 12px too wide." Measured in a real browser at 390:
+ * this card rendered 386px wide inside a 358px parent and pushed the document to 402 — the exact
+ * +12px reported.
+ *
+ * The row's title already had `truncate`, which is why this looks like it should work. It cannot: a
+ * GRID child defaults to `min-width: auto`, so the card refuses to narrow below the intrinsic width
+ * of its content, and `truncate` on an element inside a box that never narrows has nothing to
+ * truncate against. The job title "T43 Owner Job 5" plus its number set that floor.
+ *
+ * `min-w-0` on the card lets the grid track shrink, and only then does the truncate below take
+ * effect. The header needs the same treatment for the same reason — a long panel title would push it
+ * — with the "View all" link held at its natural size so it is never the thing that gets clipped.
+ *
+ * Measured, not reasoned: hvac/dashboard and landscaping/dashboard both FIT at 390 with the same
+ * component, because their job titles are shorter. A page that happens to fit on one tenant's data
+ * is not a page that fits.
+ */
 function RecentList({ title, link, empty, rows }: { title: string; link: string; empty: string; rows: Array<{ id: string; primary: string; secondary: string; status: string; href: string }> }) {
   return (
-    <div className={panel}>
-      <div className="p-4 border-b border-gray-200 dark:border-slate-800 flex items-center justify-between">
-        <h2 className="font-semibold text-gray-900 dark:text-slate-100">{title}</h2>
-        <NavLink to={link} className="text-sm text-orange-500 hover:text-orange-600 dark:hover:text-orange-200 dark:text-orange-300">View all</NavLink>
+    <div className={`${panel} min-w-0`}>
+      <div className="p-4 border-b border-gray-200 dark:border-slate-800 flex items-center justify-between gap-3">
+        <h2 className="font-semibold text-gray-900 dark:text-slate-100 min-w-0 truncate">{title}</h2>
+        <NavLink to={link} className="shrink-0 text-sm text-orange-500 hover:text-orange-600 dark:hover:text-orange-200 dark:text-orange-300">View all</NavLink>
       </div>
       <div className="divide-y divide-gray-100 dark:divide-slate-800">
         {rows.length === 0 && <p className={`p-4 text-sm ${muted}`}>{empty}</p>}
         {rows.map(r => (
-          <NavLink key={r.id} to={r.href} className="block p-4 hover:bg-gray-50 dark:hover:bg-slate-800/60">
+          <NavLink key={r.id} to={r.href} className="block p-4 min-w-0 hover:bg-gray-50 dark:hover:bg-slate-800/60">
             <p className="font-medium text-gray-900 dark:text-slate-100 truncate">{r.primary}</p>
-            <p className={`text-sm ${muted}`}>{r.secondary}</p>
+            <p className={`text-sm ${muted} truncate`}>{r.secondary}</p>
             <div className="mt-1"><StatusBadge status={r.status} /></div>
           </NavLink>
         ))}

@@ -90,6 +90,32 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
    * present: other callers may well want the list, and a navigation that happens by inference is
    * the kind nobody can predict from reading either file.
    */
+  /**
+   * EVERY CONTACT IS REACHABLE FROM A CARD, AND THE CARDS ADD UP. (T51 follow-up)
+   *
+   * Owner, on the salon: "the Contacts count is 204 vs 203."
+   *
+   * Measured: 204 contacts — 191 client, 12 lead, and ONE of type `other`. The header shows
+   * `stats.total` (204) and the cards show only the types in this vertical's own vocabulary, which
+   * for a salon is Clients and Leads. So the cards summed to 203, and that one contact was not just
+   * missing from the arithmetic — it was reachable from NO card, because each card sets the type
+   * filter. A record you cannot get to from the page that lists it.
+   *
+   * Rather than hard-code "other" (it is not the salon's word, and the leftover could be any type a
+   * migration or an import left behind), any type PRESENT IN THE STATS but absent from the
+   * vocabulary gets a card of its own. The cards then always sum to the total, and nothing is
+   * unreachable. On a tenant with no stray types this is exactly the old list.
+   */
+  const typeCards = (() => {
+    if (!stats) return cfg.types
+    const known = new Set(cfg.types.map((t) => t.value))
+    const strays = Object.keys(stats)
+      .filter((k) => k !== 'total' && !known.has(k) && Number(stats[k]) > 0)
+      .sort()
+      .map((value) => ({ value, label: value.replace(/_/g, ' ').replace(/^./, (ch) => ch.toUpperCase()) }))
+    return [...cfg.types, ...strays]
+  })()
+
   const returnTo = searchParams.get('returnTo')
   const leaveModal = () => {
     setModalOpen(false)
@@ -215,8 +241,8 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
       />
 
       {stats && (
-        <div className={`grid grid-cols-2 gap-4 mb-6 ${cfg.types.length >= 4 ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
-          {cfg.types.map((t) => (
+        <div className={`grid grid-cols-2 gap-4 mb-6 ${typeCards.length >= 4 ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
+          {typeCards.map((t) => (
             <button
               key={t.value}
               type="button"

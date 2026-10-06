@@ -24,7 +24,17 @@ for (const [sig, perm] of [["app.get('/list'", 'contacts:read'], ["app.post('/cr
 }
 const create = r.slice(r.indexOf("app.post('/create'"), r.indexOf("app.post('/:id/status'"))
 if (!/if \(b\.end < b\.start\) return c\.json\([^)]*400\)/.test(create)) fail('create must refuse a return date before the pick-up date')
-if (!/rate < 0 \|\| rate > MAX_RATE/.test(create)) fail('create must refuse a negative or absurd rate')
+// Each clause on its own. This pinned `rate < 0 || rate > MAX_RATE` as one contiguous string, so it went
+// red the moment the rate check got STRICTER and gained the rounds-to-nothing case in between — a guard
+// that punishes tightening the rule it exists to protect.
+for (const [clause, what] of [
+  [/rate < 0/, 'a negative rate'],
+  [/rate > MAX_RATE/, 'an absurd rate'],
+  [/roundsToNothing\(rate\)/, 'a positive rate that stores as 0.00'],
+] as [RegExp, string][]) {
+  if (!clause.test(create)) fail(`create must refuse ${what}`)
+}
+if (!/\.json\(\{ error: [^}]*\}, 400\)/.test(create)) fail('…and refuse it with a 400, not a thrown error')
 if (!/const days = Math\.max\(1, Math\.round\(\(Date\.parse/.test(create) || /Number\(b\.days\)/.test(create)) fail('days must be computed from the dates, never taken from the request')
 if (!/eq\(unit\.companyId, user\.companyId\)\)\)\.limit\(1\)\.for\('update'\)/.test(create)) fail('create must lock the company\'s unit row before checking for overlaps')
 if (!/notInArray\(rentalReservation\.status, \['returned', 'cancelled'\]\)/.test(create) || !/rentalReservation\.startDate\} < \$\{until\}/.test(create) || !/if \(clash\) return \{ status: 409 as const, error: `\$\{unitLabel\(u\)\} is already booked/.test(create)) fail('create must refuse (409) a reservation overlapping one that still holds the unit')

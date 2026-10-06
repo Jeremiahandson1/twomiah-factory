@@ -301,6 +301,18 @@ export default function PatientDetailPage() {
 
   const owner = detail.owner;
   const visits = detail.visits || [];
+  /**
+   * How many visits this patient really has. (T58)
+   *
+   * The tab label was `count: visits.length` against a list the server capped, so a patient with 25
+   * visits was labelled "Visits 20" — the chart asserting a wrong number rather than just showing a
+   * short list. The server now sends the real total; falling back to the list length keeps this
+   * correct against an API that has not been redeployed yet.
+   */
+  const visitsTotal = Number.isFinite(Number((detail as any).visitsTotal))
+    ? Number((detail as any).visitsTotal)
+    : visits.length;
+  const visitsTruncated = visitsTotal > visits.length;
   const vaccinations = detail.vaccinations || [];
 
   /**
@@ -347,7 +359,7 @@ export default function PatientDetailPage() {
   ].filter(Boolean).join(' · ');
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode; count: number }[] = [
-    { id: 'visits', label: 'Visits', icon: <Stethoscope className="w-4 h-4" />, count: visits.length },
+    { id: 'visits', label: 'Visits', icon: <Stethoscope className="w-4 h-4" />, count: visitsTotal },
     { id: 'vaccinations', label: 'Vaccinations', icon: <Syringe className="w-4 h-4" />, count: vaccinations.length },
     { id: 'prescriptions', label: 'Prescriptions', icon: <Pill className="w-4 h-4" />, count: prescriptions.length },
     { id: 'labs', label: 'Lab Results', icon: <FlaskConical className="w-4 h-4" />, count: labResults.length },
@@ -463,6 +475,12 @@ export default function PatientDetailPage() {
               <Plus className="w-4 h-4" /> New Visit
             </button>
           </div>
+          {/* A cap nobody is told about is the fault. Say it on the chart. (T58) */}
+          {visitsTruncated && (
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              Showing the {visits.length} most recent of {visitsTotal} visits.
+            </p>
+          )}
           {visits.length === 0 ? (
             <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">No visits recorded</div>
           ) : (

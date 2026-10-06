@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { roundsToNothing } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { repairOrder, contact, unit, salesLead, serviceSalesAlert, user, invoice, invoiceLineItem } from '../../db/schema.ts'
 import { eq, and, count, desc, isNull, sql } from 'drizzle-orm'
@@ -37,6 +38,8 @@ function roInputError(body: any, isCreate: boolean): string | null {
     if (v === undefined || v === null || v === '') continue
     const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN
     if (!Number.isFinite(n) || n < 0 || n > MAX_AMOUNT) return `${label} must be an amount of 0 or more`
+  // …and not a positive amount that stores as 0.00. (T51 follow-up)
+  if (roundsToNothing(n)) return `${label} of ${n} rounds to $0.00 — enter 0, or at least one cent`
   }
   if (body.services !== undefined && body.services !== null) {
     if (!Array.isArray(body.services)) return 'Services must be a list'

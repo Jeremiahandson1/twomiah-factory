@@ -144,9 +144,15 @@ export default function DashboardPage() {
               <p className="text-sm font-medium text-gray-600 dark:text-slate-400">Reminders Due</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
                 {overdue} overdue
-                <span className="text-base font-medium text-gray-500 dark:text-slate-400"> · {dueSoon} due soon</span>
+                {/*
+                  gray-600, not gray-500: this card's ground is RED-50 whenever a reminder is due,
+                  which is the only state anybody reads it in. Measured at 4.42:1 against red-50,
+                  where AA needs 4.5 — it passes on the white version, which is why nothing static
+                  caught it. The same pair, in the same card, on the Events dashboard. (T51)
+                */}
+                <span className="text-base font-medium text-gray-600 dark:text-slate-400"> · {dueSoon} due soon</span>
               </p>
-              <p className="text-sm text-gray-500 dark:text-slate-400">Bring lapsed patients back in for care</p>
+              <p className="text-sm text-gray-600 dark:text-slate-400">Bring lapsed patients back in for care</p>
             </div>
           </div>
           <ArrowRight className="w-5 h-5 text-gray-400" />

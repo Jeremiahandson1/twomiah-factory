@@ -34,11 +34,16 @@ export default function EquivalencyPage() {
   const [deletingRule, setDeletingRule] = useState(false);
 
   // Calculator
+  //
+  // The cart holds only WHAT is in it. Every equivalent gram, the limit and the refusal wording come
+  // back from the server — see the note above recalculate().
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [selectedProduct, setSelectedProduct] = useState('');
   const [selectedQty, setSelectedQty] = useState('1');
-  const [purchaseLimit, setPurchaseLimit] = useState(28); // default 1oz = 28g
+  const [calc, setCalc] = useState<any>(null);
+  const [calcError, setCalcError] = useState<string | null>(null);
+  const [calculating, setCalculating] = useState(false);
 
   useEffect(() => {
     loadRules();
@@ -138,7 +143,12 @@ const unitOf = (rule: any): string => {
       const payload = {
         ...ruleForm,
         equivalencyGrams: parseFloat(ruleForm.equivalencyGrams) || 0,
-        purchaseLimitGrams: parseFloat(ruleForm.purchaseLimitGrams) || 0,
+        // A BLANK box means this category has no cap of its own, and null is how you say that. It
+        // used to send 0, which stores a cap of zero grams — on a compliance screen that reads as
+        // "none of this category may be sold". (T58)
+        purchaseLimitGrams: ruleForm.purchaseLimitGrams.trim() === ''
+          ? null
+          : parseFloat(ruleForm.purchaseLimitGrams) || 0,
       };
       if (editingRule) {
         await api.put(`/api/equivalency/rules/${editingRule.id}`, payload);
@@ -180,18 +190,12 @@ const unitOf = (rule: any): string => {
       return;
     }
     const qty = parseInt(selectedQty) || 1;
-    const rule = rules.find(r => r.category === (product.category || product.productType));
-    // The rule's own factor. Falling back to 1 made the calculator disagree with the register.
-    const equivalentGrams = (factorOf(rule) || 1) * qty;
-
     setCartItems([...cartItems, {
       id: Date.now(),
       productId: product.id,
       productName: product.name,
       category: product.category || product.productType || '—',
       quantity: qty,
-      equivalentGrams,
-      ruleEquivalency: factorOf(rule) || 1,
     }]);
     setSelectedProduct('');
     setSelectedQty('1');
@@ -201,9 +205,62 @@ const unitOf = (rule: any): string => {
     setCartItems(cartItems.filter(i => i.id !== itemId));
   };
 
-  const totalEquivalentGrams = cartItems.reduce((sum, item) => sum + item.equivalentGrams, 0);
-  const limitPercentage = Math.min((totalEquivalentGrams / purchaseLimit) * 100, 100);
-  const overLimit = totalEquivalentGrams > purchaseLimit;
+  /**
+   * THE METER NOW ASKS THE TILL. (T58, the rest of T45 M5)
+   *
+   * This whole tab was a second implementation of the purchase limit, and it was wrong in every
+   * direction at once:
+   *
+   *   - a line was counted as `factor x quantity`, with the product's own WEIGHT left out entirely.
+   *     Ten units of a 3.5 g flower at factor 1 read 10 g here; the register counts 35 g and refuses.
+   *   - `factorOf(rule) || 1` turned a topical's deliberate ZERO factor into 1 g a unit — counting
+   *     something the rules exempt on purpose.
+   *   - an edible's factor is per MILLIGRAM OF THC, never per unit, so its number was unrelated to
+   *     anything the till would compute.
+   *   - the limit it compared against was a hardcoded 28 g, so a shop configured at 2.5 oz was told
+   *     it was over the cap on a basket the register accepts.
+   *
+   * T45 M5 fixed exactly this disagreement on the SERVER — POST /calculate calls the sale path's own
+   * helpers so "the meter agrees with the refusal" — and this screen, the only meter a budtender
+   * actually looks at, was never pointed at it. A compliance figure computed twice is two answers to
+   * "may this customer buy this", which is the fault utils/cannabis.ts exists to prevent.
+   *
+   * So nothing is computed here. The endpoint returns the per-line equivalents, the total, the shop's
+   * real limit, whether it is over, and the exact wording completion would refuse with — including the
+   * uncountable-product refusal, which is the other way a basket surprises the counter.
+   *
+   * Items are sent in cart order and perItemEquivalent comes back in that order, so rows are matched by
+   * INDEX: two rows can hold the same product, and keying by productId would collapse them.
+   */
+  const recalculate = async (items: any[]) => {
+    if (!items.length) { setCalc(null); setCalcError(null); return; }
+    setCalculating(true);
+    try {
+      const res = await api.post('/api/equivalency/calculate', {
+        items: items.map(i => ({ productId: i.productId, quantity: Number(i.quantity) || 0 })),
+      });
+      setCalc(res?.data ?? res);
+      setCalcError(null);
+    } catch (err: any) {
+      // Never leave stale numbers on a compliance meter: a figure that no longer matches the cart is
+      // worse than no figure.
+      setCalc(null);
+      setCalcError(err?.message || 'Could not work out the flower equivalent for this basket.');
+    } finally {
+      setCalculating(false);
+    }
+  };
+
+  useEffect(() => { recalculate(cartItems); }, [cartItems]);
+
+  const GRAMS_PER_OZ = 28.3495;
+  const totalEquivalentGrams = Number(calc?.totalFlowerEquivalentGrams ?? 0);
+  const limitOz = calc?.purchaseLimitOz != null ? Number(calc.purchaseLimitOz) : null;
+  const limitGrams = limitOz != null && limitOz > 0 ? limitOz * GRAMS_PER_OZ : null;
+  const overLimit = !!calc?.isOverLimit;
+  const limitPercentage = limitGrams ? Math.min((totalEquivalentGrams / limitGrams) * 100, 100) : 0;
+  // Keyed by index, as the note above explains.
+  const equivalentFor = (index: number) => calc?.perItemEquivalent?.[index] ?? null;
 
   const tabs = [
     { id: 'rules', label: 'Rules', icon: List },
@@ -283,7 +340,7 @@ const unitOf = (rule: any): string => {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Category</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400" title="Grams of flower this category is worth against the purchase limit">Flower-equivalent</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400" title="The unit the factor is per — an edible's is per mg of THC, not per gram of product">Per</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Purchase Limit (g)</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400" title="An optional cap for this category alone, in grams of flower equivalent. A dash means there is none and the shop's purchase limit applies.">Purchase Limit (g)</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Description</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Actions</th>
                   </tr>
@@ -295,7 +352,22 @@ const unitOf = (rule: any): string => {
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{rule.category}</td>
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{factorOf(rule) || '—'}{factorOf(rule) ? 'g' : ''}</td>
                       <td className="px-4 py-3 text-right text-gray-500 dark:text-slate-400">{unitOf(rule) ? `per ${unitOf(rule)}` : 'each'}</td>
-                      <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{rule.purchaseLimitGrams}g</td>
+                      {/*
+                        A LONE "g", on every row. (T58)
+
+                        purchase_limit_grams is optional and both seed paths leave it NULL, so on a
+                        fresh tenant every row rendered `{null}g` — the unit with nothing in front of
+                        it. T41 fixed this exact shape one column to the left (the factor) and this
+                        one, sitting beside it, kept doing it.
+
+                        A blank is not a missing number here: it means this category has no cap of its
+                        own and the shop's purchase limit is what applies. So it reads as a dash with
+                        the header explaining it, rather than as a zero — which on a compliance screen
+                        would say "none of this may be sold".
+                      */}
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">
+                        {Number(rule.purchaseLimitGrams) > 0 ? `${Number(rule.purchaseLimitGrams)}g` : '—'}
+                      </td>
                       <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate dark:text-slate-400">{rule.description || '—'}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex gap-2 justify-end">
@@ -361,12 +433,20 @@ const unitOf = (rule: any): string => {
             </div>
           </div>
 
-          {/* Purchase Limit Bar */}
+          {/* Purchase Limit Bar — every figure here comes from the till's own calculation. */}
           <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-semibold text-gray-900 dark:text-slate-100">Purchase Limit</h3>
               <span className={`text-sm font-medium ${overLimit ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-slate-300'}`}>
-                {Number(totalEquivalentGrams).toFixed(1)}g / {purchaseLimit}g
+                {/* The shop's configured limit, named in oz because that is how it is set in Settings,
+                    with the grams it works out to beside it. It used to print a hardcoded 28g. */}
+                {cartItems.length === 0
+                  ? limitGrams
+                    ? `Limit ${limitOz}oz (${limitGrams.toFixed(1)}g)`
+                    : 'Add products to see the limit'
+                  : limitGrams
+                    ? `${totalEquivalentGrams.toFixed(1)}g / ${limitGrams.toFixed(1)}g (${limitOz}oz)`
+                    : `${totalEquivalentGrams.toFixed(1)}g`}
               </span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden dark:bg-slate-700 dark:text-slate-100">
@@ -377,12 +457,27 @@ const unitOf = (rule: any): string => {
                 style={{ width: `${Math.min(limitPercentage, 100)}%` }}
               />
             </div>
-            {overLimit && (
+            {/* The refusal, in the words the completion would actually use — not a sentence this page
+                composes from numbers it worked out itself. */}
+            {overLimit && calc?.limitError && (
               <div className="flex items-center gap-2 mt-3 text-red-600 dark:text-red-400">
                 <AlertTriangle className="w-4 h-4" />
-                <span className="text-sm font-medium">
-                  Over purchase limit by {Number(totalEquivalentGrams - purchaseLimit).toFixed(1)}g!
-                </span>
+                <span className="text-sm font-medium">{calc.limitError}</span>
+              </div>
+            )}
+            {/* The OTHER way a basket is refused at the counter: a cannabis line the rules cannot
+                weigh. The endpoint hands over the exact wording; saying nothing here is how a
+                budtender finds out at completion instead. */}
+            {calc?.uncountableError && (
+              <div className="flex items-center gap-2 mt-3 text-amber-700 dark:text-amber-400">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span className="text-sm font-medium">{calc.uncountableError}</span>
+              </div>
+            )}
+            {calcError && (
+              <div className="flex items-center gap-2 mt-3 text-red-600 dark:text-red-400">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span className="text-sm font-medium">{calcError}</span>
               </div>
             )}
           </div>
@@ -401,20 +496,28 @@ const unitOf = (rule: any): string => {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {cartItems.map(item => (
+                {cartItems.map((item, index) => {
+                  // The server's figure for THIS row. Its equivalentGrams is the line total, so the
+                  // per-unit column divides it back out rather than keeping a second number around.
+                  const line = equivalentFor(index);
+                  const lineGrams = line ? Number(line.equivalentGrams) || 0 : null;
+                  const qty = Number(item.quantity) || 0;
+                  const perUnit = lineGrams != null && qty > 0 ? lineGrams / qty : null;
+                  return (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{item.productName}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{item.category}</td>
                     <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{item.quantity}</td>
-                    <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{item.ruleEquivalency}g</td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">{Number(item.equivalentGrams).toFixed(1)}g</td>
+                    <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{perUnit == null ? '—' : `${perUnit.toFixed(2)}g`}</td>
+                    <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">{lineGrams == null ? '—' : `${lineGrams.toFixed(1)}g`}</td>
                     <td className="px-4 py-3 text-right">
                       <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
                 {cartItems.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
@@ -428,7 +531,7 @@ const unitOf = (rule: any): string => {
                   <tr>
                     <td colSpan={4} className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-slate-100">Total Flower Equivalent:</td>
                     <td className={`px-4 py-3 text-right font-bold ${overLimit ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`}>
-                      {Number(totalEquivalentGrams).toFixed(1)}g
+                      {calculating && !calc ? '…' : `${totalEquivalentGrams.toFixed(1)}g`}
                     </td>
                     <td />
                   </tr>
@@ -479,7 +582,12 @@ const unitOf = (rule: any): string => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Purchase Limit (grams)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
+                Purchase Limit (grams)
+                <span className="block text-xs font-normal text-gray-500 dark:text-slate-400">
+                  Optional cap for this category, in grams of flower equivalent. Leave blank for none — the shop's purchase limit applies.
+                </span>
+              </label>
               <input
                 type="number"
                 step="0.1"

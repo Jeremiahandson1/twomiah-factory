@@ -8,6 +8,8 @@ import { requirePermission, hasPermission, getExtraPermissions } from '../middle
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
+// The one answer to "is this a real amount" — see invoicing/money.ts. (T51 follow-up)
+import { roundsToNothing } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -16,6 +18,19 @@ app.use('*', authenticate)
 // un-escaped render path (a PDF quote, an email, a partner feed) — M-05. These
 // fields never legitimately contain markup.
 const noTags = z.string().transform(s => s.replace(/<[^>]*>/g, '')).optional()
+
+/**
+ * A money column on this table, as the one rule. (T51 follow-up)
+ *
+ * Empty means "not set". Otherwise it must be a number, not negative, and not a positive amount that
+ * rounds to 0.00 in a decimal(…,2) column — "0.004" used to pass and list a unit at nothing. An
+ * exact "0" stays allowed: a unit whose cost has not been entered is a real state.
+ */
+const money = z.string()
+  .refine(v => v === '' || !isNaN(Number(v)), 'Must be an amount')
+  .refine(v => v === '' || Number(v) >= 0, 'Must be a non-negative amount')
+  .refine(v => !roundsToNothing(v), 'That rounds to $0.00 — enter 0, or at least one cent')
+  .optional()
 
 // A unit that goes to the public marketplace feed needs a real identity: a known category, a stock number, year, make
 // and model, and a VIN that is either a standard 17-character VIN or a 5–16 character serial number.
@@ -40,12 +55,15 @@ const unitSchema = z.object({
   interiorColor: noTags,
   mileage: z.number().int().min(0).optional(),
   status: z.enum(['available', 'sold', 'pending', 'on_order', 'in_service']).default('available'),
-  // Money fields are decimal-as-string; reject negatives (M-01: listedPrice "-500"
-  // was accepted and syndicated) and non-numeric junk.
-  msrp: z.string().refine(v => v === '' || (!isNaN(Number(v)) && Number(v) >= 0), 'Must be a non-negative amount').optional(),
-  listedPrice: z.string().refine(v => v === '' || (!isNaN(Number(v)) && Number(v) >= 0), 'Must be a non-negative amount').optional(),
-  internetPrice: z.string().refine(v => v === '' || (!isNaN(Number(v)) && Number(v) >= 0), 'Must be a non-negative amount').optional(),
-  cost: z.string().refine(v => v === '' || (!isNaN(Number(v)) && Number(v) >= 0), 'Must be a non-negative amount').optional(),
+  /**
+   * Money fields are decimal-as-string; reject negatives (M-01: listedPrice "-500" was accepted and
+   * syndicated), non-numeric junk, AND a positive amount that rounds away to nothing.
+   *
+   * That last one is the T51 follow-up: these columns are decimal(…,2), so "0.004" passed `>= 0` and
+   * stored as 0.00 — a unit listed at nothing, syndicated to the marketplaces at nothing. An exact
+   * "0" is still allowed, because a unit whose cost has not been entered yet is a real state.
+   */
+  msrp: money, listedPrice: money, internetPrice: money, cost: money,
   photos: z.array(z.string()).optional(),
   floorplanImg: z.string().optional(),
   description: noTags,

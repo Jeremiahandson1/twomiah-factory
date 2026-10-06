@@ -1,7 +1,7 @@
-/**
+﻿/**
  * MEASURE contrast on the live fleet, in both themes, in a real browser.
  *
- * NOT A CI GUARD — it needs a browser on a debugging port and the ten live tenants, so it is not in
+ * NOT A CI GUARD â€” it needs a browser on a debugging port and the ten live tenants, so it is not in
  * build-check.yml. It is the tool a round runs by hand, and it belongs in the repo because every
  * static contrast check in scripts/ has a ceiling this one does not:
  *
@@ -10,7 +10,7 @@
  *     bun scripts/measure-contrast-live.ts dark
  *
  * WHAT IT CAUGHT THE FIRST TIME IT RAN (T47). The static guard said AIReceptionistPage.tsx was clean
- * and it was — the invisible text was in `components/ui/Table.tsx`'s EmptyState ("No auto-reply
+ * and it was â€” the invisible text was in `components/ui/Table.tsx`'s EmptyState ("No auto-reply
  * rules", white on white) and `Tabs.tsx`'s inactive trigger (1.23:1). A per-file check cannot see a
  * component the page merely renders, and no static check can see a ground painted by a PARENT. This
  * found both in ninety seconds across three tenants.
@@ -19,7 +19,7 @@
  * clean while the Events pipeline was 35,110px wide, because `events` was not in its list.
  *
  * The static guard I added (#206) measures two page families from Tailwind's hex values. It cannot
- * see a background painted by a PARENT, which is why it names files rather than sweeping — so the
+ * see a background painted by a PARENT, which is why it names files rather than sweeping â€” so the
  * fleet-wide answer has to come from the browser, which resolves the cascade: the effective
  * background is the first opaque layer up the tree with every translucent layer composited onto it,
  * and the ink is whatever actually won.
@@ -27,11 +27,11 @@
  * Same measurement engine as t41-contrast-measure.ts (that round came back 77/77 both themes). What
  * is new here:
  *
- *   · THIS ROUND'S SCREENS. AI Receptionist (5 templates), Support (8), the three Events screens,
- *     Dispatch and Invoices — none of which T41 looked at. Plus a wider sample per vertical, so a
+ *   Â· THIS ROUND'S SCREENS. AI Receptionist (5 templates), Support (8), the three Events screens,
+ *     Dispatch and Invoices â€” none of which T41 looked at. Plus a wider sample per vertical, so a
  *     regression somewhere I did not touch is visible rather than assumed absent.
  *
- *   · MODALS ARE OPENED. The owner's finding was "the dark-mode pop-up TITLES are invisible", and a
+ *   Â· MODALS ARE OPENED. The owner's finding was "the dark-mode pop-up TITLES are invisible", and a
  *     page-level sweep never sees a modal because it is not rendered until something is clicked. Each
  *     Events screen is measured again with its create pop-up open.
  *
@@ -54,42 +54,59 @@ const PORT = 9223
 
 /**
  * Route paths read off each template's App.tsx, not guessed. roof and dispensary carry
- * `contact-support` rather than the shared SupportPage — which is why they were correctly outside
+ * `contact-support` rather than the shared SupportPage â€” which is why they were correctly outside
  * this round's eight-template Support fix.
  */
 type Page = { path: string; open?: string }
+/**
+ * `dashboard` and `audit` added to every vertical, and the dispensary's security/scheduling screens.
+ * (T51 follow-up)
+ *
+ * The width run came back 36 of 36 clean while the page the owner had reported was simply not in its
+ * list. The same risk applies here, so the screens this round touched â€” the new Audit Log, the
+ * dispensary's Security Events and Scheduling chips, every landing dashboard â€” are measured rather
+ * than assumed.
+ */
 const PAGES: Record<string, Page[]> = {
   contractor: [
+    { path: 'dashboard' }, { path: 'audit' },
     { path: 'ai-receptionist' }, { path: 'support' }, { path: 'invoices' },
     { path: 'warranties' }, { path: 'change-orders' }, { path: 'contacts' }, { path: 'quotes' },
   ],
   gym: [
+    { path: 'dashboard' }, { path: 'audit' }, { path: 'commissions' }, { path: 'booking' },
     { path: 'ai-receptionist' }, { path: 'support' }, { path: 'invoices' },
     { path: 'contacts' }, { path: 'jobs' }, { path: 'quotes' }, { path: 'agreements' },
   ],
   hvac: [
+    { path: 'dashboard' }, { path: 'audit' }, { path: 'warranties' },
     { path: 'ai-receptionist' }, { path: 'support' }, { path: 'invoices' }, { path: 'dispatch' },
     { path: 'agreements' }, { path: 'jobs' }, { path: 'contacts' },
   ],
   landscaping: [
+    { path: 'dashboard' }, { path: 'audit' },
     { path: 'ai-receptionist' }, { path: 'support' }, { path: 'invoices' }, { path: 'dispatch' },
     { path: 'agreements' }, { path: 'jobs' },
   ],
   roofing: [
+    // roofing's main screen is the /crm index (PipelineBoard); `dashboard` is a PORTAL route there,
+    // so /crm/dashboard 404s — which is how this sweep ended up measuring a 404 page. (T51)
+    { path: '' }, { path: 'canvassing' },
     { path: 'ai-receptionist' }, { path: 'contact-support' }, { path: 'invoices' }, { path: 'quotes' },
   ],
   // The pop-ups are the finding. Each Events screen is measured twice: as it loads, and with its
   // create form open, because a modal does not exist in the DOM until something is clicked.
   events: [
+    { path: 'dashboard' }, { path: 'audit' },
     { path: 'events' }, { path: 'events', open: 'New Enquiry' },
     { path: 'spaces' }, { path: 'spaces', open: 'New Space' },
     { path: 'menus' }, { path: 'menus', open: 'New Package' },
     { path: 'support' }, { path: 'invoices' }, { path: 'contacts' },
   ],
-  rv: [{ path: 'support' }, { path: 'invoices' }, { path: 'units' }],
-  salon: [{ path: 'support' }, { path: 'invoices' }, { path: 'contacts' }],
-  veterinary: [{ path: 'support' }, { path: 'invoices' }, { path: 'patients' }],
-  dispensary: [{ path: 'dashboard' }, { path: 'compliance' }, { path: 'orders' }, { path: 'contact-support' }],
+  rv: [{ path: 'dashboard' }, { path: 'audit' }, { path: 'support' }, { path: 'invoices' }, { path: 'units' }],
+  salon: [{ path: 'dashboard' }, { path: 'audit' }, { path: 'expenses' }, { path: 'support' }, { path: 'invoices' }, { path: 'contacts' }],
+  veterinary: [{ path: 'dashboard' }, { path: 'audit' }, { path: 'support' }, { path: 'invoices' }, { path: 'patients' }],
+  dispensary: [{ path: 'security' }, { path: 'scheduling' }, { path: 'audit' }, { path: 'dashboard' }, { path: 'compliance' }, { path: 'orders' }, { path: 'contact-support' }],
 }
 
 const rows: any[] = await (await fetch(
@@ -136,7 +153,7 @@ const cdp = async (ws: WebSocket, id: number, method: string, params: any = {}) 
 
 const list = await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json() as any[]
 const page = list.find((t) => t.type === 'page')
-if (!page) { console.error('no page target — the browser needs --remote-debugging-port=9223'); process.exit(1) }
+if (!page) { console.error('no page target â€” the browser needs --remote-debugging-port=9223'); process.exit(1) }
 const ws = new WebSocket(page.webSocketDebuggerUrl)
 await new Promise((r) => ws.addEventListener('open', r, { once: true }))
 let id = 0
@@ -159,7 +176,7 @@ const EXPR = `(() => {
 
   const bad = [];
   for (const el of document.querySelectorAll('*')) {
-    // own text only — a wrapper inherits the colour but its child is what is read
+    // own text only â€” a wrapper inherits the colour but its child is what is read
     let own = '';
     for (const n of el.childNodes) if (n.nodeType === 3) own += n.nodeValue;
     own = own.trim();
@@ -199,7 +216,7 @@ const EXPR = `(() => {
     });
   }
   bad.sort((a, b) => a.ratio - b.ratio);
-  // one row per distinct class+ratio — a list of 40 identical badges is one finding
+  // one row per distinct class+ratio â€” a list of 40 identical badges is one finding
   const seen = new Set(), out = [];
   for (const b of bad) { const k = b.cls + '|' + b.ratio; if (seen.has(k)) continue; seen.add(k); out.push(b) }
   const txt = (document.body ? document.body.innerText : '') || '';

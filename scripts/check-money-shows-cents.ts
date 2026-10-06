@@ -35,19 +35,56 @@ const PARKED = ['crm-automotive', 'crm-homecare']
  *   RoofReport    total area, and a measurement with its own unit
  *   POSPage       loyalty points
  */
-const ALLOWED = new Set([
-  'templates/crm-landscaping/backend/src/routes/areaPricing.ts:125',
-  'templates/crm-roof/backend/src/services/xactimate.ts:197',
-  'templates/crm-roof/backend/src/services/xactimate.ts:206',
-  'templates/crm-roof/frontend/src/pages/roofReports/RoofReportDetail.tsx:118',
-  'templates/crm-roof/frontend/src/pages/roofReports/RoofReportDetail.tsx:295',
-  // Loyalty POINTS, not money — a whole number, and "1,250 pts" is right. Moved from :717 when the
-// till learned to read ?customerId= (T51).
-  'templates/crm-dispensary/frontend/src/pages/POSPage.tsx:746',
-])
+/**
+ * Keyed on WHAT THE LINE SAYS, not where it sits. (T58)
+ *
+ * These were `file:lineNumber`, and a line number is not a property of the thing being exempted — it
+ * is a property of everything above it. The POSPage entry had already been re-pointed once ("moved
+ * from :717"), and it broke again the moment a comment was added earlier in the file: a guard about
+ * decimal places failed the whole build because an unrelated edit pushed a loyalty-points line down
+ * seventeen rows.
+ *
+ * A content key survives edits above it and still goes stale the moment the line itself is changed or
+ * deleted, which is the whole point of the staleness check below. Each snippet is long enough to be
+ * unique in its file.
+ */
+const ALLOWED: { file: string; snippet: string; why: string }[] = [
+  { file: 'templates/crm-landscaping/backend/src/routes/areaPricing.ts', snippet: '${areaSqft.toLocaleString()} sq ft @', why: 'square feet; the $ belongs to the RATE beside it' },
+  { file: 'templates/crm-roof/backend/src/services/xactimate.ts', snippet: 'Total Roof Area: ${Number(totalArea).toLocaleString()}', why: 'roof area in sq ft, in a carrier-facing export' },
+  { file: 'templates/crm-roof/backend/src/services/xactimate.ts', snippet: '${Number(seg.area).toLocaleString()} sqft', why: 'segment area in sq ft' },
+  { file: 'templates/crm-roof/frontend/src/pages/roofReports/RoofReportDetail.tsx', snippet: '${Number(report.totalAreaSqft || 0).toLocaleString()} sqft', why: 'total area, a measurement with its own unit' },
+  { file: 'templates/crm-roof/frontend/src/pages/roofReports/RoofReportDetail.tsx', snippet: '${Number(m.value).toLocaleString()} ${m.unit}', why: 'a measurement printing its own unit' },
+  { file: 'templates/crm-dispensary/frontend/src/pages/POSPage.tsx', snippet: '${Number(customer.loyaltyPoints).toLocaleString()} pts', why: 'loyalty POINTS — a whole number, and "1,250 pts" is right' },
+]
+/** The line ids the walk below should skip, resolved from the snippets above. */
+const allowedIds = new Set<string>()
 
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
+
+// Resolve each exemption to the line it currently sits on, and make it stale if it does not sit
+// anywhere any more. This runs BEFORE the walk, so the walk has ids to skip — and an exemption that
+// matches twice is refused, because a snippet that is not unique would silently excuse a second line
+// nobody read.
+for (const { file, snippet, why } of ALLOWED) {
+  let lines: string[]
+  try { lines = readFileSync(join(ROOT, file), 'utf8').split(/\r?\n/) } catch {
+    fail(`the exemption for ${file} (${why}) names a file that no longer exists — remove it`)
+    continue
+  }
+  const hits = lines
+    .map((l, i) => ({ l, n: i + 1 }))
+    .filter(({ l }) => l.includes(snippet) && l.includes('.toLocaleString()'))
+  if (hits.length === 0) {
+    fail(`the exemption for ${file} (${why}) no longer matches any line — it was changed or removed, so delete the entry or re-point it. Looked for: ${snippet}`)
+    continue
+  }
+  if (hits.length > 1) {
+    fail(`the exemption for ${file} (${why}) matches ${hits.length} lines — make the snippet unique, or it excuses lines nobody has read. Looked for: ${snippet}`)
+    continue
+  }
+  allowedIds.add(`${file}:${hits[0].n}`)
+}
 
 function walk(dir: string, out: string[] = []): string[] {
   let entries: string[]
@@ -83,7 +120,7 @@ for (const file of files) {
     const line = lines[i]
     if (!line.includes('.toLocaleString()')) continue
     const id = `${rel}:${i + 1}`
-    if (ALLOWED.has(id)) continue
+    if (allowedIds.has(id)) continue
     // A comment that QUOTES the old code is prose, not a money figure. (This guard flagged its own
     // explanation of the crm-rv Accounting fix.)
     if (/^\s*(?:\/\/|\*|\/\*)/.test(line)) continue
@@ -135,19 +172,10 @@ for (const file of files) {
   }
 }
 
-// The ALLOWED list has to keep meaning something: a line that moved or was fixed makes an entry
-// stale, and a stale exemption is how the next one gets added without anybody looking.
-for (const id of ALLOWED) {
-  const [rel, lineNo] = id.split(':')
-  let line = ''
-  try { line = (readFileSync(join(ROOT, rel), 'utf8').split(/\r?\n/)[Number(lineNo) - 1] || '') } catch {
-    fail(`the exemption ${id} names a file that no longer exists — remove it`)
-    continue
-  }
-  if (!line.includes('.toLocaleString()')) {
-    fail(`the exemption ${id} no longer formats anything with a bare toLocaleString() — the line moved or was fixed, so remove or re-point it`)
-  }
-}
+// The staleness check now runs above, where the snippets are resolved: an exemption that matches
+// nothing, or matches more than one line, fails there. A stale exemption is how the next one gets
+// added without anybody looking, so that check is the reason this list stays honest — it just no
+// longer trips over edits made somewhere else in the file.
 
 if (failed) { console.error(`\nmoney shows cents: ${failed} problem(s)`); process.exit(1) }
-console.log(`money shows cents: ${files.length} file(s) across ${templatesWalked} CRM templates and the shared packages print every $ figure to two decimals (${ALLOWED.size} measured-not-money lines exempted by name)`)
+console.log(`money shows cents: ${files.length} file(s) across ${templatesWalked} CRM templates and the shared packages print every $ figure to two decimals (${allowedIds.size} measured-not-money lines exempted by content)`)

@@ -5,7 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
-import { settledSale, taxCollected, taxNetExprBare, exciseNetExprBare, salesNetExprBare } from '../utils/revenue.ts'
+import { settledSale, taxCollected, taxNetExprBare, exciseNetExprBare, exciseKeptExprBare, salesKeptExprBare } from '../utils/revenue.ts'
 import { medicalExciseExempt } from '../utils/tax.ts'
 import { storeDayRange, zoneFor, storeDateString } from '../utils/isoTime.ts'
 import { money } from '../shared/invoicing/money.ts'
@@ -202,8 +202,11 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
       -- over-stating: $1,056.00 here against $1,031.68 everywhere else, the gap widening with every
       -- amount refund — on the figure someone actually files. There are TWO tax-filing surfaces, this
       -- route and the block inside compliance.ts, and M4 only found the other one. (Dispensary T31)
-      COALESCE(SUM(${exciseNetExprBare}) FILTER (WHERE status IN ${taxCollected}), 0) as total_excise_tax,
-      COALESCE(SUM(${salesNetExprBare}) FILTER (WHERE status IN ${taxCollected}), 0) as total_sales_tax,
+      -- Through the additive split, like every other tax surface: a component that exceeds the tax the
+      -- order actually kept puts the return's own figures out of step with the total it declares, which
+      -- is the gap of 5.68 the summary screens had. (utils/revenue.ts)
+      COALESCE(SUM(${exciseKeptExprBare}) FILTER (WHERE status IN ${taxCollected}), 0) as total_excise_tax,
+      COALESCE(SUM(${salesKeptExprBare}) FILTER (WHERE status IN ${taxCollected}), 0) as total_sales_tax,
       COALESCE(SUM(${taxNetExprBare}) FILTER (WHERE status IN ${taxCollected}), 0) as total_tax_collected,
       COALESCE(SUM(CAST(NULLIF(total, '') AS numeric)) FILTER (WHERE status IN ${taxCollected}), 0) as total_revenue
     FROM orders
@@ -833,22 +836,13 @@ app.get('/filings/summary', async (c) => {
   // and none can exceed the total — the two things that made the old figures unfilable.
   const collectedResult = await db.execute(sql`
     SELECT
-      COALESCE(SUM(LEAST(exc_raw, tot)), 0) AS excise_collected,
-      COALESCE(SUM(LEAST(sal_raw, GREATEST(0, tot - LEAST(exc_raw, tot)))), 0) AS sales_collected,
-      COALESCE(SUM(tot), 0) AS total_collected
-    FROM (
-      SELECT
-        -- NET of tax handed back with returns, like every other tax surface in this product.
-        -- Summing the gross here is what made Tax Filing read $1,056.00 against $1,031.68
-        -- everywhere else, and the gap grew with every amount refund. (Dispensary T31 M3)
-        ${taxNetExprBare} AS tot,
-        ${exciseNetExprBare} AS exc_raw,
-        ${salesNetExprBare} AS sal_raw
-      FROM orders
-      WHERE company_id = ${currentUser.companyId}
-        AND status IN ${taxCollected}
-        AND completed_at >= ${yearStart}
-    ) per_order
+      COALESCE(SUM(${exciseKeptExprBare}), 0) AS excise_collected,
+      COALESCE(SUM(${salesKeptExprBare}), 0) AS sales_collected,
+      COALESCE(SUM(${taxNetExprBare}), 0) AS total_collected
+    FROM orders
+    WHERE company_id = ${currentUser.companyId}
+      AND status IN ${taxCollected}
+      AND completed_at >= ${yearStart}
   `)
   const collected = ((collectedResult as any).rows || collectedResult)?.[0] || {}
 
@@ -977,22 +971,13 @@ app.get('/summary', async (c) => {
   // and none can exceed the total — the two things that made the old figures unfilable.
   const collectedResult = await db.execute(sql`
     SELECT
-      COALESCE(SUM(LEAST(exc_raw, tot)), 0) AS excise_collected,
-      COALESCE(SUM(LEAST(sal_raw, GREATEST(0, tot - LEAST(exc_raw, tot)))), 0) AS sales_collected,
-      COALESCE(SUM(tot), 0) AS total_collected
-    FROM (
-      SELECT
-        -- NET of tax handed back with returns, like every other tax surface in this product.
-        -- Summing the gross here is what made Tax Filing read $1,056.00 against $1,031.68
-        -- everywhere else, and the gap grew with every amount refund. (Dispensary T31 M3)
-        ${taxNetExprBare} AS tot,
-        ${exciseNetExprBare} AS exc_raw,
-        ${salesNetExprBare} AS sal_raw
-      FROM orders
-      WHERE company_id = ${currentUser.companyId}
-        AND status IN ${taxCollected}
-        AND completed_at >= ${yearStart}
-    ) per_order
+      COALESCE(SUM(${exciseKeptExprBare}), 0) AS excise_collected,
+      COALESCE(SUM(${salesKeptExprBare}), 0) AS sales_collected,
+      COALESCE(SUM(${taxNetExprBare}), 0) AS total_collected
+    FROM orders
+    WHERE company_id = ${currentUser.companyId}
+      AND status IN ${taxCollected}
+      AND completed_at >= ${yearStart}
   `)
   const collected = ((collectedResult as any).rows || collectedResult)?.[0] || {}
 

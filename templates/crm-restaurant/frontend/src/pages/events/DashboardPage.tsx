@@ -109,9 +109,18 @@ export default function DashboardPage() {
               <p className="text-sm font-medium text-gray-600 dark:text-slate-400">Payments Overdue</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
                 {money(overdue)}
-                <span className="text-base font-medium text-gray-500 dark:text-slate-400"> · {money(payments.outstanding)} outstanding</span>
+                {/*
+                  gray-600, not gray-500, because this card's ground is RED-50 when something is
+                  overdue — which is exactly when anybody reads it. (T51 follow-up)
+
+                  Measured in the browser at AA: gray-500 (107,114,128) on red-50 (254,242,242) is
+                  4.42:1 and needs 4.5. It passes on the white version of this same card, which is
+                  why no static check and no eyeball caught it: the failing combination only exists
+                  in the state the card is designed to draw attention in.
+                */}
+                <span className="text-base font-medium text-gray-600 dark:text-slate-400"> · {money(payments.outstanding)} outstanding</span>
               </p>
-              <p className="text-sm text-gray-500 dark:text-slate-400">
+              <p className="text-sm text-gray-600 dark:text-slate-400">
                 {Number(payments.overdueCount || 0) > 0 ? `${payments.overdueCount} invoice${payments.overdueCount === 1 ? '' : 's'} past due` : 'Nothing past due'} — event deposits and balances included
               </p>
             </div>

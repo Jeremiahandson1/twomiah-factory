@@ -7,6 +7,7 @@
  */
 
 import { parse } from 'csv-parse/sync'
+import { roundsToNothing } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { contact, product } from '../../db/schema.ts'
 import { eq, and } from 'drizzle-orm'
@@ -343,7 +344,7 @@ export async function importProducts(csvContent: string, companyId: string, opti
       // the rest of a basket, ringing a whole sale at $0.00. (T45 H2, and H3 is what it then did.)
       const rawPrice = getValue(row, ...PRODUCT_COLUMN_MAP.price)
       const price = rawPrice == null || rawPrice === '' ? 0 : Number(rawPrice)
-      if (!Number.isFinite(price) || price < 0) {
+      if (!Number.isFinite(price) || price < 0 || roundsToNothing(price)) {
         results.errors.push({ line: lineNum, error: `"${rawPrice}" is not a valid price for ${name} — a price cannot be negative` })
         results.skipped++
         continue

@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { roundsToNothing } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { membershipPlan, membershipEnrollment, contact } from '../../db/schema.ts'
 import { eq, and, desc, sql } from 'drizzle-orm'
@@ -228,6 +229,8 @@ function planProblem(body: any, { partial = false } = {}): string | null {
       const n = Number(body.price)
       if (!Number.isFinite(n)) return 'Price must be a number.'
       if (n < 0) return 'Price cannot be negative.'
+  // A positive price that stores as 0.00 is a free membership nobody meant to sell. (T51)
+  if (roundsToNothing(n)) return `${n} rounds to $0.00 — enter 0 for a free plan, or at least one cent.`
       if (n > 1_000_000) return 'Price looks too large — check the amount.'
     }
   }

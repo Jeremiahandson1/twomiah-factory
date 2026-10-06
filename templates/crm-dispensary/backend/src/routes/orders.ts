@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { roundsToNothing } from '../shared/index.ts'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { order, orderItem, product, contact, company, user } from '../../db/schema.ts'
@@ -458,7 +459,7 @@ app.post('/', requireRole('budtender'), async (c) => {
     // −$5 product (which CSV import had happily created) cancelled out a $25 T-shirt beside it and
     // the whole sale rang up at $0.00 — no subtotal, no tax, no revenue, and stock gone. Wherever a
     // bad price comes from, the till is the last place it can be caught. (T45 H3)
-    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+    if (!Number.isFinite(unitPrice) || unitPrice < 0 || roundsToNothing(unitPrice)) {
       return c.json({
         error: `${prod.name} has an invalid price (${prod.price}). Fix it in Products before selling it.`,
         code: 'invalid_price', productId: prod.id, price: prod.price,

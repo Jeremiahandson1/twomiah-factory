@@ -89,10 +89,31 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
     ? await db.select().from(contact).where(eq(contact.id, pat.ownerId)).limit(1)
     : [null]
 
+  /**
+   * THE VISIT HISTORY STOPPED AT 20 AND SAID NOTHING. (Vet T58)
+   *
+   *   "Vet: Visits tab stops at 20."
+   *
+   * A bare .limit(20) on the one list that IS the clinical record, while vaccinations, prescriptions
+   * and lab results on the same chart are all returned in full. A patient with 25 visits lost its five
+   * oldest, and the tab label — count: visits.length — then printed "Visits 20", so the screen was not
+   * merely short, it ASSERTED a number that was wrong. On a medical chart the visit you cannot see is
+   * the one from before the problem started.
+   *
+   * Still bounded, because a chart is one request and a fifteen-year-old patient can carry a long
+   * history: 200, the bound this codebase already uses for an unpaged detail list (projects.ts). The
+   * count comes back separately so the tab can label itself honestly and say when it is not showing
+   * everything — a cap nobody is told about is the actual fault here, not the number 20.
+   */
+  const VISIT_CAP = 200
   const visits = await db.select().from(visit)
     .where(and(eq(visit.patientId, id), eq(visit.companyId, currentUser.companyId)))
     .orderBy(desc(visit.visitDate))
-    .limit(20)
+    .limit(VISIT_CAP)
+
+  const [{ value: visitsTotal }] = await db.select({ value: count() })
+    .from(visit)
+    .where(and(eq(visit.patientId, id), eq(visit.companyId, currentUser.companyId)))
 
   const vaccinations = await db.select().from(vaccination)
     .where(and(eq(vaccination.patientId, id), eq(vaccination.companyId, currentUser.companyId)))
@@ -113,7 +134,18 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
     .where(and(eq(labResult.patientId, id), eq(labResult.companyId, currentUser.companyId)))
     .orderBy(desc(labResult.resultDate))
 
-  return c.json({ patient: pat, owner: owner ? withoutPortalCredential(owner) : null, visits, vaccinations, prescriptions, labResults })
+  return c.json({
+    patient: pat,
+    owner: owner ? withoutPortalCredential(owner) : null,
+    visits,
+    // How many there really are, so the chart can label the tab with the truth and say when the list
+    // is capped rather than quietly presenting a slice as the whole record.
+    visitsTotal: Number(visitsTotal) || 0,
+    visitsCap: VISIT_CAP,
+    vaccinations,
+    prescriptions,
+    labResults,
+  })
 })
 
 // POST /patients

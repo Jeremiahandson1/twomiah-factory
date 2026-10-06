@@ -12,6 +12,7 @@ import { passwordSchema } from '../shared/index.ts'
 import { CRM_TEMPLATE } from '../config/template.ts'
 import { loyaltyConfigResponse, LOYALTY_SETTING_KEYS } from '../utils/loyaltyConfig.ts'
 import { storeTimeZone, isValidTimeZone } from '../utils/isoTime.ts'
+import { taxRatesFor } from '../utils/tax.ts'
 import { redactCompanySettings, isPrivilegedRole, SECRET_SETTING_PATHS } from '../shared/index.ts'
 import { forgetFeatures } from '../middleware/enabledFeature.ts'
 import audit from '../services/audit.ts'
@@ -68,6 +69,42 @@ function sanitizeCompany<T extends Record<string, any>>(row: T, role?: unknown):
   // copy of STATE_TIME_ZONES that can drift from the one the compliance day is built on. Read-only —
   // it is derived, so it is not accepted on the way in. (T28 L-e)
   clone.effectiveTimeZone = storeTimeZone(row)
+
+  /**
+   * THE RATES THE TILL WILL ACTUALLY CHARGE. (T58)
+   *
+   *   "Dispensary: two tax-rate settings disagree."
+   *
+   * There were THREE answers to "what rate applies when none is configured", in three files, and none
+   * of them was the one that reached the customer's receipt:
+   *
+   *   Settings → General   pick(company.taxRate, settings.taxRate, '0')   showed 0%
+   *   the register         useState(0) and Number(null) is a finite 0      quoted 0%
+   *   the server           utils/tax.ts DEFAULT_SALES_RATE                 charged 8.75%
+   *
+   * So a shop that had never typed a sales-tax rate was shown 0%, QUOTED 0% at the counter, and had
+   * the order recorded at 8.75%. The customer is told one total and charged another — the same shape
+   * as go-live QA M-1 ("Settings showed 0% while the POS charged 10%"), which was fixed only for the
+   * case where the column HAS a value.
+   *
+   * utils/tax.ts owns the fallback because it owns the charge, so the answer is resolved here and
+   * handed over, exactly like effectiveTimeZone above and for the same reason: a client that works it
+   * out itself is a second copy of the rule that can drift from the one the money is computed with.
+   *
+   * As PERCENT, because that is how the columns store it and how every screen renders it. Read-only:
+   * derived, so it is not accepted on the way in — PUT still takes taxRate / exciseTaxRate.
+   */
+  const rates = taxRatesFor(row)
+  const pct = (fraction: number) => Math.round(fraction * 1000000) / 10000
+  clone.effectiveTaxRate = pct(rates.salesRate)
+  clone.effectiveExciseTaxRate = pct(rates.exciseRate)
+  // Local tax has no fallback to resolve — unset means none, which is a real answer and not a guess.
+  clone.effectiveLocalTaxRate = Number(row?.localTaxRate) > 0 ? Number(row.localTaxRate) : 0
+  // So a screen can say "no rate set, this is the default" rather than printing a number the operator
+  // never chose as though they had.
+  clone.taxRateIsDefault = row?.taxRate == null || String(row.taxRate) === ''
+  clone.exciseTaxRateIsDefault = row?.exciseTaxRate == null || String(row.exciseTaxRate) === ''
+
   return clone
 }
 

@@ -54,7 +54,10 @@ export {
 export type { StaffEntrySource, SettleRoute, StaffBalanceStore } from './team/staffBalance'
 export { createQuoteRoutes } from './invoicing/quotes'
 export type { QuoteDeps, QuoteOptions, QuoteTables } from './invoicing/quotes'
-export { round2, calcTotals, isOverdue, deriveStatus, startOfUtcDay, overdueCutoff, DEFAULT_OPEN_STATUSES, defaultTaxRateFrom, paymentTermsDaysFrom, dueDateFromTerms, quoteValidityDaysFrom, quoteExpiryFromTerms, normalizeDateInput, isRealCalendarDay, businessToday, nextNumber, invoiceBalance, recomputeStatus } from './invoicing/money'
+// roundsToNothing: the one answer to "is this a real amount" — a positive value that stores as 0.00.
+// The owner reported that twice on Events; thirteen more fields across salon, RV and the dispensary
+// had the same hole. (T51 follow-up)
+export { round2, roundsToNothing, calcTotals, isOverdue, deriveStatus, startOfUtcDay, overdueCutoff, DEFAULT_OPEN_STATUSES, defaultTaxRateFrom, paymentTermsDaysFrom, dueDateFromTerms, quoteValidityDaysFrom, quoteExpiryFromTerms, normalizeDateInput, isRealCalendarDay, businessToday, nextNumber, invoiceBalance, recomputeStatus } from './invoicing/money'
 
 // Online booking — one implementation for every CRM; the template injects its tables + the calendar it books onto.
 export { createBookingRoutes, externalBookingsProxy } from './booking/routes'
