@@ -66,7 +66,19 @@ for (const [label, value] of [
 ] as [string, unknown][]) {
   const r = await api('POST', '/api/recurring-routes', { name: `Bad ${label}`, dayOfWeek: value })
   check(`create refuses dayOfWeek ${label}`, r.status === 400, { status: r.status, body: r.text?.slice(0, 200) })
-  check(`…and names the rule`, /0 \(Sunday\)/.test(String(r.json?.error || '')), { error: r.json?.error })
+  /**
+   * ASSERT THE RULE, NOT ONE SPELLING. (T58c)
+   *
+   * This pinned the literal "0 (Sunday)" and failed the moment the message was reworded — on a
+   * change that made it BETTER, because the owner's complaint was that the old text said
+   * "dayOfWeek", a key the person cannot find on the screen.
+   *
+   * What the refusal actually owes the caller is: name both ends of the range so they know what is
+   * accepted, and do not name the payload field. That is what is checked.
+   */
+  const msg = String(r.json?.error || '')
+  check(`…and names both ends of the range`, /sunday/i.test(msg) && /saturday/i.test(msg), { error: msg })
+  check(`…without naming the payload field`, !/dayofweek/i.test(msg), { error: msg })
 }
 
 // …and the days that ARE days. Sunday is the one a required-field check gets wrong.

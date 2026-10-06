@@ -34,7 +34,31 @@ const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 
  * write) or "no filter" (a read), because those are different answers to a bad value: a query for a
  * day that does not exist should not silently return every route.
  */
-const DAY_INDEX_HELP = 'dayOfWeek must be a whole number from 0 (Sunday) to 6 (Saturday)'
+/**
+ * Named for the control on the screen, not the key in the payload. (T58c)
+ *
+ * Owner: "the day-of-week error still says dayOfWeek." It did — nothing on the Route Board is
+ * labelled dayOfWeek, so the sentence named a field the reader cannot find. The accepted values are
+ * still spelled out, because that is the part that helps.
+ */
+const DAY_INDEX_HELP = 'Pick the day this route runs — Sunday (0) through Saturday (6).'
+
+/**
+ * HOURS MUST BE A NUMBER, ON BOTH PATHS. (T58c)
+ *
+ * Owner: "non-numeric route hours still gets the generic error." Nothing checked it: the value went
+ * straight into `String(...)` and on into a decimal column, so Postgres refused it and the caller
+ * got whatever the error handler makes of a driver message. A refusal the person can act on costs
+ * one line.
+ */
+const hoursRefusal = (value: unknown): string | null => {
+  if (value === null || value === undefined || value === '') return null
+  const n = Number(value)
+  if (!Number.isFinite(n)) return 'Estimated hours must be a number — for example 2.5.'
+  if (n < 0) return 'Estimated hours cannot be negative.'
+  if (n > 24) return 'A route cannot take more than 24 hours in a day. Split it across days instead.'
+  return null
+}
 const dayIndex = (value: unknown): number | null => {
   if (value === null || value === undefined || value === '') return null
   // Number(), not parseInt(): parseInt('3days') is 3, and a route is not scheduled by a string that
@@ -167,7 +191,9 @@ app.post('/', requirePermission('jobs:create'), async (c) => {
     }, 400)
   }
   const day = dayIndex(body.dayOfWeek)
-  if (day === null) return c.json({ error: DAY_INDEX_HELP, code: 'BAD_DAY_OF_WEEK' }, 400)
+  if (day === null) return c.json({ error: DAY_INDEX_HELP, code: 'BAD_DAY_OF_WEEK', field: 'dayOfWeek' }, 400)
+  const badHours = hoursRefusal(body.estimatedHours)
+  if (badHours) return c.json({ error: badHours, field: 'estimatedHours' }, 400)
   const [route] = await db.insert(recurringRoute).values({
     companyId: u.companyId,
     name: String(body.name),
@@ -186,16 +212,37 @@ app.put('/:id', requirePermission('jobs:update'), async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
   const patch: Record<string, unknown> = { updatedAt: new Date() }
-  if (body.name != null) patch.name = String(body.name)
+  /**
+   * THE SAME RULE ON THE EDIT AS ON THE CREATE. (T58c)
+   *
+   *   Owner: "a route can be renamed to a blank name with PUT, even though creating one with a blank
+   *   name is refused."
+   *
+   * It could: this took `String(body.name)` with no check, so "" saved and the board showed a
+   * nameless row the crew cannot identify. Create has refused that since T58, and an edit is the
+   * likelier typo of the two — which is my own named rule, broken in the file I had just edited.
+   *
+   * `null`/absent still means "leave the name alone"; only an explicit blank is refused.
+   */
+  if (body.name != null) {
+    const name = String(body.name).trim()
+    if (!name) return c.json({ error: 'Give the route a name — it is what the crew sees on the board.', field: 'name' }, 400)
+    patch.name = name
+  }
   // The same rule create holds. Moving a route to day 9 took it off the board just as surely as
   // creating it there, and this path had no check at all.
   if (body.dayOfWeek != null) {
     const day = dayIndex(body.dayOfWeek)
-    if (day === null) return c.json({ error: DAY_INDEX_HELP, code: 'BAD_DAY_OF_WEEK' }, 400)
+    if (day === null) return c.json({ error: DAY_INDEX_HELP, code: 'BAD_DAY_OF_WEEK', field: 'dayOfWeek' }, 400)
     patch.dayOfWeek = day
   }
   if (body.assignedToId !== undefined) patch.assignedToId = body.assignedToId || null
-  if (body.estimatedHours != null) patch.estimatedHours = String(body.estimatedHours)
+  if (body.estimatedHours != null) {
+    // Same rule as the create — see hoursRefusal.
+    const badHours = hoursRefusal(body.estimatedHours)
+    if (badHours) return c.json({ error: badHours, field: 'estimatedHours' }, 400)
+    patch.estimatedHours = String(Number(body.estimatedHours))
+  }
   if (body.status) patch.status = body.status
   if (body.notes != null) patch.notes = body.notes
   const [route] = await db.update(recurringRoute).set(patch)

@@ -20,7 +20,7 @@ const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, 
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 
-const { field, who, whatChanged } = await import(`${ROOT}packages/tenant-ui/src/audit/auditFields.ts`)
+const { field, who, whatChanged, asInstant } = await import(`${ROOT}packages/tenant-ui/src/audit/auditFields.ts`)
 
 // ── rows copied from the live API, field for field ────────────────────────────────────────────────
 const loginRow = {
@@ -80,6 +80,73 @@ is('a row with nothing to say still reads —', whatChanged({ action: 'x', metad
 
 // IP.
 is('ip_address is read', field(loginRow, 'ipAddress'), '173.40.6.248')
+
+// ── A ZONE-LESS TIMESTAMP IS UTC (T58c) ───────────────────────────────────────────────────────────
+//
+// Owner: "Audit Log times are 5 hours late. /api/audit sends created_at with no timezone, so the
+// browser reads it in the wrong zone." These rows come off a raw db.execute, so a timestamp arrives
+// as Postgres prints it — space separator, no zone — and `new Date()` on that shape is
+// implementation-defined and read as LOCAL. The column is UTC.
+//
+// Asserted on the VALUE, in ms since the epoch, because that is the thing that was wrong; formatting
+// it would only re-test Intl.
+{
+  const utcNoon = Date.UTC(2026, 9, 6, 12, 0, 0)
+  const cases: Array<[string, unknown, number | null]> = [
+    ['postgres shape, no zone', '2026-10-06 12:00:00', utcNoon],
+    // Microseconds are truncated to milliseconds, not discarded — .192932 keeps .192.
+    ['…with microseconds', '2026-10-06 12:00:00.192932', utcNoon + 192],
+    ['…with milliseconds', '2026-10-06 12:00:00.192', utcNoon + 192],
+    ['ISO with Z is untouched', '2026-10-06T12:00:00Z', utcNoon],
+    ['ISO with an offset is untouched', '2026-10-06T08:00:00-04:00', utcNoon],
+    ['a bare date is midnight UTC', '2026-10-06', Date.UTC(2026, 9, 6)],
+    ['a Date passes through', new Date(utcNoon), utcNoon],
+    ['blank is null', '', null],
+    ['null is null', null, null],
+    ['junk is null', 'not a date', null],
+  ]
+  for (const [label, input, want] of cases) {
+    const got = asInstant(input)
+    const gotMs = got ? got.getTime() : null
+    if (gotMs !== want) {
+      fail(`asInstant — ${label}: got ${got ? got.toISOString() : String(gotMs)}, expected ${want === null ? 'null' : new Date(want).toISOString()}`)
+    }
+  }
+  // The real row from the live API, which is where the five hours were measured.
+  const live = asInstant(loginRow.created_at)
+  if (!live || live.toISOString() !== '2026-10-06T15:24:45.192Z') {
+    fail(`asInstant on the live login row: got ${live ? live.toISOString() : 'null'}, expected 2026-10-06T15:24:45.192Z`)
+  }
+  // And the page must go through it rather than constructing a Date itself.
+  const pageSrc = readFileSync(`${ROOT}packages/tenant-ui/src/audit/AuditLogPage.tsx`, 'utf8')
+  if (/new Date\(\s*value\s*\)/.test(pageSrc)) fail('AuditLogPage still builds a Date from the raw value — that is the five-hour shift')
+  if (!/asInstant\(/.test(pageSrc)) fail('AuditLogPage must read timestamps through asInstant')
+}
+
+// ── AN HTTP STATUS IS NOT A CHANGE (T58c) ─────────────────────────────────────────────────────────
+//
+// Owner: "portal enable/disable audit rows show 'Status: 200', and settings rows show '—'." The
+// request-level audit floor writes an HTTP status into metadata, and whatChanged's fallback list
+// included `status` for a BUSINESS status — so a disabled customer portal was described as "200".
+{
+  const floorPortal = {
+    action: 'status_change', entity: 'portal', entity_id: null, changes: null,
+    metadata: { description: 'Switched off — portal', method: 'POST', path: '/api/portal/disable', status: 200, via: 'request' },
+    created_at: '2026-10-06 17:00:00', user_name: 'owner@test.local',
+  }
+  const got = whatChanged(floorPortal)
+  if (/\b200\b/.test(got)) fail(`a floor row must not describe itself with an HTTP status, got ${JSON.stringify(got)}`)
+  if (!/switched off/i.test(got)) fail(`a floor row must say what happened, got ${JSON.stringify(got)}`)
+
+  // Without a description — an older row already in the table — it must still not say "Status: 200".
+  const legacy = { ...floorPortal, metadata: { method: 'POST', path: '/api/portal/disable', status: 200, via: 'request' } }
+  const legacyText = whatChanged(legacy)
+  if (/200/.test(legacyText)) fail(`an older floor row must not read as "Status: 200", got ${JSON.stringify(legacyText)}`)
+
+  // A BUSINESS status must still come through — that is what the key was for.
+  const payment = { action: 'payment', entity: 'invoice', changes: null, metadata: { status: 'partial' } }
+  if (!/partial/i.test(whatChanged(payment))) fail(`a business status must still be shown, got ${JSON.stringify(whatChanged(payment))}`)
+}
 
 // ── and the page must USE them, not reach for raw camelCase again ─────────────────────────────────
 const page = readFileSync(`${ROOT}packages/tenant-ui/src/audit/AuditLogPage.tsx`, 'utf8')

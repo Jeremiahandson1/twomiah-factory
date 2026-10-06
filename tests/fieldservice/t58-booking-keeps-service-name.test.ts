@@ -172,5 +172,50 @@ console.log('\n══════════ a booking with no service ══�
     { calendar: bo?.calendar })
 }
 
+/**
+ * ══════════ THE SHOWCASE CASE, WHICH THIS FILE PREVIOUSLY ASSERTED WAS IMPOSSIBLE ══════════
+ *
+ * This file's own header used to say Showcase's empty Service column was "a setup answer, not a code
+ * one" — a tenant with zero bookable services, so nothing to resolve. Half right, wrong conclusion,
+ * and it cost the owner two rounds: build A printed JOB numbers, build B printed nothing.
+ *
+ * Measured on the live tenant 2026-10-06: 0 of 34 bookings carry serviceId, the company has 0
+ * bookable services, AND all 34 link to a job whose title reads "T42 Strength Session" — written by
+ * jobCalendar.create as `i.serviceName || 'Online Booking'`. The name was recoverable the whole time.
+ *
+ * So both halves are pinned here: a REAL title is reported as the service, and the placeholder is
+ * not. Without the second assertion the fix reports "Online Booking" as a service; without the
+ * first, the column is empty again. Neither can regress without failing.
+ */
+console.log('\n══════════ a booking whose job carries a real service title ══════════')
+{
+  const when = new Date(Date.now() + 11 * 864e5)
+  const res = await pub('POST', `/api/booking/public/${co.slug}`, {
+    date: when.toISOString().slice(0, 10), time: '14:00',
+    firstName: 'Pat', lastName: 'Titled', email: 'pat-t58c@test.local', phone: '555-0303',
+    address: '3 High Street', city: 'Dayton', state: 'OH', zip: '45402',
+  })
+  check('it is taken', res.status === 200 || res.status === 201, { status: res.status })
+
+  // Name the job the way a widget service would have — this is the shape Showcase's 34 rows are in.
+  const list0 = await api('GET', '/api/booking')
+  const row0 = (list0.json?.data ?? []).find((r: any) => String(r.customerEmail || '').startsWith('pat-t58c'))
+  const jobId = row0?.calendar?.id
+  check('the booking became a job', !!jobId, { calendar: row0?.calendar })
+  if (jobId) {
+    await db.update(job).set({ title: 'Strength Session' }).where(eq(job.id, jobId))
+    const list = await api('GET', '/api/booking')
+    const pat = (list.json?.data ?? []).find((r: any) => String(r.customerEmail || '').startsWith('pat-t58c'))
+    check('…and the list reports the service by name', pat?.serviceName === 'Strength Session', { serviceName: pat?.serviceName })
+    check('…with the job number still in its own field', /^JOB-\d+/.test(String(pat?.calendar?.label || '')), { calendar: pat?.calendar })
+
+    // A job titled after its own number names no service — the build-A symptom.
+    await db.update(job).set({ title: String(pat?.calendar?.label || 'JOB-00001') }).where(eq(job.id, jobId))
+    const list2 = await api('GET', '/api/booking')
+    const numbered = (list2.json?.data ?? []).find((r: any) => String(r.customerEmail || '').startsWith('pat-t58c'))
+    check('…and a job titled with its own number reports NO service', !numbered?.serviceName, { serviceName: numbered?.serviceName })
+  }
+}
+
 console.log(`\n${passed} passed, ${failed} failed`)
 if (failed > 0) process.exit(1)

@@ -135,20 +135,27 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
      * the row, when what it actually describes is a company that has never set up a service menu,
      * and it says that 31 times in a column that could be telling you something.
      *
-     * Three answers, in the order they are worth having:
-     *   · the service, when one was picked;
-     *   · otherwise what the booking BECAME — every one of those 31 is attached to a real job, and
-     *     the job's number is already in this payload for the column two along;
-     *   · otherwise "Not specified", which describes the booking rather than accusing it.
+     * A JOB NUMBER IS NOT A SERVICE, AND THIS COLUMN PRINTED ONE. (T58c)
      *
-     * The services tab is where the real fix lives, and the empty-state note below now points at it.
+     * The fallback below used to be `r.calendar.label` — "JOB-00031" — which is what the owner
+     * reported as *"'JOB-' number in Service column"*. I removed the serviceName the server was
+     * sending instead of removing this fallback, which emptied the column: one symptom traded for
+     * the other and back again. Both halves are fixed now, so neither can return:
+     *
+     *   · the server supplies the real name (booking/calendars.ts jobCalendar.lookup reads the
+     *     linked job's `title`, which is exactly where create() writes the service name — measured
+     *     on the live tenant: 34 of 34 read "T42 Strength Session");
+     *   · this column never falls back to the calendar label. The job number already has its own
+     *     column two along, so printing it here said nothing true and hid that the name was missing.
+     *
+     * "Not specified" is the honest last resort: it describes the booking rather than accusing it,
+     * and the empty-state note below points at the Bookable Services tab, which is the real fix for
+     * a company that has never set a service menu up.
      */
     {
       key: 'serviceName',
       label: 'Service',
-      render: (v: any, r: BookingRow) => v
-        || (r.calendar?.label ? <span className="text-gray-500 dark:text-slate-400">{r.calendar.label}</span> : null)
-        || <span className="text-gray-500 dark:text-slate-400">Not specified</span>,
+      render: (v: any) => v || <span className="text-gray-500 dark:text-slate-400">Not specified</span>,
     },
     { key: 'scheduledDate', label: 'When', render: (v: any) => whenIn(v, tz) },
     { key: 'status', label: 'Status', render: (v: any) => <StatusBadge status={v || 'pending'} /> },

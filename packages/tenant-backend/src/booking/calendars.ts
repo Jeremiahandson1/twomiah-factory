@@ -110,30 +110,56 @@ export function jobCalendar(job: any, opts: { numbering?: { prefix: string; pad?
       await exec.update(job).set({ status: statusFor(status), updatedAt: new Date() }).where(eq(job.id, id))
     },
     /**
-     * NUMBER AND STATUS ONLY. Not the service name — I tried that and it was a regression. (T58)
+     * THE SERVICE NAME IS ON THE JOB'S TITLE, AND THAT IS NOT A GUESS. (T58c)
      *
-     * Chasing "Showcase: the service name is still lost" I had this return the job's `title` as the
-     * booking's service name, reasoning that create() writes the service name into it. The owner's
-     * next pass: *"a 'JOB-' number shows in the Service column when no service was chosen."* Jobs
-     * created by other paths carry their NUMBER as the title, so the Service column started printing
-     * JOB-00007 — a worse answer than the blank it replaced, and on the exact tenant the change was
-     * supposed to help.
+     * This has now been wrong in both directions and the second one was mine.
      *
-     * The premise was wrong anyway, and the measurement said so at the time: on a widget service
-     * `legacyServiceId` IS the bookable_service id (catalog.ts), so the booking row carries serviceId
-     * and bookingOut resolves the name from it without any help from here. Showcase's column is empty
-     * because that tenant has never created a bookable service — 31 of 31 bookings with serviceId
-     * null against zero services, measured at T51. That is a setup answer, and the bookings screen
-     * already says so rather than printing "No service" per row.
+     *   build A  returned `serviceName: r.title` → owner: *"a 'JOB-' number shows in the Service
+     *            column."*
+     *   build B  I removed it → owner: *"every booking's service name is empty again (0 of 33). The
+     *            previous build had them back."*
      *
-     * A menu-sourced booking on a job calendar would still have nowhere to get the name from, but no
-     * template wires a menu into a jobCalendar, so that is a hole rather than a fault — and guessing
-     * at it from a column that means something else is how this went wrong.
+     * I fixed a symptom twice without finding the cause, and the note I left here made it worse: it
+     * claimed Showcase's column was empty because the tenant has no bookable service, so there was
+     * nothing to return. HALF of that is true and the conclusion does not follow. Measured on the
+     * live tenant today: 0 of 34 bookings carry `serviceId` and the company has 0 bookable services
+     * — AND all 34 link to a real job whose `title` reads "T42 Strength Session". The name was there
+     * the whole time, because `create()` above writes `title: i.serviceName || 'Online Booking'`.
+     * The booking's own `serviceId` being null says nothing about whether the name is recoverable.
+     *
+     * The "JOB-" symptom was never this function's fault either. BookingsPage's Service column fell
+     * back to `calendar.label` — the job NUMBER — whenever serviceName was absent, and that label is
+     * already shown in its own column two along. So removing the name here did not stop the number
+     * being printed; it just guaranteed the fallback always fired.
+     *
+     * Both halves are fixed: the title is returned, and the Service column no longer falls back to
+     * the label (packages/tenant-ui/src/booking/BookingsPage.tsx). Neither symptom can return on its
+     * own, which is the thing two previous attempts could not say.
      */
     async lookup(exec, ids) {
       if (!ids.length) return {}
-      const rows = await exec.select({ id: job.id, number: job.number, status: job.status }).from(job).where(inArray(job.id, ids))
-      return Object.fromEntries(rows.map((r: any) => [r.id, { label: r.number, status: r.status }]))
+      const rows = await exec.select({ id: job.id, number: job.number, status: job.status, title: job.title }).from(job).where(inArray(job.id, ids))
+      return Object.fromEntries(rows.map((r: any) => {
+        /**
+         * WHICH TITLES ARE NOT A SERVICE NAME. Two kinds, and the suite caught the second one.
+         *
+         *   the job's own number    some paths title a job after its number, which is what put
+         *                           JOB-00007 under "Service" in build A.
+         *   "Online Booking"        create() above writes `i.serviceName || 'Online Booking'`, so
+         *                           that literal is precisely the case where NO service was chosen.
+         *                           Reporting it as a service invents one, and
+         *                           tests/fieldservice/t58-booking-keeps-service-name.test.ts failed
+         *                           on exactly that before this line existed.
+         *
+         * Dropped here rather than in the screen, so every reader of this lookup gets one answer.
+         */
+        const title = typeof r.title === 'string' ? r.title.trim() : ''
+        const namesAService = title !== ''
+          && title !== r.number
+          && !/^(JOB|QTE|INV)-\d+$/i.test(title)
+          && !/^online booking$/i.test(title)
+        return [r.id, { label: r.number, status: r.status, serviceName: namesAService ? title : null }]
+      }))
     },
   }
 }

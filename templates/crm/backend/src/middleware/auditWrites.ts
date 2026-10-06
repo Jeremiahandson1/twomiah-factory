@@ -81,6 +81,45 @@ const ACTION_WORDS: Record<string, string> = {
   duplicate: 'duplicate', merge: 'merge',
 }
 
+/**
+ * WHAT TO SAY ON THE ROW. (T58c)
+ *
+ *   Owner: "portal enable/disable audit rows show 'Status: 200', and settings rows show '—'."
+ *
+ * Both are this middleware's doing. It wrote `metadata: { method, path, status, via }` and nothing
+ * else, so the screen had no sentence to show and fell back to the only key it recognised — the HTTP
+ * status. "Status: 200" on the row where somebody switched a customer's portal off.
+ *
+ * A handler that writes its own entry still wins (see `scope.logged`); this is only for the rows
+ * nothing else describes. The verb comes from the last path segment, which in REST is where these
+ * actions live and is exactly what the person clicked.
+ */
+const VERB_PHRASE: Record<string, string> = {
+  enable: 'Switched on', disable: 'Switched off',
+  activate: 'Activated', deactivate: 'Deactivated',
+  approve: 'Approved', reject: 'Rejected', submit: 'Submitted', review: 'Reviewed',
+  complete: 'Completed', cancel: 'Cancelled', void: 'Voided',
+  dismiss: 'Dismissed', archive: 'Archived', restore: 'Restored', supersede: 'Superseded',
+  close: 'Closed', reopen: 'Reopened', publish: 'Published', sign: 'Signed', file: 'Filed',
+  'mark-paid': 'Marked paid', status: 'Status changed',
+  payments: 'Payment recorded', payment: 'Payment recorded', pay: 'Payment recorded',
+  refund: 'Refund recorded', refunds: 'Refund recorded', credit: 'Credit recorded', credits: 'Credit recorded',
+  send: 'Sent', resend: 'Sent again', export: 'Exported',
+  convert: 'Converted', assign: 'Assigned', reschedule: 'Rescheduled',
+  duplicate: 'Duplicated', merge: 'Merged',
+}
+const PLAIN_FOR: Record<string, string> = { POST: 'Created', PUT: 'Updated', PATCH: 'Updated', DELETE: 'Deleted' }
+
+export const describeRequest = (path: string, method: string, entity: string): string => {
+  const parts = path.replace(/^\/api\//, '').split('/').filter(Boolean)
+  const last = (parts[parts.length - 1] || '').toLowerCase()
+  const subject = entity.replace(/_/g, ' ')
+  const phrase = VERB_PHRASE[last]
+  // "Switched off — portal". Without a verb segment the HTTP method is the honest fallback, which
+  // is a rough description rather than a wrong one.
+  return `${phrase || PLAIN_FOR[method] || 'Changed'} — ${subject}`
+}
+
 export const actionFromPath = (path: string, method: string): string => {
   const parts = path.replace(/^\/api\//, '').split('/').filter(Boolean)
   const last = (parts[parts.length - 1] || '').toLowerCase()
@@ -182,11 +221,14 @@ export async function auditWrites(c: Context, next: Next) {
     // No actor, no company: audit_log.company_id is NOT NULL, so there is nothing to write against.
     if (!user?.companyId) return
 
+    const entity = entityFromPath(path)
     await audit.log({
       action: actionFromPath(path, method),
-      entity: entityFromPath(path),
+      entity,
       entityId: idFromPath(path),
-      metadata: { method, path, status, via: 'request' },
+      // `description` is what the screen reads first, so the row says what happened in words rather
+      // than leaving the reader to infer it from an HTTP status. (T58c)
+      metadata: { description: describeRequest(path, method, entity), method, path, status, via: 'request' },
       companyId: user.companyId,
       req: { user },
     } as any)

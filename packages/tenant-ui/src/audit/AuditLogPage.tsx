@@ -29,7 +29,7 @@
  */
 import { useState, useEffect, useCallback } from 'react'
 import { Shield, Search, User } from 'lucide-react'
-import { field, who, whatChanged, humanise } from './auditFields'
+import { field, who, whatChanged, humanise, asInstant } from './auditFields'
 
 export interface AuditLogApi {
   get: (path: string, params?: Record<string, unknown>) => Promise<any>
@@ -71,8 +71,11 @@ export interface AuditLogPageProps {
  * written.
  */
 const whenIn = (value: string, tz?: string) => {
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return '—'
+  // asInstant, not new Date(): /api/audit sends "2026-10-06 17:27:56.192932" — no zone, space
+  // separator — which every browser reads as LOCAL while the column is UTC. That was the five-hour
+  // shift the owner measured. See auditFields.asInstant. (T58c)
+  const d = asInstant(value)
+  if (!d) return '—'
   try {
     return new Intl.DateTimeFormat(undefined, {
       year: 'numeric', month: 'short', day: 'numeric',

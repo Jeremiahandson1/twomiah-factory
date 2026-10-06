@@ -26,6 +26,45 @@ export const field = (log: any, camel: string): any => {
 }
 
 /**
+ * A TIMESTAMP WITH NO ZONE IS UTC, AND THE BROWSER ASSUMES OTHERWISE. (T58c)
+ *
+ *   Owner: "Audit Log times are 5 hours late (Contractor and Events). /api/audit sends created_at
+ *   with no timezone, so the browser reads it in the wrong zone."
+ *
+ * Exactly the cause, and 5 hours is the reporter's own offset from UTC. These rows come off a raw
+ * `db.execute`, so a `timestamp` column arrives as Postgres prints it — `2026-10-06 17:27:56.192932`
+ * — with a SPACE separator and no zone marker. `new Date()` on a string in that shape is not
+ * ISO-8601, so the spec leaves it implementation-defined and every browser reads it as LOCAL time.
+ * The column is UTC. An event at 17:27Z was therefore rendered as 17:27 local, five hours after it
+ * happened, and the row ordering looked right the whole time, which is why it read as plausible.
+ *
+ * Normalised HERE rather than in thirteen template audit routes: this reader is the only consumer,
+ * so one fix reaches the whole fleet at once and nothing can diverge from it. A value that already
+ * carries a zone is left alone, so a template that starts sending proper ISO is not double-shifted.
+ */
+export const asInstant = (value: unknown): Date | null => {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value
+  const raw = String(value ?? '').trim()
+  if (!raw) return null
+
+  // Already unambiguous: trailing Z, or a ±hh:mm / ±hhmm offset.
+  const hasZone = /[zZ]$/.test(raw) || /[+-]\d{2}:?\d{2}$/.test(raw)
+  let iso = raw
+  if (!hasZone) {
+    // Postgres prints microseconds; JS reads milliseconds. Trim rather than risk an engine refusing it.
+    const trimmed = raw.replace(/(\.\d{3})\d+$/, '$1')
+    iso = /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
+      ? `${trimmed}T00:00:00Z`            // a bare date — midnight UTC, not midnight wherever the reader is
+      : `${trimmed.replace(' ', 'T')}Z`
+  }
+  const d = new Date(iso)
+  if (!Number.isNaN(d.getTime())) return d
+  // Last resort: whatever the engine makes of the original. Better a time than an em-dash.
+  const fallback = new Date(raw)
+  return Number.isNaN(fallback.getTime()) ? null : fallback
+}
+
+/**
  * Who acted.
  *
  * Falls back to the record's own name before "System", because on a sign-in row the user columns are
@@ -60,7 +99,25 @@ export const whatChanged = (log: any): string => {
   if (meta) {
     // A money entry says its amount; anything else falls back to the few keys worth reading.
     for (const k of ['amount', 'total', 'reason', 'status', 'confirmationNumber', 'method']) {
-      if (meta[k] !== undefined && meta[k] !== null && meta[k] !== '') return `${humanise(k)}: ${String(meta[k]).slice(0, 60)}`
+      const v = meta[k]
+      if (v === undefined || v === null || v === '') continue
+      /**
+       * "Status: 200" IS NOT A CHANGE. (T58c)
+       *
+       *   Owner: "portal enable/disable audit rows show 'Status: 200'."
+       *
+       * `status` is in this list for a BUSINESS status — "partial" on a payment, "draft" on a
+       * quote. The request-level audit floor also writes an HTTP status into metadata, so a
+       * disabled customer portal was described to the reader as the number 200. That tells them
+       * nothing and actively hides that the row had nothing better to say.
+       *
+       * An HTTP code is recognisable: a bare integer in 100–599 on a row the floor wrote. Skipped
+       * here, and the floor now writes a real sentence instead (middleware/auditWrites.ts), so
+       * these rows read "Switched off — portal".
+       */
+      if (k === 'status' && /^[1-5]\d\d$/.test(String(v).trim())) continue
+      if (k === 'method' && /^(GET|POST|PUT|PATCH|DELETE)$/i.test(String(v).trim())) continue
+      return `${humanise(k)}: ${String(v).slice(0, 60)}`
     }
   }
   return '—'

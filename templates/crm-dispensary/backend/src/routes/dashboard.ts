@@ -89,7 +89,25 @@ app.get('/stats', async (c) => {
         COALESCE(SUM(CASE WHEN status IN ${settledSale} THEN ${netExprBare} ELSE 0 END), 0) as revenue,
         COALESCE(SUM(CASE WHEN status IN ${settledSale} THEN ${refundedExprBare} ELSE 0 END), 0) as refunded,
         COALESCE(SUM(CASE WHEN status IN ${taxCollected} THEN ${taxNetExprBare} ELSE 0 END), 0) as tax_collected,
-        COALESCE(AVG(CASE WHEN status IN ${settledSale} THEN ${netExprBare} END), 0) as avg_order_value,
+        /**
+         * AVERAGE OVER THE SALES THAT STAYED SOLD. (T58c)
+         *
+         *   Owner: "AOV still counts refunded orders ($8.33 instead of $25)."
+         *
+         * Three settled orders, two returned in full, one kept at $25: this averaged the NET of all
+         * three — 25 / 3 — and reported $8.33 as the typical basket. No basket on that day was
+         * $8.33. The two zeroes are not small sales, they are not sales.
+         *
+         * I defended this shape last round as self-consistent, because AOV × completed = revenue
+         * held. That identity was the wrong thing to protect: it is satisfied by any denominator you
+         * like, and "what does a customer typically spend" is a question about transactions that
+         * kept money. The count beside it still reports every settled order, with
+         * fullyRefundedOrders / partlyRefundedOrders saying how many came back — so the card can be
+         * read without this average having to carry that information badly.
+         *
+         * A partial refund still counts, at what was kept: that basket did happen, for less.
+         */
+        COALESCE(AVG(CASE WHEN status IN ${settledSale} AND ${netExprBare} > 0 THEN ${netExprBare} END), 0) as avg_order_value,
         COUNT(CASE WHEN is_medical = true AND status IN ${settledSale} THEN 1 END)::int as medical_orders
       FROM orders
       WHERE company_id = ${companyId}

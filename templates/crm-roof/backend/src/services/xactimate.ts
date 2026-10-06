@@ -309,6 +309,33 @@ export type XactBasis = 'ask' | 'approved'
  * Pure and exported so it can be tested: the document builder around it writes a PDF to R2, which a
  * test sandbox has no credentials for, so the decision this function makes is the testable part.
  */
+/**
+ * IS THIS SUPPLEMENT IN THE DOCUMENT? One predicate, because the count disagreed with the document.
+ * (T58c)
+ *
+ *   Owner: "supplementsIncluded still reports 8 instead of 2."
+ *
+ * It did. buildSupplementItems below skips drafts on BOTH bases — a draft has not been sent to
+ * anybody, so it is in neither the ask nor the settlement — but the count at the end of
+ * generateXactimateScopeDocument was written as `!approvedOnly || status === 'approved'`, and on the
+ * 'ask' basis `!approvedOnly` is true, so it counted everything the query returned. Eight supplements
+ * announced on a document built from two.
+ *
+ * That is the shape of fault this campaign keeps producing: the rule written twice, in two places,
+ * and the second copy disagreeing. So the rule is a function now and both callers use it — the
+ * count cannot drift from the contents again.
+ *
+ * A supplement with no line items is excluded too, because it contributes nothing to the scope and
+ * announcing it would overstate the document just as surely.
+ */
+export function supplementIsIncluded(sup: any, basis: XactBasis = 'ask'): boolean {
+  if (!sup) return false
+  if (sup.status === 'draft') return false
+  if (basis === 'approved' && sup.status !== 'approved') return false
+  const items = Array.isArray(sup.lineItems) ? sup.lineItems : null
+  return !!items && items.length > 0
+}
+
 export function buildSupplementItems(supplements: any[], basis: XactBasis = 'ask'): XactLineItem[] {
   const approvedOnly = basis === 'approved'
   const out: XactLineItem[] = []
@@ -326,9 +353,9 @@ export function buildSupplementItems(supplements: any[], basis: XactBasis = 'ask
      * overstates what was actually asked for and hands the carrier a document the contractor cannot
      * stand behind. Submitted, approved and denied have all been sent; draft has not.
      */
-    if (sup.status === 'draft') continue
-    if (approvedOnly && sup.status !== 'approved') continue
-    if (!sup.lineItems) continue
+    // The three conditions above now live in supplementIsIncluded, so the COUNT reported at the end
+    // of the document is computed from the same rule rather than a second copy of it. (T58c)
+    if (!supplementIsIncluded(sup, basis)) continue
     const items = Array.isArray(sup.lineItems) ? sup.lineItems : []
     let requested = 0
     for (const li of items) {
@@ -426,6 +453,9 @@ export async function generateXactimateScopeDocument(
     totals,
     // So the screen can say which document it just built, and the activity log can record it.
     basis,
-    supplementsIncluded: supplements.filter((s: any) => !approvedOnly || s.status === 'approved').length,
+    // The same predicate buildSupplementItems applies — see supplementIsIncluded. This used to read
+    // `!approvedOnly || s.status === 'approved'`, which on the ask basis counted every row the query
+    // returned, drafts included: 8 announced on a document built from 2. (T58c)
+    supplementsIncluded: (supplements || []).filter((s: any) => supplementIsIncluded(s, basis)).length,
   }
 }

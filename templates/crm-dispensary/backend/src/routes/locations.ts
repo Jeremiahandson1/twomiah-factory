@@ -6,6 +6,9 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 
+/** db.execute shapes differ by driver; the rest of this file unwraps inline, so this names it once. */
+const rowsOf = (r: any): any[] => (r?.rows ?? r ?? []) as any[]
+
 const app = new Hono()
 app.use('*', authenticate)
 
@@ -232,13 +235,52 @@ app.post('/:id/count', requireRole('manager'), async (c) => {
    * A deliberate count of zero UNITS is still fine, and still what `counted: 0` means; what is
    * refused is submitting no products at all.
    */
+  /**
+   * …AND THE SCREEN'S OWN PAYLOAD HAS NEVER BEEN ACCEPTED. (T58c)
+   *
+   * Found while confirming the empty case: LocationsPage's Count tab collects a **SKU** and posts
+   * `{ sku, counted }`, while this schema required `productId`. Measured against the live tenant —
+   * `{"sku":"MER-TS-001","counted":5}` → 400 *"item 1 product id is required."* So the Count tab has
+   * never completed a count from the UI, and the empty-array guard I added last round was protecting
+   * a door nobody could walk through.
+   *
+   * The screen is right and the schema was wrong: a SKU is what is printed on the shelf label and
+   * what somebody holding a scanner has. Either identifier is accepted now and the SKU is resolved
+   * to its product here, where the company scope is already known — resolving it in the browser
+   * would need a second round trip and could pick a product from another company.
+   *
+   * An unknown SKU is refused by name, because "item 2 product id is required" tells a person
+   * nothing about the label in their hand.
+   */
   const countSchema = z.object({
     items: z.array(z.object({
-      productId: z.string(),
+      productId: z.string().optional(),
+      sku: z.string().optional(),
       counted: z.number().int().min(0),
+    }).refine((i) => (i.productId && i.productId.trim()) || (i.sku && i.sku.trim()), {
+      message: 'Each line needs a product — scan a SKU or pick the product.',
     })).min(1, 'A count needs at least one product. Scan or pick the products you counted, then submit.'),
   })
   const data = countSchema.parse(await c.req.json())
+
+  // SKU → product id, scoped to this company. Done once for the whole payload rather than per line.
+  const skus = [...new Set(data.items.filter((i) => !i.productId?.trim() && i.sku?.trim()).map((i) => i.sku!.trim()))]
+  const bySku = new Map<string, string>()
+  if (skus.length) {
+    const found = rowsOf(await db.execute(sql`
+      SELECT id, sku FROM products WHERE company_id = ${currentUser.companyId} AND sku = ANY(${skus})
+    `))
+    for (const r of found) bySku.set(String(r.sku), String(r.id))
+    const unknown = skus.filter((s) => !bySku.has(s))
+    if (unknown.length) {
+      return c.json({
+        error: `No product has ${unknown.length === 1 ? 'the SKU' : 'these SKUs'} ${unknown.join(', ')}. Check the shelf label, or add the product first.`,
+        field: 'items', unknownSkus: unknown,
+      }, 400)
+    }
+  }
+  // From here every line has a real product id, so the write below is unchanged.
+  data.items = data.items.map((i) => ({ ...i, productId: i.productId?.trim() || bySku.get(i.sku!.trim())! }))
 
   const adjustments: any[] = []
 
