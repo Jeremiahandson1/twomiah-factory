@@ -183,16 +183,86 @@ console.log('\n══════════ what an amount may be ════
     ['zero', { amount: 0 }],
     ['a negative amount', { amount: -500 }],
     ['a non-number', { amount: 'lots' }],
+    /**
+     * T51 events: "0.001 amounts are accepted."
+     *
+     * The rule was `amt <= 0`, and the very next line stored `round2(amt)` — so 0.001 passed the
+     * check and went into the table as "0". The venue ended up with an installment on the deposit
+     * schedule for $0.00: it shows on the schedule and on the BEO, it can never be paid, and it
+     * cannot be told apart from a real line somebody has not filled in yet.
+     */
+    ['a thousandth of a dollar', { amount: 0.001 }],
+    ['half a cent, which rounds to nothing', { amount: 0.004 }],
+    ['a sub-cent string', { amount: '0.002' }],
   ]
   for (const [label, body] of cases) {
     const r = await asOwner('POST', `/api/events/${wedding.id}/payments`, { label: 'bad', ...body })
     check(`${label} is refused`, r.status === 400, { status: r.status, error: r.json?.error })
   }
+  /**
+   * …and the new rule must not swallow a legitimate cent.
+   *
+   * By this point the schedule is exactly full ($2,500 + $4,000 + $5,200 = the $11,700 invoice), so
+   * ANY further amount is refused — which is why this asserts on the REASON. 0.006 rounds up to a
+   * real cent, so it has to get past the rounding rule and be stopped by the capacity rule instead.
+   * A refusal for the wrong reason is how a rule quietly grows past its scope.
+   */
+  {
+    const r = await asOwner('POST', `/api/events/${wedding.id}/payments`, { label: 'rounds up to a cent', amount: 0.006 })
+    check('0.006 rounds UP to a cent, so the rounding rule lets it through',
+      r.status === 400 && !/rounds to \$0\.00/.test(String(r.json?.error ?? '')),
+      { status: r.status, error: r.json?.error })
+    check('…and it is the full-schedule rule that stops it', /more than the event/i.test(String(r.json?.error ?? '')),
+      { error: r.json?.error })
+    if (r.status === 201 && r.json?.id) await asOwner('DELETE', `/api/events/${wedding.id}/payments/${r.json.id}`)
+  }
   const badDate = await asOwner('POST', `/api/events/${wedding.id}/payments`, { label: 'x', amount: 1, dueDate: '19/06/2027' })
   check('a due date that is not YYYY-MM-DD is refused', badDate.status === 400 && /YYYY-MM-DD/.test(String(badDate.json?.error)),
     { status: badDate.status, error: badDate.json?.error })
 
-  check('…and SEVEN refusals scheduled nothing', (await payments()) === before, { before, after: await payments() })
+  check('…and TEN refusals scheduled nothing', (await payments()) === before, { before, after: await payments() })
+}
+
+/**
+ * The same rule on the EDIT, which is where an amount gets corrected and re-mistyped. (T51)
+ *
+ * On an installment that already exists, so the full schedule is not in the way: LOWERING one is
+ * always allowed, and that is the shape this needs.
+ */
+console.log('\n══════════ …and on the edit ══════════')
+{
+  const existing = await one(sql`
+    SELECT id, amount::numeric AS a FROM event_payment
+    WHERE event_id = ${wedding.id} ORDER BY amount::numeric DESC LIMIT 1`)
+  check('there is an installment to edit', !!existing?.id, { existing })
+  const pid = existing?.id
+  if (pid) {
+    const sub = await asOwner('PUT', `/api/events/${wedding.id}/payments/${pid}`, { amount: 0.001 })
+    check('T51: a sub-cent amount is refused on the edit too',
+      sub.status === 400 && /rounds to \$0\.00/.test(String(sub.json?.error ?? '')),
+      { status: sub.status, error: sub.json?.error })
+    const still = await one(sql`SELECT amount::numeric AS a FROM event_payment WHERE id = ${pid}`)
+    check('…and the installment still holds its real amount', Number(still?.a) === Number(existing.a),
+      { was: existing.a, now: still?.a })
+    // A real edit — downwards, so the schedule cannot be the thing that refuses it.
+    const lower = Math.max(1, Math.round(Number(existing.a) / 2))
+    const ok = await asOwner('PUT', `/api/events/${wedding.id}/payments/${pid}`, { amount: lower })
+    check('…while a real edit still goes through', ok.status === 200 || ok.status === 201,
+      { status: ok.status, error: ok.json?.error })
+    const after = await one(sql`SELECT amount::numeric AS a FROM event_payment WHERE id = ${pid}`)
+    check('…and it is stored to the cent', Number(after?.a) === lower, { expected: lower, got: after?.a })
+
+    /**
+     * Put it back. The sections below this one assert on a schedule that is EXACTLY square with the
+     * invoice — that is the whole point of the menu-line tests — so leaving this installment halved
+     * made thirteen later assertions fail on state this block had changed under them.
+     */
+    const restored = await asOwner('PUT', `/api/events/${wedding.id}/payments/${pid}`, { amount: Number(existing.a) })
+    check('…and the installment is restored for the sections below', restored.status === 200 || restored.status === 201,
+      { status: restored.status, error: restored.json?.error })
+    const back = await one(sql`SELECT amount::numeric AS a FROM event_payment WHERE id = ${pid}`)
+    check('…back to its original amount', Number(back?.a) === Number(existing.a), { expected: existing.a, got: back?.a })
+  }
 }
 
 // ══════════ who may touch the money ══════════════════════════════════════════════════════════

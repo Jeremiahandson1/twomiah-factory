@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, Plus, Minus, Trash2, User, CreditCard, Banknote, ShieldCheck, Gift, X, Check, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -175,6 +176,34 @@ export default function POSPage() {
     setLoyaltyApplied(false);
     setLoyaltyDiscount(0);
   };
+
+  /**
+   * THE CUSTOMER THE LINK CAME FROM. (T51)
+   *
+   * ContactDetailPage's "New Order" links to `/crm/orders/new?customerId=<id>`. The till ignored it
+   * and opened with nobody attached, so the budtender had to search for the person whose record the
+   * link had just been clicked on — and an order rung up without the customer attached is one that
+   * never reaches their loyalty balance or their purchase history, which on a dispensary is also
+   * the state-reporting trail.
+   *
+   * Fetched by id rather than trusting the URL to carry a name: the row has to come from the API
+   * anyway for the loyalty balance and the medical-card check.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const id = searchParams.get('customerId');
+    if (!id) return;
+    let cancelled = false;
+    api.get(`/api/contacts/${id}`)
+      .then((row: any) => { if (!cancelled && row?.id) selectCustomer(row?.data ?? row); })
+      .catch(() => { /* a deleted or out-of-company id just leaves the till empty */ })
+      .finally(() => {
+        if (cancelled) return;
+        const next = new URLSearchParams(searchParams); next.delete('customerId');
+        setSearchParams(next, { replace: true });
+      });
+    return () => { cancelled = true };
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addToCart = (product: any) => {
     const existingQty = cart.find(i => i.productId === product.id)?.quantity ?? 0;

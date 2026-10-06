@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { formatDate } from '../utils/date';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import api from '../services/api';
@@ -40,20 +41,41 @@ export default function DailyLogsPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Record<string, unknown> | null>(null);
 
+  /**
+   * THE PROJECT THE LINK CAME FROM. (T51)
+   *
+   * ProjectDetailPage's Quick Action links to `/crm/daily-logs?projectId=<id>&new=true` and this
+   * page read neither parameter. GET /api/daily-logs has filtered on projectId since it was written
+   * (dailyLogs.ts:71) — a site diary is a per-project document, so the whole-company list is the
+   * least useful answer of the two.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const projectFilter = searchParams.get('projectId') || '';
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
       // Projects is its own module; switched off it answers 403 and the page simply offers no project.
-      const [resRaw, projResRaw] = await Promise.all([api.dailyLogs.list({ page, limit: 25 }), api.projects.list({ limit: 100 }).catch(() => ({ data: [] }))]);
+      const [resRaw, projResRaw] = await Promise.all([
+        api.dailyLogs.list({ page, limit: 25, ...(projectFilter ? { projectId: projectFilter } : {}) }),
+        api.projects.list({ limit: 100 }).catch(() => ({ data: [] })),
+      ]);
       const res = resRaw as Record<string, unknown>; const projRes = projResRaw as Record<string, unknown>;
       // Backend returns nested {dailyLog: {...}, project: {...}, user: {...}} — flatten it
       const items = (res.data as Record<string, unknown>[]).map((d: Record<string, unknown>) => d.dailyLog ? { ...(d.dailyLog as Record<string, unknown>), project: d.project, user: d.user } : d);
       setData(items); setPagination(res.pagination as PaginationData | null); setProjects(projRes.data as Record<string, unknown>[]);
     } catch (err) { toast.error('Failed to load daily logs'); }
     finally { setLoading(false); }
-  }, [page]);
+  }, [page, projectFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  /** Arriving on page 3 of the whole company and then filtering to one project would show nothing. */
+  useEffect(() => { setPage(1); }, [projectFilter]);
+
+  const filteredProjectName = projectFilter
+    ? String((projects.find((p: Record<string, unknown>) => p.id === projectFilter)?.name as string) || '')
+    : '';
 
   const handleSave = async () => {
     if (!form.projectId) { toast.error('Project required'); return; }
@@ -69,7 +91,16 @@ export default function DailyLogsPage() {
 
   const handleDelete = async () => { try { await api.dailyLogs.delete((toDelete as Record<string, unknown>).id as string); toast.success('Deleted'); setDeleteOpen(false); load(); } catch (err) { toast.error((err as Error).message); } };
 
-  const openCreate = () => { setEditing(null); setForm({ date: new Date().toISOString().split('T')[0], projectId: '', weather: '', temperature: '', crewSize: '', hoursWorked: '', workPerformed: '', materials: '', delays: '', safetyNotes: '' }); setModalOpen(true); };
+  const openCreate = (projectId = '') => { setEditing(null); setForm({ date: new Date().toISOString().split('T')[0], projectId, weather: '', temperature: '', crewSize: '', hoursWorked: '', workPerformed: '', materials: '', delays: '', safetyNotes: '' }); setModalOpen(true); };
+
+  /** `&new=true` opens the form with that project already chosen; the parameter is then dropped so
+   *  the browser's Back button does not reopen the dialog. (T51) */
+  useEffect(() => {
+    if (searchParams.get('new') !== 'true') return;
+    openCreate(projectFilter);
+    const next = new URLSearchParams(searchParams); next.delete('new');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, projectFilter]); // eslint-disable-line react-hooks/exhaustive-deps
   const openEdit = (item: Record<string, unknown>) => { setEditing(item); setForm({ date: (item.date as string)?.split('T')[0] || '', projectId: item.projectId as string, weather: (item.weather as string) || '', temperature: item.temperature?.toString() || '', crewSize: item.crewSize?.toString() || '', hoursWorked: item.hoursWorked?.toString() || '', workPerformed: (item.workPerformed as string) || '', materials: (item.materials as string) || '', delays: (item.delays as string) || '', safetyNotes: (item.safetyNotes as string) || '' }); setModalOpen(true); };
 
   const columns = [
@@ -83,7 +114,21 @@ export default function DailyLogsPage() {
 
   return (
     <div>
-      <PageHeader title="Daily Logs" action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>New Log</Button>} />
+      {/* () => openCreate(), not openCreate — the handler now takes a projectId, and passing the
+          click event straight in would put a React SyntheticEvent in the form's project field. */}
+      <PageHeader title="Daily Logs" action={<Button onClick={() => openCreate()}><Plus className="w-4 h-4 mr-2 inline"/>New Log</Button>} />
+      {/* A filter that is applied and not shown is indistinguishable from a project with no diary. */}
+      {projectFilter && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-orange-50 px-3 py-2 text-sm text-orange-900 dark:bg-orange-950 dark:text-orange-100">
+          <span>
+            Showing the site diary for <span className="font-semibold">{filteredProjectName || 'this project'}</span>
+            {pagination ? ` — ${pagination.total} entr${pagination.total === 1 ? 'y' : 'ies'}` : ''}
+          </span>
+          <Link to="/crm/daily-logs" className="font-semibold underline underline-offset-2 hover:no-underline">
+            Show all logs
+          </Link>
+        </div>
+      )}
       <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[{ label: 'Edit', icon: Edit, onClick: openEdit }, { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' }]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Log' : 'New Daily Log'} size="lg">
         <div className="space-y-4">

@@ -577,6 +577,17 @@ app.post('/:id/payments', requirePermission('invoices:update'), async (c) => {
   if (!Number.isFinite(amt) || amt <= 0) {
     return c.json({ error: 'Amount must be a positive number' }, 400)
   }
+  /**
+   * …AND POSITIVE AFTER ROUNDING. (T51 events: "0.001 amounts are accepted")
+   *
+   * `amt <= 0` let 0.001 through and the very next line stores `round2(amt)` — "0". So the venue
+   * ended up with an installment on the deposit schedule for $0.00: it appears on the schedule and
+   * on the BEO, it can never be paid, and it cannot be told apart from a real line that someone
+   * has not filled in yet. A cent is the smallest amount money has.
+   */
+  if (round2(amt) <= 0) {
+    return c.json({ error: `${amt} rounds to $0.00 — an installment has to be at least one cent.` }, 400)
+  }
   if (body.dueDate && !DATE_RE.test(body.dueDate)) return c.json({ error: 'dueDate must be YYYY-MM-DD' }, 400)
 
   let created
@@ -630,6 +641,11 @@ app.put('/:id/payments/:paymentId', requirePermission('invoices:update'), async 
     const amt = Number(updates.amount)
     if (updates.amount === null || updates.amount === '' || !Number.isFinite(amt) || amt <= 0) {
       return c.json({ error: 'Amount must be a positive number' }, 400)
+    }
+    // …including the sub-cent case, which rounds to $0.00 on the line below. The edit form is where
+    // an amount gets corrected and re-mistyped, so the rule has to hold here too. (T51)
+    if (round2(amt) <= 0) {
+      return c.json({ error: `${amt} rounds to $0.00 — an installment has to be at least one cent.` }, 400)
     }
     updates.amount = round2(amt).toString()
   }

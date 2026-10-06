@@ -117,7 +117,29 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
 
   const columns = [
     { key: 'customerName', label: 'Customer', render: (_: any, r: BookingRow) => <div><div className="font-medium">{r.customerName || '-'}</div><div className="text-xs text-gray-500 dark:text-slate-400">{r.customerEmail}{r.customerPhone ? ` · ${r.customerPhone}` : ''}</div></div> },
-    { key: 'serviceName', label: 'Service', render: (v: any) => v || <span className="text-gray-500 dark:text-slate-400">No service</span> },
+    /**
+     * "BOOKINGS SHOW 'No service'." (T51 showcase)
+     *
+     * Measured on that tenant: 31 of 31 bookings carry serviceId = null, and the company has ZERO
+     * bookable services. So the old text was literally true — and useless. It reads as a fault in
+     * the row, when what it actually describes is a company that has never set up a service menu,
+     * and it says that 31 times in a column that could be telling you something.
+     *
+     * Three answers, in the order they are worth having:
+     *   · the service, when one was picked;
+     *   · otherwise what the booking BECAME — every one of those 31 is attached to a real job, and
+     *     the job's number is already in this payload for the column two along;
+     *   · otherwise "Not specified", which describes the booking rather than accusing it.
+     *
+     * The services tab is where the real fix lives, and the empty-state note below now points at it.
+     */
+    {
+      key: 'serviceName',
+      label: 'Service',
+      render: (v: any, r: BookingRow) => v
+        || (r.calendar?.label ? <span className="text-gray-500 dark:text-slate-400">{r.calendar.label}</span> : null)
+        || <span className="text-gray-500 dark:text-slate-400">Not specified</span>,
+    },
     { key: 'scheduledDate', label: 'When', render: (v: any) => whenIn(v, tz) },
     { key: 'status', label: 'Status', render: (v: any) => <StatusBadge status={v || 'pending'} /> },
     { key: 'depositStatus', label: 'Deposit', render: (v: any, r: BookingRow) => (v && v !== 'none' ? <span className={`text-xs ${DEPOSIT_CLS[v] || ''}`}>{money(r.depositAmount)} {v}</span> : <span className="text-gray-500 dark:text-slate-400">-</span>) },
@@ -144,6 +166,18 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
             </select>
             {tz && <span className="text-xs text-gray-500 dark:text-slate-400">Times shown in {tz.replace(/_/g, ' ')}</span>}
           </div>
+          {/*
+            …and say WHY the Service column is empty, once, rather than leaving the reader to infer
+            it from every row. Only when there are bookings AND no services to have picked: on the
+            showcase tenant that was 31 bookings against an empty service list. (T51)
+          */}
+          {!loading && rows.length > 0 && services.length === 0 && !retired && rows.every(r => !r.serviceName) && (
+            <div className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+              {configures
+                ? <>No bookable services are set up, so none of these bookings names one. Add them on the <button type="button" onClick={() => setTab('services')} className="font-semibold underline underline-offset-2 hover:no-underline">Bookable Services</button> tab and new bookings will say what was booked.</>
+                : <>No bookable services are set up, so none of these bookings names one.</>}
+            </div>
+          )}
           {!loading && rows.length === 0 && !statusFilter ? (
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-12 text-center">
               <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-3" />

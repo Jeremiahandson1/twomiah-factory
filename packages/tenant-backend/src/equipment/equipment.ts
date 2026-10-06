@@ -200,14 +200,24 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
    * tile, the filter and the endpoint cannot disagree.
    */
   async function getEquipment(companyId: string, {
-    status, search, contactId, categoryId, needsMaintenance, warrantyExpiring, page = 1, limit = 50,
+    status, search, contactId, siteId, categoryId, needsMaintenance, warrantyExpiring, page = 1, limit = 50,
   }: {
-    status?: string; search?: string; contactId?: string; categoryId?: string
+    status?: string; search?: string; contactId?: string; siteId?: string; categoryId?: string
     needsMaintenance?: boolean; warrantyExpiring?: boolean; page?: number; limit?: number
   } = {}) {
     const conditions = [eq(equipment.companyId, companyId)]
     if (status) conditions.push(eq(equipment.status, status))
     if (opt.contacts && contactId) conditions.push(eq(equipment.contactId, contactId))
+    /**
+     * EQUIPMENT AT ONE SITE. (T51)
+     *
+     * ContactDetailPage's site panel has linked to `/crm/equipment?contactId=…&siteId=…` since it
+     * was written — "the kit at this address" — and this took contactId only, so a customer with
+     * three service addresses got all three mixed together. The column is written on create
+     * (:184); it was simply never a filter. Behind opt.sites, like every other use of it, because
+     * the column does not exist in the verticals that do not enable sites.
+     */
+    if (opt.sites && siteId) conditions.push(eq(equipment.siteId, siteId))
     if (categoryId) conditions.push(eq(equipment.categoryId, categoryId))
     if (warrantyExpiring) {
       const until = new Date(); until.setDate(until.getDate() + WARRANTY_WINDOW_DAYS)
@@ -505,11 +515,12 @@ export function createEquipmentRoutes(deps: EquipmentRoutesDeps) {
   // ---- equipment ----
   app.get('/', async (c: any) => {
     const user = c.get('user')
-    const { contactId, category, categoryId, status, needsMaintenance, warrantyExpiring, search, page, limit } = c.req.query()
+    const { contactId, siteId, category, categoryId, status, needsMaintenance, warrantyExpiring, search, page, limit } = c.req.query()
     // These four were parsed out of the query string and then NOT passed, so every one of them was a
     // filter that did nothing. `category` is the screen's older name for the same thing. (T32 H9)
+    // siteId joins them in T51 — the link has sent it all along and nothing took it.
     const data = await service.getEquipment(user.companyId, {
-      contactId, status, search,
+      contactId, siteId, status, search,
       categoryId: categoryId || category,
       needsMaintenance: needsMaintenance === 'true',
       warrantyExpiring: warrantyExpiring === 'true',

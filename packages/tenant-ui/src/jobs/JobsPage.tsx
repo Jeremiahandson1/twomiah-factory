@@ -45,17 +45,32 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [toDelete, setToDelete] = useState<JobRow | null>(null)
 
+  /**
+   * THE PROJECT THE LINK CAME FROM. (T51 contractor: "View All ignores the project")
+   *
+   * ProjectDetailPage's Jobs panel shows the first five and links to `/crm/jobs?projectId=<id>`.
+   * This page read `?edit=` and `?contactId=` and not `?projectId=`, so View All landed on every job
+   * in the company — and the one list it could not give you was the project you had just clicked out
+   * of. GET /api/jobs has filtered on it since it was written (jobs.ts:366); only the screen never
+   * asked. Reported against Change Orders; the same link, the same omission, on the panel above it.
+   */
+  const projectFilter = searchParams.get('projectId') || ''
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const params: Record<string, string | number> = { page, limit: 25 }
       if (search) params.search = search
       if (statusFilter) params.status = statusFilter
+      if (projectFilter) params.projectId = projectFilter
       const res = await api.get('/api/jobs', params)
       setData(res?.data || [])
       setPagination(res?.pagination || null)
     } catch (err) { toast.error(errMsg(err, `Failed to load ${cfg.labels.plural.toLowerCase()}`)) } finally { setLoading(false) }
-  }, [page, search, statusFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page, search, statusFilter, projectFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Arriving on page 3 of the whole company and then filtering to one project would show nothing. */
+  useEffect(() => { setPage(1) }, [projectFilter])
 
   /**
    * Projects load only where the tenant HAS projects — and this has its OWN effect, keyed on the answer.
@@ -96,11 +111,13 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     return { ...f, contactId, equipmentId: '', siteId: '', ...(hasAddress ? { address: ct?.address || '', city: ct?.city || '', state: ct?.state || '', zip: ct?.zip || '' } : {}) }
   }
 
-  const openCreate = (contactId?: string) => {
+  const openCreate = (contactId?: string, projectId?: string) => {
     setEditing(null)
     let f = emptyForm(cfg.statuses[0], 'normal')
     setUseAddressOnFile(false)
     if (contactId) { f = applyContact(f, contactId); loadForContact(contactId) } else { setEquipment([]); setSites([]) }
+    // Arrived from a project's Quick Action: that project is already the answer. (T51)
+    if (projectId) f = { ...f, projectId }
     setForm(f)
     setModalOpen(true)
   }
@@ -121,18 +138,27 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     setModalOpen(true)
   }
 
-  // Deep links: ?edit=<id> from the detail page, ?contactId=<id> from a contact's quick actions.
+  /**
+   * Deep links: ?edit=<id> from the detail page, ?contactId=<id> from a contact's quick actions, and
+   * ?new=true from a project's — which was being sent and ignored, so "Create Job" on a project
+   * opened nothing and left the person to find the Add button and re-pick the project. (T51)
+   *
+   * `new` is consumed here and `projectId` is NOT: the filter stays on, so closing the dialog leaves
+   * you looking at that project's jobs rather than the whole company's.
+   */
   useEffect(() => {
     const editId = searchParams.get('edit'), contactId = searchParams.get('contactId')
-    if (!editId && !contactId) return
+    const wantsNew = searchParams.get('new') === 'true'
+    if (!editId && !contactId && !wantsNew) return
     if (contactId && contacts.length === 0) return // wait for the picker so the address can be applied
     let cancelled = false
-    const next = new URLSearchParams(searchParams); next.delete('edit'); next.delete('contactId')
+    const next = new URLSearchParams(searchParams); next.delete('edit'); next.delete('contactId'); next.delete('new')
     if (editId) {
       api.get(`/api/jobs/${editId}`).then((row: JobRow) => { if (!cancelled && row) { openEdit(row); setSearchParams(next, { replace: true }) } }).catch(() => {})
-    } else if (contactId) { openCreate(contactId); setSearchParams(next, { replace: true }) }
+    } else if (contactId) { openCreate(contactId, projectFilter || undefined); setSearchParams(next, { replace: true }) }
+    else if (wantsNew && mayCreate) { openCreate(undefined, projectFilter || undefined); setSearchParams(next, { replace: true }) }
     return () => { cancelled = true }
-  }, [searchParams, contacts.length]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchParams, contacts.length, projectFilter, mayCreate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = async () => {
     if (!form.title.trim()) { toast.error('Title is required'); return }
@@ -181,6 +207,23 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
   return (
     <div>
       <PageHeader title={cfg.labels.plural} action={mayCreate ? <Button onClick={() => openCreate()}><Plus className="w-4 h-4 mr-2 inline" />{cfg.labels.add}</Button> : undefined} />
+      {/* A filter that is applied and not shown is indistinguishable from a project with no work on it. */}
+      {projectFilter && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-800 dark:bg-slate-800 dark:text-slate-100">
+          <span>
+            Showing {cfg.labels.plural.toLowerCase()} on{' '}
+            <span className="font-semibold">{projects.find((p) => p.id === projectFilter)?.name || 'this project'}</span>
+            {pagination ? ` — ${pagination.total} in total` : ''}
+          </span>
+          <button
+            type="button"
+            onClick={() => { const next = new URLSearchParams(searchParams); next.delete('projectId'); setSearchParams(next) }}
+            className="font-semibold underline underline-offset-2 hover:no-underline"
+          >
+            Show all {cfg.labels.plural.toLowerCase()}
+          </button>
+        </div>
+      )}
       <div className="mb-4 flex gap-4">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />

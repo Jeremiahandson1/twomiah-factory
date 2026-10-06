@@ -225,6 +225,13 @@
       "when": 1792200400000,
       "tag": "0031_warranty_claim_reported_method",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791247984941,
+      "tag": "0032_warranty_claim_job",
+      "breakpoints": true
     }
   ]
 }

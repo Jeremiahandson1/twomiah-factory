@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Wrench, Plus, Search, Filter, AlertTriangle, Shield,
   Calendar, Clock, Edit2, History, Loader2, ChevronRight,
@@ -189,10 +190,14 @@ export default function EquipmentPage({ api, config }: EquipmentPageProps) {
   const [showForm, setShowForm] = useState<boolean>(false);
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
   const [showHistory, setShowHistory] = useState<boolean>(false);
+  /** Where the link came from — see loadData. (T51) */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const contactFilter = searchParams.get('contactId') || '';
+  const siteFilter = searchParams.get('siteId') || '';
 
   useEffect(() => {
     loadData();
-  }, [search, category, filter]);
+  }, [search, category, filter, contactFilter, siteFilter]);
 
   // The company's own categories, which is what the filter and the form have to be built from.
   const loadTypes = async () => {
@@ -214,6 +219,17 @@ export default function EquipmentPage({ api, config }: EquipmentPageProps) {
       if (category) params.set('categoryId', category);
       if (filter === 'needsMaintenance') params.set('needsMaintenance', 'true');
       if (filter === 'warrantyExpiring') params.set('warrantyExpiring', 'true');
+      /**
+       * THE CUSTOMER, AND THE ADDRESS, THE LINK CAME FROM. (T51)
+       *
+       * ContactDetailPage links to `/crm/equipment?contactId=<id>` from the customer's own record,
+       * and to `…&siteId=<id>` from one of their service addresses. This page read neither, so
+       * "see this customer's equipment" showed the whole yard — on a field-service shop that is
+       * every unit it has ever recorded, and the one list it would not give you was this
+       * customer's. The API has filtered on contactId all along; siteId is new this round.
+       */
+      if (contactFilter) params.set('contactId', contactFilter);
+      if (siteFilter) params.set('siteId', siteFilter);
 
       const [equipmentRes, statsRes] = await Promise.all([
         api.get(`/api/equipment?${params}`),
@@ -234,7 +250,28 @@ export default function EquipmentPage({ api, config }: EquipmentPageProps) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Equipment</h1>
-          <p className="text-gray-500 dark:text-slate-400">Track customer equipment and service history</p>
+          {/*
+            A filter that is applied and not shown is indistinguishable from a customer who owns
+            nothing. The name comes off the rows themselves rather than a second fetch — every row
+            in a contact-filtered list belongs to the same contact. (T51)
+          */}
+          {contactFilter || siteFilter ? (
+            <p className="text-gray-500 dark:text-slate-400">
+              {equipment[0]?.contact?.name
+                ? <>Showing equipment recorded for <span className="font-semibold text-gray-700 dark:text-slate-200">{equipment[0].contact.name}</span>{siteFilter ? ' at one address' : ''}</>
+                : <>Showing equipment for one {siteFilter ? 'address' : 'customer'}</>}
+              {' · '}
+              <button
+                type="button"
+                onClick={() => { const next = new URLSearchParams(searchParams); next.delete('contactId'); next.delete('siteId'); setSearchParams(next); }}
+                className="font-semibold underline underline-offset-2 hover:no-underline"
+              >
+                Show all equipment
+              </button>
+            </p>
+          ) : (
+            <p className="text-gray-500 dark:text-slate-400">Track customer equipment and service history</p>
+          )}
         </div>
         {mayCreate && (
           <button

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Package, Filter } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -79,12 +79,25 @@ export default function ProductsPage() {
     }
   };
 
+  /**
+   * THE TILE THAT SENT YOU HERE. (T51)
+   *
+   * CustomerPortal's "Low Stock" card links to `/crm/products?filter=low-stock`. This page ignored
+   * it and showed every product, so the one question the tile was answering — which lines need
+   * reordering — was the one thing the list would not tell you, and a shop with 300 SKUs had to
+   * eyeball the stock column. GET /api/products has filtered on `?lowStock=true` since it was
+   * written (products.ts:178), against each product's own threshold.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const lowStockOnly = searchParams.get('filter') === 'low-stock';
+
   const loadProducts = useCallback(async () => {
     setLoading(true);
     try {
       const params: any = { page, limit: 25 };
       if (search) params.search = search;
       if (category) params.category = category;
+      if (lowStockOnly) params.lowStock = 'true';
       const data = await api.get('/api/products', params);
       setProducts(Array.isArray(data) ? data : data?.data || []);
       setPagination(data?.pagination || null);
@@ -98,7 +111,7 @@ export default function ProductsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, category]);
+  }, [page, search, category, lowStockOnly]);
 
   useEffect(() => {
     loadProducts();
@@ -106,7 +119,7 @@ export default function ProductsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, category]);
+  }, [search, category, lowStockOnly]);
 
   const handleCreate = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -238,7 +251,7 @@ export default function ProductsPage() {
     <div>
       <PageHeader
         title="Products"
-        subtitle="Cannabis product catalog"
+        subtitle={lowStockOnly ? 'Low stock — at or below each line’s reorder threshold' : 'Cannabis product catalog'}
         action={
           // products:create is manager and up — a budtender was offered the button and refused on save.
           // (Dispensary T40 M2)
@@ -250,6 +263,20 @@ export default function ProductsPage() {
           ) : null
         }
       />
+
+      {/* A filter that is applied and not shown is indistinguishable from a thin catalogue. (T51) */}
+      {lowStockOnly && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+          <span>Showing only lines at or below their reorder point{pagination?.total != null ? ` — ${pagination.total} of them` : ''}</span>
+          <button
+            type="button"
+            onClick={() => { const next = new URLSearchParams(searchParams); next.delete('filter'); setSearchParams(next); }}
+            className="font-semibold underline underline-offset-2 hover:no-underline"
+          >
+            Show the whole catalogue
+          </button>
+        </div>
+      )}
 
       {/* Category Tabs */}
       <div className="flex gap-1 mb-4 overflow-x-auto pb-1">

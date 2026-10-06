@@ -1641,6 +1641,17 @@ export const warrantyClaim = pgTable('warranty_claim', {
   // violated it and no claim could be filed at all. (T43, confirmed on Contractor and Field service)
   warrantyId: text('warranty_id').notNull().references(() => projectWarranty.id, { onDelete: 'cascade' }),
   projectWarrantyId: text('project_warranty_id'),
+  /**
+   * THE JOB THIS CLAIM PUT ON THE BOARD. (T51)
+   *
+   * "Completing a warranty claim leaves its job scheduled."
+   *
+   * scheduleWarrantyWork() inserts a job for the claim and returned it without ever writing down
+   * which job it was, so updateClaimStatus had nothing to close: the claim went to completed and
+   * the work order stayed on the dispatch board, assigned, for ever. Anyone reading the board
+   * believed the repair was still outstanding.
+   */
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 
   createdAt: timestamp('created_at').defaultNow().notNull(),

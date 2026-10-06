@@ -10,11 +10,19 @@
  */
 
 import { Hono } from 'hono';
-import { eq, and, or, count, desc, asc, gte, lte, lt, gt, inArray, sql } from 'drizzle-orm';
+import { eq, and, or, count, desc, asc, gte, lte, lt, gt, inArray, notInArray, sql } from 'drizzle-orm';
 import { withoutPortalCredential } from '../contacts/contacts';
 // The shared JOB- sequence, with its per-company advisory lock. Scheduling a warranty claim was
 // numbering its job `WC-<timestamp>`; see the comment at the insert. (T48)
 import { nextNumber } from '../invoicing/money';
+
+/**
+ * The five statuses a claim can be in — the exact set WarrantiesPage's CLAIM_STATUS map renders and
+ * its filter offers (WarrantiesPage.tsx:81-85, :415-419), and the buckets getWarrantyStats counts.
+ * PUT /claims/:id/status wrote whatever it was handed, so a typo or a stale client could park a
+ * claim in a status no screen draws and no count includes. (T51)
+ */
+const CLAIM_STATUSES = ['open', 'scheduled', 'in_progress', 'completed', 'denied'];
 
 export interface WarrantiesTables {
   warrantyTemplate: any; projectWarranty: any; warrantyClaim: any;
@@ -503,6 +511,12 @@ async function updateClaimStatus(
   companyId: string,
   { status, notes, userId }: { status: string; notes?: string; userId?: string },
 ) {
+  if (!CLAIM_STATUSES.includes(status)) {
+    // The buckets getWarrantyStats counts, and the values the claims filter offers. A free-text
+    // status would vanish from every count and never match the completed branch below.
+    throw new Error(`"${status}" is not a claim status. One of: ${CLAIM_STATUSES.join(', ')}.`);
+  }
+
   const updateData: Record<string, any> = { status };
 
   if (status === 'completed') {
@@ -514,19 +528,57 @@ async function updateClaimStatus(
 
   const [claim] = await db.update(warrantyClaim)
     .set(updateData)
-    .where(eq(warrantyClaim.id, claimId))
+    // Scoped to the company. This matched on the id alone, so a claim id belonging to another
+    // tenant could have its status changed by anyone holding warranties:update here. Every other
+    // write in this file is company-scoped; this one was the exception.
+    .where(and(eq(warrantyClaim.id, claimId), eq(warrantyClaim.companyId, companyId)))
     .returning();
+
+  if (!claim) return null;
+
+  /**
+   * CLOSING THE CLAIM CLOSES THE WORK ORDER IT RAISED. (T51)
+   *
+   *   "Completing a warranty claim leaves its job scheduled."
+   *
+   * Scheduling a claim puts a real job on the dispatch board. Marking the claim completed resolved
+   * the claim and stopped there, so the job stayed `scheduled` with a technician's name on it —
+   * for ever. Anyone reading the board saw outstanding warranty work that had been finished, and
+   * the job never reached the completed counts or the costing report.
+   *
+   * The job is reached through warranty_claim.job_id, which scheduleWarrantyWork now records; until
+   * this round the claim did not know which job it had created.
+   *
+   * "Unless it is already completed or cancelled" is the rule the Complete button on the Jobs page
+   * uses (JobsPage.tsx:176), not a new one — so a job someone cancelled is not quietly reopened as
+   * completed, and completing an already-completed job does not rewrite its completion date.
+   */
+  let jobClosed: any = null;
+  if (status === 'completed' && claim.jobId) {
+    const [done] = await db.update(job)
+      .set({ status: 'completed', completedAt: new Date(), updatedAt: new Date() })
+      .where(and(
+        eq(job.id, claim.jobId),
+        eq(job.companyId, companyId),
+        notInArray(job.status, ['completed', 'cancelled']),
+      ))
+      .returning();
+    jobClosed = done ?? null;
+  }
 
   await db.insert(activityLog).values({
     companyId,
     entityType: 'warranty_claim',
     entityId: claimId,
     action: 'status_changed',
-    description: `Claim status changed to ${status}`,
+    // The job that closed with it is named, so the trail shows the second write this one caused.
+    description: jobClosed
+      ? `Claim status changed to ${status}; job ${jobClosed.number ?? jobClosed.id} completed with it`
+      : `Claim status changed to ${status}`,
     userId: userId ?? null,
   });
 
-  return claim;
+  return { ...claim, job: jobClosed };
 }
 
 /**
@@ -598,9 +650,14 @@ async function scheduleWarrantyWork(
     });
   }
 
-  // Update claim status
+  /**
+   * Record WHICH job, not just that there is one. (T51)
+   *
+   * This set the status and nothing else, so the job it had just created was unreachable from the
+   * claim. updateClaimStatus then had nothing to close — see the comment there.
+   */
   await db.update(warrantyClaim)
-    .set({ status: 'scheduled' })
+    .set({ status: 'scheduled', jobId: newJob.id })
     .where(eq(warrantyClaim.id, claimId));
 
   return newJob;
@@ -872,11 +929,22 @@ export function createWarrantiesRoutes(deps: WarrantiesRoutesDeps) {
   app.put('/claims/:id/status', requirePermission('warranties:update'), async (c) => {
     const user = c.get('user') as any;
     const body = await c.req.json();
-    const claim = await service.updateClaimStatus(c.req.param('id'), user.companyId, {
-      ...body,
-      userId: user.userId,
-    });
-    return c.json(claim);
+    /**
+     * The service now refuses a status outside the five the screen draws, and returns null for a
+     * claim that is not this company's. Both used to come back as a 200: the first wrote the bad
+     * value, the second answered the literal body `undefined` after a cross-tenant write. (T51)
+     */
+    try {
+      const claim = await service.updateClaimStatus(c.req.param('id'), user.companyId, {
+        ...body,
+        userId: user.userId,
+      });
+      if (!claim) return c.json({ error: 'Claim not found' }, 404);
+      return c.json(claim);
+    } catch (e: any) {
+      if (/is not a claim status/.test(e?.message || '')) return c.json({ error: e.message }, 400);
+      throw e;
+    }
   });
 
   // Schedule warranty work

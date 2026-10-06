@@ -156,18 +156,38 @@ export default function CommissionsPage() {
           <div className="bg-white rounded-xl w-full max-w-lg p-6 dark:bg-slate-900">
             <h2 className="text-xl font-bold mb-4">New Commission Plan</h2>
             <form onSubmit={createPlan} className="space-y-3">
-              <input required placeholder="Plan name (e.g., Tech Standard)" value={planForm.name} onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
+              {/* "Tech Standard" was crm-fieldservice's example. This template is showcase, foodtruck
+                  and basic (industryRouting.ts) — a gym, a venue and a food truck, none of which has
+                  a tech. (T51) */}
+              <input required placeholder="Plan name (e.g. Standard staff plan)" value={planForm.name} onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
               <div className="grid grid-cols-2 gap-3">
                 <select value={planForm.planType} onChange={(e) => setPlanForm({ ...planForm, planType: e.target.value })} className="border rounded-lg px-3 py-2">
                   <option value="flat_rate">Flat rate per job</option>
                   <option value="percent_of_invoice">% of invoice</option>
                   <option value="percent_of_margin">% of margin</option>
                 </select>
-                <select value={planForm.appliesToRole} onChange={(e) => setPlanForm({ ...planForm, appliesToRole: e.target.value })} className="border rounded-lg px-3 py-2">
-                  <option value="technician">Technician</option>
-                  <option value="sales_rep">Sales Rep</option>
-                  <option value="manager">Manager</option>
-                  <option value="all">All roles</option>
+                {/*
+                  THIS PRODUCT'S ROLES, NOT FIELD SERVICE'S. (T51 showcase: "Commissions offers a
+                  Technician role")
+
+                  The options were "Technician / Sales Rep / Manager / All roles" — crm-fieldservice's
+                  words, in a template shared by showcase, foodtruck and basic. This product's roles
+                  are viewer / field (shown as Staff) / manager / admin, which seed.template.ts:83
+                  already had to correct in the help centre for exactly the same reason.
+
+                  The stored VALUES are unchanged: the route's enum accepts these four
+                  (commissions.ts:56) and plans already created carry them. What changes is what the
+                  salon or the venue reads.
+
+                  The label says "intended for", because that is all this field is: a commission is
+                  recorded against a person (commission.userId) and nothing matches a plan to anyone
+                  by role, so this is a note on the plan rather than a rule.
+                */}
+                <select aria-label="Intended for" value={planForm.appliesToRole} onChange={(e) => setPlanForm({ ...planForm, appliesToRole: e.target.value })} className="border rounded-lg px-3 py-2">
+                  <option value="technician">Intended for: Staff</option>
+                  <option value="sales_rep">Intended for: Sales</option>
+                  <option value="manager">Intended for: Managers</option>
+                  <option value="all">Intended for: Everyone</option>
                 </select>
               </div>
               {planForm.planType === 'flat_rate' && <div><label className="text-xs text-gray-500 dark:text-slate-400">Flat amount per job</label><input type="number" step="0.01" value={planForm.flatRateAmount} onChange={(e) => setPlanForm({ ...planForm, flatRateAmount: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>}

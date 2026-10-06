@@ -141,5 +141,81 @@ console.log('\n══════════ scheduling it numbers the job prop
     made.length === 1 && made[0].priority === 'high', { priority: made[0]?.priority })
 }
 
+/**
+ * T51 — "Completing a warranty claim leaves its job scheduled."
+ *
+ * The claim above has just put JOB-00004 on the board. Marking the claim completed resolved the
+ * claim and stopped there, so the work order stayed `scheduled` for ever and the board showed
+ * warranty work that had been finished. The link it needs — warranty_claim.job_id — did not exist
+ * until this round; scheduleWarrantyWork created a job and forgot which one.
+ */
+console.log('\n══════════ completing the claim closes the job it raised ══════════')
+const { eq, and } = await import('drizzle-orm')
+check('the migration landed: a claim can point at its job',
+  'jobId' in warrantyClaim, Object.keys(warrantyClaim || {}).filter((k) => /job/i.test(k)))
+{
+  const [c] = await db.select().from(warrantyClaim).where(eq(warrantyClaim.id, claimId))
+  const [j] = await db.select().from(job).where(eq(job.number, 'JOB-00004'))
+  check('T51: scheduling recorded WHICH job it made', c?.jobId === j?.id, { jobId: c?.jobId, job: j?.id })
+  check('…and that job starts out scheduled, which is the state the finding is about',
+    j?.status === 'scheduled', { status: j?.status })
+}
+{
+  const r = await call('PUT', `/api/warranties/claims/${claimId}/status`, { status: 'completed' })
+  check('the claim completes', r.status === 200, { status: r.status, body: r.text?.slice(0, 220) })
+
+  const [c] = await db.select().from(warrantyClaim).where(eq(warrantyClaim.id, claimId))
+  check('…the claim is completed and stamped', c?.status === 'completed' && !!c?.resolvedAt,
+    { status: c?.status, resolvedAt: c?.resolvedAt })
+
+  const [j] = await db.select().from(job).where(eq(job.number, 'JOB-00004'))
+  check('T51: and its job is completed too, not left on the board',
+    j?.status === 'completed', { status: j?.status })
+  check('…with a completion time, so it reaches the completed counts and the costing report',
+    !!j?.completedAt, { completedAt: j?.completedAt })
+  check('…and the trail says the second write happened',
+    /JOB-00004/.test(String(r.json?.job?.number ?? '')), { job: r.json?.job?.number })
+}
+{
+  // A CANCELLED job is not quietly reopened as completed. This is the Jobs page's own rule
+  // (JobsPage.tsx:176 hides Complete on completed and cancelled), not a new one.
+  const r2 = await call('POST', '/api/warranties/claims', {
+    warrantyId: pw.id, title: 'Flashing at the chimney', description: 'Seeping in driving rain.',
+  })
+  const second = r2.json?.id
+  await call('POST', `/api/warranties/claims/${second}/schedule`, { scheduledDate: '2026-11-20' })
+  const [c2] = await db.select().from(warrantyClaim).where(eq(warrantyClaim.id, second))
+  await db.update(job).set({ status: 'cancelled' }).where(eq(job.id, c2.jobId))
+
+  const r = await call('PUT', `/api/warranties/claims/${second}/status`, { status: 'completed' })
+  check('a claim over a CANCELLED job still completes', r.status === 200, { status: r.status })
+  const [j2] = await db.select().from(job).where(eq(job.id, c2.jobId))
+  check('…and the cancelled job stays cancelled', j2?.status === 'cancelled', { status: j2?.status })
+}
+{
+  const r = await call('PUT', `/api/warranties/claims/${claimId}/status`, { status: 'all-done' })
+  check('T51: a status no screen draws is refused', r.status === 400, { status: r.status, body: r.text?.slice(0, 200) })
+  check('…and the message lists the five that exist',
+    /open/.test(String(r.json?.error ?? '')) && /denied/.test(String(r.json?.error ?? '')), { error: r.json?.error })
+}
+{
+  // T51: the update matched on the claim id ALONE, so another tenant's claim could be driven from here.
+  const [other] = await db.insert(company).values({
+    name: 'Someone Else Ltd', slug: 'other-t51', email: 'other51@test.local', settings: {}, enabledFeatures: ['warranties'],
+  } as any).returning()
+  const [otherPw] = await db.insert(projectWarranty).values({
+    companyId: other.id, name: 'Theirs', status: 'active',
+    startsAt: new Date('2026-01-01'), expiresAt: new Date('2036-01-01'),
+  } as any).returning()
+  const [otherClaim] = await db.insert(warrantyClaim).values({
+    companyId: other.id, warrantyId: otherPw.id, title: 'Not yours', description: 'Theirs.', status: 'open',
+  } as any).returning()
+
+  const r = await call('PUT', `/api/warranties/claims/${otherClaim.id}/status`, { status: 'denied' })
+  check('T51: another tenant\'s claim is a 404, not a silent write', r.status === 404, { status: r.status, body: r.text?.slice(0, 200) })
+  const [after] = await db.select().from(warrantyClaim).where(eq(warrantyClaim.id, otherClaim.id))
+  check('…and it is untouched', after?.status === 'open', { status: after?.status })
+}
+
 console.log(`\n${passed} passed, ${failed} failed`)
 if (failed > 0) process.exit(1)

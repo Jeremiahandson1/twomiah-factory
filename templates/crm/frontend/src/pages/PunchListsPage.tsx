@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Edit, Trash2, Check, CheckCheck } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -35,19 +36,39 @@ export default function PunchListsPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Record<string, unknown> | null>(null);
 
+  /**
+   * THE PROJECT THE LINK CAME FROM. (T51)
+   *
+   * ProjectDetailPage's Quick Action links to `/crm/punch-lists?projectId=<id>&new=true` and this
+   * page read neither parameter, so the link opened the whole company's punch list and no dialog.
+   * GET /api/punch-lists has filtered on projectId since it was written (punchLists.ts:37).
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const projectFilter = searchParams.get('projectId') || '';
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
       // Projects is its own module; switched off it answers 403 and the page simply offers no project.
-      const [resRaw, projResRaw] = await Promise.all([api.punchLists.list({ page, limit: 25 }), api.projects.list({ limit: 100 }).catch(() => ({ data: [] }))]);
+      const [resRaw, projResRaw] = await Promise.all([
+        api.punchLists.list({ page, limit: 25, ...(projectFilter ? { projectId: projectFilter } : {}) }),
+        api.projects.list({ limit: 100 }).catch(() => ({ data: [] })),
+      ]);
       const res = resRaw as Record<string, unknown>; const projRes = projResRaw as Record<string, unknown>;
       const items = (res.data as Record<string, unknown>[]).map((d: Record<string, unknown>) => d.punchListItem ? { ...(d.punchListItem as Record<string, unknown>), project: d.project } : d);
       setData(items); setPagination(res.pagination as PaginationData | null); setProjects(projRes.data as Record<string, unknown>[]);
     } catch (err) { toast.error('Failed to load punch list'); }
     finally { setLoading(false); }
-  }, [page]);
+  }, [page, projectFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  /** Arriving on page 3 of the whole company and then filtering to one project would show nothing. */
+  useEffect(() => { setPage(1); }, [projectFilter]);
+
+  const filteredProjectName = projectFilter
+    ? String((projects.find((p: Record<string, unknown>) => p.id === projectFilter)?.name as string) || '')
+    : '';
 
   const handleSave = async () => {
     if (!form.description || !form.projectId) { toast.error('Description and project required'); return; }
@@ -64,7 +85,16 @@ export default function PunchListsPage() {
   const handleComplete = async (item: Record<string, unknown>) => { try { await api.punchLists.complete(item.id as string); toast.success('Completed'); load(); } catch (err) { toast.error((err as Error).message); } };
   const handleVerify = async (item: Record<string, unknown>) => { try { await api.punchLists.verify(item.id as string, { verifiedBy: 'Current User' }); toast.success('Verified'); load(); } catch (err) { toast.error((err as Error).message); } };
 
-  const openCreate = () => { setEditing(null); setForm({ description: '', projectId: '', location: '', priority: 'normal', assignedTo: '', dueDate: '' }); setModalOpen(true); };
+  const openCreate = (projectId = '') => { setEditing(null); setForm({ description: '', projectId, location: '', priority: 'normal', assignedTo: '', dueDate: '' }); setModalOpen(true); };
+
+  /** `&new=true` opens the form with that project already chosen; the parameter is then dropped so
+   *  the browser's Back button does not reopen the dialog. (T51) */
+  useEffect(() => {
+    if (searchParams.get('new') !== 'true') return;
+    openCreate(projectFilter);
+    const next = new URLSearchParams(searchParams); next.delete('new');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, projectFilter]); // eslint-disable-line react-hooks/exhaustive-deps
   const openEdit = (item: Record<string, unknown>) => { setEditing(item); setForm({ description: item.description as string, projectId: item.projectId as string, location: (item.location as string) || '', priority: item.priority as string, assignedTo: (item.assignedTo as string) || '', dueDate: (item.dueDate as string)?.split('T')[0] || '' }); setModalOpen(true); };
 
   const columns = [
@@ -78,7 +108,21 @@ export default function PunchListsPage() {
 
   return (
     <div>
-      <PageHeader title="Punch Lists" action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>Add Item</Button>} />
+      {/* () => openCreate(), not openCreate — the handler now takes a projectId, and passing the
+          click event straight in would put a React SyntheticEvent in the form's project field. */}
+      <PageHeader title="Punch Lists" action={<Button onClick={() => openCreate()}><Plus className="w-4 h-4 mr-2 inline"/>Add Item</Button>} />
+      {/* A filter that is applied and not shown is indistinguishable from a project with nothing outstanding. */}
+      {projectFilter && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-orange-50 px-3 py-2 text-sm text-orange-900 dark:bg-orange-950 dark:text-orange-100">
+          <span>
+            Showing punch list items on <span className="font-semibold">{filteredProjectName || 'this project'}</span>
+            {pagination ? ` — ${pagination.total} in total` : ''}
+          </span>
+          <Link to="/crm/punch-lists" className="font-semibold underline underline-offset-2 hover:no-underline">
+            Show all items
+          </Link>
+        </div>
+      )}
       <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[
         { label: 'Edit', icon: Edit, onClick: openEdit },
         { label: 'Complete', icon: Check, onClick: handleComplete },

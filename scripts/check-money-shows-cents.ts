@@ -41,7 +41,9 @@ const ALLOWED = new Set([
   'templates/crm-roof/backend/src/services/xactimate.ts:206',
   'templates/crm-roof/frontend/src/pages/roofReports/RoofReportDetail.tsx:118',
   'templates/crm-roof/frontend/src/pages/roofReports/RoofReportDetail.tsx:295',
-  'templates/crm-dispensary/frontend/src/pages/POSPage.tsx:717',
+  // Loyalty POINTS, not money — a whole number, and "1,250 pts" is right. Moved from :717 when the
+// till learned to read ?customerId= (T51).
+  'templates/crm-dispensary/frontend/src/pages/POSPage.tsx:746',
 ])
 
 let failed = 0

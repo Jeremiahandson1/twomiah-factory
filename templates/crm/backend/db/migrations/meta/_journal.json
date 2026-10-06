@@ -274,6 +274,13 @@
       "when": 1792400200000,
       "tag": "0038_quote_line_cost",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1791247984930,
+      "tag": "0039_warranty_claim_job",
+      "breakpoints": true
     }
   ]
 }

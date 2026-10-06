@@ -280,6 +280,27 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
         </span>
       ) : money(v)),
     },
+    /**
+     * WHO CLAIMED IT. (T51 salon: "Expenses has no submitter column")
+     *
+     * `submittedByName` is already on every row — the Reimburse dialog is titled with it, and the
+     * per-person offset list is built from `submittedById`. The table was the one place it did not
+     * appear, so the question reimbursement turns on ("whose money is this?") could only be
+     * answered by opening each row, and approving a list of claims meant opening all of them.
+     *
+     * Only when somebody other than the reader has claimed something, so a one-person shop does not
+     * carry a column that says the same name on every line. "You" where it is the reader's own,
+     * because that is how the rest of this screen already refers to them.
+     */
+    ...(data.some((r) => r.submittedByName && !isMine(r))
+      ? [{
+        key: 'submittedByName',
+        label: 'Submitted by',
+        render: (v: any, row: Expense) => (isMine(row)
+          ? <span className="text-gray-500 dark:text-slate-400">You</span>
+          : v || <span className="text-gray-500 dark:text-slate-400">-</span>),
+      }]
+      : []),
     ...(showJobs ? [{ key: 'job', label: jobLabel, render: (v: any) => v?.title || '-' }] : []),
     ...(showProjects ? [{ key: 'project', label: 'Project', render: (v: any) => v?.name || '-' }] : []),
     // Whether it can be passed on to the customer — the question an expense list exists to answer, and the

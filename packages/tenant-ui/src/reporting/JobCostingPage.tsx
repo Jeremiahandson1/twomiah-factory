@@ -32,6 +32,8 @@ interface CostSide {
   revenue: number; laborCost: number; materialCost: number; totalCost: number; profit: number
   margin: number; laborHours: number; collected?: number; expenseCost?: number; subcontractorCost?: number
   billedCost?: number; salesTax?: number; sharedRevenue?: number; unratedLaborHours?: number
+  /** Quote lines with no unit cost recorded. Present on the estimate; the actual side has no quote. (T51) */
+  uncostedLines?: number
 }
 interface Detail {
   job: { id: string; number: string; title: string; status: string; contact?: { name?: string } | null; project?: { name?: string } | null }
@@ -165,16 +167,43 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
                         <dt className={muted}>{k}</dt><dd className="tabular-nums text-gray-900 dark:text-slate-100">{money(v)}</dd>
                       </div>
                     ))}
-                    <div className="flex justify-between border-t border-gray-200 dark:border-slate-800 pt-2">
-                      <dt className="font-medium text-gray-900 dark:text-slate-100">Profit</dt>
-                      <dd className={`tabular-nums font-semibold ${marginTone(side.profit)}`}>{money(side.profit)} <span className="font-normal">({pct(side.margin)})</span></dd>
-                    </div>
+                    {/*
+                      A MARGIN NOBODY CAN KNOW IS NOT 100%. (T51 landscaping: "100% margin on
+                      $0-cost items")
+
+                      With revenue and a cost of zero the arithmetic gives 100%, and the screen
+                      stated it as a fact in bold green — the single most flattering number on the
+                      page, on exactly the jobs where nothing is known. The quote had lines with no
+                      cost recorded against them; the right answer is "not known yet", and the count
+                      of those lines is the useful thing to show instead.
+
+                      `uncostedLines` has been in this payload since T49 and nothing rendered it, so
+                      the one figure that explained a $0 cost never reached the screen that needed it.
+                    */}
+                    {side.uncostedLines && !side.totalCost ? (
+                      <div className="flex justify-between border-t border-gray-200 dark:border-slate-800 pt-2">
+                        <dt className="font-medium text-gray-900 dark:text-slate-100">Profit</dt>
+                        <dd className={`tabular-nums font-semibold ${muted}`}>Not known yet</dd>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between border-t border-gray-200 dark:border-slate-800 pt-2">
+                        <dt className="font-medium text-gray-900 dark:text-slate-100">Profit</dt>
+                        <dd className={`tabular-nums font-semibold ${marginTone(side.profit)}`}>{money(side.profit)} <span className="font-normal">({pct(side.margin)})</span></dd>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <dt className={muted}>Labour hours</dt><dd className="tabular-nums text-gray-900 dark:text-slate-100">{side.laborHours}</dd>
                     </div>
                   </dl>
-                  {/* Three things the figures above would otherwise hide. Each is only shown when it
+                  {/* Four things the figures above would otherwise hide. Each is only shown when it
                       applies, so a straightforward job reads as cleanly as it did before. */}
+                  {side.uncostedLines ? (
+                    <p className={`text-xs mt-3 ${muted}`}>
+                      {side.uncostedLines} quote line{side.uncostedLines === 1 ? '' : 's'} ha{side.uncostedLines === 1 ? 's' : 've'} no
+                      cost recorded, so this cost is {side.totalCost ? 'lower than the real one' : 'not an estimate yet'}.
+                      Put a unit cost on those lines in the quote and this fills in.
+                    </p>
+                  ) : null}
                   {side.sharedRevenue ? (
                     <p className={`text-xs mt-3 ${muted}`}>
                       {money(side.sharedRevenue)} of this revenue is on an invoice raised against the

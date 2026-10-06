@@ -2015,6 +2015,17 @@ jobs:
       - name: "Pricebook picker"
         run: bun run scripts/check-pricebook-picker-both-documents.ts
 
+  link-params-are-read:
+    name: "A link's query parameter is read by the screen it lands on"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Link parameters"
+        run: bun run scripts/check-link-params-are-read.ts
+
   refresh-outcomes:
     name: "A failed refresh is not a dead session"
     runs-on: ubuntu-latest

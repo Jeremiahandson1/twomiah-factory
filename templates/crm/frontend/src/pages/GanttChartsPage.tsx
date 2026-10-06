@@ -16,12 +16,34 @@ interface GanttProject {
   percentComplete: number;
 }
 
+/**
+ * THE BAR COLOUR IS THE GROUND UNDER A WHITE LABEL. (T51 contractor: "Gantt labels hard to read")
+ *
+ * The project name is drawn INSIDE the bar in `text-white text-xs` — 12px, so it needs 4.5:1, not
+ * the 3:1 that large text gets. Against the old palette none of the five came close:
+ *
+ *   on_hold   #f59e0b  2.13:1      planning  #94a3b8  2.54:1      completed #10b981  2.54:1
+ *   active    #3b82f6  3.68:1      cancelled #ef4444  3.75:1
+ *
+ * These are the same five hues two steps darker — Tailwind's 600/700 rather than 400/500 — so the
+ * chart still reads at a glance as grey / blue / amber / green / red, and every label now clears
+ * 4.5:1 against its own bar:
+ *
+ *   planning  #475569  7.47:1      active    #1d4ed8  6.64:1      on_hold   #b45309  4.99:1
+ *   completed #047857  5.49:1      cancelled #b91c1c  6.48:1
+ *
+ * These are measured against the bar as composited, including the progress overlay below — which
+ * used to be `bg-white/25` and lightened the ground under exactly the part of the label most likely
+ * to be read. Lifting the colours alone would still have failed there (amber came out at 3.23:1).
+ *
+ * The legend swatches read these too, so the two cannot drift apart.
+ */
 const STATUS_COLORS: Record<string, string> = {
-  planning: '#94a3b8',
-  active: '#3b82f6',
-  on_hold: '#f59e0b',
-  completed: '#10b981',
-  cancelled: '#ef4444',
+  planning: '#475569',
+  active: '#1d4ed8',
+  on_hold: '#b45309',
+  completed: '#047857',
+  cancelled: '#b91c1c',
 };
 
 export default function GanttChartsPage() {
@@ -84,7 +106,9 @@ export default function GanttChartsPage() {
           const color = STATUS_COLORS[p.status] || '#94a3b8';
 
           return (
-            <div key={p.id} className="flex border-b hover:bg-gray-50" style={{ height: rowHeight }}>
+            // hover:bg-gray-50 had no dark partner, so hovering a row in dark mode painted a
+            // near-white ground under light text and the row went blank under the cursor.
+            <div key={p.id} className="flex border-b hover:bg-gray-50 dark:hover:bg-slate-800" style={{ height: rowHeight }}>
               <div className="w-64 flex-shrink-0 px-4 py-3 border-r">
                 <div className="font-medium text-sm truncate">{p.name}</div>
                 <div className="text-xs text-gray-500 dark:text-slate-400">{p.status.replace('_', ' ')} · {Math.round(p.percentComplete || 0)}%</div>
@@ -94,8 +118,19 @@ export default function GanttChartsPage() {
                 {months.map((m, i) => <div key={i} className="absolute top-0 bottom-0 border-l border-gray-100" style={{ left: `${m.offsetPct}%` }} />)}
                 {/* Bar */}
                 <div className="absolute top-2 bottom-2 rounded-md flex items-center px-2 text-white text-xs font-medium overflow-hidden" style={{ left: `${leftPct}%`, width: `${widthPct}%`, background: color, minWidth: '40px' }}>
-                  {/* Percent complete fill */}
-                  <div className="absolute top-0 bottom-0 left-0 bg-white/25 dark:bg-slate-900" style={{ width: `${p.percentComplete || 0}%` }} />
+                  {/*
+                    Percent complete — DARKENS the bar rather than washing it out.
+                    `bg-white/25` lightened the ground under the first part of the label, which is
+                    the part anyone actually reads, and took amber down to 3.23:1 even on the new
+                    palette. A translucent black deepens it instead (amber 6.41:1), and reads as
+                    "this much is done" just as well.
+
+                    The old rule also carried `dark:bg-slate-900` — OPAQUE — so in dark mode the
+                    completed portion was a solid near-black block and the status colour vanished
+                    from it entirely. One translucent layer now, the same in both themes, over a
+                    ground this component paints itself.
+                  */}
+                  <div className="absolute top-0 bottom-0 left-0 bg-black/20" style={{ width: `${p.percentComplete || 0}%` }} />
                   <span className="relative z-10 truncate">{p.name}</span>
                 </div>
               </div>

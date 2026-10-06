@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { formatDate } from '../utils/date';
 import { Plus, Edit, Trash2, Send, Check, X as XIcon, FileText } from 'lucide-react';
 import api from '../services/api';
@@ -87,18 +88,40 @@ export default function ChangeOrdersPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Record<string, unknown> | null>(null);
 
+  /**
+   * THE PROJECT THE LINK CAME FROM. (T51 contractor: "View All ignores the project")
+   *
+   * ProjectDetailPage's Change Orders panel shows the first 10 and links to
+   * `/crm/change-orders?projectId=<id>`; its Quick Action links to the same with `&new=true`. This
+   * page read NEITHER. So View All landed on every change order in the company — on a builder with
+   * four jobs running, the one thing it could not show you was the project you had clicked out of —
+   * and Create Change Order opened nothing at all, leaving the person to find New CO and re-pick the
+   * project they had just been looking at.
+   *
+   * GET /api/change-orders has accepted ?projectId= since it was written (changeOrders.ts:122) and
+   * the shared client passes any key through. Only the screen never asked.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const projectFilter = searchParams.get('projectId') || '';
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
       // Projects is its own module; switched off it answers 403 and the page simply offers no project.
-      const [resRaw, projResRaw] = await Promise.all([api.changeOrders.list({ page, limit: 25 }), api.projects.list({ limit: 100 }).catch(() => ({ data: [] }))]);
+      const [resRaw, projResRaw] = await Promise.all([
+        api.changeOrders.list({ page, limit: 25, ...(projectFilter ? { projectId: projectFilter } : {}) }),
+        api.projects.list({ limit: 100 }).catch(() => ({ data: [] })),
+      ]);
       const res = resRaw as Record<string, unknown>; const projRes = projResRaw as Record<string, unknown>;
       setData(res.data as Record<string, unknown>[]); setPagination(res.pagination as PaginationData | null); setProjects(projRes.data as Record<string, unknown>[]);
     } catch (err) { toast.error('Failed to load change orders'); }
     finally { setLoading(false); }
-  }, [page]);
+  }, [page, projectFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  /** Arriving on page 3 of the whole company and then filtering to one project would show nothing. */
+  useEffect(() => { setPage(1); }, [projectFilter]);
 
   const calcTotal = () => form.lineItems.reduce((s: number, li: LineItem) => s + (num0(li.quantity) * num0(li.unitPrice)), 0);
 
@@ -175,6 +198,25 @@ export default function ChangeOrdersPage() {
    */
   const openView = (item: Record<string, unknown>) => { setEditing(item); setReadOnly(true); fill(item); setModalOpen(true); };
 
+  /**
+   * `&new=true` opens the form with that project already chosen — the project's Quick Action sends
+   * it, and it was ignored. The parameter is dropped from the URL once it has been acted on, so
+   * closing the modal and coming back with the browser's Back button does not reopen it.
+   */
+  useEffect(() => {
+    if (searchParams.get('new') !== 'true') return;
+    if (!can('change-orders:create')) return;
+    setEditing(null); setReadOnly(false);
+    setForm({ title: '', description: '', projectId: projectFilter, reason: '', daysAdded: '0', lineItems: [{ description: '', quantity: '1', unitPrice: '' }] });
+    setModalOpen(true);
+    const next = new URLSearchParams(searchParams); next.delete('new');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, projectFilter, can, setSearchParams]);
+
+  const filteredProjectName = projectFilter
+    ? String((projects.find((p: Record<string, unknown>) => p.id === projectFilter)?.name as string) || '')
+    : '';
+
   const columns = [
     { key: 'number', label: '#', render: (v: unknown) => <span className="font-mono text-sm">{v as string}</span> },
     { key: 'title', label: 'Title', render: (v: unknown) => <span className="font-medium">{v as string}</span> },
@@ -188,7 +230,21 @@ export default function ChangeOrdersPage() {
   return (
     <div>
       <PageHeader title="Change Orders" action={can('change-orders:create') ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>New CO</Button> : undefined} />
-      <DataTable data={data} emptyMessage="No change orders yet. Raise one when the scope changes — including a credit, if work is coming out." columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[
+      {/* A filter that is applied and not shown is indistinguishable from a short list. */}
+      {projectFilter && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-orange-50 px-3 py-2 text-sm text-orange-900 dark:bg-orange-950 dark:text-orange-100">
+          <span>
+            Showing change orders on <span className="font-semibold">{filteredProjectName || 'this project'}</span>
+            {pagination ? ` — ${pagination.total} in total` : ''}
+          </span>
+          <Link to="/crm/change-orders" className="font-semibold underline underline-offset-2 hover:no-underline">
+            Show all change orders
+          </Link>
+        </div>
+      )}
+      <DataTable data={data} emptyMessage={projectFilter
+        ? 'No change orders on this project yet. Raise one when the scope changes — including a credit, if work is coming out.'
+        : 'No change orders yet. Raise one when the scope changes — including a credit, if work is coming out.'} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[
         // Mirrors routes/changeOrders.ts: edit, submit, approve and reject are all
         // change-orders:update; the delete is its own verb. (T32 M9)
         // Open to everyone who can read the page, at every status — this is the only way to see a
