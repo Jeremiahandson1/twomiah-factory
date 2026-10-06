@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Receipt, Loader2, RefreshCw, CheckCircle2, Link2 } from 'lucide-react';
 import api from '../../services/api';
 import { formatDate } from '../../utils/date';
+import { PageError, errorText } from '../../shared';
 
 /**
  * AN ACCOUNTING PAGE DOES NOT ROUND. (T41)
@@ -19,21 +20,38 @@ export default function AccountingPage() {
   const [data, setData] = useState<any>({ pending: [], connected: false, provider: 'QuickBooks Online', postedCount: 0 });
   const [syncing, setSyncing] = useState(false);
   const [done, setDone] = useState<any>(null);
+  const [pageErr, setPageErr] = useState<string>('');
 
   function load() { api.get('/api/accounting/status').then(setData).catch(() => {}); }
   useEffect(() => { load(); }, []);
 
   async function sync() {
-    setSyncing(true); setDone(null);
-    const r = await api.post('/api/accounting/sync', {}).catch(() => null);
-    if (r?.result) { setDone(r.result); load(); }
-    setSyncing(false);
+    setSyncing(true); setDone(null); setPageErr('');
+    try {
+      const r = await api.post('/api/accounting/sync', {});
+      if (r?.result) { setDone(r.result); load(); }
+      else setPageErr('The sync returned nothing to post. Reload and try again.');
+    } catch (err) {
+      // A posting run that fails silently is the worst case on this page — the books are the point.
+      setPageErr(errorText(err, 'Could not post to your books. Nothing was sent.'));
+    } finally {
+      setSyncing(false);
+    }
   }
 
   async function connect() {
+    setPageErr('');
     const r = await api.get('/api/quickbooks/auth-url').catch(() => null);
-    if (r?.url) window.open(r.url, '_blank', 'width=600,height=720');
-    else alert('QuickBooks isn’t configured yet. Add QBO_CLIENT_ID / QBO_CLIENT_SECRET / QBO_REDIRECT_URI to enable Connect.');
+    if (r?.url) { window.open(r.url, '_blank', 'width=600,height=720'); return; }
+    /**
+     * This named three environment variables in a pop-up. (T58d)
+     *
+     * QBO_CLIENT_ID / QBO_CLIENT_SECRET / QBO_REDIRECT_URI are OUR deployment's settings — a
+     * dealership reading that has been handed a task they cannot do and a vocabulary that is not
+     * theirs. It is also an unnecessary disclosure of how the service is wired. What they need is to
+     * know it is not available yet and that it is on us.
+     */
+    setPageErr('QuickBooks isn’t connected for this account yet. Twomiah has to switch it on — contact support and we will set it up.');
   }
 
   const pending = data.pending || [];
@@ -45,6 +63,8 @@ export default function AccountingPage() {
         <div className="w-10 h-10 rounded-lg bg-green-700 flex items-center justify-center text-white"><Receipt size={22} /></div>
         <div><h1 className="text-2xl font-bold">Accounting</h1><p className="text-sm text-gray-500 dark:text-slate-400">Post deals, F&I, parts, and service revenue to your books.</p></div>
       </div>
+
+      <div className="mt-4"><PageError message={pageErr} onDismiss={() => setPageErr('')} /></div>
 
       <div className={`mt-4 rounded-xl border p-4 flex items-center gap-3 ${data.connected ? 'bg-green-50 border-green-200 dark:bg-green-950/40 dark:text-slate-100' : 'bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-slate-100'}`}>
         <Link2 size={18} className={data.connected ? 'text-green-700 dark:text-green-300' : 'text-amber-700 dark:text-amber-300'} />

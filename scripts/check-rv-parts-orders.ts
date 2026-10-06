@@ -4,6 +4,7 @@
 //   bun scripts/check-rv-parts-orders.ts
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { surfacesTheReason } from './lib/surfacesTheReason.ts'
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8')
 let failed = 0
@@ -20,7 +21,11 @@ const cat = read('templates/crm-rv/backend/src/routes/oemParts.ts')
 if (!/export async function findCatalogPart\(companyId: string, partNumber: string, oem\?: string\)/.test(cat) || !/eq\(catalogPart\.companyId, companyId\), eq\(catalogPart\.partNumber, partNumber\)/.test(cat)) fail('findCatalogPart must read the company catalog')
 const page = read('templates/crm-rv/frontend/src/pages/rv/OEMPartsPage.tsx')
 if (/price: p\.price, qty: 1/.test(page)) fail('the page must not send a price')
-if (!/catch \(e: any\) \{ alert\(e\?\.message/.test(page)) fail('the Order button must show why an order failed')
+{
+  // The rule, not the spelling — see scripts/lib/surfacesTheReason.ts. (T58d)
+  const r = surfacesTheReason(page, /async function order\(/, 'the Order button')
+  if (!r.ok) fail(r.why)
+}
 
 if (failed) { console.error(`\nrv parts orders: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('rv parts orders: priced from the catalog, validated quantities, per-company list, visible results')

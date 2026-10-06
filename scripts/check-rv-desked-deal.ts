@@ -35,17 +35,32 @@ if (!getDeal || !/eq\(salesLead\.companyId, currentUser\.companyId\)/.test(getDe
 if (!putDeal || !/eq\(salesLead\.companyId, currentUser\.companyId\)/.test(putDeal)) fail('PUT /sales-leads/:id/deal must exist and be company-scoped')
 else if (!(putDeal.indexOf('dealInput(') >= 0 && putDeal.indexOf('dealInput(') < putDeal.indexOf('db.update(salesLead)'))) fail('PUT /sales-leads/:id/deal must validate (dealInput) before writing')
 
-// one set of rules and wording on both sides
+/**
+ * One set of rules and wording on both sides.
+ *
+ * THE SERVER'S HALF MOVED. (T58d) It was inlined in salesLeads.ts, which is where this guard looked
+ * for it; it now lives in backend/src/services/deal.ts, so that check-rv-deal-rules-agree.ts can
+ * IMPORT it and compare the two implementations' actual verdicts instead of grepping for sentences.
+ * The route is still checked below for using it before it writes.
+ *
+ * These text checks stay as a cheap tripwire — they catch a rule being deleted from one side — but
+ * the real comparison is the other guard, which runs both functions over the same deals.
+ */
+const dealSvc = read(`${T}/backend/src/services/deal.ts`)
+if (!dealSvc) fail('backend/src/services/deal.ts must hold the server-side deal rules')
 const lib = read(`${T}/frontend/src/lib/deal.ts`)
 const labels = (src: string) => { const m = src.match(/LABELS[^=]*= \{([\s\S]*?)\};?\r?\n/); return m ? Object.fromEntries([...m[1].matchAll(/(\w+): '([^']+)'/g)].map((x) => [x[1], x[2]])) : null }
-const sl = labels(route), cl = labels(lib)
-if (!sl || !cl || JSON.stringify(Object.entries(sl).sort()) !== JSON.stringify(Object.entries(cl).sort())) fail(`deal field labels must match between the server and lib/deal.ts (server ${JSON.stringify(sl)}, client ${JSON.stringify(cl)})`)
+const sl = labels(dealSvc), cl = labels(lib)
+if (!sl || !cl || JSON.stringify(Object.entries(sl).sort()) !== JSON.stringify(Object.entries(cl).sort())) fail(`deal field labels must match between services/deal.ts and lib/deal.ts (server ${JSON.stringify(sl)}, client ${JSON.stringify(cl)})`)
 for (const msg of ["can't be negative", 'is too large', 'must be a number', 'Tax rate must be between 0% and 25%', "Discount can't be more than the selling price"]) {
-  if (!route.includes(msg) || !lib.includes(msg)) fail(`server and lib/deal.ts must both apply the rule "${msg}"`)
+  if (!dealSvc.includes(msg) || !lib.includes(msg)) fail(`services/deal.ts and lib/deal.ts must both apply the rule "${msg}"`)
 }
-if (!/DEAL_MAX = 10_000_000/.test(route) || !/DEAL_MAX = 10_000_000/.test(lib)) fail('server and lib/deal.ts must share the same maximum amount')
-if (!/taxRate < 0 \|\| deal\.taxRate > 25|deal\.taxRate < 0 \|\| deal\.taxRate > 25/.test(route) || !/d\.taxRate < 0 \|\| d\.taxRate > 25/.test(lib)) fail('tax rate must be bounded 0–25% on both sides')
-if (!/deal\.discount > deal\.price/.test(route) || !/d\.discount > d\.price/.test(lib)) fail('a discount above the price must be refused on both sides')
+if (!/DEAL_MAX = 10_000_000/.test(dealSvc) || !/DEAL_MAX = 10_000_000/.test(lib)) fail('services/deal.ts and lib/deal.ts must share the same maximum amount')
+if (!/deal\.taxRate < 0 \|\| deal\.taxRate > 25/.test(dealSvc) || !/d\.taxRate < 0 \|\| d\.taxRate > 25/.test(lib)) fail('tax rate must be bounded 0–25% on both sides')
+if (!/deal\.discount > deal\.price/.test(dealSvc) || !/d\.discount > d\.price/.test(lib)) fail('a discount above the price must be refused on both sides')
+// The owner's two T42 lows, asserted on both sides. (T58d)
+if (!/out-the-door/.test(dealSvc) || !/out-the-door/.test(lib)) fail('a down payment above the out-the-door total must be refused on both sides (the 999,999 report)')
+if (!/fields\b/.test(dealSvc)) fail('the server must report EVERY bad field, not the first one (the "names only the price" report)')
 for (const fn of ['dealTotals', 'parseDeal', 'dealErrors']) if (!new RegExp(`export function ${fn}\\(`).test(lib)) fail(`lib/deal.ts must export ${fn}`)
 
 // Desking: uses the shared calculation, keeps typed text, saves and reloads

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Loader2, X, Upload, User, Phone, Mail, Calculator } from 'lucide-react';
 import api from '../../services/api';
+import { PageError, errorText } from '../../shared';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useMayWrite } from '../../shared';
@@ -72,6 +73,8 @@ export default function SalesPipelinePage() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState<boolean>(false);
   const [showAdf, setShowAdf] = useState<boolean>(false);
+  // A refusal from dragging a card between stages — it has no form to sit on. (T58d)
+  const [pageErr, setPageErr] = useState<string>('');
   const navigate = useNavigate();
 
   const canDealDesk = hasFeature('deal_desk');
@@ -99,7 +102,9 @@ export default function SalesPipelinePage() {
       // selling or reopening a deal changes its unit, which other cards on that unit show
       if (stage === 'closed_won' || prevStage === 'closed_won') load();
     } catch (err: any) {
-      alert(err?.message || 'Failed to move lead');
+      // The refusal is usually "that unit is already on a won deal" — the one sentence a salesperson
+      // needs in front of them while the card snaps back. A pop-up took it away. (T58d)
+      setPageErr(errorText(err, 'Could not move that lead.'));
       load();
     }
   };
@@ -134,6 +139,8 @@ export default function SalesPipelinePage() {
           )}
         </div>
       </div>
+
+      <PageError message={pageErr} onDismiss={() => setPageErr('')} />
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
@@ -227,6 +234,7 @@ function LeadFormModal({ onSave, onClose }: LeadFormModalProps) {
   const [units, setUnits] = useState<UnitOption[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [saving, setSaving] = useState<boolean>(false);
+  const [err, setErr] = useState<string>('');
   const [form, setForm] = useState({
     contactId: '', unitId: '', assignedTo: '',
     source: 'web', stage: 'new', notes: '', tradeInInfo: '', followUpDate: '',
@@ -253,7 +261,8 @@ function LeadFormModal({ onSave, onClose }: LeadFormModalProps) {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!form.contactId) { alert('Contact is required'); return; }
+    if (!form.contactId) { setErr('Choose the customer this lead is for.'); return; }
+    setErr('');
     setSaving(true);
     try {
       await api.post('/api/sales-leads', {
@@ -267,8 +276,8 @@ function LeadFormModal({ onSave, onClose }: LeadFormModalProps) {
         followUpDate: form.followUpDate || undefined,
       });
       onSave();
-    } catch (err) {
-      alert((err as Error).message || 'Failed to create lead');
+    } catch (e2) {
+      setErr(errorText(e2, 'Could not create the lead.'));
     } finally {
       setSaving(false);
     }
@@ -333,6 +342,7 @@ function LeadFormModal({ onSave, onClose }: LeadFormModalProps) {
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} className="w-full px-3 py-2 border rounded-lg" />
             </div>
+            <PageError message={err} />
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg disabled:opacity-50">

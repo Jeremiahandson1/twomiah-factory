@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, BellRing, Phone, Mail, Check, ArrowRightCircle } from 'lucide-react';
 import api from '../../services/api';
+// A refusal renders on the page, not in a native pop-up — the shared one, so a vertical cannot
+// drift back to alert(). (T58d)
+import { PageError, errorText } from '../../shared';
 
 /**
  * Service-to-Sales Alerts — when a customer with an open sales lead checks
@@ -33,6 +36,7 @@ export default function AlertsPage() {
   const [rows, setRows] = useState<AlertRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showAll, setShowAll] = useState<boolean>(false);
+  const [pageErr, setPageErr] = useState<string>('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -41,6 +45,7 @@ export default function AlertsPage() {
       setRows(res.data || []);
     } catch (error) {
       console.error('Failed to load alerts:', error);
+      setPageErr(errorText(error, 'Could not load the alerts. Try again.'));
     } finally {
       setLoading(false);
     }
@@ -48,21 +53,25 @@ export default function AlertsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // The server's reason, not a generic failure: it may be saying the alert is already dismissed, or
+  // that the lead it would convert to no longer exists.
   const dismiss = async (id: string) => {
+    setPageErr('');
     try {
       await api.post(`/api/alerts/${id}/dismiss`, {});
       load();
-    } catch {
-      alert('Failed to dismiss alert');
+    } catch (err) {
+      setPageErr(errorText(err, 'Could not dismiss that alert.'));
     }
   };
 
   const convert = async (id: string) => {
+    setPageErr('');
     try {
       await api.post(`/api/alerts/${id}/convert`, {});
       load();
-    } catch {
-      alert('Failed to convert alert');
+    } catch (err) {
+      setPageErr(errorText(err, 'Could not turn that alert into a lead.'));
     }
   };
 
@@ -78,6 +87,8 @@ export default function AlertsPage() {
           Show dismissed
         </label>
       </div>
+
+      <PageError message={pageErr} onDismiss={() => setPageErr('')} />
 
       {loading ? (
         <div className="flex items-center justify-center py-12">

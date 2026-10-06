@@ -8,6 +8,7 @@ import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
+import { dealInput } from '../services/deal.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -232,33 +233,11 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
 })
 
 // ---- Desked deal (RV T19 H1) ----
-// Desking saves the deal's inputs on the lead, and F&I reads them back, so the numbers a salesperson desks are the
-// numbers F&I finances. The math lives in one place (frontend/src/lib/deal.ts); the server keeps the inputs sane:
-// no negative amounts, tax rate 0–25%, discount no larger than the selling price. (M5: a typed -5% tax became 5%)
-const DEAL_LABELS: Record<string, string> = {
-  price: 'Selling price', discount: 'Discount', accessories: 'Accessories / add-ons', tradeAllow: 'Trade allowance',
-  tradePayoff: 'Trade payoff', doc: 'Doc fee', freight: 'Freight / setup', titleReg: 'Title & reg', prep: 'Dealer prep',
-  down: 'Down payment', taxRate: 'Tax rate',
-}
-const DEAL_MONEY = ['price', 'discount', 'accessories', 'tradeAllow', 'tradePayoff', 'doc', 'freight', 'titleReg', 'prep', 'down']
-const DEAL_MAX = 10_000_000
-
-function dealInput(body: any): { deal: Record<string, number> } | { error: string } {
-  if (!body || typeof body !== 'object') return { error: 'Deal is required' }
-  const deal: Record<string, number> = {}
-  for (const k of [...DEAL_MONEY, 'taxRate']) {
-    const v = body[k]
-    if (typeof v !== 'number' || !Number.isFinite(v)) return { error: `${DEAL_LABELS[k]} must be a number` }
-    deal[k] = k === 'taxRate' ? Math.round(v * 1000) / 1000 : Math.round(v * 100) / 100
-  }
-  for (const k of DEAL_MONEY) {
-    if (deal[k] < 0) return { error: `${DEAL_LABELS[k]} can't be negative` }
-    if (deal[k] > DEAL_MAX) return { error: `${DEAL_LABELS[k]} is too large` }
-  }
-  if (deal.taxRate < 0 || deal.taxRate > 25) return { error: 'Tax rate must be between 0% and 25%' }
-  if (deal.discount > deal.price) return { error: "Discount can't be more than the selling price" }
-  return { deal }
-}
+// Desking saves the deal's inputs on the lead, and F&I reads them back, so the numbers a salesperson
+// desks are the numbers F&I finances. The RULES now live in services/deal.ts rather than inline here:
+// the screen has its own copy (frontend/src/lib/deal.ts), the two disagreed about the down payment
+// and about reporting more than one bad field, and a guard can only compare them if the server's
+// half is importable without dragging in the database. (T58d)
 
 // A desk saved by the old Pipeline "Deal Desk" modal lives as JSON in the lead's notes ({ dealDesk: {...} }).
 // Offer it as the starting point so no desked numbers are lost; it becomes the lead's deal once saved.
@@ -312,7 +291,8 @@ app.put('/:id/deal', requirePermission('contacts:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const parsed = dealInput(await c.req.json().catch(() => null))
-  if ('error' in parsed) return c.json({ error: parsed.error }, 400)
+  // The whole map, so a form can highlight every bad input at once instead of one per round trip.
+  if ('error' in parsed) return c.json({ error: parsed.error, field: parsed.field, fields: parsed.fields }, 400)
 
   const [existing] = await db.select().from(salesLead).where(and(eq(salesLead.id, id), eq(salesLead.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Lead not found' }, 404)
@@ -396,9 +376,35 @@ app.post('/import-adf', requirePermission('contacts:create'), async (c) => {
       ;[contactRecord] = await tx.select().from(contact)
         .where(and(eq(contact.companyId, companyId), sql`lower(${contact.email}) = ${email}`)).limit(1)
     }
+    /**
+     * A SHARED PHONE IS NOT A SHARED IDENTITY. (T42 → T58d)
+     *
+     *   Owner: "an ADF lead with a different name and email but the same phone is treated as a
+     *   duplicate."
+     *
+     * It was. Email found nothing, the phone found somebody else, and the new lead was attached to
+     * THEIR contact — then the duplicate check below found that person's open ADF lead and returned
+     * it, so the new enquiry was never recorded at all. A couple on one mobile, a household landline
+     * and a business switchboard all produce this, and in each case two people are two leads.
+     *
+     * A phone match is still worth having — plenty of ADF leads arrive with a phone and no email, and
+     * matching them is the whole point. What it must not do is override evidence that this is
+     * somebody ELSE. So the match stands unless the incoming lead CONTRADICTS it: a different email,
+     * or a different name. Missing information on either side contradicts nothing.
+     *
+     * Email alone remains sufficient on its own (above) — an address is one person's.
+     */
     if (!contactRecord && phoneDigits.length === 10) {
-      ;[contactRecord] = await tx.select().from(contact)
+      const [byPhone] = await tx.select().from(contact)
         .where(and(eq(contact.companyId, companyId), sql`right(regexp_replace(coalesce(${contact.phone}, ''), '\\D', '', 'g'), 10) = ${phoneDigits}`)).limit(1)
+      if (byPhone) {
+        const theirEmail = String(byPhone.email || '').trim().toLowerCase()
+        const emailsDiffer = !!email && !!theirEmail && theirEmail !== email
+        const plain = (s: unknown) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ')
+        const namesDiffer = !!plain(name) && !!plain(byPhone.name) && plain(byPhone.name) !== plain(name)
+        if (!emailsDiffer && !namesDiffer) contactRecord = byPhone
+        // else: somebody else on the same line — fall through and create their own contact.
+      }
     }
     let contactCreated = false
     if (!contactRecord) {

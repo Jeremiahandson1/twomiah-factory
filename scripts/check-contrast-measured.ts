@@ -82,6 +82,52 @@ if (chipColors && LIGHT_SURFACE && DARK_SURFACE) {
   }
 }
 
+// ---------------------------------------------------------------- the palette's own ink/ground pairs
+//
+// Owner, on RV: "a light 'Active' pill on Lead Sources in dark mode." It was
+// `background: '#e8f5e9'` with `color: '#2e7d32'` written INLINE — correct on the white card, a pale
+// lozenge on the dark one. Nothing caught it: the className guards cannot see an inline style, and
+// the chip check above only measures the brand chip.
+//
+// So the palette's paired colours are measured here, in both themes, from theme.ts itself. A new pair
+// added to LeadPalette is checked the moment it is named, and the page is also checked for having
+// gone back to a literal hex.
+{
+  const pairFor = (block: string, bgKey: string, fgKey: string) => {
+    const body = themeSrc.split(block)[1] || ''
+    const grab = (k: string) => new RegExp(`${k}: '(#[0-9a-fA-F]{3,6})'`).exec(body)?.[1]
+    return { bg: grab(bgKey), fg: grab(fgKey) }
+  }
+  const PAIRS: Array<[string, string, string]> = [
+    ['the "Active" chip', 'okBg', 'okText'],
+    ['the error banner', 'errBg', 'errText'],
+    ['the setup-instructions box', 'infoBg', 'infoHead'],
+    ['…and its body text', 'infoBg', 'infoBody'],
+  ]
+  for (const [what, bgKey, fgKey] of PAIRS) {
+    for (const [theme, block] of [['light', 'const LIGHT: LeadPalette = {'], ['dark', 'const DARK: LeadPalette = {']] as const) {
+      const { bg, fg } = pairFor(block, bgKey, fgKey)
+      if (!bg || !fg) { fail(`theme.ts ${theme} palette is missing ${bgKey}/${fgKey} — ${what} cannot be measured`); continue }
+      const r = ratio(fg, bg)
+      if (r < AA) fail(`${what} on the ${theme} palette: ${r.toFixed(2)}:1 (${fg} on ${bg}) — needs ${AA}:1`)
+    }
+  }
+  /**
+   * …and the page must USE the pair rather than a literal, which is how this started.
+   *
+   * Comments are stripped first. The note explaining the fix names the old hexes, and a guard that
+   * counts its own explanation is a guard nobody can keep green — the same mistake as the pop-up
+   * ceiling, caught the same way.
+   */
+  const srcPage = readFileSync(ROOT + 'packages/tenant-ui/src/leads/LeadSourcesPage.tsx', 'utf8')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+  for (const lit of ['#e8f5e9', '#2e7d32']) {
+    if (srcPage.includes(lit)) fail(`LeadSourcesPage still hardcodes ${lit} — use the palette's okBg/okText/statConverted so it moves with the theme`)
+  }
+}
+
 // ---------------------------------------------------------------- class pairs on a changed background
 //
 // Tailwind values for the classes actually used on the banners below. Kept small deliberately: a table

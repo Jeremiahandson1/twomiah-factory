@@ -40,6 +40,10 @@ export { QuoteDetailPage } from './invoicing/QuoteDetailPage'
 export type { InvoicingConfig, InvoicingPageProps, InvoicingApi, InvoicingToast } from './invoicing/types'
 export { PAYMENT_METHODS, paymentMethodsFor, refundMethodsFor, ACCOUNT_BALANCE_METHOD, money } from './invoicing/ui'
 export { ConfirmProvider, useConfirm } from './ui/ConfirmProvider'
+// A refusal shown ON the page, for every vertical — see the note in PageError.tsx on why this is
+// shared rather than copied per template. (T58d)
+export { PageError, PageNotice, errorText } from './ui/PageError'
+export { ModuleNotEnabled, featureNotEnabled } from './ui/ModuleNotEnabled'
 // Online booking — one page for every CRM; the template passes its api/toast + a vertical config.
 export { BookingsPage } from './booking/BookingsPage'
 export { BookingSettingsTab } from './booking/BookingSettingsTab'

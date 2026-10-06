@@ -54,7 +54,9 @@ const CEILING: Record<string, number> = {
   'templates/crm-vet': 27,
   'templates/crm-homecare': 21, // parked
   'templates/crm-automotive': 16, // parked
-  'templates/crm-rv': 16,
+  // crm-rv: 16 → 0 (T58d). The owner's "RV still has 24 alert() calls" — 16 of its own, plus the
+  // ones tenant-ui contributes to its bundle, which is the door below.
+  'templates/crm-rv': 0,
   'templates/crm': 9,
   'templates/crm-fieldservice': 8,
   'templates/crm-landscaping': 8,

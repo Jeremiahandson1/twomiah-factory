@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { useMayWrite } from '../../shared';
+import { useMayWrite, PageError, PageNotice, errorText } from '../../shared';
 
 /**
  * RV / Powersports Inventory — dealership unit inventory backed by /api/units.
@@ -137,6 +137,9 @@ export default function InventoryPage() {
   const [recallUnit, setRecallUnit] = useState<Unit | null>(null);
   const [exporting, setExporting] = useState<boolean>(false);
   const [showFeedUrls, setShowFeedUrls] = useState<boolean>(false);
+  // A refusal from a page-level action, and the server's "saved, but check this" notes. (T58d)
+  const [pageErr, setPageErr] = useState<string>('');
+  const [notice, setNotice] = useState<string>('');
 
   const canRecall = hasFeature('recall_lookup');
   const canSyndicate = hasFeature('inventory_syndication');
@@ -169,16 +172,20 @@ export default function InventoryPage() {
 
   const handleDelete = async (u: Unit) => {
     if (!confirm(`Delete ${u.year || ''} ${u.make || ''} ${u.modelName || ''}?`)) return;
+    setPageErr('');
     try {
       await api.delete('/api/units', u.id);
       loadData();
-    } catch {
-      alert('Failed to delete unit');
+    } catch (err) {
+      // A unit on an open deal or a repair order is refused WITH THE REASON. "Failed to delete unit"
+      // threw that away and left the salesperson guessing. (T58d)
+      setPageErr(errorText(err, 'Could not delete that unit.'));
     }
   };
 
   const exportFeed = async () => {
     setExporting(true);
+    setPageErr('');
     try {
       const token = localStorage.getItem('accessToken');
       const res = await fetch(`${api.baseUrl}/api/syndication/feed?format=csv`, {
@@ -194,8 +201,8 @@ export default function InventoryPage() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-    } catch {
-      alert('Failed to export feed');
+    } catch (err) {
+      setPageErr(errorText(err, 'Could not build the inventory feed. Try again in a moment.'));
     } finally {
       setExporting(false);
     }
@@ -245,6 +252,9 @@ export default function InventoryPage() {
           )}
         </div>
       </div>
+
+      <PageError message={pageErr} onDismiss={() => setPageErr('')} />
+      <PageNotice message={notice} onDismiss={() => setNotice('')} />
 
       {/* Filters */}
       <div className="flex items-center gap-4 flex-wrap">
@@ -341,7 +351,13 @@ export default function InventoryPage() {
       {showForm && (
         <UnitFormModal
           unit={editing}
-          onSave={() => { setShowForm(false); loadData(); }}
+          onSave={(warnings) => {
+            setShowForm(false)
+            // Saved, but worth a look — shown on the page the unit is now on, not in the modal that
+            // just closed. (T58d)
+            setNotice(warnings?.length ? `Saved. Please check:\n${warnings.join('\n')}` : '')
+            loadData()
+          }}
           onClose={() => setShowForm(false)}
         />
       )}
@@ -503,13 +519,22 @@ const SHARED_PRICE = ['msrp', 'listedPrice', 'internetPrice', 'cost'] as const;
 
 interface UnitFormModalProps {
   unit: Unit | null;
-  onSave: () => void;
+  /**
+   * `warnings` carries the server's "saved, but check this" notes up to the page. (T58d)
+   *
+   * Unusual pricing — far above MSRP, cost above price — is saved and FLAGGED, and the flag used to
+   * be an alert() fired a line before the modal closed. The pop-up outlived the screen it belonged
+   * to, which is the clearest case there is for not using one: the modal is gone, so the message has
+   * nowhere of its own to live, and the page behind it is where the unit now sits.
+   */
+  onSave: (warnings?: string[]) => void;
   onClose: () => void;
 }
 
 function UnitFormModal({ unit, onSave, onClose }: UnitFormModalProps) {
   const [category, setCategory] = useState<string>(unit?.category || '');
   const [saving, setSaving] = useState<boolean>(false);
+  const [err, setErr] = useState<string>('');
   // Keep every possible field in one form object; we filter on submit by category.
   const [form, setForm] = useState<Record<string, any>>(() => ({
     condition: unit?.condition || 'new',
@@ -592,7 +617,8 @@ function UnitFormModal({ unit, onSave, onClose }: UnitFormModalProps) {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!category) { alert('Category is required'); return; }
+    if (!category) { setErr('Choose a category — it decides which details this unit needs.'); return; }
+    setErr('');
     setSaving(true);
 
     // Build payload: shared fields + only the chosen category's fields.
@@ -622,11 +648,11 @@ function UnitFormModal({ unit, onSave, onClose }: UnitFormModalProps) {
 
     try {
       const saved = unit ? await api.put(`/api/units/${unit.id}`, payload) : await api.post('/api/units', payload);
-      // unusual pricing is saved but flagged (e.g. far above MSRP, cost above price)
-      if (saved?.warnings?.length) alert(`Saved. Please check:\n\n${saved.warnings.join('\n')}`);
-      onSave();
-    } catch (err) {
-      alert((err as Error).message || 'Failed to save unit');
+      // Unusual pricing is saved but FLAGGED (far above MSRP, cost above price). Handed to the page,
+      // which is where the unit now is — see the note on onSave. (T58d)
+      onSave(Array.isArray(saved?.warnings) && saved.warnings.length ? saved.warnings : undefined);
+    } catch (e2) {
+      setErr(errorText(e2, 'Could not save the unit.'));
     } finally {
       setSaving(false);
     }
@@ -872,6 +898,7 @@ function UnitFormModal({ unit, onSave, onClose }: UnitFormModalProps) {
               <textarea value={form.description} onChange={(e) => set('description', e.target.value)} rows={3} className="w-full px-3 py-2 border rounded-lg" />
             </div>
 
+            <PageError message={err} />
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50">

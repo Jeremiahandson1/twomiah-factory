@@ -64,21 +64,47 @@ app.use('*', authenticate)
  * source invoices and quotes already use to decide what "today" is. With no zone configured it falls
  * back to the state map and then to UTC, which is the behaviour every other date in this product has.
  */
+/**
+ * A TIMESTAMP AND A DATE ARE DIFFERENT CLAIMS, so they get different rules. (T58c follow-up)
+ *
+ * My first version compared calendar days for BOTH, and that broke the case T41 put in deliberately:
+ * a clinic whose clock is ahead of the server records today's visit, the instant lands a few hours in
+ * the future, and refusing it would make the page unusable. Worse, it made the outcome depend on the
+ * time of day the suite ran — fine at 2pm, refused at 11pm — which is the flakiness that hid a real
+ * defect earlier in this campaign.
+ *
+ * The two inputs genuinely mean different things:
+ *
+ *   "2026-10-07"             a person picked a DAY on a date picker. Tomorrow is a mistake, and it is
+ *                            the owner's report. Compared as a calendar day in the practice's zone,
+ *                            which is the only place its day boundary actually falls.
+ *   "2026-10-07T04:30:00Z"   a machine recorded an INSTANT. A few hours ahead is clock or zone skew,
+ *                            not a claim about tomorrow, so a bounded window is allowed — and
+ *                            anything past it, including a date picked for tomorrow, is refused.
+ *
+ * Twelve hours covers a mis-set device and any residual zone error once the practice's own zone is
+ * resolved, while still refusing a full day ahead. A mistyped year is refused by both paths.
+ */
+const CLOCK_SKEW_MS = 12 * 60 * 60 * 1000
+
+const FUTURE_VISIT = 'A visit is a record of something that has happened, so its date cannot be in the future. '
+  + 'Book an appointment instead, or correct the date.'
+
 export function visitDateError(value: unknown, timeZone: string = DEFAULT_BUSINESS_ZONE): string | null {
   if (value === undefined || value === null || String(value).trim() === '') return null
   const raw = String(value).trim()
   const d = new Date(raw)
   if (isNaN(d.getTime())) return 'The visit date is not a date.'
 
-  const tz = isValidTimeZone(timeZone) ? timeZone : DEFAULT_BUSINESS_ZONE
-  const day = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : storeDateString(d, tz)
-  const today = storeDateString(new Date(), tz)
-  // ISO dates compare correctly as strings, which is the whole reason the format is used here.
-  if (day > today) {
-    return 'A visit is a record of something that has happened, so its date cannot be in the future. '
-      + 'Book an appointment instead, or correct the date.'
+  // A day was chosen: compare days, in the practice's zone. ISO dates compare correctly as strings,
+  // which is the whole reason that format is used here.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const tz = isValidTimeZone(timeZone) ? timeZone : DEFAULT_BUSINESS_ZONE
+    return raw > storeDateString(new Date(), tz) ? FUTURE_VISIT : null
   }
-  return null
+
+  // An instant was recorded: allow skew, refuse a real future.
+  return d.getTime() > Date.now() + CLOCK_SKEW_MS ? FUTURE_VISIT : null
 }
 
 // GET /visits — ?patientId=

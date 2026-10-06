@@ -4,6 +4,7 @@
 //   bun scripts/check-rv-repair-orders.ts
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { surfacesTheReason } from './lib/surfacesTheReason.ts'
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8')
 let failed = 0
@@ -25,7 +26,11 @@ const put = r.slice(r.indexOf("app.put('/:id'"), r.indexOf("app.post('/:id/check
 if (!/const inputError = roInputError\(body, false\)/.test(put) || !/const refError = await roRefError\(/.test(put) || put.indexOf('roRefError(') > put.indexOf('db.update(repairOrder)')) fail('edit must validate input and references before updating')
 if (!/if \(totals\.total > 0\) try \{/.test(put)) fail('closing an RO must not create an invoice when there is nothing to collect')
 
-if (!/alert\(\(err as Error\)\?\.message \|\| 'Failed to update status'\)/.test(read('templates/crm-rv/frontend/src/pages/rv/ServicePage.tsx'))) fail("the Service page must show the server's reason when a status change is refused")
+{
+  // The rule, not the spelling — see scripts/lib/surfacesTheReason.ts. (T58d)
+  const r = surfacesTheReason(read('templates/crm-rv/frontend/src/pages/rv/ServicePage.tsx'), /const changeStatus = async/, 'the repair-order status change')
+  if (!r.ok) fail(r.why)
+}
 // L5: one number series from the shared helper, under a lock; a hand-entered number can't duplicate. L6: the unit
 // picker shows stock numbers.
 if (!/roNumber = await nextNumber\(tx, repairOrder, repairOrder\.roNumber, repairOrder\.companyId, currentUser\.companyId, \{ prefix: 'RO', pad: 0, seed: 1000 \}\)/.test(post)) fail('RO numbers must come from nextNumber in the RO-1001 series (RV T19 L5)')

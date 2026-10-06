@@ -1,6 +1,7 @@
 import { useEffect, useState, type ChangeEvent } from 'react';
 import { Package, Search, Loader2, Info, Upload, X, CheckCircle2 } from 'lucide-react';
 import api from '../../services/api';
+import { PageError, errorText } from '../../shared';
 
 const money = (n?: number) => (n ? '$' + Number(n).toFixed(2) : '');
 
@@ -35,13 +36,19 @@ export default function OEMPartsPage() {
   useEffect(() => { run(); }, [oem, category]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [ordered, setOrdered] = useState<Record<string, string>>({});
+  const [pageErr, setPageErr] = useState<string>('');
   // The server prices the order from the catalog; the result (or why it wasn't placed) is shown. (RV T19 L3)
+  // On the page since T58d — the reason a part was not ordered is a sentence the parts counter needs
+  // to keep reading while they decide what to do, and a pop-up takes it away.
   async function order(p: any) {
+    setPageErr('');
     try {
       const r = await api.post('/api/parts-orders/create', { item: { partNumber: p.partNumber, oem: p.oem, qty: 1 } });
       if (r?.order?.poNumber) setOrdered((o) => ({ ...o, [p.partNumber]: r.order.poNumber }));
-      else alert(r?.order?.reason || 'The order was not placed.');
-    } catch (e: any) { alert(e?.message || 'The order could not be placed.'); }
+      else setPageErr(`${p.partNumber}: ${r?.order?.reason || 'the order was not placed.'}`);
+    } catch (e: any) {
+      setPageErr(`${p.partNumber}: ${errorText(e, 'the order could not be placed.')}`);
+    }
   }
 
   async function onFile(e: ChangeEvent<HTMLInputElement>) {
@@ -82,6 +89,8 @@ export default function OEMPartsPage() {
           <Upload size={15} /> Import parts
         </button>
       </div>
+
+      <div className="mt-3"><PageError message={pageErr} onDismiss={() => setPageErr('')} /></div>
 
       {live ? (
         <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-800 flex gap-2 dark:text-green-300 dark:bg-green-950/40">

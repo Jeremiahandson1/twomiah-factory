@@ -23,6 +23,20 @@ export interface LeadPalette {
   codeBg: string      // <code> webhook fields (#f5f5f5 in light)
   errBg: string       // error banner bg (#fdecea in light)
   errText: string     // error banner text (#b71c1c in light)
+  /**
+   * The "Active" chip on Lead Sources. (T58d)
+   *
+   * Owner, on RV: "a light 'Active' pill on Lead Sources in dark mode." It was a hardcoded
+   * `background: '#e8f5e9'` with `color: '#2e7d32'` written inline — correct on a white card and a
+   * pale green lozenge on the dark one. Every contrast guard missed it for the reason recorded in
+   * the notes: they read className, and an inline `style={{}}` is invisible to them.
+   *
+   * There was already `errBg`/`errText` for exactly this shape, and `statConverted` for green INK —
+   * what was missing was a green chip PAIR, so the inline hex looked like the only option. Measured:
+   * light 4.56:1, dark 9.65:1.
+   */
+  okBg: string        // "Active" chip bg (#e8f5e9 in light)
+  okText: string      // "Active" chip text (#2e7d32 in light)
   infoBg: string      // setup-instructions box (#f8f9ff in light)
   infoBorder: string  // (#e8ecff in light)
   infoHead: string    // (#333 in light)
@@ -44,6 +58,8 @@ const LIGHT: LeadPalette = {
   surface: '#fff', hover: '#fafafa', border: '#e5e7eb', divider: '#f0f0f0',
   inputBorder: '#ddd', activeBtn: '#f0f0f0', mutedBtnBg: '#f5f5f5', codeBg: '#f5f5f5',
   errBg: '#fdecea', errText: '#b71c1c',
+  // 4.56:1 — the pair the chip already used inline, which was right for this palette and only this one.
+  okBg: '#e8f5e9', okText: '#2e7d32',
   infoBg: '#f8f9ff', infoBorder: '#e8ecff', infoHead: '#333', infoBody: '#555',
   link: '#2563eb',
   statNew: '#1565c0', statContacted: '#c2410c', statConverted: '#2e7d32',
@@ -56,6 +72,9 @@ const DARK: LeadPalette = {
   surface: '#1e293b', hover: '#0f172a', border: '#334155', divider: '#334155',
   inputBorder: '#475569', activeBtn: '#334155', mutedBtnBg: '#334155', codeBg: '#0f172a',
   errBg: '#3b1f1f', errText: '#fca5a5',
+  // The green chip, lifted the same way errBg/errText are: a dark wash with light ink. 9.65:1,
+  // against the 1.5:1-ish the hardcoded light-mode pair gave on this surface.
+  okBg: '#1b3326', okText: '#86efac',
   infoBg: '#1e2a44', infoBorder: '#334155', infoHead: '#cbd5e1', infoBody: '#94a3b8',
   // lifted onto the dark card: ~9:1 each, against 2.55/3.1/3.4 for the light-mode hexes
   link: '#90caf9',

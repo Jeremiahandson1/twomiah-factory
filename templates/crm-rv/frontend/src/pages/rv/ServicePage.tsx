@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Loader2, X, Wrench } from 'lucide-react';
 import api from '../../services/api';
+import { PageError, errorText } from '../../shared';
 
 /**
  * Service Department — repair orders backed by /api/repair-orders.
@@ -53,6 +54,8 @@ export default function ServicePage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [showForm, setShowForm] = useState<boolean>(false);
+  // A refusal from the status dropdown on a row — no form, so it belongs at the top of the board.
+  const [pageErr, setPageErr] = useState<string>('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -64,6 +67,7 @@ export default function ServicePage() {
       setRows(res.data || []);
     } catch (error) {
       console.error('Failed to load repair orders:', error);
+      setPageErr(errorText(error, 'Could not load the repair orders. Try again.'));
     } finally {
       setLoading(false);
     }
@@ -73,10 +77,13 @@ export default function ServicePage() {
 
   const changeStatus = async (id: string, status: string) => {
     setRows((prev) => prev.map((r) => (r.ro.id === id ? { ...r, ro: { ...r.ro, status } } : r)));
+    setPageErr('');
     try {
       await api.put(`/api/repair-orders/${id}`, { status });
     } catch (err) {
-      alert((err as Error)?.message || 'Failed to update status');
+      // The reason a repair order cannot move — parts on order, an unsigned authorisation — is
+      // what the advisor needs to read, so it stays on the page. (T58d)
+      setPageErr(errorText(err, 'Could not update that repair order.'));
       load();
     }
   };
@@ -92,6 +99,8 @@ export default function ServicePage() {
           <Plus className="w-4 h-4" /> New Repair Order
         </button>
       </div>
+
+      <PageError message={pageErr} onDismiss={() => setPageErr('')} />
 
       <div className="flex items-center gap-3">
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-4 py-2 border rounded-lg">
@@ -168,6 +177,7 @@ function RoFormModal({ onSave, onClose }: RoFormModalProps) {
   const [contacts, setContacts] = useState<ContactOption[]>([]);
   const [units, setUnits] = useState<UnitOption[]>([]);
   const [saving, setSaving] = useState<boolean>(false);
+  const [err, setErr] = useState<string>('');
   const [form, setForm] = useState({
     customerId: '', unitId: '', customerUnitInfo: '',
     advisorName: '', estimatedTotal: '', status: 'open', services: '', notes: '',
@@ -192,7 +202,8 @@ function RoFormModal({ onSave, onClose }: RoFormModalProps) {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!form.customerId) { alert('Customer is required'); return; }
+    if (!form.customerId) { setErr('Choose the customer this repair order is for.'); return; }
+    setErr('');
     setSaving(true);
     try {
       const services = form.services.split(',').map((s) => s.trim()).filter(Boolean);
@@ -207,8 +218,8 @@ function RoFormModal({ onSave, onClose }: RoFormModalProps) {
         notes: form.notes || undefined,
       });
       onSave();
-    } catch (err) {
-      alert((err as Error).message || 'Failed to create repair order');
+    } catch (e2) {
+      setErr(errorText(e2, 'Could not create the repair order.'));
     } finally {
       setSaving(false);
     }
@@ -271,6 +282,7 @@ function RoFormModal({ onSave, onClose }: RoFormModalProps) {
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} className="w-full px-3 py-2 border rounded-lg" />
             </div>
+            <PageError message={err} />
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg disabled:opacity-50">

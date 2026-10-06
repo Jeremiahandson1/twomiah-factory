@@ -57,7 +57,36 @@ export function dealErrors(d: Deal, already: Partial<Record<keyof Deal, string>>
     else if (d[k] > DEAL_MAX) errors[k] = `${DEAL_LABELS[k]} is too large`;
   }
   if (!already.taxRate && (d.taxRate < 0 || d.taxRate > 25)) errors.taxRate = 'Tax rate must be between 0% and 25%';
-  if (!already.discount && !errors.discount && d.discount > d.price) errors.discount = "Discount can't be more than the selling price";
+  /**
+   * …and not when the PRICE is the thing that is wrong. (T58d)
+   *
+   * With a price of −3, `discount > price` is 0 > −3, so a deal with one bad field reported two and
+   * sent the salesperson to an input that is fine. The server skipped it; the screen did not, which
+   * is the divergence check-rv-deal-rules-agree.ts found the moment it was written.
+   */
+  if (!already.discount && !errors.discount && !already.price && !errors.price && d.discount > d.price) {
+    errors.discount = "Discount can't be more than the selling price";
+  }
+  /**
+   * A DOWN PAYMENT CANNOT EXCEED THE DEAL. (T42 → T58d)
+   *
+   * Owner: "a down payment of 999,999 is accepted." The only ceiling was DEAL_MAX — ten million —
+   * which guards a typo in any money field rather than saying anything about this one. $999,999 down
+   * on a $30,000 trailer is not a deal; `financed` clamps at 0 and the overpayment silently vanishes.
+   *
+   * Checked last, and only when the figures it is derived from are themselves valid, so a bad price
+   * does not also produce a confusing complaint about the down payment. The server applies the same
+   * rule in salesLeads.ts dealInput() — and check-rv-deal-rules-agree.ts runs both over the same
+   * cases, because the comment at the top of this function has claimed they match before and was
+   * wrong about exactly this.
+   */
+  const moneyOk = MONEY_KEYS.every((k) => !already[k] && !errors[k]);
+  if (!already.down && !errors.down && moneyOk && !already.taxRate && !errors.taxRate) {
+    const otd = dealTotals(d).outTheDoor;
+    if (d.down > otd + 0.01) {
+      errors.down = `Down payment can't be more than the out-the-door total of ${otd.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`;
+    }
+  }
   return errors;
 }
 

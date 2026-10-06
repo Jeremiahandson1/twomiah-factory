@@ -77,7 +77,9 @@ export function LeadSourcesPage({ api, toast, config }: { api: LeadsApi; toast?:
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <code style={{ flex: 1, padding: '8px 12px', background: c.codeBg, borderRadius: 6, fontSize: 13, fontFamily: mono ? 'monospace' : undefined, wordBreak: breakAll ? 'break-all' : undefined }}>{value}</code>
         <button type="button" aria-label={`Copy ${label}`} onClick={() => copyToClipboard(value, field)} style={{ padding: '8px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, background: c.surface, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-          {copiedField === field ? <Check size={14} color="#2e7d32" /> : <Copy size={14} />}
+          {/* The third site with the same hardcoded green — the copy-confirmation tick. Found by the
+              guard, not by me: I fixed the two the owner named and missed this one. (T58d) */}
+          {copiedField === field ? <Check size={14} color={c.statConverted} /> : <Copy size={14} />}
         </button>
       </div>
     </div>
@@ -142,11 +144,18 @@ export function LeadSourcesPage({ api, toast, config }: { api: LeadsApi; toast?:
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ width: 10, height: 10, borderRadius: '50%', background: color }} />
                     <span style={{ fontWeight: 700, fontSize: 16 }}>{source.label}</span>
-                    <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: source.enabled ? '#e8f5e9' : c.mutedBtnBg, color: source.enabled ? '#2e7d32' : c.faint }}>{source.enabled ? 'Active' : 'Paused'}</span>
+                    {/* okBg/okText, not a hardcoded #e8f5e9 — that was the pale lozenge on the dark
+                        card. The Paused half was already palette-driven; only the Active half was
+                        written inline, which is why it was the only one that broke. (T58d) */}
+                    <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: source.enabled ? c.okBg : c.mutedBtnBg, color: source.enabled ? c.okText : c.faint }}>{source.enabled ? 'Active' : 'Paused'}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {mayManageSources && <>
-                    <button type="button" aria-label={source.enabled ? 'Pause source' : 'Resume source'} disabled={busy === `toggle:${source.id}`} onClick={() => toggleSource(source)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: source.enabled ? '#2e7d32' : c.faint }}>
+                    {/* The toggle carried the SAME hardcoded #2e7d32 as the chip beside it — green ink
+                        on the dark card, ~2.6:1. statConverted is the palette's green and moves with
+                        the theme. Fixed with the chip, because a report naming one site is rarely one
+                        site. (T58d) */}
+                    <button type="button" aria-label={source.enabled ? 'Pause source' : 'Resume source'} disabled={busy === `toggle:${source.id}`} onClick={() => toggleSource(source)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: source.enabled ? c.statConverted : c.faint }}>
                       {source.enabled ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
                     </button>
                     <button type="button" aria-label="Remove source" disabled={busy === `delete:${source.id}`} onClick={() => deleteSource(source)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}>

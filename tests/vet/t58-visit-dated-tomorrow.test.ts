@@ -55,13 +55,26 @@ check('a null date is not an error', visitDateError(null, 'UTC') === null)
 const junk = visitDateError('not a date', 'UTC')
 check('junk is refused', !!junk && /not a date/i.test(junk), junk)
 
-// A full timestamp is resolved to the day it falls on in the practice's zone, not the server's.
-// 2026-10-07T02:00Z is still the 6th in New York, so a New York practice may record it.
-check('a timestamp that is tomorrow in UTC but today in New York is accepted',
-  visitDateError(`${dayIn('America/New_York')}T23:30:00-04:00`, 'America/New_York') === null,
-  visitDateError(`${dayIn('America/New_York')}T23:30:00-04:00`, 'America/New_York'))
+/**
+ * A TIMESTAMP IS JUDGED AS AN INSTANT, NOT AS A DAY — and the T41 case is why.
+ *
+ * T41 put a clinic whose clock runs ahead of the server deliberately in scope: the instant lands a
+ * few hours in the future and must still save. My first version of this rule compared calendar days
+ * for timestamps too, which refused that — and made the answer depend on the time of day the suite
+ * ran, fine at 2pm and refused at 11pm. That flakiness hid a real defect earlier in this campaign,
+ * so these are expressed as offsets from NOW and are deterministic at every hour.
+ */
+const hours = (n: number) => new Date(Date.now() + n * 3_600_000).toISOString()
+check('a timestamp 6 hours ahead is accepted — a clock ahead of the server, which is T41\'s case',
+  visitDateError(hours(6), 'America/New_York') === null, visitDateError(hours(6), 'America/New_York'))
+check('…and one 2 hours ahead', visitDateError(hours(2), 'UTC') === null, visitDateError(hours(2), 'UTC'))
+check('…and one in the past, obviously', visitDateError(hours(-30), 'UTC') === null)
+check('a timestamp a full day ahead is refused — that is not skew',
+  visitDateError(hours(25), 'America/New_York') !== null, visitDateError(hours(25), 'America/New_York'))
+check('…and so is one a week ahead', visitDateError(hours(24 * 7), 'UTC') !== null)
 
 // An unknown zone must not throw or silently accept everything — it falls back, and the rule holds.
+// A DATE two days out, so this is about the zone fallback and not about the skew window.
 check('an invalid zone falls back rather than throwing', visitDateError(dayIn('UTC', 2), 'Mars/Olympus') !== null,
   visitDateError(dayIn('UTC', 2), 'Mars/Olympus'))
 

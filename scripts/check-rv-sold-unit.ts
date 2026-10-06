@@ -10,6 +10,7 @@ import { join } from 'node:path'
 // The ONE comment stripper (scripts/lib/stripComments.ts): string-aware, so a route pattern like
 // '/file/*' or a `src/**` in a line comment cannot pair with a later `*/` and delete real code. (T57)
 import { stripSource as strip } from './lib/stripComments.ts'
+import { surfacesTheReason } from './lib/surfacesTheReason.ts'
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 const read = (p: string) => strip(readFileSync(join(ROOT, p), 'utf8'))
 
@@ -58,7 +59,13 @@ for (const f of walk('templates/crm-rv/backend/src')) {
 const page = read('templates/crm-rv/frontend/src/pages/rv/SalesPipelinePage.tsx')
 if (!/\{ value: 'closed_won', label: 'Sold' \}/.test(page) || !/\{ value: 'closed_lost', label: 'Lost' \}/.test(page)) fail('pipeline stages must read "Sold" and "Lost"')
 if (!/row\.unitStatus === 'sold'/.test(page) || !/>Unit sold</.test(page)) fail('pipeline must flag open leads whose unit is sold ("Unit sold")')
-if (!/alert\(err\?\.message \|\| 'Failed to move lead'\)/.test(page)) fail("pipeline must show the server's reason when a move is refused")
+// The RULE, not one spelling of it — see scripts/lib/surfacesTheReason.ts. This pinned
+// `alert(err?.message || 'Failed to move lead')` and failed when the refusal moved onto the
+// page, which is a better screen than the one it was guarding. (T58d)
+{
+  const r = surfacesTheReason(page, /const moveTo = async/, 'the pipeline move')
+  if (!r.ok) fail(r.why)
+}
 
 const seed = read('templates/crm-rv/backend/db/seed.template.ts')
 if (/unitId: unitId\(i\)/.test(seed)) fail('seed must not wrap sales leads back onto units 0–3 (the sold ones) with unitId(i)')

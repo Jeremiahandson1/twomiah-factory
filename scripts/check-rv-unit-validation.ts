@@ -6,6 +6,7 @@
 //   bun scripts/check-rv-unit-validation.ts
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { surfacesTheReason, surfacesWarnings } from './lib/surfacesTheReason.ts'
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8')
 let failed = 0
@@ -31,7 +32,13 @@ if (!/const LISTABLE = \['available'\]/.test(s)) fail('the public feed must list
 if (!/const listings = await buildFeed\(comp\.id, LISTABLE\)/.test(s)) fail('the public token feed must use LISTABLE')
 if (!/const EXPORTABLE = \['available', 'pending'\]/.test(s) || !/filter\(s => EXPORTABLE\.includes\(s\)\)/.test(s)) fail('the dealer export may include pending only when asked, and never sold')
 
-if (!/if \(saved\?\.warnings\?\.length\) alert\(/.test(read('templates/crm-rv/frontend/src/pages/rv/InventoryPage.tsx'))) fail('the Inventory form must show pricing warnings after saving')
+{
+  // The server FLAGS unusual pricing and the screen must show it. This pinned an alert() fired a
+  // line before the modal closed — the pop-up outlived the screen it belonged to, which is the
+  // clearest argument against one. The warnings now travel to the page via onSave. (T58d)
+  const r = surfacesWarnings(read('templates/crm-rv/frontend/src/pages/rv/InventoryPage.tsx'), 'the Inventory form')
+  if (!r.ok) fail(r.why)
+}
 
 if (failed) { console.error(`\nrv unit validation: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('rv unit validation: units need category, stock number, year, make, model and a valid VIN; edits are validated; the public feed lists available units only')
