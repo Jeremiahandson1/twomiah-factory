@@ -24,6 +24,30 @@ export const dateOnly = (v: unknown) => {
   return new Date(y, m - 1, d).toLocaleDateString()
 }
 export const dateTime = (v: unknown) => (v ? new Date(String(v)).toLocaleString() : '-')
+
+/**
+ * WHAT A MISSING DUE DATE MEANS, in one place. (T58)
+ *
+ *   "Field service: 16 invoices have no due date."
+ *
+ * The detail page answered this properly — "Upon receipt" — and the list rendered dateOnly(null),
+ * which is a bare "-". Same fact, two answers, and the list is the one somebody counts: sixteen rows
+ * reading "-" look like sixteen invoices missing a field, rather than sixteen payable on receipt.
+ *
+ * An invoice with no due date IS payable immediately. That is what payment terms of zero days means,
+ * and it is the case the server's dueDateFromTerms deliberately produces no date for. Saying so is the
+ * fix; inventing a date for rows that never had one would be worse, because it would assert terms
+ * nobody agreed.
+ */
+export const dueDateLabel = (v: unknown) => (v ? dateOnly(v) : 'Upon receipt')
+
+/**
+ * …and a missing quote expiry, for the same reason. (T58, "35 quotes have no expiry")
+ *
+ * A quote without a valid-until date does not lapse. "-" reads as a gap in the record; "No expiry" is
+ * the actual term, and it is the one a customer would be held to.
+ */
+export const expiryLabel = (v: unknown) => (v ? dateOnly(v) : 'No expiry')
 /**
  * The calendar day an INSTANT falls on, read on the reader's own clock.
  *

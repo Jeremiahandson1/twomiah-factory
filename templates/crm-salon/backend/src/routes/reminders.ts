@@ -7,6 +7,9 @@ import { authenticate } from '../middleware/auth.ts'
 import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { sendSMS } from '../services/sms.ts'
 import { salonToday } from '../utils/salonDate.ts'
+// Who is due, computed once for this list and for the dashboard's tile. (T58)
+// excludedCategories and shiftDays moved with it — they were only ever used by that computation.
+import { dueRebookings } from '../services/rebookingDue.ts'
 
 /**
  * Rebooking / recall engine — the retention wedge.
@@ -54,35 +57,9 @@ async function rebookingTemplates(companyId: string): Promise<Record<string, str
   } catch { return {} }
 }
 
-async function excludedCategories(companyId: string): Promise<Set<string>> {
-  try {
-    const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
-    const raw = (co?.settings as any)?.rebookingCategoriesOff
-    // Matched the same way the rhythms are keyed, so switching off "Waxing" also switches off
-    // "waxing" — a salon should not have to know how their own menu was capitalised. Through the
-    // same helper, so switching off "Colour" also switches off "Color": a category that is one
-    // category for chasing has to be one category for switching off too, or the shop turns it off
-    // and half of it keeps ringing. (RR0929)
-    return new Set(Array.isArray(raw) ? raw.map((s: any) => categoryKey(s)) : [])
-  } catch { return new Set() }
-}
-
-// The rebooking list is answered on the SHOP's calendar, like every other day question in this
-// template (utils/salonDate.ts, Salon T25 N2). It was the one place the N2 sweep missed: `overdue`
-// compared a client's due date against the UTC day, so from 7pm in Chicago every client due TOMORROW
-// was already flagged overdue — and that flag is not just a label, it decides who gets chased.
-// Shifting a plain YYYY-MM-DD by whole days keeps it a calendar question; going via Date.now() would
-// put the UTC clock straight back in.
-// Date.UTC here is calendar arithmetic on a date that is ALREADY the shop's, not a reading of the
-// clock — it never asks what time it is. Formatted by hand rather than via toISOString().slice(0, 10)
-// so it cannot be mistaken for the UTC-today bug, by a reader or by
-// scripts/check-salon-days-are-the-shop-calendar.ts.
-const shiftDays = (day: string, delta: number) => {
-  const [y, m, d] = day.split('-').map(Number)
-  const t = new Date(Date.UTC(y, m - 1, d) + delta * 86400000)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`
-}
+// excludedCategories (which service categories this salon does not chase) and shiftDays (whole-day
+// arithmetic on the SHOP's calendar, Salon T25 N2) moved into services/rebookingDue.ts with the
+// computation that was their only caller. The notes on why each works the way it does moved with them.
 
 // GET /reminders/due?window=14&maxOverdue=90 — clients whose next visit is due
 // within `window` days or overdue by up to `maxOverdue` days. The overdue floor
@@ -93,89 +70,15 @@ app.get('/due', requirePermission('contacts:read'), async (c) => {
   const u = c.get('user') as any
   const windowDays = Math.min(365, Math.max(1, +(c.req.query('window') || '14')))
   const maxOverdue = Math.min(3650, Math.max(1, +(c.req.query('maxOverdue') || '90')))
-  const today = await salonToday(u.companyId)
-  const cutoff = shiftDays(today, windowDays)
-  const floor = shiftDays(today, -maxOverdue)
-
-  const rows = await db.select({
-    recordId: serviceRecord.id,
-    performedAt: serviceRecord.performedAt,
-    serviceId: serviceRecord.serviceId,
-    serviceName: serviceMenu.name,
-    category: serviceMenu.category,
-    rebookIntervalDays: serviceMenu.rebookIntervalDays,
-    stylistFirstName: user.firstName,
-    stylistLastName: user.lastName,
-    contactId: contact.id,
-    clientName: contact.name,
-    clientEmail: contact.email,
-    clientPhone: contact.phone,
-    clientMobile: contact.mobile,
-  })
-    .from(serviceRecord)
-    .innerJoin(serviceMenu, eq(serviceRecord.serviceId, serviceMenu.id))
-    .leftJoin(contact, eq(serviceRecord.contactId, contact.id))
-    .leftJoin(user, eq(serviceRecord.stylistId, user.id))
-    .where(and(eq(serviceRecord.companyId, u.companyId), isNotNull(serviceMenu.rebookIntervalDays)))
-
-  // ── one row per client per RHYTHM, not per service ───────────────────────────────────────────
-  //
-  // This used to key on (client, service), so a client who had a root touch-up and a cut in the
-  // same visit appeared TWICE on the same date — Sarah Mitchell, 3 September, two rows, one client
-  // and one phone call. A salon's recall is organised by the rhythm a client is on, and a client
-  // who alternates a gloss with a full colour is on ONE colour rhythm, not two. Phorest groups by
-  // Service Category for exactly this reason; so does this now. Which categories a salon wants
-  // chased is theirs to say (settings.rebookingCategoriesOff).
-  const excluded = await excludedCategories(u.companyId)
-  const byRhythm = new Map<string, any[]>()
-  for (const r of rows) {
-    if (!r.contactId) continue
-    // Category is free text on the menu row, and a real tenant has both "Color" and "colour" on it.
-    // Grouping on the raw string would put one client on two rhythms that are the same rhythm, and
-    // then chase her twice for it — the exact bug this grouping exists to fix, re-entering through
-    // the shift key. categoryKey folds case, spacing AND the British/American spelling (RR0929);
-    // the row still shows what the menu says.
-    const category = String(r.category || 'other')
-    const rhythm = categoryKey(category)
-    if (excluded.has(rhythm)) continue
-    const key = `${r.contactId}|${rhythm}`
-    const list = byRhythm.get(key)
-    if (list) list.push(r); else byRhythm.set(key, [r])
-  }
-
-  const t = today
-  const data = [...byRhythm.values()]
-    .map((visits) => {
-      // The most recent visit in this rhythm is the one the row is ABOUT — its date, its service
-      // and its stylist are what the desk needs when they pick up the phone.
-      const last = visits.reduce((a, b) => (new Date(a.performedAt) > new Date(b.performedAt) ? a : b))
-      // …and the whole history is what decides WHEN. A client with three or more visits in this
-      // category is on her own rhythm; the menu's figure is for a client we do not know yet.
-      const interval = rebookInterval(visits.map((v) => v.performedAt), last.rebookIntervalDays)
-      if (!interval.days) return null
-      return {
-        ...last,
-        // Kept for every screen that already reads it, now meaning "the interval actually used".
-        rebookIntervalDays: interval.days,
-        intervalBasis: interval.basis,
-        intervalNote: describeInterval(interval),
-        visitsInRhythm: visits.length,
-        dueDate: dayStr(new Date(new Date(last.performedAt).getTime() + interval.days * 86400000)),
-      }
-    })
-    .filter((r): r is any => !!r)
-    .filter(r => r.dueDate <= cutoff && r.dueDate >= floor)
-    .map(r => ({ ...r, overdue: r.dueDate < t }))
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
-
-  // A client who already has a future appointment has effectively rebooked — don't nag
-  // them (and don't text them as overdue). (RECALL-02)
-  const booked = new Set(
-    (await db.select({ contactId: appointment.contactId }).from(appointment)
-      .where(and(eq(appointment.companyId, u.companyId), gt(appointment.startTime, new Date()))))
-      .map(a => a.contactId).filter(Boolean)
-  )
-  const filtered = data.filter(r => !booked.has(r.contactId))
+  /**
+   * The rows come from services/rebookingDue.ts, which is also what the dashboard tile counts. (T58)
+   *
+   * This computation used to live here and the dashboard had its own, keyed on (contact, service) and
+   * applying none of the four rules below it — so the tile and this list gave different numbers while
+   * the dashboard's comment claimed they could not. The whole of it moved out rather than being copied
+   * across: a rule added to recall has to move the tile with it.
+   */
+  const filtered = await dueRebookings(u.companyId, { windowDays, maxOverdue })
 
   // ── the category IS the screen, not a column on it ───────────────────────────────────────────
   //

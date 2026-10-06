@@ -118,7 +118,10 @@ async function findStationConflict(companyId: string, station: string, start: Da
 
 // Closing a visit: create the sale once and queue the review request. Never throws â€” the status
 // change must succeed even if billing or reviews hiccup. (SALON-H4 / H2)
-async function onVisitCompleted(row: typeof appointment.$inferSelect): Promise<string | null> {
+// `actor` travels with the row so the invoice this raises names who raised it in the audit log. The
+// appointment update was logged and the SALE was not, so the log showed a visit closing with no money
+// beside it. (T58)
+async function onVisitCompleted(row: typeof appointment.$inferSelect, actor?: any): Promise<string | null> {
   if (!row.contactId) return null
   let invoiceId: string | null = null
 
@@ -144,7 +147,7 @@ async function onVisitCompleted(row: typeof appointment.$inferSelect): Promise<s
   } catch (e: any) { console.warn('[appointments] service menu not read:', e?.message || e) }
 
   try {
-    const inv = await ensureInvoiceForVisit({ companyId: row.companyId, contactId: row.contactId, appointmentId: row.id, serviceName, price })
+    const inv = await ensureInvoiceForVisit({ companyId: row.companyId, contactId: row.contactId, appointmentId: row.id, serviceName, price, actor })
     invoiceId = inv?.id || null
   } catch (e: any) { console.warn('[appointments] sale not created:', e?.message || e) }
   // The visit itself: a completed appointment IS a visit, so write the service record (once) â€”
@@ -533,7 +536,7 @@ app.put('/:id', requirePermission('schedule:update'), async (c) => {
   // what five of six simultaneous requests see â€” still answers with the bill this visit has, so a
   // screen that links to the invoice afterwards has something to link to. (Salon RR8 observation)
   const invoiceId = nextStatus === 'completed'
-    ? (existing.status !== 'completed' ? await onVisitCompleted(updated) : await invoiceIdForVisit(currentUser.companyId, id))
+    ? (existing.status !== 'completed' ? await onVisitCompleted(updated, currentUser) : await invoiceIdForVisit(currentUser.companyId, id))
     : null
   // â€¦and the other direction. A visit that is cancelled or marked a no-show after it was completed
   // gives its points and its punch back, or a salon could fill a card by completing and cancelling

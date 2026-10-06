@@ -14,11 +14,22 @@ const WINDOW_START_H = 22
 const WINDOW_END_H = 26
 const INTERVAL_MS = 10 * 60 * 1000
 
+/**
+ * The time in the reminder text — in the salon's zone, and SAYING so. (T58)
+ *
+ * This goes out as an SMS, so it is read by a client who is not at the salon and has no screen to
+ * explain the conversion. "Tue, Oct 7, 2:00 PM" is the one line of the message that matters and it did
+ * not say whose two o'clock. Same fault as the audit log, the bookings list, the dispensary's kiosk
+ * column and the booking confirmation email, all found in this round.
+ *
+ * The fallback names a zone too — there it is the SERVER's, which is worth saying out loud rather than
+ * letting a reader assume it is theirs.
+ */
 function fmtWhen(d: Date, timeZone: string): string {
   try {
-    return d.toLocaleString('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    return d.toLocaleString('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })
   } catch {
-    return d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    return d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })
   }
 }
 

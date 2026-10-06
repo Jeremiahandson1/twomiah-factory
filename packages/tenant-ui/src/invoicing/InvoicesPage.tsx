@@ -4,7 +4,7 @@ import { Plus, Edit, Trash2, Send, DollarSign, Ban, RotateCcw } from 'lucide-rea
 import type { InvoicingPageProps, LineItemInput } from './types'
 import { resolveConfig } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
-import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PAYMENT_METHODS, PageHeader, StatusBadge, TotalsBox, calcTotals, dateOnly, errMsg, inputCls, money, moneyInputError, refundEffectNote, selectCls } from './ui'
+import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PAYMENT_METHODS, PageHeader, StatusBadge, TotalsBox, calcTotals, dueDateLabel, errMsg, inputCls, money, moneyInputError, refundEffectNote, selectCls } from './ui'
 
 type Row = Record<string, any> & { id: string }
 interface InvoiceForm { contactId: string; projectId: string; dueDate: string; taxRate: number; discount: number; notes: string; lineItems: LineItemInput[] }
@@ -177,7 +177,9 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
       // the file is shared. The dark partner already cleared AA and is unchanged. (Salon T26 N1 residual)
       return Number(r.amountPaid || 0) > 0 ? <span className="text-green-700 dark:text-green-300">Paid</span> : <span className="text-gray-500 dark:text-slate-400">-</span>
     } },
-    { key: 'dueDate', label: 'Due', render: (v: any) => dateOnly(v) },
+    // "Upon receipt", the same words the detail page uses — not the bare "-" that had sixteen rows
+    // counted as missing due dates. One helper, so the two cannot drift again. (T58)
+    { key: 'dueDate', label: 'Due', render: (v: any) => dueDateLabel(v) },
   ]
 
   return (

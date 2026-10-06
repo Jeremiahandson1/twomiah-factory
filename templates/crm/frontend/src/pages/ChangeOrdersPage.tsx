@@ -213,6 +213,31 @@ export default function ChangeOrdersPage() {
     setSearchParams(next, { replace: true });
   }, [searchParams, projectFilter, can, setSearchParams]);
 
+  /**
+   * `?view=<id>` opens THAT change order's detail. (T58)
+   *
+   * The read-only modal above gave the page a detail view, and the project page — where somebody
+   * actually notices a change order and wants to read it — had no way to reach one. Its panel rows
+   * were not clickable and its View All landed on an unfiltered-by-row list, so "open this change
+   * order" meant arriving here and finding the row again by eye.
+   *
+   * Waits for the rows: the id is matched against what the list has loaded, so a deep link that
+   * arrives before the fetch finishes still opens once the data is there. If the id is not in this
+   * page of results the parameter is dropped and the list stands, rather than a modal opening on
+   * nothing — a change order on page three of a filtered list is a real case.
+   *
+   * The parameter is removed once acted on, like `new` above, so Back does not reopen it.
+   */
+  useEffect(() => {
+    const wanted = searchParams.get('view');
+    if (!wanted) return;
+    if (!data.length) return;
+    const found = data.find((i: Record<string, unknown>) => String(i.id) === wanted);
+    if (found) openView(found);
+    const next = new URLSearchParams(searchParams); next.delete('view');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, data, setSearchParams]);
+
   const filteredProjectName = projectFilter
     ? String((projects.find((p: Record<string, unknown>) => p.id === projectFilter)?.name as string) || '')
     : '';

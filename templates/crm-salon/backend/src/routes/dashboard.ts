@@ -7,6 +7,8 @@ import { isClient } from '../utils/clientTypes.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { clientsOf } from '../utils/clientTypes.ts'
+// The tile and the recall list count the same thing, so they ask the same function. (T58)
+import { dueRebookings } from '../services/rebookingDue.ts'
 
 /**
  * Salon dashboard — the book today, revenue in the chair, who is due back, and
@@ -75,32 +77,33 @@ app.get('/stats', async (c) => {
       .where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, startOfMonth), lt(serviceRecord.performedAt, startOfNextMonth), or(isNotNull(serviceRecord.stylistId), isNotNull(serviceRecord.stylistMemberId))))
       .groupBy(serviceRecord.stylistId, serviceRecord.stylistMemberId, user.firstName, user.lastName, teamMember.name), [] as any[]),
     safe(() => db.select({ value: count() }).from(membershipEnrollment).where(and(eq(membershipEnrollment.companyId, companyId), eq(membershipEnrollment.status, 'active'))), [{ value: 0 }]),
-    // Rebooking due: latest visit per (client, service) whose interval has elapsed
-    // or elapses within 14 days. Mirrors GET /reminders/due — same rule, one number.
-    safe(() => db.select({
-      contactId: serviceRecord.contactId,
-      serviceId: serviceRecord.serviceId,
-      performedAt: sql<string>`max(${serviceRecord.performedAt})`,
-      interval: serviceMenu.rebookIntervalDays,
-    })
-      .from(serviceRecord)
-      .innerJoin(serviceMenu, eq(serviceRecord.serviceId, serviceMenu.id))
-      .where(and(eq(serviceRecord.companyId, companyId), isNotNull(serviceMenu.rebookIntervalDays)))
-      .groupBy(serviceRecord.contactId, serviceRecord.serviceId, serviceMenu.rebookIntervalDays), [] as any[]),
+    /**
+     * REBOOKING DUE — the same computation the recall list runs, not a second one. (T58)
+     *
+     *   "Salon: the rebooking counts disagree."
+     *
+     * The old comment here said "Mirrors GET /reminders/due — same rule, one number", and the query
+     * under it mirrored nothing: it grouped by (contact, service), so a client who had a root
+     * touch-up and a cut in one visit was counted twice — the exact double-count the recall list was
+     * fixed for — and it applied the MENU's interval to everybody, counted the categories the salon
+     * had switched off, and counted clients who already hold a future appointment. Four rules
+     * missing, each pushing the tile above the list by a different amount per tenant.
+     *
+     * The claim being in a comment while the rule was not is how it survived being read. Now there is
+     * one function, and the window (14 days ahead, 90 days of overdue) is the recall list's default
+     * rather than a pair of constants repeated below.
+     */
+    safe(() => dueRebookings(companyId, { windowDays: 14, maxOverdue: 90 }), [] as any[]),
   ])
 
   const revenueThisMonth = revenueRows.reduce((s: number, r: any) => s + Number(r.amt || 0), 0)
 
-  const t = today.getTime()
-  const soon = t + 14 * 86400000
-  const floor = t - 90 * 86400000
-  let overdue = 0, dueSoon = 0
-  for (const r of dueRows as any[]) {
-    const due = new Date(r.performedAt).getTime() + Number(r.interval) * 86400000
-    if (due < floor) continue
-    if (due < t) overdue++
-    else if (due <= soon) dueSoon++
-  }
+  // dueRebookings has already applied the window, the overdue floor, the rhythm grouping, the
+  // switched-off categories and the already-booked exclusion, and stamped `overdue` on each row using
+  // the SHOP's calendar day. So the tile only has to split what it was handed — recomputing the dates
+  // here against the server's clock is what made the two numbers disagree.
+  const overdue = (dueRows as any[]).filter((r) => r.overdue).length
+  const dueSoon = (dueRows as any[]).length - overdue
 
   // What clients still owe — the portal home showed $0 because it read a key this dashboard never set. (SALON-M14)
   // Outstanding MUST use the same balance model as the invoice list / /stats / Reports, or the dashboard

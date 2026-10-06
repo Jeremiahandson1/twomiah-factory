@@ -5,7 +5,7 @@ import type { InvoicingPageProps, LineItemInput } from './types'
 import { resolveConfig } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { todayKey } from '../time/day'
-import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PageHeader, StatusBadge, TotalsBox, calcTotals, dateOnly, errMsg, inputCls, money, moneyInputError, selectCls } from './ui'
+import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PageHeader, StatusBadge, TotalsBox, calcTotals, errMsg, expiryLabel, inputCls, money, moneyInputError, selectCls } from './ui'
 
 type Row = Record<string, any> & { id: string }
 interface QuoteForm { name: string; contactId: string; projectId: string; siteId: string; equipmentId: string; expiryDate: string; taxRate: number; discount: number; notes: string; customerMessage: string; terms: string; lineItems: LineItemInput[] }
@@ -138,7 +138,9 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
     { key: 'name', label: 'Name', render: (v: any, r: Row) => <div><p className="font-medium">{v}</p>{r.contact && <p className="text-xs text-gray-500 dark:text-slate-400">{r.contact.name}</p>}</div> },
     { key: 'status', label: 'Status', render: (v: any) => <StatusBadge status={v} /> },
     { key: 'total', label: 'Total', className: 'text-right', render: (v: any) => money(v) },
-    { key: 'expiryDate', label: 'Expires', render: (v: any) => dateOnly(v) },
+    // "No expiry", the same words the detail page uses. A bare "-" had thirty-five rows counted as
+    // quotes missing an expiry, when a quote without a valid-until date simply does not lapse. (T58)
+    { key: 'expiryDate', label: 'Expires', render: (v: any) => expiryLabel(v) },
   ]
 
   return (

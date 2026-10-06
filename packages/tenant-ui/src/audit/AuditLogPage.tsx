@@ -62,6 +62,21 @@ const whenIn = (value: string, tz?: string) => {
     return new Intl.DateTimeFormat(undefined, {
       year: 'numeric', month: 'short', day: 'numeric',
       hour: '2-digit', minute: '2-digit',
+      /**
+       * NAME THE ZONE. (T58)
+       *
+       *   "Events: the two-factor timestamp has no timezone."
+       *
+       * The row said "Oct 6, 2026, 02:14 PM" and nothing more. This page converts every entry into
+       * the COMPANY's zone on purpose — that is the whole of the T41 fix, so an audit entry lines up
+       * with the record it belongs to — and then did not say so, which leaves the reader unable to
+       * tell whether they are looking at their own clock or the shop's. On a security event ("who
+       * turned two-factor off, and when") that ambiguity is the only thing the timestamp is for.
+       *
+       * Named in BOTH cases: with no zone configured the fallback is the reader's own, and an
+       * unlabelled time there is the same ambiguity wearing a different cause.
+       */
+      timeZoneName: 'short',
       ...(tz ? { timeZone: tz } : {}),
     }).format(d)
   } catch {

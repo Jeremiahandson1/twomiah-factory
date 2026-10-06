@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Edit, Trash2, Send, Check, X, FileText, Download, Briefcase, Wrench, MapPinned } from 'lucide-react'
 import type { InvoicingPageProps } from './types'
 import { resolveConfig } from './types'
-import { Button, ConfirmModal, NavLink, StatusBadge, dateOnly, dateTime, downloadFile, errMsg, isPastDay, money } from './ui'
+import { Button, ConfirmModal, NavLink, StatusBadge, dateOnly, dateTime, downloadFile, errMsg, expiryLabel, isPastDay, money } from './ui'
 
 type Q = Record<string, any>
 const EDITABLE = ['draft', 'sent']
@@ -123,7 +123,7 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
               {cfg.projects && quote.project && <div><p className="text-gray-500 dark:text-slate-400">Project</p><NavLink to={`/crm/projects/${quote.project.id}`} className="text-orange-600 dark:text-orange-300 hover:underline">{quote.project.name}</NavLink></div>}
               {cfg.quoteEquipment && quote.equipment && <div><p className="text-gray-500 dark:text-slate-400 flex items-center gap-1"><Wrench className="w-3 h-3" /> Equipment</p><p>{quote.equipment.name}{quote.equipment.manufacturer ? ` — ${quote.equipment.manufacturer}` : ''}{quote.equipment.model ? ` ${quote.equipment.model}` : ''}</p></div>}
               {cfg.quoteSites && quote.site && <div><p className="text-gray-500 dark:text-slate-400 flex items-center gap-1"><MapPinned className="w-3 h-3" /> Location</p><p>{quote.site.name}{quote.site.address ? ` — ${quote.site.address}` : ''}</p></div>}
-              <div><p className="text-gray-500 dark:text-slate-400">Valid Until</p><p className={expired ? 'text-red-600 dark:text-red-300' : ''}>{quote.expiryDate ? dateOnly(quote.expiryDate) : 'No expiry'}</p></div>
+              <div><p className="text-gray-500 dark:text-slate-400">Valid Until</p><p className={expired ? 'text-red-600 dark:text-red-300' : ''}>{expiryLabel(quote.expiryDate)}</p></div>
               <div><p className="text-gray-500 dark:text-slate-400">Created</p><p>{dateTime(quote.createdAt)}</p></div>
             </div>
           </div>

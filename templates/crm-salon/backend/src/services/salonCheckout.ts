@@ -10,8 +10,37 @@ import { invoice, invoiceLineItem, company } from '../../db/schema.ts'
 import { dueDateFromTerms } from '../shared/index.ts'
 import { eq, and } from 'drizzle-orm'
 import { emitToCompany, EVENTS } from './socket.ts'
+import audit from './audit.ts'
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
+
+/**
+ * One audit row for whatever this module does to a bill. (T58)
+ *
+ * `companyId` is passed explicitly as well as through the actor: audit_log.company_id is NOT NULL, so
+ * a bill raised with no signed-in user would otherwise throw on insert and the entry would be eaten by
+ * audit.log's own catch — a logging fix that logs nothing. Never throws, for the same reason the rest
+ * of this path does not: a visit must still close if the log hiccups.
+ */
+async function logInvoice(
+  v: VisitSale,
+  entry: { action: string; entityId: string; entityName?: string | null; changes?: any; metadata?: any },
+): Promise<void> {
+  try {
+    await audit.log({
+      action: entry.action,
+      entity: 'invoice',
+      entityId: entry.entityId,
+      entityName: entry.entityName || undefined,
+      changes: entry.changes,
+      metadata: entry.metadata,
+      companyId: v.companyId,
+      req: v.actor ? { user: v.actor } : undefined,
+    } as any)
+  } catch (e: any) {
+    console.warn('[salonCheckout] invoice not audited:', e?.message || e)
+  }
+}
 
 /**
  * The next INV- number for this company. Exported so every salon invoice comes from one counter.
@@ -43,6 +72,22 @@ export interface VisitSale {
   appointmentId?: string | null
   serviceName?: string | null
   price: number
+  /**
+   * WHO raised the bill, for the audit row. (T58)
+   *
+   *   "Salon: invoices raised by Log Service are not in the audit log."
+   *
+   * Every other way an invoice comes into being writes an audit row; this path — the one a stylist
+   * actually uses — wrote none, and neither did the appointment book's Complete. The appointment
+   * UPDATE was audited, so the log showed a visit closing with no sale beside it, and an invoice that
+   * exists with nothing saying where it came from. On a money record that is the one question the log
+   * is kept for.
+   *
+   * The audit lives in here rather than in each caller, because there are two callers and a third
+   * would be written without it — the same reason the invoice NUMBER comes from one counter. Optional
+   * so an internal or scheduled caller can raise a bill with no signed-in user and still be logged.
+   */
+  actor?: { userId?: string; id?: string; companyId?: string } | null
 }
 
 /**
@@ -86,6 +131,15 @@ export async function ensureInvoiceForVisit(v: VisitSale): Promise<typeof invoic
           .where(eq(invoice.id, linked.id)).returning()
         if (restored) {
           emitToCompany(v.companyId, EVENTS.REFRESH, { entity: 'invoice' })
+          // A bill coming back from void is a money change and belongs in the log as much as raising
+          // one. It had no row either.
+          await logInvoice(v, {
+            action: 'update',
+            entityId: restored.id,
+            entityName: restored.number,
+            changes: { status: { old: 'void', new: 'open' } },
+            metadata: { reason: 'the appointment it was raised from was completed again', appointmentId: v.appointmentId },
+          })
           return restored
         }
       }
@@ -140,5 +194,19 @@ export async function ensureInvoiceForVisit(v: VisitSale): Promise<typeof invoic
   } as any)
 
   emitToCompany(v.companyId, EVENTS.INVOICE_CREATED, created)
+
+  // The sale, in the log. Written after the line item so the audit row describes a bill that is whole.
+  await logInvoice(v, {
+    action: 'create',
+    entityId: created.id,
+    entityName: created.number,
+    metadata: {
+      total: created.total,
+      service: v.serviceName || 'Salon service',
+      appointmentId: v.appointmentId,
+      raisedFrom: v.appointmentId ? 'a completed visit' : 'a service record',
+    },
+  })
+
   return created
 }

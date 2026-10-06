@@ -1115,8 +1115,12 @@ export default function SettingsPage() {
                               home in another state read a last-seen hours out from what the shop saw.
                               effectiveTimeZone is what the server resolved (a set zone, else the
                               licensed state), so this column and the compliance day agree. (T43 N11) */}
+                          {/* …and NAMING that clock. Converting to the store's zone and then not
+                              saying so leaves the owner-from-another-state in exactly the position
+                              T43 N11 was fixing — unable to tell whose time they are reading. Same
+                              fault as the audit log and the bookings list this round. (T58) */}
                           {k.lastSeenAt
-                            ? new Date(k.lastSeenAt).toLocaleString(undefined, effectiveTz ? { timeZone: effectiveTz } : undefined)
+                            ? new Date(k.lastSeenAt).toLocaleString(undefined, { timeZoneName: 'short', ...(effectiveTz ? { timeZone: effectiveTz } : {}) })
                             : '—'}
                         </td>
                         {/* Delete is offered only where it will actually work. It used to sit on every row,

@@ -338,8 +338,23 @@ export default function ProjectDetailPage() {
           {/* Change Orders */}
           {(project.changeOrders?.length ?? 0) > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
-              <div className="p-4 border-b flex items-center justify-between">
-                <h2 className="font-semibold text-gray-900 dark:text-slate-100">Change Orders</h2>
+              <div className="p-4 border-b flex items-center gap-3 justify-between">
+                {/*
+                  * "5 of 11", not a bare heading over a slice. (T58)
+                  *
+                  * The panel shows five rows of a list the server caps at ten, and said nothing about
+                  * either number — so a project with eleven change orders looked like it had five.
+                  * T48 moved the COUNT onto the server for exactly this reason and the heading was
+                  * never given it; `counts.changeOrders` is the real total over every one of them.
+                  */}
+                <h2 className="font-semibold text-gray-900 dark:text-slate-100 min-w-0 truncate">
+                  Change Orders
+                  {(project.counts?.changeOrders ?? 0) > Math.min(project.changeOrders?.length ?? 0, 5) && (
+                    <span className="ml-2 text-sm font-normal text-gray-500 dark:text-slate-400">
+                      showing {Math.min(project.changeOrders?.length ?? 0, 5)} of {project.counts?.changeOrders}
+                    </span>
+                  )}
+                </h2>
                 {/*
                   * No link into a module this person cannot open. (T37 N8)
                   *
@@ -349,38 +364,63 @@ export default function ProjectDetailPage() {
                   * refusal page is the same fault as a button the server rejects.
                   */}
                 {can('change-orders:read') && (
-                  <Link to={`/crm/change-orders?projectId=${id}`} className="text-sm text-orange-700 hover:text-orange-800 dark:text-orange-300 dark:hover:text-orange-200">
+                  <Link to={`/crm/change-orders?projectId=${id}`} className="text-sm text-orange-700 hover:text-orange-800 dark:text-orange-300 dark:hover:text-orange-200 shrink-0">
                     View All
                   </Link>
                 )}
               </div>
               <div className="divide-y">
-                {project.changeOrders!.slice(0, 5).map((co: RelatedItem) => (
-                  <div key={co.id} className="p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <FileDiff className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="font-medium text-gray-900 dark:text-slate-100">{co.title}</p>
-                        <p className="text-sm text-gray-500 dark:text-slate-400">{co.number}</p>
+                {project.changeOrders!.slice(0, 5).map((co: RelatedItem) => {
+                  const row = (
+                    <>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <FileDiff className="w-5 h-5 text-gray-400 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 dark:text-slate-100 truncate">{co.title}</p>
+                          <p className="text-sm text-gray-500 dark:text-slate-400">{co.number}</p>
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      {/*
-                        * `$NaN` on every row, for a whole round. (T37 N7)
-                        *
-                        * The server stops sending `amount` to somebody who may not see money, and
-                        * this printed `$${Number(undefined)}` — so the fix that withheld the figure
-                        * replaced it with nonsense, which looks like a broken page rather than a
-                        * boundary. The ABSENCE of the field is the signal, not a permission check:
-                        * the screen renders what it was given.
-                        */}
-                      {co.amount === undefined || co.amount === null
-                        ? null
-                        : <p className="font-medium tabular-nums">${Number(co.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
-                      <StatusBadge status={co.status} />
-                    </div>
-                  </div>
-                ))}
+                      <div className="text-right shrink-0">
+                        {/*
+                          * `$NaN` on every row, for a whole round. (T37 N7)
+                          *
+                          * The server stops sending `amount` to somebody who may not see money, and
+                          * this printed `$${Number(undefined)}` — so the fix that withheld the figure
+                          * replaced it with nonsense, which looks like a broken page rather than a
+                          * boundary. The ABSENCE of the field is the signal, not a permission check:
+                          * the screen renders what it was given.
+                          */}
+                        {co.amount === undefined || co.amount === null
+                          ? null
+                          : <p className="font-medium tabular-nums">${Number(co.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
+                        <StatusBadge status={co.status} />
+                      </div>
+                    </>
+                  );
+                  /*
+                   * THE ROW OPENS THE CHANGE ORDER. (T58, "no change-order detail page")
+                   *
+                   * A change order is the agreement that changed the contract, and this panel is where
+                   * somebody notices one. The rows were inert: reading one meant going to the module
+                   * and finding it again by eye. ChangeOrdersPage has carried a read-only detail view
+                   * since T41 and nothing linked to it, so `?view=<id>` now opens that one.
+                   *
+                   * Only for a seat that may open the module — the same reason View All is gated above.
+                   * A link whose only outcome is a refusal page is the fault T37 N8 closed, and adding
+                   * five of them per project would reopen it.
+                   */
+                  return can('change-orders:read') ? (
+                    <Link
+                      key={co.id}
+                      to={`/crm/change-orders?projectId=${id}&view=${co.id}`}
+                      className="p-4 flex items-center justify-between gap-3 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
+                    >
+                      {row}
+                    </Link>
+                  ) : (
+                    <div key={co.id} className="p-4 flex items-center justify-between gap-3">{row}</div>
+                  );
+                })}
               </div>
             </div>
           )}

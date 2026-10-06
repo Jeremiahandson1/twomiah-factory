@@ -440,7 +440,9 @@ app.post('/', requirePermission('schedule:create'), async (c) => {
       const [svc] = await db.select({ name: serviceMenu.name }).from(serviceMenu).where(eq(serviceMenu.id, created.serviceId)).limit(1)
       serviceName = svc?.name || null
     }
-    const inv = await ensureInvoiceForVisit({ companyId: currentUser.companyId, contactId: created.contactId, appointmentId: created.appointmentId, serviceName, price: Number(created.priceCharged) })
+    // `actor` so the invoice this raises carries who raised it in the audit log — this is the Log
+    // Service path, the one the owner found missing from it entirely. (T58)
+    const inv = await ensureInvoiceForVisit({ companyId: currentUser.companyId, contactId: created.contactId, appointmentId: created.appointmentId, serviceName, price: Number(created.priceCharged), actor: currentUser })
     invoiceId = inv?.id || null
     // Remember which sale this visit raised, so deleting the visit can answer for it. A visit logged
     // without an appointment had no link to its invoice at all. (T20 H3)

@@ -75,7 +75,15 @@ export function defaultWorkingHours(start = '09:00', end = '17:00'): WorkingHour
   return out
 }
 
-/** Human "Tue, Sep 15 at 10:00 AM" in the business's zone. */
+/**
+ * Human "Tue, Sep 15 at 10:00 AM CDT" in the business's zone — zone INCLUDED. (T58)
+ *
+ * This is the time that goes into the new-booking notification (booking/service.ts), so it is read by
+ * somebody who is not necessarily anywhere near the business. It named the hour in the shop's zone and
+ * never said which zone, which is the same fault found this round on the audit log, the bookings list
+ * and the dispensary's kiosk column — and the most consequential of the four, because an email is read
+ * away from the screen that could have explained it.
+ */
 export function formatWhen(d: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(d)
+  return new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(d)
 }

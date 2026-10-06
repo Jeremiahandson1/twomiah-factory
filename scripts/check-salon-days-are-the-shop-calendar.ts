@@ -46,8 +46,18 @@ const ALLOWED: Record<string, Array<[needle: string, why: string]>> = {
     // day either way at its edges is harmless — but `overdue` is not a window, it is a per-row calendar
     // judgement (`r.dueDate < today`), it is shown to the user, and it decides who gets chased. On the
     // UTC day, every client due TODAY on the shop's calendar came back overdue from 7pm onward. The
-    // exemption is withdrawn; /due now anchors on salonToday() and `overdue` is pinned by
+    // exemption is withdrawn; /due anchors on salonToday() and `overdue` is pinned by
     // saltest/backend/recall-salon-day.test.ts at a frozen 21:05 Chicago.
+    //
+    // What dayStr formats HERE is now only the next birthday — a date built by whole-month arithmetic
+    // from a stored date of birth, not a reading of "today". The due-date use moved out with the
+    // computation (services/rebookingDue.ts, below). (T58)
+    ['const dayStr = (d: Date) => d.toISOString().slice(0, 10)', 'formats the next birthday, derived from a stored date of birth by whole-month arithmetic — not a reading of "today"'],
+  ],
+  // The rebooking computation moved here so the dashboard tile and the recall list could stop
+  // disagreeing (T58). The day rules moved WITH it: salonToday is still what `overdue` is judged
+  // against — see MUST_USE below, which now names this file.
+  'templates/crm-salon/backend/src/services/rebookingDue.ts': [
     ['const dayStr = (d: Date) => d.toISOString().slice(0, 10)', 'formats a due date DERIVED from a stored performedAt instant plus a whole number of days — not a reading of "today"'],
   ],
   'templates/crm-salon/backend/src/routes/clients.ts': [
@@ -63,7 +73,12 @@ const MUST_USE: Array<[file: string, needle: string, what: string]> = [
   ['templates/crm-salon/backend/src/routes/memberships.ts', 'salonToday(currentUser.companyId)', 'the enrolment start date'],
   ['templates/crm-salon/backend/src/routes/clients.ts', 'salonToday(currentUser.companyId)', 'the future-visit guard'],
   ['templates/crm-salon/backend/src/services/membershipBilling.ts', 'salonToday', 'the billing period'],
-  ['templates/crm-salon/backend/src/routes/reminders.ts', 'salonToday(u.companyId)', "the rebooking list's today, which sets `overdue`"],
+  // The rebooking list's today lives in the service both it and the dashboard tile call now (T58), so
+  // the rule is pinned where the call actually is. Pinning the route file would have passed while the
+  // tile — which reads the same rows — was anchored on nothing at all.
+  ['templates/crm-salon/backend/src/services/rebookingDue.ts', 'salonToday(companyId)', "the rebooking list's today, which sets `overdue` for the recall screen AND the dashboard tile"],
+  ['templates/crm-salon/backend/src/routes/reminders.ts', 'dueRebookings(', 'the recall list must go through the one computation, not grow a second copy'],
+  ['templates/crm-salon/backend/src/routes/dashboard.ts', 'dueRebookings(', 'the tile must count what the list lists — it used to run its own query and disagree'],
   ['templates/crm-salon/frontend/src/pages/salon/AppointmentsPage.tsx', 'todayStr', "The Book's default day"],
   ['templates/crm-salon/frontend/src/pages/salon/MembershipsPage.tsx', 'todayStr', "the enrol form's start date"],
   ['templates/crm-salon/frontend/src/components/salon/ServiceRecordEditorModal.tsx', 'toDayString', "the visit's date box"],

@@ -15,10 +15,20 @@ const STATUS_FILTERS: Array<[string, string]> = [['', 'All statuses'], ['pending
 // dark table — the two that say a deposit is no longer coming were the hardest to read. (FS T22)
 const DEPOSIT_CLS: Record<string, string> = { pending: 'text-amber-700 dark:text-amber-300', paid: 'text-green-700 dark:text-green-300', failed: 'text-red-600 dark:text-red-300', refunded: 'text-gray-500 dark:text-slate-400', expired: 'text-gray-500 dark:text-slate-400' }
 
+/**
+ * A booking time, in the shop's zone — and SAYING which zone. (T58)
+ *
+ * This converted into the company's timezone and printed no name for it, so "Tue, Oct 7, 2:00 PM" left
+ * the reader unable to tell whose two o'clock it is. That is the one question a booking time has to
+ * answer, and it matters more here than anywhere: a customer books from wherever they are.
+ *
+ * Same fault, same round, as the audit log's timestamps (audit/AuditLogPage.tsx) and the dispensary's
+ * kiosk last-seen column. Named in the fallback case too, where the zone is the reader's own.
+ */
 const whenIn = (iso: string, tz?: string) => {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return '-'
-  try { return new Intl.DateTimeFormat(undefined, { timeZone: tz || undefined, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(d) } catch { return d.toLocaleString() }
+  try { return new Intl.DateTimeFormat(undefined, { timeZone: tz || undefined, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(d) } catch { return d.toLocaleString() }
 }
 
 export function BookingsPage({ api, toast, config }: BookingPageProps) {

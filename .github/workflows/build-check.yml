@@ -2070,6 +2070,17 @@ jobs:
       - name: "Commission role words"
         run: bun run scripts/check-commission-role-words.ts
 
+  converted-time-names-its-zone:
+    name: "A time converted into another zone says which zone"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Converted time names its zone"
+        run: bun run scripts/check-converted-time-names-its-zone.ts
+
   refresh-outcomes:
     name: "A failed refresh is not a dead session"
     runs-on: ubuntu-latest
