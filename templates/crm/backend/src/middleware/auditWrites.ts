@@ -117,8 +117,23 @@ const singular = (word: string): string => {
  * 'change_order') and the audit screen's filter groups them together rather than offering
  * "draw-schedules" next to "draw_schedule".
  */
+/**
+ * WHICH RECORD CHANGED — the collection the id belongs to, not the first segment. (T58 follow-up)
+ *
+ * `PUT /api/company/users/:id` was filed as entity "company" with the USER's id in entity_id, so the
+ * two columns described different things and the screen read a change to a person as a change to
+ * company settings. Taking the segment the id actually sits under fixes both at once:
+ *
+ *   /api/company/users/:id        → user       (not company)
+ *   /api/invoices/:id/payments    → invoice    (the id is the invoice's; the ACTION is the payment)
+ *   /api/contacts/:id             → contact
+ *   /api/contacts                 → contact    (no id, so the mount itself)
+ */
 export const entityFromPath = (path: string): string => {
-  const seg = path.replace(/^\/api\//, '').split('/')[0] || 'request'
+  const parts = path.replace(/^\/api\//, '').split('/').filter(Boolean)
+  const id = idFromPath(path)
+  const at = id ? parts.indexOf(id) : -1
+  const seg = (at > 0 ? parts[at - 1] : parts[0]) || 'request'
   return singular(seg).replace(/-/g, '_')
 }
 

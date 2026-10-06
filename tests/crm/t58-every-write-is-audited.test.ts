@@ -211,14 +211,23 @@ console.log('\n══════════ the action says what happened ═�
 
   // "Warranty" was spelled "Warrantie": the first version stripped a trailing s.
   if (typeof entityFromPath === 'function') {
-    for (const [path, expected] of [
-      ['/api/warranties/abc', 'warranty'],
-      ['/api/invoices/abc', 'invoice'],
-      ['/api/addresses/abc', 'address'],
-      ['/api/change-orders/abc', 'change_order'],
-      ['/api/status/abc', 'status'],
-    ] as [string, string][]) {
-      check(`${path} is the "${expected}" entity`, entityFromPath(path) === expected,
+    for (const [path, expected, why] of [
+      ['/api/warranties/abc', 'warranty', 'it was spelled "warrantie"'],
+      ['/api/invoices/abc', 'invoice', ''],
+      ['/api/addresses/abc', 'address', ''],
+      ['/api/change-orders/abc', 'change_order', ''],
+      ['/api/status/abc', 'status', 'already singular'],
+      /**
+       * The record the id belongs to, not the first segment. `PUT /api/company/users/:id` was filed
+       * as entity "company" carrying the USER's id, so the two columns described different things
+       * and a change to a person read as a change to company settings. Measured on the live
+       * contractor after the deploy. (T58 follow-up)
+       */
+      ['/api/company/users/siyq5i1t7dwjf87irxkz8c2r', 'user', 'the id is the user\'s, not the company\'s'],
+      ['/api/invoices/dbb4pjcwv6s9mqa1l6on48o4/payments', 'invoice', 'the id is the invoice\'s; the payment is the ACTION'],
+      ['/api/contacts', 'contact', 'no id at all, so the mount itself'],
+    ] as [string, string, string][]) {
+      check(`${path} is the "${expected}" entity${why ? ` — ${why}` : ''}`, entityFromPath(path) === expected,
         { path, got: entityFromPath(path), expected })
     }
   }
