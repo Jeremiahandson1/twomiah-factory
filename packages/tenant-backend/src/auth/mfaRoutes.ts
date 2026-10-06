@@ -148,6 +148,25 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
       VALUES (gen_random_uuid(), ${u.userId}, ${u.companyId}, 'totp', 'Authenticator app', ${secret}, false, NOW())
       RETURNING id
     `))
+    /**
+     * THE ENROLMENT ITSELF IS AN EVENT. (T58)
+     *
+     *   Owner, twice now: "MFA setup still isn't logged."
+     *
+     * It was not, deliberately — the note on /verify called an unfinished enrolment noise that would
+     * bury the line that matters. That reasoning holds for the LOG's readability and is wrong about
+     * the security question: starting an enrolment means somebody holding this password began adding
+     * a factor to the account, and if that was not the account's owner, this row is the only trace
+     * it ever leaves. An abandoned enrolment is exactly the case with no other record.
+     *
+     * Kept separate from `mfa_enabled` so the two never compete: this says an attempt began, that
+     * one says two-factor is on. A person enrols rarely, so the volume concern does not arise.
+     *
+     * Note this also DELETED any previous unverified enrolment above — a detail worth having when
+     * two attempts are being made in a row.
+     */
+    logSecurity(c, 'mfa_setup_started', 'Started setting up an authenticator app', { deviceId: String(row.id), type: 'totp' })
+
     const label = encodeURIComponent(`${issuer}:${u.email}`)
     return c.json({
       deviceId: String(row.id),
@@ -197,8 +216,8 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
               ${JSON.stringify(codes.map(sha256))}::json, true, NOW())
     `)
 
-    // THE event: two-factor is now actually on. /setup alone is an abandoned enrolment and is not
-    // logged — it protects nothing and would bury this line in noise.
+    // THE event: two-factor is now actually on. /setup records that an enrolment BEGAN, under its own
+    // action so the two never compete — see the note there. (T58; was: /setup not logged at all)
     logSecurity(c, 'mfa_enabled', 'Turned two-factor on and took a set of recovery codes', { deviceId: device.id, type: device.type })
     return c.json({
       active: true,

@@ -8,6 +8,9 @@ import { eq, and, desc, sql } from 'drizzle-orm'
 // dueDateFromTerms: the shared net-30-by-default rule every other invoicing path already uses, so a
 // visit invoice stops being due the day it is raised. A terms value of 0 still means due today. (T51)
 import { insertInvoice, dueDateFromTerms } from '../shared/index.ts'
+// The practice's own clock decides what day it is — the same source invoices and quotes already use
+// to stop an evening bill being stamped with tomorrow. Render runs UTC. (T58)
+import { companyTimeZone, storeDateString, isValidTimeZone, DEFAULT_BUSINESS_ZONE } from '../shared/index.ts'
 
 /** Same numbering as this CRM's invoices route, so a billed visit continues the same sequence. */
 const INVOICE_NUMBERING = { prefix: 'INV', pad: 5, seed: 0 }
@@ -37,17 +40,41 @@ app.use('*', authenticate)
  * An APPOINTMENT is the thing that may be in the future; that is a different table with its own
  * screen. A visit is written when the animal is on the table.
  *
- * The tolerance is a day, not zero, because the date arrives as the browser's local day and the
- * server reads it in UTC — a clinic in Auckland entering today's date is already "tomorrow" here,
- * and refusing that would make the page unusable in half the world. A year out is still refused.
+ * THE TOLERANCE WAS 36 HOURS, AND 36 HOURS INCLUDES TOMORROW. (T58)
+ *
+ *   Owner: "a visit dated tomorrow is still accepted."
+ *
+ * It was, and the window is why. The reasoning behind it was sound — the date arrives as the
+ * browser's local day and the server read it in UTC, so a clinic in Auckland entering TODAY is
+ * already tomorrow here, and refusing that would make the page unusable in half the world — but the
+ * remedy was a blanket day of slack, which buys every clinic a free tomorrow to pay for the few that
+ * need one.
+ *
+ * The question was never "how many hours ahead", it is "is this a later DAY than today where the
+ * practice is". So that is what is asked. Both sides of the comparison are resolved in the practice's
+ * own zone, which is where its day boundary actually falls, and the slack disappears because there is
+ * nothing left for it to paper over:
+ *
+ *   a date-only value ("2026-10-07")   already IS a calendar day — compared as one, never converted,
+ *                                      because converting it would shift it across midnight and make
+ *                                      today read as yesterday in every western zone.
+ *   a full timestamp                   resolved to the calendar day it falls on in that zone.
+ *
+ * The zone comes from the company row (packages/tenant-backend/src/time/businessDay.ts), the same
+ * source invoices and quotes already use to decide what "today" is. With no zone configured it falls
+ * back to the state map and then to UTC, which is the behaviour every other date in this product has.
  */
-const VISIT_DATE_SKEW_MS = 36 * 60 * 60 * 1000
-
-export function visitDateError(value: unknown): string | null {
+export function visitDateError(value: unknown, timeZone: string = DEFAULT_BUSINESS_ZONE): string | null {
   if (value === undefined || value === null || String(value).trim() === '') return null
-  const d = new Date(String(value))
+  const raw = String(value).trim()
+  const d = new Date(raw)
   if (isNaN(d.getTime())) return 'The visit date is not a date.'
-  if (d.getTime() > Date.now() + VISIT_DATE_SKEW_MS) {
+
+  const tz = isValidTimeZone(timeZone) ? timeZone : DEFAULT_BUSINESS_ZONE
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : storeDateString(d, tz)
+  const today = storeDateString(new Date(), tz)
+  // ISO dates compare correctly as strings, which is the whole reason the format is used here.
+  if (day > today) {
     return 'A visit is a record of something that has happened, so its date cannot be in the future. '
       + 'Book an appointment instead, or correct the date.'
   }
@@ -96,7 +123,7 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.json()
 
-  const badDate = visitDateError(body.visitDate)
+  const badDate = visitDateError(body.visitDate, await companyTimeZone(db, currentUser.companyId))
   if (badDate) return c.json({ error: badDate, code: 'visit_date_in_future' }, 400)
 
   const [created] = await db.insert(visit).values({
@@ -281,7 +308,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   // The same rule on the edit as on the create — a date nobody may enter is a date nobody may
   // correct a record INTO either, and the edit is the likelier typo of the two. (T41)
   if ('visitDate' in updates) {
-    const badDate = visitDateError(updates.visitDate)
+    const badDate = visitDateError(updates.visitDate, await companyTimeZone(db, currentUser.companyId))
     if (badDate) return c.json({ error: badDate, code: 'visit_date_in_future' }, 400)
   }
   if ('visitDate' in updates && updates.visitDate) updates.visitDate = new Date(updates.visitDate)

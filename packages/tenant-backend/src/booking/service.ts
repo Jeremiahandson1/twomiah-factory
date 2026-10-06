@@ -567,6 +567,39 @@ ${b.depositRequired ? `<tr><td style="padding:2px 12px 2px 0;color:#555">Deposit
 
   async function setBookingStatus(companyId: string, id: string, status: string): Promise<boolean> {
     if (!BOOKING_STATUSES.includes(status as BookingStatus)) throw new BookingError(`Status must be one of ${BOOKING_STATUSES.join(', ')}.`)
+
+    /**
+     * "COMPLETED" AND "NO SHOW" ARE CLAIMS ABOUT THE PAST. (T58)
+     *
+     *   Owner, on Showcase: "a future booking can be marked completed."
+     *
+     * It could: the only check here was that the word is in the list. So an appointment three weeks
+     * out could be marked as having happened — and `completed` is not cosmetic, it is what the
+     * retention reports count, what rebooking reminders key off, and in several verticals what
+     * releases the deposit hold. The same applies to `no_show`: nobody has failed to turn up to an
+     * appointment that has not started.
+     *
+     * Everything else stays free. Confirming, cancelling and putting a booking back to pending are
+     * all decisions about a future appointment, which is exactly what they are for.
+     *
+     * Compared against the START time, not the end: a visit under way has begun, and a receptionist
+     * closing one off a few minutes early should not be argued with. A minute of slack absorbs clock
+     * drift between the browser and the server.
+     */
+    if (status === 'completed' || status === 'no_show') {
+      const [row] = await db.select({ at: t.onlineBooking.scheduledDate })
+        .from(t.onlineBooking)
+        .where(and(eq(t.onlineBooking.id, id), eq(t.onlineBooking.companyId, companyId)))
+        .limit(1)
+      const at = row?.at ? new Date(row.at as any).getTime() : NaN
+      if (Number.isFinite(at) && at > Date.now() + 60_000) {
+        throw new BookingError(
+          status === 'completed'
+            ? 'This appointment has not started yet, so it cannot be marked as completed. Confirm it now and complete it once it has happened.'
+            : 'This appointment has not started yet, so nobody can have missed it. Cancel it instead if it is not going ahead.',
+        )
+      }
+    }
     // Cancelling releases an UNPAID deposit hold. It was left as 'pending' for ever, so a cancelled
     // booking went on reading "$25 deposit · pending" against a visit that is not happening — the hold
     // expiry sweep already writes 'expired' for the identical situation when a hold simply times out, and

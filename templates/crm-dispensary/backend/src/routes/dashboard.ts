@@ -172,6 +172,18 @@ app.get('/stats', async (c) => {
         AND o.completed_at >= ${today}
         AND o.completed_at < ${tomorrow}
       GROUP BY oi.product_id, CASE WHEN oi.product_id IS NULL THEN oi.product_name END
+      -- A PRODUCT THAT WENT BACK IS NOT A TOP SELLER. (T58)
+      --
+      -- Owner: "Top Products is counting refunds." The NUMBERS were not — measured on the live
+      -- tenant, a fully-returned Gummy Bears read 0 units and $0, which is right. What was wrong is
+      -- that it was still LISTED: the panel's whole claim is "these are what sold today", and a row
+      -- saying "Gummy Bears · 0 · $0.00" under that heading is the panel contradicting its own
+      -- heading, and it pushes a product that genuinely sold off the list of five.
+      --
+      -- Both measures, because they can disagree: an amount-only refund leaves the units standing
+      -- while the money goes, and goods returned leave neither. A line is a sale if either survives.
+      HAVING GREATEST(0, SUM(oi.quantity) - SUM(COALESCE(oi.refunded_quantity, 0))) > 0
+          OR GREATEST(0, COALESCE(SUM(NULLIF(oi.line_total, '')::numeric), 0) - COALESCE(SUM(COALESCE(oi.refunded_quantity, 0) * NULLIF(oi.unit_price, '')::numeric), 0)) > 0
       ORDER BY units_sold DESC
       LIMIT 5
     `), { rows: [] }),

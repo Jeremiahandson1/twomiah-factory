@@ -45,9 +45,26 @@ const NAV: NavItem[] = [
   // Operations
   { to: '/crm/tech', icon: Wrench, label: 'Crew View', section: 'Operations', features: ['tech_mobile_view'] },
   { to: '/crm/dispatch', icon: Radio, label: 'Dispatch Board', section: 'Operations', features: ['dispatch_board'] },
-  { to: '/crm/maintenance', icon: FileSignature, label: 'Service Agreements', section: 'Operations', features: ['maintenance_contracts'] },
-  { to: '/crm/parts', icon: Box, label: 'Materials Inventory', section: 'Operations', features: ['parts_tracking'] },
-  { to: '/crm/pricebook-rates', icon: BookMarked, label: 'Service Pricebook', section: 'Operations', features: ['flat_rate_pricebook'] },
+  /**
+   * THREE PAIRS OF NAV ITEMS THAT READ AS THE SAME THING. (T58)
+   *
+   *   Owner, on Landscaping: "near-duplicate nav items."
+   *
+   * They were, and all three pairs were one general item plus one Operations item whose label was a
+   * near-synonym of it:
+   *
+   *   Agreements (service_agreements)  vs  Service Agreements (maintenance_contracts)
+   *   Pricebook  (pricebook)           vs  Service Pricebook  (flat_rate_pricebook)
+   *   Inventory  (inventory)           vs  Materials Inventory (parts_tracking)
+   *
+   * They are genuinely different modules, so the answer is not to remove one — it is to name each
+   * after what it actually is. These three labels are the plain-English reading of their own feature
+   * ids, so nothing is invented and the pairing stops being a coin toss. The general items above keep
+   * their names, since those are the ones most of the fleet shares.
+   */
+  { to: '/crm/maintenance', icon: FileSignature, label: 'Maintenance Contracts', section: 'Operations', features: ['maintenance_contracts'] },
+  { to: '/crm/parts', icon: Box, label: 'Parts & Materials', section: 'Operations', features: ['parts_tracking'] },
+  { to: '/crm/pricebook-rates', icon: BookMarked, label: 'Flat-Rate Pricing', section: 'Operations', features: ['flat_rate_pricebook'] },
   { to: '/crm/recurring-routes', icon: Route, label: 'Route Board', section: 'Operations', features: ['recurring_routes'] },
   { to: '/crm/area-pricing', icon: Ruler, label: 'Area Pricing', section: 'Operations', features: ['area_pricing'] },
   // EVERY endpoint behind this page is an `invoices:*` one — contracts carry the rates, an event

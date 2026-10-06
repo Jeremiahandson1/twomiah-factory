@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react'
 import { Star, Send, Mail, Phone, CheckCircle, Settings, BarChart3, ExternalLink, Loader2, TrendingUp, MessageSquare } from 'lucide-react'
 import type { SettingsApi, SettingsToast, ReviewsConfig } from '../settings/integrationsTypes'
 import { useMayWrite } from '../auth/PermissionsContext'
+import { ModuleNotEnabled, featureNotEnabled } from '../ui/ModuleNotEnabled'
 
 type Tab = 'dashboard' | 'settings'
 const fmt = (v: any) => { if (!v) return '—'; const d = new Date(v); return isNaN(d.getTime()) ? '—' : d.toLocaleDateString() }
@@ -15,6 +16,22 @@ export function ReviewsPage({ api, toast, config }: { api: SettingsApi; toast?: 
     emptyHelp: 'Requests are created automatically when jobs are completed', ...(config || {}),
   }
   const [tab, setTab] = useState<Tab>('dashboard')
+  /**
+   * Review Requests is a separate feature from the Google Business Profile page, and on most plans it
+   * is off. When it is, every call on this page 403s — and both tabs used to swallow that into
+   * console.error and render an empty shell. Either tab reporting it switches the whole page to the
+   * state that says so, because the refusal is about the module, not about the tab. (T58)
+   */
+  const [featureOff, setFeatureOff] = useState(false)
+  if (featureOff) {
+    return (
+      <ModuleNotEnabled
+        title="Review Requests"
+        what="Automatic review requests after a completed job are not enabled for this account, so there are no requests or settings to show."
+        note="Replying to the reviews you already have is a different module — that one is under Google Reviews, and it is on."
+      />
+    )
+  }
   return (
     <div className="space-y-6">
       <div><h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reviews</h1><p className="text-gray-500 dark:text-slate-400">{copy.subtitle}</p></div>
@@ -23,7 +40,9 @@ export function ReviewsPage({ api, toast, config }: { api: SettingsApi; toast?: 
           <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-2 pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${tab === t.id ? 'border-orange-500 text-orange-600 dark:text-orange-200' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400'}`}><t.icon className="w-4 h-4" />{t.label}</button>
         ))}</nav>
       </div>
-      {tab === 'dashboard' ? <DashboardTab api={api} toast={toast} copy={copy} /> : <SettingsTab api={api} toast={toast} copy={copy} />}
+      {tab === 'dashboard'
+        ? <DashboardTab api={api} toast={toast} copy={copy} onFeatureOff={() => setFeatureOff(true)} />
+        : <SettingsTab api={api} toast={toast} copy={copy} onFeatureOff={() => setFeatureOff(true)} />}
     </div>
   )
 }
@@ -37,7 +56,7 @@ export function ReviewsPage({ api, toast, config }: { api: SettingsApi; toast?: 
  * Each flag is asked inside the component that renders its control, because useMayWrite is a hook —
  * the request list and the settings form are still readable to everyone who may open the page.
  */
-function DashboardTab({ api, toast, copy }: { api: SettingsApi; toast?: SettingsToast; copy: Required<ReviewsConfig> }) {
+function DashboardTab({ api, toast, copy, onFeatureOff }: { api: SettingsApi; toast?: SettingsToast; copy: Required<ReviewsConfig>; onFeatureOff?: () => void }) {
   const mayChase = useMayWrite('marketing:create')
   const [stats, setStats] = useState<any>(null)
   const [requests, setRequests] = useState<any[]>([])
@@ -45,7 +64,11 @@ function DashboardTab({ api, toast, copy }: { api: SettingsApi; toast?: Settings
   const [busy, setBusy] = useState<string | null>(null)
   const load = async () => {
     try { const [s, r] = await Promise.all([api.get('/api/reviews/stats'), api.get('/api/reviews', { limit: 20 })]); setStats(s); setRequests(r?.data || []) }
-    catch (err) { console.error('Failed to load review data:', err) } finally { setLoading(false) }
+    catch (err) {
+      // "This module is off" is an answer, not a failure — and it was the one being thrown away.
+      if (featureNotEnabled(err)) { onFeatureOff?.(); return }
+      console.error('Failed to load review data:', err)
+    } finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
   const followUp = async (id: string) => {
@@ -91,13 +114,20 @@ function DashboardTab({ api, toast, copy }: { api: SettingsApi; toast?: Settings
   )
 }
 
-function SettingsTab({ api, toast, copy }: { api: SettingsApi; toast?: SettingsToast; copy: Required<ReviewsConfig> }) {
+function SettingsTab({ api, toast, copy, onFeatureOff }: { api: SettingsApi; toast?: SettingsToast; copy: Required<ReviewsConfig>; onFeatureOff?: () => void }) {
   const maySave = useMayWrite('settings:update')
   const [settings, setSettings] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
-  useEffect(() => { api.get('/api/reviews/settings').then(setSettings).catch(console.error).finally(() => setLoading(false)) }, [])
+  // This is the call the owner traced: a 403 FEATURE_NOT_ENABLED went to console.error and the form
+  // below rendered anyway, empty, with a Save button that could only fail. (T58)
+  useEffect(() => {
+    api.get('/api/reviews/settings')
+      .then(setSettings)
+      .catch((err) => { if (featureNotEnabled(err)) onFeatureOff?.(); else console.error('Failed to load review settings:', err) })
+      .finally(() => setLoading(false))
+  }, [])
   const save = async () => {
     setSaving(true); setMessage(null)
     try { const saved = await api.put('/api/reviews/settings', settings); if (saved && typeof saved === 'object' && 'reviewRequestEnabled' in saved) setSettings(saved); toast ? toast.success('Settings saved') : setMessage({ kind: 'ok', text: 'Settings saved' }) }

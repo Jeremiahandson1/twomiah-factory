@@ -99,6 +99,25 @@ export function createAuthRoutes(deps: AuthDeps) {
   function logAuth(c: any, action: string, who: { id?: string | null; email?: string | null; companyId?: string | null }, description: string, metadata: Record<string, unknown> = {}) {
     if (!deps.audit?.log) return
     try {
+      /**
+       * WHO SIGNED IN, ON THE ROW THAT SAYS SOMEBODY SIGNED IN. (T58)
+       *
+       *   Owner: "login rows have user_email null."
+       *
+       * They did, on every one of them. audit.log works out the actor with resolveActor(req), which
+       * reads `c.get('user')` — and on a sign-in request there IS no session yet: that is the whole
+       * point of the request. So user_name and user_email were null on precisely the events where
+       * knowing the person matters most, and on a FAILED attempt there is never a session at all.
+       *
+       * logAuth has always known who it is; it just had no way to say so. Rather than teach thirteen
+       * template audit services a new argument, the actor is handed over in the shape resolveActor
+       * already understands — a plain object carrying `user` — while header lookups still delegate to
+       * the real context, so the IP and user-agent on the row stay the ones the request arrived with.
+       */
+      const actorCtx = {
+        user: { userId: who.id ?? null, id: who.id ?? null, email: who.email ?? null, companyId: who.companyId ?? null },
+        req: { header: (name: string) => (typeof c?.req?.header === 'function' ? c.req.header(name) : null) },
+      }
       deps.audit.log({
         action,
         entity: deps.audit.ENTITIES?.USER ?? 'user',
@@ -107,7 +126,7 @@ export function createAuthRoutes(deps: AuthDeps) {
         metadata: { description, ...metadata },
         userId: who.id ?? null,
         companyId: who.companyId ?? null,
-        req: c,
+        req: actorCtx,
       })
     } catch { /* see above */ }
   }

@@ -219,11 +219,24 @@ app.post('/:id/count', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const locationId = c.req.param('id')
 
+  /**
+   * A COUNT OF NOTHING IS NOT A COUNT. (T58)
+   *
+   *   Owner: "an empty inventory count is accepted."
+   *
+   * It was: `items` had no minimum, so POST {items: []} returned 200 with "0 counted, 0
+   * discrepancies" and wrote an audit row reading "Count: 0 items" — a cycle count recorded as done
+   * that touched nothing. In a regulated inventory that is the worst kind of false record, because
+   * it is the one somebody later points at to say the shelf was checked.
+   *
+   * A deliberate count of zero UNITS is still fine, and still what `counted: 0` means; what is
+   * refused is submitting no products at all.
+   */
   const countSchema = z.object({
     items: z.array(z.object({
       productId: z.string(),
       counted: z.number().int().min(0),
-    })),
+    })).min(1, 'A count needs at least one product. Scan or pick the products you counted, then submit.'),
   })
   const data = countSchema.parse(await c.req.json())
 

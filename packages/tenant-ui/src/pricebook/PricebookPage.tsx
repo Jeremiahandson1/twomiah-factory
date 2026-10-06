@@ -73,6 +73,26 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
   const duplicate = async (item: Item) => { try { await api.post(`/api/pricebook/items/${item.id}/duplicate`); toast.success('Duplicated'); load() } catch (e) { toast.error(errMsg(e, 'Failed to duplicate')) } }
   const remove = async () => { if (!toDelete) return; try { await api.delete('/api/pricebook/items', toDelete.id); toast.success('Deleted') } catch (e) { toast.error(errMsg(e, 'Failed to delete')) } finally { setToDelete(null); load() } }
   const avg = (f: (i: Item) => number) => (items.length ? items.reduce((s, i) => s + f(i), 0) / items.length : 0)
+  /**
+   * AN UNKNOWN MARGIN IS NOT 0% AND IT IS NOT 100%. (T58)
+   *
+   * Owner, on Landscaping: "items with $0 cost show a 100% margin." The server was computing one
+   * from a cost nobody had entered — `Number(null)` is 0 — and it now sends `null` for those. This
+   * side has to honour that: `{item.margin}%` would print "null%", and `Number(i.margin || 0)` would
+   * drag the average down to a 0% that is every bit as invented as the 100% was.
+   *
+   * So items with no cost on file are left out of the average entirely, and the tile says "—" when
+   * that leaves nothing to average. The count beside it already says how many items there are; a
+   * margin figure covering a third of them, presented as if it covered all, is the thing to avoid.
+   */
+  const marginOf = (i: Item): number | null => {
+    const m = (i as any).margin
+    if (m === null || m === undefined || m === '') return null
+    const n = Number(m)
+    return Number.isFinite(n) ? n : null
+  }
+  const known = items.map(marginOf).filter((n): n is number => n !== null)
+  const avgMargin = known.length ? `${Math.round(known.reduce((s, n) => s + n, 0) / known.length)}%` : '—'
 
   return (
     <div className="space-y-6" data-testid="pricebook-page-shared">
@@ -93,7 +113,7 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
         <Stat icon={FolderTree} label="Categories" value={categories.length} />
         <Stat icon={DollarSign} label="Avg price" value={usd(avg((i) => Number(i.price)))} />
         {/* No margin in the payload means the server withheld it; an average of nothing is not 0%. */}
-        {showCost && <Stat icon={Percent} label="Avg margin" value={`${Math.round(avg((i) => Number(i.margin || 0)))}%`} tone="green" />}
+        {showCost && <Stat icon={Percent} label="Avg margin" value={avgMargin} tone="green" />}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -131,7 +151,9 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
               <div className={`mt-4 grid ${showCost ? 'grid-cols-3' : 'grid-cols-1'} gap-2 text-sm`}>
                 <div><p className="text-gray-500 dark:text-slate-400">Price</p><p className="font-bold text-gray-900 dark:text-slate-100">{usd(item.price)}</p></div>
                 {showCost && <div><p className="text-gray-500 dark:text-slate-400">Cost</p><p className="font-medium text-gray-700 dark:text-slate-200">{usd(item.totalCost ?? item.cost)}</p></div>}
-                {showCost && <div><p className="text-gray-500 dark:text-slate-400">Margin</p><p className={`font-medium ${Number(item.margin) > 30 ? 'text-green-700 dark:text-green-300' : 'text-orange-600 dark:text-orange-300'}`}>{item.margin}%</p></div>}
+                {/* "—", never 100%, when the cost is 0: the server withholds the margin there and
+                    this renders what it sent. `{item.margin}%` would print "null%". (T58) */}
+                {showCost && <div><p className="text-gray-500 dark:text-slate-400">Margin</p><p className={`font-medium ${marginOf(item) === null ? 'text-gray-500 dark:text-slate-400' : (marginOf(item) as number) > 30 ? 'text-green-700 dark:text-green-300' : 'text-orange-600 dark:text-orange-300'}`}>{marginOf(item) === null ? '—' : `${item.margin}%`}</p></div>}
               </div>
               {Number(item.laborHours) > 0 && <div className="mt-2 flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400"><Clock className="w-4 h-4" />{Number(item.laborHours)} hours</div>}
               {Number(item._count?.goodBetterBest) > 0 && <div className="mt-2 flex items-center gap-1 text-sm text-blue-600 dark:text-blue-300"><Star className="w-4 h-4" />{item._count.goodBetterBest} {config?.tiersTitle || 'pricing tier'}{item._count.goodBetterBest === 1 ? '' : 's'}</div>}
@@ -172,7 +194,10 @@ function ItemModal({ api, toast, item, categories, itemWord, onClose, onSaved }:
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setF((cur) => ({ ...cur, [k]: e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value }))
-  const margin = Number(f.price) > 0 ? (((Number(f.price) - Number(f.cost || 0)) / Number(f.price)) * 100).toFixed(1) : '0'
+  // The same rule the server applies (pricebook.ts shape()): with no cost on the form there is no
+  // margin to state, and the box said 100% while you typed. Third place this was computed. (T58)
+  const marginKnown = Number(f.price) > 0 && Number(f.cost) > 0
+  const margin = marginKnown ? (((Number(f.price) - Number(f.cost)) / Number(f.price)) * 100).toFixed(1) : null
   const submit = async (ev: React.FormEvent) => {
     ev.preventDefault(); setErr(''); setSaving(true)
     const payload = { ...f, code: f.code.trim() || undefined, categoryId: f.categoryId || null, price: Number(f.price || 0), cost: Number(f.cost || 0), laborHours: f.laborHours === '' ? null : Number(f.laborHours) }
@@ -195,7 +220,7 @@ function ItemModal({ api, toast, item, categories, itemWord, onClose, onSaved }:
           <Field label="Price ($)"><input className={inputCls} type="number" min={0} step="0.01" required value={f.price} onChange={set('price')} /></Field>
           <Field label="Cost ($)"><input className={inputCls} type="number" min={0} step="0.01" value={f.cost} onChange={set('cost')} /></Field>
           <Field label="Labor hours"><input className={inputCls} type="number" min={0} step="0.25" value={f.laborHours} onChange={set('laborHours')} /></Field>
-          <Field label="Margin"><div className={`px-3 py-2 rounded-lg font-medium ${Number(margin) > 30 ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40'}`}>{margin}%</div></Field>
+          <Field label="Margin" hint={margin === null ? 'Enter a cost to see the margin' : undefined}><div className={`px-3 py-2 rounded-lg font-medium ${margin === null ? 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-300' : Number(margin) > 30 ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40'}`}>{margin === null ? '—' : `${margin}%`}</div></Field>
         </div>
         <div className="flex flex-wrap gap-6 text-sm">
           <label className="flex items-center gap-2"><input type="checkbox" checked={f.taxable} onChange={set('taxable')} />Taxable</label>

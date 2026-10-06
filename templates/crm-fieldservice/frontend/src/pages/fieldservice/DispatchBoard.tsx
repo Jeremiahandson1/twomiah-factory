@@ -324,7 +324,9 @@ function DispatchCard({ job, techs, onAssign, onStatusChange }) {
   const [assigning, setAssigning] = useState(false);
 
   const priority = job.priority || 'normal';
-  const serviceType = job.serviceType || job.type || 'repair';
+  // A job with no type is not a repair — nobody said it was. The sibling of this line stamped every
+  // untyped landscaping job REPAIR; it is the same invented fact here, just a likelier-looking one. (T58)
+  const serviceType = job.serviceType || job.type || '';
   const ServiceIcon = SERVICE_ICONS[serviceType] || Wrench;
 
   return (
@@ -333,9 +335,11 @@ function DispatchCard({ job, techs, onAssign, onStatusChange }) {
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
           <ServiceIcon className="w-4 h-4 text-gray-600 dark:text-slate-300" />
-          <span className="text-xs font-medium uppercase text-gray-600 dark:text-slate-400">
-            {serviceType}
-          </span>
+          {serviceType ? (
+            <span className="text-xs font-medium uppercase text-gray-600 dark:text-slate-400">
+              {serviceType}
+            </span>
+          ) : null}
           {job.serviceAgreementId && (
             <span className="flex items-center gap-0.5 text-xs text-blue-600 bg-blue-50 dark:bg-blue-500/10 dark:text-blue-400 px-1.5 py-0.5 rounded-full" title="Recurring maintenance">
               <RefreshCw className="w-3 h-3" /> Recurring

@@ -150,7 +150,22 @@ app.get('/:id', requirePermission('jobs:read'), async (c) => {
 app.post('/', requirePermission('jobs:create'), async (c) => {
   const u = c.get('user') as any
   const body = await c.req.json()
-  if (!body.name || body.dayOfWeek == null) return c.json({ error: 'name and dayOfWeek are required' }, 400)
+  /**
+   * THE REFUSAL NAMES THE FIELD ON THE SCREEN, NOT THE ONE IN THE PAYLOAD. (T58)
+   *
+   * Owner: "two route errors don't name the field." These said "name and dayOfWeek are required",
+   * "siteId is required" and "stopIds array required" — which do name fields, but the API's fields.
+   * Nothing on the Route Board is labelled dayOfWeek or siteId, so the person reading it has to map
+   * the word back to an input themselves, and "stopIds array required" is not about any input at all.
+   */
+  if (!body.name || body.dayOfWeek == null) {
+    return c.json({
+      error: !body.name
+        ? 'Give the route a name — it is what the crew sees on the board.'
+        : 'Pick the day this route runs.',
+      field: !body.name ? 'name' : 'dayOfWeek',
+    }, 400)
+  }
   const day = dayIndex(body.dayOfWeek)
   if (day === null) return c.json({ error: DAY_INDEX_HELP, code: 'BAD_DAY_OF_WEEK' }, 400)
   const [route] = await db.insert(recurringRoute).values({
@@ -203,7 +218,7 @@ app.post('/:id/stops', requirePermission('jobs:update'), async (c) => {
   const u = c.get('user') as any
   const routeId = c.req.param('id')
   const body = await c.req.json()
-  if (!body.siteId) return c.json({ error: 'siteId is required' }, 400)
+  if (!body.siteId) return c.json({ error: 'Choose the property to add to this route.', field: 'siteId' }, 400)
   const [route] = await db.select().from(recurringRoute)
     .where(and(eq(recurringRoute.id, routeId), eq(recurringRoute.companyId, u.companyId)))
   if (!route) return c.json({ error: 'Route not found' }, 404)
@@ -227,7 +242,8 @@ app.put('/:id/stops/reorder', requirePermission('jobs:update'), async (c) => {
   const u = c.get('user') as any
   const routeId = c.req.param('id')
   const { stopIds } = await c.req.json()
-  if (!Array.isArray(stopIds)) return c.json({ error: 'stopIds array required' }, 400)
+  // Not a field anybody fills in — this is the drag-reorder sending nothing. Say what to DO.
+  if (!Array.isArray(stopIds)) return c.json({ error: 'The new stop order did not reach us. Reload the route and drag the stops again.', field: 'stopIds' }, 400)
   for (let i = 0; i < stopIds.length; i++) {
     await db.update(recurringRouteStop).set({ sortOrder: i })
       .where(and(

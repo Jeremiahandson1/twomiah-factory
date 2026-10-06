@@ -96,9 +96,39 @@ export function createPricebookService(deps: PricebookServiceDeps) {
     const [r] = await db.select({ n: count() }).from(I).where(eq(I.companyId, companyId))
     return `SVC-${String(Number(r?.n || 0) + 1).padStart(4, '0')}`
   }
+  /**
+   * A MARGIN OF 100% IS A CLAIM, AND A ZERO COST DOES NOT SUPPORT IT. (T58)
+   *
+   *   Owner, on Landscaping: "items with $0 cost show a 100% margin."
+   *
+   * They did, on every such item: (price − 0) / price is 100% every time. The Landscaping pricebook
+   * is mostly items nobody has costed, so the page read as a business whose work costs it nothing,
+   * and the Avg margin tile above the cards averaged those hundreds into a figure an owner might
+   * price against.
+   *
+   * WHY ZERO IS TREATED AS "NOT KNOWN" RATHER THAN AS A REAL FIGURE. It would be better to tell
+   * "costs nothing" apart from "nobody said", and the data cannot: `pricebook_item.cost` is
+   * `.default('0').notNull()` in all thirteen schemas, so an item created without a cost is stored
+   * as 0 and is indistinguishable from one deliberately costed at 0. Given that, the two readings
+   * are "this service is pure profit" and "we don't know yet", and asserting the first on evidence
+   * that cannot tell them apart is the error the owner reported.
+   *
+   * The cost itself is still reported as it is stored — 0 is what the column says, and the card
+   * shows it. It is only the DERIVED claim that is withheld, as null, which the screen renders "—".
+   *
+   * (Making the column nullable would let this be exact. That is a migration across thirteen
+   * templates for a cosmetic gain, so it is not done here.)
+   */
   const shape = (item: any, category: any) => {
     const price = Number(item.price), cost = Number(item.cost)
-    return { ...item, category: category ? { id: category.id, name: category.name } : null, categoryName: category?.name || null, totalCost: cost, margin: price > 0 ? (((price - cost) / price) * 100).toFixed(1) : '0' }
+    const derivable = Number.isFinite(cost) && cost > 0 && price > 0
+    return {
+      ...item,
+      category: category ? { id: category.id, name: category.name } : null,
+      categoryName: category?.name || null,
+      totalCost: cost,
+      margin: derivable ? (((price - cost) / price) * 100).toFixed(1) : null,
+    }
   }
   const values = (companyId: string, d: any) => {
     const out: Record<string, any> = {}

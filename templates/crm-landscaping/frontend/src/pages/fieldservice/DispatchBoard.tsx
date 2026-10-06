@@ -324,7 +324,20 @@ function DispatchCard({ job, techs, onAssign, onStatusChange }) {
   const [assigning, setAssigning] = useState(false);
 
   const priority = job.priority || 'normal';
-  const serviceType = job.serviceType || job.type || 'repair';
+  /**
+   * A JOB WITH NO TYPE IS NOT A REPAIR. (T58)
+   *
+   *   Owner, on Landscaping: "a landscaping job is labelled REPAIR."
+   *
+   * It was, and nobody had said so: the fallback here was the literal 'repair', so every job that
+   * carries no serviceType was stamped with one. On a landscaping CRM that word is not even in the
+   * vocabulary — the list it comes from (install / repair / maintenance / emergency) was inherited
+   * from the field-service template this board was cloned from.
+   *
+   * So the card states the type when there is one and says nothing when there is not. A blank is
+   * honest; an invented REPAIR tells a crew what the job is, wrongly.
+   */
+  const serviceType = job.serviceType || job.type || '';
   const ServiceIcon = SERVICE_ICONS[serviceType] || Wrench;
 
   return (
@@ -333,9 +346,11 @@ function DispatchCard({ job, techs, onAssign, onStatusChange }) {
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
           <ServiceIcon className="w-4 h-4 text-gray-600 dark:text-slate-300" />
-          <span className="text-xs font-medium uppercase text-gray-600 dark:text-slate-400">
-            {serviceType}
-          </span>
+          {serviceType ? (
+            <span className="text-xs font-medium uppercase text-gray-600 dark:text-slate-400">
+              {serviceType}
+            </span>
+          ) : null}
           {job.serviceAgreementId && (
             <span className="flex items-center gap-0.5 text-xs text-blue-600 bg-blue-50 dark:bg-blue-500/10 dark:text-blue-400 px-1.5 py-0.5 rounded-full" title="Recurring maintenance">
               <RefreshCw className="w-3 h-3" /> Recurring
