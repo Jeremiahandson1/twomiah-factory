@@ -168,6 +168,26 @@ const USER_COLUMNS = (user: any) => ({ id: user.id, email: user.email, firstName
  */
 const canonicalRole = (role?: string) => (role === 'user' ? 'field' : role)
 
+/**
+ * …AND ON THE WAY OUT, for the rows that were already there. (T58)
+ *
+ * Fixing the write path converges the data only as fast as somebody edits each person. Measured on
+ * the live fleet, every one of the ten test tenants still holds `user` rows, and contractor holds
+ * BOTH spellings at once — three `field` and one `user`. That is precisely what the owner is looking
+ * at: four people on one Team page, all correctly labelled "Staff", whose stored roles disagree.
+ *
+ * So the API answers one word. `user` and `field` are not two roles that happen to share a label —
+ * they are one role with two spellings, and the permission layer has always folded them together
+ * before deciding anything (auth/permissions.ts). A list that reports them differently is reporting
+ * a distinction the system does not make.
+ *
+ * This is deliberately a READ fix, not a migration: it needs no DDL, it is true the moment it
+ * deploys on all eleven live tenants, and it cannot damage a row. `user` is still accepted on the
+ * way in, and anything that stored it keeps working.
+ */
+const withCanonicalRole = <T extends { role?: unknown }>(row: T): T =>
+  (row && row.role === 'user' ? { ...row, role: 'field' } : row)
+
 export function createCompanyRoutes(deps: CompanyDeps) {
   const { db, tables: t, authenticate, requireAdmin, requirePermission, requireAnyPermission, canSee, invalidateExtraPermissions, template, roleLabel } = deps
   const roles = (deps.options?.roles && deps.options.roles.length ? deps.options.roles : DEFAULT_ROLES) as [string, ...string[]]
@@ -427,7 +447,10 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     }).from(t.user).where(eq(t.user.companyId, currentUser.companyId))
     // Send the word alongside the id. The Users table used to map the id itself, which is a second
     // definition of the vocabulary and drifts from this one the moment a vertical renames a rung.
-    const labelled = roleLabel ? rows.map((r: any) => ({ ...r, roleLabel: roleLabel(String(r.role || '')) })) : rows
+    // One spelling out, whatever is stored — see withCanonicalRole. Applied BEFORE the label so a
+    // vertical that renames the rung labels the canonical word, not the legacy one.
+    const canonical = rows.map((r: any) => withCanonicalRole(r))
+    const labelled = roleLabel ? canonical.map((r: any) => ({ ...r, roleLabel: roleLabel(String(r.role || '')) })) : canonical
 
     // Not wired → not asked → the full row, which is what the only callers who could get here used
     // to receive anyway.
@@ -538,7 +561,8 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     if (losingAdmin && (await isLastAdmin(target, currentUser.companyId))) return c.json({ error: 'This is the only administrator left — promote someone else first.' }, 400)
     if (data.extraPermissions !== undefined) invalidateExtraPermissions?.(id)
     const [row] = await db.update(t.user).set({ ...data, updatedAt: new Date() }).where(and(eq(t.user.id, id), eq(t.user.companyId, currentUser.companyId))).returning(USER_COLUMNS(t.user))
-    return c.json(row)
+    // An edit that does not touch the role still returns the stored one, which may be the legacy word.
+    return c.json(withCanonicalRole(row as any))
   })
 
   /**
@@ -621,7 +645,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
       }
       const rows = await tx.select(USER_COLUMNS(t.user)).from(t.user)
         .where(and(eq(t.user.companyId, currentUser.companyId), inArray(t.user.id, ids)))
-      return rows
+      return rows.map((r: any) => withCanonicalRole(r))
     })
     if ((result as any)?.conflict) {
       return c.json({ error: 'Somebody else has just taken ownership of this company. Reload and ask them to transfer it.', code: 'owner_already_set' }, 409)
