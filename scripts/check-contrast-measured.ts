@@ -113,6 +113,41 @@ if (chipColors && LIGHT_SURFACE && DARK_SURFACE) {
     }
   }
   /**
+   * THE STATUS-CHIP MAP, every status, both themes. (T58d)
+   *
+   * LeadInboxPage held four pairs as a hardcoded module constant, so all four were pale lozenges on
+   * the dark card — the owner's "Lead Inbox text contrast". Two were under AA in LIGHT mode too:
+   * "contacted" at 4.0:1 and "dismissed" at 2.6:1, the least readable chip on the page. A status map
+   * is exactly the shape a className sweep does not read, so it is measured from theme.ts directly.
+   */
+  const chipMapFor = (block: string): Record<string, { bg: string; text: string }> => {
+    const body = themeSrc.split(block)[1] || ''
+    const m = /chip: \{([\s\S]*?)\n  \},/.exec(body)
+    if (!m) return {}
+    const out: Record<string, { bg: string; text: string }> = {}
+    for (const e of m[1].matchAll(/(\w+): \{ bg: '(#[0-9a-fA-F]{3,6})', text: '(#[0-9a-fA-F]{3,6})' \}/g)) {
+      out[e[1]] = { bg: e[2], text: e[3] }
+    }
+    return out
+  }
+  for (const [theme, block] of [['light', 'const LIGHT: LeadPalette = {'], ['dark', 'const DARK: LeadPalette = {']] as const) {
+    const map = chipMapFor(block)
+    const statuses = Object.keys(map)
+    if (statuses.length < 4) { fail(`theme.ts ${theme} palette: expected 4 status chips, read ${statuses.length} (${statuses.join(', ')})`); continue }
+    for (const [status, { bg, text }] of Object.entries(map)) {
+      const r = ratio(text, bg)
+      if (r < AA) fail(`the "${status}" lead chip on the ${theme} palette: ${r.toFixed(2)}:1 (${text} on ${bg}) — needs ${AA}:1`)
+    }
+  }
+  // LeadInboxPage must read them rather than keeping its own copy.
+  const inbox = readFileSync(ROOT + 'packages/tenant-ui/src/leads/LeadInboxPage.tsx', 'utf8')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+  if (/const STATUS_COLORS\s*[:=]/.test(inbox)) fail('LeadInboxPage has its own STATUS_COLORS map again — a module constant cannot read the theme, which is why it was hardcoded')
+  for (const lit of ['#e8f5e9', '#a5d6a7', '#90caf9']) {
+    if (inbox.includes(lit)) fail(`LeadInboxPage still hardcodes ${lit} — it is a pale colour on a card whose own colour changes`)
+  }
+
+  /**
    * …and the page must USE the pair rather than a literal, which is how this started.
    *
    * Comments are stripped first. The note explaining the fix names the old hexes, and a guard that

@@ -9,18 +9,27 @@ import { Link } from 'react-router-dom'
 import type { LeadsApi, LeadsConfig, LeadsSubscribe, LeadsToast, LeadRow, LeadPlatform } from './types'
 import { TRADES_LEAD_PLATFORMS } from './types'
 import { useLeadPalette, chipColors } from './theme'
+import type { LeadPalette } from './theme'
 import { useMayWrite } from '../auth/PermissionsContext'
 
 interface LeadStats {
   stats: { platform: string; leadsReceived: number; conversionRate: number; avgResponseTimeMin: number | null }[]
   totals: { total: number; new: number; contacted: number; converted: number; dismissed: number }
 }
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  new: { bg: '#e3f2fd', text: '#1565c0' },
-  contacted: { bg: '#fff3e0', text: '#e65100' },
-  converted: { bg: '#e8f5e9', text: '#2e7d32' },
-  dismissed: { bg: '#f5f5f5', text: '#9e9e9e' },
-}
+/**
+ * THE STATUS CHIPS COME FROM THE PALETTE. (T58d)
+ *
+ * This was a module-level map of four hardcoded pairs, chosen for a white card — so in dark mode all
+ * four were pale lozenges, which is the owner's "Lead Inbox text contrast". Two of those pairs were
+ * below AA even in LIGHT mode: "contacted" at 4.0:1 and "dismissed" at 2.6:1, the least readable
+ * chip on the page.
+ *
+ * A module-level constant cannot read the theme — it is evaluated once, before any hook runs — which
+ * is most of why it stayed hardcoded. So it is a function of the palette now, called inside the
+ * component. See `chip` in ./theme.
+ */
+const statusChip = (c: LeadPalette, status: string): { bg: string; text: string } =>
+  c.chip[(status as keyof LeadPalette['chip'])] ?? { bg: c.mutedBtnBg, text: c.faint }
 const errMsg = (e: unknown, fallback: string) => (e as Error)?.message || fallback
 // The chip's colours are worked out against the card it is ACTUALLY on — see chipColors in ./theme.
 
@@ -99,7 +108,7 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
     const { bg, text } = chipColors(p?.color || '#9e9e9e', c.surface)
     return { bg, text, label: p ? p.label : (platform ? platform.replace(/_/g, ' ') : 'Other') }
   }
-  const statusStyle = (status: string) => STATUS_COLORS[status] || STATUS_COLORS.new
+  const statusStyle = (status: string) => statusChip(c, status)
   const btn = (extra: React.CSSProperties = {}): React.CSSProperties => ({ padding: '8px 16px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, background: c.surface, color: c.text, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, ...extra })
 
   return (
@@ -242,12 +251,12 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
                           still reads the inbox, which is how a lead gets looked at. (T42) */}
                       {lead.status === 'converted' && lead.convertedContactId ? (
                         <Link to={`/crm/contacts/${lead.convertedContactId}`} onClick={(e) => e.stopPropagation()}
-                          style={{ padding: '6px 14px', borderRadius: 6, background: '#e8f5e9', color: '#2e7d32', border: '1px solid #a5d6a7', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}>
+                          style={{ padding: '6px 14px', borderRadius: 6, background: c.chip.converted.bg, color: c.chip.converted.text, border: `1px solid ${c.chip.converted.text}44`, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}>
                           <UserPlus size={14} /> Open contact
                         </Link>
                       ) : (
                         mayConvert && <button disabled={busy === `${lead.id}:convert`} onClick={(e) => { e.stopPropagation(); convertToContact(lead.id) }}
-                          style={{ padding: '6px 14px', borderRadius: 6, background: '#e8f5e9', color: '#2e7d32', border: '1px solid #a5d6a7', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                          style={{ padding: '6px 14px', borderRadius: 6, background: c.chip.converted.bg, color: c.chip.converted.text, border: `1px solid ${c.chip.converted.text}44`, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                           <UserPlus size={14} /> {busy === `${lead.id}:convert` ? 'Converting…' : 'Convert to Contact'}
                         </button>
                       )}
@@ -259,7 +268,7 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
                       )}
                       {mayTriage && lead.status === 'dismissed' && (
                         <button disabled={busy === `${lead.id}:new`} onClick={(e) => { e.stopPropagation(); updateStatus(lead.id, 'new') }}
-                          style={{ padding: '6px 14px', borderRadius: 6, background: c.surface, color: '#1565c0', border: '1px solid #90caf9', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                          style={{ padding: '6px 14px', borderRadius: 6, background: c.surface, color: c.statNew, border: `1px solid ${c.statNew}66`, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                           <RefreshCw size={14} /> Reopen
                         </button>
                       )}

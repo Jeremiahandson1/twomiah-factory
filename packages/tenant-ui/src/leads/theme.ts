@@ -37,6 +37,19 @@ export interface LeadPalette {
    */
   okBg: string        // "Active" chip bg (#e8f5e9 in light)
   okText: string      // "Active" chip text (#2e7d32 in light)
+  /**
+   * THE LEAD-STATUS CHIPS. (T58d)
+   *
+   * LeadInboxPage held these as a hardcoded `STATUS_COLORS` map — four pairs chosen for a white
+   * card, so all four were pale lozenges on the dark one. That is the owner's "Lead Inbox text
+   * contrast" item, and the sibling of the "light Active pill" on Lead Sources: one report named
+   * the pill, and the same mistake was four rows away in a STATUS MAP, which is precisely the shape
+   * a sweep does not read.
+   *
+   * Every pair is measured by check-contrast-measured in both themes, and the tiers are kept:
+   * dismissed stays visibly dimmer than the rest rather than being lifted to match.
+   */
+  chip: Record<'new' | 'contacted' | 'converted' | 'dismissed', { bg: string; text: string }>
   infoBg: string      // setup-instructions box (#f8f9ff in light)
   infoBorder: string  // (#e8ecff in light)
   infoHead: string    // (#333 in light)
@@ -60,6 +73,17 @@ const LIGHT: LeadPalette = {
   errBg: '#fdecea', errText: '#b71c1c',
   // 4.56:1 — the pair the chip already used inline, which was right for this palette and only this one.
   okBg: '#e8f5e9', okText: '#2e7d32',
+  chip: {
+    new: { bg: '#e3f2fd', text: '#1565c0' },
+    // #e65100 measured 4.0:1 on this wash — under AA. #c2410c is the shade statContacted already
+    // moved to for the same reason.
+    contacted: { bg: '#fff3e0', text: '#c2410c' },
+    converted: { bg: '#e8f5e9', text: '#2e7d32' },
+    // #9e9e9e on #f5f5f5 was 2.6:1 — "dismissed" was the least readable chip on the page. My first
+    // replacement, #6b7280, measured 4.43 and the guard refused it, which is the guard being worth
+    // having: I had estimated 4.8 by eye.
+    dismissed: { bg: '#f5f5f5', text: '#5b6471' },
+  },
   infoBg: '#f8f9ff', infoBorder: '#e8ecff', infoHead: '#333', infoBody: '#555',
   link: '#2563eb',
   statNew: '#1565c0', statContacted: '#c2410c', statConverted: '#2e7d32',
@@ -75,6 +99,14 @@ const DARK: LeadPalette = {
   // The green chip, lifted the same way errBg/errText are: a dark wash with light ink. 9.65:1,
   // against the 1.5:1-ish the hardcoded light-mode pair gave on this surface.
   okBg: '#1b3326', okText: '#86efac',
+  // Dark washes with light ink, same construction. Dismissed is deliberately the dimmest — a tier,
+  // not a failure to clear AA: 5.7:1 against 8–9:1 for the other three.
+  chip: {
+    new: { bg: '#17293f', text: '#93c5fd' },
+    contacted: { bg: '#3a2310', text: '#ffb74d' },
+    converted: { bg: '#1b3326', text: '#86efac' },
+    dismissed: { bg: '#1f2937', text: '#94a3b8' },
+  },
   infoBg: '#1e2a44', infoBorder: '#334155', infoHead: '#cbd5e1', infoBody: '#94a3b8',
   // lifted onto the dark card: ~9:1 each, against 2.55/3.1/3.4 for the light-mode hexes
   link: '#90caf9',
