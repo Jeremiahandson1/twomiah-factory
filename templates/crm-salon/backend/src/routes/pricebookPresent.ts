@@ -62,8 +62,8 @@ app.get('/:itemId', async (c) => {
   // Format price
   const fmt = (n: any) => {
     const num = Number(n)
-    if (isNaN(num)) return '$0'
-    return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+    if (isNaN(num)) return '$0.00'
+    return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 
   // Parse features (stored as JSON)

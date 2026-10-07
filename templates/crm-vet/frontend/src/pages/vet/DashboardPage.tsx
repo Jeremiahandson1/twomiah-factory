@@ -56,9 +56,23 @@ interface Activity {
   upcomingAppointments?: UpcomingAppt[];
 }
 
+/**
+ * MONEY SHOWS CENTS. (T58d)
+ *
+ *   Owner: "Recent Visits rounds the cents."
+ *
+ * It did — `maximumFractionDigits: 0` — so a $125.50 visit read $126 on the dashboard and $125.50
+ * on the invoice, and the two numbers describing one charge disagreed. The same helper prints the
+ * three figures on the Visits tile, so "billed", "not yet invoiced" and "still to come" were all
+ * rounded too: a practice reconciling the month against its books was reading dollars that are not
+ * the dollars anybody was asked to pay.
+ *
+ * This is the same fault, and the same fix, as crm-rv's AccountingPage at T41 — "an accounting page
+ * does not round". Rounding is only ever right where the number is a count, and none of these are.
+ */
 function money(v: number | string | undefined | null): string {
   const n = Number(v || 0);
-  return `$${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  return `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function fmtDateTime(s?: string): string {

@@ -66,7 +66,7 @@ export function localDay(d: Date = new Date()): string {
 
 export function money(v: number | string | undefined | null): string {
   if (v === null || v === undefined || v === '') return '—';
-  return `$${Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  return `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function prettyType(t?: string): string {

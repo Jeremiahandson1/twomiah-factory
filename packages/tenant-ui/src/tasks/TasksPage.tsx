@@ -313,8 +313,11 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }: TaskItem
           )}
 
           <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-slate-400">
+            {/* red-600, not red-500: #ef4444 on white measures 3.76:1, and this is text-xs, so the
+                one line that exists to be noticed was under AA. The dark half (#f87171 on the slate
+                card, 6.4:1) was already fine and is left alone. (T58d) */}
             {task.dueDate && (
-              <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-500 dark:text-red-400' : ''}`}>
+              <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-600 dark:text-red-400' : ''}`}>
                 <Calendar className="w-3 h-3" />
                 {formatDate(task.dueDate)}
                 {isOverdue && ' (Overdue)'}

@@ -137,7 +137,7 @@ export default function MaintenanceContracts() {
         <StatCard
           icon={DollarSign}
           label="Monthly Revenue"
-          value={`$${stats.monthlyRevenue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+          value={`$${stats.monthlyRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           color="green"
         />
         <StatCard icon={Users} label="Total Contracts" value={stats.total} color="blue" />

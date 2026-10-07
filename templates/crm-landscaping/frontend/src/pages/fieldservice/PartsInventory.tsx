@@ -88,7 +88,7 @@ export default function PartsInventory() {
         <StatCard
           icon={DollarSign}
           label="Total Value"
-          value={`$${totalValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+          value={`$${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           color="green"
         />
       </div>

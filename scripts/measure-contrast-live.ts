@@ -57,7 +57,16 @@ const PORT = 9223
  * `contact-support` rather than the shared SupportPage â€” which is why they were correctly outside
  * this round's eight-template Support fix.
  */
-type Page = { path: string; open?: string }
+/**
+ * `idFrom` lets a DETAIL page be measured. (T58d)
+ *
+ * The owner reported "contrast on the empty Lot cell" — a cell on the patient DETAIL page, which no
+ * run had ever looked at, because the list only had `patients`. This file's own note says it: a page
+ * that is not in the list cannot fail. So a page may name an API path, and the first row's id is
+ * appended to the route. If that API returns nothing the target is SKIPPED LOUDLY rather than
+ * quietly passing, which is the same failure in a different coat.
+ */
+type Page = { path: string; open?: string; idFrom?: string }
 /**
  * `dashboard` and `audit` added to every vertical, and the dispensary's security/scheduling screens.
  * (T51 follow-up)
@@ -103,9 +112,22 @@ const PAGES: Record<string, Page[]> = {
     { path: 'menus' }, { path: 'menus', open: 'New Package' },
     { path: 'support' }, { path: 'invoices' }, { path: 'contacts' },
   ],
-  rv: [{ path: 'dashboard' }, { path: 'audit' }, { path: 'support' }, { path: 'invoices' }, { path: 'units' }],
+  // lead-sources and leads: the "Active" pill and the status chips, both hardcoded light until T58d.
+  rv: [
+    { path: 'dashboard' }, { path: 'audit' }, { path: 'support' }, { path: 'invoices' }, { path: 'units' },
+    { path: 'lead-sources' }, { path: 'leads' }, { path: 'tasks' },
+  ],
   salon: [{ path: 'dashboard' }, { path: 'audit' }, { path: 'expenses' }, { path: 'support' }, { path: 'invoices' }, { path: 'contacts' }],
-  veterinary: [{ path: 'dashboard' }, { path: 'audit' }, { path: 'support' }, { path: 'invoices' }, { path: 'patients' }],
+  /**
+   * T58d added the screens this round touched, and the ones the owner reported that no run had
+   * looked at: the patient DETAIL page (the "empty Lot cell"), Tasks (the overdue date), and the two
+   * lead screens whose chips were hardcoded light.
+   */
+  veterinary: [
+    { path: 'dashboard' }, { path: 'audit' }, { path: 'support' }, { path: 'invoices' },
+    { path: 'patients' }, { path: 'patients', idFrom: '/api/patients?limit=1' },
+    { path: 'tasks' }, { path: 'leads' }, { path: 'lead-sources' },
+  ],
   dispensary: [{ path: 'security' }, { path: 'scheduling' }, { path: 'audit' }, { path: 'dashboard' }, { path: 'compliance' }, { path: 'orders' }, { path: 'contact-support' }],
 }
 
@@ -132,9 +154,17 @@ for (const t of rows) {
   }
   if (!token) { console.log(`NO LOGIN ${t.industry} ${t.slug}`); continue }
   for (const p of pages) {
+    let route = p.path
+    if (p.idFrom) {
+      const r: any = await (await fetch(`${BASE}${p.idFrom}`, { headers: { authorization: `Bearer ${token}` } })).json().catch(() => null)
+      const first = (r?.data ?? (Array.isArray(r) ? r : []))[0]
+      const rowId = first?.id ?? first?.lead?.id
+      if (!rowId) { console.log(`SKIPPED ${t.industry}/${p.path}/:id — ${p.idFrom} returned no row, so this detail page is NOT measured`); continue }
+      route = `${p.path}/${rowId}`
+    }
     targets.push({
-      label: `${t.industry}/${p.path}${p.open ? ` [${p.open}]` : ''}`,
-      url: `${BASE}/crm/${p.path}`, origin: BASE, token, open: p.open,
+      label: `${t.industry}/${route}${p.open ? ` [${p.open}]` : ''}`,
+      url: `${BASE}/crm/${route}`, origin: BASE, token, open: p.open,
     })
   }
 }

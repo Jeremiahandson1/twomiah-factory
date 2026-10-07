@@ -25,7 +25,7 @@ interface Space {
 
 function money(v: number | string | undefined | null): string {
   if (v === null || v === undefined || v === '') return '—';
-  return `$${Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  return `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export default function SpacesPage() {

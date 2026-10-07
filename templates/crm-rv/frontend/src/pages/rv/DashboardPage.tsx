@@ -91,7 +91,7 @@ function num(v: number | null | undefined): number {
 }
 
 function money(v: number | null | undefined): string {
-  return `$${num(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  return `$${num(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function pct(v: number | null | undefined): string {

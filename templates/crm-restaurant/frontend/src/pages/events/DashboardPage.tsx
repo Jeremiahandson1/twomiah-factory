@@ -34,7 +34,7 @@ interface DueRow { id: string; label?: string; amount?: number | string; paidAmo
 interface Activity { newEnquiries?: EnquiryRow[]; upcomingEvents?: UpcomingRow[]; duePayments?: DueRow[] }
 
 function money(v: number | string | undefined | null): string {
-  return `$${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  return `$${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 function isOverdue(dueDate?: string): boolean {
   return !!dueDate && dueDate < localDay();

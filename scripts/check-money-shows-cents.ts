@@ -140,6 +140,47 @@ for (const file of files) {
 }
 
 /**
+ * …and the THIRD form, which is worse than a bare call and was invisible to the rule above. (T58d)
+ *
+ *   Owner, on Vet: "Recent Visits rounds the cents."
+ *
+ * The rule above looks for `.toLocaleString()` with no arguments, on the reasoning that a call WITH
+ * options was a deliberate choice. crm-vet's dashboard passed options — and the options were
+ * `{ minimumFractionDigits: 0, maximumFractionDigits: 0 }`, which rounds on purpose. One helper, four
+ * figures: a $125.50 visit read $126, and the Visits tile's "billed", "not yet invoiced" and "still
+ * to come" were all whole dollars against books that are not.
+ *
+ * So an EXPLICIT zero is flagged too, and it is a stronger signal than a bare call rather than a
+ * weaker one: somebody wrote the rounding down. Only on a $-adjacent line, so a count formatted the
+ * same way is none of this rule's business.
+ */
+let rounded = 0
+for (const file of files) {
+  const rel = relative(ROOT, file).replace(/\\/g, '/')
+  const lines = readFileSync(file, 'utf8').split(/\r?\n/)
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (/^\s*(?:\/\/|\*|\/\*)/.test(line)) continue
+    if (!/maximumFractionDigits:\s*0\b/.test(line)) continue
+    /**
+     * A CURRENCY SIGN, not any dollar. My first version tested `/\$/`, which matches the `${` of
+     * every template interpolation — so it flagged a PERCENTAGE on crm-rv's dashboard as money.
+     * The two real ways a $ gets in front of a figure are the same two the rule above looks for:
+     *
+     *   `$${x.toLocaleString(…)}`   a literal $ then an interpolation, inside a template literal
+     *   '$' + x.toLocaleString(…)   concatenated
+     */
+    const interpolated = /\$\$\{/.test(line)
+    const concatenated = /['"`]\s*\$\s*['"`]\s*\+/.test(line)
+    if (!interpolated && !concatenated) continue
+    rounded++
+    fail(`${rel}:${i + 1} formats money with maximumFractionDigits: 0, which rounds the cents away — $125.50 prints as $126.\n`
+      + `       Use { minimumFractionDigits: 2, maximumFractionDigits: 2 }. Rounding is only right where the number is a COUNT.\n`
+      + `       ${line.trim().slice(0, 140)}`)
+  }
+}
+
+/**
  * …and the other half of the same fault: a figure with its CENTS but no THOUSANDS separator.
  *
  * `toFixed(2)` gives "12000.00". The rule above catches a bare `toLocaleString()` dropping the
