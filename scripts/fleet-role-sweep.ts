@@ -37,22 +37,33 @@ if (!OWNER_PW || !QA_PW) {
   process.exit(2)
 }
 
-// The standing fleet. basictest is deliberately absent: it is a throwaway crm-basic tenant with its own
-// generated owner password and no qa.manager / qa.staff accounts, so it would report three phantom
-// sign-in failures every run.
+// ALL TEN. basictest, disptest and rooftest used to be left out, on a comment saying basictest "has
+// its own generated owner password and no qa.manager / qa.staff accounts". That stopped being true
+// when T40 aligned basictest's owner password — and measured on 2026-10-07, owner, manager, staff AND
+// viewer all sign in on every one of the ten. The exclusion was stale, and it meant the three
+// tenants nobody had role-tested were the three this sweep never looked at.
 const TENANTS: Array<[string, string]> = [
+  ['basictest', 'https://basictest-muhmnkii-c01a-basic-api.onrender.com'],
   ['ctrtest', 'https://ctrtest-6ea610-api.onrender.com'],
+  ['disptest', 'https://disptest-812523-leaf-api.onrender.com'],
+  ['evttest', 'https://evttest-7bc70d-events-api.onrender.com'],
   ['fstest', 'https://fstest-6d5715-wrench-api.onrender.com'],
   ['lndtest', 'https://lndtest-f12f63-landscape-api.onrender.com'],
-  ['vettest', 'https://vettest-b52599-vet-api.onrender.com'],
-  ['saltest', 'https://saltest-db718f-salon-api.onrender.com'],
-  ['evttest', 'https://evttest-7bc70d-events-api.onrender.com'],
+  ['rooftest', 'https://rooftest-72df8d-roof-api.onrender.com'],
   ['rvtest', 'https://rvtest-d50ae9-rv-api.onrender.com'],
+  ['saltest', 'https://saltest-db718f-salon-api.onrender.com'],
+  ['vettest', 'https://vettest-b52599-vet-api.onrender.com'],
 ]
+// VIEWER is in here too. It is the role with the least business having anything, so it is the one
+// where a missed gate costs most — and it signs in on all ten, so there was never a reason to leave
+// it out. (A vertical that does not mount a surface answers 404 → `not-mounted`, which the
+// comparison below ignores, so roof serving its roster at /api/users instead of
+// /api/company/users produces no noise.)
 const ROLES: Array<[string, string, string]> = [
   ['owner', 'twomiah14@gmail.com', OWNER_PW],
   ['manager', 'qa.manager@example.com', QA_PW],
   ['staff', 'qa.staff@example.com', QA_PW],
+  ['viewer', 'qa.viewer@example.com', QA_PW],
 ]
 const PROBES = [
   '/api/contacts?limit=1', '/api/invoices?limit=1', '/api/quotes?limit=1', '/api/jobs?limit=1',
@@ -70,6 +81,30 @@ const BY_DESIGN: Array<{ role: string; path: RegExp; tenants: string[]; why: str
   {
     role: 'staff', path: /^\/api\/invoices/, tenants: ['vettest'],
     why: "crm-vet grants field invoices:read/create/update — clinical staff record care and bill for it (R2-02); its permissions.ts says so",
+  },
+  // Surfaced the first time this sweep ran with viewer and all ten tenants (T58f), then chased down
+  // rather than excused. crm-dispensary forks the company routes and gates the roster on
+  // `users:read` (company.ts:484), where the shared module admits `team:read` as well — so manager
+  // and viewer read it on eight verticals and are refused on dispensary.
+  //
+  // Checked, because "deliberate" is the easy thing to write and the hard thing to be sure of:
+  //   · the refusal starves nothing. Dispensary's pickers read /api/team, which a manager CAN read
+  //     (measured: 200, 8 rows) — so the empty-Dispatch-Board HIGH that forced the shared module to
+  //     admit team:read does not apply here.
+  //   · its one roster caller degrades properly. AuditLogPage does not even ask unless the session
+  //     holds users:read (T42 L2), and renders the actor from the audit row itself
+  //     (`log.userName || log.userEmail || 'System'`), so only the filter dropdown hides.
+  //   · and no vertical leaks: measured as manager, viewer and staff on all ten, zero returned
+  //     email/lastLogin/extraPermissions. The narrowing at company.ts:460 is wired everywhere,
+  //     despite line 455's "not wired → the full row".
+  // Stricter than the shared default, and the strictness costs the user nothing. Left as it is.
+  {
+    role: 'manager', path: /^\/api\/company\/users$/, tenants: ['disptest'],
+    why: 'crm-dispensary forks the roster behind users:read, not team:read — its pickers read /api/team (verified 200 for manager) and its one roster caller hides its own filter, so nothing is starved',
+  },
+  {
+    role: 'viewer', path: /^\/api\/company\/users$/, tenants: ['disptest'],
+    why: 'same dispensary fork — and no vertical returns administration fields to a viewer: measured on all ten, the company.ts:460 narrowing is wired everywhere',
   },
 ]
 
