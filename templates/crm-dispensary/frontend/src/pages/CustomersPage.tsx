@@ -10,9 +10,14 @@ import { Modal, ConfirmModal } from '../components/ui/Modal';
 
 const loyaltyTiers = [
   { value: '', label: 'All Tiers' },
-  { value: 'bronze', label: 'Bronze', color: 'bg-amber-100 text-amber-700' },
-  { value: 'silver', label: 'Silver', color: 'bg-gray-200 text-gray-700' },
-  { value: 'gold', label: 'Gold', color: 'bg-yellow-100 text-yellow-700' },
+  // Three of these four had no dark partner, so a loyalty tier rendered as a bright lozenge on a
+  // black page — the owner saw it as "the Bronze chip". Platinum below has had one all along, which
+  // is the tell: a set where one member is right and the rest were never looked at in the other
+  // theme. No contrast sweep can find these; dark text on a pale chip passes AA comfortably. It is
+  // a theme fault, not a contrast fault. (T58i, same shape as the Expired licence chip)
+  { value: 'bronze', label: 'Bronze', color: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' },
+  { value: 'silver', label: 'Silver', color: 'bg-gray-200 text-gray-700 dark:bg-slate-800 dark:text-slate-300' },
+  { value: 'gold', label: 'Gold', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-300' },
   { value: 'platinum', label: 'Platinum', color: 'bg-indigo-100 text-indigo-700 dark:text-indigo-300 dark:bg-indigo-950/40' },
 ];
 

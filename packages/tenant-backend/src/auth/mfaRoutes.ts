@@ -43,6 +43,7 @@ import { z } from 'zod'
 import { sql } from 'drizzle-orm'
 import crypto from 'crypto'
 import { base32Encode, verifyTOTP } from './totp.ts'
+import { asInstant } from '../instants.ts'
 
 export interface MfaRoutesDeps {
   db: any
@@ -119,8 +120,12 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
         name: d.name,
         verified: d.is_verified !== false,
         isPrimary: d.is_primary === true,
-        lastUsedAt: d.last_used_at,
-        createdAt: d.created_at,
+        // Zoned, both of them. `mfa_devices` stores these as `timestamp` (no zone), so the raw
+        // values read as LOCAL time in the browser — "enrolled 5 hours ago" on a device enrolled
+        // just now. The owner reported createdAt; last_used_at is the same column type on the same
+        // row and would have been the next report. See ../instants.ts.
+        lastUsedAt: asInstant(d.last_used_at),
+        createdAt: asInstant(d.created_at),
         ...(d.codes_left === null ? {} : { codesLeft: Number(d.codes_left) }),
       })),
       /** True when a code will be asked for at the next sign-in — the screen's "two-factor is on". */

@@ -5,6 +5,7 @@
 
 import { db } from '../../db/index.ts';
 import { sql } from 'drizzle-orm';
+import { asInstant } from '../shared/instants.ts';
 import { auditLog } from '../../db/schema.ts';
 
 export const ACTIONS = {
@@ -272,6 +273,14 @@ export function presentLog(row: any): any {
   // both spellings stay on the row: older callers read snake_case, the page reads camelCase
   Object.assign(out, row)
   out.description = describeLog(row)
+  /**
+   * BOTH spellings leave with their zone. `created_at` is `timestamp` — no zone — so the driver hands
+   * it back as the bare text Postgres printed, which `new Date()` then reads as LOCAL time. This row
+   * deliberately carries the field twice, so fixing only one would hand the next reader a row whose
+   * two timestamps disagree about what moment they describe. See shared/instants.ts for the report.
+   */
+  if ('created_at' in out) out.created_at = asInstant(out.created_at)
+  if ('createdAt' in out) out.createdAt = asInstant(out.createdAt)
   return out
 }
 

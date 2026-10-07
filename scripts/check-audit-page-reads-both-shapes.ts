@@ -148,6 +148,39 @@ is('ip_address is read', field(loginRow, 'ipAddress'), '173.40.6.248')
   if (!/partial/i.test(whatChanged(payment))) fail(`a business status must still be shown, got ${JSON.stringify(whatChanged(payment))}`)
 }
 
+// ── A SETTINGS CHANGE NAMES THE SETTINGS IT CHANGED (T58j) ───────────────────────────────────────
+//
+// Owner, T58c: "settings rows show '—'." Owner again, T58i: "settings-update audit rows show '—'."
+//
+// It was reported twice because the block above FIXED the "Status: 200" half and the comment on it
+// mentions settings, but no assertion was ever written for a settings row — so the em-dash half
+// shipped again with the guard green. These rows are copied verbatim from GET /api/audit on ctrtest,
+// where all 16 company rows read "—": the metadata lists exactly what the request touched and
+// whatChanged simply never looked at `fields` or `settings`.
+{
+  const settingsRow = {
+    id: 'bq3pfqjh5m0i7eqj4u1z', action: 'update', entity: 'company',
+    entity_id: 'nu9a6xn8e1fgp21ssvdz7noy', entity_name: 'Contractor Test', changes: null,
+    metadata: { fields: [], settings: ['t43yMarker'] },
+    ip_address: '173.40.6.248', created_at: '2026-10-07 11:35:03.553655',
+    user_name: 'twomiah14@gmail.com', user_email: 'twomiah14@gmail.com',
+  }
+  const one = whatChanged(settingsRow)
+  if (one === '—') fail('a settings row still reads "—" — the metadata names the setting that changed')
+  if (!/t43y ?marker/i.test(one)) fail(`a settings row must name the setting, got ${JSON.stringify(one)}`)
+
+  // Two keys, also real: { fields: [], settings: ['__batchProbe', 'googleReviewUrl'] }.
+  const two = whatChanged({ ...settingsRow, metadata: { fields: [], settings: ['__batchProbe', 'googleReviewUrl'] } })
+  if (!/google ?review ?url/i.test(two)) fail(`a multi-setting row must name them, got ${JSON.stringify(two)}`)
+
+  // A column on the company, rather than a key inside its settings JSON, reads the same way.
+  const col = whatChanged({ ...settingsRow, metadata: { fields: ['defaultTaxRate'], settings: [] } })
+  if (!/default ?tax ?rate/i.test(col)) fail(`a changed company column must be named, got ${JSON.stringify(col)}`)
+
+  // And an empty list is still nothing to say — it must not print an empty string in place of the dash.
+  is('nothing touched still reads —', whatChanged({ ...settingsRow, metadata: { fields: [], settings: [] } }), '—')
+}
+
 // ── and the page must USE them, not reach for raw camelCase again ─────────────────────────────────
 const page = readFileSync(`${ROOT}packages/tenant-ui/src/audit/AuditLogPage.tsx`, 'utf8')
 if (!/from '\.\/auditFields'/.test(page)) fail('AuditLogPage must read rows through ./auditFields, not with its own property access')

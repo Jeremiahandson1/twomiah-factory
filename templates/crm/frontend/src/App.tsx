@@ -179,6 +179,16 @@ function App() {
                     <Route path="aia-forms" element={<AiaFormsPage />} />
                     <Route path="gantt" element={<GanttChartsPage />} />
                     <Route path="change-orders" element={<ChangeOrdersPage />} />
+              {/*
+                A CHANGE ORDER HAS A URL. (T58j — owner: "the change-order detail page still 404s")
+
+                T58 gave the page `?view=<id>` and stopped there, so /crm/change-orders/<id> — the
+                shape every other record here uses, and the one a person types or pastes out of an
+                email — matched no route and fell through to the not-found page. Same screen, which
+                opens that change order read-only; GET /api/change-orders/:id has existed since the
+                module was written, so only the way in was missing.
+              */}
+              <Route path="change-orders/:changeOrderId" element={<ChangeOrdersPage />} />
                     <Route path="punch-lists" element={<PunchListsPage />} />
                     <Route path="daily-logs" element={<DailyLogsPage />} />
                     <Route path="inspections" element={<InspectionsPage />} />

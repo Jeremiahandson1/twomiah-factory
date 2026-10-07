@@ -464,6 +464,30 @@ app.post('/inventory-count/accept', requireRole('manager'), async (c) => {
     : []
   const expected: any[] = Array.isArray(results?.expected) ? results.expected : []
 
+  /**
+   * AN ACCEPTANCE HAS TO BE OF SOMETHING. (T58i)
+   *
+   *   Owner: "An empty inventory-count accept still returns 200."
+   *
+   * It did. `POST /inventory-count/accept {}` found no scanned tags and no expected ones, marked
+   * nothing lost, wrote an audit row saying the count was accepted, and answered 200. That row is
+   * the record a regulator or an owner points at to say the shelf was counted — and nothing was
+   * counted. A count of nothing recorded as done is worse than no record at all, because it is the
+   * one somebody trusts.
+   *
+   * Same fault as the empty inventory count closed in T58c, on the other door: that one was a
+   * missing `.min(1)` on `items`, this one is a body with no scan in it at all.
+   *
+   * A legitimate perfect count still passes: every tag scanned means scannedEpcs is populated and
+   * expected is empty, which is accepted here and marks nothing lost, correctly.
+   */
+  if (!scannedEpcs.length && !expected.length) {
+    return c.json({
+      error: 'There is nothing to accept — run a bulk scan first, then accept its result.',
+      code: 'EMPTY_COUNT',
+    }, 400)
+  }
+
   // Ids of the missing (expected-but-not-scanned) tags. Scope the update by company so we can
   // never touch another tenant's tags. rfid_tags.id is a text column (schema.ts).
   const missingIds = expected.map((t: any) => t?.id).filter((id: any): id is string => typeof id === 'string')

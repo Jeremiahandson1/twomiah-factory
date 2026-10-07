@@ -194,6 +194,49 @@ const idFromPath = (path: string): string | undefined => {
   return undefined
 }
 
+/**
+ * WHICH RECORD IT WAS. (T58j)
+ *
+ *   Owner: "quote-create audit rows show 'Quote' instead of the quote number."
+ *
+ * Verified on ctrtest: every row this floor writes had `entity_name: null`, so the screen's Record
+ * column fell back to the humanised entity — "Quote", "Contact", "Invoice" — on 46 of 200 rows. A log
+ * that cannot say WHICH quote was created is not much of a log, and the owner reported it against
+ * quotes because that is where they happened to look.
+ *
+ * The name is read from the response the handler already sent. That is the only place the floor can
+ * learn it: a middleware knows the path and the status, and a create's identifier exists only in its
+ * reply. The alternative — threading an audit hook through the shared quotes, invoices and contacts
+ * modules and every template's glue — is a far larger change for one column, and none of those
+ * modules audits anything today.
+ *
+ * Guarded, because this runs after every successful write:
+ *   - JSON only, so a PDF, a CSV export or a redirect is never parsed.
+ *   - A declared length over 64KB is a list or a report, not one record; skipped.
+ *   - `clone()` so the response the client is receiving is untouched.
+ *   - An array is not a record, and `{ data: {...} }` is unwrapped because both shapes are in use.
+ *   - Any throw returns undefined. The row is still written, just without the name — the floor may
+ *     never be the reason a request looks like it failed.
+ */
+const nameFromResponse = async (c: Context): Promise<string | undefined> => {
+  try {
+    if (!(c.res.headers.get('content-type') || '').includes('application/json')) return undefined
+    if (Number(c.res.headers.get('content-length') || '0') > 64_000) return undefined
+    const body = (await c.res.clone().json()) as any
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return undefined
+    const rec = body.data && typeof body.data === 'object' && !Array.isArray(body.data) ? body.data : body
+    // `number` first: a quote, invoice or change order is known by it, and a name would be the client's.
+    for (const k of ['number', 'name', 'title', 'email']) {
+      const v = rec[k]
+      if (typeof v === 'number' && Number.isFinite(v)) return String(v)
+      if (typeof v === 'string' && v.trim()) return v.trim().slice(0, 120)
+    }
+    return undefined
+  } catch {
+    return undefined
+  }
+}
+
 export async function auditWrites(c: Context, next: Next) {
   /**
    * The request runs inside a scope any audit.log can mark, whatever it was handed. (T58 follow-up)
@@ -226,11 +269,25 @@ export async function auditWrites(c: Context, next: Next) {
       action: actionFromPath(path, method),
       entity,
       entityId: idFromPath(path),
+      entityName: await nameFromResponse(c),
       // `description` is what the screen reads first, so the row says what happened in words rather
       // than leaving the reader to infer it from an HTTP status. (T58c)
       metadata: { description: describeRequest(path, method, entity), method, path, status, via: 'request' },
       companyId: user.companyId,
-      req: { user },
+      /**
+       * THE FLOOR'S ROWS HAD NO IP. (T58j)
+       *
+       *   Owner: "request-level audit rows have no IP."
+       *
+       * They could not have had one. This passed `{ user }` — a bare object — and resolveActor()
+       * reads the address from the request it is given: `req.req.header(…)` for a Hono context,
+       * `req.header(…)` for anything else, `req.headers[…]` for Express. A plain object answers
+       * none of those, so the actor resolved with a name and a null address on every row the floor
+       * wrote, which is most of them. Handing it the header reader satisfies the second branch
+       * without passing the whole context, so the body — passwords, resets, provider secrets —
+       * still cannot be reached from in here.
+       */
+      req: { user, header: (name: string) => c.req.header(name) },
     } as any)
   } catch (err: any) {
     // The response has already gone. Never let the log break the thing it is recording.

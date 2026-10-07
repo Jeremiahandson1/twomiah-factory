@@ -5,6 +5,9 @@
 // so the shared code stays schema-agnostic and vertical-specific columns
 // never leak across verticals.
 
+/** Timestamps leave this API with their zone — see instants.ts for the owner report behind it. */
+export { asInstant, withInstants } from './instants'
+
 export { createEmailAliasesRoutes } from './emailAliases'
 export { createInboundParseRoute } from './inboundParse'
 export { createInboundMessagesRoutes } from './inboundMessages'

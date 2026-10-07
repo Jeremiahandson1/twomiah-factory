@@ -162,3 +162,30 @@ export const subtotalNetExpr = sql`GREATEST(0,
 export const refundedExprBare = sql`COALESCE(NULLIF(refunded_amount, '')::numeric, 0)`
 export const grossExprBare = sql`COALESCE(total::numeric, 0)`
 export const netExprBare = sql`GREATEST(0, COALESCE(total::numeric, 0) - COALESCE(NULLIF(refunded_amount, '')::numeric, 0))`
+
+/**
+ * WHAT A CUSTOMER TYPICALLY SPENDS — one definition, because there were two. (T58i)
+ *
+ *   Owner: "Analytics still shows average order value as $12.50 while the dashboard shows $25."
+ *
+ * The dashboard answers it the way T58c settled: average the sales that STAYED SOLD,
+ * `AVG(CASE WHEN net > 0 THEN net END)`. Three settled orders, two returned in full and one kept at
+ * $25, is a typical basket of $25 — the two zeroes are not small sales, they are not sales.
+ *
+ * Analytics answered a different question with the same label: `SUM(net) / COUNT(*)`, dividing the
+ * takings by every settled order including the ones refunded to nothing. Same card name, same shop,
+ * same day, two numbers — and the one that is wrong is the one in the module called Analytics.
+ *
+ * Both now read this. The rule lives here, beside the revenue expressions it has to agree with,
+ * rather than being written out twice and drifting — which is exactly how it drifted the first time.
+ *
+ * A partial refund still counts, at what was kept: that basket did happen, for less.
+ */
+/** A sale that kept money. A fully refunded order is not a small basket, it is not a basket. */
+export const keptSaleBare = sql`${netExprBare} > 0`
+
+/** For a query that already restricts to settled sales in its WHERE clause. */
+export const aovExprBare = sql`COALESCE(AVG(CASE WHEN ${keptSaleBare} THEN ${netExprBare} END), 0)`
+
+/** For a query that scans a whole day or range and has to pick the settled sales out itself. */
+export const aovSettledExprBare = sql`COALESCE(AVG(CASE WHEN status IN ${settledSale} AND ${keptSaleBare} THEN ${netExprBare} END), 0)`

@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { company } from '../../db/schema.ts'
 import { sql, eq } from 'drizzle-orm'
-import { settledSale, taxCollected, netExprBare, refundedExprBare, taxNetExprBare } from '../utils/revenue.ts'
+import { settledSale, taxCollected, netExprBare, refundedExprBare, taxNetExprBare, aovExprBare, aovSettledExprBare } from '../utils/revenue.ts'
 import { storeDayRange, storeDateString, zoneFor, storeRange } from '../utils/isoTime.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
@@ -67,15 +67,26 @@ app.get('/sales', async (c) => {
     SELECT
       date_trunc(${dateTrunc}, (COALESCE(completed_at, created_at) AT TIME ZONE 'UTC' AT TIME ZONE ${dayTz}))::date as period,
       COUNT(*)::int as order_count,
-      -- Revenue and AOV share the same NET basis (total − refunded) so AOV × orders = revenue. (retest: AOV vs revenue)
-      -- the shared definition, floored per sale: one row refunded beyond its own total used to drag a
-      -- whole day negative (-$50 on 13 Sep). utils/revenue.ts. (T29 L3)
+      -- Revenue is NET (total − refunded), the shared definition floored per sale: one row refunded
+      -- beyond its own total used to drag a whole day negative (-$50 on 13 Sep). utils/revenue.ts (T29 L3)
+      --
+      -- AOV × orders NO LONGER EQUALS revenue, deliberately. That identity used to be stated here as
+      -- if it were the point; it holds for any denominator, and protecting it is what kept a fully
+      -- refunded order counting as a basket. Revenue answers "what did we take", AOV answers "what
+      -- does a customer typically spend", and the second one excludes sales that came back. (T58i)
       ROUND(COALESCE(SUM(${netExprBare}), 0), 2) as revenue,
       COALESCE(SUM(subtotal::numeric), 0) as subtotal,
       -- the WHERE above keeps every settled sale for revenue; tax is only the ones not handed back in full
       COALESCE(SUM(CASE WHEN status IN ${taxCollected} THEN ${taxNetExprBare} ELSE 0 END), 0) as tax_collected,
       COALESCE(SUM(discount_amount::numeric), 0) as discounts_given,
-      ROUND(COALESCE(AVG(${netExprBare}), 0), 2) as avg_order_value
+      -- The ONE definition of a typical basket (utils/revenue.ts): the sales that stayed sold. This
+      -- averaged every settled order including the ones refunded to nothing, so Analytics and the
+      -- Dashboard printed two different numbers under the same words. (T58i)
+      ROUND(${aovExprBare}, 2) as avg_order_value,
+      -- carried so the TOTAL below can be the same average over the whole range rather than an
+      -- average of averages, which is not the same number once the buckets differ in size
+      COUNT(CASE WHEN ${netExprBare} > 0 THEN 1 END)::int as kept_order_count,
+      ROUND(COALESCE(SUM(CASE WHEN ${netExprBare} > 0 THEN ${netExprBare} END), 0), 2) as kept_revenue
     FROM orders
     WHERE company_id = ${currentUser.companyId}
       AND status IN ${settledSale}
@@ -93,9 +104,24 @@ app.get('/sales', async (c) => {
     orderCount: acc.orderCount + Number(row.order_count),
     taxCollected: acc.taxCollected + Number(row.tax_collected),
     discountsGiven: acc.discountsGiven + Number(row.discounts_given),
-  }), { revenue: 0, orderCount: 0, taxCollected: 0, discountsGiven: 0 })
+    keptOrderCount: acc.keptOrderCount + Number(row.kept_order_count || 0),
+    keptRevenue: acc.keptRevenue + Number(row.kept_revenue || 0),
+  }), { revenue: 0, orderCount: 0, taxCollected: 0, discountsGiven: 0, keptOrderCount: 0, keptRevenue: 0 })
 
-  totals.avgOrderValue = totals.orderCount > 0 ? totals.revenue / totals.orderCount : 0
+  /**
+   * The typical basket over the whole range, on the same basis as every bucket above and as the
+   * dashboard card. (T58i)
+   *
+   * This was `revenue / orderCount` — the takings divided by every settled order, the ones refunded
+   * to nothing included — which is why Analytics said $12.50 where the Dashboard said $25.
+   *
+   * Summed from the kept totals rather than averaging the per-bucket averages: those are only equal
+   * when every bucket holds the same number of sales, and a quiet Monday next to a busy Saturday is
+   * the normal case.
+   */
+  totals.avgOrderValue = totals.keptOrderCount > 0
+    ? Math.round((totals.keptRevenue / totals.keptOrderCount) * 100) / 100
+    : 0
 
   return c.json({ data, totals, period, startDate: start, endDate: end })
 })
@@ -179,8 +205,10 @@ app.get('/summary', async (c) => {
         ROUND(COALESCE(SUM(CASE WHEN status IN ${settledSale} THEN ${netExprBare} ELSE 0 END), 0), 2) as revenue,
         COALESCE(SUM(CASE WHEN status IN ${taxCollected} THEN ${taxNetExprBare} ELSE 0 END), 0) as tax_collected,
         COALESCE(SUM(CASE WHEN status IN ${settledSale} THEN discount_amount::numeric ELSE 0 END), 0) as discounts,
-        -- AOV on the same NET basis as revenue (AOV × completed orders = revenue). (retest: AOV vs revenue)
-        ROUND(COALESCE(AVG(CASE WHEN status IN ${settledSale} THEN ${netExprBare} END), 0), 2) as avg_order_value,
+        -- The ONE definition (utils/revenue.ts): the sales that stayed sold. The identity
+        -- "AOV × completed = revenue" was the wrong thing to protect — it holds for any denominator,
+        -- and this one counted orders refunded to nothing as baskets. (T58i)
+        ROUND(${aovSettledExprBare}, 2) as avg_order_value,
         COALESCE(SUM(CASE WHEN status IN ('refunded', 'partially_refunded') THEN COALESCE(NULLIF(refunded_amount, '')::numeric, total::numeric) ELSE 0 END), 0) as refunds_total,
         -- The mix counts SALES, so it counts the same row set the revenue above it does.
         --

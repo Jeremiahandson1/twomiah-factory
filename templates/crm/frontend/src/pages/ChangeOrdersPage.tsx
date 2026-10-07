@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { formatDate } from '../utils/date';
 import { Plus, Edit, Trash2, Send, Check, X as XIcon, FileText } from 'lucide-react';
 import api from '../services/api';
@@ -103,6 +103,9 @@ export default function ChangeOrdersPage() {
    */
   const [searchParams, setSearchParams] = useSearchParams();
   const projectFilter = searchParams.get('projectId') || '';
+  /** Set when the page was reached as /crm/change-orders/<id> rather than as the list. */
+  const { changeOrderId } = useParams();
+  const navigate = useNavigate();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -199,6 +202,13 @@ export default function ChangeOrdersPage() {
   const openView = (item: Record<string, unknown>) => { setEditing(item); setReadOnly(true); fill(item); setModalOpen(true); };
 
   /**
+   * Closing the detail leaves the detail URL. On /crm/change-orders/<id> the modal IS the page, so
+   * dismissing it without navigating would leave somebody looking at the list with a URL that still
+   * names one change order — and Back would then leave the CRM rather than return to the list.
+   */
+  const closeModal = () => { setModalOpen(false); if (changeOrderId) navigate('/crm/change-orders'); };
+
+  /**
    * `&new=true` opens the form with that project already chosen — the project's Quick Action sends
    * it, and it was ignored. The parameter is dropped from the URL once it has been acted on, so
    * closing the modal and coming back with the browser's Back button does not reopen it.
@@ -221,22 +231,55 @@ export default function ChangeOrdersPage() {
    * were not clickable and its View All landed on an unfiltered-by-row list, so "open this change
    * order" meant arriving here and finding the row again by eye.
    *
-   * Waits for the rows: the id is matched against what the list has loaded, so a deep link that
-   * arrives before the fetch finishes still opens once the data is there. If the id is not in this
-   * page of results the parameter is dropped and the list stands, rather than a modal opening on
-   * nothing — a change order on page three of a filtered list is a real case.
+   * IT ALSO ANSWERS /crm/change-orders/<id>. (T58j)
    *
-   * The parameter is removed once acted on, like `new` above, so Back does not reopen it.
+   *   Owner, after T58: "the change-order detail page still 404s."
+   *
+   * Correct — T58 added `?view=` for the project page's link and nothing else, so the path form,
+   * which is the shape every other record on this CRM uses and the one a person types or pastes out
+   * of an email, matched no route and fell through to the not-found page. App.tsx now points it here
+   * and the id is read from either place.
+   *
+   * AND IT NO LONGER DEPENDS ON THE ROW BEING LOADED. The old effect matched the id against the 25
+   * rows this page had fetched and, failing that, dropped the parameter and left the list standing —
+   * so a change order on page three opened nothing at all, silently, and the comment that used to sit
+   * here called that "a real case" and accepted it. A link cannot depend on where its target happens
+   * to fall in a paginated list, so the record is fetched by id when it is not already in hand.
+   * GET /api/change-orders/:id scopes by company and answers 404 otherwise, so a guessed id from
+   * another tenant opens nothing.
+   *
+   * `tried` holds the last id acted on, because opening the modal re-renders and the effect would
+   * otherwise fetch again on every pass. The query parameter is still cleared once acted on, like
+   * `new` above, so Back does not reopen it; the path form keeps its URL, which is the point of it.
    */
+  const [tried, setTried] = useState('');
   useEffect(() => {
-    const wanted = searchParams.get('view');
-    if (!wanted) return;
-    if (!data.length) return;
+    const wanted = changeOrderId || searchParams.get('view');
+    if (!wanted || tried === wanted) return;
+
+    const clearParam = () => {
+      if (changeOrderId) return;
+      const next = new URLSearchParams(searchParams); next.delete('view');
+      setSearchParams(next, { replace: true });
+    };
+
     const found = data.find((i: Record<string, unknown>) => String(i.id) === wanted);
-    if (found) openView(found);
-    const next = new URLSearchParams(searchParams); next.delete('view');
-    setSearchParams(next, { replace: true });
-  }, [searchParams, data, setSearchParams]);
+    if (found) { setTried(wanted); openView(found); clearParam(); return; }
+
+    // Give the list a chance first — it usually holds the row, and that costs no extra request.
+    if (loading) return;
+    setTried(wanted);
+    (async () => {
+      try {
+        const one = await api.changeOrders.get(wanted) as Record<string, unknown>;
+        if (!one || !one.id) throw new Error('not found');
+        openView(one); clearParam();
+      } catch {
+        toast.error('That change order could not be found.');
+        navigate('/crm/change-orders', { replace: true });
+      }
+    })();
+  }, [changeOrderId, searchParams, data, loading, tried, setSearchParams, navigate]);
 
   const filteredProjectName = projectFilter
     ? String((projects.find((p: Record<string, unknown>) => p.id === projectFilter)?.name as string) || '')
@@ -281,7 +324,7 @@ export default function ChangeOrdersPage() {
         { label: 'Reject', icon: XIcon, show: (r: Record<string, unknown>) => can('change-orders:update') && REJECTABLE.includes(statusOf(r)), onClick: handleReject },
         { label: 'Delete', icon: Trash2, show: (r: Record<string, unknown>) => can('change-orders:delete') && EDITABLE.includes(statusOf(r)), onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },
       ]} />
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={readOnly ? `Change Order ${(editing?.number as string) || ''}`.trim() : editing ? 'Edit Change Order' : 'New Change Order'} size="lg">
+      <Modal isOpen={modalOpen} onClose={closeModal} title={readOnly ? `Change Order ${(editing?.number as string) || ''}`.trim() : editing ? 'Edit Change Order' : 'New Change Order'} size="lg">
         <div className="space-y-4">
           {readOnly && (
             <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:bg-slate-800 dark:text-slate-300">
@@ -330,7 +373,7 @@ export default function ChangeOrdersPage() {
           )}
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">{readOnly ? 'Close' : 'Cancel'}</button>
+          <button onClick={closeModal} className="px-4 py-2 hover:bg-gray-100 rounded-lg">{readOnly ? 'Close' : 'Cancel'}</button>
           {!readOnly && <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>}
         </div>
       </Modal>

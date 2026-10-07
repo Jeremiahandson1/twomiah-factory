@@ -96,6 +96,33 @@ export const whatChanged = (log: any): string => {
     if (parts.length) return parts.join(', ') + (Object.keys(changes).length > 3 ? ' …' : '')
   }
 
+  /**
+   * A SETTINGS CHANGE NAMES THE SETTINGS IT CHANGED. (T58j)
+   *
+   *   Owner: "settings-update audit rows show '—'."
+   *
+   * And they did, on every vertical. A company update writes
+   * `metadata: { fields: [...], settings: [...] }` — the exact list of what the request touched, e.g.
+   * `{ fields: [], settings: ["googleReviewUrl"] }` — and carries no `description` and no `changes`.
+   * So this function fell past both, found none of the money keys below, and printed an em-dash over
+   * a row that knew precisely what had happened. Verified on ctrtest: 16 company rows, every one of
+   * them "—".
+   *
+   * `fields` are columns on the company; `settings` are keys inside its settings JSON. They are
+   * reported together because the reader does not care which side of that line a value lives on —
+   * they changed a setting either way. Names are humanised, three at most, then a count, which is
+   * the same shape the `changes` branch above uses.
+   */
+  if (meta) {
+    const named = [...(Array.isArray(meta.fields) ? meta.fields : []), ...(Array.isArray(meta.settings) ? meta.settings : [])]
+      .map((f: unknown) => String(f).trim())
+      .filter(Boolean)
+    if (named.length) {
+      const shown = named.slice(0, 3).map((f) => humanise(f.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase())).join(', ')
+      return named.length > 3 ? `${shown} and ${named.length - 3} more` : shown
+    }
+  }
+
   if (meta) {
     // A money entry says its amount; anything else falls back to the few keys worth reading.
     for (const k of ['amount', 'total', 'reason', 'status', 'confirmationNumber', 'method']) {

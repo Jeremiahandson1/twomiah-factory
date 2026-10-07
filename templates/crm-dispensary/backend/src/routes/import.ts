@@ -99,7 +99,7 @@ app.post('/contacts', async (c) => {
       skipped: results.skipped,
       filename: file.name,
     },
-    req: { user },
+    req: { user, header: (name: string) => c.req.header(name) }, // the address too: a bare { user } has no headers to read (T58j)
   })
 
   return c.json(results)
@@ -129,7 +129,7 @@ app.post('/products', async (c) => {
     action: 'IMPORT',
     entity: 'products',
     metadata: { imported: results.imported, skipped: results.skipped },
-    req: { user },
+    req: { user, header: (name: string) => c.req.header(name) }, // the address too: a bare { user } has no headers to read (T58j)
   })
 
   return c.json(results)

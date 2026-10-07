@@ -5,6 +5,7 @@
 
 import { db } from '../../db/index.ts';
 import { sql } from 'drizzle-orm';
+import { withInstants } from '../shared/instants.ts';
 import { auditLog } from '../../db/schema.ts';
 
 export const ACTIONS = {
@@ -221,7 +222,7 @@ export async function query({
     sql`SELECT COUNT(*)::int as total FROM audit_log WHERE ${where}`
   );
 
-  const data = (dataResult as any).rows || dataResult;
+  const data = withInstants((dataResult as any).rows || dataResult);
   const total = Number((countResult as any).rows?.[0]?.total || 0);
 
   return { data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
@@ -237,7 +238,7 @@ export async function getHistory(companyId: string, entity: string, entityId: st
     ORDER BY created_at DESC
     LIMIT 100
   `);
-  return (result as any).rows || result;
+  return withInstants((result as any).rows || result);
 }
 
 

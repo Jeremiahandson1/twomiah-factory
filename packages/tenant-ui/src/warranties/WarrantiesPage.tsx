@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import type { WarrantiesApi, WarrantiesPageProps } from './types';
 import { usePrompt } from '../ui/ConfirmProvider'
+import { PageError, errorText } from '../ui/PageError'
 import { useMayWrite } from '../auth/PermissionsContext';
 
 // api is injected once at the page root; child components read it via useWarranties().
@@ -350,6 +351,8 @@ interface ClaimsListProps {
 }
 
 function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
+  // A refusal belongs on the page the claim is on, not in a pop-up that leaves it. (T58i)
+  const [error, setError] = useState<string | null>(null);
   const ask = usePrompt()
   // The page's answer, read here because this is where the controls are. (T42)
   const { api, mayWork } = useWarranties();
@@ -382,7 +385,7 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
       loadClaims();
       onRefresh();
     } catch (error: unknown) {
-      alert('Failed to schedule');
+      setError(errorText(error, 'That visit could not be scheduled.'));
     }
   };
 
@@ -392,7 +395,7 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
       loadClaims();
       onRefresh();
     } catch (error: unknown) {
-      alert('Failed to update');
+      setError(errorText(error, 'That claim could not be updated.'));
     }
   };
 
@@ -404,7 +407,7 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
       loadClaims();
       onRefresh();
     } catch (error: unknown) {
-      alert('Failed to deny');
+      setError(errorText(error, 'That claim could not be denied.'));
     }
   };
 
@@ -418,6 +421,7 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
 
   return (
     <div className="space-y-4">
+      <PageError message={error} onDismiss={() => setError(null)} />
       {/* Filter */}
       <div className="flex items-center gap-4">
         <select
@@ -533,6 +537,8 @@ interface NewClaimModalProps {
 }
 
 function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
+  // Shown inside the modal, beside the form that failed, instead of a pop-up over it. (T58i)
+  const [error, setError] = useState<string | null>(null);
   const { api } = useWarranties();
   const [form, setForm] = useState({
     warrantyId: '',
@@ -551,11 +557,7 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
       await api.post('/api/warranties/claims', form);
       onSave();
     } catch (error: unknown) {
-      alert((error as Record<string, unknown>)?.response
-        ? ((error as Record<string, unknown>).response as Record<string, unknown>)?.data
-          ? (((error as Record<string, unknown>).response as Record<string, unknown>).data as Record<string, unknown>)?.error || 'Failed to create claim'
-          : 'Failed to create claim'
-        : 'Failed to create claim');
+      setError(errorText(error, 'That claim could not be filed.'));
     } finally {
       setSaving(false);
     }
@@ -567,6 +569,10 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">New Warranty Claim</h2>
+
+          {/* Beside the form that failed, and it stays until the next attempt — a pop-up over a
+              modal is dismissed before anyone can act on what it said. (T58i) */}
+          <div className="mb-4"><PageError message={error} onDismiss={() => setError(null)} /></div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

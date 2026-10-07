@@ -7,6 +7,7 @@ import {
 import { LucideIcon } from 'lucide-react';
 import type { InventoryApi, InventoryPageProps } from './types';
 import { useMayWrite } from '../auth/PermissionsContext';
+import { PageError, errorText } from '../ui/PageError'
 
 // api is injected once at the page root; child components read it via useInventory().
 const InventoryCtx = createContext<{ api: InventoryApi }>({ api: null as any });
@@ -594,6 +595,8 @@ function PurchaseOrdersTab({ locations }: PurchaseOrdersTabProps) {
 }
 
 function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
+  // Shown beside the form that failed, not thrown over it. (T58i)
+  const [error, setError] = useState<string | null>(null);
   const { api } = useInventory();
   const [form, setForm] = useState<{
     name: string;
@@ -629,7 +632,7 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
       }
       onSave();
     } catch (error) {
-      alert((error as Error)?.message || 'Failed to save item');
+      setError(errorText(error, 'That item could not be saved.'));
     } finally {
       setSaving(false);
     }
@@ -641,6 +644,8 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">{item ? 'Edit Item' : 'Add Item'}</h2>
+
+          <div className="mb-4"><PageError message={error} onDismiss={() => setError(null)} /></div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -742,6 +747,7 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
 }
 
 function LocationFormModal({ onSave, onClose }: LocationFormModalProps) {
+  const [error, setError] = useState<string | null>(null);
   const { api } = useInventory();
   const [form, setForm] = useState<{ name: string; type: string }>({ name: '', type: 'warehouse' });
   const [saving, setSaving] = useState<boolean>(false);
@@ -753,7 +759,7 @@ function LocationFormModal({ onSave, onClose }: LocationFormModalProps) {
       await api.post('/api/inventory/locations', form);
       onSave();
     } catch (error) {
-      alert('Failed to save location');
+      setError(errorText(error, 'That location could not be saved.'));
     } finally {
       setSaving(false);
     }
@@ -765,6 +771,8 @@ function LocationFormModal({ onSave, onClose }: LocationFormModalProps) {
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">Add Location</h2>
+
+          <div className="mb-4"><PageError message={error} onDismiss={() => setError(null)} /></div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -807,6 +815,7 @@ function LocationFormModal({ onSave, onClose }: LocationFormModalProps) {
 }
 
 function TransferModal({ items, locations, onSave, onClose }: TransferModalProps) {
+  const [error, setError] = useState<string | null>(null);
   const { api } = useInventory();
   const [form, setForm] = useState<{
     itemId: string;
@@ -828,7 +837,7 @@ function TransferModal({ items, locations, onSave, onClose }: TransferModalProps
       await api.post('/api/inventory/transfer', form);
       onSave();
     } catch (error) {
-      alert((error as Error).message || 'Failed to transfer');
+      setError(errorText(error, 'That stock could not be transferred.'));
     } finally {
       setSaving(false);
     }
@@ -840,6 +849,8 @@ function TransferModal({ items, locations, onSave, onClose }: TransferModalProps
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">Transfer Stock</h2>
+
+          <div className="mb-4"><PageError message={error} onDismiss={() => setError(null)} /></div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -912,6 +923,7 @@ function TransferModal({ items, locations, onSave, onClose }: TransferModalProps
 }
 
 function AdjustStockModal({ item, locations, onSave, onClose }: AdjustStockModalProps) {
+  const [error, setError] = useState<string | null>(null);
   const { api } = useInventory();
   const [form, setForm] = useState<{
     locationId: string;
@@ -938,7 +950,7 @@ function AdjustStockModal({ item, locations, onSave, onClose }: AdjustStockModal
       });
       onSave();
     } catch (error) {
-      alert((error as Error).message || 'Failed to adjust');
+      setError(errorText(error, 'That stock adjustment could not be saved.'));
     } finally {
       setSaving(false);
     }
@@ -950,6 +962,8 @@ function AdjustStockModal({ item, locations, onSave, onClose }: AdjustStockModal
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">Adjust Stock - {item.name}</h2>
+
+          <div className="mb-4"><PageError message={error} onDismiss={() => setError(null)} /></div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex gap-2">

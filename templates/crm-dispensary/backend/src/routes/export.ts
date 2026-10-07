@@ -61,7 +61,7 @@ app.get('/:type/csv', requirePermission('dashboard:read'), async (c) => {
     entity: type,
     entityName: `${result.count} records`,
     metadata: { format: 'csv', filters: c.req.query() },
-    req: { user },
+    req: { user, header: (name: string) => c.req.header(name) }, // the address too: a bare { user } has no headers to read (T58j)
   })
 
   return new Response(result.data, {
@@ -110,7 +110,7 @@ app.get('/:type/excel', requirePermission('dashboard:read'), async (c) => {
     entity: type,
     entityName: `${result.count} records`,
     metadata: { format: 'excel', filters: c.req.query() },
-    req: { user },
+    req: { user, header: (name: string) => c.req.header(name) }, // the address too: a bare { user } has no headers to read (T58j)
   })
 
   return new Response(result.data, {

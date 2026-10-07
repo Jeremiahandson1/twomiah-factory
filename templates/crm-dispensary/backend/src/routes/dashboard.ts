@@ -3,7 +3,7 @@ import { ROLE_HIERARCHY, normalizeRole } from '../middleware/permissions.ts'
 import { db } from '../../db/index.ts'
 import { product, contact, company } from '../../db/schema.ts'
 import { eq, and, gte, lt, lte, count, desc, sql } from 'drizzle-orm'
-import { settledSale, taxCollected, netExprBare, refundedExprBare, taxNetExprBare } from '../utils/revenue.ts'
+import { settledSale, taxCollected, netExprBare, refundedExprBare, taxNetExprBare, aovSettledExprBare } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { storeTimeZone, storeDayRange, storeDateString, zoneFor } from '../utils/isoTime.ts'
 
@@ -107,7 +107,7 @@ app.get('/stats', async (c) => {
          *
          * A partial refund still counts, at what was kept: that basket did happen, for less.
          */
-        COALESCE(AVG(CASE WHEN status IN ${settledSale} AND ${netExprBare} > 0 THEN ${netExprBare} END), 0) as avg_order_value,
+        ${aovSettledExprBare} as avg_order_value,
         COUNT(CASE WHEN is_medical = true AND status IN ${settledSale} THEN 1 END)::int as medical_orders
       FROM orders
       WHERE company_id = ${companyId}
