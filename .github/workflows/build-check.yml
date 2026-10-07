@@ -1894,6 +1894,29 @@ jobs:
       - name: "Check every journal's when strictly increases"
         run: bun run scripts/check-migration-journal-applies.ts
 
+  migration-statements-parse:
+    name: "Every migration statement is a statement"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check no migration splits into prose"
+        run: bun run scripts/check-migration-statements-parse.ts
+
+  migrations-build-the-schema:
+    name: "Migrations build the schema on their own"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun install
+      - name: "Replay every journal against an empty database"
+        run: bun run scripts/check-migrations-build-the-schema.ts
+
   gate-in-scope:
     name: "Permission flags are used where they are declared"
     runs-on: ubuntu-latest

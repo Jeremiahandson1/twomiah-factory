@@ -469,7 +469,24 @@ export function createCompanyRoutes(deps: CompanyDeps) {
 
   app.post('/users', requireAdmin, async (c) => {
     const currentUser = c.get('user') as any
-    const schema = z.object({ email: z.string().email(), password: z.string().min(8), firstName: z.string().min(1), lastName: z.string().min(1), phone: z.string().optional(), role: z.enum(roles).default('user') })
+    /**
+     * `isActive` IS ACCEPTED HERE. (T58d — Showcase, "isActive:false being ignored")
+     *
+     * It was not, and zod strips what it does not declare, so `POST /users { isActive: false }`
+     * answered 201 with a fully ACTIVE seat. Nothing refused it and nothing reported it; the caller
+     * asked for a suspended account and got a working one, which on a seat-limited plan is also a
+     * seat they did not mean to spend.
+     *
+     * The edit route three handlers down has honoured `isActive` all along — it is how Revoke access
+     * works — so this was the same field being real on one door and discarded on the other. Same
+     * shape as the rule that says a check applied on create applies on edit, read the other way
+     * round: a field honoured on edit is honoured on create.
+     *
+     * The seat cap below is deliberately NOT applied when the new seat is inactive: it counts active
+     * users, because that is what a plan charges for, and refusing to create a suspended account on
+     * a full plan would make the one safe thing an admin can do impossible.
+     */
+    const schema = z.object({ email: z.string().email(), password: z.string().min(8), firstName: z.string().min(1), lastName: z.string().min(1), phone: z.string().optional(), role: z.enum(roles).default('user'), isActive: z.boolean().optional() })
     const body = await readBody(c)
     if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
     const parsed = schema.safeParse(body)
@@ -489,7 +506,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
       const envSeats = Number.parseInt(process.env.SEAT_LIMIT || '', 10)
       const settingSeats = Number.parseInt(String((companyRow?.settings as any)?.seatLimit ?? ''), 10)
       const seatLimit = Number.isInteger(envSeats) && envSeats > 0 ? envSeats : (Number.isInteger(settingSeats) && settingSeats > 0 ? settingSeats : null)
-      if (seatLimit) {
+      if (seatLimit && rest.isActive !== false) {
         const active = await tx.select({ id: t.user.id }).from(t.user).where(and(eq(t.user.companyId, currentUser.companyId), eq(t.user.isActive, true)))
         if (active.length >= seatLimit) {
           return { status: 403 as const, body: { error: `Your plan includes ${seatLimit} user${seatLimit === 1 ? '' : 's'} and ${active.length} are already active. Deactivate someone or upgrade to add more.`, seatLimit, activeSeats: active.length } }

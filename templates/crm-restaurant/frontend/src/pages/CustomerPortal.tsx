@@ -33,6 +33,21 @@ interface StatCard {
   color: string;
 }
 
+// LITERAL class names. These used to be built by interpolating the stat's colour name into the
+// utility, and Tailwind finds classes by scanning source text — so an assembled name is never
+// emitted, and whether the rule exists at all comes down to whether some other file happens to use
+// the same literal. Measured on the deployed build: the blue and green shades were present and the
+// emerald and amber ones were not, so two of these four tiles drew an icon with no colour, and which
+// two depended on what else was in the bundle. The icon is -700 rather than -500 because the chip is
+// a -50 tint and amber-500 on amber-50 is about 1.9:1, under the 3:1 non-text contrast needs. (T58d)
+const TILE_TONE: Record<string, { chip: string; icon: string }> = {
+  blue: { chip: 'bg-blue-50 dark:bg-blue-950/40', icon: 'text-blue-700 dark:text-blue-300' },
+  emerald: { chip: 'bg-emerald-50 dark:bg-emerald-950/40', icon: 'text-emerald-700 dark:text-emerald-300' },
+  amber: { chip: 'bg-amber-50 dark:bg-amber-950/40', icon: 'text-amber-700 dark:text-amber-300' },
+  green: { chip: 'bg-green-50 dark:bg-green-950/40', icon: 'text-green-700 dark:text-green-300' },
+}
+const tileTone = (name: string) => TILE_TONE[name] ?? TILE_TONE.blue
+
 export default function CustomerPortal() {
   const { user, company, logout, loading: authLoading, checkAuth, hasFeature } = useAuth();
   const navigate = useNavigate();
@@ -171,8 +186,8 @@ export default function CustomerPortal() {
               { label: 'Outstanding', value: `$${Number((stats.payments as Record<string, unknown>)?.outstanding ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: DollarSign, color: 'green' },
             ] as unknown as StatCard[]).map((stat) => (
               <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-4 dark:bg-slate-900">
-                <div className={`w-8 h-8 rounded-lg bg-${stat.color}-50 flex items-center justify-center mb-2`}>
-                  <stat.icon className={`w-4 h-4 text-${stat.color}-500`} />
+                <div className={`w-8 h-8 rounded-lg ${tileTone(stat.color).chip} flex items-center justify-center mb-2`}>
+                  <stat.icon className={`w-4 h-4 ${tileTone(stat.color).icon}`} />
                 </div>
                 <p className="text-xl font-bold text-slate-900 dark:text-slate-100">{loading ? '—' : stat.value}</p>
                 <p className="text-xs text-slate-500">{stat.label}</p>

@@ -54,12 +54,15 @@ interface ProjectItem {
   name: string;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
-  pending: { label: 'Pending', color: 'gray', icon: Clock },
-  selected: { label: 'Selected', color: 'blue', icon: Check },
-  approved: { label: 'Approved', color: 'green', icon: Check },
-  ordered: { label: 'Ordered', color: 'purple', icon: Package },
-  received: { label: 'Received', color: 'emerald', icon: Truck },
+// Chip classes in full, not a colour name assembled into the utility at the call site — Tailwind
+// only emits classes it can read as literal text, so an assembled one is in the stylesheet by
+// coincidence or not at all. See the note on CLAIM_STATUS in the shared WarrantiesPage. (T58d)
+const STATUS_CONFIG: Record<string, { label: string; chip: string; icon: React.ComponentType<{ className?: string }> }> = {
+  pending: { label: 'Pending', chip: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300', icon: Clock },
+  selected: { label: 'Selected', chip: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300', icon: Check },
+  approved: { label: 'Approved', chip: 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300', icon: Check },
+  ordered: { label: 'Ordered', chip: 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300', icon: Package },
+  received: { label: 'Received', chip: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300', icon: Truck },
 };
 
 /**
@@ -419,7 +422,7 @@ function SelectionRow({ selection, onSelect, onRefresh }: SelectionRowProps) {
                 <p className="text-sm text-gray-500 dark:text-slate-400">{selection.location}</p>
               )}
             </div>
-            <span className={`px-2 py-1 text-xs rounded-full bg-${status.color}-100 text-${status.color}-700`}>
+            <span className={`px-2 py-1 text-xs rounded-full ${status.chip}`}>
               {status.label}
             </span>
           </div>

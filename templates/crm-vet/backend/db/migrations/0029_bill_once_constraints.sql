@@ -1,4 +1,4 @@
--- The two database backstops under "bill a visit once". (T41 BLOCKER)
+-- The database backstop under "bill a visit once". (T41 BLOCKER)
 --
 -- T41 raced POST /api/visits/:id/invoice and got two 201s: 5 of 5 two-way races double-billed, a
 -- four-way race produced three invoices, and twice the pair SHARED AN INVOICE NUMBER (INV-00061,
@@ -6,32 +6,48 @@
 --
 -- The route fix is the real one: the whole handler now runs in a transaction, locks the visit row
 -- with SELECT … FOR UPDATE and re-checks invoice_id inside the lock. The report asked for four
--- things, and these are the other two — the constraints that make the invariant true in the
--- DATABASE rather than only in the code path that happens to be correct today:
+-- things, and this is the constraint that makes one of them true in the DATABASE rather than only
+-- in the code path that happens to be correct today:
 --
---   1. one visit bills once        unique on visit.invoice_id
---   2. one invoice number per shop unique on (company_id, number)
+--   one visit bills once        unique on visit.invoice_id
 --
--- WHY BOTH ARE PARTIAL INDEXES.
+-- WHY A PARTIAL INDEX. visit.invoice_id is null for every unbilled visit, and there are thousands of
+-- those; a plain unique index treats nulls as distinct in Postgres so it would work, but
+-- WHERE … IS NOT NULL says the intent and keeps the index to the billed rows.
 --
--- visit.invoice_id is null for every unbilled visit, and there are thousands of those; a plain
--- unique index treats nulls as distinct in Postgres so it would work, but WHERE … IS NOT NULL says
--- the intent and keeps the index to the billed rows.
 --
--- The number index excludes voided invoices, and that is load-bearing rather than tidy: the race
--- ALREADY happened on the live tenant, and the duplicates it produced were resolved by voiding the
--- orphans (INV-00055, 56, 59, one of the two INV-00061, 62, 67, one of the two INV-00070). Those
--- rows still exist and still carry the duplicated numbers, so a constraint over all rows could not
--- be created on vettest at all. Excluding voided rows lets the constraint go on today and still
--- refuses a NEW duplicate — which is the thing that must not happen again. A voided invoice is a
--- record of something that was cancelled; it does not need to hold a unique number.
--- `--> statement-breakpoint` between every statement is the Drizzle convention, and it is not
--- cosmetic: both drizzle-kit migrate and the test harness's setup.ts split the file on it. Written
--- without it, this migration applied its FIRST statement and silently dropped the second — the
--- sandbox had visit_invoice_id_unique_idx (which boot reconcile also builds from schema.ts) and no
--- invoice number index at all. The test asserting both indexes exist by name is what caught it.
+-- TWO THINGS ABOUT THIS FILE THAT WERE WRONG UNTIL T58d, BOTH OF THEM EXPENSIVE.
+--
+-- 1. THIS MIGRATION COULD NOT BE APPLIED AT ALL. The comment that used to sit here explained the
+--    statement-separator convention and, in doing so, wrote the separator out in full. Drizzle cuts
+--    a migration file wherever that text appears and has no idea it is inside a comment, so it cut
+--    this file mid-sentence and handed Postgres the second half: a backtick. vettest's log, on every
+--    boot from 2026-10-03 to 2026-10-07:
+--
+--      error: syntax error at or near "`"
+--      [migrate] Connection failed, retrying in 10s...      ← it was not the connection
+--      [migrate] Failed after 20 attempts
+--
+--    A run is one transaction, so nothing from here on applied: not this index, not
+--    warranty_claim.job_id, not the duplicate-invoice heal. INV-00053 survived three deploys that
+--    each shipped a fix for it. scripts/check-migration-statements-parse.ts is the guard, and the
+--    separator is now described rather than reproduced.
+--
+-- 2. THE INVOICE-NUMBER INDEX IS NOT BUILT HERE ANY MORE. It used to be, and on a tenant that
+--    already had a duplicate number it could never succeed: CREATE UNIQUE INDEX cannot be built over
+--    rows that already violate it. The heal lives in 0034, which renumbers the duplicated drafts —
+--    so the index has to be created there, AFTER the heal, or the run dies before the heal is
+--    reached. One rule, one place: 0034 owns invoice_company_number_live_unique_idx.
+-- 3. AND THE COLUMN IT INDEXES HAS TO EXIST. Found the moment the test harness was made to FAIL on a
+--    migration error instead of logging it: `column "invoice_id" does not exist`.
+--
+--    `visit` is created in 0016_vet_domain.sql and has never had an invoice_id. db/schema.ts
+--    declares it, so `drizzle-kit push --force` in the start command adds it on every boot — which
+--    is why the column is there on a live tenant and why nobody noticed. But the migration history
+--    on its own cannot build the schema it indexes, so this file could never apply to a database
+--    that had not already been pushed. A migration must stand on the migrations before it, not on a
+--    push that happens to run afterwards.
+ALTER TABLE "visit" ADD COLUMN IF NOT EXISTS "invoice_id" text;
+--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "visit_invoice_id_unique_idx"
   ON "visit" ("invoice_id") WHERE "invoice_id" IS NOT NULL;
---> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "invoice_company_number_live_unique_idx"
-  ON "invoice" ("company_id", "number") WHERE "status" <> 'void';

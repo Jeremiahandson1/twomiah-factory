@@ -11,7 +11,37 @@ export async function setupSchema() {
   for (const entry of journal.entries) {
     const text = readFileSync(new URL(`./db/migrations/${entry.tag}.sql`, import.meta.url), 'utf8')
     for (const stmt of text.split('--> statement-breakpoint').map((s: string) => s.trim()).filter(Boolean)) {
-      try { await pglite.exec(stmt) } catch (e: any) { console.log(`[setup] ${entry.tag}: ${e.message.split('\n')[0]}`) }
+      /**
+       * A MIGRATION THAT FAILS HERE FAILS THE SUITE. (T58d)
+       *
+       * This used to be `catch (e) { console.log(...) }`, and that one line is why 11,702 assertions
+       * were green while the vet tenant could not migrate at all. 0029 quoted the statement
+       * separator inside a comment, so the split produced a fragment beginning with a backtick.
+       * Postgres said `syntax error at or near "\`"`.
+       *
+       * On Render that is fatal: drizzle applies a run inside ONE transaction, so the error rolled
+       * back 0029 through 0034 — the bill-once indexes, warranty_claim.job_id and the
+       * duplicate-invoice heal — on every boot for four days. Here it printed a line into a stream
+       * nobody reads and the loop carried on to the NEXT fragment, which was the CREATE UNIQUE INDEX
+       * and which succeeded against clean sandbox data. So the sandbox ended up with the schema the
+       * migration intended and the live tenant did not, and every test agreed with the sandbox.
+       *
+       * A sandbox that cannot reproduce a failed migration cannot be trusted about migrations. It
+       * does not have to mirror the single transaction to be useful — it only has to stop pretending
+       * the statement worked.
+       */
+      try {
+        await pglite.exec(stmt)
+      } catch (e: any) {
+        const first = String(e?.message ?? e).split('\n')[0]
+        throw new Error(
+          `migration ${entry.tag} failed to apply: ${first}\n`
+          + `  statement: ${stmt.replace(/\s+/g, ' ').slice(0, 200)}\n`
+          + `  On a real tenant the whole run is one transaction, so this would roll back ${entry.tag} and\n`
+          + `  every migration after it — silently, because db/migrate.ts reports any failure as a\n`
+          + `  connection problem. Fix the migration; do not relax this.`,
+        )
+      }
     }
   }
   // db/reconcile.ts body (it ends with process.exit, so it is inlined here)

@@ -77,12 +77,26 @@ interface TabItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-const CLAIM_STATUS: Record<string, { label: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
-  open: { label: 'Open', color: 'blue', icon: Clock },
-  scheduled: { label: 'Scheduled', color: 'purple', icon: Calendar },
-  in_progress: { label: 'In Progress', color: 'orange', icon: Clock },
-  completed: { label: 'Completed', color: 'green', icon: CheckCircle },
-  denied: { label: 'Denied', color: 'red', icon: XCircle },
+/**
+ * The chip classes are written out IN FULL, rather than a colour name assembled into the utility at
+ * the call site. (T58d)
+ *
+ * This map used to hold `color: 'blue'` and the chip built `bg-` + that + `-100`. Tailwind generates
+ * CSS by scanning source text for literal class names, so a name assembled at runtime is never
+ * emitted — the rule exists only if some other file in the build happens to use the same literal.
+ * Measured on a deployed bundle, that lottery had already been lost elsewhere: two of the four
+ * dashboard tiles in pages/CustomerPortal.tsx rendered their icon with no colour at all, because
+ * .text-emerald-500 and .text-amber-500 were simply not in the stylesheet.
+ *
+ * This page ships to every vertical, so it is the copy most worth having right. A contrast sweep
+ * cannot catch it either: there is no class on the element to measure.
+ */
+const CLAIM_STATUS: Record<string, { label: string; chip: string; icon: React.ComponentType<{ className?: string }> }> = {
+  open: { label: 'Open', chip: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300', icon: Clock },
+  scheduled: { label: 'Scheduled', chip: 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300', icon: Calendar },
+  in_progress: { label: 'In Progress', chip: 'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300', icon: Clock },
+  completed: { label: 'Completed', chip: 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300', icon: CheckCircle },
+  denied: { label: 'Denied', chip: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300', icon: XCircle },
 };
 
 /**
@@ -468,7 +482,7 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-${status.color}-100 text-${status.color}-700`}>
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full ${status.chip}`}>
                         <StatusIcon className="w-3 h-3" />
                         {status.label}
                       </span>

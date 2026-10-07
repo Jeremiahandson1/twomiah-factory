@@ -1,20 +1,20 @@
 // T58d — "INV-00053 is still duplicated", and what the duplicate was preventing.
 //
-// Migration 0029 creates invoice_company_number_live_unique_idx — the database backstop under
-// "bill a visit once". Its own comment lists the duplicates the T41 clean-up resolved by voiding
-// the orphan: "INV-00055, 56, 59, one of the two INV-00061, 62, 67, one of the two INV-00070".
-// INV-00053 is not in that list. It was missed.
+// invoice_company_number_live_unique_idx is the database backstop under "bill a visit once", and on
+// vettest it does not exist. Measured there: INV-00070 and INV-00061 are each 1 live + 1 void
+// exactly as the T41 clean-up intended, and INV-00053 is TWO LIVE DRAFTS — same company_id, both
+// created 2026-09-23 01:50:03, nothing paid. The clean-up's own list ("INV-00055, 56, 59, one of the
+// two INV-00061, 62, 67, one of the two INV-00070") does not include 00053. It was missed.
 //
-// So on the live tenant the CREATE UNIQUE INDEX had two live rows sharing (company_id, 'INV-00053')
-// and could not be built. Measured on vettest 2026-10-06: INV-00070 and INV-00061 are each 1 live +
-// 1 void exactly as intended, and INV-00053 is TWO LIVE DRAFTS. The index is absent, which means the
-// backstop is not in place on the one tenant it was written for — while the suite passes, because a
-// fresh sandbox has clean data. A constraint that silently fails to be created is worse than no
-// constraint, because everything downstream believes it is there.
+// WHY THE INDEX IS ABSENT. Not because the duplicate refused it — that was this file's first answer
+// and it was wrong. 0029 never ran: its comment quoted the statement separator, drizzle cut the file
+// inside the comment, and Postgres got a backtick. One transaction per run, so 0029–0034 rolled back
+// on every boot for four days, while the service came up anyway and drizzle-kit push reconciled the
+// schema.ts half. See scripts/check-migration-statements-parse.ts.
 //
-// Migration 0034 heals what is safe to heal and refuses what is not. This asserts both halves, and
-// the thing neither the old test nor the old migration could: that the index EXISTS after a tenant
-// that already had a duplicate is migrated.
+// 0034 now owns both the heal and the index, because the heal has to come first. This asserts both
+// halves, and the thing neither the old test nor the old migration could: that the index EXISTS
+// after a tenant that already had a duplicate is migrated.
 import { sql } from 'drizzle-orm'
 
 let failed = 0, passed = 0
@@ -44,7 +44,7 @@ const mkInvoice = async (number: string, status: string, when: string) => (await
   issueDate: new Date(when), dueDate: new Date(when), createdAt: new Date(when),
 } as any).returning())[0]
 
-// ══════════ 1. the index is there on a clean sandbox — 0029's own claim ═════════════════════════
+// ══════════ 1. both indexes are there on a clean sandbox — 0029's and 0034's ════════════════════
 check('invoice_company_number_live_unique_idx exists', await indexExists('invoice_company_number_live_unique_idx'))
 check('visit_invoice_id_unique_idx exists', await indexExists('visit_invoice_id_unique_idx'))
 

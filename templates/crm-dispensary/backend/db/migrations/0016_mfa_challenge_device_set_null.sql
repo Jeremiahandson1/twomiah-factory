@@ -10,11 +10,21 @@
 --
 -- A challenge row is the record that a sign-in HAPPENED. The device it used may be removed later, and
 -- the historical pointer going null is the correct outcome — the row still says when, and for whom.
+-- The two blocks below already tolerate a missing CONSTRAINT. They did not tolerate a missing
+-- TABLE — `mfa_challenges` is declared in db/schema.ts and created by no migration, so a
+-- migration-only database raises undefined_table, which neither EXCEPTION clause catches, and the
+-- whole run dies here. Both are now gated on the table being there, and separated into their own
+-- statements. See 0011_batch_status_reason.sql for the full account. (T58d)
 DO $$ BEGIN
-  ALTER TABLE "mfa_challenges" DROP CONSTRAINT IF EXISTS "mfa_challenges_device_id_mfa_devices_id_fk";
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'mfa_challenges') THEN
+    ALTER TABLE "mfa_challenges" DROP CONSTRAINT IF EXISTS "mfa_challenges_device_id_mfa_devices_id_fk";
+  END IF;
 EXCEPTION WHEN undefined_object THEN NULL; END $$;
-
+--> statement-breakpoint
 DO $$ BEGIN
-  ALTER TABLE "mfa_challenges" ADD CONSTRAINT "mfa_challenges_device_id_mfa_devices_id_fk"
-    FOREIGN KEY ("device_id") REFERENCES "mfa_devices"("id") ON DELETE SET NULL;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'mfa_challenges')
+     AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'mfa_devices') THEN
+    ALTER TABLE "mfa_challenges" ADD CONSTRAINT "mfa_challenges_device_id_mfa_devices_id_fk"
+      FOREIGN KEY ("device_id") REFERENCES "mfa_devices"("id") ON DELETE SET NULL;
+  END IF;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;

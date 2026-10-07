@@ -18,7 +18,9 @@
     "check:features": "bun run scripts/check-feature-vocabulary.ts",
     "check:shared-deps": "bun run scripts/check-shared-deps.ts"
   },
+  "//pglite": "@electric-sql/pglite is declared below so scripts/check-migrations-build-the-schema.ts can replay every migration journal against an empty Postgres. Without it the guard falls back on Bun's auto-install, which is disabled whenever node_modules exists — i.e. it would quietly not run in CI. (A comment key inside devDependencies is NOT ignored: bun tries to resolve it as a package.)",
   "devDependencies": {
+    "@electric-sql/pglite": "^0.2.17",
     "happy-dom": "^20.14.5",
     "turbo": "^2.10.12"
   },

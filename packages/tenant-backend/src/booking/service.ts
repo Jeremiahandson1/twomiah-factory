@@ -243,14 +243,20 @@ export function createBookingService(deps: BookingDeps) {
     return expired.length
   }
 
+  // Why a slot cannot be booked. 'taken' is somebody else's booking; 'notice' is inside the lead
+  // time the business needs. A time that is not on the grid at all has no entry at all, which is its
+  // own answer — and the one the old wording could not give.
+  type SlotReason = 'taken' | 'notice'
+  type SlotOpts = { all?: boolean }
+
   /** One day's free times: read what is booked around that day, then hand it to freeSlots. */
-  async function slotsFor(settings: Settings, date: string, service: CatalogService | null, companyId: string, exec: any) {
+  async function slotsFor(settings: Settings, date: string, service: CatalogService | null, companyId: string, exec: any, opts: SlotOpts = {}) {
     const tz = settings.timezone
     const dayStart = zonedWallTimeToUtc(date, '00:00', tz)
     if (Number.isNaN(dayStart.getTime())) throw new BookingError('That date is not valid.')
     // Every active calendar entry that touches this business-local day.
     const busy = await calendar.busy(exec, companyId, new Date(dayStart.getTime() - DAY_MS), new Date(dayStart.getTime() + 2 * DAY_MS), tz)
-    return freeSlots(settings, date, service, busy)
+    return freeSlots(settings, date, service, busy, opts)
   }
 
   /**
@@ -258,7 +264,7 @@ export function createBookingService(deps: BookingDeps) {
    * the ones whose local start falls on that date, so the same function serves one day (slotsFor) and a
    * whole window at once (getAvailableDates) without a query per day. Pure: no database. (T28 L6)
    */
-  function freeSlots(settings: Settings, date: string, service: CatalogService | null, busy: Array<{ start: Date; end?: Date | null }>) {
+  function freeSlots(settings: Settings, date: string, service: CatalogService | null, busy: Array<{ start: Date; end?: Date | null }>, opts: SlotOpts = {}) {
     const tz = settings.timezone
     // Start times step by the tenant's advertised slot grid (stable, independent of which service the
     // customer picks). The booked service's own duration only decides how long a slot is OCCUPIED — how
@@ -273,10 +279,10 @@ export function createBookingService(deps: BookingDeps) {
     if (Number.isNaN(noon.getTime())) throw new BookingError('That date is not valid.')
     const weekday = tzParts(noon, tz).weekday
     const day = settings.workingHours[weekday]
-    if (!day?.enabled) return [] as Array<{ time: string; available: boolean }>
+    if (!day?.enabled) return [] as Array<{ time: string; available: boolean; reason?: SlotReason }>
 
     const open = hmToMinutes(isHm(day.start) ? day.start : '09:00'), close = hmToMinutes(isHm(day.end) ? day.end : '17:00')
-    const slots: Array<{ time: string; minutes: number; available: boolean }> = []
+    const slots: Array<{ time: string; minutes: number; available: boolean; reason?: SlotReason }> = []
     for (let m = open; m + occupyMin <= close; m += stepMin) slots.push({ time: minutesToHm(m), minutes: m, available: true })
 
     const windows: Array<{ s: number; e: number }> = []
@@ -288,14 +294,33 @@ export function createBookingService(deps: BookingDeps) {
     }
     for (const slot of slots) {
       const overlapping = windows.filter(w => slot.minutes < w.e && slot.minutes + occupyMin > w.s).length
-      if (overlapping >= capacity) slot.available = false
+      if (overlapping >= capacity) { slot.available = false; slot.reason = 'taken' }
     }
 
     // Lead time: nothing inside the notice window.
     const minTime = Date.now() + settings.leadTimeDays * DAY_MS
-    for (const slot of slots) if (zonedWallTimeToUtc(date, slot.time, tz).getTime() < minTime) slot.available = false
+    for (const slot of slots) {
+      if (zonedWallTimeToUtc(date, slot.time, tz).getTime() >= minTime) continue
+      slot.available = false
+      // 'notice' is the more useful of the two for a customer — it says WHEN to come back, where
+      // "taken" only says to try something else — so it wins when a slot is both.
+      slot.reason = 'notice'
+    }
 
-    return slots.filter(s => s.available).map(({ time, available }) => ({ time, available }))
+    /**
+     * `opts.all` exists so the REFUSAL can name the right reason. (T58d — "the off-slot wording")
+     *
+     * This function used to return only the free times, so createBooking could compare the requested
+     * time against the free list and nothing else. Every refusal therefore came out as "That time is
+     * no longer available — please pick another slot", including for 03:00 on a day the shop opens at
+     * nine: a time that was never offered, reported as one somebody had just taken. The customer is
+     * told to try again at a time that cannot ever work.
+     *
+     * The grid and the three reasons a slot is unavailable are all known here. Callers that only want
+     * the openings still get exactly what they got before.
+     */
+    const out = opts.all ? slots : slots.filter(s => s.available)
+    return out.map(({ time, available, reason }) => ({ time, available, reason }))
   }
 
   // The booking window, derived in ONE place. The first bookable day is today in the business's timezone;
@@ -404,9 +429,36 @@ export function createBookingService(deps: BookingDeps) {
     const created = await db.transaction(async (tx: any) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':booking:' + date}))`)
       const service = serviceId ? await catalog.resolve(companyId, serviceId, tx) : null
-      const slots = await slotsFor(settings, date, service, companyId, tx)
-      if (!slots.length) throw new BookingError('No online times are available on that day — please pick another date.')
-      if (!slots.find(s => s.time === time)) throw new BookingError('That time is no longer available — please pick another slot.')
+      /**
+       * SAY WHICH OF THE FOUR THINGS IS ACTUALLY WRONG. (T58d — "the off-slot wording")
+       *
+       * Every refusal here used to be "That time is no longer available — please pick another slot",
+       * because the only thing this code could see was the list of FREE times. Ask for 03:00 at a
+       * shop that opens at nine and you were told the slot had just gone, so the obvious next move —
+       * try again in a minute, or try 03:30 — could never work. "No longer" also claims something
+       * about history that was not true: nobody ever had it.
+       *
+       * Four different situations, four answers. The openings are named in the one case where the
+       * customer picked a time that does not exist, because that is the case where they need to see
+       * what does.
+       */
+      const grid = await slotsFor(settings, date, service, companyId, tx, { all: true })
+      const openings = grid.filter(s => s.available).map(s => s.time)
+      if (!grid.length) throw new BookingError('That day is not open for online booking — please pick another date.')
+      const asked = grid.find(s => s.time === time)
+      if (!asked) {
+        if (!openings.length) throw new BookingError(`${time} is not one of the times offered on that day, and the rest of that day is full — please pick another date.`)
+        const shown = openings.slice(0, 8).join(', ')
+        throw new BookingError(`${time} is not one of the times offered on that day. Available: ${shown}${openings.length > 8 ? `, and ${openings.length - 8} more` : ''}.`)
+      }
+      if (!asked.available) {
+        // leadTimeDays can be 0, and then the only way a slot is inside the notice window is that it
+        // has already gone past. "needs 0 days notice" would be nonsense; say what happened.
+        const notice = settings.leadTimeDays <= 0
+          ? `${time} has already passed — please pick a later time.`
+          : `${time} is too soon — this business needs ${settings.leadTimeDays === 1 ? 'a day' : `${settings.leadTimeDays} days`} notice. Please pick a later date.`
+        throw new BookingError(asked.reason === 'notice' ? notice : 'That time has just been taken — please pick another slot.')
+      }
 
       let [theContact] = await tx.select().from(t.contact).where(and(eq(t.contact.companyId, companyId), eq(t.contact.email, email))).limit(1)
       // Somebody booking under a household's shared email — "my daughter is bringing her in" — typed a name

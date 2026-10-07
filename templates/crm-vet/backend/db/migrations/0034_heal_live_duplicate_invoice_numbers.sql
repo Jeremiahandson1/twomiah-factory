@@ -1,25 +1,28 @@
--- The T41 bill-once constraint was never created on the live tenant, and one row is why. (T58d)
+-- The T41 bill-once constraint is not on the live tenant, and this migration both heals the data and
+-- creates it. (T58d)
 --
 --   Owner: "INV-00053 is still duplicated."
 --
--- It is, and the significant part is not the duplicate — it is what the duplicate prevented.
--- Migration 0029 creates
+-- Measured on vettest: INV-00070 and INV-00061 are each 1 live + 1 void, exactly as the T41 clean-up
+-- intended — and INV-00053 is TWO LIVE DRAFTS, same company_id, both created 2026-09-23 01:50:03,
+-- nothing paid against either. The clean-up's own list ("INV-00055, 56, 59, one of the two
+-- INV-00061, 62, 67, one of the two INV-00070") does not include 00053. It was missed.
 --
---   CREATE UNIQUE INDEX IF NOT EXISTS invoice_company_number_live_unique_idx
---     ON invoice (company_id, number) WHERE status <> 'void'
+-- WHY THE INDEX IS ABSENT, corrected. The first version of this file said the duplicate had stopped
+-- CREATE UNIQUE INDEX from being built. That was a reasonable guess and it was wrong, and it is
+-- worth leaving the correction here because the wrong version of this sentence cost three deploys.
 --
--- and its own comment lists the duplicates the T41 clean-up had resolved by voiding the orphan:
--- "INV-00055, 56, 59, one of the two INV-00061, 62, 67, one of the two INV-00070". INV-00053 is not
--- in that list. It was missed.
+-- 0029 never ran at all. Its explanatory comment quoted the statement separator in full, drizzle cut
+-- the file there without knowing it was inside a comment, and Postgres was handed the second half of
+-- a sentence: `syntax error at or near "`" `. A run is one transaction, so 0029 through 0034 all
+-- rolled back, on every boot, from 2026-10-03 to 2026-10-07. The service came up anyway — the start
+-- command continues past a failed migrate and `drizzle-kit push --force` then reconciles whatever
+-- schema.ts declares — so the tenant looked healthy and the only trace was one log line that
+-- migrate.ts labelled "Connection failed".
 --
--- So on vettest the CREATE UNIQUE INDEX had two live rows sharing (company_id, 'INV-00053') and
--- could not be built. Measured today: INV-00070 and INV-00061 are each 1 live + 1 void, exactly as
--- the clean-up intended — and INV-00053 is TWO LIVE DRAFTS. The index is absent, which means the
--- database backstop under "bill a visit once" is not in place on the one tenant it was written for,
--- while the suite passes because a fresh sandbox has clean data.
---
--- A constraint that silently fails to be created is worse than no constraint, because everything
--- downstream believes it is there.
+-- That is why this file now owns the index as well as the heal: the heal must happen BEFORE the
+-- index exists, so they cannot live in two migrations where the index comes first.
+-- scripts/check-migration-statements-parse.ts is the guard for the cause.
 --
 -- WHAT THIS DOES, and what it deliberately refuses to do.
 --

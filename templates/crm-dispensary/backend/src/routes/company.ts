@@ -505,7 +505,10 @@ app.post('/users', requireAdmin, async (c) => {
   // created as a budtender, which carries orders:create, cash:create/update and contacts:create — a
   // cash drawer for someone who only needs to move orders. 'user' stays the wire value the Settings
   // screen sends for a budtender (ROLE_MAPPING maps user -> budtender); 'field' stays for older rows.
-  const schema = z.object({ email: z.string().email(), password: passwordSchema, firstName: z.string().min(1), lastName: z.string().min(1), phone: z.string().optional(), role: z.enum(['admin', 'manager', 'driver', 'viewer', 'user', 'field']).default('user') })
+  // `isActive` is accepted, the same as on the edit route and the same as in the shared module this
+  // file forks. Without it zod stripped the field and a request asking for a SUSPENDED budtender got
+  // a 201 and a working login — and on a seat-sold plan, a seat spent. (T58d)
+  const schema = z.object({ email: z.string().email(), password: passwordSchema, firstName: z.string().min(1), lastName: z.string().min(1), phone: z.string().optional(), role: z.enum(['admin', 'manager', 'driver', 'viewer', 'user', 'field']).default('user'), isActive: z.boolean().optional() })
   // .catch: a missing or malformed body must not throw past validation into a
   // 500 — the caller gets a 400 that names the problem instead.
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
@@ -555,7 +558,9 @@ app.post('/users', requireAdmin, async (c) => {
       ? envSeats
       : (Number.isInteger(settingSeats) && settingSeats > 0 ? settingSeats : (planMax !== undefined ? planMax : null))
 
-    if (seatLimit) {
+    // A seat created INACTIVE is not a seat: the count below is of users who can sign in, so
+    // refusing a suspended account on a full plan would block the one safe thing an admin can do.
+    if (seatLimit && rest.isActive !== false) {
       // Count the seats that can actually sign in — deactivated users free a seat.
       const activeSeats = await tx.select({ id: user.id }).from(user)
         .where(and(eq(user.companyId, currentUser.companyId), eq(user.isActive, true)))
@@ -582,6 +587,10 @@ app.post('/users', requireAdmin, async (c) => {
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
+      // Returned so the caller can SEE whether the seat is active. Leaving it out is how "isActive
+      // was ignored" stayed invisible: the request asked for a suspended account and the 201 that
+      // came back said nothing either way. (T58d)
+      isActive: user.isActive,
     })
     return { status: 201 as const, body: newUser }
   })

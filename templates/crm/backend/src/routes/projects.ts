@@ -262,8 +262,22 @@ app.get('/:id', async (c) => {
     }).from(contact).where(and(eq(contact.id, foundProject.contactId), eq(contact.companyId, currentUser.companyId))).limit(1) : Promise.resolve([]),
     db.select().from(job).where(eq(job.projectId, id)).orderBy(desc(job.createdAt)).limit(10),
     db.select().from(rfi).where(eq(rfi.projectId, id)).limit(10),
-    // Every caller gets the rows; the money comes off below for whoever may not see it. (T37 N6)
-    db.select().from(changeOrder).where(eq(changeOrder.projectId, id)).limit(10),
+    /**
+     * Every caller gets the rows; the money comes off below for whoever may not see it. (T37 N6)
+     *
+     * AND ALL OF THEM. (T58d — "the project lists only 10 of 23 change orders")
+     *
+     * This was `.limit(10)`, and the note twenty lines down already knew: "which is also capped at
+     * 10 rows above". That note was written while fixing the MONEY, which now sums server-side over
+     * every row — so the figure was right and the list under it was short, which is worse than both
+     * being wrong, because the two disagree and the screen looks authoritative.
+     *
+     * A change order is a signed variation to a contract. There is no version of this screen where
+     * showing the owner ten of their twenty-three and saying nothing is acceptable, and the rows are
+     * small. Ordered newest first so the list has a defined order rather than whatever the planner
+     * returns.
+     */
+    db.select().from(changeOrder).where(eq(changeOrder.projectId, id)).orderBy(desc(changeOrder.createdAt)),
     db.select().from(punchListItem).where(eq(punchListItem.projectId, id)).limit(20),
   ])
 

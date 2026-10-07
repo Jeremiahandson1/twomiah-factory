@@ -3,14 +3,34 @@ import { useOutletContext } from 'react-router-dom';
 import { Plus, Phone, MessageSquare, Bot, Edit2, Trash2, Check, PhoneIncoming, VoicemailIcon, Zap, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Card, CardHeader, CardBody, Button, Input, Select, Modal, Textarea, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, StatusBadge, EmptyState, ConfirmDialog, Tabs, TabsList, TabsTrigger, TabsContent } from '../ui';
+import { PageError, errorText } from '../../shared';
 
 interface OutletContextType {
   instance: Record<string, unknown>;
 }
 
 function useAuth(): { token: string | null } {
-  const token = localStorage.getItem('token');
+  // The canonical key is `accessToken`: AuthContext writes and reads that, and nothing in any CRM
+  // template has written plain `token` since the rename. Reading only `token` meant this page was
+  // signed out no matter who was signed in — every fetch below begins `if (!token) return`, so it
+  // rendered its empty states in silence. That is the owner's "empty AI chat". The legacy key stays
+  // as a fallback, matching the other screens that read both. (T58d)
+  let token: string | null = null;
+  try { token = localStorage.getItem('accessToken') || localStorage.getItem('token'); } catch { token = null; }
   return { token };
+}
+
+// The server's own sentence, so the page can show a reason it was actually given. "API error: 403"
+// told the user nothing and told us nothing either.
+async function reason(res: Response): Promise<string> {
+  const text = await res.text().catch(() => '');
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed.error === 'string' && parsed.error.trim()) return parsed.error;
+  } catch { /* not JSON — fall through to the status */ }
+  if (res.status === 401) return 'Your session has expired. Sign in again.';
+  if (res.status === 403) return 'Your account does not have access to the AI Receptionist.';
+  return `The server answered ${res.status}.`;
 }
 
 async function api(path: string, token: string, opts: RequestInit = {}): Promise<Record<string, unknown>> {
@@ -18,7 +38,7 @@ async function api(path: string, token: string, opts: RequestInit = {}): Promise
     ...opts,
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...opts.headers },
   });
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  if (!res.ok) throw new Error(await reason(res));
   return res.json();
 }
 
@@ -26,7 +46,7 @@ async function callApi(path: string, token: string): Promise<Record<string, unkn
   const res = await fetch(`/api/calltracking${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  if (!res.ok) throw new Error(await reason(res));
   return res.json();
 }
 
@@ -114,6 +134,7 @@ export function AIReceptionistPage() {
   const [showForm, setShowForm] = useState<boolean>(false);
   const [editItem, setEditItem] = useState<Record<string, unknown> | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Record<string, unknown> | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const primaryColor = (instance?.primaryColor as string) || '{{PRIMARY_COLOR}}';
 
   const fetchRules = useCallback(async () => {
@@ -121,7 +142,7 @@ export function AIReceptionistPage() {
     try {
       const data = await api('/rules', token);
       setRules((data.data as Record<string, unknown>[]) || []);
-    } catch {}
+    } catch (e) { setError(errorText(e, 'The auto-reply rules could not be loaded.')); }
   }, [token]);
 
   const fetchSettings = useCallback(async () => {
@@ -129,7 +150,7 @@ export function AIReceptionistPage() {
     try {
       const data = await api('/settings', token);
       setSettings(data as unknown as AISettings);
-    } catch {}
+    } catch (e) { setError(errorText(e, 'The AI Receptionist settings could not be loaded.')); }
   }, [token]);
 
   const fetchCalls = useCallback(async () => {
@@ -137,7 +158,7 @@ export function AIReceptionistPage() {
     try {
       const data = await callApi('/calls?limit=20', token);
       setCalls((data.data as Record<string, unknown>[]) || []);
-    } catch {}
+    } catch (e) { setError(errorText(e, 'The recent calls could not be loaded.')); }
   }, [token]);
 
   useEffect(() => {
@@ -153,7 +174,8 @@ export function AIReceptionistPage() {
         await api('/rules', token, { method: 'POST', body: JSON.stringify(data) });
       }
       fetchRules();
-    } catch {}
+      setError(null);
+    } catch (e) { setError(errorText(e, 'The rule could not be saved.')); }
     setEditItem(null);
     setShowForm(false);
   };
@@ -163,26 +185,36 @@ export function AIReceptionistPage() {
     try {
       await api(`/rules/${deleteTarget.id}`, token, { method: 'DELETE' });
       fetchRules();
-    } catch {}
+      setError(null);
+    } catch (e) { setError(errorText(e, 'The rule could not be deleted.')); }
     setDeleteTarget(null);
   };
 
   const toggleRuleActive = async (rule: Record<string, unknown>) => {
     if (!token) return;
-    await api(`/rules/${rule.id}`, token, { method: 'PUT', body: JSON.stringify({ isActive: !rule.isActive }) });
-    fetchRules();
+    try {
+      await api(`/rules/${rule.id}`, token, { method: 'PUT', body: JSON.stringify({ isActive: !rule.isActive }) });
+      setError(null);
+      fetchRules();
+    } catch (e) { setError(errorText(e, 'That rule could not be switched over.')); }
   };
 
   const toggleEnabled = async () => {
     if (!token) return;
-    await api('/settings', token, { method: 'PUT', body: JSON.stringify({ isEnabled: !settings.isEnabled }) });
-    fetchSettings();
+    try {
+      await api('/settings', token, { method: 'PUT', body: JSON.stringify({ isEnabled: !settings.isEnabled }) });
+      setError(null);
+      fetchSettings();
+    } catch (e) { setError(errorText(e, 'The AI Receptionist could not be switched over.')); }
   };
 
   const updateSettings = async (updates: Partial<AISettings>) => {
     if (!token) return;
-    await api('/settings', token, { method: 'PUT', body: JSON.stringify(updates) });
-    fetchSettings();
+    try {
+      await api('/settings', token, { method: 'PUT', body: JSON.stringify(updates) });
+      setError(null);
+      fetchSettings();
+    } catch (e) { setError(errorText(e, 'Those settings could not be saved.')); }
   };
 
   const activeRules = rules.filter((r: Record<string, unknown>) => r.isActive).length;
@@ -191,6 +223,7 @@ export function AIReceptionistPage() {
 
   return (
     <div className="space-y-6">
+      <PageError message={error} onDismiss={() => setError(null)} />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div><h1 className="text-2xl font-bold text-slate-900 dark:text-white">AI Receptionist</h1><p className="text-slate-600 dark:text-slate-400 mt-1">Automatic call handling with AI transcription & smart replies</p></div>
         <div className="flex gap-2">
