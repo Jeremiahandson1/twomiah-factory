@@ -213,4 +213,53 @@ app.put('/:id', requireAdmin, async (c) => {
   return c.json(updated)
 })
 
+/**
+ * REMOVE A TEAMMATE. (T58d)
+ *
+ * This route had GET, POST and PUT and no DELETE, so a roofing owner could add someone and change
+ * them but never remove them — the only vertical in the fleet where that is true; every other one
+ * mounts the shared company module, which has had DELETE /users/:id all along. Found while clearing
+ * two leftover QA accounts off rooftest and discovering there was no way to do it: they are still
+ * sitting there, active, holding 2 of a 10-seat plan.
+ *
+ * Deliberately NOT a soft delete. PUT already does that — `isActive: false` is "revoke access", and
+ * it keeps the row so the audit log and every assignment still resolve a name. DELETE is for a row
+ * that should never have existed: a typo, a test account, somebody added to the wrong tenant.
+ *
+ * The guards are the shared module's, rule for rule, because they protect against the same
+ * unrecoverable states:
+ *   · not yourself — leaves the company reachable by whoever is doing the removing
+ *   · not the owner — a company with no owner cannot be recovered from inside the product, and
+ *     deleting the row is a harder version of the demotion that was already blocked
+ *   · not the last active administrator
+ */
+app.delete('/:id', requireAdmin, async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+  if (id === currentUser.userId) return c.json({ error: 'Cannot delete yourself' }, 400)
+
+  const [target] = await db.select().from(user)
+    .where(and(eq(user.id, id), eq(user.companyId, currentUser.companyId))).limit(1)
+  if (!target) return c.json({ error: 'User not found' }, 404)
+
+  if (target.role === 'owner') {
+    return c.json({
+      error: "The owner's account cannot be deleted. Transfer ownership first, then remove the account.",
+      code: 'owner_cannot_be_deleted',
+    }, 403)
+  }
+
+  if (target.isActive && (target.role === 'admin' || target.role === 'owner')) {
+    const activeUsers = await db.select({ id: user.id, role: user.role }).from(user)
+      .where(and(eq(user.companyId, currentUser.companyId), eq(user.isActive, true)))
+    const admins = activeUsers.filter(u => u.role === 'admin' || u.role === 'owner')
+    if (admins.length <= 1) {
+      return c.json({ error: 'This is the only administrator left — promote someone else first.' }, 400)
+    }
+  }
+
+  await db.delete(user).where(and(eq(user.id, id), eq(user.companyId, currentUser.companyId)))
+  return c.body(null, 204)
+})
+
 export default app
