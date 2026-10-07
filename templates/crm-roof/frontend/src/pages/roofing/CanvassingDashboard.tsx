@@ -333,9 +333,20 @@ export default function CanvassingDashboard() {
           className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900" />
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      {/*
+        ONE COLUMN ON A PHONE. (T58d — "Canvassing is clipped at 390")
+        This was a bare `grid-cols-3`, with no breakpoint, so a 390px screen cut the row into three
+        tracks of about 64px each. Measured in the browser at 390: the leaderboard card rendered 96px
+        wide with "Sam QA" and "0 leads" overlapping and running off the right edge, "Morgan QA"
+        pushed off it entirely, and the scripts card showed its title as "H...". The page passed every
+        width sweep because nothing OVERFLOWED the document — `<main>` scrolls, so documentElement
+        stayed at 390 — and the two boxes that truly lost content were `truncate`, which the sweep
+        skips as a deliberate ellipsis. It was unreadable and technically compliant.
+        Three columns is a desk layout; a canvasser is holding a phone at a front door.
+      */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Sessions Table */}
-        <div className="col-span-2">
+        <div className="lg:col-span-2">
           <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
             <table className="w-full text-sm">
               <thead>

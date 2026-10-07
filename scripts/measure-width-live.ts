@@ -182,11 +182,57 @@ const EXPR = `(() => {
   }
   cut.sort((a, b) => b.lost - a.lost);
 
+  /**
+   * A COLUMN TOO NARROW TO READ. The third failure, and the one that let "Canvassing is clipped at
+   * 390" sit on the owner's list through two rounds of "all widths measured clean". (T58d)
+   *
+   * roofing/canvassing laid its body out as a bare grid-cols-3 with no breakpoint, so at 390 the
+   * three tracks were about 64px each. Both rules above passed it:
+   *   · nothing OVERFLOWED the document — main is overflow-auto, so documentElement stayed at 390
+   *   · the two boxes that truly lost content were truncate, skipped as a deliberate ellipsis
+   * The screenshot showed "Sam QA" overlapping "0 leads" and running off the edge, "Morgan QA" gone,
+   * and a script titled "H...". Compliant and unreadable.
+   *
+   * So: an element that holds TEXT OF ITS OWN and ends up narrower than a word is a broken layout,
+   * whatever its overflow says. 110px is the threshold — about ten characters at this body size, and
+   * comfortably below any real column; icon buttons, badges and number cells are excluded by
+   * requiring real text and by ignoring anything with no letters.
+   */
+  const starved = [];
+  for (const el of document.querySelectorAll('*')) {
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+    const cw = el.clientWidth;
+    if (cw === 0 || cw >= 110) continue;
+    // SCREEN-READER TEXT IS NOT A NARROW COLUMN. "Skip to main content" and the live-region
+    // announcement are 1px boxes on purpose, and the first version of this rule reported both on
+    // every page in the fleet. Excluded by the TECHNIQUE (absolutely positioned and clipped) rather
+    // than by width alone, so a genuinely broken 20px column is still caught.
+    if (cw < 8) continue;
+    if (cs.position === 'absolute' && (cs.clipPath !== 'none' || (cs.clip && cs.clip !== 'auto'))) continue;
+    // Its OWN text, not a descendant's — otherwise every ancestor of a long word is reported.
+    let own = '';
+    for (const n of el.childNodes) if (n.nodeType === 3) own += n.textContent || '';
+    own = own.trim().replace(/\\s+/g, ' ');
+    if (own.length < 8) continue;
+    if (!/[A-Za-z]{4}/.test(own)) continue;
+    // Only when the text does not fit: a short label in a narrow box is fine.
+    if (el.scrollWidth - cw <= 1) continue;
+    starved.push({
+      tag: el.tagName.toLowerCase(),
+      cls: String(el.className || '').slice(0, 95),
+      txt: own.slice(0, 40),
+      cw: Math.round(cw), sw: Math.round(el.scrollWidth),
+    });
+  }
+  starved.sort((a, b) => a.cw - b.cw);
+
   const txt = (document.body ? document.body.innerText : '') || '';
   return JSON.stringify({
     iw: VW, sw: de.scrollWidth, over: de.scrollWidth - VW,
     count: over.length, worst: over.filter(o => o.wider).slice(0, 3).concat(over.slice(0, 3)),
     clipped: cut.length, cut: cut.slice(0, 3),
+    starved: starved.length, narrow: starved.slice(0, 3),
     sample: txt.trim().slice(0, 50).replace(/\\s+/g, ' '),
   });
 })()`
@@ -201,7 +247,8 @@ const CLICK = (label: string) => `(() => {
   return 'clicked';
 })()`
 
-let fits = 0, bad = 0, skipped = 0, clipped = 0
+let fits = 0, bad = 0, skipped = 0, clipped = 0, starvedCount = 0
+const starvedPages: string[] = []
 const failures: string[] = []
 const clippedPages: string[] = []
 let lastOrigin = ''
@@ -257,8 +304,21 @@ for (const t of targets) {
       console.log(`         class="${c.cls}"`)
     }
   }
+
+  // …and a third way to be broken: a column squeezed too narrow to read, which neither of the above
+  // can see because the page does not overflow and the box does not clip. See the note in EXPR.
+  if (v.starved > 0) {
+    starvedCount++
+    starvedPages.push(t.label)
+    console.log(`NARROW ${t.label.padEnd(28)} ${v.starved} element(s) too narrow for their own text`)
+    for (const n of v.narrow) {
+      console.log(`       <${n.tag} ${n.cw}px wide, needs ${n.sw}px> "${n.txt}"`)
+      console.log(`         class="${n.cls}"`)
+    }
+  }
 }
 ws.close()
-console.log(`\n${WIDTH}px: ${fits} fit, ${bad} overflow, ${clipped} clipping content, ${skipped} not measured`)
+console.log(`\n${WIDTH}px: ${fits} fit, ${bad} overflow, ${clipped} clipping content, ${starvedCount} too narrow, ${skipped} not measured`)
 if (failures.length) console.log(`overflowing: ${failures.join(', ')}`)
 if (clippedPages.length) console.log(`clipping:    ${clippedPages.join(', ')}`)
+if (starvedPages.length) console.log(`too narrow:  ${starvedPages.join(', ')}`)
