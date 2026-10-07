@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Loader2, X, Upload, User, Phone, Mail, Calculator } from 'lucide-react';
+import { Plus, Loader2, X, Upload, User, Phone, Mail, Calculator, Trash2 } from 'lucide-react';
 import api from '../../services/api';
 import { PageError, errorText } from '../../shared';
 import { useAuth } from '../../contexts/AuthContext';
@@ -67,12 +67,16 @@ function unitDesc(row: LeadRow): string {
 export default function SalesPipelinePage() {
   // New Lead and Import ADF both POST a lead, so both ask contacts:create. (T41)
   const mayCreateLead = useMayWrite('contacts:create');
+  // Removing a lead is a delete, not an edit — DELETE /api/sales-leads/:id asks contacts:delete. (T58j)
+  const mayDeleteLead = useMayWrite('contacts:delete');
   const { hasFeature } = useAuth();
   const [rows, setRows] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [dragId, setDragId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState<boolean>(false);
   const [showAdf, setShowAdf] = useState<boolean>(false);
+  /** The one card currently asking "delete this lead?" — the confirm lives on the card, not in a dialog. */
+  const [confirmId, setConfirmId] = useState<string>('');
   // A refusal from dragging a card between stages — it has no form to sit on. (T58d)
   const [pageErr, setPageErr] = useState<string>('');
   const navigate = useNavigate();
@@ -105,6 +109,31 @@ export default function SalesPipelinePage() {
       // The refusal is usually "that unit is already on a won deal" — the one sentence a salesperson
       // needs in front of them while the card snaps back. A pop-up took it away. (T58d)
       setPageErr(errorText(err, 'Could not move that lead.'));
+      load();
+    }
+  };
+
+  /**
+   * TAKE A LEAD OFF THE PIPELINE. (T58j)
+   *
+   *   Owner: "there is no API way to delete a sales lead, and deleting the contact 409s."
+   *
+   * The contact refuses precisely BECAUSE of the lead — contacts.ts guards on sales_lead and names it
+   * — so with no way to remove a lead, a row typed against the wrong customer was permanent and took
+   * the customer's record hostage with it. DELETE /api/sales-leads/:id now exists; this is its screen.
+   *
+   * Confirmed in place on the card rather than through a native confirm() dialog: the question belongs
+   * next to the lead being deleted, and a refusal — a sold deal cannot be deleted — has to be readable
+   * on the page while the salesperson decides what to do, which is the whole reason pageErr exists here.
+   */
+  const removeLead = async (id: string) => {
+    setConfirmId('');
+    setPageErr('');
+    try {
+      await api.delete(`/api/sales-leads/${id}`);
+      setRows((prev) => prev.filter((r) => r.lead.id !== id));
+    } catch (err: any) {
+      setPageErr(errorText(err, 'Could not delete that lead.'));
       load();
     }
   };
@@ -204,6 +233,35 @@ export default function SalesPipelinePage() {
                     >
                       {STAGES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>
+                    {/* A sold deal is refused by the server, so Sold cards do not offer it at all. */}
+                    {mayDeleteLead && row.lead.stage !== 'closed_won' && (
+                      confirmId === row.lead.id ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => removeLead(row.lead.id)}
+                            className="flex-1 text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 py-1"
+                          >
+                            Delete lead
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmId('')}
+                            className="text-xs text-gray-600 border rounded px-2 py-1 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800"
+                          >
+                            Keep
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmId(row.lead.id)}
+                          className="w-full flex items-center justify-center gap-1 text-xs text-red-600 hover:text-red-700 border border-red-200 rounded px-2 py-1 dark:text-red-300 dark:hover:text-red-200 dark:border-red-800"
+                        >
+                          <Trash2 className="w-3 h-3" /> Delete
+                        </button>
+                      )
+                    )}
                   </div>
                 ))}
                 {grouped[stage.value].length === 0 && (

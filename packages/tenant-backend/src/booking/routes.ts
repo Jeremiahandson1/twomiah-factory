@@ -127,7 +127,22 @@ export function createBookingRoutes(deps: BookingDeps) {
    * A data: URI or an already-absolute URL is passed through untouched.
    */
   const publicLogo = (c: any, logo?: string | null): string | null => {
-    const raw = String(logo || '').trim()
+    /**
+     * THE MALFORMED VALUE WAS IN THE COLUMN, NOT BUILT HERE. (T58j)
+     *
+     * The note above assumed this endpoint produced "https:///logo.svg" by absolutising against an
+     * empty base, and guarded against that — correctly, but it was not the cause. Read live from
+     * basictest, `company.logo` IS the string "https:///logo.svg": the company settings PUT shared
+     * `safeUrl` with `website` and prepended https:// to the seeded root-relative '/logo.svg', so
+     * pressing Save on Settings corrupted the column. That is fixed at the write path in
+     * company/company.ts (`safeLogo`).
+     *
+     * This heals it on the way OUT as well, because every tenant whose owner has ever saved Settings
+     * is already holding the bad value, and the widget must not keep serving it until somebody saves
+     * again. An http(s) URL with an empty authority can only ever have meant a path, so it is
+     * treated as one and absolutised properly below.
+     */
+    const raw = String(logo || '').trim().replace(/^https?:\/\/(?=\/)/i, '')
     if (!raw) return null
     if (/^(?:https?:|data:)/i.test(raw)) return raw
     if (!raw.startsWith('/')) return raw

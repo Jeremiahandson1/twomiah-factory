@@ -8,6 +8,8 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, inArray } from 'drizzle-orm'
 import { getFeaturesForTemplate } from '../featureRegistry'
+import { HAS_SCHEME, looksLikeWebAddress, healLogo, normalizeLogo } from './logoAddress'
+export { healLogo, normalizeLogo, isLogoAddress, looksLikeWebAddress } from './logoAddress'
 
 export interface CompanyDeps {
   db: any
@@ -58,6 +60,13 @@ export function sanitizeCompany<T extends Record<string, any>>(row: T): T {
   if (!row) return row
   const clone: any = { ...row }
   for (const f of COMPANY_SECRETS) delete clone[f]
+  /**
+   * Healed on the way out, not only on the way in. Every tenant whose owner has ever pressed Save on
+   * Settings is already holding "https:///logo.svg" (verified on basictest), and this is the one
+   * function every company response passes through — so the sidebar, the customer portal and the
+   * booking widget all start rendering the logo again without waiting for somebody to save again.
+   */
+  if (typeof clone.logo === 'string') clone.logo = healLogo(clone.logo)
   return clone
 }
 
@@ -104,31 +113,25 @@ export function redactCompanyCommercial<T extends Record<string, any>>(row: T): 
  * people typing the ordinary thing; "not a url" is still refused. (Field Service T28 M2)
  */
 /**
- * The RAW input is what gets judged, and only then normalised. Order matters here: a `.refine()` after a
- * `.transform()` sees the transformed value, so a rule about "did the user type a scheme" has to run
- * first or it is always answering yes.
- *
- * Accepting a bare "example.com" means prepending https:// — and `new URL('https://nope')` parses
- * perfectly happily, because "nope" is a valid hostname the way "localhost" is. So the convenience that
- * rescued people typing a bare domain also turned any single word into a website: T30 found "nope" saved
- * as https://nope. A bare host must therefore look like a domain — a dot with letters after it. An
- * explicit scheme is still trusted, since someone typing http://localhost means it.
- * (Field Service T30, my regression from T28 M2)
+ * The address rules live in ./logoAddress.ts — pure, no imports, so a guard can RUN them. They sat
+ * here beside `z.object(...)`, which meant nothing could execute them without zod resolving, and a
+ * rule that cannot be run is a rule that is only ever read. Both of these were read repeatedly and
+ * both were wrong: "nope" saved as https://nope (T30), and the logo corrupted on save (T58j).
  */
-const HAS_SCHEME = /^[a-zA-Z][a-zA-Z0-9+.-]*:/
-const looksLikeWebAddress = (raw: string): boolean => {
-  const v = raw.trim()
-  if (!v) return true
-  const typedScheme = HAS_SCHEME.test(v)
-  let u: URL
-  try { u = new URL(typedScheme ? v : `https://${v}`) } catch { return false }
-  if (!['http:', 'https:'].includes(u.protocol)) return false
-  if (!typedScheme && !/\.[a-zA-Z]{2,}$/.test(u.hostname)) return false
-  return true
-}
 const safeUrl = z.string().trim()
   .refine(looksLikeWebAddress, 'Enter a web address like https://example.com')
   .transform((v: string) => (!v ? '' : HAS_SCHEME.test(v) ? v : `https://${v}`))
+/**
+ * One rule, one implementation. The schema and the guard both go through `normalizeLogo`, so the
+ * guard cannot pass while the route behaves differently — which is the failure mode a comment
+ * claiming "same rule" beside a second copy of the logic produces.
+ *
+ * The value is healed BEFORE it is judged, so the first save after this ships REPAIRS a row already
+ * holding the malformed string rather than carefully preserving it.
+ */
+const safeLogo = z.string()
+  .refine((v: string) => normalizeLogo(v).ok, 'Enter an image address like https://example.com/logo.png, or a path like /logo.svg')
+  .transform((v: string) => normalizeLogo(v).value)
 
 // 'viewer' is granted a full read-only list in BASE_ROLE_PERMISSIONS and was absent here, so no
 // tenant could assign it: the lowest role anyone could actually be given was 'user', which maps to
@@ -233,7 +236,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
        * null clears the field. It used to 400 with "Expected string, received null", so the Settings form
        * could set a logo and never remove one. (Field Service T28 M2 + L9)
        */
-      logo: safeUrl.optional().nullable(),
+      logo: safeLogo.optional().nullable(),
       // The colour on every invoice, email and portal page. It accepted "banana", which then went into
       // a CSS value and silently did nothing. The booking colour grew this same check in T27 N11 and
       // this one — the one customers actually see — was missed. (Salon T28 L1)

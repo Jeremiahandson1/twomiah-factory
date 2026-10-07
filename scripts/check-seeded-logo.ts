@@ -86,5 +86,56 @@ if (!/for \(const d of \[buildDir, targetDir, path\.join\(targetDir, 'dist'\), c
 }
 if (!/write\(path\.join\(d, 'favicon\.svg'\), favSvg\)/.test(gen)) fail('the generator must write the per-tenant favicon.svg')
 
+/**
+ * AND SAVING SETTINGS MUST NOT DESTROY IT. (T58j)
+ *
+ *   showcase: "the booking logo is https:///logo.svg"
+ *
+ * Everything above checks that the generator SEEDS the logo correctly. It did. What nothing checked
+ * is whether the value survives being read back and written again — and it did not: `logo` shared the
+ * website validator, which prepends https:// to anything without a scheme, so the seeded
+ * root-relative '/logo.svg' became 'https:///logo.svg' the first time anybody pressed Save on
+ * Settings, without touching the logo field, because the form posts every field it holds.
+ *
+ * It passed the "looks like a domain" test because `new URL('https:///logo.svg')` parses — the
+ * parser skips the empty authority and reads the host as `logo.svg` — and '.svg' satisfies the test
+ * for a TLD. A file extension impersonating a top-level domain.
+ *
+ * The rules are now in packages/tenant-backend/src/company/logoAddress.ts, which has NO imports
+ * precisely so this guard can RUN them rather than grep for them. They used to sit beside
+ * `z.object(...)`, where nothing could execute them without zod resolving.
+ */
+{
+  const { normalizeLogo, healLogo } = await import(`${ROOT}packages/tenant-backend/src/company/logoAddress.ts`)
+  const cases: Array<[string, string, boolean, string]> = [
+    // The bug itself: the generator's own seed, round-tripped.
+    ['the generator seed survives a save', '/logo.svg', true, '/logo.svg'],
+    ['an uploaded raster path survives', '/logo.png', true, '/logo.png'],
+    // Rows already corrupted are repaired rather than preserved.
+    ['the corrupted value is healed', 'https:///logo.svg', true, '/logo.svg'],
+    ['…http too', 'http:///logo.svg', true, '/logo.svg'],
+    // What the field is actually for still works.
+    ['an absolute URL is kept', 'https://cdn.example.com/logo.png', true, 'https://cdn.example.com/logo.png'],
+    ['a bare domain still gets its scheme', 'cdn.example.com/logo.png', true, 'https://cdn.example.com/logo.png'],
+    ['protocol-relative gets a scheme, not four slashes', '//cdn.example.com/l.svg', true, 'https://cdn.example.com/l.svg'],
+    ['a data image is kept', 'data:image/png;base64,iVBORw0KGgo=', true, 'data:image/png;base64,iVBORw0KGgo='],
+    ['clearing it is allowed', '', true, ''],
+    // The sink the original rule existed to close stays closed.
+    ['javascript: is refused', 'javascript:alert(1)', false, ''],
+    ['a data: document is refused', 'data:text/html,<script>alert(1)</script>', false, ''],
+    ['a single word is refused', 'nope', false, ''],
+  ]
+  for (const [label, input, ok, value] of cases) {
+    const got = normalizeLogo(input)
+    if (got.ok !== ok) fail(`logo rule — ${label}: normalizeLogo(${JSON.stringify(input)}).ok was ${got.ok}, expected ${ok}`)
+    else if (ok && got.value !== value) fail(`logo rule — ${label}: got ${JSON.stringify(got.value)}, expected ${JSON.stringify(value)}`)
+  }
+  // The response heals too, so a tenant already holding the bad value renders without waiting for a save.
+  if (healLogo('https:///logo.svg') !== '/logo.svg') fail('healLogo must turn an authority-less URL back into a path')
+  const company = read('packages/tenant-backend/src/company/company.ts')
+  if (!/logo: safeLogo/.test(company)) fail('company PUT must validate `logo` with safeLogo — safeUrl is the WEBSITE rule and corrupts a path')
+  if (!/clone\.logo = healLogo\(clone\.logo\)/.test(company)) fail('sanitizeCompany must heal the logo on the way out, for rows already holding the malformed value')
+}
+
 if (failed) { console.error(`\nseeded logo: ${failed} check(s) FAILED`); process.exit(1) }
 console.log(`seeded logo: a new CRM points at the logo it was given, and all ${FAVICON_TEMPLATES.length} CRM tabs wear the tenant's own icon`)

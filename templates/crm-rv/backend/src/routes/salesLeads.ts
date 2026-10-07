@@ -232,6 +232,63 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   return c.json(updated)
 })
 
+/**
+ * DELETE /sales-leads/:id — a lead entered by mistake can be taken off the pipeline. (T58j)
+ *
+ *   Owner: "there is no API way to delete a sales lead, and deleting the contact 409s."
+ *
+ * Both true, and together they meant a lead typed against the wrong customer was permanent. This
+ * route had GET, POST and PUT and no DELETE, and the contact behind it cannot be removed either —
+ * correctly, since `sales_lead.contact_id` cascades and deleting the person to remove the lead would
+ * take their whole history with them. So the pipeline accumulated rows nobody could clear.
+ *
+ * A SOLD LEAD IS NOT DELETED. `closed_won` is the record of a sale: the unit's sold status is derived
+ * from it, F&I reads the desked deal off it, and title & registration is filed against it. Deleting
+ * one would erase a sale and silently return the unit to the lot. Reopening the deal first is the
+ * honest path, and the refusal says so rather than just saying no.
+ *
+ * `closed_lost` IS deletable — a lost lead is a prospect who did not buy, not a transaction.
+ *
+ * Nothing is orphaned: `service_sales_alert.sales_lead_id` is the only reference to a lead and is
+ * ON DELETE SET NULL, so a service-to-sales alert survives with its link cleared. The unit needs no
+ * release because only a sold lead marks one sold, and a sold lead is refused above.
+ */
+app.delete('/:id', requirePermission('contacts:delete'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const [existing] = await db.select({
+    id: salesLead.id, stage: salesLead.stage, unitId: salesLead.unitId,
+    contactId: salesLead.contactId, contactName: contact.name,
+  }).from(salesLead)
+    .leftJoin(contact, eq(salesLead.contactId, contact.id))
+    .where(and(eq(salesLead.id, id), eq(salesLead.companyId, currentUser.companyId)))
+    .limit(1)
+  if (!existing) return c.json({ error: 'Lead not found' }, 404)
+
+  if (existing.stage === SOLD) {
+    return c.json({
+      error: 'This deal is closed as sold, so it is the record of that sale and cannot be deleted. Reopen the deal first — that also puts the unit back on sale — and then delete it.',
+    }, 409)
+  }
+
+  const [removed] = await db.delete(salesLead)
+    .where(and(eq(salesLead.id, id), eq(salesLead.companyId, currentUser.companyId)))
+    .returning()
+  // Gone between the read and the delete: say so rather than reporting a success that did nothing.
+  if (!removed) return c.json({ error: 'Lead not found' }, 404)
+
+  await audit.log({
+    action: 'delete', entity: 'sales_lead', entityId: id,
+    // The name, because an id tells the reader nothing about which lead left the pipeline.
+    entityName: existing.contactName || null,
+    metadata: { stage: removed.stage, unitId: removed.unitId, source: removed.source },
+    req: c,
+  })
+  emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'sales_lead' })
+  return c.json({ success: true })
+})
+
 // ---- Desked deal (RV T19 H1) ----
 // Desking saves the deal's inputs on the lead, and F&I reads them back, so the numbers a salesperson
 // desks are the numbers F&I finances. The RULES now live in services/deal.ts rather than inline here:

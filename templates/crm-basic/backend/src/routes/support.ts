@@ -457,9 +457,38 @@ app.delete('/kb/:id', requirePermission('support-kb:delete'), async (c) => {
 // ─── AI Chat ─────────────────────────────────────────────────────────────────
 // Level 3: AI tries to resolve using knowledge base before creating a ticket
 
+/**
+ * AN EMPTY QUESTION IS NOT A QUESTION. (T58j)
+ *
+ *   showcase: "an empty AI chat request returns 200."
+ *
+ * It did, and the 200 was the smaller half of it. Measured live on basictest, `{}`, `{"message":""}`
+ * and `{"message":"   "}` all answered:
+ *
+ *     200 {"reply":"Sorry, I could not process that request.","resolved":true}
+ *
+ * `resolved: true` — on a request that was never sent anywhere. The empty message went to the
+ * Anthropic API as `content: ''`, the API refused it, `data.content` was absent, `reply` fell back to
+ * the apology string, and the `resolved` line below asked only whether that string mentions a support
+ * ticket. It does not, so a FAILED call was reported to the screen as a resolved conversation — which
+ * is the state that stops a ticket being raised. A customer with a problem is told it is handled.
+ *
+ * So: the message is required and bounded before anything is spent, a malformed body is a 400 rather
+ * than a 500, and `resolved` is only ever computed from a reply the model actually produced.
+ */
+const MAX_CHAT_CHARS = 8000;
+
 app.post('/ai-chat', async (c) => {
   const u = c.get('user') as any;
-  const { message, conversationHistory } = await c.req.json();
+  // A body that is not JSON threw here and became a 500. It is a bad request, and says so.
+  const body = await c.req.json().catch(() => null) as any;
+  if (!body || typeof body !== 'object') return c.json({ error: 'Send a JSON body with a message.' }, 400);
+  const { message, conversationHistory } = body;
+  const asked = typeof message === 'string' ? message.trim() : '';
+  if (!asked) return c.json({ error: 'Type a question first.' }, 400);
+  if (asked.length > MAX_CHAT_CHARS) {
+    return c.json({ error: `That question is too long — keep it under ${MAX_CHAT_CHARS.toLocaleString()} characters.` }, 400);
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return c.json({ reply: 'AI support is not configured. Please submit a ticket instead.', resolved: false });
@@ -483,7 +512,7 @@ app.post('/ai-chat', async (c) => {
 
   const messages = [
     ...(conversationHistory || []).map((m: any) => ({ role: m.role, content: m.content })),
-    { role: 'user' as const, content: message },
+    { role: 'user' as const, content: asked },
   ];
 
   try {
@@ -504,11 +533,23 @@ app.post('/ai-chat', async (c) => {
 
     const data = await res.json() as any;
     reportAiUsage(data.usage?.input_tokens, data.usage?.output_tokens, 'claude-haiku-4-5-20251001');
-    const reply = data.content?.[0]?.text || 'Sorry, I could not process that request.';
 
-    const resolved = !reply.toLowerCase().includes('support ticket') && !reply.toLowerCase().includes('team to handle');
+    /**
+     * NO ANSWER IS NOT A RESOLVED CONVERSATION.
+     *
+     * `resolved` used to be computed from the fallback apology string, which mentions neither
+     * trigger phrase — so an upstream refusal came back as `resolved: true` and the screen stopped
+     * offering to raise a ticket. Resolution is now only ever read off a reply the model produced.
+     */
+    const answer = typeof data?.content?.[0]?.text === 'string' ? data.content[0].text : '';
+    if (!res.ok || !answer) {
+      console.warn('[support/ai-chat] no answer', { status: res.status, type: data?.error?.type });
+      return c.json({ reply: 'AI support could not answer that just now. Please submit a ticket and the team will pick it up.', resolved: false });
+    }
 
-    return c.json({ reply, resolved });
+    const resolved = !answer.toLowerCase().includes('support ticket') && !answer.toLowerCase().includes('team to handle');
+
+    return c.json({ reply: answer, resolved });
   } catch (e) {
     return c.json({ reply: 'AI service is temporarily unavailable. Please submit a ticket instead.', resolved: false });
   }
