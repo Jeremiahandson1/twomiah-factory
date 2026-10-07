@@ -378,7 +378,15 @@ export default function CompliancePage() {
 
   const licenseStatusBadge = (license: any) => {
     const days = daysUntilExpiration(license.expirationDate);
-    if (license.status === 'expired' || days < 0) return 'bg-red-100 text-red-700';
+    // The dark partner was missing on THIS branch only — the other three below have had one all
+    // along. Measured in the browser in dark mode: rgb(254,226,226) on a page whose body luminance
+    // is 0, a bright red lozenge glaring out of a black page. The contrast sweep cannot see it and
+    // never could: dark red text on a pale ground is 7:1 and passes AA comfortably. It is not a
+    // contrast fault, it is a theme fault. (T58d — "the light chips in dark mode")
+    //
+    // And of course it is the EXPIRED one: the branch that matters most on a compliance screen is
+    // the branch nobody looked at in the other theme.
+    if (license.status === 'expired' || days < 0) return 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40';
     if (license.status === 'suspended') return 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40';
     if (days <= 60) return 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40';
     return 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40';
