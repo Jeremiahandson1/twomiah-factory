@@ -46,7 +46,7 @@ app.post('/start', async (c) => {
 
   const migrationId = await migration.startMigration(provider, credentials, user.companyId)
 
-  audit.log({
+  audit.log({ req: c,
     action: 'MIGRATION_START',
     entity: 'migration',
     metadata: { provider, migrationId },
@@ -100,7 +100,7 @@ app.post('/csv/:provider/:entityType', async (c) => {
       return c.json({ error: 'Unknown entity type' }, 400)
   }
 
-  audit.log({
+  audit.log({ req: c,
     action: 'MIGRATION_CSV',
     entity: entityType,
     metadata: { provider, imported: results.imported, skipped: results.skipped, filename: file.name },

@@ -43,7 +43,7 @@ app.get('/:type/csv', requirePermission('dashboard:read'), async (c) => {
     limit: limit ? parseInt(limit) : undefined,
   })
 
-  audit.log({
+  audit.log({ req: c,
     action: audit.ACTIONS.EXPORT,
     entity: type,
     entityName: `${result.count} records`,
@@ -80,7 +80,7 @@ app.get('/:type/excel', requirePermission('dashboard:read'), async (c) => {
     limit: limit ? parseInt(limit) : undefined,
   })
 
-  audit.log({
+  audit.log({ req: c,
     action: audit.ACTIONS.EXPORT,
     entity: type,
     entityName: `${result.count} records`,

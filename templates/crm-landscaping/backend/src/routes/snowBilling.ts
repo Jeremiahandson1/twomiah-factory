@@ -285,7 +285,7 @@ app.post('/contracts', requirePermission('invoices:create'), async (c) => {
     status: body.status ?? 'active',
     notes: body.notes ?? null,
   }).returning()
-  audit.log({ action: audit.ACTIONS.CREATE, entity: 'snow_contract', entityId: contract.id, entityName: `${billingMode} contract`, userId: user.userId, companyId: user.companyId })
+  audit.log({ req: c, action: audit.ACTIONS.CREATE, entity: 'snow_contract', entityId: contract.id, entityName: `${billingMode} contract`, userId: user.userId, companyId: user.companyId })
   return c.json(contract, 201)
 })
 
@@ -318,8 +318,29 @@ app.put('/contracts/:id', requirePermission('invoices:update'), async (c) => {
 
 app.delete('/contracts/:id', requirePermission('invoices:delete'), async (c) => {
   const user = c.get('user') as any
-  await db.delete(snowContract)
+  /**
+   * A DELETE LEAVES A TRACE. (T58d)
+   *
+   *   Owner: "Deleting a snow contract or a route writes no audit row."
+   *
+   * It did not — and a deletion is the single event an audit log exists for. Creating a contract was
+   * logged; removing one, along with every visit on it (the row cascades), was not. Afterwards there
+   * was nothing to say the contract had ever existed, let alone who removed it.
+   *
+   * `.returning()` so the row can be NAMED in the log — "per_push contract" rather than an id
+   * nobody can resolve, because the record it points at is gone by the time anyone reads the entry.
+   * Still 204 either way: deleting something already deleted is not an error, and a client retrying
+   * must not start seeing failures. Logged only when something was actually removed.
+   */
+  const [gone] = await db.delete(snowContract)
     .where(and(eq(snowContract.id, c.req.param('id')), eq(snowContract.companyId, user.companyId)))
+    .returning()
+  if (gone) {
+    audit.log({
+      req: c, action: audit.ACTIONS.DELETE, entity: 'snow_contract', entityId: gone.id,
+      entityName: `${gone.billingMode} contract`, userId: user.userId, companyId: user.companyId,
+    })
+  }
   return c.body(null, 204)
 })
 
@@ -391,7 +412,7 @@ app.post('/events', requirePermission('invoices:create'), async (c) => {
   const why = belowTrigger && !ev.billBelowTrigger
     ? ` — below the ${Number(contract.triggerDepthInches)}in trigger, not charged`
     : belowTrigger ? ` — below trigger, charged on request` : ''
-  audit.log({ action: audit.ACTIONS.CREATE, entity: 'snow_event', entityId: event.id, entityName: `$${billableAmount} (${contract.billingMode})${why}`, userId: user.userId, companyId: user.companyId })
+  audit.log({ req: c, action: audit.ACTIONS.CREATE, entity: 'snow_event', entityId: event.id, entityName: `$${billableAmount} (${contract.billingMode})${why}`, userId: user.userId, companyId: user.companyId })
   // `belowTrigger` is derived, not stored — the contract's trigger can be changed later and this
   // must always reflect the one in force. The screen needs it to explain a $0 line.
   return c.json({ ...event, belowTrigger, triggerDepthInches: contract.triggerDepthInches }, 201)
@@ -399,8 +420,17 @@ app.post('/events', requirePermission('invoices:create'), async (c) => {
 
 app.delete('/events/:id', requirePermission('invoices:delete'), async (c) => {
   const user = c.get('user') as any
-  await db.delete(snowEvent)
+  // Same as the contract delete above: a removed visit is money that was going to be charged and
+  // then was not, so it leaves a row saying what it was worth and who removed it.
+  const [gone] = await db.delete(snowEvent)
     .where(and(eq(snowEvent.id, c.req.param('id')), eq(snowEvent.companyId, user.companyId)))
+    .returning()
+  if (gone) {
+    audit.log({
+      req: c, action: audit.ACTIONS.DELETE, entity: 'snow_event', entityId: gone.id,
+      entityName: `$${gone.billableAmount} (${gone.billingMode})`, userId: user.userId, companyId: user.companyId,
+    })
+  }
   return c.body(null, 204)
 })
 
@@ -453,7 +483,7 @@ app.post('/contracts/:id/bill', requirePermission('invoices:create'), async (c) 
     return { invoice: created, billedVisits: billable.length }
   })
   if ('error' in result) return c.json({ error: result.error }, 400)
-  audit.log({ action: audit.ACTIONS.CREATE, entity: 'invoice', entityId: result.invoice.id, entityName: result.invoice.number, userId: user.userId, companyId: cid, metadata: { source: 'snow_contract', snowContractId: id, visits: result.billedVisits } })
+  audit.log({ req: c, action: audit.ACTIONS.CREATE, entity: 'invoice', entityId: result.invoice.id, entityName: result.invoice.number, userId: user.userId, companyId: cid, metadata: { source: 'snow_contract', snowContractId: id, visits: result.billedVisits } })
   return c.json(result, 201)
 })
 

@@ -45,7 +45,7 @@ app.post('/rates', requirePermission('quotes:create'), async (c) => {
     unitLabel: body.unitLabel ?? 'per visit',
     active: body.active !== false,
   }).returning()
-  audit.log({ action: audit.ACTIONS.CREATE, entity: 'service_rate', entityId: rate.id, entityName: rate.serviceType, userId: user.userId, companyId: user.companyId })
+  audit.log({ req: c, action: audit.ACTIONS.CREATE, entity: 'service_rate', entityId: rate.id, entityName: rate.serviceType, userId: user.userId, companyId: user.companyId })
   return c.json(rate, 201)
 })
 

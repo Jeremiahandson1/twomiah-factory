@@ -203,7 +203,7 @@ app.post('/', requirePermission('jobs:create'), async (c) => {
     status: body.status ?? 'active',
     notes: body.notes ?? null,
   }).returning()
-  audit.log({ action: audit.ACTIONS.CREATE, entity: 'recurring_route', entityId: route.id, entityName: route.name, userId: u.userId, companyId: u.companyId })
+  audit.log({ req: c, action: audit.ACTIONS.CREATE, entity: 'recurring_route', entityId: route.id, entityName: route.name, userId: u.userId, companyId: u.companyId })
   return c.json(route, 201)
 })
 
@@ -254,8 +254,23 @@ app.put('/:id', requirePermission('jobs:update'), async (c) => {
 
 app.delete('/:id', requirePermission('jobs:delete'), async (c) => {
   const u = c.get('user') as any
-  await db.delete(recurringRoute)
+  /**
+   * A DELETED ROUTE LEAVES A TRACE. (T58d — "deleting a snow contract or a route writes no audit
+   * row.")
+   *
+   * Creating a route was logged and removing one was not, so a round that simply stopped appearing
+   * had no record of ever having been set up. `.returning()` names it in the entry, because the row
+   * it points at is gone by the time anyone reads the log.
+   */
+  const [gone] = await db.delete(recurringRoute)
     .where(and(eq(recurringRoute.id, c.req.param('id')), eq(recurringRoute.companyId, u.companyId)))
+    .returning()
+  if (gone) {
+    audit.log({
+      req: c, action: audit.ACTIONS.DELETE, entity: 'recurring_route', entityId: gone.id,
+      entityName: gone.name || 'route', userId: u.userId, companyId: u.companyId,
+    })
+  }
   return c.body(null, 204)
 })
 

@@ -68,7 +68,7 @@ app.post('/contacts', async (c) => {
 
   const results = await importService.importContacts(csvContent, user.companyId, options)
 
-  audit.log({
+  audit.log({ req: c,
     action: 'IMPORT',
     entity: 'contacts',
     metadata: {
@@ -103,7 +103,7 @@ app.post('/projects', async (c) => {
 
   const results = await importService.importProjects(csvContent, user.companyId, options)
 
-  audit.log({
+  audit.log({ req: c,
     action: 'IMPORT',
     entity: 'projects',
     metadata: { imported: results.imported, skipped: results.skipped },
@@ -128,7 +128,7 @@ app.post('/jobs', async (c) => {
   const csvContent = await file.text()
   const results = await importService.importJobs(csvContent, user.companyId)
 
-  audit.log({
+  audit.log({ req: c,
     action: 'IMPORT',
     entity: 'jobs',
     metadata: { imported: results.imported, skipped: results.skipped },
@@ -153,7 +153,7 @@ app.post('/products', async (c) => {
   const csvContent = await file.text()
   const results = await importService.importProducts(csvContent, user.companyId)
 
-  audit.log({
+  audit.log({ req: c,
     action: 'IMPORT',
     entity: 'products',
     metadata: { imported: results.imported, skipped: results.skipped },
@@ -203,7 +203,7 @@ const venueImport = (handler: 'importEvents' | 'importSpaces' | 'importMenus', e
       createContacts: formData.get('createMissingContacts') !== 'false',
     }
     const results = await (importService as any)[handler](csvContent, user.companyId, options)
-    audit.log({ action: 'IMPORT', entity, metadata: { imported: results.imported, skipped: results.skipped }, userId: user.userId, companyId: user.companyId })
+    audit.log({ req: c, action: 'IMPORT', entity, metadata: { imported: results.imported, skipped: results.skipped }, userId: user.userId, companyId: user.companyId })
     return c.json(results)
   }
 

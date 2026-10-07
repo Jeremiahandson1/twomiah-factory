@@ -65,7 +65,7 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   const [created] = await db.insert(site).values({
     ...clean(body, TEXT_FIELDS), name: String(body.name).trim(), companyId: user.companyId, contactId: ct.id,
   } as any).returning()
-  audit.log({ action: audit.ACTIONS.CREATE, entity: 'site', entityId: created.id, entityName: created.name, userId: user.userId, companyId: user.companyId })
+  audit.log({ req: c, action: audit.ACTIONS.CREATE, entity: 'site', entityId: created.id, entityName: created.name, userId: user.userId, companyId: user.companyId })
   return c.json(created, 201)
 })
 
@@ -98,7 +98,7 @@ app.delete('/:id', requirePermission('contacts:delete'), async (c) => {
   const [{ value: contracts }] = await db.select({ value: count() }).from(snowContract).where(and(eq(snowContract.siteId, id), eq(snowContract.companyId, user.companyId)))
   if (Number(contracts) > 0) return c.json({ error: `This property has ${contracts} snow contract${Number(contracts) === 1 ? '' : 's'} — delete ${Number(contracts) === 1 ? 'it' : 'them'} first.` }, 409)
   await db.delete(site).where(and(eq(site.id, id), eq(site.companyId, user.companyId)))
-  audit.log({ action: audit.ACTIONS.DELETE, entity: 'site', entityId: id, userId: user.userId, companyId: user.companyId })
+  audit.log({ req: c, action: audit.ACTIONS.DELETE, entity: 'site', entityId: id, userId: user.userId, companyId: user.companyId })
   return c.body(null, 204)
 })
 

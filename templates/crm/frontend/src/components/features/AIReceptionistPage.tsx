@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { Plus, Phone, MessageSquare, Bot, Edit2, Trash2, Check, PhoneIncoming, VoicemailIcon, Zap, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Card, CardHeader, CardBody, Button, Input, Select, Modal, Textarea, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, StatusBadge, EmptyState, ConfirmDialog, Tabs, TabsList, TabsTrigger, TabsContent } from '../ui';
-import { PageError, errorText } from '../../shared';
+import { PageError, errorText, ModuleNotEnabled, featureNotEnabled } from '../../shared';
 
 interface OutletContextType {
   instance: Record<string, unknown>;
@@ -20,17 +20,27 @@ function useAuth(): { token: string | null } {
   return { token };
 }
 
-// The server's own sentence, so the page can show a reason it was actually given. "API error: 403"
-// told the user nothing and told us nothing either.
-async function reason(res: Response): Promise<string> {
+/**
+ * Throw the REFUSAL, not just a sentence.
+ *
+ * featureNotEnabled() in the shared ui reads `err.status` and `err.data.code` — the server's own
+ * code rather than its wording, because wording changes and codes do not. A plain Error carries
+ * neither, so "this module is switched off" and "this actually broke" were indistinguishable by the
+ * time they reached the page. (T58d)
+ */
+async function refusal(res: Response): Promise<Error> {
   const text = await res.text().catch(() => '');
-  try {
-    const parsed = JSON.parse(text);
-    if (parsed && typeof parsed.error === 'string' && parsed.error.trim()) return parsed.error;
-  } catch { /* not JSON — fall through to the status */ }
-  if (res.status === 401) return 'Your session has expired. Sign in again.';
-  if (res.status === 403) return 'Your account does not have access to the AI Receptionist.';
-  return `The server answered ${res.status}.`;
+  let data: any = null;
+  try { data = JSON.parse(text); } catch { /* not JSON */ }
+  const message = (data && typeof data.error === 'string' && data.error.trim())
+    ? data.error
+    : res.status === 401 ? 'Your session has expired. Sign in again.'
+    : res.status === 403 ? 'Your account does not have access to this.'
+    : `The server answered ${res.status}.`;
+  const err = new Error(message) as Error & { status?: number; data?: unknown };
+  err.status = res.status;
+  err.data = data;
+  return err;
 }
 
 async function api(path: string, token: string, opts: RequestInit = {}): Promise<Record<string, unknown>> {
@@ -38,7 +48,7 @@ async function api(path: string, token: string, opts: RequestInit = {}): Promise
     ...opts,
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...opts.headers },
   });
-  if (!res.ok) throw new Error(await reason(res));
+  if (!res.ok) throw await refusal(res);
   return res.json();
 }
 
@@ -46,7 +56,7 @@ async function callApi(path: string, token: string): Promise<Record<string, unkn
   const res = await fetch(`/api/calltracking${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error(await reason(res));
+  if (!res.ok) throw await refusal(res);
   return res.json();
 }
 
@@ -135,6 +145,11 @@ export function AIReceptionistPage() {
   const [editItem, setEditItem] = useState<Record<string, unknown> | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Which of the two is off, if either. The module being off is a whole-page state; call tracking
+  // being off is one tab's, and conflating them is what put "this module is not enabled" on a page
+  // whose module is perfectly enabled. (T58d)
+  const [moduleOff, setModuleOff] = useState(false);
+  const [callsOff, setCallsOff] = useState(false);
   const primaryColor = (instance?.primaryColor as string) || '{{PRIMARY_COLOR}}';
 
   const fetchRules = useCallback(async () => {
@@ -142,7 +157,10 @@ export function AIReceptionistPage() {
     try {
       const data = await api('/rules', token);
       setRules((data.data as Record<string, unknown>[]) || []);
-    } catch (e) { setError(errorText(e, 'The auto-reply rules could not be loaded.')); }
+    } catch (e) {
+      if (featureNotEnabled(e)) { setModuleOff(true); return; }
+      setError(errorText(e, 'The auto-reply rules could not be loaded.'));
+    }
   }, [token]);
 
   const fetchSettings = useCallback(async () => {
@@ -150,7 +168,10 @@ export function AIReceptionistPage() {
     try {
       const data = await api('/settings', token);
       setSettings(data as unknown as AISettings);
-    } catch (e) { setError(errorText(e, 'The AI Receptionist settings could not be loaded.')); }
+    } catch (e) {
+      if (featureNotEnabled(e)) { setModuleOff(true); return; }
+      setError(errorText(e, 'The AI Receptionist settings could not be loaded.'));
+    }
   }, [token]);
 
   const fetchCalls = useCallback(async () => {
@@ -158,7 +179,12 @@ export function AIReceptionistPage() {
     try {
       const data = await callApi('/calls?limit=20', token);
       setCalls((data.data as Record<string, unknown>[]) || []);
-    } catch (e) { setError(errorText(e, 'The recent calls could not be loaded.')); }
+    } catch (e) {
+      // Call Tracking is a separate feature. On Showcase the AI Receptionist is ON and this one is
+      // OFF, which is a perfectly ordinary setup — it must not take the page down with it.
+      if (featureNotEnabled(e)) { setCallsOff(true); return; }
+      setError(errorText(e, 'The recent calls could not be loaded.'));
+    }
   }, [token]);
 
   useEffect(() => {
@@ -220,6 +246,10 @@ export function AIReceptionistPage() {
   const activeRules = rules.filter((r: Record<string, unknown>) => r.isActive).length;
 
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-slate-600 dark:text-slate-400" /></div>;
+
+  // The server said this module is off. Say that, once, instead of a red banner over a page of
+  // controls that cannot work. (T58d)
+  if (moduleOff) return <ModuleNotEnabled title="AI Receptionist" what="Automatic call handling, transcription and smart replies are part of your product but are not enabled on this account." />;
 
   return (
     <div className="space-y-6">
@@ -296,7 +326,9 @@ export function AIReceptionistPage() {
                 ))}
               </TableBody></Table>
             ) : (
-              <CardBody><EmptyState icon={Phone} title="No calls yet" description="Calls will appear here once your tracking numbers receive calls" /></CardBody>
+              <CardBody>{callsOff
+                    ? <EmptyState icon={Phone} title="Call Tracking isn't switched on" description="The AI Receptionist works without it — rules and auto-replies above are live. Turn Call Tracking on under Settings › Features to see the calls it handled." />
+                    : <EmptyState icon={Phone} title="No calls yet" description="Calls will appear here once your tracking numbers receive calls" />}</CardBody>
             )}
           </Card>
         </TabsContent>

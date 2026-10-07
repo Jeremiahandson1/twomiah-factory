@@ -23,7 +23,7 @@ app.post('/contacts/update', requirePermission('contacts:update'), async (c) => 
 
   const count = await bulk.bulkUpdateContacts(user.companyId, ids, safeUpdates)
 
-  audit.log({
+  audit.log({ req: c,
     action: 'BULK_UPDATE',
     entity: 'contacts',
     metadata: { count, updates: safeUpdates },
@@ -41,7 +41,7 @@ app.post('/contacts/delete', requirePermission('contacts:delete'), async (c) => 
 
   const count = await bulk.bulkDeleteContacts(user.companyId, ids)
 
-  audit.log({
+  audit.log({ req: c,
     action: 'BULK_DELETE',
     entity: 'contacts',
     metadata: { count },
@@ -68,7 +68,7 @@ app.post('/projects/update', requirePermission('projects:update'), async (c) => 
 
   const count = await bulk.bulkUpdateProjects(user.companyId, ids, safeUpdates)
 
-  audit.log({
+  audit.log({ req: c,
     action: 'BULK_UPDATE',
     entity: 'projects',
     metadata: { count, updates: safeUpdates },
@@ -86,7 +86,7 @@ app.post('/projects/delete', requirePermission('projects:delete'), async (c) => 
 
   const count = await bulk.bulkDeleteProjects(user.companyId, ids)
 
-  audit.log({
+  audit.log({ req: c,
     action: 'BULK_DELETE',
     entity: 'projects',
     metadata: { count },
@@ -121,7 +121,7 @@ app.post('/jobs/update', requirePermission('jobs:update'), async (c) => {
 
   const count = await bulk.bulkUpdateJobs(user.companyId, ids, safeUpdates)
 
-  audit.log({
+  audit.log({ req: c,
     action: 'BULK_UPDATE',
     entity: 'jobs',
     metadata: { count, updates: safeUpdates },
@@ -138,7 +138,7 @@ app.post('/jobs/delete', requirePermission('jobs:delete'), async (c) => {
   if (!ids?.length) return c.json({ error: 'No IDs provided' }, 400)
   const count = await bulk.bulkDeleteJobs(user.companyId, ids)
 
-  audit.log({
+  audit.log({ req: c,
     action: 'BULK_DELETE',
     entity: 'jobs',
     metadata: { count },
@@ -180,7 +180,7 @@ app.post('/invoices/delete', requirePermission('invoices:delete'), async (c) => 
   if (!ids?.length) return c.json({ error: 'No IDs provided' }, 400)
   const count = await bulk.bulkDeleteInvoices(user.companyId, ids)
 
-  audit.log({
+  audit.log({ req: c,
     action: 'BULK_DELETE',
     entity: 'invoices',
     metadata: { count },
