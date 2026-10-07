@@ -374,9 +374,38 @@ export function createQuoteRoutes(deps: QuoteDeps) {
   app.post('/:id/send', requirePermission('quotes:update'), async (c: any) => {
     const cid = (c.get('user') as any).companyId
     const id = c.req.param('id')
+
+    /**
+     * A QUOTE GETS ITS EXPIRY WHEN IT IS SENT, IF IT HAS NOT GOT ONE. (T58d)
+     *
+     * Owner: "35 old quotes with no expiry." Measured on fstest: exactly 35, every one raised on or
+     * before 2026-09-21, and nothing raised since is missing one — because POST / has had the
+     * `quoteExpiryFromTerms` fallback since Field Service T26 L2. So the create path is fixed and
+     * those 35 are rows from before it. They are NOT back-dated here, and that is deliberate: a
+     * quote is a document the customer may be holding, and stamping a validity onto one after the
+     * fact changes what was offered. On fstest all 35 are approved, viewed, rejected or declined —
+     * not one is a live open offer — so there is nothing outstanding to protect.
+     *
+     * What WAS still open is the gap this closes. ctrtest and lndtest hold unsent DRAFTS with no
+     * expiry, and sending one shipped it to the customer with the validity line blank: the email
+     * template is handed `expiryDate: found.expiryDate ? … : ''`. A draft has been shown to nobody,
+     * so there is nothing to change — and sending it IS the moment the offer is made, which is
+     * exactly when a validity period should attach.
+     *
+     * Only when it is null. Re-sending an already-dated quote must not quietly extend it, and the
+     * status gate below still admits `sent`, so that case is reachable.
+     */
+    const [current] = await db.select().from(t.quote).where(and(eq(t.quote.id, id), eq(t.quote.companyId, cid))).limit(1)
+    let stampedExpiry: Date | undefined
+    if (current && !current.expiryDate) {
+      const settings = await companySettings(cid)
+      stampedExpiry = quoteExpiryFromTerms(settings, businessToday(await deps.options?.timeZoneFor?.(cid)))
+    }
+    const expiryForCustomer = (current?.expiryDate as any) ?? stampedExpiry ?? null
+
     let recipient: { email: string; name: string } | null = null
     if (deps.sendQuoteEmail) {
-      const [found] = await db.select().from(t.quote).where(and(eq(t.quote.id, id), eq(t.quote.companyId, cid))).limit(1)
+      const found = current
       if (found?.contactId) {
         const [ct] = await db.select().from(t.contact).where(and(eq(t.contact.id, found.contactId), eq(t.contact.companyId, cid))).limit(1)
         if (ct?.email) recipient = { email: ct.email, name: ct.name || 'there' }
@@ -388,7 +417,10 @@ export function createQuoteRoutes(deps: QuoteDeps) {
           await deps.sendQuoteEmail(recipient.email, {
             quoteNumber: found.number, companyName: co?.name || 'Your provider', companyEmail: co?.email || '',
             contactName: recipient.name, total: found.total,
-            expiryDate: found.expiryDate ? new Date(found.expiryDate as any).toLocaleDateString() : '',
+            // The date the customer is about to be held to, including the one being stamped on by
+            // this send. It used to be blank whenever the quote had none, so the offer went out
+            // with no validity at all.
+            expiryDate: expiryForCustomer ? new Date(expiryForCustomer).toLocaleDateString() : '',
           })
         } catch (err: any) {
           console.error('[quotes] send failed', { quote: found.number, to: recipient.email, error: err?.message })
@@ -396,7 +428,14 @@ export function createQuoteRoutes(deps: QuoteDeps) {
         }
       }
     }
-    const r: any = await setStatus(c, id, { status: 'sent', sentAt: new Date() }, ['draft', 'sent'], EVENTS.QUOTE_SENT)
+    // The expiry lands in the SAME update that marks it sent, so a send that fails at the mail
+    // provider (the 502 above) leaves the quote exactly as it was — still a draft, still undated,
+    // and dated from the day it actually goes out rather than the day somebody first tried.
+    const r: any = await setStatus(
+      c, id,
+      { status: 'sent', sentAt: new Date(), ...(stampedExpiry ? { expiryDate: stampedExpiry } : {}) },
+      ['draft', 'sent'], EVENTS.QUOTE_SENT,
+    )
     if (!r.updated) return r
     if (o.onSent && r.updated.contactId) {
       const [ct] = await db.select().from(t.contact).where(and(eq(t.contact.id, r.updated.contactId), eq(t.contact.companyId, r.cid))).limit(1)
