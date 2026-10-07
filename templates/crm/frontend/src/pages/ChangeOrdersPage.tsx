@@ -253,6 +253,8 @@ export default function ChangeOrdersPage() {
    * `new` above, so Back does not reopen it; the path form keeps its URL, which is the point of it.
    */
   const [tried, setTried] = useState('');
+  /** A deep link to an id that is not there — rendered on the list, because a toast died with the route. */
+  const [deepLinkError, setDeepLinkError] = useState('');
   useEffect(() => {
     const wanted = changeOrderId || searchParams.get('view');
     if (!wanted || tried === wanted) return;
@@ -275,8 +277,22 @@ export default function ChangeOrdersPage() {
         if (!one || !one.id) throw new Error('not found');
         openView(one); clearParam();
       } catch {
-        toast.error('That change order could not be found.');
-        navigate('/crm/change-orders', { replace: true });
+        /**
+         * THE REFUSAL STAYS ON THE PAGE. (T58k)
+         *
+         *   owner: "A change-order deep link with an unknown id fails silently."
+         *
+         * It did, and the toast was the reason: this navigated to the list in the same tick, which
+         * unmounts the route the toast was raised from, so the message went with it. The person was
+         * left on an unexplained list — worse than the 404 the route used to give, because at least
+         * that said something.
+         *
+         * So the message is rendered on the list instead, and nothing navigates. The URL is cleaned
+         * up so a refresh does not retry an id that is not there, but the explanation stays put
+         * until it is dismissed.
+         */
+        setDeepLinkError('That change order could not be found — it may have been deleted.');
+        if (changeOrderId) navigate('/crm/change-orders', { replace: true });
       }
     })();
   }, [changeOrderId, searchParams, data, loading, tried, setSearchParams, navigate]);
@@ -298,6 +314,13 @@ export default function ChangeOrdersPage() {
   return (
     <div>
       <PageHeader title="Change Orders" action={can('change-orders:create') ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>New CO</Button> : undefined} />
+      {/* A deep link that resolved to nothing. On the page, not in a toast that the navigation ate. */}
+      {deepLinkError && (
+        <div className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200" role="alert">
+          <span>{deepLinkError}</span>
+          <button type="button" onClick={() => setDeepLinkError('')} className="font-semibold underline underline-offset-2 hover:no-underline">Dismiss</button>
+        </div>
+      )}
       {/* A filter that is applied and not shown is indistinguishable from a short list. */}
       {projectFilter && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-orange-50 px-3 py-2 text-sm text-orange-900 dark:bg-orange-950 dark:text-orange-100">

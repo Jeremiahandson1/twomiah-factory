@@ -7,11 +7,14 @@ import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import emailService from '../services/email.ts'
+import audit from '../services/audit.ts'
 
 export default createQuoteRoutes({
   db,
   tables: { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job },
   authenticate,
+  // Quote events are named by their NUMBER rather than left to the request floor, which cannot know it. (T58k)
+  audit,
   requirePermission,
   emitToCompany,
   EVENTS,

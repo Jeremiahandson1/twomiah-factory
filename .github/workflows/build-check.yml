@@ -1305,6 +1305,13 @@ jobs:
       # produced a code that still belonged to something. Runs the real statement against PGlite.
       - name: "document numbers — a deleted number is never handed out again"
         run: bun run scripts/check-numbers-never-reused.ts
+      # "Vet Lead Inbox contrast is not fixed. #767676 gives 4.35:1 and 4.17:1. Dismiss is 3.28:1.
+      # That grey passes only on pure white, which is probably what the test checked against." It was:
+      # every shade in the lead palette was chosen against `surface` and the palette has five other
+      # grounds. Six inks were below AA where two were reported. The browser run missed it because the
+      # worst pairings are STATES — a hovered row, a toggled button, the Dismiss control's own ground.
+      - name: "lead palette — every ink clears AA on every ground, not just on white"
+        run: bun run scripts/check-lead-palette-every-ground.ts
 
   revenue-one-definition:
     name: "Revenue one definition"

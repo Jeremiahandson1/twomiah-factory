@@ -8,6 +8,36 @@ import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
 import { upcomingEventsUsingSpace, retireSpaceRefusal } from '../services/eventBooking.ts'
+import { money } from '../shared/invoicing/money.ts'
+
+/**
+ * WHAT THE RECORD COLUMN SHOWS. (T58k)
+ *
+ *   owner: "Events: event, menu-line and event-payment rows have no IP and no record name (0 of 66)."
+ *
+ * Every audit call in this file passed an entityId and no entityName, so the screen had nothing to
+ * print but the humanised entity — "Event", "Event menu item" — on all 66 rows. An id is not a name
+ * and the reader cannot look one up.
+ *
+ * Tried in order of how a person would refer to the thing. A PAYMENT has no name of its own, so its
+ * amount is what identifies it in a list; returning null there would have left the column empty for
+ * exactly the rows the owner counted.
+ */
+const nameOf = (row: any): string | null => {
+  if (!row || typeof row !== 'object') return null
+  for (const k of ['name', 'title', 'eventName', 'packageName', 'itemName', 'description']) {
+    const v = row[k]
+    if (typeof v === 'string' && v.trim()) return v.trim().slice(0, 120)
+  }
+  if (row.amount !== undefined && row.amount !== null && Number.isFinite(Number(row.amount))) {
+    // Separated thousands: a $12,000 deposit must not read as $12000.00, and the audit log is
+    // where somebody checks a figure. Not the shared money() — events.ts already declares its own
+    // `money` at the top level and importing a second one is a redeclaration. (T58k)
+    return '$' + Number(row.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  }
+  return null
+}
+
 
 /**
  * Event spaces — the rooms you can sell, with the two numbers every enquiry
@@ -85,7 +115,7 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
     companyId: currentUser.companyId,
   }).returning()
 
-  await audit.log({ action: 'create', entity: 'event_space', entityId: created.id, metadata: created, req: { user: currentUser } })
+  await audit.log({ action: 'create', entity: 'event_space', entityId: created.id, entityName: nameOf(created), metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event_space' })
   return c.json(created, 201)
 })
@@ -120,7 +150,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   }
 
   const [updated] = await db.update(eventSpace).set(updates).where(eq(eventSpace.id, id)).returning()
-  await audit.log({ action: 'update', entity: 'event_space', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
+  await audit.log({ action: 'update', entity: 'event_space', entityId: id, entityName: nameOf(updated), changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event_space' })
   return c.json(updated)
 })
@@ -145,7 +175,7 @@ app.delete('/:id', requirePermission('contacts:update'), async (c) => {
     .where(eq(eventSpace.id, id))
     .returning()
 
-  await audit.log({ action: 'update', entity: 'event_space', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
+  await audit.log({ action: 'update', entity: 'event_space', entityId: id, entityName: nameOf(updated), changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event_space' })
   return c.json({ success: true, space: updated })
 })

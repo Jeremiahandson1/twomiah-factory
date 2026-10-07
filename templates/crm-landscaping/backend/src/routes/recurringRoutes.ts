@@ -245,10 +245,33 @@ app.put('/:id', requirePermission('jobs:update'), async (c) => {
   }
   if (body.status) patch.status = body.status
   if (body.notes != null) patch.notes = body.notes
+  // Read BEFORE the write, so the entry can say what moved. One extra read on a route edit.
+  const [before] = await db.select().from(recurringRoute)
+    .where(and(eq(recurringRoute.id, id), eq(recurringRoute.companyId, u.companyId))).limit(1)
   const [route] = await db.update(recurringRoute).set(patch)
     .where(and(eq(recurringRoute.id, id), eq(recurringRoute.companyId, u.companyId)))
     .returning()
   if (!route) return c.json({ error: 'Route not found' }, 404)
+  /**
+   * EDITING A ROUTE IS AUDITED. (T58k)
+   *
+   *   owner: "Landscaping: edits to snow contracts and routes aren't audited (creates and deletes are)."
+   *
+   * T58d added the audit row for a DELETED route — the note just below says so — and T58c fixed the
+   * blank-name rule on this very handler. Neither added a row for the EDIT, which is the change that
+   * actually happens week to week: moving a route to another day, reassigning the crew, changing the
+   * estimated hours. The board changes under the crew and nothing said who changed it.
+   *
+   * The diff is carried because the values ARE the point here: "dayOfWeek: 2 → 4" is the whole story.
+   */
+  audit.log({
+    req: c,
+    action: audit.ACTIONS.UPDATE,
+    entity: 'recurring_route',
+    entityId: route.id,
+    entityName: route.name || 'route',
+    changes: audit.diff(before as any, route as any),
+  })
   return c.json(route)
 })
 

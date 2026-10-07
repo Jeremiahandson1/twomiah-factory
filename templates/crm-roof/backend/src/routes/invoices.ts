@@ -6,6 +6,8 @@ import { eq, and, ne, desc, count, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { businessToday, companyTimeZone, dueDateFromTerms, withoutPortalCredential } from '../shared/index.ts'
+// One numbering rule for every document in the product — locked, and only ever forwards.
+import { nextNumber } from '../shared/invoicing/money.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -164,39 +166,43 @@ app.post('/', requirePermission('invoices:create'), async (c) => {
   const [ownJob] = await db.select({ id: job.id }).from(job).where(and(eq(job.id, data.jobId), eq(job.companyId, currentUser.companyId))).limit(1)
   if (!ownJob) return c.json({ error: 'That job does not exist.' }, 404)
 
-  // Auto-generate invoiceNumber: INV-0001
-  const [maxResult] = await db
-    .select({ maxNum: sql<string>`MAX(${invoice.invoiceNumber})` })
-    .from(invoice)
-    .where(eq(invoice.companyId, currentUser.companyId))
-
-  let nextNum = 1
-  if (maxResult?.maxNum) {
-    const match = maxResult.maxNum.match(/INV-(\d+)/)
-    if (match) nextNum = parseInt(match[1], 10) + 1
-  }
-  const invoiceNumber = `INV-${String(nextNum).padStart(4, '0')}`
-
   const totals = calcTotals(data.lineItems, data.taxRate)
 
-  const [newInvoice] = await db.insert(invoice).values({
-    companyId: currentUser.companyId,
-    jobId: data.jobId,
-    contactId: data.contactId,
-    invoiceNumber,
-    lineItems: data.lineItems.map(item => ({
-      ...item,
-      total: item.quantity * item.unitPrice,
-    })),
-    subtotal: totals.subtotal.toString(),
-    taxRate: (data.taxRate / 100).toString(),
-    taxAmount: totals.taxAmount.toString(),
-    total: totals.total.toString(),
-    amountPaid: '0',
-    balance: totals.total.toString(),
-    notes: data.notes,
-    dueDate: data.dueDate ? new Date(data.dueDate) : dueDateFromTerms(settings, today),
-  }).returning()
+  /**
+   * ROOF INVOICE NUMBERS ONLY GO FORWARDS. (T58k)
+   *
+   * `MAX(invoiceNumber) + 1` reissues a number the moment the highest invoice is deleted — the same
+   * fault the owner reported on landscaping as "INV-00072 and -00073 were issued again". It also ran
+   * in its own unlocked statement, so two invoices raised together both read the same maximum.
+   *
+   * MAX() over TEXT is worse than it looks, too: it compares lexically, so once a company passes
+   * INV-9999 the highest string is not the highest number. nextNumber parses the digits.
+   *
+   * Roof keeps its number in `invoiceNumber`, not `number`, which is why the shared invoicing route
+   * could not simply be adopted here.
+   */
+  const newInvoice = await db.transaction(async (tx: any) => {
+    const invoiceNumber = await nextNumber(tx, invoice, invoice.invoiceNumber, invoice.companyId, currentUser.companyId, { prefix: 'INV', pad: 4 })
+    const [row] = await tx.insert(invoice).values({
+      companyId: currentUser.companyId,
+      jobId: data.jobId,
+      contactId: data.contactId,
+      invoiceNumber,
+      lineItems: data.lineItems.map(item => ({
+        ...item,
+        total: item.quantity * item.unitPrice,
+      })),
+      subtotal: totals.subtotal.toString(),
+      taxRate: (data.taxRate / 100).toString(),
+      taxAmount: totals.taxAmount.toString(),
+      total: totals.total.toString(),
+      amountPaid: '0',
+      balance: totals.total.toString(),
+      notes: data.notes,
+      dueDate: data.dueDate ? new Date(data.dueDate) : dueDateFromTerms(settings, today),
+    }).returning()
+    return row
+  })
 
   return c.json(newInvoice, 201)
 })

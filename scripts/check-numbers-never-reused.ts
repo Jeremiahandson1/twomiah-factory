@@ -19,7 +19,8 @@
  *
  *   bun scripts/check-numbers-never-reused.ts
  */
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 import { PGlite } from '@electric-sql/pglite'
 
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
@@ -143,6 +144,79 @@ if (/jsonb_build_object\(\$\{prefix\}(?!::text)/.test(money)) {
 }
 for (const m of money.match(/->> \$\{prefix\}(::text)?/g) || []) {
   if (!m.includes('::text')) fail("every `->> ${prefix}` must be cast ::text — the operator is overloaded, so an uncast parameter is ambiguous")
+}
+
+/**
+ * EVERY GENERATOR, NOT JUST THE ONES THAT WERE REPORTED. (T58k)
+ *
+ * T58j fixed the three the owner named and left the siblings. The owner's next pass found four more —
+ * the SHARED pricebook (which four templates mount, while only crm-roof's own copy had been fixed),
+ * the recurring invoice, and both change-order writers. Sweeping afterwards turned up eight project
+ * numbers, nine ticket numbers, two purchase-order numbers, a bid number, salon's own invoice number
+ * and roof's.
+ *
+ * So the rule is no longer "the generators I know about are correct" but "a file that builds a
+ * document number must route it through nextNumber". A new one cannot be added without either using
+ * the shared helper or arguing for an exemption here, in writing.
+ */
+{
+  const PREFIXES = ['INV', 'QTE', 'JOB', 'PRJ', 'CO', 'SVC', 'TKT', 'PART', 'PO', 'AGR', 'RO', 'EST', 'BID', 'BEO']
+  /**
+   * Exempt, with reasons — not a list of things to get round to.
+   *
+   *   · import.ts / migration.ts  a BULK load numbering thousands of rows in one pass. A local
+   *     counter is correct there and one locked round-trip per row would not be; they seed it from
+   *     the company's highest existing number.
+   *   · seed.template.ts          fixture data for a brand-new tenant, where nothing exists yet.
+   *   · frontend/                 a demo store in the browser. Nothing is persisted.
+   *   · crm-automotive, crm-homecare   PARKED.
+   *   · dispensary purchase-orders.ts  `PO-${Date.now().toString(36)}` — not a sequence at all, and
+   *     unique by construction. Ugly, but it cannot collide or reuse.
+   */
+  const EXEMPT = [
+    /[\\/](import|migration)\.ts$/,
+    /seed\.template\.ts$/,
+    /[\\/]frontend[\\/]/,
+    /templates[\\/]crm-automotive[\\/]/,
+    /templates[\\/]crm-homecare[\\/]/,
+    /crm-dispensary[\\/]backend[\\/]src[\\/]routes[\\/]purchase-orders\.ts$/,
+  ]
+  const walk = (dir: string, out: string[] = []): string[] => {
+    let names: string[] = []
+    try { names = readdirSync(dir) } catch { return out }
+    for (const n of names) {
+      if (['node_modules', 'dist', 'build', '.git'].includes(n)) continue
+      const p = join(dir, n)
+      let st; try { st = statSync(p) } catch { continue }
+      if (st.isDirectory()) walk(p, out)
+      else if (n.endsWith('.ts')) out.push(p)
+    }
+    return out
+  }
+  const offenders: string[] = []
+  for (const f of [...walk(join(ROOT, 'templates')), ...walk(join(ROOT, 'packages'))]) {
+    if (EXEMPT.some((re) => re.test(f))) continue
+    const src = readFileSync(f, 'utf8')
+    if (/nextNumber\s*\(/.test(src)) continue // routed through the shared helper
+    const lines = src.split(/\r?\n/)
+    lines.forEach((l, i) => {
+      // Comments stripped: this guard and several fixes DISCUSS these prefixes in prose.
+      const bare = l.replace(/\/\/.*$/, '').replace(/^\s*\*.*$/, '')
+      for (const p of PREFIXES) {
+        if (new RegExp('`' + p + '-\\$\\{').test(bare) || new RegExp("'" + p + "-'\\s*\\+").test(bare)) {
+          offenders.push(`${f.replace(ROOT, '').replace(/\\/g, '/')}:${i + 1}  ${l.trim().slice(0, 100)}`)
+          return
+        }
+      }
+    })
+  }
+  if (offenders.length) {
+    fail(
+      `${offenders.length} document-number generator(s) do not go through nextNumber, so they can reissue a ` +
+      `deleted number or hand two records the same one:\n       ` + offenders.join('\n       ') +
+      `\n       Route it through nextNumber(tx, …) inside the insert's transaction, or add an exemption WITH A REASON above.`,
+    )
+  }
 }
 
 await pg.close()

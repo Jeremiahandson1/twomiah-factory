@@ -6,6 +6,8 @@ import { eq, and, count, desc, asc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { createActorName } from '../shared/index.ts'
+// One numbering rule for every document in the product — locked, and only ever forwards.
+import { nextNumber } from '../shared/invoicing/money.ts'
 // Approving a change order moves the contract value. This module wrote no audit row of any kind. (T58)
 import audit from '../services/audit.ts'
 
@@ -220,27 +222,48 @@ app.post('/', requirePermission('change-orders:create'), async (c) => {
   const amount = lineItems.length > 0
     ? lineItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
     : (sentAmount ?? 0)
-  const [{ value: cnt }] = await db.select({ value: count() }).from(changeOrder).where(and(eq(changeOrder.companyId, currentUser.companyId), eq(changeOrder.projectId, data.projectId)))
+  /**
+   * CO NUMBERS ONLY GO FORWARDS, AND NEVER COLLIDE. (T58k)
+   *
+   *   owner: "CO-030 was issued twice. The new docSeq counter covers only INV and QTE."
+   *
+   * Exactly right on both counts. This counted the project's change orders and added one, so
+   * deleting any one of them handed its number to the next — and because the count ran in its own
+   * statement with no lock, two raised together both saw the same count. T58j routed invoices,
+   * quotes, jobs, agreements and repair orders through the shared numbering and never touched this
+   * file, which is why `docSeq` held only INV and QTE.
+   *
+   * The sequence is per PROJECT (CO-001, CO-002 within each project), so the scope and the
+   * high-water mark are the project's — see `scope`/`markKey` on nextNumber. Number and row are
+   * taken in one transaction, with the line items, so the lock still holds when the row lands and a
+   * change order can never commit without the amounts it is made of.
+   */
+  const created = await db.transaction(async (tx: any) => {
+    const number = await nextNumber(tx, changeOrder, changeOrder.number, changeOrder.companyId, currentUser.companyId, {
+      prefix: 'CO', pad: 3,
+      scope: eq(changeOrder.projectId, data.projectId),
+      markKey: `CO:${data.projectId}`,
+    })
+    const [newCo] = await tx.insert(changeOrder).values({
+      ...coData,
+      number,
+      amount: amount.toString(),
+      companyId: currentUser.companyId,
+    }).returning()
+    const insertedLineItems = lineItems.length > 0
+      ? await tx.insert(changeOrderLineItem).values(lineItems.map((item, i) => ({
+          ...item,
+          quantity: item.quantity.toString(),
+          unitPrice: item.unitPrice.toString(),
+          total: (item.quantity * item.unitPrice).toString(),
+          sortOrder: i,
+          changeOrderId: newCo.id,
+        }))).returning()
+      : []
+    return { ...newCo, lineItems: insertedLineItems }
+  })
 
-  const [newCo] = await db.insert(changeOrder).values({
-    ...coData,
-    number: `CO-${String(Number(cnt) + 1).padStart(3, '0')}`,
-    amount: amount.toString(),
-    companyId: currentUser.companyId,
-  }).returning()
-
-  const insertedLineItems = lineItems.length > 0
-    ? await db.insert(changeOrderLineItem).values(lineItems.map((item, i) => ({
-        ...item,
-        quantity: item.quantity.toString(),
-        unitPrice: item.unitPrice.toString(),
-        total: (item.quantity * item.unitPrice).toString(),
-        sortOrder: i,
-        changeOrderId: newCo.id,
-      }))).returning()
-    : []
-
-  return c.json({ ...newCo, lineItems: insertedLineItems }, 201)
+  return c.json(created, 201)
 })
 
 // The body below already proves ownership (`existing` is looked up with id AND companyId, 404 otherwise)

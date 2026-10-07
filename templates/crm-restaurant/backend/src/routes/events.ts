@@ -12,6 +12,35 @@ import { LedgerError, EXIT_STATUSES, loadEventLedger, ensureEventInvoice, syncEv
 // What an event may hold and how a booking is written — shared with the CSV importer (#162).
 import { HELD, DATE_RE, SpaceClash, eventLock, findClash, syncHireLine, createEvent, validateEventInput, validateTimelineInput, coordinatorRefusal, eventWarnings, moneyRefusal, quantityRefusal } from '../services/eventBooking.ts'
 
+/**
+ * WHAT THE RECORD COLUMN SHOWS. (T58k)
+ *
+ *   owner: "Events: event, menu-line and event-payment rows have no IP and no record name (0 of 66)."
+ *
+ * Every audit call in this file passed an entityId and no entityName, so the screen had nothing to
+ * print but the humanised entity — "Event", "Event menu item" — on all 66 rows. An id is not a name
+ * and the reader cannot look one up.
+ *
+ * Tried in order of how a person would refer to the thing. A PAYMENT has no name of its own, so its
+ * amount is what identifies it in a list; returning null there would have left the column empty for
+ * exactly the rows the owner counted.
+ */
+const nameOf = (row: any): string | null => {
+  if (!row || typeof row !== 'object') return null
+  for (const k of ['name', 'title', 'eventName', 'packageName', 'itemName', 'description']) {
+    const v = row[k]
+    if (typeof v === 'string' && v.trim()) return v.trim().slice(0, 120)
+  }
+  if (row.amount !== undefined && row.amount !== null && Number.isFinite(Number(row.amount))) {
+    // Separated thousands: a $12,000 deposit must not read as $12000.00, and the audit log is
+    // where somebody checks a figure. Not the shared money() — events.ts already declares its own
+    // `money` at the top level and importing a second one is a redeclaration. (T58k)
+    return '$' + Number(row.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  }
+  return null
+}
+
+
 // A package minimum is a billing floor, not an entry limit: fewer guests than the minimum are billed at
 // the minimum and the line says so — that is how catering minimums work. A quantity at or above the
 // minimum, a flat line, or a package without one is left exactly as typed. (T16 M9)
@@ -176,7 +205,7 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
     throw e
   }
 
-  await audit.log({ action: 'create', entity: 'event', entityId: created.id, metadata: created, req: { user: currentUser } })
+  await audit.log({ action: 'create', entity: 'event', entityId: created.id, entityName: nameOf(created), metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   // Saved as asked; a past date or an over-capacity room is reported, not refused (T17 L1/L2).
   const warnings = await eventWarnings(db, currentUser.companyId, created, { date: true, capacity: true })
@@ -247,7 +276,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
     if (refused) return refused
     throw e
   }
-  await audit.log({ action: 'update', entity: 'event', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
+  await audit.log({ action: 'update', entity: 'event', entityId: id, entityName: nameOf(updated), changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   // Only what this edit changed is warned about, so re-saving a past event for another reason is quiet.
   const changed = (k: string) => k in updates && String(updates[k] ?? '') !== String((existing as any)[k] ?? '')
@@ -282,7 +311,7 @@ app.delete('/:id', requirePermission('contacts:update'), async (c) => {
     throw e
   }
 
-  await audit.log({ action: 'update', entity: 'event', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
+  await audit.log({ action: 'update', entity: 'event', entityId: id, entityName: nameOf(updated), changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   return c.json({ success: true, event: updated })
 })
@@ -364,7 +393,7 @@ app.post('/:id/menu', requirePermission('contacts:update'), async (c) => {
     throw e
   }
 
-  await audit.log({ action: 'create', entity: 'event_menu_item', entityId: created.id, metadata: created, req: { user: currentUser } })
+  await audit.log({ action: 'create', entity: 'event_menu_item', entityId: created.id, entityName: nameOf(created), metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   return c.json(created, 201)
 })
@@ -415,7 +444,7 @@ app.put('/:id/menu/:lineId', requirePermission('contacts:update'), async (c) => 
     if (refused) return refused
     throw e
   }
-  await audit.log({ action: 'update', entity: 'event_menu_item', entityId: lineId, changes: audit.diff(existing, updated), req: { user: currentUser } })
+  await audit.log({ action: 'update', entity: 'event_menu_item', entityId: lineId, entityName: nameOf(updated), changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   return c.json(updated)
 })
@@ -445,7 +474,7 @@ app.delete('/:id/menu/:lineId', requirePermission('contacts:update'), async (c) 
     if (refused) return refused
     throw e
   }
-  await audit.log({ action: 'delete', entity: 'event_menu_item', entityId: lineId, metadata: existing, req: { user: currentUser } })
+  await audit.log({ action: 'delete', entity: 'event_menu_item', entityId: lineId, entityName: nameOf(existing), metadata: existing, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   return c.json({ success: true })
 })
@@ -473,7 +502,7 @@ app.post('/:id/timeline', requirePermission('contacts:update'), async (c) => {
     companyId: currentUser.companyId,
   }).returning()
 
-  await audit.log({ action: 'create', entity: 'event_timeline', entityId: created.id, metadata: created, req: { user: currentUser } })
+  await audit.log({ action: 'create', entity: 'event_timeline', entityId: created.id, entityName: nameOf(created), metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   return c.json(created, 201)
 })
@@ -497,7 +526,7 @@ app.put('/:id/timeline/:lineId', requirePermission('contacts:update'), async (c)
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
 
   const [updated] = await db.update(eventTimeline).set(updates).where(eq(eventTimeline.id, lineId)).returning()
-  await audit.log({ action: 'update', entity: 'event_timeline', entityId: lineId, changes: audit.diff(existing, updated), req: { user: currentUser } })
+  await audit.log({ action: 'update', entity: 'event_timeline', entityId: lineId, entityName: nameOf(updated), changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   return c.json(updated)
 })
@@ -514,7 +543,7 @@ app.delete('/:id/timeline/:lineId', requirePermission('contacts:update'), async 
   if (!existing) return c.json({ error: 'Timeline line not found' }, 404)
 
   await db.delete(eventTimeline).where(eq(eventTimeline.id, lineId))
-  await audit.log({ action: 'delete', entity: 'event_timeline', entityId: lineId, metadata: existing, req: { user: currentUser } })
+  await audit.log({ action: 'delete', entity: 'event_timeline', entityId: lineId, entityName: nameOf(existing), metadata: existing, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   return c.json({ success: true })
 })
@@ -621,7 +650,7 @@ app.post('/:id/payments', requirePermission('invoices:update'), async (c) => {
     throw e
   }
 
-  await audit.log({ action: 'create', entity: 'event_payment', entityId: created.id, metadata: created, req: { user: currentUser } })
+  await audit.log({ action: 'create', entity: 'event_payment', entityId: created.id, entityName: nameOf(created), metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   return c.json(created, 201)
 })
@@ -683,7 +712,7 @@ app.put('/:id/payments/:paymentId', requirePermission('invoices:update'), async 
     if (refused) return refused
     throw e
   }
-  await audit.log({ action: 'update', entity: 'event_payment', entityId: paymentId, changes: audit.diff(existing, updated), req: { user: currentUser } })
+  await audit.log({ action: 'update', entity: 'event_payment', entityId: paymentId, entityName: nameOf(updated), changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   return c.json(updated)
 })
@@ -708,7 +737,7 @@ app.delete('/:id/payments/:paymentId', requirePermission('invoices:update'), asy
     await tx.delete(eventPayment).where(eq(eventPayment.id, paymentId))
     await syncEventInvoice(tx, currentUser.companyId, eventId, { linesToo: false })
   })
-  await audit.log({ action: 'delete', entity: 'event_payment', entityId: paymentId, metadata: existing, req: { user: currentUser } })
+  await audit.log({ action: 'delete', entity: 'event_payment', entityId: paymentId, entityName: nameOf(existing), metadata: existing, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   return c.json({ success: true })
 })

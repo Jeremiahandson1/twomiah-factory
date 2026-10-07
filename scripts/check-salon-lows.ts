@@ -23,8 +23,29 @@ const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 // ── L1 ────────────────────────────────────────────────────────────────────────────────────────────
 const companyRoutes = read('packages/tenant-backend/src/company/company.ts')
 if (!companyRoutes) fail('the shared company routes are missing')
-if (!/for \(const \[k, v\] of Object\.entries\(data\.settings as Record<string, unknown>\)\) if \(v === null\) delete merged\[k\]/.test(companyRoutes)) fail('an explicit null must REMOVE a settings key — merge-only means the blob can never have anything taken out of it')
-if (!/const merged: Record<string, unknown> = \{ \.\.\.\(\(cur\?\.settings as any\) \|\| \{\}\), \.\.\.data\.settings \}/.test(companyRoutes)) fail('…while a partial write must still MERGE, which is the fix that has to keep holding')
+/**
+ * THE RULES, not the two lines that happened to implement them. (T58k)
+ *
+ * These pinned the exact source of the T20 L1 fix, character for character — including the local
+ * name `cur`. T58k had to read the whole prior row (the audit entry reports what actually CHANGED,
+ * which needs something to compare against) and had to stop null deleting the SERVER-OWNED keys,
+ * because the Settings form posts the entire settings object back and pressing Save was deleting
+ * billingType, nextBillingDate and trialEndsAt. Both guards failed that fix while the behaviour they
+ * exist to protect was intact. A guard pinned to an expression tests the spelling.
+ *
+ * So: null still removes an ordinary key, a partial write still merges, and the keys billing and
+ * onboarding own cannot be cleared by a form echoing them back.
+ */
+if (!/if \(v !== null\) continue/.test(companyRoutes) || !/delete merged\[k\]/.test(companyRoutes)) {
+  fail('an explicit null must REMOVE an ordinary settings key — merge-only means nothing can ever be taken out of the blob')
+}
+if (!/\{ \.\.\.\(\(before\?\.settings as any\) \|\| \{\}\), \.\.\.data\.settings \}/.test(companyRoutes)
+  && !/\{ \.\.\.\(\(cur\?\.settings as any\) \|\| \{\}\), \.\.\.data\.settings \}/.test(companyRoutes)) {
+  fail('…while a partial write must still MERGE the stored settings under the incoming ones')
+}
+if (!/SERVER_OWNED/.test(companyRoutes) || !/trialEndsAt/.test(companyRoutes)) {
+  fail('…and a settings form echoing nulls back must not DELETE the keys billing and onboarding own — the owner lost billingType, nextBillingDate and trialEndsAt to a Save (T58k)')
+}
 
 // ── L2 ────────────────────────────────────────────────────────────────────────────────────────────
 const time = read('packages/tenant-backend/src/booking/time.ts')

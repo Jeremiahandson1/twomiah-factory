@@ -35,6 +35,8 @@ import { notFound } from '../utils/errors.ts'
  * happens where a value is RETURNED to a screen.
  */
 import { rowsOf as rows, camelRow, camelRows } from '../shared/index.ts'
+// One numbering rule for every document in the product — locked, and only ever forwards.
+import { nextNumber } from '../shared/invoicing/money.ts'
 
 /** Aliases in this file that are table rows, and so are safe to camelise inside. */
 const NESTED = ['assembly', 'project', 'inventory_item']
@@ -564,8 +566,8 @@ export async function exportToPurchaseOrder(sheetId: string, companyId: string, 
    * contact, attached to the sheet's project, as a DRAFT — nobody has sent it to a vendor yet, and a
    * draft is deliberately not a commitment (T32 M3).
    */
-  const [{ value: existing }] = await db.select({ value: count() }).from(purchaseOrder)
-    .where(eq(purchaseOrder.companyId, companyId))
+  // The number is taken inside the insert's transaction below (T58k) — counting the rows here
+  // reissued a deleted PO number, and the count was unlocked besides.
   // Lines priced at the ORDER quantity, so quantity × unitCost is the line total and the PO adds up.
   // The old code put the ceil'd quantity beside the un-ceil'd cost, so the line contradicted itself.
   const lines = materials.map((m: any, i: number) => {
@@ -584,22 +586,25 @@ export async function exportToPurchaseOrder(sheetId: string, companyId: string, 
   })
   const subtotal = lines.reduce((s, l) => s + Number(l.total), 0)
 
-  const [po] = await db.insert(purchaseOrder).values({
-    companyId,
-    number: `PO-${String(Number(existing) + 1).padStart(5, '0')}`,
-    vendorId,
-    projectId: sheet.project_id || null,
-    status: 'draft',
-    notes: `Generated from takeoff: ${sheet.name}`,
-    subtotal: subtotal.toFixed(2),
-    taxRate: '0',
-    taxAmount: '0.00',
-    total: subtotal.toFixed(2),
-  }).returning()
-
-  if (lines.length) {
-    await db.insert(purchaseOrderLine).values(lines.map((l) => ({ ...l, purchaseOrderId: po.id })))
-  }
+  const po = await db.transaction(async (tx: any) => {
+    const number = await nextNumber(tx, purchaseOrder, purchaseOrder.number, purchaseOrder.companyId, companyId, { prefix: 'PO', pad: 5 })
+    const [row] = await tx.insert(purchaseOrder).values({
+      companyId,
+      number,
+      vendorId,
+      projectId: sheet.project_id || null,
+      status: 'draft',
+      notes: `Generated from takeoff: ${sheet.name}`,
+      subtotal: subtotal.toFixed(2),
+      taxRate: '0',
+      taxAmount: '0.00',
+      total: subtotal.toFixed(2),
+    }).returning()
+    if (lines.length) {
+      await tx.insert(purchaseOrderLine).values(lines.map((l) => ({ ...l, purchaseOrderId: row.id })))
+    }
+    return row
+  })
 
   return { ...po, lines }
 }

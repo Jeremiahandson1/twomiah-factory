@@ -305,11 +305,27 @@ export function normalizeDateInput(v: unknown): { value?: Date | null; error?: s
  */
 let companyTablePresent: boolean | null = null
 
-export async function nextNumber(tx: any, table: any, numberColumn: any, companyColumn: any, companyId: string, opts: { prefix: string; pad?: number; seed?: number }): Promise<string> {
-  const { prefix, pad = 5, seed = 0 } = opts
-  const { eq, sql } = await import('drizzle-orm')
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':' + prefix}))`)
-  const rows: Array<{ number: string | null }> = await tx.select({ number: numberColumn }).from(table).where(eq(companyColumn, companyId))
+/**
+ * `scope` and `markKey` exist for a sequence that is NOT one per company. (T58k)
+ *
+ * Contractor change orders are numbered per PROJECT — CO-001, CO-002 within each project — so the
+ * rows to look at are the project's, and the high-water mark has to be the project's too. Given only
+ * a company-wide mark, every project after the first would start above the last project's highest
+ * number and the per-project sequence would be meaningless.
+ *
+ *   · `scope`      an extra condition ANDed into the row query (e.g. the project)
+ *   · `markKey`    the docSeq key and the lock key, defaulting to the prefix (e.g. `CO:<projectId>`)
+ */
+export async function nextNumber(
+  tx: any, table: any, numberColumn: any, companyColumn: any, companyId: string,
+  opts: { prefix: string; pad?: number; seed?: number; scope?: any; markKey?: string },
+): Promise<string> {
+  const { prefix, pad = 5, seed = 0, scope, markKey } = opts
+  const key = markKey || prefix
+  const { eq, and, sql } = await import('drizzle-orm')
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':' + key}))`)
+  const where = scope ? and(eq(companyColumn, companyId), scope) : eq(companyColumn, companyId)
+  const rows: Array<{ number: string | null }> = await tx.select({ number: numberColumn }).from(table).where(where)
   const re = new RegExp(`^${prefix}-(\\d+)$`)
   let max = seed
   for (const r of rows) { const m = String(r.number || '').match(re); if (m) max = Math.max(max, parseInt(m[1], 10)) }
@@ -339,16 +355,16 @@ export async function nextNumber(tx: any, table: any, numberColumn: any, company
     const marked: any = await tx.execute(sql`
       UPDATE company SET settings = (
         COALESCE(settings::jsonb, '{}'::jsonb) || jsonb_build_object('docSeq',
-          COALESCE(settings::jsonb -> 'docSeq', '{}'::jsonb) || jsonb_build_object(${prefix}::text, GREATEST(
-            CASE WHEN (settings::jsonb -> 'docSeq' ->> ${prefix}::text) ~ '^[0-9]+$'
-                 THEN ((settings::jsonb -> 'docSeq' ->> ${prefix}::text)::bigint + 1)
+          COALESCE(settings::jsonb -> 'docSeq', '{}'::jsonb) || jsonb_build_object(${key}::text, GREATEST(
+            CASE WHEN (settings::jsonb -> 'docSeq' ->> ${key}::text) ~ '^[0-9]+$'
+                 THEN ((settings::jsonb -> 'docSeq' ->> ${key}::text)::bigint + 1)
                  ELSE 0 END,
             ${n}::bigint
           ))
         )
       )::json
       WHERE id = ${companyId}::text
-      RETURNING (settings::jsonb -> 'docSeq' ->> ${prefix}::text) AS seq
+      RETURNING (settings::jsonb -> 'docSeq' ->> ${key}::text) AS seq
     `)
     const seq = marked?.rows?.[0]?.seq ?? marked?.[0]?.seq
     // A company row that is not there leaves `n` exactly as it was — today's behaviour.

@@ -22,7 +22,19 @@ for (const file of files) {
   // The settings write must READ the current settings and spread the incoming partial UNDER them, so
   // untouched keys survive. If this merge is ever removed (back to set({ ...data }) with settings), the
   // company update would overwrite the whole blob again — this check catches that.
-  if (!/cur\??\.settings/.test(src) || !/\.\.\.\s*\(\s*\(?\s*cur/.test(src)) fail(`${file}: PUT / must merge the incoming settings into the stored settings (read current, spread under it)`)
+  /**
+   * The RULE, not the variable's name. (T58k)
+   *
+   * This pinned `cur` — the identifier the fix happened to use. The handler now reads the whole prior
+   * row as `before` (the audit entry has to report what actually CHANGED, which needs something to
+   * compare against), and this guard failed a change that kept the merge exactly as it was. A guard
+   * that breaks on a rename is testing the spelling, not the behaviour.
+   */
+  const storedSettings = /(cur|before|current|existing)\??\.settings/
+  const spreadUnder = /\.\.\.\s*\(\s*\(?\s*(cur|before|current|existing)\??(\.settings)?/
+  if (!storedSettings.test(src) || !spreadUnder.test(src)) {
+    fail(`${file}: PUT / must merge the incoming settings into the stored settings — read the stored row and spread it UNDER the incoming partial, or a caller sending one key wipes the rest of the blob`)
+  }
 }
 
 if (failed) { console.error(`\ncompany settings merge: ${failed} check(s) FAILED`); process.exit(1) }

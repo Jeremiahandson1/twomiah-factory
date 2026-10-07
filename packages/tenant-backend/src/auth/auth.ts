@@ -15,6 +15,9 @@ import crypto from 'crypto'
 import { eq, and, gt } from 'drizzle-orm'
 import { redactCompanySettings, isPrivilegedRole } from './redactSettings'
 import { companyRowTimeZone } from '../time/businessDay'
+// The same one-line heal GET /api/company uses — see company/logoAddress.ts for how the column came
+// to hold "https:///logo.svg" in the first place.
+import { healLogo } from '../company/logoAddress'
 
 export interface AuthTables { user: any; company: any }
 export interface AuthOptions {
@@ -169,8 +172,26 @@ export function createAuthRoutes(deps: AuthDeps) {
   // (plan, monthly amount, billing status, seats) are kept for whoever settles the bill. T45 M27
   // asked whether a Stripe secret ever reaches a client — it did, to every role, the moment an
   // owner filled in the Merch tab. See auth/redactSettings.ts.
+  /**
+   * THE LOGO IS HEALED HERE TOO. (T58k)
+   *
+   *   owner: "The logo is only half healed. /api/company returns /logo.svg, but /api/auth/me still
+   *   returns https:///logo.svg. Settings › Company shows the broken URL with a broken preview, so a
+   *   Save could write it back."
+   *
+   * Right on every count. T58j healed `sanitizeCompany`, which is what GET /api/company goes
+   * through — and this payload is built by hand, so it never saw the fix. Settings reads the company
+   * off the auth context, not off /api/company, which is exactly why the form still showed the
+   * malformed URL while the endpoint looked correct.
+   *
+   * A Save can no longer write it back regardless (safeLogo heals on the way in), but a form showing
+   * a broken preview invites the owner to "fix" a value that is already being repaired, so the
+   * display has to be right as well as the write. Both now go through the same one-line helper.
+   */
   const companyPayload = (c: any, role?: unknown) => ({
-    id: c.id, name: c.name, slug: c.slug, logo: c.logo, primaryColor: c.primaryColor,
+    // null stays null — the screens test `logo ? … : fallback`, and turning it into '' would be a
+    // different shape for no reason.
+    id: c.id, name: c.name, slug: c.slug, logo: c.logo == null ? c.logo : healLogo(c.logo), primaryColor: c.primaryColor,
     phone: c.phone, email: c.email, address: c.address, city: c.city, state: c.state, zip: c.zip, website: c.website,
     enabledFeatures: c.enabledFeatures,
     settings: redactCompanySettings(c.settings, { privileged: isPrivilegedRole(role) }),

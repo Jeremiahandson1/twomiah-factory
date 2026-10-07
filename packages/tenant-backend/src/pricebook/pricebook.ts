@@ -12,6 +12,8 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, asc, count, eq, ilike, inArray, max, or, sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
+// One numbering rule for every code in the product — locked, and only ever forwards.
+import { nextNumber } from '../invoicing/money'
 
 export interface PricebookTables { company: any; pricebookCategory: any; pricebookItem: any; pricebookGoodBetterBest: any }
 export interface PricebookServiceDeps { db: any; tables: PricebookTables }
@@ -92,10 +94,27 @@ export function createPricebookService(deps: PricebookServiceDeps) {
     const [r] = await db.select({ m: max(C.sortOrder) }).from(C).where(and(eq(C.companyId, companyId), parentId ? eq(C.parentId, parentId) : sql`${C.parentId} IS NULL`))
     return Number(r?.m || 0) + 1
   }
-  const nextCode = async (companyId: string) => {
-    const [r] = await db.select({ n: count() }).from(I).where(eq(I.companyId, companyId))
-    return `SVC-${String(Number(r?.n || 0) + 1).padStart(4, '0')}`
-  }
+  /**
+   * SVC CODES: UNIQUE, AND ONLY EVER FORWARDS. (T58k)
+   *
+   *   owner: "three items created at the same moment got SVC-0007, SVC-0008 and SVC-0008.
+   *           Separately, SVC-0005 was reissued after it was deleted."
+   *
+   * Two distinct faults in one line, and this is the SHARED pricebook — crm, crm-basic,
+   * crm-fieldservice and crm-landscaping all mount it. T58j fixed only crm-roof's OWN copy, which is
+   * why the owner still saw this on field service: the sibling was never swept.
+   *
+   *   · `COUNT(*) + 1` does not need the newest row deleted to break. Delete ANY item and the count
+   *     collides with a code that still exists.
+   *   · It ran OUTSIDE a transaction, so two creates in the same instant counted the same rows and
+   *     both got SVC-0008. That is the duplicate the owner reproduced with three simultaneous items.
+   *
+   * `nextNumber` takes a per-company advisory lock and respects the company's high-water mark, so it
+   * answers both — but only while the lock is still HELD when the row is inserted. The lock lives for
+   * the transaction, so the caller passes its `tx`, and both callers below now open one.
+   */
+  const nextCode = async (tx: any, companyId: string) =>
+    nextNumber(tx, I, I.code, I.companyId, companyId, { prefix: 'SVC', pad: 4 })
   /**
    * A MARGIN OF 100% IS A CLAIM, AND A ZERO COST DOES NOT SUPPORT IT. (T58)
    *
@@ -205,7 +224,13 @@ export function createPricebookService(deps: PricebookServiceDeps) {
       const p = itemCreateSchema.safeParse(input); if (!p.success) throw new PricebookError(400, zodMsg(p.error))
       await checkCategory(companyId, p.data.categoryId)
       const v = values(companyId, p.data)
-      const [row] = await db.insert(I).values({ ...v, companyId, code: p.data.code || (await nextCode(companyId)), cost: v.cost ?? '0', unit: v.unit ?? 'each', type: v.type ?? 'service', taxable: v.taxable ?? true, showToCustomer: v.showToCustomer ?? true, active: v.active ?? true }).returning()
+      // One transaction, so the advisory lock nextCode takes is still held when the row lands —
+      // otherwise two simultaneous creates both read the same highest code. (T58k)
+      const row = await db.transaction(async (tx: any) => {
+        const code = p.data.code || (await nextCode(tx, companyId))
+        const [r] = await tx.insert(I).values({ ...v, companyId, code, cost: v.cost ?? '0', unit: v.unit ?? 'each', type: v.type ?? 'service', taxable: v.taxable ?? true, showToCustomer: v.showToCustomer ?? true, active: v.active ?? true }).returning()
+        return r
+      })
       return this.getItem(companyId, row.id)
     },
     async updateItem(companyId: string, id: string, input: unknown) {
@@ -219,12 +244,17 @@ export function createPricebookService(deps: PricebookServiceDeps) {
     },
     async duplicateItem(companyId: string, id: string) {
       const o: any = await this.getItem(companyId, id)
-      const [row] = await db.insert(I).values({
-        companyId, code: await nextCode(companyId), name: `${o.name} (Copy)`.slice(0, 200), categoryId: o.categoryId, description: o.description, customerDescription: o.customerDescription,
-        partsIncluded: o.partsIncluded, price: o.price, cost: o.cost, unit: o.unit, type: o.type, taxable: o.taxable, active: o.active, showToCustomer: o.showToCustomer, imageUrl: o.imageUrl, laborHours: o.laborHours,
-      }).returning()
       const opts = await db.select().from(G).where(eq(G.pricebookItemId, id))
-      if (opts.length) await db.insert(G).values(opts.map((x: any) => ({ id: createId(), pricebookItemId: row.id, tier: x.tier, name: x.name, description: x.description, price: x.price, features: x.features, recommended: !!x.recommended })))
+      // Duplicating takes a code too, so it races exactly as create did — same lock, same transaction.
+      // The tier options come with it, or a copy exists with its good/better/best silently missing.
+      const row = await db.transaction(async (tx: any) => {
+        const [r] = await tx.insert(I).values({
+          companyId, code: await nextCode(tx, companyId), name: `${o.name} (Copy)`.slice(0, 200), categoryId: o.categoryId, description: o.description, customerDescription: o.customerDescription,
+          partsIncluded: o.partsIncluded, price: o.price, cost: o.cost, unit: o.unit, type: o.type, taxable: o.taxable, active: o.active, showToCustomer: o.showToCustomer, imageUrl: o.imageUrl, laborHours: o.laborHours,
+        }).returning()
+        if (opts.length) await tx.insert(G).values(opts.map((x: any) => ({ id: createId(), pricebookItemId: r.id, tier: x.tier, name: x.name, description: x.description, price: x.price, features: x.features, recommended: !!x.recommended })))
+        return r
+      })
       return this.getItem(companyId, row.id)
     },
     async deleteItem(companyId: string, id: string) {

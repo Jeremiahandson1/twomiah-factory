@@ -8,6 +8,8 @@
 import { db } from '../../db/index.ts'
 import { invoice, invoiceLineItem, company } from '../../db/schema.ts'
 import { dueDateFromTerms } from '../shared/index.ts'
+// One numbering rule for every document in the product — locked, and only ever forwards.
+import { nextNumber } from '../shared/invoicing/money.ts'
 import { eq, and } from 'drizzle-orm'
 import { emitToCompany, EVENTS } from './socket.ts'
 import audit from './audit.ts'
@@ -48,13 +50,20 @@ async function logInvoice(
  * inside a transaction waits on a connection that transaction is already holding, which deadlocks.
  */
 export async function nextInvoiceNumber(companyId: string, exec: any = db): Promise<string> {
-  // Highest existing number, not the row count — deleting an invoice would otherwise reuse a number.
-  const existing = await exec.select({ number: invoice.number }).from(invoice).where(eq(invoice.companyId, companyId))
-  const maxSeq = existing.reduce((max: number, r: { number: string | null }) => {
-    const m = String(r.number || '').match(/(\d+)\s*$/)
-    return m ? Math.max(max, parseInt(m[1], 10)) : max
-  }, 0)
-  return `INV-${String(maxSeq + 1).padStart(5, '0')}`
+  /**
+   * THE COMMENT HERE USED TO CLAIM THIS WAS ALREADY SAFE. (T58k)
+   *
+   * It read: "Highest existing number, not the row count — deleting an invoice would otherwise reuse
+   * a number." The first half was true and the conclusion was wrong. Taking the highest EXISTING
+   * number reuses one the moment the highest is deleted: delete INV-00072 and -00073 and the next
+   * bill is INV-00072 again. Avoiding `count()` only narrows which deletion does it.
+   *
+   * It now delegates to the shared `nextNumber`, which adds the company's high-water mark on top of
+   * the highest existing number, so a number that has been issued once is never issued again. The
+   * surrounding transaction is still passed through, both for the deadlock reason above and because
+   * that is what keeps nextNumber's advisory lock held until the row lands.
+   */
+  return nextNumber(exec, invoice, invoice.number, invoice.companyId, companyId, { prefix: 'INV', pad: 5 })
 }
 
 /**
@@ -160,11 +169,14 @@ export async function ensureInvoiceForVisit(v: VisitSale): Promise<typeof invoic
   // loser lands here, re-reads, and hands back the bill the winner raised. (LY0928 H1)
   let created: typeof invoice.$inferSelect
   try {
-    ;[created] = await db.insert(invoice).values({
+    // One transaction so the number's advisory lock is still held when the row lands. The recovery
+    // below is unchanged: a unique-constraint violation still aborts and is still caught, and the
+    // loser still re-reads the winner's bill. (T58k)
+    ;[created] = await db.transaction(async (tx: any) => tx.insert(invoice).values({
       companyId: v.companyId,
       contactId: v.contactId,
       appointmentId: v.appointmentId || null,
-      number: await nextInvoiceNumber(v.companyId),
+      number: await nextInvoiceNumber(v.companyId, tx),
       status: 'open',   // an in-salon sale: owed, never emailed (SALON-N7)
       subtotal: price.toString(),
       taxRate: String(taxRate),
@@ -175,7 +187,7 @@ export async function ensureInvoiceForVisit(v: VisitSale): Promise<typeof invoic
       dueDate: dueDateFromTerms((co?.settings as any)),
       sentAt: null,
       notes: 'Created from the appointment book',
-    } as any).returning()
+    } as any).returning())
   } catch (e: any) {
     if (!v.appointmentId) throw e
     const [winner] = await db.select().from(invoice)

@@ -104,6 +104,15 @@ setEmailRecorder(createEmailLogger({ db, tables: { emailLog, company, user }, lo
 
 const app = new Hono()
 
+import { requestScope } from './services/audit.ts'
+
+/**
+ * Every request runs inside the audit scope, so an audit row written from a service function — with
+ * no Hono context to hand it — can still record the client's address. FIRST, because a row written
+ * by anything mounted below this must be inside it. (T58k)
+ */
+app.use('*', (c, next) => requestScope.run({ c }, next))
+
 app.use('*', secureHeaders({
   crossOriginResourcePolicy: 'cross-origin',
 }))

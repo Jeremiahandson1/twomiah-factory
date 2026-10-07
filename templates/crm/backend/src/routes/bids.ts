@@ -5,6 +5,8 @@ import { bid, project } from '../../db/schema.ts'
 import { eq, and, count, asc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
+// One numbering rule for every document in the product — locked, and only ever forwards.
+import { nextNumber } from '../shared/invoicing/money.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -125,14 +127,19 @@ app.get('/:id', async (c) => {
 app.post('/', requirePermission('bids:create'), async (c) => {
   const user = c.get('user') as any
   const data = schema.parse(await c.req.json())
-  const [{ value: countVal }] = await db.select({ value: count() }).from(bid).where(eq(bid.companyId, user.companyId))
-  const [result] = await db.insert(bid).values({
-    ...data,
-    number: `BID-${String(countVal + 1).padStart(4, '0')}`,
-    dueDate: data.dueDate ? new Date(data.dueDate) : null,
-    prebidDate: data.prebidDate ? new Date(data.prebidDate) : null,
-    companyId: user.companyId,
-  }).returning()
+  // BID numbers only go forwards. Counting reissued a withdrawn bid's number, and a bid number is
+  // what a general contractor refers to in writing. (T58k)
+  const result = await db.transaction(async (tx: any) => {
+    const number = await nextNumber(tx, bid, bid.number, bid.companyId, user.companyId, { prefix: 'BID', pad: 4 })
+    const [row] = await tx.insert(bid).values({
+      ...data,
+      number,
+      dueDate: data.dueDate ? new Date(data.dueDate) : null,
+      prebidDate: data.prebidDate ? new Date(data.prebidDate) : null,
+      companyId: user.companyId,
+    }).returning()
+    return row
+  })
   return c.json(result, 201)
 })
 
@@ -239,12 +246,14 @@ app.post('/:id/convert', requirePermission('bids:update'), async (c) => {
       if (already) return { bid: locked, project: already, created: false }
     }
 
-    // Project numbers are per company and sequential, the same shape the Projects route uses.
-    const [{ value: n }] = await tx.select({ value: count() }).from(project).where(eq(project.companyId, user.companyId))
+    // Project numbers come from the SAME function the Projects route uses — "the same shape" in a
+    // comment was true of the bug too: both counted rows, so both reissued a deleted number. Already
+    // inside this award's transaction, so the lock holds through the insert. (T58k)
+    const number = await nextNumber(tx, project, project.number, project.companyId, user.companyId, { prefix: 'PRJ', pad: 4 })
     const [made] = await tx.insert(project).values({
       companyId: user.companyId,
       contactId: locked.contactId || null,
-      number: `PRJ-${String(Number(n) + 1).padStart(4, '0')}`,
+      number,
       name: locked.projectName,
       // The awarded figure, which is what the contract is worth — not the estimate it started from.
       estimatedValue: bidValue(locked).toFixed(2),

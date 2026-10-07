@@ -65,7 +65,21 @@ if (!/statNew: string/.test(leadTheme)) fail('the Lead Inbox stat colours belong
 if (!/statNew: '#90caf9', statContacted: '#ffb74d', statConverted: '#81c784',/.test(leadTheme)) fail('…with dark values that clear AA on the dark card')
 // The field-service report lists six failures on this page; the three above are half of them.
 if (!/link: '#90caf9'/.test(leadTheme)) fail('the lead-sources link must be themed too — an inline #2563eb measured 2.83:1 on the dark card (FS T20 M4)')
-if (!/faint: '#8193a6'/.test(leadTheme)) fail('…and the faint tier must clear AA: #64748b was 3.07:1 under "No leads yet" (FS T20 M4)')
+/**
+ * The faint tier is MEASURED, not pinned. (T58k)
+ *
+ * This asserted the literal `faint: '#8193a6'` — the shade FS T20 M4 landed on, chosen against
+ * `surface` and 3.28:1 on the #334155 button ground, which is exactly what the owner then measured
+ * on the live Dismiss control. So this guard was holding the palette AT a failing value: pinning the
+ * expression instead of the rule, which made the FIX look like the regression.
+ *
+ * scripts/check-lead-palette-every-ground.ts now measures every ink against every ground in both
+ * themes, which is the real requirement. All this has to check is that the tier still lives in the
+ * palette rather than being inlined back into a component.
+ */
+if (!/faint: string/.test(leadTheme) || !/faint: '#/.test(leadTheme)) {
+  fail('the lead palette must still declare a `faint` tier — its VALUE is measured by check-lead-palette-every-ground.ts (FS T20 M4, corrected T58k)')
+}
 // The light tier used to be pinned as the literal `statContacted: '#e65100'`, "the original hexes kept
 // for light mode" — written when only the DARK values were being fixed. #e65100 measures 3.79:1 on white
 // and #999 measures 2.85:1, so that line froze two values that never met AA; T28 measured both on the

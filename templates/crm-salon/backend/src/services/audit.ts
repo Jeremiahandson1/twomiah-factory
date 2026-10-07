@@ -3,10 +3,18 @@
  * Tracks who changed what when
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { db } from '../../db/index.ts';
 import { sql } from 'drizzle-orm';
 import { withInstants } from '../shared/instants.ts';
 import { auditLog } from '../../db/schema.ts';
+
+/**
+ * The live request, for the duration of the request. Read by resolveActor when a caller passes only
+ * a user — see the note there. Opened by one middleware in index.ts.
+ */
+export const requestScope = new AsyncLocalStorage<{ c: any }>();
+
 
 export const ACTIONS = {
   CREATE: 'create',
@@ -97,7 +105,28 @@ function resolveActor(req: any): { userId: string | null; email: string | null; 
     const h = typeof req?.req?.header === 'function' ? req.req.header(name)
       : typeof req?.header === 'function' ? req.header(name)
       : req?.headers?.[name];
-    return (h as string) || null;
+    if (h) return h as string;
+    /**
+     * THE REQUEST IS STILL REACHABLE WHEN THE CALLER DID NOT PASS IT. (T58k)
+     *
+     *   owner: "Events: event, menu-line and event-payment rows have no IP and no record name
+     *           (0 of 66)." And: "Salon: Log Service rows have no IP."
+     *
+     * 115 call sites across the fleet hand this function a bare `{ user: currentUser }` — enough to
+     * say WHO acted and nothing at all to say from where. T58j fixed the contractor request floor by
+     * passing it a header reader, and left the other 115, which is why the owner found the same hole
+     * on two more verticals the next day.
+     *
+     * Editing all 115 would still miss the ones inside SERVICE functions, where there is no Hono
+     * context in scope to pass. So `requestScope` holds the live request for the duration of the
+     * request, and this reads it when the caller gave nothing. Call sites need no change at all.
+     *
+     * Nothing is forced: outside a request the store is empty and the address stays null, exactly as
+     * before. An audit row must never be the reason a write fails.
+     */
+    const scoped: any = requestScope.getStore()?.c;
+    const fromScope = typeof scoped?.req?.header === 'function' ? scoped.req.header(name) : null;
+    return (fromScope as string) || null;
   };
   return {
     userId: user?.userId || user?.id || null,

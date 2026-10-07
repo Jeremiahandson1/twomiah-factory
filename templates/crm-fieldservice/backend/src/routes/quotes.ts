@@ -9,11 +9,14 @@ import { emitToCompany, EVENTS } from '../services/socket.ts'
 import { sendSMS } from '../services/sms.ts'
 import emailService from '../services/email.ts'
 import { money } from '../shared/invoicing/money.ts'
+import audit from '../services/audit.ts'
 
 export default createQuoteRoutes({
   db,
   tables: { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, equipment, site },
   authenticate,
+  // Quote events are named by their NUMBER rather than left to the request floor, which cannot know it. (T58k)
+  audit,
   requirePermission,
   emitToCompany,
   EVENTS,

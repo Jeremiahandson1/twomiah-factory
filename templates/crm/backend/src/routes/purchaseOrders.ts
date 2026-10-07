@@ -11,6 +11,8 @@ import { jobPurchaseOrder as purchaseOrder, jobPurchaseOrderLine as purchaseOrde
 import { eq, and, count, desc, sql, inArray, notInArray } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
+// One numbering rule for every document in the product — locked, and only ever forwards.
+import { nextNumber } from '../shared/invoicing/money.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -165,36 +167,41 @@ app.post('/', requirePermission('purchase-orders:create'), async (c) => {
     .where(and(eq(contact.id, data.vendorId), eq(contact.companyId, currentUser.companyId))).limit(1)
   if (!vendor) return c.json({ error: 'Vendor not found' }, 400)
 
-  const [{ value: existing }] = await db.select({ value: count() }).from(purchaseOrder)
-    .where(eq(purchaseOrder.companyId, currentUser.companyId))
-  const number = `PO-${String(Number(existing) + 1).padStart(5, '0')}`
+  // PO numbers only go forwards. Counting the rows reissued a deleted number, and a purchase-order
+  // number is what a supplier quotes back on their invoice — two orders sharing one is a dispute.
+  // The number is taken inside the insert's own transaction below, where the lock holds. (T58k)
   const totals = computeTotals(data.lines, data.taxRate)
 
-  const [po] = await db.insert(purchaseOrder).values({
-    number,
-    companyId: currentUser.companyId,
-    vendorId: data.vendorId,
-    jobId: data.jobId || null,
-    projectId: data.projectId || null,
-    issueDate: data.issueDate ? new Date(data.issueDate) : new Date(),
-    expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,
-    shipTo: data.shipTo || null,
-    taxRate: String(data.taxRate),
-    subtotal: totals.subtotal.toFixed(2),
-    taxAmount: totals.taxAmount.toFixed(2),
-    total: totals.total.toFixed(2),
-    notes: data.notes || null,
-    createdById: currentUser.userId,
-  }).returning()
+  // The lines come with the order: a PO that commits without them is an empty order sent to a supplier.
+  const po = await db.transaction(async (tx: any) => {
+    const number = await nextNumber(tx, purchaseOrder, purchaseOrder.number, purchaseOrder.companyId, currentUser.companyId, { prefix: 'PO', pad: 5 })
+    const [row] = await tx.insert(purchaseOrder).values({
+      number,
+      companyId: currentUser.companyId,
+      vendorId: data.vendorId,
+      jobId: data.jobId || null,
+      projectId: data.projectId || null,
+      issueDate: data.issueDate ? new Date(data.issueDate) : new Date(),
+      expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,
+      shipTo: data.shipTo || null,
+      taxRate: String(data.taxRate),
+      subtotal: totals.subtotal.toFixed(2),
+      taxAmount: totals.taxAmount.toFixed(2),
+      total: totals.total.toFixed(2),
+      notes: data.notes || null,
+      createdById: currentUser.userId,
+    }).returning()
 
-  await db.insert(purchaseOrderLine).values(data.lines.map((l, i) => ({
-    purchaseOrderId: po.id,
-    description: l.description,
-    quantity: String(l.quantity),
-    unitCost: l.unitCost.toFixed(2),
-    total: (l.quantity * l.unitCost).toFixed(2),
-    sortOrder: i,
-  })))
+    await tx.insert(purchaseOrderLine).values(data.lines.map((l, i) => ({
+      purchaseOrderId: row.id,
+      description: l.description,
+      quantity: String(l.quantity),
+      unitCost: l.unitCost.toFixed(2),
+      total: (l.quantity * l.unitCost).toFixed(2),
+      sortOrder: i,
+    })))
+    return row
+  })
 
   return c.json(po, 201)
 })

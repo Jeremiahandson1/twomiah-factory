@@ -313,6 +313,25 @@ app.put('/contracts/:id', requirePermission('invoices:update'), async (c) => {
     .where(and(eq(snowContract.id, id), eq(snowContract.companyId, user.companyId)))
     .returning()
   if (!contract) return c.json({ error: 'Contract not found' }, 404)
+  /**
+   * EDITING A SNOW CONTRACT IS AUDITED. (T58k)
+   *
+   *   owner: "Landscaping: edits to snow contracts and routes aren't audited (creates and deletes are)."
+   *
+   * Creating one and deleting one were both logged, and the EDIT — the one that changes what a
+   * customer is billed — was not. This is the contract's rates and its trigger depth: moving
+   * `perInchRate` or `triggerDepthInches` changes every invoice raised from it afterwards, and
+   * nothing recorded who moved it. The diff is carried because here the VALUES are the point; with
+   * `before` already loaded for validation, there was nothing to work out.
+   */
+  audit.log({
+    req: c,
+    action: audit.ACTIONS.UPDATE,
+    entity: 'snow_contract',
+    entityId: contract.id,
+    entityName: (contract as any).name ?? null,
+    changes: audit.diff(before as any, contract as any),
+  })
   return c.json(contract)
 })
 

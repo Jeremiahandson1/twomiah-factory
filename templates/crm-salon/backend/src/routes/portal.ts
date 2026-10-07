@@ -16,6 +16,7 @@ import selections from '../services/selections.ts'
 import fileService from '../services/fileUpload.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import logger from '../services/logger.ts'
+import audit from '../services/audit.ts'
 
 export default createPortalRoutes({
   db,
@@ -25,6 +26,8 @@ export default createPortalRoutes({
     equipment, serviceAgreement, agreementVisit, formSubmission,
   },
   authenticate,
+  // Portal on/off is recorded against the CUSTOMER'S NAME, not left to the floor. (T58k)
+  audit,
   requirePermission,
   sendEmail: (to, template, data) => emailService.send(to, template, data),
   loadInvoicePdf: () => import('../services/pdf.ts').then((m) => m.generateInvoicePDF),

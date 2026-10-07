@@ -80,6 +80,20 @@ export interface QuoteDeps {
    * never called from here. (Field Service T30)
    */
   sendQuoteEmail?: (to: string, data: Record<string, unknown>) => Promise<unknown>
+  /**
+   * The template's audit service — `{ log, ACTIONS, ENTITIES }`, the same shape the invoices module
+   * takes. Optional, so a template that has not been rewired keeps working rather than failing to
+   * start. (T58k)
+   *
+   *   owner: "Contractor: delete and portal on/off rows show only 'Quote' or 'Contact', not the
+   *           number or name."
+   *
+   * This module audited NOTHING, so every quote event was written by the request-level floor — which
+   * knows the path and the status and cannot know a quote's number. A create could at least have its
+   * number read back off the response; a DELETE cannot, because by the time the response exists the
+   * row is gone. That is why the Record column said "Quote".
+   */
+  audit?: { log: (entry: any) => any; ACTIONS?: Record<string, string>; ENTITIES?: Record<string, string> }
   options?: QuoteOptions
 }
 
@@ -138,6 +152,28 @@ const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLine
 
 export function createQuoteRoutes(deps: QuoteDeps) {
   const { db, tables: t, authenticate, requirePermission, emitToCompany, EVENTS, loadPdf } = deps
+
+  /**
+   * One audit row per quote event, carrying the quote's NUMBER. (T58k)
+   *
+   * Writing it here also stops the request floor writing its duller one — audit.log marks the
+   * request as logged — so the log gains a row that names QTE-00002 instead of one that says
+   * "Quote".
+   *
+   * Never throws and never awaited: a quote must not fail to save because the log was unavailable.
+   */
+  const logQuote = (c: any, action: string, q: any, metadata?: Record<string, unknown>) => {
+    try {
+      deps.audit?.log?.({
+        action,
+        entity: deps.audit?.ENTITIES?.QUOTE ?? 'quote',
+        entityId: q?.id ?? null,
+        entityName: q?.number ?? null,
+        metadata: metadata ?? null,
+        req: c,
+      })
+    } catch { /* an unwritten log must not undo a saved quote */ }
+  }
   const o = deps.options || {}
   const extra = new Set(o.extraFields || [])
   const conversions = new Set(o.conversions || ['invoice', 'job'])
@@ -284,6 +320,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       return { ...created, lineItems: items }
     })
     emitToCompany(cid, EVENTS.QUOTE_CREATED, result)
+    logQuote(c, deps.audit?.ACTIONS?.CREATE ?? 'create', result, { total: result.total, lineItems: result.lineItems?.length ?? 0 })
     return c.json(result, 201)
   })
 
@@ -340,6 +377,9 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (!existing) return c.json({ error: 'Quote not found' }, 404)
     if (existing.status !== 'draft') return c.json({ error: 'Only draft quotes can be deleted' }, 400)
     await db.delete(t.quote).where(eq(t.quote.id, id))
+    // The number is captured from the row we already loaded, BEFORE it was deleted. This is the case
+    // the request floor structurally cannot cover: after a delete there is nothing left to name.
+    logQuote(c, deps.audit?.ACTIONS?.DELETE ?? 'delete', existing, { total: existing.total, status: existing.status })
     return c.body(null, 204)
   })
 
@@ -352,6 +392,9 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (allowedFrom && !allowedFrom.includes(existing.status)) return c.json({ error: `This quote is already ${existing.status} and cannot be marked ${patch.status}.` }, 400)
     const [updated] = await db.update(t.quote).set({ ...patch, updatedAt: new Date() }).where(and(eq(t.quote.id, id), eq(t.quote.companyId, cid))).returning()
     if (event) emitToCompany(cid, event, { id: updated.id, number: updated.number, ...(extraPayload ? extraPayload(updated) : {}) })
+    // Sent, approved, rejected, declined — every lifecycle move, named by its quote number and
+    // carrying where it moved from and to, which is the part a status row has to say.
+    logQuote(c, deps.audit?.ACTIONS?.STATUS_CHANGE ?? 'status_change', updated, { from: existing.status, status: patch.status ?? updated.status })
     return { updated, existing, cid }
   }
 

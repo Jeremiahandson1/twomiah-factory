@@ -13,6 +13,9 @@ import { project, changeOrder } from '../../db/schema.ts'
 import { eq, and, lte, asc, sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { notFound } from '../utils/errors.ts'
+// The SAME numbering function the change-orders route uses — a comment claiming they agree is not a
+// mechanism, so they share one. (T58k)
+import { nextNumber } from '../shared/invoicing/money.ts'
 
 /**
  * Raw-SQL rows come back snake_case; every screen in this product reads camelCase. (T32 L7)
@@ -356,22 +359,34 @@ export async function approveSelection(
      * a client has picked an upgrade and somebody has to agree the money, which is exactly what
      * submitted means. The approve route then records who agreed it and moves the contract value.
      */
-    const [{ n }] = rows(await db.execute(sql`
-      SELECT COUNT(*)::int AS n FROM change_order
-      WHERE company_id = ${companyId} AND project_id = ${selection.project_id}
-    `))
-    ;[co] = await db
-      .insert(changeOrder)
-      .values({
-        companyId,
-        projectId: selection.project_id,
-        number: `CO-${String(Number(n || 0) + 1).padStart(3, '0')}`,
-        title,
-        description,
-        amount: diff.toFixed(2),
-        status: 'submitted',
+    /**
+     * The SECOND writer of a CO number, and it had the same count-based fault as the route. (T58k)
+     *
+     * The comment above says this is "numbered the same way POST /api/change-orders numbers one" —
+     * and it was, including the bug: `COUNT(*) + 1` over the project, in its own unlocked statement.
+     * A claim in a comment that two places agree is not a mechanism; they now call the same function.
+     * The owner reported CO-030 twice on the route; picking a selection upgrade could produce it here.
+     */
+    co = await db.transaction(async (tx: any) => {
+      const number = await nextNumber(tx, changeOrder, changeOrder.number, changeOrder.companyId, companyId, {
+        prefix: 'CO', pad: 3,
+        scope: eq(changeOrder.projectId, selection.project_id),
+        markKey: `CO:${selection.project_id}`,
       })
-      .returning()
+      const [row] = await tx
+        .insert(changeOrder)
+        .values({
+          companyId,
+          projectId: selection.project_id,
+          number,
+          title,
+          description,
+          amount: diff.toFixed(2),
+          status: 'submitted',
+        })
+        .returning()
+      return row
+    })
   }
 
   // The row above was read BEFORE the status update, so hand back what the record now is rather

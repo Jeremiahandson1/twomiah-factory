@@ -66,6 +66,18 @@ export interface PortalDeps {
   EVENTS?: Record<string, string>
   logger?: { warn: (msg: string, meta?: any) => void; error: (msg: string, meta?: any) => void }
   /**
+   * The template's audit service — `{ log, ACTIONS, ENTITIES }`, same shape as invoices and quotes.
+   * Optional, so a template that has not been rewired keeps working. (T58k)
+   *
+   *   owner: "Contractor: delete and portal on/off rows show only 'Quote' or 'Contact', not the
+   *           number or name."
+   *
+   * This module audited nothing, so opening and closing a customer's portal was recorded only by the
+   * request-level floor — which knows the path and cannot know whose portal it was. Switching a
+   * customer's access on or off is exactly the kind of event somebody later needs a name against.
+   */
+  audit?: { log: (entry: any) => any; ACTIONS?: Record<string, string>; ENTITIES?: Record<string, string> }
+  /**
    * The tenant's switched-on features (shared enabledFeature gate). Without it the portal falls back to
    * "this template has the tables", which is how a customer came to be offered Projects, Change Orders and
    * Selections on a tenant with all three switched off — in the nav AND as dashboard tiles inviting them to
@@ -208,13 +220,37 @@ export function createPortalRoutes(deps: PortalDeps) {
   }
   const PORTAL_OFF = { error: 'The Client Portal is not switched on for this account.', code: 'FEATURE_NOT_ENABLED' } as const
 
+  /**
+   * Opening or closing a customer's portal, recorded against the CUSTOMER'S NAME. (T58k)
+   *
+   * Writing it here also stops the request floor writing its nameless one — audit.log marks the
+   * request as logged — so the Record column reads "Priya Raman" instead of "Contact".
+   *
+   * Never throws and never awaited: portal access must not fail to change because the log was
+   * unavailable.
+   */
+  const logPortal = (c: any, action: string, contact: any, metadata?: Record<string, unknown>) => {
+    try {
+      deps.audit?.log?.({
+        action,
+        entity: deps.audit?.ENTITIES?.CONTACT ?? 'contact',
+        entityId: contact?.id ?? null,
+        entityName: contact?.name ?? contact?.email ?? null,
+        metadata: metadata ?? null,
+        req: c,
+      })
+    } catch { /* an unwritten log must not undo a portal change */ }
+  }
+
   app.post('/contacts/:contactId/enable', authenticate, requirePermission('contacts:update'), async (c) => {
     const user = c.get('user') as any
     if (await portalFeatureOff(user.companyId)) return c.json(PORTAL_OFF, 403)
     const found = await ownContact(c.req.param('contactId'), user.companyId)
     if (!found) return c.json({ error: 'Contact not found' }, 404)
     if (!found.email) return c.json({ error: 'Contact must have an email to enable portal access' }, 400)
-    return c.json(await issueToken(found.id))
+    const issued = await issueToken(found.id)
+    logPortal(c, deps.audit?.ACTIONS?.STATUS_CHANGE ?? 'status_change', found, { portal: 'enabled' })
+    return c.json(issued)
   })
 
   app.post('/contacts/:contactId/regenerate', authenticate, requirePermission('contacts:update'), async (c) => {
@@ -223,7 +259,10 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (await portalFeatureOff(user.companyId)) return c.json(PORTAL_OFF, 403)
     const found = await ownContact(c.req.param('contactId'), user.companyId)
     if (!found) return c.json({ error: 'Contact not found' }, 404)
-    return c.json(await issueToken(found.id))
+    const reissued = await issueToken(found.id)
+    // Reissuing a link is the same door as opening it, so it is recorded the same way.
+    logPortal(c, deps.audit?.ACTIONS?.STATUS_CHANGE ?? 'status_change', found, { portal: 'link reissued' })
+    return c.json(reissued)
   })
 
   app.post('/contacts/:contactId/disable', authenticate, requirePermission('contacts:update'), async (c) => {
@@ -231,6 +270,9 @@ export function createPortalRoutes(deps: PortalDeps) {
     const found = await ownContact(c.req.param('contactId'), user.companyId)
     if (!found) return c.json({ error: 'Contact not found' }, 404)
     await db.update(t.contact).set({ portalEnabled: false, portalToken: null, portalTokenExp: null, updatedAt: new Date() }).where(eq(t.contact.id, found.id))
+    // The name comes from the row loaded above: the response is {success:true} and tells the floor
+    // nothing, which is precisely why these rows read "Contact".
+    logPortal(c, deps.audit?.ACTIONS?.STATUS_CHANGE ?? 'status_change', found, { portal: 'disabled' })
     return c.json({ success: true })
   })
 

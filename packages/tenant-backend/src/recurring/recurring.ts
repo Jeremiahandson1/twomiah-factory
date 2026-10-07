@@ -10,6 +10,8 @@
  */
 import { Hono } from 'hono'
 import { eq, desc, sql, asc } from 'drizzle-orm'
+// One numbering rule for every document in the product — locked, and only ever forwards.
+import { nextNumber } from '../invoicing/money'
 import { createId } from '@paralleldrive/cuid2'
 
 export interface RecurringTables { invoice: any; invoiceLineItem: any }
@@ -145,17 +147,28 @@ export function createRecurringService(deps: RecurringServiceDeps) {
   const { db, tables, emailService } = deps
   const { invoice, invoiceLineItem } = tables
 
-  async function generateInvoiceNumber(companyId: string): Promise<string> {
-    const [lastInvoice] = await db.select({ number: invoice.number }).from(invoice)
-      .where(eq(invoice.companyId, companyId)).orderBy(desc(invoice.createdAt), asc(invoice.id)).limit(1)
-    if (!lastInvoice) return 'INV-00001'
-    const match = lastInvoice.number.match(/(\d+)$/)
-    if (match) {
-      const num = parseInt(match[1]) + 1
-      const prefix = lastInvoice.number.replace(/\d+$/, '')
-      return `${prefix}${String(num).padStart(5, '0')}`
-    }
-    return `INV-${Date.now()}`
+  /**
+   * A RECURRING INVOICE TAKES ITS NUMBER FROM THE SAME PLACE AS EVERY OTHER INVOICE. (T58k)
+   *
+   *   owner, on Landscaping: "INV-00072 and -00073 were issued again after being deleted."
+   *
+   * This had its own numbering, and it was the worst of the three shapes in the product: it took the
+   * most recently CREATED invoice and incremented THAT one's number. So
+   *
+   *   · deleting the two newest invoices handed their numbers straight back — the owner's report; and
+   *   · ordering by created_at rather than by the number means the newest row need not hold the
+   *     highest number. Import a backlog, or renumber anything, and the "next" number is one past a
+   *     middling row — a number something else already has. A duplicate, not just a reuse.
+   *
+   * It also explains why T58j looked fixed everywhere else: landscaping's invoices route DOES use the
+   * shared createInvoiceRoutes, so ad-hoc invoices were numbered correctly all along. Only the
+   * recurring generator — snow contracts and maintenance plans — came through here.
+   *
+   * Now the shared `nextNumber`: highest existing, the company's high-water mark, under the advisory
+   * lock. It is given the caller's `tx` so the lock still holds when the row lands.
+   */
+  async function generateInvoiceNumber(tx: any, companyId: string): Promise<string> {
+    return nextNumber(tx, invoice, invoice.number, invoice.companyId, companyId, { prefix: 'INV', pad: 5 })
   }
 
   async function createRecurringInvoice(data: any, companyIdArg?: string) {
@@ -204,7 +217,6 @@ export function createRecurringService(deps: RecurringServiceDeps) {
     const lineItems = rows(await db.execute(sql`
       SELECT * FROM recurring_line_item WHERE recurring_invoice_id = ${recurringId} ORDER BY sort_order ASC
     `))
-    const number = await generateInvoiceNumber(recurring.company_id)
     /**
      * Dated the COMPANY'S day, not the server's UTC instant. (T33)
      *
@@ -224,34 +236,43 @@ export function createRecurringService(deps: RecurringServiceDeps) {
     const invoiceDate = storeDayStart(storeDateString(new Date(), tz), tz)
     const dueDate = calculateDueDate(invoiceDate, recurring.terms)
 
-    const [newInvoice] = await db.insert(invoice).values({
-      companyId: recurring.company_id,
-      contactId: recurring.contact_id,
-      projectId: recurring.project_id,
-      number,
-      status: 'draft',
-      issueDate: invoiceDate,
-      dueDate,
-      terms: recurring.terms,
-      subtotal: recurring.subtotal,
-      taxRate: recurring.tax_rate,
-      taxAmount: recurring.tax_amount,
-      discount: recurring.discount,
-      total: recurring.total,
-      amountPaid: '0',
-      notes: recurring.notes,
-    }).returning()
-
-    for (const item of lineItems) {
-      await db.insert(invoiceLineItem).values({
-        invoiceId: newInvoice.id,
-        description: item.description,
-        quantity: String(item.quantity),
-        unitPrice: String(item.unit_price),
-        total: String(item.total),
-        sortOrder: item.sort_order,
-      })
-    }
+    /**
+     * The number and the row are taken in ONE transaction, so the advisory lock nextNumber holds is
+     * still held when the invoice lands — the monthly run generates many invoices back to back, and
+     * a lock released before the insert would let two of them pick the same number. The line items
+     * come with it: an invoice that commits without its lines is a £0 invoice sent to a customer.
+     */
+    const newInvoice = await db.transaction(async (tx: any) => {
+      const number = await generateInvoiceNumber(tx, recurring.company_id)
+      const [created] = await tx.insert(invoice).values({
+        companyId: recurring.company_id,
+        contactId: recurring.contact_id,
+        projectId: recurring.project_id,
+        number,
+        status: 'draft',
+        issueDate: invoiceDate,
+        dueDate,
+        terms: recurring.terms,
+        subtotal: recurring.subtotal,
+        taxRate: recurring.tax_rate,
+        taxAmount: recurring.tax_amount,
+        discount: recurring.discount,
+        total: recurring.total,
+        amountPaid: '0',
+        notes: recurring.notes,
+      }).returning()
+      for (const item of lineItems) {
+        await tx.insert(invoiceLineItem).values({
+          invoiceId: created.id,
+          description: item.description,
+          quantity: String(item.quantity),
+          unitPrice: String(item.unit_price),
+          total: String(item.total),
+          sortOrder: item.sort_order,
+        })
+      }
+      return created
+    })
 
     const nextRunDate = calculateNextDate(recurring.next_run_date, recurring.frequency, anchorDayOf(recurring.start_date))
     let newStatus = recurring.status

@@ -5,6 +5,8 @@ import { project, contact, job, rfi, changeOrder, punchListItem } from '../../db
 import { eq, and, or, ilike, count, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
+// One numbering rule for every document in the product — locked, and only ever forwards.
+import { nextNumber } from '../shared/invoicing/money.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -96,16 +98,27 @@ app.post('/', requirePermission('projects:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = projectSchema.parse(await c.req.json())
 
-  const [{ value: cnt }] = await db.select({ value: count() }).from(project).where(eq(project.companyId, currentUser.companyId))
-  const [newProject] = await db.insert(project).values({
+  /**
+   * PRJ NUMBERS ONLY GO FORWARDS. (T58k)
+   *
+   * This counted the company's projects and added one, so deleting any project handed its number to
+   * the next — and the count ran unlocked, so two created together both saw the same total. The same
+   * shape as the CO-030 duplicate the owner reported; found by sweeping EVERY generator rather than
+   * only the ones that were named.
+   */
+  const newProject = await db.transaction(async (tx: any) => {
+    const number = await nextNumber(tx, project, project.number, project.companyId, currentUser.companyId, { prefix: 'PRJ', pad: 4 })
+    const [row] = await tx.insert(project).values({
     ...data,
-    number: `PRJ-${String(Number(cnt) + 1).padStart(4, '0')}`,
+      number,
     startDate: data.startDate ? new Date(data.startDate) : null,
     endDate: data.endDate ? new Date(data.endDate) : null,
     estimatedValue: data.estimatedValue?.toString(),
     budget: data.budget?.toString(),
     companyId: currentUser.companyId,
-  }).returning()
+    }).returning()
+    return row
+  })
 
   return c.json(newProject, 201)
 })

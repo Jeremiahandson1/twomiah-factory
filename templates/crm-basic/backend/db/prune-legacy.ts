@@ -107,4 +107,37 @@ for (const stmt of ENSURE) {
 }
 console.log('[prune-legacy] recurring tables reconciled')
 
+/**
+ * THE FIELD-SERVICE HELP ARTICLE SEEDED INTO THE SHOWCASE VERTICAL. (T58k)
+ *
+ *   owner: "The KB article 'Equipment & Service History' is still published."
+ *
+ * It is, and changing the seed could never have removed it: seed.template.ts runs once, for a NEW
+ * tenant. T58j rewrote the seed and called the item fixed, which is the write-path-fix-leaves-old-rows
+ * mistake — the live row was written months ago and stayed exactly where it was.
+ *
+ * This template serves the SHOWCASE verticals (gyms, studios, caterers) and the article is the
+ * field-service one: "the equipment you look after for a customer", "the next time you are on site".
+ * A gym looks after its own equipment and nobody is on site at a customer's.
+ *
+ * Guarded so it heals only the SEEDED row and never somebody's own writing: the title must still be
+ * the seeded title AND the body must still contain the field-service phrase. An owner who has
+ * rewritten or retitled it is left alone, and re-running this is a no-op.
+ */
+const HELP_HEAL = `
+  UPDATE support_knowledge_base
+     SET title = 'Files and documents',
+         content = 'Attach files to a customer, a job or a quote — photos, signed paperwork, anything you need to find again. They stay on the record, so whoever opens it next has everything you had.'
+   WHERE title = 'Equipment & Service History'
+     AND content LIKE '%equipment you look after for a customer%'
+`
+try {
+  const res: any = await db.execute(sql.raw(HELP_HEAL))
+  const n = res?.rowCount ?? res?.rowsAffected ?? '?'
+  console.log('[prune-legacy] showcase help article healed, rows:', n)
+} catch (e: any) {
+  // A tenant without the support module has no such table. Never block boot for a help article.
+  console.warn('[prune-legacy] help-article heal skipped:', e?.message || e)
+}
+
 process.exit(0)

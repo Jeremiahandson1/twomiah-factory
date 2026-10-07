@@ -3,10 +3,14 @@
  * Tracks who changed what when
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { db } from '../../db/index.ts';
 import { sql } from 'drizzle-orm';
 import { asInstant } from '../shared/instants.ts';
 import { auditLog } from '../../db/schema.ts';
+
+/** The live request, for the duration of the request. See the fallback in resolveActor. */
+export const requestScope = new AsyncLocalStorage<{ c: any }>()
 
 export const ACTIONS = {
   CREATE: 'create',
@@ -92,7 +96,19 @@ function resolveActor(req: any): { userId: string | null; email: string | null; 
   const user = typeof req?.get === 'function' ? req.get('user') : req?.user
   const header = (name: string): string | null => {
     const h = typeof req?.req?.header === 'function' ? req.req.header(name) : typeof req?.header === 'function' ? req.header(name) : req?.headers?.[name]
-    return (h as string) || null
+    if (h) return h as string
+    /**
+     * THE REQUEST IS STILL REACHABLE WHEN THE CALLER DID NOT PASS IT. (T58k)
+     *
+     * Nine call sites in this template hand audit.log a bare `{ user }`, so there is nothing to read
+     * an address off and ip_address lands NULL. `requestScope` holds the live request for the
+     * duration of the request, which reaches the service-layer callers too — they have no Hono
+     * context to pass even if every call site were edited. Outside a request the store is empty and
+     * the address stays null, exactly as before.
+     */
+    const scoped: any = requestScope.getStore()?.c
+    const fromScope = typeof scoped?.req?.header === 'function' ? scoped.req.header(name) : null
+    return (fromScope as string) || null
   }
   return {
     userId: user?.userId || user?.id || null,

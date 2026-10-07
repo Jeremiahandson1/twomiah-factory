@@ -125,23 +125,30 @@ export async function reorderCategories(companyId: string, orderedIds: string[])
  * Create pricebook item
  */
 export async function createItem(companyId: string, data: any) {
-  const code = data.code || await generateItemCode(companyId)
-
-  const [item] = await db.insert(pricebookItem).values({
-    companyId,
-    categoryId: data.categoryId || null,
-    code,
-    name: data.name,
-    description: data.description,
-    price: String(data.price || 0),
-    cost: String(data.cost || 0),
-    unit: data.unit || 'each',
-    taxable: data.taxable ?? true,
-    active: true,
-    type: data.type || 'service',
-  }).returning()
-
-  return item
+  /**
+   * ONE TRANSACTION, so the advisory lock is still held when the row lands. (T58k)
+   *
+   * T58j routed this through nextNumber but handed it `db`, and said so in the note below — which
+   * made the lock last exactly as long as its own statement. The owner then created three items at
+   * once and got SVC-0007, SVC-0008, SVC-0008. A lock released before the insert is not a lock.
+   */
+  return db.transaction(async (tx: any) => {
+    const code = data.code || await generateItemCode(tx, companyId)
+    const [item] = await tx.insert(pricebookItem).values({
+      companyId,
+      categoryId: data.categoryId || null,
+      code,
+      name: data.name,
+      description: data.description,
+      price: String(data.price || 0),
+      cost: String(data.cost || 0),
+      unit: data.unit || 'each',
+      taxable: data.taxable ?? true,
+      active: true,
+      type: data.type || 'service',
+    }).returning()
+    return item
+  })
 }
 
 /**
@@ -155,10 +162,12 @@ export async function createItem(companyId: string, data: any) {
  * go on quotes in front of a homeowner.
  *
  * `nextNumber` reads the highest existing code and respects the company's high-water mark, so a
- * deleted code is not handed out again either. See the note on it for the race it does not change.
+ * deleted code is not handed out again either. It takes a per-company advisory lock, which is why it
+ * must be given the CALLER'S transaction (T58k) — handed a bare `db` the lock died with its own
+ * statement and simultaneous creates still collided.
  */
-async function generateItemCode(companyId: string): Promise<string> {
-  return nextNumber(db, pricebookItem, pricebookItem.code, pricebookItem.companyId, companyId, { prefix: 'SVC', pad: 4 })
+async function generateItemCode(tx: any, companyId: string): Promise<string> {
+  return nextNumber(tx, pricebookItem, pricebookItem.code, pricebookItem.companyId, companyId, { prefix: 'SVC', pad: 4 })
 }
 
 /**
@@ -263,11 +272,11 @@ export async function duplicateItem(itemId: string, companyId: string) {
   const original = await getItem(itemId, companyId)
   if (!original) throw notFound('Item not found')
 
-  const code = await generateItemCode(companyId)
-
+  // No code is pre-generated here: createItem mints one inside its own transaction, where the lock
+  // actually holds. Generating it out here would race exactly as the old create did.
   return createItem(companyId, {
     ...original,
-    code,
+    code: undefined,
     name: `${original.name} (Copy)`,
   })
 }

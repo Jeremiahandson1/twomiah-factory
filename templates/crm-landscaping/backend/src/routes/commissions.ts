@@ -31,6 +31,21 @@ const planSchema = z.object({
   appliesToRole: z.enum(['technician', 'sales_rep', 'manager', 'all']).default('all'),
   effectiveFrom: z.string().optional(),
   effectiveTo: z.string().optional(),
+  /**
+   * SWITCHING A PLAN OFF THROUGH PUT. (T58k)
+   *
+   *   owner: "PUT isActive:false on a commission plan is still ignored."
+   *
+   * It was, silently and with a 200. `isActive` was absent from this schema, so
+   * `planSchema.partial().parse(body)` STRIPPED it — zod drops unknown keys rather than complaining
+   * — and the update ran with nothing in it but `updatedAt`. The response then echoed the row back
+   * unchanged, which reads as "saved" to anything looking at the status code.
+   *
+   * The column exists and DELETE /plans/:id has always set it, so the capability was there with no
+   * way to reach it from an edit. The same shape as the seat-cap `isActive` on POST /users: a field
+   * the screen sends, the database holds, and the schema in between quietly discards.
+   */
+  isActive: z.boolean().optional(),
 })
 
 /**

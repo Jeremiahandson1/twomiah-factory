@@ -334,10 +334,41 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     // An explicit null is how a caller says "remove this" — it is the only way to say it, and storing
     // the null instead is the one reading that means nothing to anybody. (Salon T20 L1)
     const updates: any = { ...data, updatedAt: new Date() }
+    // The WHOLE prior row, not just its settings: the audit entry below reports what actually
+    // CHANGED, which needs something to compare against. One read on a settings save. (T58k)
+    const [before] = await db.select().from(t.company).where(eq(t.company.id, currentUser.companyId)).limit(1)
     if (data.settings && typeof data.settings === 'object') {
-      const [cur] = await db.select({ settings: t.company.settings }).from(t.company).where(eq(t.company.id, currentUser.companyId)).limit(1)
-      const merged: Record<string, unknown> = { ...((cur?.settings as any) || {}), ...data.settings }
-      for (const [k, v] of Object.entries(data.settings as Record<string, unknown>)) if (v === null) delete merged[k]
+      const merged: Record<string, unknown> = { ...((before?.settings as any) || {}), ...data.settings }
+      /**
+       * A UI ROUND-TRIP MUST NOT DELETE THE SHOP'S COMMERCIAL STATE. (T58k)
+       *
+       *   owner: "Saving Settings also drops null keys (billingType, nextBillingDate, trialEndsAt)."
+       *
+       * Null means "remove this key", added in T20 L1 because merging alone meant a key could only
+       * ever be added. That is still right for a setting somebody is clearing. What it did not
+       * account for is the Settings form posting the ENTIRE settings object back, nulls included,
+       * for keys it does not even render — so pressing Save deleted the plan's billing type, the
+       * next billing date and the trial end. Nobody asked for any of that to be removed, and the
+       * trial end disappearing changes what the tenant is entitled to.
+       *
+       * So removal is refused for the keys the SERVER owns. They are not the owner's to clear from a
+       * settings form; they are set by billing and onboarding. Any other key still clears on null,
+       * which is what the mechanism was for.
+       */
+      const SERVER_OWNED = new Set([
+        'plan', 'planId', 'billingType', 'billingStatus', 'nextBillingDate', 'trialEndsAt',
+        'seatLimit', 'monthlyAmount', 'stripeCustomerId', 'stripeSubscriptionId', 'onboardingComplete',
+      ])
+      for (const [k, v] of Object.entries(data.settings as Record<string, unknown>)) {
+        if (v !== null) continue
+        if (SERVER_OWNED.has(k)) {
+          // Put the stored value back: the request said null, and null is not the caller's to say here.
+          if (before?.settings && k in (before.settings as any)) merged[k] = (before.settings as any)[k]
+          else delete merged[k]
+          continue
+        }
+        delete merged[k]
+      }
       updates.settings = merged
     }
     const [row] = await db.update(t.company).set(updates).where(eq(t.company.id, currentUser.companyId)).returning()
@@ -357,8 +388,28 @@ export function createCompanyRoutes(deps: CompanyDeps) {
      */
     try {
       if (deps.audit?.log) {
-        const touched = Object.keys(data).filter((k) => k !== 'settings')
-        const settingKeys = data.settings && typeof data.settings === 'object' ? Object.keys(data.settings) : []
+        /**
+         * WHAT CHANGED, NOT WHAT THE FORM POSTED. (T58k)
+         *
+         *   owner: "Salon: Settings rows list all 50 fields the form sent, not the one that changed."
+         *
+         * This recorded `Object.keys(data)` — every field in the request. The Settings screen posts
+         * the whole form on every save, so changing one tax rate wrote an audit row naming fifty
+         * fields, and the one that actually moved was invisible among them. The row was technically
+         * true and completely useless, which is the same outcome as the em-dash it replaced.
+         *
+         * Compared against the stored row now, by value. JSON.stringify because a setting can be a
+         * number, a string, a boolean or an object, and `!==` on two equal objects is always true.
+         */
+        const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+        const touched = Object.keys(data).filter((k) => k !== 'settings' && !same((before as any)?.[k], (data as any)[k]))
+        const beforeSettings = ((before?.settings as any) || {}) as Record<string, unknown>
+        const settingKeys = data.settings && typeof data.settings === 'object'
+          ? Object.keys(data.settings as Record<string, unknown>).filter((k) => !same(beforeSettings[k], (data.settings as any)[k]))
+          : []
+        // A save that changed nothing is not an event. Logging it is how a settings log fills with
+        // rows nobody can act on, which is what buried the real ones.
+        if (!touched.length && !settingKeys.length) return c.json(sanitizeCompany(row))
         deps.audit.log({
           action: deps.audit.ACTIONS?.UPDATE ?? 'update',
           entity: deps.audit.ENTITIES?.COMPANY ?? 'company',

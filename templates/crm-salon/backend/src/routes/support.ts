@@ -6,15 +6,29 @@ import { db } from '../../db/index.ts';
 import { supportTicket, supportTicketMessage, supportKnowledgeBase, supportSlaPolicy, contact, user } from '../../db/schema.ts';
 import { eq, and, desc, asc, like, or, sql, count, inArray } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
+// One numbering rule for every document in the product — locked, and only ever forwards.
+import { nextNumber } from '../shared/invoicing/money.ts';
 import { enabledFeaturesFor } from '../middleware/enabledFeature.ts';
 import { visibleArticles, enabledTopics } from '../utils/helpArticles.ts';
 
 const app = new Hono();
 
 // ─── Helper: generate ticket number ──────────────────────────────────────────
-async function nextTicketNumber(companyId: string): Promise<string> {
-  const [result] = await db.select({ cnt: count() }).from(supportTicket).where(eq(supportTicket.companyId, companyId));
-  return 'TKT-' + String((result?.cnt || 0) + 1).padStart(4, '0');
+/**
+ * TICKET NUMBERS ONLY GO FORWARDS. (T58k)
+ *
+ * `COUNT(*) + 1` does not need the newest ticket deleted to break: delete ANY one and the count
+ * lands on a number another ticket still holds. A ticket number is what a customer quotes back at
+ * you, so two tickets sharing one is the whole problem.
+ *
+ * Nobody reported this. It was found by sweeping EVERY generator in the product after T58j fixed
+ * only the three the owner had named and left the siblings — the shared pricebook, the recurring
+ * invoice, both change-order writers and this — still reusing numbers.
+ *
+ * Takes the caller's transaction so nextNumber's advisory lock still holds when the row lands.
+ */
+async function nextTicketNumber(companyId: string, exec: any = db): Promise<string> {
+  return nextNumber(exec, supportTicket, supportTicket.number, supportTicket.companyId, companyId, { prefix: 'TKT', pad: 4 });
 }
 
 // ─── Helper: apply SLA deadlines ─────────────────────────────────────────────
@@ -158,13 +172,13 @@ app.post('/tickets', async (c) => {
   if (body.status !== undefined && body.status !== null && !TICKET_STATUSES.includes(String(body.status))) {
     return c.json({ error: `Status must be one of ${TICKET_STATUSES.join(', ')}.` }, 400);
   }
-  const number = await nextTicketNumber(u.companyId);
 
   const ai = autoCategory(body.subject, body.description);
   const sla = await applySla(u.companyId, body.priority || 'normal');
 
-  const [ticket] = await db.insert(supportTicket).values({
-    number,
+  // One transaction: the number's lock must still be held when the ticket lands. (T58k)
+  const [ticket] = await db.transaction(async (tx: any) => tx.insert(supportTicket).values({
+    number: await nextTicketNumber(u.companyId, tx),
     subject,
     description: body.description,
     priority: body.priority || 'normal',
@@ -179,7 +193,7 @@ app.post('/tickets', async (c) => {
     aiCategory: ai.category,
     aiPriorityScore: ai.priorityScore,
     ...sla,
-  }).returning();
+  }).returning());
 
   return c.json(ticket, 201);
 });
