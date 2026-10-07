@@ -1905,6 +1905,17 @@ jobs:
       - name: "Check no migration splits into prose"
         run: bun run scripts/check-migration-statements-parse.ts
 
+  session-cap-agrees:
+    name: "The session cap agrees across every fork"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check MAX_SESSIONS_PER_USER"
+        run: bun run scripts/check-session-cap-agrees.ts
+
   migrations-build-the-schema:
     name: "Migrations build the schema on their own"
     runs-on: ubuntu-latest

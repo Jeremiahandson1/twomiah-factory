@@ -71,7 +71,37 @@ export const passwordSchema = z.string()
   .min(8, 'Password must be at least 8 characters')
   .regex(/(?=.*[A-Za-z])(?=.*\d)/, 'Password must include at least one letter and one number')
 
-const MAX_SESSIONS_PER_USER = 10
+/**
+ * HOW MANY LIVE SESSIONS ONE ACCOUNT MAY HAVE. (T58h)
+ *
+ *   Owner: "Roofing was signed out while two copies of the app refreshed the token at the same
+ *   moment. The agent thinks token rotation treated the second refresh as reuse."
+ *
+ * It is not rotation — there is none, deliberately, for exactly that reason (see the note at the top
+ * of this file; /refresh returns the SAME refresh token and revokes nothing). Concurrent refreshes
+ * cannot evict each other.
+ *
+ * It is this cap. storeRefreshToken keeps `slice(-MAX)`, newest last, so the ELEVENTH sign-in drops
+ * the first — and what gets dropped is the long-lived browser session somebody is working in, in
+ * favour of a caller that signed in once and will never come back. On a shared account that is the
+ * wrong way round: a human's tab is the session worth keeping and a script's is the disposable one,
+ * and the policy preferred the script purely because it arrived later.
+ *
+ * Ten is far too few for how these accounts are actually used. The owner login is shared between the
+ * owner's own tabs, the QA agents, and every verification script — one fleet verification pass signs
+ * in to ten tenants, and a day's work is well over a hundred sign-ins. Each one quietly evicted
+ * somebody's working session, which is why tabs came back to a login page with no deploy to blame.
+ *
+ * A refresh token is a short JSON string that expires in 7 days on its own, and stillValid() prunes
+ * dead ones on every write, so the list cannot grow without bound. The cap exists to stop one
+ * account hoarding sessions for ever, not to ration them. 50 is comfortably above real use —
+ * phone, laptop, desk, a few tabs, and the automation — while still being a limit.
+ *
+ * The other half of this is not in the product: the verification scripts should reuse one token per
+ * tenant per run instead of signing in again for every probe. Fixing only the cap would raise the
+ * ceiling on a leak rather than stopping it.
+ */
+const MAX_SESSIONS_PER_USER = 50
 const ACCESS_TTL = '15m', REFRESH_TTL = '7d'
 
 export const generateTokens = (userId: string, companyId: string, email: string, role: string) => {

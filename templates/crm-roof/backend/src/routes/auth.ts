@@ -52,7 +52,19 @@ const effectivePermissions = async (userId: string, role: string): Promise<strin
   return Array.from(new Set([...base, ...extra]))
 }
 
-const MAX_SESSIONS_PER_USER = 10
+/**
+ * Raised from 10. (T58h)
+ *
+ * storeRefreshToken keeps slice(-MAX), newest last, so the eleventh sign-in evicted the FIRST — the
+ * long-lived browser session somebody was working in — in favour of a caller that signed in once and
+ * never came back. That is what signed the roofing tab out with no deploy to blame, not the token
+ * rotation it looked like: there is no rotation here, /refresh returns the same refresh token.
+ *
+ * This account is shared between the owner's tabs, the QA agents and every verification script, and a
+ * day's work is well over a hundred sign-ins. See the full note in
+ * packages/tenant-backend/src/auth/auth.ts.
+ */
+const MAX_SESSIONS_PER_USER = 50
 const parseTokenList = (raw: string | null | undefined): string[] => {
   if (!raw) return []
   try { const v = JSON.parse(raw); return Array.isArray(v) ? v.filter((t) => typeof t === 'string') : [raw] } catch { return [raw] }
