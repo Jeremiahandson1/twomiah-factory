@@ -1,0 +1,18 @@
+-- A visit below the contract's trigger depth is not automatically billable, and this is the flag
+-- that says "charge it anyway". (T58d)
+--
+-- The owner: "visits below the trigger depth still bill." They do. Every snow contract carries
+-- trigger_depth_inches (default 2.00) and computeSnowEventCharge has never read it, so a half-inch
+-- push was charged at the full per-push rate. Measured on lndtest: 6 of 27 events are below their
+-- contract's trigger, $367.50 billed between them.
+--
+-- WHY A COLUMN RATHER THAN JUST ZEROING IT. A push below trigger is a real thing — a customer rings
+-- and asks, a drift forms, a freeze-thaw glazes a ramp — and it is chargeable when it happens.
+-- Silently returning 0 for those would take money off the shop without telling anybody, which is a
+-- worse failure than the one being fixed: a wrong charge gets argued about, a missing charge is
+-- never noticed. So the trigger decides the DEFAULT and this flag records the exception.
+--
+-- Nothing is back-filled. Every existing row gets false, which is the honest value: nobody made that
+-- decision at the time. Rows already on an invoice are untouched by any of this — their
+-- billable_amount was computed when they were raised and is not recomputed.
+ALTER TABLE "snow_event" ADD COLUMN IF NOT EXISTS "bill_below_trigger" boolean DEFAULT false NOT NULL;

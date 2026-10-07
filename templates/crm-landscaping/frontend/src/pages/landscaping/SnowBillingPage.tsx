@@ -77,7 +77,7 @@ export default function SnowBillingPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<any>(EMPTY_CONTRACT);
-  const [evForm, setEvForm] = useState<any>({ pushes: 1, snowfallInches: '', saltApplied: false, notes: '' });
+  const [evForm, setEvForm] = useState<any>({ pushes: 1, snowfallInches: '', saltApplied: false, billBelowTrigger: false, notes: '' });
   const { sites, reloadSites } = useSites();
 
   const load = async () => {
@@ -122,6 +122,17 @@ export default function SnowBillingPage() {
     catch { toast.error('Failed to delete'); }
   };
 
+  /**
+   * Is the visit being typed RIGHT NOW below this contract's trigger depth? (T58d)
+   *
+   * Only true once a depth has actually been entered — an empty box means "not measured", and the
+   * server treats that the same way: no measurement, no withholding. So the warning appears when
+   * the crew records a depth under the trigger, and not before.
+   */
+  const triggerIn = Number(selected?.triggerDepthInches)
+  const typedIn = Number(evForm.snowfallInches)
+  const belowTriggerNow = Number.isFinite(triggerIn) && triggerIn > 0 && Number.isFinite(typedIn) && typedIn > 0 && typedIn < triggerIn
+
   const logEvent = async () => {
     if (!selected) return;
     // The measure this contract's charge is calculated from. Without it the visit stores $0.00 and
@@ -139,7 +150,7 @@ export default function SnowBillingPage() {
     try {
       const res = await api.post('/api/snow/events', { snowContractId: selected.id, ...evForm });
       toast.success(`Logged — billed $${Number(res.billableAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
-      setEvForm({ pushes: 1, snowfallInches: '', saltApplied: false, notes: '' });
+      setEvForm({ pushes: 1, snowfallInches: '', saltApplied: false, billBelowTrigger: false, notes: '' });
       openContract(selected); load();
     } catch (e: any) { toast.error(e?.message || 'Failed to log event'); }
   };
@@ -257,6 +268,22 @@ export default function SnowBillingPage() {
                 <label className="flex items-center gap-2 text-sm col-span-2">
                   <input type="checkbox" checked={evForm.saltApplied} onChange={e => setEvForm({ ...evForm, saltApplied: e.target.checked })} /> Salt applied
                 </label>
+                {/*
+                  Shown only when this visit IS below the trigger, because an option that is almost
+                  never relevant is noise on a form a crew fills in at 5am. Below trigger, ploughing
+                  is not covered by the contract — but a push the customer rang up and asked for is,
+                  and this is where that gets said. Salt is charged either way. (T58d)
+                */}
+                {belowTriggerNow && (
+                  <label className="flex items-start gap-2 text-sm col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900 dark:bg-amber-950/40">
+                    <input type="checkbox" className="mt-0.5" checked={!!evForm.billBelowTrigger} onChange={e => setEvForm({ ...evForm, billBelowTrigger: e.target.checked })} />
+                    <span className="text-amber-900 dark:text-amber-200">
+                      <strong>{Number(evForm.snowfallInches)}&quot; is below this contract&apos;s {Number(selected.triggerDepthInches)}&quot; trigger.</strong>{' '}
+                      Ploughing is not charged below the trigger. Tick to bill it anyway — a push the customer asked for.
+                      {evForm.saltApplied ? ' Salt is charged either way.' : ''}
+                    </span>
+                  </label>
+                )}
                 <Field id="snow-notes" label="Notes" className="col-span-2">
                   <input id="snow-notes" className="w-full border rounded px-2 py-1.5 text-sm" placeholder="Notes" value={evForm.notes} onChange={e => setEvForm({ ...evForm, notes: e.target.value })} />
                 </Field>
@@ -274,7 +301,17 @@ export default function SnowBillingPage() {
                       Number(ev.snowfallInches) > 0 ? `${Number(ev.snowfallInches)}"` : '',
                       ev.saltApplied ? 'salt' : '',
                     ].filter(Boolean).join(' · ')}</span>
-                    <span className="font-semibold">${Number(ev.billableAmount).toFixed(2)}</span>
+                    <span className="font-semibold flex items-center gap-2">
+                      {/* A $0 line with no reason is the thing this work exists to fix, not a
+                          smaller version of it. Say WHICH $0 this is. (T58d) */}
+                      {ev.belowTrigger && !ev.billBelowTrigger && (
+                        <span className="font-normal text-xs text-amber-700 dark:text-amber-300">below {Number(ev.triggerDepthInches)}&quot; trigger</span>
+                      )}
+                      {ev.belowTrigger && ev.billBelowTrigger && (
+                        <span className="font-normal text-xs text-gray-500 dark:text-slate-400">below trigger · billed on request</span>
+                      )}
+                      ${Number(ev.billableAmount).toFixed(2)}
+                    </span>
                   </div>
                 ))}
                 {events.length === 0 && <p className="text-gray-500 dark:text-slate-400 text-sm">No events logged.</p>}

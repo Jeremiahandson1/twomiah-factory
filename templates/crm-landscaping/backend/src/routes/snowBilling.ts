@@ -135,9 +135,37 @@ interface ContractRates {
  * The contract form says "Salt is charged on top in every mode" so the decision is visible where
  * the rates are set, instead of being discovered on an invoice.
  */
+/**
+ * BELOW THE TRIGGER DEPTH, PLOUGHING IS NOT AUTOMATICALLY BILLABLE. (T58d)
+ *
+ *   Owner: "visits below the trigger depth still bill."
+ *
+ * They did. Every contract carries `triggerDepthInches` — it is on the form, it defaults to 2.00,
+ * it is `notNull` — and this function had never read it, so a half-inch push was charged the full
+ * per-push rate. Measured on lndtest: 6 of 27 events are below their contract's trigger, $367.50
+ * between them. A trigger depth is the threshold at which the contractor is obliged to turn out and
+ * entitled to charge; below it, the work is not covered by the contract.
+ *
+ * THREE THINGS THIS DELIBERATELY DOES NOT DO.
+ *
+ * 1 · It does not apply when no snowfall was RECORDED. 8 of those 27 events have snowfallInches 0,
+ *     which the schema default also produces — "nobody wrote it down" and "no snow fell" are the
+ *     same value. Treating an unrecorded depth as below-trigger would silently zero legitimate
+ *     charges, and a missing charge is never noticed, where a wrong one gets argued about. No
+ *     measurement, no withholding.
+ * 2 · It does not override the shop. `billBelowTrigger` charges it anyway, because a push below
+ *     trigger genuinely happens — the customer rings, a drift forms, a freeze-thaw glazes a ramp.
+ *     The trigger sets the default; the flag records the exception.
+ * 3 · It does not touch salt. Salt is a consumable bought by the ton and a salt run with no plough
+ *     pass is a legitimate visit — that was settled in the T41 note above, and a light glaze is
+ *     exactly when salting happens. So salt is charged at any depth, including below trigger, and
+ *     including when the base comes to nothing.
+ *
+ * Seasonal is unaffected: its base is already 0, the season being paid up front.
+ */
 export function computeSnowEventCharge(
   contract: ContractRates,
-  ev: { pushes: number; snowfallInches: number; saltApplied: boolean },
+  ev: { pushes: number; snowfallInches: number; saltApplied: boolean; billBelowTrigger?: boolean },
 ) {
   const n = (v: string | number) => Number(v) || 0
   let base = 0
@@ -147,8 +175,27 @@ export function computeSnowEventCharge(
     case 'per_inch': base = n(ev.snowfallInches) * n(contract.perInchRate); break
     case 'seasonal': base = 0; break
   }
+  if (isBelowTrigger(contract, ev) && !ev.billBelowTrigger) base = 0
   const salt = ev.saltApplied ? n(contract.saltRate) : 0
   return Math.round((base + salt) * 100) / 100
+}
+
+/**
+ * Was this visit below the contract's trigger depth?
+ *
+ * Exported because the SCREEN has to be able to say so — a $0 visit with no explanation is the
+ * fault this is meant to fix, not a smaller version of it. `false` when no depth was recorded, for
+ * the reason in point 1 above, and `false` when the contract has no trigger set.
+ */
+export function isBelowTrigger(
+  contract: { triggerDepthInches?: string | number | null },
+  ev: { snowfallInches: number | string },
+): boolean {
+  const trigger = Number(contract?.triggerDepthInches)
+  const snow = Number(ev?.snowfallInches)
+  if (!Number.isFinite(trigger) || trigger <= 0) return false
+  if (!Number.isFinite(snow) || snow <= 0) return false
+  return snow < trigger
 }
 
 /**
@@ -285,7 +332,22 @@ app.get('/events', requirePermission('invoices:read'), async (c) => {
     ? and(eq(snowEvent.companyId, user.companyId), eq(snowEvent.snowContractId, contractId))
     : eq(snowEvent.companyId, user.companyId)
   const events = await db.select().from(snowEvent).where(where).orderBy(desc(snowEvent.servicedAt))
-  return c.json({ data: events })
+  /**
+   * Each row says whether it fell below its contract's trigger depth. (T58d)
+   *
+   * Derived here against the trigger IN FORCE NOW rather than stored on the event, so changing a
+   * contract's trigger re-describes its history correctly instead of leaving a stale flag. Without
+   * it the list shows a $0 visit with no explanation, which is the fault this work exists to fix —
+   * the old behaviour at least charged something.
+   */
+  const contracts = await db.select().from(snowContract).where(eq(snowContract.companyId, user.companyId))
+  const triggerFor = new Map(contracts.map((k: any) => [k.id, k.triggerDepthInches]))
+  return c.json({
+    data: events.map((e: any) => {
+      const triggerDepthInches = triggerFor.get(e.snowContractId) ?? null
+      return { ...e, triggerDepthInches, belowTrigger: isBelowTrigger({ triggerDepthInches }, e) }
+    }),
+  })
 })
 
 app.post('/events', requirePermission('invoices:create'), async (c) => {
@@ -303,10 +365,12 @@ app.post('/events', requirePermission('invoices:create'), async (c) => {
     pushes: parseInt(body.pushes ?? '1', 10),
     snowfallInches: Number(body.snowfallInches ?? 0),
     saltApplied: !!body.saltApplied,
+    billBelowTrigger: !!body.billBelowTrigger,
   }
   const badCharge = snowEventChargeError(contract.billingMode, ev)
   if (badCharge) return c.json({ error: badCharge }, 400)
   const billableAmount = computeSnowEventCharge(contract as any, ev)
+  const belowTrigger = isBelowTrigger(contract as any, ev)
 
   const [event] = await db.insert(snowEvent).values({
     companyId: user.companyId,
@@ -316,13 +380,21 @@ app.post('/events', requirePermission('invoices:create'), async (c) => {
     pushes: ev.pushes,
     snowfallInches: String(ev.snowfallInches),
     saltApplied: ev.saltApplied,
+    billBelowTrigger: ev.billBelowTrigger,
     billableAmount: String(billableAmount),
     billingMode: contract.billingMode,
     assignedToId: body.assignedToId ?? user.userId ?? null,
     notes: body.notes ?? null,
   }).returning()
-  audit.log({ action: audit.ACTIONS.CREATE, entity: 'snow_event', entityId: event.id, entityName: `$${billableAmount} (${contract.billingMode})`, userId: user.userId, companyId: user.companyId })
-  return c.json(event, 201)
+  // The audit line says WHY it came to nothing, so "logged a visit, charged $0" is not something
+  // anyone has to reconstruct later from the contract's trigger depth.
+  const why = belowTrigger && !ev.billBelowTrigger
+    ? ` — below the ${Number(contract.triggerDepthInches)}in trigger, not charged`
+    : belowTrigger ? ` — below trigger, charged on request` : ''
+  audit.log({ action: audit.ACTIONS.CREATE, entity: 'snow_event', entityId: event.id, entityName: `$${billableAmount} (${contract.billingMode})${why}`, userId: user.userId, companyId: user.companyId })
+  // `belowTrigger` is derived, not stored — the contract's trigger can be changed later and this
+  // must always reflect the one in force. The screen needs it to explain a $0 line.
+  return c.json({ ...event, belowTrigger, triggerDepthInches: contract.triggerDepthInches }, 201)
 })
 
 app.delete('/events/:id', requirePermission('invoices:delete'), async (c) => {

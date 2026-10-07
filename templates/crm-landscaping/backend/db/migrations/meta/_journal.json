@@ -211,6 +211,13 @@
       "when": 1791601401000,
       "tag": "0029_warranty_claim_job",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1791601402000,
+      "tag": "0030_snow_event_bill_below_trigger",
+      "breakpoints": true
     }
   ]
 }

@@ -2979,6 +2979,14 @@ export const snowEvent = pgTable('snow_event', {
   pushes: integer('pushes').default(1).notNull(),
   snowfallInches: decimal('snowfall_inches', { precision: 5, scale: 2 }).default('0').notNull(),
   saltApplied: boolean('salt_applied').default(false).notNull(),
+  /**
+   * "Charge this one even though it was below the trigger depth." (T58d)
+   *
+   * The contract's trigger_depth_inches decides whether a plough pass is billable; this records the
+   * exception, because a push below trigger is a real and chargeable thing when the customer asks
+   * for it. Default false: nobody made that decision on a row that predates the flag.
+   */
+  billBelowTrigger: boolean('bill_below_trigger').default(false).notNull(),
   billableAmount: decimal('billable_amount', { precision: 12, scale: 2 }).default('0').notNull(),
   billingMode: text('billing_mode').notNull(), // snapshot of mode used
   invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
