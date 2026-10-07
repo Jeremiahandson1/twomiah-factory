@@ -362,9 +362,15 @@ export default function PipelineBoard() {
                           )}
                         </div>
 
-                        {/* Canvassing storm event name from notes */}
+                        {/* Canvassing storm event name from notes.
+
+                            blue-600, not blue-500. Measured in the browser on the live tenant:
+                            #3b82f6 on white is 3.68:1, and this is a 10px label — the storm a
+                            canvassing lead came from, on the first screen after login. Not on the
+                            owner's list; found because measure-contrast-live gained the pages this
+                            round touched and swept everything else on the way past. (T58d) */}
                         {job.source === 'canvassing' && job.notes && job.notes.startsWith('Canvassing lead') && (
-                          <p className="text-[10px] text-blue-500 truncate mt-0.5 dark:text-blue-300">
+                          <p className="text-[10px] text-blue-600 truncate mt-0.5 dark:text-blue-300">
                             {job.notes.split('—')[1]?.trim() || ''}
                           </p>
                         )}
