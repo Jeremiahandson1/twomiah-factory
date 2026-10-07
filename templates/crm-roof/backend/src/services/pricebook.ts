@@ -12,6 +12,8 @@
 
 import { db } from '../../db/index.ts'
 import { pricebookCategory, pricebookItem } from '../../db/schema.ts'
+// One numbering rule for every document in the product — see the note on nextNumber.
+import { nextNumber } from '../shared/invoicing/money.ts'
 import { eq, and, or, ilike, asc, desc, count, sql, inArray, max } from 'drizzle-orm'
 import { notFound } from '../utils/errors.ts'
 
@@ -142,12 +144,21 @@ export async function createItem(companyId: string, data: any) {
   return item
 }
 
+/**
+ * SVC codes only ever go forwards. (T58j)
+ *
+ *   owner: "pricebook SVC- codes are reused."
+ *
+ * This counted the rows: `SVC-${COUNT + 1}`. A count does not even need the NEWEST row deleted to
+ * break — delete ANY item and the count collides with a code that still exists. Five services,
+ * delete the second, and the next one is issued SVC-0005, which SVC-0005 already has. These codes
+ * go on quotes in front of a homeowner.
+ *
+ * `nextNumber` reads the highest existing code and respects the company's high-water mark, so a
+ * deleted code is not handed out again either. See the note on it for the race it does not change.
+ */
 async function generateItemCode(companyId: string): Promise<string> {
-  const [result] = await db.select({ value: count() })
-    .from(pricebookItem)
-    .where(eq(pricebookItem.companyId, companyId))
-
-  return `SVC-${String((result?.value ?? 0) + 1).padStart(4, '0')}`
+  return nextNumber(db, pricebookItem, pricebookItem.code, pricebookItem.companyId, companyId, { prefix: 'SVC', pad: 4 })
 }
 
 /**

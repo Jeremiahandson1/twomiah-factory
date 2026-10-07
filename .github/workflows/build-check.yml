@@ -1299,6 +1299,12 @@ jobs:
       # can see it — PGlite serialises — so the shape is guarded instead. (T41)
       - name: "billing race — bill-once handlers lock the row and use the shared numbering"
         run: bun run scripts/check-billing-race-guarded.ts
+      # "Field-service deleted invoice numbers are reused." They were: "highest existing + 1" is a
+      # function of the rows that still EXIST, so deleting the newest invoice handed its number to the
+      # next one. The SKU, PO and SVC generators were worse — they counted rows, so deleting ANY row
+      # produced a code that still belonged to something. Runs the real statement against PGlite.
+      - name: "document numbers — a deleted number is never handed out again"
+        run: bun run scripts/check-numbers-never-reused.ts
 
   revenue-one-definition:
     name: "Revenue one definition"

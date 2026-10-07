@@ -91,7 +91,14 @@ async function main() {
       { title: 'How do I schedule work?', content: 'Go to the Schedule page to see your calendar. Click a date to create a job, or drag an existing job to move it. Assign who is doing it, set an estimated duration, and choose the job type. The calendar has day, week and month views.', category: 'Scheduling', isFaq: true, sortOrder: 5 },
       { title: 'Team Management', content: 'Add team members from the Team page. Each person gets a role — Viewer can look but change nothing, Staff handles day-to-day work, Manager has full access to work and invoicing, Admin also has company settings and the team itself. Team members can be assigned to jobs and have their time logged for payroll.', category: 'Team', isFaq: false, sortOrder: 6 },
       { title: 'How do I track time?', content: 'Use the Time page to log hours against a job. People can clock in and out on site, or add an entry by hand. Every entry links to a specific job, so billing and labour cost stay accurate.', category: 'Time & Expenses', isFaq: true, sortOrder: 7 },
-      { title: 'Equipment & Service History', content: 'Track the equipment you look after for a customer and keep its full service history. Attach photos, manuals and warranty documents to the record so they are to hand the next time you are on site.', category: 'Documents', isFaq: false, sortOrder: 8 },
+        // "A knowledge-base article about Equipment" — the owner, on the showcase tenant. This template
+        // serves the SHOWCASE verticals (gyms, studios, caterers), and the article it seeded was the
+        // field-service one: "the equipment you look after for a customer", "the next time you are on
+        // site". A gym looks after its own equipment and nobody is on site at a customer's. It is the
+        // last survivor of the "HVAC help centre on a gym" family described in the note below — that
+        // clean-up took the invented customers and jobs and left the help article behind. The
+        // crm-fieldservice copy is correct where it is and stays.
+        { title: 'Files and documents', content: 'Attach files to a customer, a job or a quote — photos, signed paperwork, anything you need to find again. They stay on the record, so whoever opens it next has everything you had.', category: 'Documents', isFaq: false, sortOrder: 8 },
     ]
     for (const article of helpArticles) {
       await db.insert(supportKnowledgeBase).values({

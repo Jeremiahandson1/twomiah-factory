@@ -486,7 +486,7 @@ app.post('/ai-chat', async (c) => {
   const asked = typeof message === 'string' ? message.trim() : '';
   if (!asked) return c.json({ error: 'Type a question first.' }, 400);
   if (asked.length > MAX_CHAT_CHARS) {
-    return c.json({ error: `That question is too long — keep it under ${MAX_CHAT_CHARS.toLocaleString()} characters.` }, 400);
+    return c.json({ error: `That question is too long — keep it under 8,000 characters.` }, 400);
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;

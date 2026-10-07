@@ -17,6 +17,8 @@
 
 import { Hono } from 'hono'
 import { eq, and, or, ilike, count, desc, asc, gte, gt, sql, inArray } from 'drizzle-orm'
+// One numbering rule for every document in the product — see the note on nextNumber.
+import { nextNumber } from '../invoicing/money'
 
 export interface InventoryTables {
   inventoryItem: any; inventoryLocation: any; stockLevel: any;
@@ -132,14 +134,24 @@ async function createItem(companyId: string, data: any) {
 }
 
 /**
- * Generate SKU
+ * Generate SKU — through the shared numbering, which only ever goes forwards. (T58j)
+ *
+ * This counted the rows: `PART-${COUNT + 1}`. A count is wrong in a way that is worse than the
+ * reused invoice numbers the owner reported, because it does not need the NEWEST row to be deleted —
+ * deleting ANY row makes the count collide with a SKU that still exists. Five parts, delete the
+ * second, and the next part is issued PART-00005, which PART-00005 already has. A SKU is what a
+ * technician types to find a part.
+ *
+ * `nextNumber` reads the highest existing code and takes the company's high-water mark into account,
+ * so a deleted SKU is never handed out again either.
+ *
+ * It is passed `db` rather than a transaction, which is what this helper has always had. The
+ * advisory lock therefore does not outlive the statement, so two simultaneous creates can still
+ * race — exactly as true before this change, and not what was reported. The collision this fixes is
+ * the one that happens with a single user and one delete.
  */
 async function generateSku(companyId: string): Promise<string> {
-  const [result] = await db.select({ value: count() })
-    .from(inventoryItem)
-    .where(eq(inventoryItem.companyId, companyId))
-
-  return `PART-${String((result?.value ?? 0) + 1).padStart(5, '0')}`
+  return nextNumber(db, inventoryItem, inventoryItem.sku, inventoryItem.companyId, companyId, { prefix: 'PART', pad: 5 })
 }
 
 /**
@@ -757,12 +769,9 @@ async function createPurchaseOrder(companyId: string, data: any) {
   return { ...po, items, total }
 }
 
+/** Same count-based collision as the SKU above, on the number a supplier quotes back at you. */
 async function generatePoNumber(companyId: string): Promise<string> {
-  const [result] = await db.select({ value: count() })
-    .from(purchaseOrder)
-    .where(eq(purchaseOrder.companyId, companyId))
-
-  return `PO-${String((result?.value ?? 0) + 1).padStart(5, '0')}`
+  return nextNumber(db, purchaseOrder, purchaseOrder.number, purchaseOrder.companyId, companyId, { prefix: 'PO', pad: 5 })
 }
 
 /**

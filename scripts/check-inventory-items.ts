@@ -30,7 +30,30 @@ const put = routes.slice(routes.indexOf("app.put('/items/:id'"), routes.indexOf(
 if (!/if \(!\(await service\.getItem\(id, user\.companyId\)\)\) return c\.json\(\{ error: 'Item not found' \}, 404\)/.test(put)) fail("PUT /items/:id must 404 for another company's or a missing item")
 if (!/try \{ await service\.updateItem\(id, user\.companyId, body\) \} catch \(err\) \{ return refused\(c, err\) \}/.test(put)) fail('PUT /items/:id must answer refusals')
 
-if (!/alert\(\(error as Error\)\?\.message \|\| 'Failed to save item'\)/.test(read('packages/tenant-ui/src/inventory/InventoryPage.tsx'))) fail("the item form must show the server's reason")
+/**
+ * THE FORM SHOWS THE SERVER'S REASON — ON THE PAGE. (T58j)
+ *
+ * This used to assert the presence of `alert((error as Error)?.message || 'Failed to save item')`.
+ * The intent was right and the encoding was not: it pinned the MECHANISM, and that mechanism was
+ * itself the defect the owner reported four separate times ("the message is a pop-up instead of
+ * showing on the page"). So when the pop-ups were replaced with a rendered banner, this guard failed
+ * the FIX — which is the "never pin the broken expression" trap.
+ *
+ * What matters is that the server's own sentence reaches the person, and that it stays on screen
+ * while they correct the field. So the rule is now: the page passes the caught error through
+ * `errorText` into state, renders it with `PageError`, and uses no pop-up at all.
+ */
+{
+  const page = read('packages/tenant-ui/src/inventory/InventoryPage.tsx')
+  if (!/import \{ PageError, errorText \}/.test(page)) fail('InventoryPage must import PageError + errorText — the server\'s reason has to render on the page')
+  if (!/setError\(errorText\(error, 'That item could not be saved\.'\)\)/.test(page)) {
+    fail("the item form must put the server's reason into state via errorText, not swallow it for a generic string")
+  }
+  if (!/<PageError message=\{error\}/.test(page)) fail('InventoryPage must RENDER the error it stored — state nothing reads is the same as no message')
+  // The thing the original rule was really protecting against, stated directly.
+  const bare = page.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+  if (/(?<![.\w])(?:window\.)?alert\s*\(/.test(bare)) fail('InventoryPage is back to a native pop-up — a refusal must render on the page')
+}
 
 if (failed) { console.error(`\ninventory items: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('inventory items: name required, money and levels non-negative, edits limited to item fields')

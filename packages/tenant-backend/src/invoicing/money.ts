@@ -275,6 +275,36 @@ export function normalizeDateInput(v: unknown): { value?: Date | null; error?: s
  * transaction (the lock is released at commit). Numbers written by other paths that do not match
  * `PREFIX-<digits>` exactly (e.g. INV-AGR-<timestamp>) are ignored instead of hijacking the sequence.
  */
+/**
+ * A DELETED NUMBER IS NOT A FREE NUMBER. (T58j)
+ *
+ *   owner: "field-service deleted invoice numbers are reused."
+ *
+ * They were, and so were quote, job, agreement and repair-order numbers, because "highest existing
+ * + 1" is a function of the rows that still EXIST. Delete the newest invoice and the next one is
+ * issued the number the deleted one had. That is wrong for a document: INV-00042 may already be in
+ * somebody's inbox, in their accounts, or quoted in an email, and a second, different INV-00042
+ * makes the two impossible to tell apart. Numbering must only ever go forwards.
+ *
+ * THE HIGH-WATER MARK lives in `company.settings.docSeq[PREFIX]` — deliberately NOT a new table.
+ * Every CRM template already has `company.settings`, so this needs no migration and no schema.ts
+ * change in thirteen places, and this round has already shown what a migration costs when it goes
+ * wrong. It is read and advanced inside the advisory lock that was already held, in one statement,
+ * so two concurrent creates still cannot pick the same number.
+ *
+ * `GREATEST(mark + 1, max + 1)` — one past whichever is higher. Which gives the property that makes
+ * this safe to ship: on a database where nothing has been deleted the mark equals the max, so the
+ * number handed out is byte-for-byte the one today's code would have handed out. Behaviour changes
+ * only AFTER a delete, which is the bug. Every existing assertion about numbering still holds.
+ *
+ * IT CANNOT BREAK A CREATE. A failed statement poisons the whole transaction, so nothing here is
+ * allowed to fail: `to_regclass` (which returns NULL rather than erroring) proves the table is there
+ * before it is touched, and a stored value that is not digits is read as 0 rather than cast. If
+ * anything is missing the mark is skipped and numbering falls back to exactly today's behaviour —
+ * degraded, never broken. Issuing a number is not the place to be clever.
+ */
+let companyTablePresent: boolean | null = null
+
 export async function nextNumber(tx: any, table: any, numberColumn: any, companyColumn: any, companyId: string, opts: { prefix: string; pad?: number; seed?: number }): Promise<string> {
   const { prefix, pad = 5, seed = 0 } = opts
   const { eq, sql } = await import('drizzle-orm')
@@ -283,7 +313,48 @@ export async function nextNumber(tx: any, table: any, numberColumn: any, company
   const re = new RegExp(`^${prefix}-(\\d+)$`)
   let max = seed
   for (const r of rows) { const m = String(r.number || '').match(re); if (m) max = Math.max(max, parseInt(m[1], 10)) }
-  const n = max + 1
+
+  let n = max + 1
+  if (companyTablePresent === null) {
+    // Cannot error: to_regclass answers NULL for a name that does not resolve.
+    const probe: any = await tx.execute(sql`SELECT to_regclass('company') IS NOT NULL AS present`)
+    companyTablePresent = !!(probe?.rows?.[0]?.present ?? probe?.[0]?.present)
+  }
+  if (companyTablePresent) {
+    /**
+     * MERGED, not `jsonb_set`. jsonb_set does not create a missing INTERMEDIATE key: on a company
+     * whose settings had no `docSeq` object yet — which is every company — `jsonb_set(settings,
+     * ARRAY['docSeq','INV'], …)` returns the settings unchanged, so the mark was silently never
+     * written and every number came back 0. Concatenation builds the path it needs.
+     * (Caught by scripts/check-numbers-never-reused.ts on its first run, not by reading it.)
+     */
+    /**
+     * EVERY PARAMETER IS CAST. `jsonb_build_object` is variadic "any" and `->>` is overloaded
+     * (jsonb->>text and jsonb->>int), so a bare placeholder in either position leaves Postgres with
+     * no way to infer a type and the whole statement fails with "could not determine data type of
+     * parameter $1" — which, because this runs inside the create, 500'd every invoice. The suites
+     * caught it; the PGlite guard had not, because there the first use of the parameter sat inside
+     * ARRAY['docSeq', $2] where the element type is inferable from its neighbour.
+     */
+    const marked: any = await tx.execute(sql`
+      UPDATE company SET settings = (
+        COALESCE(settings::jsonb, '{}'::jsonb) || jsonb_build_object('docSeq',
+          COALESCE(settings::jsonb -> 'docSeq', '{}'::jsonb) || jsonb_build_object(${prefix}::text, GREATEST(
+            CASE WHEN (settings::jsonb -> 'docSeq' ->> ${prefix}::text) ~ '^[0-9]+$'
+                 THEN ((settings::jsonb -> 'docSeq' ->> ${prefix}::text)::bigint + 1)
+                 ELSE 0 END,
+            ${n}::bigint
+          ))
+        )
+      )::json
+      WHERE id = ${companyId}::text
+      RETURNING (settings::jsonb -> 'docSeq' ->> ${prefix}::text) AS seq
+    `)
+    const seq = marked?.rows?.[0]?.seq ?? marked?.[0]?.seq
+    // A company row that is not there leaves `n` exactly as it was — today's behaviour.
+    if (seq !== undefined && seq !== null && /^\d+$/.test(String(seq))) n = Number(seq)
+  }
+
   return `${prefix}-${pad > 0 ? String(n).padStart(pad, '0') : n}`
 }
 
