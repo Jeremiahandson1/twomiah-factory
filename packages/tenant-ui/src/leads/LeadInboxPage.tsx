@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { Inbox, Phone, MessageSquare, UserPlus, XCircle, Search, RefreshCw, Clock, TrendingUp, ChevronDown, AlertCircle, ExternalLink } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { LeadsApi, LeadsConfig, LeadsSubscribe, LeadsToast, LeadRow, LeadPlatform } from './types'
-import { TRADES_LEAD_PLATFORMS, WEBSITE_FORM_LEAD_PLATFORM } from './types'
+import { TRADES_LEAD_PLATFORMS, BUILT_IN_LEAD_PLATFORMS } from './types'
 import { useLeadPalette, chipColors } from './theme'
 import type { LeadPalette } from './theme'
 import { useMayWrite } from '../auth/PermissionsContext'
@@ -43,8 +43,9 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
   const mayConvert = useMayWrite('contacts:create')
   const mayTriage = useMayWrite('contacts:update')
   const offered: LeadPlatform[] = config?.platforms || TRADES_LEAD_PLATFORMS
-  // The website form posts here on every vertical, so the inbox can always name it — see WEBSITE_FORM_LEAD_PLATFORM.
-  const platforms: LeadPlatform[] = offered.some((p) => p.value === WEBSITE_FORM_LEAD_PLATFORM.value) ? offered : [...offered, WEBSITE_FORM_LEAD_PLATFORM]
+  // The website form and call tracking post here on every vertical, so the inbox can always name them —
+  // see BUILT_IN_LEAD_PLATFORMS. A vertical's own entry for the same id wins.
+  const platforms: LeadPlatform[] = [...offered, ...BUILT_IN_LEAD_PLATFORMS.filter((b) => !offered.some((p) => p.value === b.value))]
   const jobTypeLabel = config?.jobTypeLabel || 'Job Type'
   const subtitle = config?.inboxSubtitle || 'All inbound leads from external sources in one place'
   const [leads, setLeads] = useState<LeadRow[]>([])

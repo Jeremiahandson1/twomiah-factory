@@ -9,6 +9,7 @@ import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
 import { dealInput } from '../services/deal.ts'
+import { lockLeadIdentity, findLeadContact } from '../services/leadContact.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -424,45 +425,10 @@ app.post('/import-adf', requirePermission('contacts:create'), async (c) => {
   const interest = `ADF import: interested in ${year || ''} ${make} ${model}`.replace(/\s+/g, ' ').trim()
 
   const outcome = await db.transaction(async (tx: any) => {
-    // one import at a time per customer identity in this company
-    const identity = email || (phoneDigits.length === 10 ? phoneDigits : '') || name.toLowerCase()
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`adf:${companyId}:${identity}`}))`)
-
-    let contactRecord: any = null
-    if (email) {
-      ;[contactRecord] = await tx.select().from(contact)
-        .where(and(eq(contact.companyId, companyId), sql`lower(${contact.email}) = ${email}`)).limit(1)
-    }
-    /**
-     * A SHARED PHONE IS NOT A SHARED IDENTITY. (T42 → T58d)
-     *
-     *   Owner: "an ADF lead with a different name and email but the same phone is treated as a
-     *   duplicate."
-     *
-     * It was. Email found nothing, the phone found somebody else, and the new lead was attached to
-     * THEIR contact — then the duplicate check below found that person's open ADF lead and returned
-     * it, so the new enquiry was never recorded at all. A couple on one mobile, a household landline
-     * and a business switchboard all produce this, and in each case two people are two leads.
-     *
-     * A phone match is still worth having — plenty of ADF leads arrive with a phone and no email, and
-     * matching them is the whole point. What it must not do is override evidence that this is
-     * somebody ELSE. So the match stands unless the incoming lead CONTRADICTS it: a different email,
-     * or a different name. Missing information on either side contradicts nothing.
-     *
-     * Email alone remains sufficient on its own (above) — an address is one person's.
-     */
-    if (!contactRecord && phoneDigits.length === 10) {
-      const [byPhone] = await tx.select().from(contact)
-        .where(and(eq(contact.companyId, companyId), sql`right(regexp_replace(coalesce(${contact.phone}, ''), '\\D', '', 'g'), 10) = ${phoneDigits}`)).limit(1)
-      if (byPhone) {
-        const theirEmail = String(byPhone.email || '').trim().toLowerCase()
-        const emailsDiffer = !!email && !!theirEmail && theirEmail !== email
-        const plain = (s: unknown) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ')
-        const namesDiffer = !!plain(name) && !!plain(byPhone.name) && plain(byPhone.name) !== plain(name)
-        if (!emailsDiffer && !namesDiffer) contactRecord = byPhone
-        // else: somebody else on the same line — fall through and create their own contact.
-      }
-    }
+    // One import at a time per customer identity, and the existing contact by email or an
+    // uncontradicted phone — the same rule the website form uses (services/leadContact.ts).
+    await lockLeadIdentity(tx, companyId, { name, email, phoneDigits })
+    let contactRecord: any = await findLeadContact(tx, companyId, { name, email, phoneDigits })
     let contactCreated = false
     if (!contactRecord) {
       ;[contactRecord] = await tx.insert(contact).values({

@@ -23,7 +23,17 @@ for (const f of ["text(customer, 'email')", "text(customer, 'phone')", "text(cus
 if (/getTag\(xmlText, '(email|phone|name)'/.test(r)) fail('customer fields must not be read from the whole document (the dealer <vendor> contact would match)')
 if (!/const adf = parseAdf\(xmlText\)\s*\r?\n\s*if \('error' in adf\) return c\.json\(\{ error: adf\.error \}, 400\)/.test(handler)) fail('the route must refuse what parseAdf rejects, before writing')
 if (handler.indexOf("if ('error' in adf)") > handler.indexOf('db.transaction(')) fail('validation must come before the transaction')
-if (!/pg_advisory_xact_lock\(hashtext\(/.test(handler)) fail('the import must lock on the customer identity so simultaneous copies cannot both create')
+// The lock and the contact match live in services/leadContact.ts since T59, shared with the website
+// form (routes/webhooks.ts) — so the rule is checked where it lives, and both doors must call it.
+const lc = read('templates/crm-rv/backend/src/services/leadContact.ts')
+if (!/export async function lockLeadIdentity[\s\S]*?pg_advisory_xact_lock\(hashtext\(/.test(lc)) fail('lockLeadIdentity must take an advisory lock on the customer identity')
+if (!/export async function findLeadContact[\s\S]*?lower\(\$\{contact\.email\}\) = \$\{email\}[\s\S]*?if \(!emailsDiffer && !namesDiffer\) found = byPhone/.test(lc)) fail('findLeadContact must match by email, then by a phone only when neither email nor name contradicts it')
+const txStart = handler.indexOf('db.transaction(')
+if (!(handler.indexOf('await lockLeadIdentity(tx,', txStart) > txStart)) fail('the import must lock on the customer identity so simultaneous copies cannot both create')
+if (!(handler.indexOf('await findLeadContact(tx,', txStart) > handler.indexOf('await lockLeadIdentity(tx,', txStart))) fail('the import must find the contact AFTER taking the lock, inside the transaction')
+const hook = read('templates/crm-rv/backend/src/routes/webhooks.ts')
+const hookTx = hook.indexOf('db.transaction(')
+if (!(hookTx > 0 && hook.indexOf('await lockLeadIdentity(tx,', hookTx) > hookTx && hook.indexOf('await findLeadContact(tx,', hookTx) > hook.indexOf('await lockLeadIdentity(tx,', hookTx))) fail('the website form must use the same lock and contact match as the ADF import, inside its transaction')
 if (!/eq\(salesLead\.source, 'adf_xml'\)[\s\S]*not in \('closed_won', 'closed_lost'\)[\s\S]*make_interval\(days => \$\{ADF_DUPLICATE_DAYS\}\)[\s\S]*if \(existing\) return \{ duplicate: true/.test(handler)) fail('a resent lead (same contact, same interest, open, recent) must return the existing lead')
 if (handler.indexOf('if (existing) return { duplicate: true') > handler.indexOf('tx.insert(salesLead)')) fail('the duplicate check must come before the lead insert')
 

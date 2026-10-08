@@ -62,6 +62,15 @@ export const WEBSITE_FORM_LEAD_PLATFORM: LeadPlatform = {
   description: 'Every form submission on your website becomes a lead.', instructions: [],
 }
 
+/** A first-time caller from call tracking (services/calltracking.ts), filed as `phone`. Label only, as above. */
+export const PHONE_CALL_LEAD_PLATFORM: LeadPlatform = {
+  value: 'phone', label: 'Phone call', color: '#1565c0', tone: 'blue',
+  description: 'A first-time caller on one of your tracking numbers.', instructions: [],
+}
+
+/** The doors every vertical has whether or not it offers them as sources — the inbox always names them. */
+export const BUILT_IN_LEAD_PLATFORMS: LeadPlatform[] = [WEBSITE_FORM_LEAD_PLATFORM, PHONE_CALL_LEAD_PLATFORM]
+
 /** The same vocabulary as guide cards for the Integrations page — one list per vertical, not two. */
 export function leadSourceGuides(platforms: LeadPlatform[] = TRADES_LEAD_PLATFORMS): LeadSourceGuide[] {
   return platforms.map((p) => ({
