@@ -9,7 +9,7 @@ process.env.WEBHOOK_SECRET = 'whsec-t59-rv'
 import { Hono } from 'hono'
 import { setupSchema } from './setup.ts'
 import { db } from './db/index.ts'
-import { company, contact, salesLead } from './db/schema.ts'
+import { company, contact, salesLead, unit } from './db/schema.ts'
 import { eq } from 'drizzle-orm'
 import { errorHandler } from './src/utils/errors.ts'
 
@@ -74,12 +74,26 @@ console.log('\n══════════ the website chat, phone only ═�
   check('…as a chat lead in the pipeline', (await leads()).some((l) => l.source === 'website_chat' && l.stage === 'new'))
 }
 
+console.log('\n══════════ the chat says which unit ══════════')
+{
+  const [u]: any[] = await db.insert(unit).values({ companyId: co.id, category: 'travel_trailer', stockNumber: 'J1042', year: 2024, make: 'Jayco', modelName: 'Jay Flight' } as any).returning()
+  const r = await post({ name: 'Vic Viewer', email: 'vic-t59@test.local', service: 'Website Chat', leadType: 'chat', source: 'website_chat', unitOfInterest: '2024 Jayco Jay Flight (Stock #j1042)', message: 'Captured by the AI chat assistant' })
+  check('accepted', r.status === 201, { status: r.status, body: r.text?.slice(0, 300) })
+  const vic = (await leads()).find((l) => l.contactId === r.json?.id)
+  check('the vehicle of interest is ON the lead', /Interested in: 2024 Jayco Jay Flight \(Stock #j1042\)/.test(vic?.notes || ''), { notes: vic?.notes })
+  check('…and the stock number links the lead to that unit (case aside)', vic?.unitId === u.id, { unitId: vic?.unitId, expected: u.id })
+  const r2 = await post({ name: 'Wes Wanderer', email: 'wes-t59@test.local', source: 'website_chat', unitOfInterest: 'something with bunks (Stock #NOPE9)', message: 'Captured by the AI chat assistant' })
+  const wes = (await leads()).find((l) => l.contactId === r2.json?.id)
+  check('a stock number that is not in stock links nothing — no guess', r2.status === 201 && wes && wes.unitId === null && /Interested in: something with bunks/.test(wes.notes || ''), wes)
+}
+
 console.log('\n══════════ a shared phone is not a shared identity ══════════')
 {
   const r = await post({ name: 'Sam Rambler', phone: '608-555-0181', service: 'Toy hauler', message: 'Trade-in value?', source: 'website' })
   check('accepted', r.status === 201, { status: r.status, body: r.text?.slice(0, 300) })
   const ps = await people()
-  check('…a DIFFERENT name on the same line is a second person', ps.length === 2 && ps.some((p) => p.name === 'Sam Rambler' && p.id === r.json?.id), ps.map((p) => p.name))
+  const rita = ps.find((p) => p.name === 'Rita Rambler')
+  check('…a DIFFERENT name on the same line is a second person', ps.filter((p) => p.name === 'Sam Rambler').length === 1 && r.json?.id !== rita?.id && ps.some((p) => p.name === 'Sam Rambler' && p.id === r.json?.id), ps.map((p) => p.name))
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)

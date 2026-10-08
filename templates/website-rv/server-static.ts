@@ -588,12 +588,24 @@ app.post('/reserve/:stock', async (c) => {
   try { body = await c.req.json() } catch {}
   const title = [unit.year, unit.make, unit.modelName].filter(Boolean).join(' ')
 
-  appendLead({
+  const reservation = {
     name: body.name || '', email: body.email || '', phone: body.phone || '',
     service: 'Unit Reservation', leadType: 'reservation', source: 'inventory-detail',
     unitOfInterest: title + ' (Stock #' + (unit.stockNumber || stock) + ')',
     message: body.message || 'Reservation request',
-  })
+  }
+  appendLead(reservation)
+  // A customer reserving a unit — often about to pay a deposit — is the hottest lead the site produces,
+  // and it was only written to this site's own leads.json: it never reached the CRM pipeline the chat
+  // and the contact form both feed. Same webhook, same secret; the stock number in unitOfInterest links
+  // the CRM lead to the unit. A CRM that is down must not stop the reservation, so a failure is logged only.
+  const crmUrl = process.env.CRM_API_URL, crmSecret = process.env.WEBHOOK_SECRET || process.env.JWT_SECRET
+  if (crmUrl && crmSecret && reservation.name && (reservation.phone || reservation.email)) {
+    try {
+      const res = await fetch(crmUrl.replace(/\/$/, '') + '/api/webhooks/leads', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-webhook-secret': crmSecret }, body: JSON.stringify(reservation), signal: AbortSignal.timeout(10_000) })
+      if (!res.ok) console.error('[Reserve] CRM forward failed:', res.status)
+    } catch (e: any) { console.warn('[Reserve] CRM forward failed:', e?.message || e) }
+  }
 
   const cfg = loadJSON('reserve-config.json') || {}
   if (cfg.enabled && cfg.stripeSecretKey) {

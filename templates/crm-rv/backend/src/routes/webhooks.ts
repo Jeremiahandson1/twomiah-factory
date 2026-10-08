@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import crypto from 'crypto'
 import { db } from '../../db/index.ts'
-import { contact, company, salesLead } from '../../db/schema.ts'
+import { contact, company, salesLead, unit } from '../../db/schema.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import { eq, asc, and, isNull, sql } from 'drizzle-orm'
 import logger from '../services/logger.ts'
@@ -25,7 +25,7 @@ app.post('/leads', async (c) => {
   }
 
   const body = await c.req.json()
-  const { name, email, phone, service, message, source, address, city, state, zip } = body
+  const { name, email, phone, service, message, source, address, city, state, zip, unitOfInterest } = body
 
   if (!name) {
     return c.json({ error: 'Name is required' }, 400)
@@ -38,10 +38,16 @@ app.post('/leads', async (c) => {
     return c.json({ error: 'No company configured' }, 500)
   }
 
+  // The website chat sends what the visitor wants as `unitOfInterest` ("2024 Jayco Jay Flight (Stock
+  // #J1042)"). It was dropped on the floor, so the salesperson saw "Captured by the AI chat assistant"
+  // and nothing about the unit. It is on the lead now, and a stock number in it links the lead to that unit.
+  const interest = typeof unitOfInterest === 'string' ? unitOfInterest.trim().slice(0, 200) : ''
   const notes = [
     service && `Service: ${service}`,
+    interest && `Interested in: ${interest}`,
     message && `Message: ${message}`,
   ].filter(Boolean).join('\n')
+  const stockNumber = interest.match(/stock\s*#?\s*([A-Za-z0-9-]+)/i)?.[1] || ''
 
   const leadSource = source || 'website'
 
@@ -91,7 +97,14 @@ app.post('/leads', async (c) => {
       )).limit(1)
       if (open) return { person, created, lead: open, duplicate: true }
     }
-    const [opened] = await tx.insert(salesLead).values({ contactId: person.id, stage: 'new', source: leadSource, notes: notes || undefined, companyId: comp.id }).returning()
+    // Only a unit of THIS dealer's, matched on its stock number exactly — never a guess from the model name.
+    let unitId: string | null = null
+    if (stockNumber) {
+      const [u] = await tx.select({ id: unit.id }).from(unit)
+        .where(and(eq(unit.companyId, comp.id), sql`lower(${unit.stockNumber}) = ${stockNumber.toLowerCase()}`)).limit(1)
+      unitId = u?.id || null
+    }
+    const [opened] = await tx.insert(salesLead).values({ contactId: person.id, unitId, stage: 'new', source: leadSource, notes: notes || undefined, companyId: comp.id }).returning()
     return { person, created, lead: opened, duplicate: false }
   })
 

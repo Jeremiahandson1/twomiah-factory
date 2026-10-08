@@ -18,12 +18,33 @@ import { AnimatedCard } from '../../src/components/AnimatedCard'
 import { useRealTimeEvent, EVENTS } from '../../src/socket/SocketContext'
 import { usePushNotifications } from '../../src/hooks/usePushNotifications'
 
+/**
+ * What /api/dashboard/stats actually sends — which is NOT one shape. (T59)
+ *
+ * The jobs-family CRMs (contractor, field service, landscaping) send contacts / newLeads / jobs /
+ * quotes / invoices; dispensary sends customers and today.*; RV sends inventory / sales / service. This
+ * screen read the jobs-family keys for everybody, so dispensary's four cards were all 0 and its
+ * "Customers" read a `contacts` key dispensary never sends. Every key is optional because the server
+ * drops what the caller may not see (invoices for a technician, newLeads without the Lead Inbox).
+ *
+ * Money is DOLLARS on every one of them — invoice.total is decimal(12,2) and the web shows the same
+ * figure unchanged. This screen divided it by 100, so $1,200 owed read "$12".
+ */
 interface Stats {
-  contacts: number
-  jobs: { total: number; today: number; byStatus: Record<string, number> }
-  quotes: { total: number; pending: number; approved: number; totalValue: number }
-  invoices: { total: number; outstanding: number; outstandingValue: number }
+  contacts?: number
+  newLeads?: number
+  jobs?: { total?: number; today?: number; byStatus?: Record<string, number> }
+  quotes?: { total?: number; pending?: number; approved?: number; totalValue?: number }
+  invoices?: { total?: number; outstanding?: number; outstandingValue?: number }
+  // dispensary
+  customers?: number
+  today?: { revenue?: number; orderCount?: number; pendingOrders?: number }
+  // rv
+  sales?: { openLeads?: number }
+  service?: { openRepairOrders?: number }
 }
+
+const dollars = (v: unknown) => `$${Math.round(Number(v) || 0).toLocaleString()}`
 
 export default function DashboardScreen() {
   const t = useTheme()
@@ -131,19 +152,21 @@ function getVerticalConfig(vertical: string) {
 function getStatCards(vertical: string, stats: Stats | null, unitCount = 0) {
   if (!stats) return []
   switch (vertical) {
+    // NOTE: 'rv' is not in VerticalContext's VALID_VERTICALS yet, so the app never selects it; these are
+    // the keys the RV dashboard really sends, ready for when it does. "Customers" counted every contact,
+    // leads included — the open sales leads are the dealership's working number.
     case 'rv':
       return [
         { label: 'Inventory', value: unitCount, icon: 'car-sport', color: '#3b82f6' },
-        { label: 'Customers', value: stats.contacts ?? 0, icon: 'people', color: '#8b5cf6' },
-        { label: 'In Service', value: (stats.jobs?.byStatus?.in_progress ?? 0) + (stats.jobs?.byStatus?.scheduled ?? 0), icon: 'construct', color: '#22c55e' },
-        { label: 'Revenue', value: `$${((stats.invoices?.outstandingValue ?? 0) / 100).toFixed(0)}`, icon: 'cash', color: '#f59e0b' },
+        { label: 'Open Leads', value: stats.sales?.openLeads ?? 0, icon: 'people', color: '#8b5cf6' },
+        { label: 'Open Repair Orders', value: stats.service?.openRepairOrders ?? 0, icon: 'construct', color: '#22c55e' },
       ]
     case 'dispensary':
       return [
-        { label: 'Orders Today', value: stats.jobs?.today ?? 0, icon: 'receipt', color: '#3b82f6' },
-        { label: 'Customers', value: stats.contacts ?? 0, icon: 'people', color: '#8b5cf6' },
-        { label: 'Revenue', value: `$${((stats.invoices?.outstandingValue ?? 0) / 100).toFixed(0)}`, icon: 'cash', color: '#22c55e' },
-        { label: 'Active', value: stats.jobs?.byStatus?.in_progress ?? 0, icon: 'time', color: '#f59e0b' },
+        { label: 'Orders Today', value: stats.today?.orderCount ?? 0, icon: 'receipt', color: '#3b82f6' },
+        { label: 'Customers', value: stats.customers ?? 0, icon: 'people', color: '#8b5cf6' },
+        { label: 'Revenue Today', value: dollars(stats.today?.revenue), icon: 'cash', color: '#22c55e' },
+        { label: 'Pending Orders', value: stats.today?.pendingOrders ?? 0, icon: 'time', color: '#f59e0b' },
       ]
     case 'homecare':
       return [
@@ -157,14 +180,18 @@ function getStatCards(vertical: string, stats: Stats | null, unitCount = 0) {
         { label: 'Jobs Today', value: stats.jobs?.today ?? 0, icon: 'hammer', color: '#3b82f6' },
         { label: 'Pipeline', value: stats.quotes?.pending ?? 0, icon: 'funnel', color: '#f59e0b' },
         { label: 'Active Jobs', value: (stats.jobs?.byStatus?.scheduled ?? 0) + (stats.jobs?.byStatus?.in_progress ?? 0), icon: 'construct', color: '#22c55e' },
-        { label: 'Revenue', value: `$${((stats.invoices?.outstandingValue ?? 0) / 100).toFixed(0)}`, icon: 'cash', color: '#8b5cf6' },
+        { label: 'Outstanding', value: dollars(stats.invoices?.outstandingValue), icon: 'cash', color: '#8b5cf6' },
       ]
+    // contractor, field service, landscaping — the jobs-family dashboard (packages/tenant-backend/src/reporting/jobsDashboard.ts)
     default:
       return [
         { label: 'Jobs Today', value: stats.jobs?.today ?? 0, icon: 'hammer', color: '#3b82f6' },
+        // The web's New leads tile: Lead Inbox rows still at `new`. Absent without the inbox → no card.
+        ...(typeof stats.newLeads === 'number' ? [{ label: 'New Leads', value: stats.newLeads, icon: 'mail-unread', color: '#ec4899' }] : []),
         { label: 'Open Quotes', value: stats.quotes?.pending ?? 0, icon: 'document-text', color: '#f59e0b' },
         { label: 'Active Jobs', value: (stats.jobs?.byStatus?.scheduled ?? 0) + (stats.jobs?.byStatus?.in_progress ?? 0), icon: 'construct', color: '#22c55e' },
-        { label: 'Outstanding', value: `$${((stats.invoices?.outstandingValue ?? 0) / 100).toFixed(0)}`, icon: 'cash', color: '#8b5cf6' },
+        // Sent only to somebody who may see money; a technician gets no card rather than "$0".
+        ...(stats.invoices ? [{ label: 'Outstanding', value: dollars(stats.invoices.outstandingValue), icon: 'cash', color: '#8b5cf6' }] : []),
       ]
   }
 }
