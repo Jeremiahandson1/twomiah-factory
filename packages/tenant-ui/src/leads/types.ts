@@ -49,6 +49,19 @@ export const TRADES_LEAD_PLATFORMS: LeadPlatform[] = [
     'Log in to your Houzz Pro account', 'Go to Settings > Email Notifications', 'Forward lead notification emails to the inbound address below', 'Houzz does not support direct webhooks — email forwarding is recommended' ] },
 ]
 
+/**
+ * THE WEBSITE'S OWN CONTACT FORM. Every vertical's website posts enquiries into its Lead Inbox
+ * (routes/webhooks.ts) as `website`, whether or not the vertical offers "website" as a connectable
+ * source — the trades set does not. So the inbox needs a name for it regardless: without this, those
+ * rows wore a grey "website" chip and could not be picked in the Sources filter. Same words and colour
+ * as the showcase vertical's own `website` source, which keeps its entry and wins where it has one.
+ * This is a label only: the Lead Sources page still offers exactly the vertical's own list.
+ */
+export const WEBSITE_FORM_LEAD_PLATFORM: LeadPlatform = {
+  value: 'website', label: 'Website contact form', color: '#2e7d32', tone: 'emerald',
+  description: 'Every form submission on your website becomes a lead.', instructions: [],
+}
+
 /** The same vocabulary as guide cards for the Integrations page — one list per vertical, not two. */
 export function leadSourceGuides(platforms: LeadPlatform[] = TRADES_LEAD_PLATFORMS): LeadSourceGuide[] {
   return platforms.map((p) => ({

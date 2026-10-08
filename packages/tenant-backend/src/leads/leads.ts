@@ -74,6 +74,32 @@ export async function readInboundBody(c: any): Promise<Record<string, any> | nul
   try { const j = JSON.parse(raw); return j && typeof j === 'object' && !Array.isArray(j) ? j : null } catch { return null }
 }
 
+/**
+ * THE ONE WRITER OF A LEAD ROW. Every door into the inbox goes through here — the lead-source email and
+ * webhook below, and the website contact form (each template's routes/webhooks.ts), which used to write
+ * a Contact instead and so never reached the inbox at all. The website form has no lead_source row, so
+ * `sourceId` is null for it; the column is nullable for exactly that (ON DELETE SET NULL).
+ */
+export async function insertLead(db: any, leadTable: any, o: { companyId: string; sourceId: string | null; platform: string; parsed: ParsedLead; rawPayload: any }) {
+  const [row] = await db.insert(leadTable).values({
+    id: createId(),
+    sourcePlatform: o.platform,
+    sourceId: o.sourceId,
+    homeownerName: clip(o.parsed.name, 200) || 'Unknown',
+    email: clip(o.parsed.email, 320),
+    phone: clip(o.parsed.phone, 50),
+    jobType: clip(o.parsed.jobType, 200),
+    location: clip(o.parsed.location, 300),
+    budget: clip(o.parsed.budget, 100),
+    description: clip(o.parsed.description, 5000),
+    status: 'new',
+    rawPayload: o.rawPayload,
+    receivedAt: new Date(),
+    companyId: o.companyId,
+  }).returning()
+  return row
+}
+
 export function createLeadsRoutes(deps: LeadsDeps) {
   const { db, tables: t, authenticate, requirePermission, emitToCompany, EVENTS, audit } = deps
   const env = deps.env || process.env
@@ -92,22 +118,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
   const webhookUrlFor = (c: any, platform: string) => `${webhookBase(c)}/api/leads/inbound/webhook/${platform}`
 
   const storeLead = async (source: any, platform: string, parsed: ParsedLead, rawPayload: any) => {
-    const [row] = await db.insert(t.lead).values({
-      id: createId(),
-      sourcePlatform: platform,
-      sourceId: source.id,
-      homeownerName: clip(parsed.name, 200) || 'Unknown',
-      email: clip(parsed.email, 320),
-      phone: clip(parsed.phone, 50),
-      jobType: clip(parsed.jobType, 200),
-      location: clip(parsed.location, 300),
-      budget: clip(parsed.budget, 100),
-      description: clip(parsed.description, 5000),
-      status: 'new',
-      rawPayload,
-      receivedAt: new Date(),
-      companyId: source.companyId,
-    }).returning()
+    const row = await insertLead(db, t.lead, { companyId: source.companyId, sourceId: source.id, platform, parsed, rawPayload })
     emitToCompany(source.companyId, EVENTS.LEAD_CREATED, { id: row.id, sourcePlatform: platform, homeownerName: row.homeownerName })
     return row
   }

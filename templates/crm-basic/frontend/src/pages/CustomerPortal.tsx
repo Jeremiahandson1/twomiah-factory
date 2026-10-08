@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { formatDate } from '../utils/date';
 import { useNavigate } from 'react-router-dom';
 import {
-  Briefcase, Globe, Palette, Users, FileText,
+  Briefcase, Globe, Palette, Inbox, FileText,
   DollarSign, ArrowRight, ExternalLink, Settings,
   Clock, LogOut, Camera, Sparkles, BookOpen
 } from 'lucide-react';
@@ -146,11 +146,13 @@ export default function CustomerPortal() {
 
         {/* Quick Stats */}
         {stats && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          <div className={`grid grid-cols-2 ${typeof (stats as any).newLeads === 'number' ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-4 mb-8`}>
             {[
               // /api/dashboard/stats returns { contacts, jobs:{total}, quotes:{pending}, invoices:{totalValue} };
               // the old keys (contactCount/openJobCount/…) never existed, so every tile read 0.
-              { label: 'Contacts', value: (stats as any).contacts ?? 0, icon: Users, color: 'blue' },
+              // New leads, not a count of contacts — the owner acts on enquiries still waiting, not the
+              // size of the address book. Absent key (no Lead Inbox) → no tile, and three columns.
+              ...(typeof (stats as any).newLeads === 'number' ? [{ label: 'New Leads', value: (stats as any).newLeads, icon: Inbox, color: 'blue' }] : []),
               { label: 'Open Jobs', value: (stats as any).jobs?.open ?? 0, icon: Briefcase, color: 'emerald' },
               { label: 'Pending Quotes', value: (stats as any).quotes?.pending ?? 0, icon: FileText, color: 'amber' },
               { label: 'Total Invoiced', value: money((stats as any).invoices?.totalValue ?? 0), icon: DollarSign, color: 'green' },

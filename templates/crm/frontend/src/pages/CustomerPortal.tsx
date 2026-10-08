@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { formatDate } from '../utils/date';
 import { useNavigate } from 'react-router-dom';
 import {
-  Briefcase, Globe, Palette, Users, FileText,
+  Briefcase, Globe, Palette, Inbox, FileText,
   DollarSign, ArrowRight, ExternalLink, Settings,
   Clock, LogOut, Camera, Sparkles, BookOpen
 } from 'lucide-react';
@@ -13,6 +13,8 @@ import { SHELL } from '../shellConfig';
 
 interface DashboardStats {
   contacts?: number;
+  /** Lead Inbox rows still at `new`. Absent when the tenant has no Lead Inbox or the caller may not open it. */
+  newLeads?: number;
   jobs?: { today?: number; [key: string]: unknown };
   quotes?: { pending?: number; [key: string]: unknown };
   invoices?: { outstandingValue?: number; [key: string]: unknown };
@@ -182,9 +184,11 @@ export default function CustomerPortal() {
 
         {/* Quick Stats */}
         {stats && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          <div className={`grid grid-cols-2 ${typeof stats.newLeads === 'number' ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-4 mb-8`}>
             {([
-              { label: 'Contacts', value: stats.contacts ?? 0, icon: Users, color: 'blue' },
+              // New leads, not a count of contacts — the owner acts on enquiries still waiting, not the
+              // size of the address book. Absent key (no Lead Inbox) → no tile, and three columns.
+              ...(typeof stats.newLeads === 'number' ? [{ label: 'New Leads', value: stats.newLeads, icon: Inbox, color: 'blue' }] : []),
               { label: 'Open Jobs', value: (stats.jobs as Record<string, unknown>)?.open ?? 0, icon: Briefcase, color: 'emerald' },
               { label: 'Pending Quotes', value: (stats.quotes as Record<string, unknown>)?.pending ?? 0, icon: FileText, color: 'amber' },
               { label: 'Outstanding', value: `$${((stats.invoices as Record<string, unknown>)?.outstandingValue as number ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: DollarSign, color: 'green' },

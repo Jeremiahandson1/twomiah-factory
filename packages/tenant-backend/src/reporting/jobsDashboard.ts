@@ -6,11 +6,18 @@ import { eq, and, gte, lt, count, desc, inArray, sql, asc } from 'drizzle-orm'
 import { companyTimeZone, storeDayRange, jobLocalDay } from '../time/businessDay'
 import { invoiceBalance } from '../invoicing/money'
 
-export interface JobsDashboardTables { contact: any; project: any; job: any; quote: any; invoice: any }
+export interface JobsDashboardTables { contact: any; project: any; job: any; quote: any; invoice: any; lead?: any }
 export interface JobsDashboardDeps {
   db: any
   tables: JobsDashboardTables
   authenticate: any
+  /**
+   * The tenant's enabled feature ids. With `tables.lead`, it decides whether `newLeads` is sent: the
+   * count belongs to the Lead Inbox, so a tenant without that module gets no figure for a page it
+   * cannot open. Optional: a template that wires neither keeps exactly the response it has today.
+   */
+  featuresFor?: (companyId: string) => Promise<string[]>
+
   /**
    * May this caller see money? Invoice and quote screens are gated by invoices:read / quotes:read, but
    * the dashboard is gated by dashboard:read, which every role has — so a field technician was shown
@@ -84,6 +91,28 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
       safe(() => db.select({ status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate }).from(t.invoice).where(eq(t.invoice.companyId, companyId)), [] as any[]),
     ])
 
+    /**
+     * NEW LEADS — what the owner has not answered yet. (replaces the Contacts tile)
+     *
+     * The home screen's first tile counted every contact, leads included: 23 on the showcase tenant,
+     * of which 2 were customers, and nobody runs a business off "how many contacts". What the owner
+     * acts on is the enquiries still waiting: Lead Inbox rows at `new`, from every source — the
+     * marketplaces, Google, and now the website form, which writes to the inbox too. Marking one
+     * contacted, converted or dismissed takes it off the count.
+     *
+     * Sent only where the tenant has the Lead Inbox and the caller may open it (contacts:read, the
+     * inbox's own gate); otherwise the key is absent, the same rule the money keys follow. `contacts`
+     * stays in the response: the mobile app reads it.
+     */
+    let newLeads: number | undefined
+    if (t.lead && deps.featuresFor && (await maySee(c, 'contacts:read'))) {
+      const features = await safe(() => deps.featuresFor!(companyId), [] as string[])
+      if (features.includes('lead_inbox')) {
+        const rows = await safe(() => db.select({ value: count() }).from(t.lead).where(and(eq(t.lead.companyId, companyId), eq(t.lead.status, 'new'))), [{ value: 0 }])
+        newLeads = Number(rows[0]?.value ?? 0)
+      }
+    }
+
     const byStatus = (rows: any[]) => Object.fromEntries(rows.map(r => [r.status, Number(r.c)]))
     const sumCounts = (rows: any[]) => rows.reduce((s, r) => s + Number(r.c), 0)
     const todayByStatus = byStatus(todayRows)
@@ -119,6 +148,7 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
 
     return c.json({
       contacts: Number(contactRows[0]?.value ?? 0),
+      ...(newLeads === undefined ? {} : { newLeads }),
       projects: { total: sumCounts(projectsByStatus), byStatus: byStatus(projectsByStatus) },
       jobs: {
         total: sumCounts(jobsByStatus),

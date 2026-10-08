@@ -1,7 +1,7 @@
 // Home dashboard for the jobs-family CRMs (contractor, field service, landscaping): stat cards, today's
 // board and three recent lists. Salon, vet, events and RV keep their own home screens.
 import React, { useEffect, useState } from 'react'
-import { Briefcase, DollarSign, FileText, FolderKanban, Receipt, Users } from 'lucide-react'
+import { Briefcase, DollarSign, FileText, FolderKanban, Inbox, Receipt } from 'lucide-react'
 import { NavLink, StatusBadge, money } from '../invoicing/ui'
 import { useAuth } from '../auth/AuthContext'
 import type { JobsDashboardPageProps } from './types'
@@ -9,6 +9,8 @@ import { resolveJobsDashboardConfig } from './types'
 
 interface Stats {
   contacts?: number
+  /** Lead Inbox rows still at `new`. Absent when the tenant has no Lead Inbox or the caller may not open it. */
+  newLeads?: number
   projects?: { total?: number; byStatus?: Record<string, number> }
   jobs?: { total?: number; today?: number; byStatus?: Record<string, number>; todayByStatus?: Record<string, number>; dispatchedToday?: number; inProgressToday?: number; completedToday?: number }
   quotes?: { total?: number; pending?: number; approved?: number }
@@ -77,7 +79,11 @@ export function JobsDashboardPage({ api, user, company, config }: JobsDashboardP
 
   const single = cfg.jobsLabel.replace(/s$/, '')
   const cards: Array<{ label: string; value: string | number; icon: React.ComponentType<{ className?: string }>; color: string; link: string }> = [
-    { label: 'Contacts', value: stats?.contacts || 0, icon: Users, color: 'blue', link: '/crm/contacts' },
+    // The enquiries nobody has answered yet, not a headcount of the address book — "Contacts 23" was
+    // 21 leads and 2 customers, and the owner said it is not a number they use. The server sends
+    // newLeads only to a tenant with the Lead Inbox and a caller who may open it, so an absent key
+    // drops the tile rather than printing a zero for a page they cannot see.
+    ...(typeof stats?.newLeads === 'number' ? [{ label: 'New leads', value: stats?.newLeads ?? 0, icon: Inbox, color: 'blue', link: '/crm/leads' }] : []),
     ...(showProjects ? [{ label: 'Active projects', value: stats?.projects?.byStatus?.active || 0, icon: FolderKanban, color: 'green', link: '/crm/projects' }] : []),
     { label: `${cfg.jobsLabel} today`, value: stats?.jobs?.today || 0, icon: Briefcase, color: 'purple', link: cfg.jobsPath },
     // A count of quotes is work, not money, and the server still sends it — but the tile links to the

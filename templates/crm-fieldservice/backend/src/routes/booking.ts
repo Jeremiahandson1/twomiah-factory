@@ -20,7 +20,10 @@ export default createBookingRoutes({
   calendar: jobCalendar(job),
   options: {
     requireAddress: true,
-    contactType: 'lead',
+    // Somebody who has booked a slot is a customer with work on the schedule, not a lead to chase. As
+    // `lead` they inflated every "leads" count with people already booked in. Existing rows are
+    // healed in db/prune-legacy.ts.
+    contactType: 'client',
     notify: {
       email: ({ to, subject, html }) => sendRaw({ to, subject, html }),
       sms: (companyId, { toPhone, message }) => sendSMS(companyId, { toPhone, message }),
