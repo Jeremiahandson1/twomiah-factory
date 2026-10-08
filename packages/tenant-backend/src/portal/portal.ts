@@ -229,14 +229,25 @@ export function createPortalRoutes(deps: PortalDeps) {
    * Never throws and never awaited: portal access must not fail to change because the log was
    * unavailable.
    */
-  const logPortal = (c: any, action: string, contact: any, metadata?: Record<string, unknown>) => {
+  /**
+   * ON AND OFF MUST READ DIFFERENTLY. (T59)
+   *
+   *   Owner: "Portal on/off rows now name the contact, but both read '—', so you can't tell on from off."
+   *
+   * The audit screen's "What changed" reads metadata.description, then `changes`, then a short list of
+   * known keys (auditFields.ts → whatChanged). These rows carried only `{ portal: 'enabled' }`, which is
+   * none of those, so every one of them printed an em-dash. Each now says what happened in words, and
+   * on/off also records the switch itself as a before → after change.
+   */
+  const logPortal = (c: any, action: string, contact: any, description: string, changes?: Record<string, { old: unknown; new: unknown }>) => {
     try {
       deps.audit?.log?.({
         action,
         entity: deps.audit?.ENTITIES?.CONTACT ?? 'contact',
         entityId: contact?.id ?? null,
         entityName: contact?.name ?? contact?.email ?? null,
-        metadata: metadata ?? null,
+        changes: changes ?? null,
+        metadata: { description },
         req: c,
       })
     } catch { /* an unwritten log must not undo a portal change */ }
@@ -249,7 +260,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (!found) return c.json({ error: 'Contact not found' }, 404)
     if (!found.email) return c.json({ error: 'Contact must have an email to enable portal access' }, 400)
     const issued = await issueToken(found.id)
-    logPortal(c, deps.audit?.ACTIONS?.STATUS_CHANGE ?? 'status_change', found, { portal: 'enabled' })
+    logPortal(c, deps.audit?.ACTIONS?.STATUS_CHANGE ?? 'status_change', found, 'Client Portal switched on', { portalEnabled: { old: !!found.portalEnabled, new: true } })
     return c.json(issued)
   })
 
@@ -261,7 +272,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (!found) return c.json({ error: 'Contact not found' }, 404)
     const reissued = await issueToken(found.id)
     // Reissuing a link is the same door as opening it, so it is recorded the same way.
-    logPortal(c, deps.audit?.ACTIONS?.STATUS_CHANGE ?? 'status_change', found, { portal: 'link reissued' })
+    logPortal(c, deps.audit?.ACTIONS?.STATUS_CHANGE ?? 'status_change', found, 'Client Portal link reissued')
     return c.json(reissued)
   })
 
@@ -272,7 +283,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     await db.update(t.contact).set({ portalEnabled: false, portalToken: null, portalTokenExp: null, updatedAt: new Date() }).where(eq(t.contact.id, found.id))
     // The name comes from the row loaded above: the response is {success:true} and tells the floor
     // nothing, which is precisely why these rows read "Contact".
-    logPortal(c, deps.audit?.ACTIONS?.STATUS_CHANGE ?? 'status_change', found, { portal: 'disabled' })
+    logPortal(c, deps.audit?.ACTIONS?.STATUS_CHANGE ?? 'status_change', found, 'Client Portal switched off', { portalEnabled: { old: !!found.portalEnabled, new: false } })
     return c.json({ success: true })
   })
 

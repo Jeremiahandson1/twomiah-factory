@@ -246,6 +246,31 @@ app.get('/contracts', requirePermission('invoices:read'), async (c) => {
   return c.json({ data: rows.map(r => ({ ...r.contract, siteName: r.siteName, siteAddress: r.siteAddress })) })
 })
 
+/**
+ * WHICH CONTRACT — named by the site it covers. (T59)
+ *
+ *   Owner: "edit rows for snow contracts show 'Snow contract' instead of which contract."
+ *
+ * A snow contract has no name column, so the edit row's `contract.name` was always null and the screen
+ * fell back to "Snow contract". The create and delete rows were no better: "per_push contract" is the
+ * pricing mode, and every per-push contract a company has reads the same. What tells one contract from
+ * another is the site it covers — one contract per site is how they are sold — so the audit names the
+ * site, then the mode: "Oak Street Plaza — per push". Used for the visit rows too, which had the same
+ * fault ("$95.63 (per_inch)" said nothing about where).
+ */
+async function contractLabel(companyId: string, siteId: string | null | undefined, billingMode: string): Promise<string> {
+  const mode = String(billingMode || '').replace(/_/g, ' ')
+  if (!siteId) return `${mode} contract`
+  try {
+    const [s] = await db.select({ name: site.name, address: site.address }).from(site)
+      .where(and(eq(site.id, siteId), eq(site.companyId, companyId))).limit(1)
+    const where = String(s?.name || s?.address || '').trim()
+    return where ? `${where} — ${mode}` : `${mode} contract`
+  } catch {
+    return `${mode} contract`
+  }
+}
+
 app.post('/contracts', requirePermission('invoices:create'), async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json()
@@ -285,7 +310,7 @@ app.post('/contracts', requirePermission('invoices:create'), async (c) => {
     status: body.status ?? 'active',
     notes: body.notes ?? null,
   }).returning()
-  audit.log({ req: c, action: audit.ACTIONS.CREATE, entity: 'snow_contract', entityId: contract.id, entityName: `${billingMode} contract`, userId: user.userId, companyId: user.companyId })
+  audit.log({ req: c, action: audit.ACTIONS.CREATE, entity: 'snow_contract', entityId: contract.id, entityName: await contractLabel(user.companyId, contract.siteId, billingMode), userId: user.userId, companyId: user.companyId })
   return c.json(contract, 201)
 })
 
@@ -329,7 +354,7 @@ app.put('/contracts/:id', requirePermission('invoices:update'), async (c) => {
     action: audit.ACTIONS.UPDATE,
     entity: 'snow_contract',
     entityId: contract.id,
-    entityName: (contract as any).name ?? null,
+    entityName: await contractLabel(user.companyId, contract.siteId, contract.billingMode),
     changes: audit.diff(before as any, contract as any),
   })
   return c.json(contract)
@@ -357,7 +382,7 @@ app.delete('/contracts/:id', requirePermission('invoices:delete'), async (c) => 
   if (gone) {
     audit.log({
       req: c, action: audit.ACTIONS.DELETE, entity: 'snow_contract', entityId: gone.id,
-      entityName: `${gone.billingMode} contract`, userId: user.userId, companyId: user.companyId,
+      entityName: await contractLabel(user.companyId, gone.siteId, gone.billingMode), userId: user.userId, companyId: user.companyId,
     })
   }
   return c.body(null, 204)
@@ -431,7 +456,7 @@ app.post('/events', requirePermission('invoices:create'), async (c) => {
   const why = belowTrigger && !ev.billBelowTrigger
     ? ` — below the ${Number(contract.triggerDepthInches)}in trigger, not charged`
     : belowTrigger ? ` — below trigger, charged on request` : ''
-  audit.log({ req: c, action: audit.ACTIONS.CREATE, entity: 'snow_event', entityId: event.id, entityName: `$${billableAmount} (${contract.billingMode})${why}`, userId: user.userId, companyId: user.companyId })
+  audit.log({ req: c, action: audit.ACTIONS.CREATE, entity: 'snow_event', entityId: event.id, entityName: `$${billableAmount} — ${await contractLabel(user.companyId, contract.siteId, contract.billingMode)}${why}`, userId: user.userId, companyId: user.companyId })
   // `belowTrigger` is derived, not stored — the contract's trigger can be changed later and this
   // must always reflect the one in force. The screen needs it to explain a $0 line.
   return c.json({ ...event, belowTrigger, triggerDepthInches: contract.triggerDepthInches }, 201)
@@ -447,7 +472,7 @@ app.delete('/events/:id', requirePermission('invoices:delete'), async (c) => {
   if (gone) {
     audit.log({
       req: c, action: audit.ACTIONS.DELETE, entity: 'snow_event', entityId: gone.id,
-      entityName: `$${gone.billableAmount} (${gone.billingMode})`, userId: user.userId, companyId: user.companyId,
+      entityName: `$${gone.billableAmount} — ${await contractLabel(user.companyId, gone.siteId, gone.billingMode)}`, userId: user.userId, companyId: user.companyId,
     })
   }
   return c.body(null, 204)

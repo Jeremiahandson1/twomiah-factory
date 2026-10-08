@@ -29,7 +29,10 @@
  * write is wrapped: an audit log that can 500 an invoice is worse than one with gaps.
  */
 import type { Context, Next } from 'hono'
+import { eq } from 'drizzle-orm'
 import audit, { requestAudit } from '../services/audit.ts'
+import { db } from '../../db/index.ts'
+import * as schema from '../../db/schema.ts'
 
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
@@ -237,7 +240,49 @@ const nameFromResponse = async (c: Context): Promise<string | undefined> => {
   }
 }
 
+/**
+ * WHAT WAS DELETED. (T59)
+ *
+ *   Owner: "Delete rows in the audit log still don't name what was deleted."
+ *
+ * They could not: the name is read from the response, and a DELETE answers 204 with no body — and by
+ * then the row is gone, so there is nothing left to read it from. Measured on ctrtest after T58k: every
+ * project and change-order delete read "Deleted — change order" with entity_name null.
+ *
+ * So for a DELETE the floor reads the record BEFORE the handler runs: the table is the one the path
+ * names (entityFromPath → its export in db/schema.ts, e.g. change_order → changeOrder), the row is the
+ * id in the URL, and the name is the same `number` / `name` / `title` / `email` the response reader
+ * prefers. This is a rule for every delete the floor records, not a patch to the two the owner saw.
+ *
+ * Guarded like the rest of this file: a path that names no table, a table with no such column, or a
+ * row that is not there gives undefined, and any throw does too — the delete itself is untouched. The
+ * company is checked after the handler (the user is not known until auth has run), so a row is only
+ * ever named to the company it belongs to.
+ */
+const recordBeforeDelete = async (path: string): Promise<{ name: string; companyId?: string } | undefined> => {
+  try {
+    const id = idFromPath(path)
+    if (!id) return undefined
+    const key = entityFromPath(path).replace(/_([a-z])/g, (_m, ch: string) => ch.toUpperCase())
+    const table: any = (schema as any)[key]
+    if (!table || !table.id) return undefined
+    const col = ['number', 'name', 'title', 'email'].find((k) => table[k])
+    if (!col) return undefined
+    const [row] = await db.select({ v: table[col], companyId: table.companyId ?? table.id }).from(table).where(eq(table.id, id)).limit(1)
+    const v = row?.v
+    const name = typeof v === 'number' && Number.isFinite(v) ? String(v) : typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : ''
+    return name ? { name, companyId: table.companyId ? row.companyId : undefined } : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export async function auditWrites(c: Context, next: Next) {
+  const deleting = c.req.method.toUpperCase() === 'DELETE'
+  const before = deleting && !SKIP.some((re) => re.test(new URL(c.req.url).pathname))
+    ? await recordBeforeDelete(new URL(c.req.url).pathname)
+    : undefined
+
   /**
    * The request runs inside a scope any audit.log can mark, whatever it was handed. (T58 follow-up)
    *
@@ -269,7 +314,8 @@ export async function auditWrites(c: Context, next: Next) {
       action: actionFromPath(path, method),
       entity,
       entityId: idFromPath(path),
-      entityName: await nameFromResponse(c),
+      entityName: (await nameFromResponse(c))
+        ?? (before && (!before.companyId || before.companyId === user.companyId) ? before.name : undefined),
       // `description` is what the screen reads first, so the row says what happened in words rather
       // than leaving the reader to infer it from an HTTP status. (T58c)
       metadata: { description: describeRequest(path, method, entity), method, path, status, via: 'request' },
