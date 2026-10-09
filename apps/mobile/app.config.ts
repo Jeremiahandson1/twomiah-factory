@@ -26,6 +26,13 @@ interface VariantSpec {
   lockedVertical: 'contractor' | 'roofing' | null
   cameraPermission: string
   locationPermission: string
+  /**
+   * This variant's EAS project (expo.dev, account jeremiahandson). One project per variant, because an
+   * EAS project is bound to ONE slug — a single shared EAS_PROJECT_ID, which is what this file used to
+   * read, fails `eas build` / `eas update` with a slug mismatch on two of the three apps. Project ids
+   * are public identifiers (they sit in the update URL every installed app requests), not secrets.
+   */
+  easProjectId: string
 }
 
 const VARIANTS: Record<Variant, VariantSpec> = {
@@ -38,6 +45,7 @@ const VARIANTS: Record<Variant, VariantSpec> = {
     lockedVertical: 'contractor',
     cameraPermission: 'Allow Twomiah Build to capture job site photos and scan documents',
     locationPermission: 'Allow Twomiah Build to verify field check-ins at job sites',
+    easProjectId: 'd914c704-9047-414f-ad1b-27b7e3099b68',
   },
   roofer: {
     appName: 'Twomiah Roofer',
@@ -48,6 +56,7 @@ const VARIANTS: Record<Variant, VariantSpec> = {
     lockedVertical: 'roofing',
     cameraPermission: 'Allow Twomiah Roofer to capture roof photos and damage documentation',
     locationPermission: 'Allow Twomiah Roofer to verify canvass routes and on-site check-ins',
+    easProjectId: '4c6bd5f4-6680-451c-b3d7-d4c31eae44f4',
   },
   generic: {
     appName: 'Twomiah',
@@ -58,6 +67,7 @@ const VARIANTS: Record<Variant, VariantSpec> = {
     lockedVertical: null,
     cameraPermission: 'Take job site photos and scan documents',
     locationPermission: 'Clock in at job sites and verify field check-ins',
+    easProjectId: 'd8c46085-a58c-4fd7-9913-6f33e95fa4f7',
   },
 }
 
@@ -77,7 +87,7 @@ function asset(variant: Variant, file: string): string {
 export default ({ config }: ConfigContext): ExpoConfig => {
   const variant = resolveVariant()
   const v = VARIANTS[variant]
-  const projectId = process.env.EAS_PROJECT_ID || ''
+  const projectId = v.easProjectId
 
   return {
     ...config,
@@ -92,13 +102,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
      * still need a store build; `runtimeVersion: appVersion` is what keeps the two apart: an update is
      * only offered to builds with the same `version`, so bump `version` whenever a native change ships.
      *
-     * The update URL needs the EAS project id, which comes from `eas init` (an Expo account step). Until
-     * EAS_PROJECT_ID is set the app is built exactly as before, with updates off.
+     * The update URL is the variant's own EAS project (see easProjectId), so an update published for
+     * Twomiah Roofer can only ever reach Roofer installs.
      */
     runtimeVersion: { policy: 'appVersion' },
-    ...(projectId
-      ? { updates: { url: `https://u.expo.dev/${projectId}`, enabled: true, checkAutomatically: 'ON_LOAD', fallbackToCacheTimeout: 0 } }
-      : { updates: { enabled: false } }),
+    updates: { url: `https://u.expo.dev/${projectId}`, enabled: true, checkAutomatically: 'ON_LOAD', fallbackToCacheTimeout: 0 },
     orientation: 'portrait',
     icon: asset(variant, 'icon.png'),
     scheme: v.scheme,

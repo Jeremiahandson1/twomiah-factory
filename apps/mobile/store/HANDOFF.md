@@ -40,11 +40,12 @@ Then in `apps/mobile/eas.json`, replace:
 
 - [ ] `npm install -g eas-cli` (or `bun add -g eas-cli`)
 - [ ] `eas login`
-- [ ] From `apps/mobile/`: `eas init` (creates EAS project, sets `EAS_PROJECT_ID`)
-- [ ] Confirm `apps/mobile/app.config.ts` `extra.eas.projectId` resolves correctly (uses `process.env.EAS_PROJECT_ID`)
-- [ ] **Do this BEFORE the first store build:** with `EAS_PROJECT_ID` set, `app.config.ts` turns on
-      over-the-air updates (`expo-updates` is installed; each `eas.json` build profile has its own
-      channel). Builds made without it can never receive an OTA update — only a new store build.
+- [x] EAS projects created 2026-10-09 on the `jeremiahandson` Expo account — ONE PER VARIANT, because an
+      EAS project is bound to one slug: `twomiah-mobile` (generic), `twomiah-build`, `twomiah-roofer`.
+      Each id is in `app.config.ts` as that variant's `easProjectId`; no env var is needed.
+- [x] Over-the-air updates are on for every build (`expo-updates` is installed; each `eas.json` build
+      profile has its own channel). Run `eas` commands with the variant set, e.g.
+      `APP_VARIANT=roofer eas build --profile roofer-production`.
 
 ### Shipping a fix after launch (no store review)
 
@@ -53,7 +54,9 @@ A JavaScript-only change (screens, logic, text — every mobile fix so far):
     cd apps/mobile
     eas update --channel production --message "what changed"
 
-(`build-production` / `roofer-production` for the branded variants.) Installed apps pick it up the
+For the branded variants set the variant too, so the update goes to that app's own project:
+`APP_VARIANT=build eas update --channel build-production` / `APP_VARIANT=roofer eas update --channel
+roofer-production`. Installed apps pick it up the
 next time they open. A NATIVE change (new permission, new native module, an Expo SDK bump) still needs
 `eas build` + store submission — and bump `version` in `app.config.ts`, because `runtimeVersion` follows
 it and keeps a JS update from reaching a build without the native code it needs.
