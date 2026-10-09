@@ -10,7 +10,7 @@ import crypto from 'crypto'
 import { spawnSync } from 'child_process'
 import AdmZip from 'adm-zip'
 import bcrypt from 'bcryptjs'
-import { getFeaturesForPlan } from '../config/featureRegistry'
+import { getFeaturesForPlan, FEATURE_MAP } from '../config/featureRegistry'
 import { crmTemplateFor, premiumWebsiteTemplateFor, buildCrmApiHost, verticalFor } from '../config/industryRouting'
 import { getServiceImage } from '../config/serviceImageLibrary'
 
@@ -728,9 +728,10 @@ function processCRM(crmDir: string, config: GenerateConfig, tokens: Record<strin
   const signupFeatures = config.features?.crm || []
   const plan = config.company?.plan || 'starter'
   const planFeatures = getFeaturesForPlan(templateName, plan)
-  const features = planFeatures.length > 0
+  // …and never a not-ready (hidden) feature, whichever side asked for it. (Owner, 2026-10-09)
+  const features = (planFeatures.length > 0
     ? [...new Set([...planFeatures, ...signupFeatures])]
-    : signupFeatures
+    : signupFeatures).filter((id: string) => !FEATURE_MAP[id]?.hidden)
   // Write the resolved feature list back into config so the caller (runDeploy) can
   // persist it to tenants.features in the factory DB. Without this, the seeded CRM
   // gets the right features but the factory's tenant record stays empty, forcing

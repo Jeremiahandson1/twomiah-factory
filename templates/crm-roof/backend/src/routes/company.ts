@@ -64,7 +64,8 @@ app.put('/features', requireAdmin, async (c) => {
   // Factory already enabled stay (it may grant beyond the catalog); anything else is a 400, not a
   // silent write of a name nothing reads. Core features are always kept on.
   const [current] = await db.select({ enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
-  const offered = getFeaturesForTemplate(CRM_TEMPLATE)
+  // Not-ready (hidden) features — the roof report among them — are not the owner's to switch on. (2026-10-09)
+  const offered = getFeaturesForTemplate(CRM_TEMPLATE).filter((f) => !f.hidden)
   const allowed = new Set<string>([...offered.map(f => f.id), ...((current?.enabledFeatures || []) as string[])])
   const unknown = (features as string[]).filter(f => !allowed.has(f))
   if (unknown.length) return c.json({ error: `Unknown feature ids for this product: ${unknown.join(', ')}` }, 400)

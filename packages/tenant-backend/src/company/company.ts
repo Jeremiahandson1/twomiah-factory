@@ -411,7 +411,9 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     // Only ids this template offers may be switched on. Ids the Factory already enabled stay (it may
     // grant beyond the catalog); anything else is a 400. Core features are always kept on.
     const [current] = await db.select({ enabledFeatures: t.company.enabledFeatures }).from(t.company).where(eq(t.company.id, currentUser.companyId)).limit(1)
-    const offered = getFeaturesForTemplate(template)
+    // Not-ready (hidden) features are not the owner's to switch on — the catalogue never shows them, and
+    // the save does not accept them either. One already on (a platform admin's choice) survives a save.
+    const offered = getFeaturesForTemplate(template).filter((f) => !f.hidden)
     const allowed = new Set<string>([...offered.map((f) => f.id), ...((current?.enabledFeatures || []) as string[])])
     const unknown = (features as string[]).filter((f) => !allowed.has(f))
     if (unknown.length) return c.json({ error: `Unknown feature ids for this product: ${unknown.join(', ')}` }, 400)

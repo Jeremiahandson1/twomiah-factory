@@ -16,9 +16,10 @@ export type FeatureDef = {
   core: boolean
   templates: string[] // which CRM templates support this feature: 'crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-automotive'
   /**
-   * If true, hide from public-facing surfaces (signup wizard, pricing pages, plan upsell,
-   * marketing copy). Existing tenants with the feature in `enabledFeatures` keep using it;
-   * platform admin can still toggle it. Set to false to launch the feature.
+   * If true, the feature is NOT READY: hidden from public surfaces (signup wizard, pricing pages, plan
+   * upsell, marketing copy) and never switched on — not by a plan tier, a signup, an owner's Settings ›
+   * Features, or the Factory's admin feature save. (Owner, 2026-10-09: "don't use projects that don't
+   * work right yet.") check-not-ready-features.ts holds every one of those paths. Set to false to launch.
    */
   hidden?: boolean
 }
@@ -437,7 +438,9 @@ export const PLAN_TIERS: Record<string, Record<string, string[]>> = {
       'documents', 'client_portal', 'lead_inbox', 'crews',
     ],
     pro: [
-      'pricebook', 'measurement_reports', 'google_reviews',
+      // 'measurement_reports' (the roof report) taken out: it is hidden — not ready — and a plan must not
+      // switch on what the owner has said cannot be used yet. (Owner, 2026-10-09)
+      'pricebook', 'google_reviews',
       'two_way_texting', 'quickbooks',
     ],
     business: [
@@ -509,5 +512,7 @@ export function getFeaturesForPlan(template: string, plan: string): string[] {
   for (let i = 0; i <= planIndex; i++) {
     features.push(...tiers[tierOrder[i]])
   }
-  return features
+  // A tier never switches on what is not ready, whatever its list says — the same rule includedByDefault
+  // applies to the v2 plans. check-not-ready-features.ts keeps the lists clean too. (Owner, 2026-10-09)
+  return features.filter((id) => !FEATURE_MAP[id]?.hidden)
 }

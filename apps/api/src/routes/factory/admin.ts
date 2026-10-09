@@ -543,7 +543,10 @@ factory.patch('/customers/:id/features', requireRole('owner', 'admin'), async (c
     if (error || !tenant) return c.json({ error: 'Tenant not found' }, 404)
 
     const previousFeatures: string[] = tenant.features || []
-    const newFeatures: string[] = features.filter((f: any) => typeof f === 'string')
+    // A not-ready (hidden) feature is never switched on, from here either. Dropped and reported, not
+    // refused, so the rest of an admin's save still lands. (Owner, 2026-10-09)
+    const notReady = features.filter((f: any) => typeof f === 'string' && FEATURE_REGISTRY.find((d) => d.id === f)?.hidden)
+    const newFeatures: string[] = features.filter((f: any) => typeof f === 'string' && !notReady.includes(f))
 
     // Determine what changed
     const added = newFeatures.filter(f => !previousFeatures.includes(f))
@@ -659,6 +662,8 @@ factory.patch('/customers/:id/features', requireRole('owner', 'admin'), async (c
       syncError,
       added,
       removed,
+      // Not-ready features the save was asked for and did not switch on — said, not silently dropped.
+      ...(notReady.length ? { notReady, notice: `Not switched on — not ready yet: ${notReady.join(', ')}` } : {}),
       lastFeatureSync,
     })
   } catch (err: any) {

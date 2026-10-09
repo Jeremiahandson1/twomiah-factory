@@ -1333,6 +1333,8 @@ jobs:
         run: bun run scripts/check-my-account-reachable.ts
       - name: "roof map — the DIY measurement map can fetch its picture, label its lines and find its addresses (T61)"
         run: bun run scripts/check-roof-map-renders.ts
+      - name: "not-ready features — no plan, signup, owner save or Factory save switches one on (owner, 10/09)"
+        run: bun run scripts/check-not-ready-features.ts
 
   revenue-one-definition:
     name: "Revenue one definition"
