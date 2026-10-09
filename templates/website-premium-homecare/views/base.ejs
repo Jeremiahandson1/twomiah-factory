@@ -34,8 +34,10 @@
   <% if (settings.faviconUrl) { %><link rel="icon" href="<%= settings.faviconUrl %>"><% } %>
   <%
     // Business markup for Google (schema.org LocalBusiness). Only the facts in
-    // the owner's settings — name, phone, email, address, logo — and nothing
-    // is filled in when a field is empty. Hours are free text on the contact
+    // the owner's settings — name, phone, email, area, logo — and nothing is
+    // filled in when a field is empty. The AREA only (city, state): the street
+    // in settings.address is often the owner's home, and the site itself never
+    // shows it, so the markup must not publish it either. Hours are free text on the contact
     // section, not the opening-hours format schema.org needs, so they are left
     // out rather than guessed. The synthesized /images/logo.svg is a
     // placeholder, never the business's logo.
@@ -44,7 +46,8 @@
       _ld = { '@context': 'https://schema.org', '@type': 'LocalBusiness', name: settings.companyName, url: canonicalBase + '/' };
       if (settings.phone) _ld.telephone = settings.phone;
       if (settings.email) _ld.email = settings.email;
-      if (settings.address) _ld.address = settings.address;
+      var _area = String(settings.address || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+      if (_area.length >= 2) _ld.address = { '@type': 'PostalAddress', addressLocality: _area[_area.length - 2], addressRegion: _area[_area.length - 1] };
       var _ldLogo = settings.logoUrl && settings.logoUrl !== '/images/logo.svg' ? settings.logoUrl : '';
       if (_ldLogo) { _ld.logo = _ldLogo.charAt(0) === '/' && _ldLogo.charAt(1) !== '/' ? canonicalBase + _ldLogo : _ldLogo; _ld.image = _ld.logo; }
     }

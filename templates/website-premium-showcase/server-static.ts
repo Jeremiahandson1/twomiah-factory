@@ -1126,7 +1126,8 @@ app.get('/llms.txt', async (c) => {
   const contact = [
     settings?.phone ? 'Phone: ' + oneLine(settings.phone) : '',
     settings?.email ? 'Email: ' + oneLine(settings.email) : '',
-    settings?.address ? 'Address: ' + oneLine(settings.address) : '',
+    // The area only — the street in settings.address is often the owner's home.
+    (() => { const p = oneLine(settings?.address).split(',').map(s => s.trim()).filter(Boolean); return p.length >= 2 ? 'Area: ' + p.slice(-2).join(', ') : '' })(),
   ].filter(Boolean)
   if (contact.length) lines.push(...contact.map(l => '- ' + l), '')
   if (pageRows.length) {
