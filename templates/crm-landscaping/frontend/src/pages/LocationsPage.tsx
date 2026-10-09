@@ -6,8 +6,21 @@
 import { useState, useEffect } from 'react';
 import { MapPin, Plus, Loader2 } from 'lucide-react';
 import api from '../services/api';
+import { usePermissions } from '../contexts/PermissionsContext';
+import { useToast } from '../contexts/ToastContext';
 
 export default function LocationsPage() {
+  /**
+   * The buttons follow the server. (T60: "'New Location' is offered to the manager, but the server
+   * refuses them. The Create button fails silently with no message.") routes/locations.ts asks for
+   * locations:create / locations:delete, which a manager does not hold — managers read locations.
+   * And a refusal for anyone else is now said out loud instead of vanishing into a rejected promise.
+   */
+  const { can, known } = usePermissions();
+  // Hide only when we KNOW the person cannot (PermissionsContext's convention) — the server still refuses either way.
+  const mayCreate = !known || can('locations:create');
+  const mayDeactivate = !known || can('locations:delete');
+  const toast = useToast();
   const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -18,13 +31,24 @@ export default function LocationsPage() {
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
-    await api.post('/api/locations', { ...form, serviceAreaRadiusMiles: Number(form.serviceAreaRadiusMiles) });
+    try {
+      await api.post('/api/locations', { ...form, serviceAreaRadiusMiles: Number(form.serviceAreaRadiusMiles) });
+    } catch (err: any) {
+      // The form stays open with what was typed, so the person can fix it and try again.
+      toast.error(err?.message || 'The location could not be created.');
+      return;
+    }
     setShowCreate(false);
     setForm({ name: '', code: '', address: '', city: '', state: '', zip: '', phone: '', email: '', timezone: 'America/Chicago', serviceAreaRadiusMiles: '25', notes: '' });
+    toast.success('Location created.');
     load();
   };
 
-  const deactivate = async (id: string) => { if (confirm('Deactivate this location?')) { await api.delete(`/api/locations/${id}`); load(); } };
+  const deactivate = async (id: string) => {
+    if (!confirm('Deactivate this location?')) return;
+    try { await api.delete(`/api/locations/${id}`); } catch (err: any) { toast.error(err?.message || 'The location could not be deactivated.'); return; }
+    load();
+  };
 
   if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-sky-500 dark:text-sky-300" /></div>;
 
@@ -32,11 +56,11 @@ export default function LocationsPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div><h1 className="text-2xl font-bold flex items-center gap-2"><MapPin className="w-6 h-6 text-sky-500 dark:text-sky-300" />Locations</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Multi-branch dispatch — assign techs and jobs per location</p></div>
-        <button onClick={() => setShowCreate(true)} className="bg-sky-700 hover:bg-sky-800 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Location</button>
+        {mayCreate && <button onClick={() => setShowCreate(true)} className="bg-sky-700 hover:bg-sky-800 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Location</button>}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {locations.length === 0 ? <div className="col-span-full bg-white rounded-lg border p-12 text-center text-gray-500 dark:text-slate-400 dark:bg-slate-900">No locations yet. Add your first branch to enable multi-location dispatch.</div> :
+        {locations.length === 0 ? <div className="col-span-full bg-white rounded-lg border p-12 text-center text-gray-500 dark:text-slate-400 dark:bg-slate-900">{mayCreate ? 'No locations yet. Add your first branch to enable multi-location dispatch.' : 'No locations yet. An owner or admin can add branches.'}</div> :
           locations.map((l) => (
             <div key={l.id} className={`bg-white dark:bg-slate-900 rounded-lg border p-5 ${!l.isActive ? 'opacity-50' : ''}`}>
               <div className="flex items-start justify-between mb-3">
@@ -52,7 +76,7 @@ export default function LocationsPage() {
                 {l.phone && <div className="text-gray-500 dark:text-slate-400">{l.phone}</div>}
                 <div className="text-xs text-gray-500 mt-2 dark:text-slate-400">Service radius: {l.serviceAreaRadiusMiles} mi · {l.timezone}</div>
               </div>
-              {l.isActive && <button onClick={() => deactivate(l.id)} className="mt-3 text-xs text-red-600 hover:underline dark:text-red-400">Deactivate</button>}
+              {l.isActive && mayDeactivate && <button onClick={() => deactivate(l.id)} className="mt-3 text-xs text-red-600 hover:underline dark:text-red-400">Deactivate</button>}
             </div>
           ))}
       </div>

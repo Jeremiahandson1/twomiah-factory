@@ -84,6 +84,12 @@ export interface InvoiceDeps {
   tables: InvoiceTables
   authenticate: any
   requirePermission: (permission: string) => any
+  /**
+   * May this person do X? Same contract as the company routes' canSee: the role's list plus the grants
+   * an owner handed them by name. Optional — a template that does not wire it gets wording that is true
+   * for anyone. Used to say the right next step, never to decide access (the route guards do that).
+   */
+  canSee?: (role: string, permission: string, userId?: string) => Promise<boolean>
   emitToCompany: (companyId: string, event: string, data: any) => void
   EVENTS: Record<string, string>
   sendInvoiceEmail: (to: string, data: Record<string, unknown>) => Promise<unknown>
@@ -916,6 +922,21 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
     const body = (await c.req.json().catch(() => null)) ?? ({} as any)
+    /**
+     * "Refund them first" — said to a manager who cannot refund. (Vet T42, still open in T60)
+     *
+     * Void asks invoices:update, which a manager holds; refund asks payments:delete, which a manager
+     * does not. So the one person most likely to hit this refusal was told to do the thing they are
+     * not allowed to do. The next step now depends on who is asking. Asked BEFORE the transaction:
+     * the permission lookup reads `db`, and a helper querying the outer db inside db.transaction
+     * deadlocks the test engine (and holds the row lock for nothing in production).
+     */
+    const mayRefund = deps.canSee ? await deps.canSee(currentUser.role, 'payments:delete', currentUser.userId) : null
+    const refundFirst = (paid: number) => mayRefund === true
+      ? `This invoice has ${money(paid)} in payments that were not refunded. Refund them first, then void.`
+      : mayRefund === false
+        ? `This invoice has ${money(paid)} in payments that were not refunded, so it cannot be voided yet. An owner or admin needs to refund them first.`
+        : `This invoice has ${money(paid)} in payments that were not refunded, so it cannot be voided until they are.`
     let outcome: { status: number; body: any } = { status: 500, body: { error: 'Void failed' } }
     await db.transaction(async (tx: any) => {
       const locked: any = await tx.execute(sql`SELECT * FROM invoice WHERE id = ${id} AND company_id = ${currentUser.companyId} FOR UPDATE`)
@@ -928,7 +949,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       // like it already is for edit / send / payment. (Contractor M24.)
       if (row.status === 'refunded') { outcome = { status: 400, body: { error: 'This sale was refunded — the refund already records the reversal, so it cannot be voided.' } }; return }
       const paid = round2(Number(row.amount_paid) - Number(row.amount_refunded || 0))
-      if (paid > 0.005) { outcome = { status: 400, body: { error: `This invoice has ${money(paid)} in payments that were not refunded. Refund them first, then void.` } }; return }
+      if (paid > 0.005) { outcome = { status: 400, body: { error: refundFirst(paid) } }; return }
       const note = body.reason ? `Voided: ${String(body.reason).slice(0, 500)}` : 'Voided'
       const [updated] = await tx.update(t.invoice).set({ status: 'void', notes: row.notes ? `${row.notes}\n${note}` : note, updatedAt: new Date() }).where(eq(t.invoice.id, id)).returning()
       outcome = { status: 200, body: updated }

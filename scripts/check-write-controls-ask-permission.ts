@@ -39,6 +39,10 @@ const UI = `${ROOT}packages/tenant-ui/src`
 const EXEMPT: Record<string, string> = {
   'portal/': "the CUSTOMER's portal — the caller is the customer, authenticated by their own token, and holds no CRM role",
   'auth/': 'sign-in, password reset and two-factor enrolment — the caller is proving who they are',
+  // T60: the person's OWN two-factor and password, for every role. PUT /api/auth/password and the MFA
+  // routes act on the session's own user and carry no role gate; a permission here would be the
+  // wrong question and would put a person's own security behind the shop's door again.
+  'account/': "the signed-in person's own two-factor and password — every role manages how they themselves sign in",
   'onboarding/': 'the first-run setup wizard, which the owner walks through before anybody else has a seat',
 }
 

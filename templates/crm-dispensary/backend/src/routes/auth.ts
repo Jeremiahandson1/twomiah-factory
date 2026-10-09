@@ -14,7 +14,7 @@ import { storeTimeZone, storeDateString } from '../utils/isoTime.ts'
 import emailService from '../services/email.ts'
 import logger from '../services/logger.ts'
 import { callerIp, recordSecurityEvent } from '../utils/securityEvents.ts'
-import { passwordSchema } from '../shared/index.ts'
+import { passwordSchema, redactCompanySettings, isPrivilegedRole } from '../shared/index.ts'
 // The /me and login company payloads are built by hand here, so they never saw the sanitizeCompany
 // heal — which is how 'https:///logo.svg' survived in the auth context. (T58k)
 import { healLogo } from '../shared/company/logoAddress.ts'
@@ -288,7 +288,7 @@ app.post('/mfa', async (c) => {
 async function signedInPayload(foundUser: any, foundCompany: any, gate?: { enrolmentRequired: boolean }) {
   // Same list /me returns, so a screen can ask "may this person do X" from the moment they sign in
   // rather than rendering editable fields and a Save button that the API will refuse. (T42 L1-L3)
-  const { getPermissions: getPerms, getExtraPermissions: getExtra } = await import('../middleware/permissions.ts')
+  const { getPermissions: getPerms, getExtraPermissions: getExtra, normalizeRole } = await import('../middleware/permissions.ts')
   const permissions = await effectivePermissions(getPerms, getExtra, foundUser.id, foundUser.role)
   const tokens = generateTokens(foundUser.id, foundUser.companyId, foundUser.email, foundUser.role)
   await storeRefreshToken(foundUser.id, tokens.refreshToken, { lastLogin: new Date() })
@@ -300,7 +300,7 @@ async function signedInPayload(foundUser: any, foundCompany: any, gate?: { enrol
     // it applies to before they have had a chance to enrol. (T49 H4)
     ...(gate?.enrolmentRequired ? { mfaEnrolmentRequired: true } : {}),
     user: { id: foundUser.id, email: foundUser.email, firstName: foundUser.firstName, lastName: foundUser.lastName, role: foundUser.role, avatar: foundUser.avatar },
-    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo == null ? foundCompany.logo : healLogo(foundCompany.logo), primaryColor: foundCompany.primaryColor, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, taxRate: (foundCompany as any).taxRate, localTaxRate: (foundCompany as any).localTaxRate, exciseTaxRate: (foundCompany as any).exciseTaxRate, purchaseLimitOz: (foundCompany as any).purchaseLimitOz, visionUrl: process.env.VISION_URL || null, vertical: 'dispensary',
+    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo == null ? foundCompany.logo : healLogo(foundCompany.logo), primaryColor: foundCompany.primaryColor, enabledFeatures: foundCompany.enabledFeatures, settings: redactCompanySettings(foundCompany.settings, { privileged: isPrivilegedRole(normalizeRole(foundUser.role)) }), phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, taxRate: (foundCompany as any).taxRate, localTaxRate: (foundCompany as any).localTaxRate, exciseTaxRate: (foundCompany as any).exciseTaxRate, purchaseLimitOz: (foundCompany as any).purchaseLimitOz, visionUrl: process.env.VISION_URL || null, vertical: 'dispensary',
       // The store's own clock, so no screen has to guess the shop's date from the viewer's laptop.
       // A manager in Central looking at an Ohio store at 23:10 asked Analytics for "2026-09-27"
       // while the till, the compliance report and the server had already rolled to the 28th —
@@ -691,7 +691,7 @@ app.get('/me', authenticate, async (c) => {
      * is the whole answer — the hash never leaves the server.
      */
     user: { id: foundUser.id, email: foundUser.email, firstName: foundUser.firstName, lastName: foundUser.lastName, phone: foundUser.phone, role: normalizeRole(foundUser.role), avatar: foundUser.avatar, pinSet: !!foundUser.pinHash },
-    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo == null ? foundCompany.logo : healLogo(foundCompany.logo), primaryColor: foundCompany.primaryColor, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, taxRate: (foundCompany as any).taxRate, localTaxRate: (foundCompany as any).localTaxRate, exciseTaxRate: (foundCompany as any).exciseTaxRate, purchaseLimitOz: (foundCompany as any).purchaseLimitOz, visionUrl: process.env.VISION_URL || null, vertical: 'dispensary',
+    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo == null ? foundCompany.logo : healLogo(foundCompany.logo), primaryColor: foundCompany.primaryColor, enabledFeatures: foundCompany.enabledFeatures, settings: redactCompanySettings(foundCompany.settings, { privileged: isPrivilegedRole(normalizeRole(foundUser.role)) }), phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, taxRate: (foundCompany as any).taxRate, localTaxRate: (foundCompany as any).localTaxRate, exciseTaxRate: (foundCompany as any).exciseTaxRate, purchaseLimitOz: (foundCompany as any).purchaseLimitOz, visionUrl: process.env.VISION_URL || null, vertical: 'dispensary',
       // The store's own clock, so no screen has to guess the shop's date from the viewer's laptop.
       // A manager in Central looking at an Ohio store at 23:10 asked Analytics for "2026-09-27"
       // while the till, the compliance report and the server had already rolled to the 28th —

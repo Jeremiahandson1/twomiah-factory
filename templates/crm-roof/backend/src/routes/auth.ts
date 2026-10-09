@@ -7,10 +7,10 @@ import { db } from '../../db/index.ts'
 import { company, user } from '../../db/schema.ts'
 import { eq, and, gt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { getPermissions, getExtraPermissions } from '../middleware/permissions.ts'
+import { getPermissions, getExtraPermissions, normalizeRole } from '../middleware/permissions.ts'
 import logger from '../services/logger.ts'
 import emailService from '../services/email.ts'
-import { passwordSchema } from '../shared/index.ts'
+import { passwordSchema, redactCompanySettings, isPrivilegedRole } from '../shared/index.ts'
 
 const app = new Hono()
 
@@ -153,7 +153,7 @@ app.post('/login', async (c) => {
       slug: foundCompany.slug,
       primaryColor: foundCompany.primaryColor,
       enabledFeatures: foundCompany.enabledFeatures,
-      settings: foundCompany.settings,
+      settings: redactCompanySettings(foundCompany.settings, { privileged: isPrivilegedRole(normalizeRole(foundUser.role)) }),
       // Same flag as /me — kept in sync so a fresh login doesn't bounce the
       // user into the onboarding wizard they already finished.
       onboardingCompletedAt: foundCompany.onboardingCompletedAt,
@@ -221,7 +221,7 @@ app.get('/me', authenticate, async (c) => {
       slug: foundCompany.slug,
       primaryColor: foundCompany.primaryColor,
       enabledFeatures: foundCompany.enabledFeatures,
-      settings: foundCompany.settings,
+      settings: redactCompanySettings(foundCompany.settings, { privileged: isPrivilegedRole(normalizeRole(foundUser.role)) }),
       // OnboardingGate (App.tsx) redirects to /crm/onboarding whenever this is
       // falsy. It was never included here, so the flag was ALWAYS undefined and
       // every roof user was bounced back to the wizard forever — completing it

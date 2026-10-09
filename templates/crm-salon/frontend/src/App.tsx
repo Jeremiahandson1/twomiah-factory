@@ -32,6 +32,7 @@ import QuotesPage from './pages/QuotesPage';
 import InvoicesPage from './pages/InvoicesPage';
 import SchedulePage from './pages/SchedulePage';
 import TeamPage from './pages/TeamPage';
+import MyAccountPage from './pages/MyAccountPage';
 import ExpensesPage from './pages/ExpensesPage';
 import TimePage from './pages/TimePage';
 import SettingsPage from './pages/SettingsPage';
@@ -138,6 +139,7 @@ function App() {
                     <Route path="schedule" element={<SchedulePage />} />
                     <Route path="documents" element={<DocumentsPage />} />
                     <Route path="team" element={<TeamPage />} />
+                    <Route path="account" element={<MyAccountPage />} />
                     {/* Who changed what — the log has always been written and had nowhere to be read. (T51) */}
                     <Route path="audit" element={<AuditLog />} />
                     <Route path="expenses" element={<ExpensesPage />} />

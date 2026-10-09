@@ -56,6 +56,22 @@ let crewId = ''
   check('…an update row and a delete row, both named', all.some((r) => r.action === 'update' && r.entityName === 'North Crew A') && all.some((r) => r.action === 'delete' && r.entityName === 'North Crew A'), all.map((r) => [r.action, r.entityName]))
 }
 
+console.log('\n══════════ T60: the verb is what was done, not "create" ══════════')
+{
+  // "A supplement deny and an Xactimate export are logged in the audit as 'create'."
+  const { actionFromPath, describeRequest, entityFromPath } = await import('./src/shared/audit/writeFloor.ts')
+  for (const [method, path, action, phrase, entity] of [
+    ['POST', '/api/insurance/supplements/k9x2m4p7q1w8e5r3t6y0u2i4/deny', 'status_change', 'Denied', 'supplement'],
+    ['POST', '/api/insurance/supplements/k9x2m4p7q1w8e5r3t6y0u2i4/approve', 'status_change', 'Approved', 'supplement'],
+    ['POST', '/api/insurance/claims/k9x2m4p7q1w8e5r3t6y0u2i4/xactimate-export', 'export', 'Exported', 'claim'],
+    ['POST', '/api/invoices/k9x2m4p7q1w8e5r3t6y0u2i4/mark-paid', 'status_change', 'Marked paid', 'invoice'],
+    ['POST', '/api/crews', 'create', 'Created', 'crew'],
+  ] as const) {
+    const got = actionFromPath(path, method), said = describeRequest(path, method, entityFromPath(path))
+    check(`${path.split('/').slice(-1)[0]} is logged as "${action}" — "${phrase} — ${entity}"`, got === action && said === `${phrase} — ${entity}`, { got, said })
+  }
+}
+
 console.log('\n══════════ reading the trail ══════════')
 {
   const r = await as(owner)('GET', '/api/audit?limit=20')

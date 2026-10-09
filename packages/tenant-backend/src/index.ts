@@ -96,7 +96,7 @@ export { createContactRoutes, standardRelations, standardGuards, isValidPhone, D
 export type { ContactDeps, ContactOptions, ContactRelation, ContactGuard, ContactSitesTables } from './contacts/contacts'
 
 // Company settings + feature toggles + login users — one implementation for every CRM.
-export { createCompanyRoutes, sanitizeCompany, COMPANY_SECRETS } from './company/company'
+export { createCompanyRoutes, sanitizeCompany, redactCompanyCommercial, COMPANY_SECRETS, COMPANY_COMMERCIAL } from './company/company'
 export type { CompanyDeps } from './company/company'
 
 // Jobs / service calls + the public media proxy for job photos — one implementation for every CRM.

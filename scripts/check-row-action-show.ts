@@ -108,7 +108,36 @@ for (const f of files) {
   }
 }
 
+// ── 3. the ⋮ itself follows the filter: no button on a row with nothing to offer ──────────────────
+//
+// T60: "Team rows show a 'Row actions' (⋮) button that opens nothing" — six tenants. The shared table
+// filtered the MENU on `show` (rule 1 held) but drew the BUTTON whenever the page defined any action at
+// all, so for a manager, whose every Team action is the owner's, each row opened an empty menu. The
+// button must be conditional on the same per-row count the menu renders.
+//
+// crm-automotive is exempt from THIS rule only: it is parked (CLAUDE.md — do not modify it), and its
+// copy was not changed in T60. Rules 1 and 2 still hold it.
+let buttons = 0
+for (const f of files) {
+  const rel = relative(ROOT, f).replace(/\\/g, '/')
+  if (rel.startsWith('templates/crm-automotive/')) continue
+  const src = strip(readFileSync(f, 'utf8').replace(/\r\n/g, '\n'))
+  let at = src.indexOf('aria-label="Row actions"')
+  while (at >= 0) {
+    buttons++
+    // What stands immediately before this <button>: it must be a PER-ROW count — `something(row).length
+    // > 0 &&` — because `actions.length > 0 &&` is the page-wide test that was the bug.
+    const open = src.lastIndexOf('<button', at)
+    const lead = src.slice(Math.max(0, open - 160), open)
+    if (!/\(\s*row\s*\)\.length\s*>\s*0\s*&&\s*\(?\s*$/.test(lead)) {
+      fail(`${rel}: a "Row actions" button is drawn without checking that this row has an action — an empty ⋮ reads as broken. Wrap it in {rowActions(row).length > 0 && …}.`)
+    }
+    at = src.indexOf('aria-label="Row actions"', at + 1)
+  }
+}
+if (buttons < 4) fail(`only ${buttons} "Row actions" button(s) found — expected the shared table (twice), the crm and dispensary forks`)
+
 console.log(failed === 0
-  ? `OK: ${tables.length} row-action table(s) filter on \`show\` and dismiss without opening the row`
+  ? `OK: ${tables.length} row-action table(s) filter on \`show\` and dismiss without opening the row; ${buttons} ⋮ button(s) appear only when the row has an action`
   : `${failed} problem(s)`)
 process.exit(failed ? 1 : 0)

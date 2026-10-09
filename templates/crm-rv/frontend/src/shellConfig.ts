@@ -74,5 +74,23 @@ export const SHELL: ShellConfig = {
   nav: NAV,
   routeGates: {
   },
+  /**
+   * Settings sub-pages whose every call is admin-only on the server (routes/emailAliases, emailDomain,
+   * inboundMessages and billing are requireAdmin; migration and import are requireRole(admin, owner); the
+   * shared integrations route is requireAdmin; PUT /api/company/features is requireAdmin). The shell now
+   * answers "you don't have access" instead of drawing the page and printing the API's raw 403 —
+   * Events T60: "the raw 403 text on the email settings pages is still there." Same list as crm-basic.
+   */
+  routeRoles: {
+    '/crm/settings/billing': 'admin',
+    '/crm/settings/email': 'admin',
+    '/crm/settings/email-domain': 'admin',
+    '/crm/settings/email-inbox': 'admin',
+    '/crm/settings/integrations': 'admin',
+    '/crm/settings/migration': 'admin',
+    '/crm/settings/import': 'admin',
+    '/crm/settings/features': 'admin',
+    '/crm/email': 'admin',
+  },
   brand: { icon: Caravan, fallbackName: 'Roam' },
 };

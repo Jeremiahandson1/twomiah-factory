@@ -327,8 +327,17 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
     document.addEventListener('mousedown', close); document.addEventListener('keydown', onKey); window.addEventListener('scroll', onScroll, true)
     return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', onKey); window.removeEventListener('scroll', onScroll, true) }
   }, [menu])
+  /**
+   * A ⋮ that opens nothing is a control that lies. (T60: "Team rows show a 'Row actions' button that
+   * opens nothing" — six tenants.) The button rendered whenever the PAGE defined actions, while the menu
+   * filtered them per row by `show`; for a manager every Team action is the owner's, so every row offered
+   * an empty menu. The button now follows the same filter the menu does, and the column goes when no row
+   * has anything to offer.
+   */
+  const rowActions = (row: T) => actions.filter(a => !a.show || a.show(row))
+  const anyRowActions = !loading && data.some(r => rowActions(r).length > 0)
   const menuRow = menu ? data.find(r => r.id === menu.id) : undefined
-  const visible = menuRow ? actions.filter(a => !a.show || a.show(menuRow)) : []
+  const visible = menuRow ? rowActions(menuRow) : []
   // Open upwards when there is no room below. The menu is position:fixed, so nothing scrolls it back
   // into view: on the last rows of a long table it ran off the bottom of the window and its actions
   // could not be reached at all. The height is estimated from the number of items — it only has to be
@@ -356,7 +365,7 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
             <div key={row.id} onClick={onRowClick ? () => onRowClick(row) : undefined} className={`px-4 py-3 text-gray-900 dark:text-slate-100 ${onRowClick ? 'cursor-pointer active:bg-gray-50 dark:active:bg-slate-800' : ''}`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1 font-medium [&_p]:truncate">{head ? cell(head) : null}</div>
-                {actions.length > 0 && (
+                {rowActions(row).length > 0 && (
                   <button aria-label="Row actions" aria-haspopup="menu" onClick={e => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setMenu(menu?.id === row.id ? null : { id: row.id, x: r.right, y: r.bottom, top: r.top, anchor: e.currentTarget as HTMLElement }) }} className="-mr-1.5 -mt-1 shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-slate-200 dark:hover:bg-slate-800 dark:text-slate-200"><MoreVertical className="w-4 h-4" /></button>
                 )}
               </div>
@@ -379,7 +388,7 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
           <thead className="bg-gray-50 dark:bg-slate-800/60">
             <tr>
               {columns.map(c => <th key={c.key} className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400 ${c.className || ''}`}>{c.label}</th>)}
-              {actions.length > 0 && <th className="w-12" />}
+              {anyRowActions && <th className="w-12" />}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
@@ -404,9 +413,9 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
                     </td>
                   )
                 })}
-                {actions.length > 0 && (
+                {anyRowActions && (
                   <td className="px-2 py-3 text-right" onClick={e => e.stopPropagation()}>
-                    <button aria-label="Row actions" aria-haspopup="menu" onClick={e => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setMenu(menu?.id === row.id ? null : { id: row.id, x: r.right, y: r.bottom, top: r.top, anchor: e.currentTarget as HTMLElement }) }} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-slate-200 dark:hover:bg-slate-800 dark:text-slate-200"><MoreVertical className="w-4 h-4" /></button>
+                    {rowActions(row).length > 0 && <button aria-label="Row actions" aria-haspopup="menu" onClick={e => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setMenu(menu?.id === row.id ? null : { id: row.id, x: r.right, y: r.bottom, top: r.top, anchor: e.currentTarget as HTMLElement }) }} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-slate-200 dark:hover:bg-slate-800 dark:text-slate-200"><MoreVertical className="w-4 h-4" /></button>}
                   </td>
                 )}
               </tr>

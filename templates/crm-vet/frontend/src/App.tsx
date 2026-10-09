@@ -26,6 +26,7 @@ import WellnessPlansPage from './pages/vet/WellnessPlansPage';
 import ContactsPage from './pages/ContactsPage';
 import InvoicesPage from './pages/InvoicesPage';
 import TeamPage from './pages/TeamPage';
+import MyAccountPage from './pages/MyAccountPage';
 import SettingsPage from './pages/SettingsPage';
 import PaywallPage from './pages/PaywallPage';
 import DocumentsPage from './pages/DocumentsPage';
@@ -124,6 +125,7 @@ function App() {
                     <Route path="invoices/:id" element={<InvoiceDetailPage />} />
                     <Route path="documents" element={<DocumentsPage />} />
                     <Route path="team" element={<TeamPage />} />
+                    <Route path="account" element={<MyAccountPage />} />
                     {/* Who changed what — the log has always been written and had nowhere to be read. (T51) */}
                     <Route path="audit" element={<AuditLog />} />
                     <Route path="settings" element={<SettingsPage />} />

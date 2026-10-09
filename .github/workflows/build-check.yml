@@ -1325,6 +1325,12 @@ jobs:
       # the server clock is tomorrow after 8pm Eastern, and no daytime test can see it. (T59)
       - name: "invoice dates — every invoice is dated on the company's own calendar"
         run: bun run scripts/check-invoice-date-is-business-day.ts
+      - name: "billing visibility — the bill stays with the owner, and no screen guesses a trial (T60)"
+        run: bun run scripts/check-billing-visibility.ts
+      - name: "integrations — every integration control is owner/admin, the dispensary fork too (T60)"
+        run: bun run scripts/check-integrations-admin-only.ts
+      - name: "my account — every role reaches its own two-factor and password (T60)"
+        run: bun run scripts/check-my-account-reachable.ts
 
   revenue-one-definition:
     name: "Revenue one definition"
@@ -2241,6 +2247,8 @@ jobs:
         run: bun run tests/shared/loyalty-engine.test.ts
       - name: "Storefront proxies to crm-store fail soft"
         run: bun run tests/shared/storefront-proxy.test.ts
+      - name: "The bill stays with the owner; a paid shop never locks a manager out (T60)"
+        run: bun run tests/shared/billing-visibility.test.ts
       # happy-dom, so this needs the root dev dependencies — the two above are dependency-free.
       - name: "The cart keeps a shopper's email and reward across a re-render"
         run: bun install --frozen-lockfile && bun run tests/shared/cart-dom.test.ts

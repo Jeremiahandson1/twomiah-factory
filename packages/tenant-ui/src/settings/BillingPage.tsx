@@ -92,6 +92,8 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
   const [opening, setOpening] = useState(false)
   const [msg, setMsg] = useState<MessagingStatus | null>(null)
   const [openingSms, setOpeningSms] = useState(false)
+  // The server said this person may not see billing (requireAdmin on /api/billing). (T60)
+  const [denied, setDenied] = useState(false)
 
   useEffect(() => { load(); loadMessaging() }, [])
 
@@ -110,6 +112,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
     try {
       const res = await fetch('/api/billing/subscription', { headers: authHeaders() })
       const body = await res.json().catch(() => ({}))
+      if (res.status === 403) { setDenied(true); return }
       if (!res.ok) throw new Error(body.error || 'Could not load billing')
       setData(body)
     } catch (e: any) {
@@ -151,6 +154,26 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
   const seatsUsed = data?.seatsUsed ?? 0
   const seatPct = seatLimit ? Math.min(100, Math.round((seatsUsed / seatLimit) * 100)) : 0
   const price = sub ? money(sub.monthlyAmount) : null
+
+  /**
+   * ONE answer for someone who may not see the bill. (T60)
+   *
+   *   Contractor: "the billing page shows three conflicting messages" — the server's refusal in red,
+   *   "We could not load your subscription right now. Nothing is wrong with your account", and the
+   *   intro telling them to change plan in the billing portal. All three at once, to a manager, who
+   *   reaches this page from the trial banner's Upgrade button or a typed URL.
+   *
+   * A refusal is not a failure to load, so it gets its own state and nothing else is drawn.
+   */
+  if (denied) return (
+    <div className="max-w-4xl mx-auto p-6">
+      <h1 className="text-2xl font-bold mb-4">Billing</h1>
+      <div className="bg-white rounded-xl border border-gray-200 p-6 dark:bg-slate-900 dark:border-slate-700">
+        <h2 className="font-semibold text-gray-900 dark:text-slate-100 mb-1">Billing is handled by the account owner</h2>
+        <p className="text-sm text-gray-600 dark:text-slate-400">Only an owner or admin can see the plan and payment details. Ask them if you need something changed.</p>
+      </div>
+    </div>
+  )
 
   return (
     <div className="max-w-4xl mx-auto p-6">

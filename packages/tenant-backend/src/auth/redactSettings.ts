@@ -36,11 +36,32 @@ export const SECRET_SETTING_PATHS = [
   'integrations.stripeSecretKey',
 ] as const
 
-/** Top-level settings keys that are the OWNER's business, not the whole shop's. */
+/**
+ * Top-level settings keys that are the OWNER's business, not the whole shop's.
+ *
+ * billingType and nextBillingDate joined in T60: billing.ts mirrors them from the Factory beside the
+ * rest, and they say how and when the shop pays just as plainly as monthlyAmount does.
+ */
 export const PRIVATE_SETTING_KEYS = [
   'plan', 'planName', 'monthlyAmount', 'billingStatus', 'billingCycle', 'subscriptionStatus',
   'seatLimit', 'hasStripeCustomer', 'subscriptionSyncedAt', 'stripeCustomerId',
+  'billingType', 'nextBillingDate',
 ] as const
+
+/**
+ * The trial end date reaches EVERY role — but only while it is the thing deciding access. (T60)
+ *
+ *   Manager: "A false 'N days left in your free trial — Upgrade' banner … /api/auth/me strips
+ *   subscriptionStatus for the manager, so the app falls back to a 30-day countdown from the sign-up
+ *   date." At zero, ProtectedRoute sends that manager to the paywall — on a shop the Factory says is paid.
+ *
+ * The browser's trial gate needs one fact for a person who may not see the commercial terms: is a
+ * trial deciding whether this shop is open? So trialEndsAt is kept for them exactly when the status is
+ * `trialing` (the countdown) or `canceled` (the lock), and removed otherwise. A paid shop's stale trial
+ * date — the Factory keeps trial_ends_at after the first payment — therefore never locks anyone, while
+ * the status word itself, and everything else about the bill, stays with the owner and admins.
+ */
+const TRIAL_DECIDES_ACCESS = ['trialing', 'canceled']
 
 const getPath = (obj: any, path: string) => path.split('.').reduce((o, k) => (o == null ? o : o[k]), obj)
 
@@ -85,7 +106,10 @@ export function redactCompanySettings(settings: any, options: RedactOptions = {}
     if (parent && typeof parent === 'object') parent[`${parts[parts.length - 1]}Configured`] = true
   }
 
-  if (!options.privileged) for (const k of PRIVATE_SETTING_KEYS) delete (out as any)[k]
+  if (!options.privileged) {
+    if (!TRIAL_DECIDES_ACCESS.includes((out as any).subscriptionStatus)) delete (out as any).trialEndsAt
+    for (const k of PRIVATE_SETTING_KEYS) delete (out as any)[k]
+  }
 
   return out
 }
@@ -93,3 +117,46 @@ export function redactCompanySettings(settings: any, options: RedactOptions = {}
 /** Does this role settle the bill? Kept here so the two lists travel together. */
 export const isPrivilegedRole = (role: unknown): boolean =>
   role === 'owner' || role === 'admin'
+
+/**
+ * WHAT THE COMPANY OWES US, AND WHO IT BANKS WITH, IS NOT PART OF READING THE COMPANY. (T41)
+ *
+ * GET /api/company carries no role gate at all — every signed-in person reads the row, which is
+ * right for the name, address, logo and brand colour that the whole app renders. COMPANY_SECRETS
+ * above already removes the provider credentials (VET-41 / F-26). What it does not remove is the
+ * commercial relationship, and T41 found that reaching the wrong people on two verticals:
+ *
+ *   "Staff sees ... subscription plan / Stripe account ID in /api/company."  — Field service
+ *   "/api/company gives the manager billing details while /api/billing is 403."  — Contractor
+ *
+ * The second is the clearer statement of the fault: the dedicated billing endpoint refuses the
+ * manager, and this one hands over the same facts as a side effect of loading the shell.
+ *
+ * `integrations` goes in full rather than key by key, because it is an open JSON bag that providers
+ * write their own account identifiers into (stripeAccountId is the one the report names, and the
+ * next connector adds another without anybody revisiting this list). A denylist of keys inside an
+ * extensible object is a list that is wrong as soon as it is written.
+ *
+ * Nothing on any screen reads either field — checked across every template's frontend and the
+ * shared tenant-ui before removing them — so this costs no UI.
+ */
+export const COMPANY_COMMERCIAL = ['integrations', 'subscriptionTier', 'subscriptionStatus', 'seatLimit', 'trialEndsAt', 'billingEmail'] as const
+
+/**
+ * …AND THE SAME TERMS INSIDE `settings`. (T60)
+ *
+ *   Manager: "The top-level fields are stripped, but the nested settings object still returns plan,
+ *   monthlyAmount (99), billing status, subscriptionStatus, seatLimit and hasStripeCustomer."
+ *
+ * billing.ts mirrors the Factory's subscription INTO company.settings, so the columns above were only
+ * half of it. Measured on the live fleet, 9 of 10 tenants handed a manager the whole bill this way;
+ * dispensary was clean only because its own company route already ran redactCompanySettings. It now
+ * runs here too, so /api/company and /api/auth/me apply ONE rule to the blob instead of two.
+ */
+export function redactCompanyCommercial<T extends Record<string, any>>(row: T): T {
+  if (!row) return row
+  const clone: any = { ...row }
+  for (const f of COMPANY_COMMERCIAL) delete clone[f]
+  if (clone.settings != null) clone.settings = redactCompanySettings(clone.settings, { privileged: false })
+  return clone
+}

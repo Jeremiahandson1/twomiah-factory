@@ -52,7 +52,7 @@ const SKIP = [
 const STATUS_WORDS = [
   'approve', 'reject', 'submit', 'dismiss', 'enable', 'disable', 'complete', 'cancel', 'void',
   'archive', 'restore', 'supersede', 'file', 'review', 'status', 'mark-paid', 'activate',
-  'deactivate', 'close', 'reopen', 'publish', 'sign',
+  'deactivate', 'close', 'reopen', 'publish', 'sign', 'deny', 'decline',
 ]
 const ACTION_WORDS: Record<string, string> = {
   payments: 'payment', payment: 'payment', pay: 'payment',
@@ -67,7 +67,7 @@ const VERB_PHRASE: Record<string, string> = {
   approve: 'Approved', reject: 'Rejected', submit: 'Submitted', review: 'Reviewed',
   complete: 'Completed', cancel: 'Cancelled', void: 'Voided', dismiss: 'Dismissed', archive: 'Archived',
   restore: 'Restored', supersede: 'Superseded', close: 'Closed', reopen: 'Reopened', publish: 'Published',
-  sign: 'Signed', file: 'Filed', 'mark-paid': 'Marked paid', status: 'Status changed',
+  sign: 'Signed', file: 'Filed', 'mark-paid': 'Marked paid', status: 'Status changed', deny: 'Denied', decline: 'Declined',
   payments: 'Payment recorded', payment: 'Payment recorded', pay: 'Payment recorded',
   refund: 'Refund recorded', refunds: 'Refund recorded', credit: 'Credit recorded', credits: 'Credit recorded',
   send: 'Sent', resend: 'Sent again', export: 'Exported', convert: 'Converted', assign: 'Assigned',
@@ -75,9 +75,22 @@ const VERB_PHRASE: Record<string, string> = {
 }
 const PLAIN_FOR: Record<string, string> = { POST: 'Created', PUT: 'Updated', PATCH: 'Updated', DELETE: 'Deleted' }
 
+/**
+ * The verb is the last path segment — or, when that segment is hyphenated, its last word. (T60)
+ *
+ *   Roof: "A supplement deny and an Xactimate export are logged in the audit as 'create'."
+ *
+ * `deny` was not in the vocabulary at all, and `/claims/:id/xactimate-export` is an export whose
+ * segment is not the bare word, so both fell through to the HTTP method: POST → "create". An exact
+ * match still wins (`mark-paid` is its own word); the tail is tried only when the whole is unknown.
+ */
+const isVerb = (w: string) => !!ACTION_WORDS[w] || STATUS_WORDS.includes(w) || !!VERB_PHRASE[w]
 const lastSegment = (path: string) => {
   const parts = path.replace(/^\/api\//, '').split('/').filter(Boolean)
-  return (parts[parts.length - 1] || '').toLowerCase()
+  const last = (parts[parts.length - 1] || '').toLowerCase()
+  if (isVerb(last) || !last.includes('-')) return last
+  const tail = last.slice(last.lastIndexOf('-') + 1)
+  return isVerb(tail) ? tail : last
 }
 export const actionFromPath = (path: string, method: string): string => {
   const last = lastSegment(path)

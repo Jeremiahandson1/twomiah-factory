@@ -101,12 +101,18 @@ console.log('\n── who can reach the Stripe onboarding link ──')
   const byDriver = await as(driver)('GET', '/api/integrations/stripe/connect-url')
   check('V1: and a driver', byDriver.status === 403, { status: byDriver.status })
 
-  // Manager is the rung its sibling /stripe/disconnect uses, so manager must get PAST the gate.
-  // With no STRIPE_SECRET_KEY in the sandbox the handler answers 503 — which proves the gate let it
-  // through, and is the thing to assert rather than a 200 we cannot produce here.
+  // T60 moved the rung: "the manager can read the Stripe account ID and get a live Stripe Connect
+  // setup link … Every other tenant correctly refuses these with 403." Every other CRM's shared
+  // integrations route is requireAdmin; the dispensary was the one fork saying manager-and-up. So the
+  // manager is now REFUSED, and the owner is the one who gets past the gate — with no
+  // STRIPE_SECRET_KEY in the sandbox the handler then answers 503, which proves the gate let them
+  // through and is the thing to assert rather than a 200 we cannot produce here.
   const byManager = await as(manager)('GET', '/api/integrations/stripe/connect-url')
-  check('V1: a manager passes the gate (503 "not set up", not 403)', byManager.status !== 403,
+  check('V1/T60: a manager is REFUSED the connect URL, as on every other CRM', byManager.status === 403,
     { status: byManager.status, body: byManager.text?.slice(0, 160) })
+  const byOwner = await as(owner)('GET', '/api/integrations/stripe/connect-url')
+  check('V1/T60: …while the owner passes the gate (503 "not set up", not 403)', byOwner.status !== 403,
+    { status: byOwner.status, body: byOwner.text?.slice(0, 160) })
 }
 
 // ═════════════════ V2 · DOB and medical card ════════════════════════════════════════════════════

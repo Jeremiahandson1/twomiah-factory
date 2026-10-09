@@ -185,6 +185,11 @@ console.log('\n══════════ approving above the ask ═══�
     && Number((await supRow(supId))?.approved_amount) === 1100, { status: exact.status, row: await supRow(supId) })
   check('…and the claim total follows it to 1,100', Number((await claimRow(claimId))?.supplement_amount) === 1100,
     await claimRow(claimId))
+  // The claim's activity lines that contain `text` — a plain substring, so `$` and `(` mean themselves.
+  const trailHas = async (text: string) => ((await asOwner('GET', `/api/insurance/claims/${claimId}/activity`)).json || []).map((a: any) => String(a.body)).filter((b: string) => b.includes(text))
+  // T60 (open since T42): "The re-approve trail still doesn't say what amount was replaced."
+  const replaced = await trailHas('approved — $1,100.00 (replacing the $900.00 approved earlier)')
+  check('T60: the re-approval line names the $900.00 it replaced', replaced.length === 1, await trailHas('approved'))
 }
 
 // ══════════ a denial takes the money back off ═══════════════════════════════════════════════════
@@ -197,6 +202,8 @@ console.log('\n══════════ reversing a decision ════�
   check('T41: …while the reason is recorded', /pre-existing/.test(String(row?.denial_reason)), row)
   check('…and the claim total is back to 0', Number((await claimRow(claimId))?.supplement_amount) === 0,
     await claimRow(claimId))
+  const trailHas2 = async (text: string) => ((await asOwner('GET', `/api/insurance/claims/${claimId}/activity`)).json || []).map((a: any) => String(a.body)).filter((b: string) => b.includes(text))
+  check('T60: the denial line says the $1,100.00 approved earlier is withdrawn', (await trailHas2('denied — Carrier says it is pre-existing (withdrawing the $1,100.00 approved earlier)')).length === 1, await trailHas2('denied'))
 
   // …and back again, because that happens too.
   const again = await asManager('POST', `/api/insurance/supplements/${supId}/approve`, { approvedAmount: '1100.00' })
@@ -204,6 +211,7 @@ console.log('\n══════════ reversing a decision ════�
   const back = await supRow(supId)
   check('T41: …and the stale denial reason is cleared, not left beside the approval',
     back?.denial_reason == null && Number(back?.approved_amount) === 1100, back)
+  check('T60: …and the approval line says it reverses the denial', (await trailHas2('approved — $1,100.00 (reversing the earlier denial)')).length === 1, await trailHas2('approved'))
 }
 
 // ══════════ the scope document ══════════════════════════════════════════════════════════════════
@@ -302,12 +310,29 @@ console.log('\n══════════ the refusal that was the bug ═�
   }
 
   // …but not the shop's pitch.
-  const script = await asCanvasser('POST', '/api/canvassing/scripts', { name: 'Mine', body: 'Hello' })
+  const script = await asCanvasser('POST', '/api/canvassing/scripts', { name: 'Mine', steps: [{ title: 'Opener', body: 'Hello', tips: '' }] })
   check('T41: …while the SCRIPT library stays the shop\'s — the grant did not reach it',
     script.status === 403, { status: script.status, body: script.text?.slice(0, 180) })
-  const mgrScript = await asManager('POST', '/api/canvassing/scripts', { name: 'House pitch', body: 'Hello' })
+  const mgrScript = await asManager('POST', '/api/canvassing/scripts', { name: 'House pitch', steps: [{ title: 'Opener', body: 'Hello', tips: '' }], isDefault: false })
   check('…and a manager can still write one', mgrScript.status === 201 || mgrScript.status === 200,
     { status: mgrScript.status, body: mgrScript.text?.slice(0, 200) })
+
+  // T60: "creating a canvassing script with an empty body still succeeds (201)."
+  const emptyScript = await asManager('POST', '/api/canvassing/scripts', {})
+  check('T60: an empty script body is refused, not stored as "New Script" with no steps', emptyScript.status === 400,
+    { status: emptyScript.status, body: emptyScript.text?.slice(0, 200) })
+  const blankSteps = await asManager('POST', '/api/canvassing/scripts', { name: 'Blank', steps: [{ title: '', body: '  ', tips: 'x' }] })
+  check('T60: …and so is a script whose only step says nothing', blankSteps.status === 400, { status: blankSteps.status })
+  const noName = await asManager('POST', '/api/canvassing/scripts', { name: '   ', steps: [{ title: 'Opener', body: 'Hello', tips: '' }] })
+  check('T60: …and one with no name', noName.status === 400, { status: noName.status })
+  const mgrScriptId = (mgrScript.json as any)?.id
+  if (mgrScriptId) {
+    const renamed = await asManager('PUT', `/api/canvassing/scripts/${mgrScriptId}`, { name: 'House pitch v2' })
+    check('T60: renaming a script alone does not need its steps resent', renamed.status === 200 && (renamed.json as any)?.name === 'House pitch v2' && (renamed.json as any)?.steps?.length === 1,
+      { status: renamed.status, body: renamed.text?.slice(0, 200) })
+    const emptied = await asManager('PUT', `/api/canvassing/scripts/${mgrScriptId}`, { steps: [] })
+    check('T60: …but an edit cannot empty it', emptied.status === 400, { status: emptied.status })
+  }
 
   // The crew still may not do the things that ARE the office's.
   const claimWrite = await asCanvasser('POST', `/api/insurance/claims/${claimId}/activity`, { activityType: 'note', body: 'hi' })

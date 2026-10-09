@@ -625,7 +625,18 @@ export function createRecurringRoutes(deps: RecurringRoutesDeps) {
    * the gate cannot break a caller. The secret check is kept for the day a real scheduler is wired
    * up, but it is no longer the only thing standing here.
    */
-  app.post('/process', requirePermission('invoices:create'), async (c: any) => {
+  /**
+   * …AND IT IS THE COMPANY'S BILLING RUN, so the question is company:update. (T60)
+   *
+   *   Contractor: "The recurring-billing run returns 503 rather than a 403 role refusal."
+   *
+   * invoices:create let a manager through to the scheduler check, so the answer a manager got was
+   * "no scheduler is configured" — true, and beside the point: a manager may not run every due
+   * schedule for the whole company whether or not one is. Raising one invoice is a manager's job; a
+   * company-wide run is the owner's and the admins', the same rung that changes the company. The
+   * scheduler check still stands behind it, so an owner by hand still gets 503.
+   */
+  app.post('/process', requirePermission('company:update'), async (c: any) => {
     /**
      * FAIL CLOSED. The secret is REQUIRED, not "checked if configured". (T41)
      *

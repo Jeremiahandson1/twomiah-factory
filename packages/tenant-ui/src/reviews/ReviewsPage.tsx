@@ -155,17 +155,21 @@ function SettingsTab({ api, toast, copy, onFeatureOff }: { api: SettingsApi; toa
     catch (e: any) { const text = e?.message || 'Failed to save settings'; toast ? toast.error(text) : setMessage({ kind: 'err', text }) } finally { setSaving(false) }
   }
   if (loading) return <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
-  const field = 'w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white'
+  const field = 'w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white disabled:cursor-not-allowed disabled:bg-gray-50 dark:disabled:bg-slate-900'
   return (
     <div className="max-w-3xl space-y-6">
+      {/* T60: "Reviews › Settings stays editable for the manager, with no Save and no note explaining why."
+          Save was already withheld (settings:update); the fields were left live, so a manager could
+          change them and find no way to keep the change. Read-only now, and it says who can edit. */}
+      {!maySave && <p className="text-sm text-gray-700 dark:text-slate-300 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-4 py-3">You can see these settings. Only an owner or admin can change them.</p>}
       <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-6">
         <label className="flex items-center justify-between cursor-pointer"><div><p className="font-semibold text-gray-900 dark:text-white">Auto-Request Reviews</p><p className="text-sm text-gray-500 dark:text-slate-400">{copy.autoRequestHelp}</p></div>
-          <input type="checkbox" checked={settings?.reviewRequestEnabled ?? false} onChange={(e) => setSettings({ ...settings, reviewRequestEnabled: e.target.checked })} className="w-5 h-5 rounded text-orange-500 dark:text-orange-300" /></label>
+          <input type="checkbox" checked={settings?.reviewRequestEnabled ?? false} onChange={(e) => setSettings({ ...settings, reviewRequestEnabled: e.target.checked })} disabled={!maySave} className="w-5 h-5 rounded text-orange-500 dark:text-orange-300 disabled:cursor-not-allowed" /></label>
       </div>
       <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-6 space-y-4">
         <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2"><Star className="w-5 h-5 text-yellow-500 dark:text-yellow-300" />Google Review Link</h2>
-        <div><label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Google Review URL</label><input type="url" value={settings?.googleReviewUrl || ''} onChange={(e) => setSettings({ ...settings, googleReviewUrl: e.target.value })} placeholder="https://g.page/r/your-business/review" className={field} /><p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Paste your Google review link, or enter a Place ID below</p></div>
-        <div><label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Google Place ID (alternative)</label><input type="text" value={settings?.googlePlaceId || ''} onChange={(e) => setSettings({ ...settings, googlePlaceId: e.target.value })} placeholder="ChIJ..." className={field} />
+        <div><label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Google Review URL</label><input type="url" value={settings?.googleReviewUrl || ''} onChange={(e) => setSettings({ ...settings, googleReviewUrl: e.target.value })} placeholder="https://g.page/r/your-business/review" disabled={!maySave} className={field} /><p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Paste your Google review link, or enter a Place ID below</p></div>
+        <div><label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Google Place ID (alternative)</label><input type="text" value={settings?.googlePlaceId || ''} onChange={(e) => setSettings({ ...settings, googlePlaceId: e.target.value })} placeholder="ChIJ..." disabled={!maySave} className={field} />
           <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Find your Place ID at <a href="https://developers.google.com/maps/documentation/javascript/examples/places-placeid-finder" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline dark:text-orange-300">Google's Place ID Finder</a></p></div>
         {(settings?.reviewLink || settings?.googleReviewUrl) && (
           <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg"><p className="text-sm text-green-700 dark:text-green-400 mb-2 flex items-center gap-1"><CheckCircle className="w-4 h-4" />Review link active:</p>
@@ -175,17 +179,17 @@ function SettingsTab({ api, toast, copy, onFeatureOff }: { api: SettingsApi; toa
       <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-6 space-y-4">
         <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2"><Settings className="w-5 h-5 text-gray-500 dark:text-slate-400" />Channel &amp; Timing</h2>
         <div><label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Channel</label>
-          <select value={settings?.reviewChannel || 'both'} onChange={(e) => setSettings({ ...settings, reviewChannel: e.target.value })} className={field}><option value="both">SMS &amp; Email</option><option value="sms">SMS Only</option><option value="email">Email Only</option></select></div>
+          <select value={settings?.reviewChannel || 'both'} onChange={(e) => setSettings({ ...settings, reviewChannel: e.target.value })} disabled={!maySave} className={field}><option value="both">SMS &amp; Email</option><option value="sms">SMS Only</option><option value="email">Email Only</option></select></div>
         <div className="grid grid-cols-2 gap-4">
           <div><label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Delay After Completion</label>
-            <select value={settings?.reviewRequestDelay ?? 24} onChange={(e) => setSettings({ ...settings, reviewRequestDelay: parseInt(e.target.value) })} className={field}><option value={0}>Right away</option><option value={1}>1 hour</option><option value={2}>2 hours</option><option value={4}>4 hours</option><option value={24}>1 day</option><option value={48}>2 days</option><option value={72}>3 days</option></select></div>
+            <select value={settings?.reviewRequestDelay ?? 24} onChange={(e) => setSettings({ ...settings, reviewRequestDelay: parseInt(e.target.value) })} disabled={!maySave} className={field}><option value={0}>Right away</option><option value={1}>1 hour</option><option value={2}>2 hours</option><option value={4}>4 hours</option><option value={24}>1 day</option><option value={48}>2 days</option><option value={72}>3 days</option></select></div>
           <div><label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Follow-up After</label>
-            <select value={settings?.reviewFollowUpDelay ?? 5} onChange={(e) => setSettings({ ...settings, reviewFollowUpDelay: parseInt(e.target.value) })} className={field}><option value={0}>No follow-up</option><option value={3}>3 days</option><option value={5}>5 days</option><option value={7}>7 days</option></select></div>
+            <select value={settings?.reviewFollowUpDelay ?? 5} onChange={(e) => setSettings({ ...settings, reviewFollowUpDelay: parseInt(e.target.value) })} disabled={!maySave} className={field}><option value={0}>No follow-up</option><option value={3}>3 days</option><option value={5}>5 days</option><option value={7}>7 days</option></select></div>
         </div>
       </div>
       <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-6 space-y-4">
         <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2"><MessageSquare className="w-5 h-5 text-gray-500 dark:text-slate-400" />SMS Template</h2>
-        <textarea value={settings?.reviewSmsTemplate || ''} onChange={(e) => setSettings({ ...settings, reviewSmsTemplate: e.target.value })} rows={3} placeholder="Hi {firstName}, thanks for choosing {companyName}! We'd love your feedback — could you leave us a quick Google review? {trackingUrl}" className={`${field} text-sm`} />
+        <textarea value={settings?.reviewSmsTemplate || ''} onChange={(e) => setSettings({ ...settings, reviewSmsTemplate: e.target.value })} rows={3} placeholder="Hi {firstName}, thanks for choosing {companyName}! We'd love your feedback — could you leave us a quick Google review? {trackingUrl}" disabled={!maySave} className={`${field} text-sm`} />
         <p className="text-xs text-gray-500 dark:text-slate-400">Variables: <code className="bg-gray-100 dark:bg-slate-800 px-1 rounded">{'{firstName}'}</code> <code className="bg-gray-100 dark:bg-slate-800 px-1 rounded">{'{companyName}'}</code> <code className="bg-gray-100 dark:bg-slate-800 px-1 rounded">{'{trackingUrl}'}</code></p>
       </div>
       {message && <div role={message.kind === 'err' ? 'alert' : 'status'} className={`p-3 rounded-lg text-sm ${message.kind === 'err' ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400' : 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'}`}>{message.text}</div>}

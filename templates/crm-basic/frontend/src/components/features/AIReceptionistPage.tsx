@@ -4,6 +4,7 @@ import { Plus, Phone, MessageSquare, Bot, Edit2, Trash2, Check, PhoneIncoming, V
 import { format } from 'date-fns';
 import { Card, CardHeader, CardBody, Button, Input, Select, Modal, Textarea, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, StatusBadge, EmptyState, ConfirmDialog, Tabs, TabsList, TabsTrigger, TabsContent } from '../ui';
 import { PageError, errorText, ModuleNotEnabled, featureNotEnabled } from '../../shared';
+import { usePermissions } from '../../contexts/PermissionsContext';
 
 function useAuth() {
   // The canonical key is `accessToken`: AuthContext writes and reads that, and nothing in any CRM
@@ -120,6 +121,17 @@ export function AIReceptionistPage() {
   // whose module is perfectly enabled. (T58d)
   const [moduleOff, setModuleOff] = useState(false);
   const [callsOff, setCallsOff] = useState(false);
+  /**
+   * The controls follow the server. (T60: "the AI Receptionist rules and settings are offered to the
+   * manager, but the server refuses them.") routes/aiReceptionist.ts asks for ai-receptionist:create /
+   * :update / :delete, which only admins and the owner hold; a manager holds :read. The manager still
+   * SEES the rules and the settings — reading them is allowed — but is not handed switches that 403.
+   * Hide only when we know (PermissionsContext's convention); the server refuses either way.
+   */
+  const { can, known } = usePermissions();
+  const mayCreate = !known || can('ai-receptionist:create');
+  const mayEdit = !known || can('ai-receptionist:update');
+  const mayDelete = !known || can('ai-receptionist:delete');
   const primaryColor = instance?.primaryColor || '{{PRIMARY_COLOR}}';
 
   const fetchRules = useCallback(async () => {
@@ -227,10 +239,10 @@ export function AIReceptionistPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div><h1 className="text-2xl font-bold text-slate-900 dark:text-white">AI Receptionist</h1><p className="text-slate-600 dark:text-slate-400 mt-1">Automatic call handling with AI transcription & smart replies</p></div>
         <div className="flex gap-2">
-          <Button variant={settings.isEnabled ? 'primary' : 'secondary'} onClick={toggleEnabled} icon={settings.isEnabled ? Check : Zap}>
+          {mayEdit && <Button variant={settings.isEnabled ? 'primary' : 'secondary'} onClick={toggleEnabled} icon={settings.isEnabled ? Check : Zap}>
             {settings.isEnabled ? 'Enabled' : 'Enable AI'}
-          </Button>
-          <Button onClick={() => { setEditItem(null); setShowForm(true); }} icon={Plus}>New Rule</Button>
+          </Button>}
+          {mayCreate && <Button onClick={() => { setEditItem(null); setShowForm(true); }} icon={Plus}>New Rule</Button>}
         </div>
       </div>
 
@@ -255,7 +267,7 @@ export function AIReceptionistPage() {
         <TabsContent value="rules">
           <Card>
             {rules.length > 0 ? (
-              <Table><TableHead><TableRow><TableHeader>Rule</TableHeader><TableHeader>Trigger</TableHeader><TableHeader>Channel</TableHeader><TableHeader>Message Preview</TableHeader><TableHeader>Status</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>
+              <Table><TableHead><TableRow><TableHeader>Rule</TableHeader><TableHeader>Trigger</TableHeader><TableHeader>Channel</TableHeader><TableHeader>Message Preview</TableHeader><TableHeader>Status</TableHeader>{(mayEdit || mayDelete) && <TableHeader>Actions</TableHeader>}</TableRow></TableHead><TableBody>
                 {rules.map((rule) => (
                   <TableRow key={rule.id}>
                     <TableCell className="font-medium text-slate-900 dark:text-white">{rule.name}</TableCell>
@@ -263,15 +275,15 @@ export function AIReceptionistPage() {
                     <TableCell className="text-slate-600 dark:text-slate-400">{rule.channel}</TableCell>
                     <TableCell className="text-slate-600 dark:text-slate-400 text-sm max-w-xs truncate">{(rule.messageTemplate || '').substring(0, 50)}...</TableCell>
                     <TableCell>{rule.isActive ? <span className="text-emerald-700 dark:text-emerald-400 text-sm">Active</span> : <span className="text-slate-500 text-sm dark:text-slate-400">Inactive</span>}</TableCell>
-                    <TableCell><div className="flex gap-1">
-                      <button onClick={() => toggleRuleActive(rule)} className={`p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded ${rule.isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}><Check className="w-4 h-4" /></button>
-                      <button onClick={() => { setEditItem(rule); setShowForm(true); }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"><Edit2 className="w-4 h-4 text-slate-600 dark:text-slate-400" /></button>
-                      <button onClick={() => setDeleteTarget(rule)} className="p-1.5 hover:bg-red-500/20 rounded"><Trash2 className="w-4 h-4 text-red-700 dark:text-red-400" /></button>
-                    </div></TableCell>
+                    {(mayEdit || mayDelete) && <TableCell><div className="flex gap-1">
+                      {mayEdit && <button onClick={() => toggleRuleActive(rule)} className={`p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded ${rule.isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}><Check className="w-4 h-4" /></button>}
+                      {mayEdit && <button onClick={() => { setEditItem(rule); setShowForm(true); }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"><Edit2 className="w-4 h-4 text-slate-600 dark:text-slate-400" /></button>}
+                      {mayDelete && <button onClick={() => setDeleteTarget(rule)} className="p-1.5 hover:bg-red-500/20 rounded"><Trash2 className="w-4 h-4 text-red-700 dark:text-red-400" /></button>}
+                    </div></TableCell>}
                   </TableRow>
                 ))}
               </TableBody></Table>
-            ) : (<CardBody><EmptyState icon={Bot} title="No auto-reply rules" description="Create rules to automatically respond to missed calls, voicemails, and after-hours inquiries" action={<Button onClick={() => setShowForm(true)} icon={Plus}>Create Rule</Button>} /></CardBody>)}
+            ) : (<CardBody><EmptyState icon={Bot} title="No auto-reply rules" description="Create rules to automatically respond to missed calls, voicemails, and after-hours inquiries" action={mayCreate ? <Button onClick={() => setShowForm(true)} icon={Plus}>Create Rule</Button> : undefined} /></CardBody>)}
           </Card>
         </TabsContent>
 
@@ -305,25 +317,28 @@ export function AIReceptionistPage() {
 
         <TabsContent value="settings">
           <Card><CardHeader title="AI Receptionist Settings" /><CardBody className="space-y-6">
+            {!mayEdit && <p className="text-sm text-slate-600 dark:text-slate-400">You can see these settings. Only an owner or admin can change them.</p>}
             <div className="flex items-center justify-between p-4 bg-slate-100 dark:bg-slate-800/50 rounded-lg">
               <div><p className="font-medium text-slate-900 dark:text-white">AI Receptionist</p><p className="text-sm text-slate-600 dark:text-slate-400">Automatically transcribe voicemails and send smart replies</p></div>
-              <Button variant={settings.isEnabled ? 'primary' : 'secondary'} onClick={toggleEnabled}>{settings.isEnabled ? 'Enabled' : 'Disabled'}</Button>
+              {mayEdit
+                ? <Button variant={settings.isEnabled ? 'primary' : 'secondary'} onClick={toggleEnabled}>{settings.isEnabled ? 'Enabled' : 'Disabled'}</Button>
+                : <span className="text-sm font-medium text-slate-900 dark:text-white">{settings.isEnabled ? 'Enabled' : 'Disabled'}</span>}
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Business Hours Start</label><Input type="time" value={settings.businessHoursStart || '09:00'} onChange={(e: any) => updateSettings({ businessHoursStart: e.target.value })} /></div>
-              <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Business Hours End</label><Input type="time" value={settings.businessHoursEnd || '17:00'} onChange={(e: any) => updateSettings({ businessHoursEnd: e.target.value })} /></div>
+              <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Business Hours Start</label><Input type="time" value={settings.businessHoursStart || '09:00'} onChange={(e: any) => updateSettings({ businessHoursStart: e.target.value })} disabled={!mayEdit} /></div>
+              <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Business Hours End</label><Input type="time" value={settings.businessHoursEnd || '17:00'} onChange={(e: any) => updateSettings({ businessHoursEnd: e.target.value })} disabled={!mayEdit} /></div>
             </div>
             <div>
               <label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Timezone</label>
-              <Select value={settings.timezone || 'America/Chicago'} onChange={(e: any) => updateSettings({ timezone: e.target.value })} options={[
+              <Select value={settings.timezone || 'America/Chicago'} onChange={(e: any) => updateSettings({ timezone: e.target.value })} disabled={!mayEdit} options={[
                 { value: 'America/New_York', label: 'Eastern' },
                 { value: 'America/Chicago', label: 'Central' },
                 { value: 'America/Denver', label: 'Mountain' },
                 { value: 'America/Los_Angeles', label: 'Pacific' },
               ]} />
             </div>
-            <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Default Greeting</label><Textarea value={settings.greetingText || ''} onChange={(e: any) => updateSettings({ greetingText: e.target.value })} placeholder="Hi, thanks for calling! We're currently away but will get back to you soon." rows={3} /></div>
-            <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Forwarding Number</label><Input value={settings.forwardingNumber || ''} onChange={(e: any) => updateSettings({ forwardingNumber: e.target.value })} placeholder="(555) 123-4567" /></div>
+            <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Default Greeting</label><Textarea value={settings.greetingText || ''} onChange={(e: any) => updateSettings({ greetingText: e.target.value })} disabled={!mayEdit} placeholder="Hi, thanks for calling! We're currently away but will get back to you soon." rows={3} /></div>
+            <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Forwarding Number</label><Input value={settings.forwardingNumber || ''} onChange={(e: any) => updateSettings({ forwardingNumber: e.target.value })} disabled={!mayEdit} placeholder="(555) 123-4567" /></div>
           </CardBody></Card>
         </TabsContent>
       </Tabs>

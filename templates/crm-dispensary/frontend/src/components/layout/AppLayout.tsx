@@ -36,6 +36,20 @@ const meetsRole = (role: string | undefined, min?: string) => !min || (ROLE_RANK
 // (Dispensary T40 M2)
 const EXTRA_ROUTE_ROLES: Record<string, string> = { '/crm/settings': 'admin', '/crm/billing': 'owner' };
 
+/**
+ * WHO CAN OPEN IT — the sentence the shared shell already says (packages/tenant-ui/src/shell/AppShell.tsx).
+ *
+ *   Dispensary T60: "the Settings refusal tells the manager to 'ask a manager'."
+ *
+ * The fork said "Ask a manager or the owner" to everybody, so the manager refused admin-only Settings
+ * was told to ask themselves. The rung the screen needs is known (minRole), so name it.
+ */
+const WHO_CAN_OPEN: Record<string, string> = {
+  owner: 'This screen is limited to the account owner',
+  admin: 'This screen is limited to admins and the owner',
+  manager: 'This screen is limited to managers and above',
+};
+
 const EXTRA_ROUTE_GATES: Record<string, string[]> = {
 };
 
@@ -553,7 +567,7 @@ export default function AppLayout() {
               </h1>
               <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
                 {(gatedItem as any).reason === 'role'
-                  ? 'Your account does not have access to this screen. Ask a manager or the owner if you need it.'
+                  ? `${WHO_CAN_OPEN[String((gatedItem as any).minRole || '')] || 'This screen is limited to a higher access level'}. Ask them if you need something from it — everything you can use is in the left menu.`
                   : switchable
                     ? (canSwitch
                       ? 'It is part of this CRM and can be turned on whenever you want it — Settings → Features.'

@@ -79,6 +79,7 @@ export { SettingsPage } from './shell/SettingsPage'
 // Two-factor enrolment card — on the Security tab by default; exported for a template that builds
 // its own settings screen. (T57)
 export { TwoFactorCard } from './auth/TwoFactorCard'
+export { MyAccountPage } from './account/MyAccountPage'
 export { FeaturesSettingsPage } from './shell/FeaturesSettingsPage'
 export { GlobalSearch } from './shell/GlobalSearch'
 export { TrialBanner } from './shell/TrialBanner'
@@ -98,7 +99,7 @@ export { LoginPage } from './auth/LoginPage'
 export { ForgotPasswordPage } from './auth/ForgotPasswordPage'
 export { ResetPasswordPage } from './auth/ResetPasswordPage'
 export { ProtectedRoute, PublicRoute } from './auth/ProtectedRoute'
-export { isTrialExpired, isTrialBypassPath } from './auth/trialStatus'
+export { isTrialExpired, isTrialBypassPath, trialEndDate } from './auth/trialStatus'
 export { PASSWORD_RULE_TEXT, passwordMeetsRule } from './auth/types'
 export type { AuthApi, AuthContextValue, AuthUser, AuthCompany, AuthData } from './auth/types'
 // Customer portal — token-link portal for customers, collaborators and reviewers, one implementation for every CRM.

@@ -200,6 +200,10 @@ console.log('\n══════════ the action says what happened ═�
       ['POST', '/api/portal/contacts/abc123/enable', 'status_change', 'switching one on'],
       ['POST', '/api/invoices/abc123/refund', 'refund', 'refunding'],
       ['POST', '/api/quotes/abc123/send', 'send', 'sending a quote'],
+      // T60: deny was not a word, and a hyphenated export segment fell through to "create"
+      ['POST', '/api/insurance/supplements/abc123/deny', 'status_change', 'denying a supplement'],
+      ['POST', '/api/insurance/claims/abc123/xactimate-export', 'export', 'an export whose segment is hyphenated'],
+      ['POST', '/api/invoices/abc123/mark-paid', 'status_change', 'a hyphenated status word still matches whole'],
       ['POST', '/api/contacts', 'create', 'an ordinary create still reads as create'],
       ['PUT', '/api/contacts/abc123', 'update', '…and an ordinary edit as update'],
       ['DELETE', '/api/contacts/abc123', 'delete', '…and a delete as delete'],

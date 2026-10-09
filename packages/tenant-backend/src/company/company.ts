@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { eq, and, inArray } from 'drizzle-orm'
 import { getFeaturesForTemplate } from '../featureRegistry'
 import { HAS_SCHEME, looksLikeWebAddress, healLogo, normalizeLogo } from './logoAddress'
+import { COMPANY_COMMERCIAL, redactCompanyCommercial } from '../auth/redactSettings'
 export { healLogo, normalizeLogo, isLogoAddress, looksLikeWebAddress } from './logoAddress'
 
 export interface CompanyDeps {
@@ -70,36 +71,9 @@ export function sanitizeCompany<T extends Record<string, any>>(row: T): T {
   return clone
 }
 
-/**
- * WHAT THE COMPANY OWES US, AND WHO IT BANKS WITH, IS NOT PART OF READING THE COMPANY. (T41)
- *
- * GET /api/company carries no role gate at all — every signed-in person reads the row, which is
- * right for the name, address, logo and brand colour that the whole app renders. COMPANY_SECRETS
- * above already removes the provider credentials (VET-41 / F-26). What it does not remove is the
- * commercial relationship, and T41 found that reaching the wrong people on two verticals:
- *
- *   "Staff sees ... subscription plan / Stripe account ID in /api/company."  — Field service
- *   "/api/company gives the manager billing details while /api/billing is 403."  — Contractor
- *
- * The second is the clearer statement of the fault: the dedicated billing endpoint refuses the
- * manager, and this one hands over the same facts as a side effect of loading the shell.
- *
- * `integrations` goes in full rather than key by key, because it is an open JSON bag that providers
- * write their own account identifiers into (stripeAccountId is the one the report names, and the
- * next connector adds another without anybody revisiting this list). A denylist of keys inside an
- * extensible object is a list that is wrong as soon as it is written.
- *
- * Nothing on any screen reads either field — checked across every template's frontend and the
- * shared tenant-ui before removing them — so this costs no UI.
- */
-export const COMPANY_COMMERCIAL = ['integrations', 'subscriptionTier', 'subscriptionStatus', 'seatLimit', 'trialEndsAt', 'billingEmail'] as const
-
-export function redactCompanyCommercial<T extends Record<string, any>>(row: T): T {
-  if (!row) return row
-  const clone: any = { ...row }
-  for (const f of COMPANY_COMMERCIAL) delete clone[f]
-  return clone
-}
+// COMPANY_COMMERCIAL and redactCompanyCommercial live in ../auth/redactSettings.ts (pure, no imports, so a
+// test can run them) beside the settings rule they apply. Re-exported here for existing importers.
+export { COMPANY_COMMERCIAL, redactCompanyCommercial }
 
 /**
  * A URL this app is willing to put in an href or an img src.

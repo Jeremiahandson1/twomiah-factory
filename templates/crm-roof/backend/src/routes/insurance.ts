@@ -421,6 +421,22 @@ app.post('/supplements/:id/approve', requireManager, async (c) => {
    */
   const requested = Number(sup.totalAmount || 0)
   const overAsk = approved > requested + 0.005
+  /**
+   * A RE-APPROVAL SAYS WHAT IT REPLACED. (Roof T42, still open in T60)
+   *
+   *   "The re-approve trail still doesn't say what amount was replaced."
+   *
+   * DECIDABLE lets an approved supplement be approved again (a corrected letter), and the update below
+   * overwrites approvedAmount — so the trail read "approved — $900" with nothing to say it had been
+   * $1,100 a minute earlier, and the old figure was gone from the record entirely. The line now carries
+   * it, read from the row BEFORE the update. Likewise a re-approval of a denied supplement says it
+   * reverses the denial, rather than reading like a first decision.
+   */
+  const usd = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const priorApproved = sup.status === 'approved' && sup.approvedAmount != null ? Number(sup.approvedAmount) : null
+  const replacing = priorApproved !== null
+    ? (Math.abs(priorApproved - approved) < 0.005 ? ` (confirming the ${usd(priorApproved)} approved earlier)` : ` (replacing the ${usd(priorApproved)} approved earlier)`)
+    : sup.status === 'denied' ? ' (reversing the earlier denial)' : ''
 
   await db.update(supplement).set({
     status: 'approved',
@@ -457,8 +473,8 @@ app.post('/supplements/:id/approve', requireManager, async (c) => {
     // …and when the carrier allowed MORE than was asked, the line says so. Both figures, so the
     // entry can be checked against the carrier's letter without opening anything else. (T41)
     body: overAsk
-      ? `Supplement ${sup.supplementNumber} approved — $${Number(approvedAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, which is ABOVE the $${requested.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} asked for`
-      : `Supplement ${sup.supplementNumber} approved — $${Number(approvedAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      ? `Supplement ${sup.supplementNumber} approved — $${Number(approvedAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, which is ABOVE the $${requested.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} asked for${replacing}`
+      : `Supplement ${sup.supplementNumber} approved — $${Number(approvedAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${replacing}`,
   })
 
   const [updated] = await db.select().from(supplement).where(eq(supplement.id, id)).limit(1)
@@ -516,7 +532,11 @@ app.post('/supplements/:id/deny', requireManager, async (c) => {
     claimId: sup.claimId,
     userId: currentUser.userId,
     activityType: 'denial',
-    body: `Supplement ${sup.supplementNumber} denied — ${denialReason}`,
+    // A denial of an APPROVED supplement withdraws money from the claim — say how much, as the
+    // re-approval does. (T60)
+    body: sup.status === 'approved' && sup.approvedAmount != null
+      ? `Supplement ${sup.supplementNumber} denied — ${denialReason} (withdrawing the $${Number(sup.approvedAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} approved earlier)`
+      : `Supplement ${sup.supplementNumber} denied — ${denialReason}`,
   })
 
   const [updated] = await db.select().from(supplement).where(eq(supplement.id, id)).limit(1)

@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Clock } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { trialEndDate } from '../auth/trialStatus';
+import { meetsRole } from '../../shared';
 
 /**
  * Trial countdown banner.
@@ -11,30 +13,18 @@ import { useAuth } from '../../contexts/AuthContext';
  * urgency escalates. Hidden entirely when the tenant has a paying
  * subscription or the trial is more than 7 days out.
  *
- * Expiry is taken from company.settings.trialEndsAt. If that is missing,
- * we fall back to (company.createdAt + 30 days) so legacy tenants that
- * were provisioned before the trial field existed still get the banner.
+ * Expiry comes from trialEndDate — the function the paywall gate uses — so the banner never counts
+ * down to a lock that will not happen. (T60: it guessed createdAt + 30 days, and lied to managers.)
  */
 export function TrialBanner() {
-  const { company } = useAuth();
+  // Upgrade opens Billing, which is the owner's and the admins' (/api/billing is requireAdmin). Offering it to
+  // anyone else led to a "no access" page (T60); they are told who can upgrade instead.
+  const { company, user } = useAuth();
+  const mayUpgrade = meetsRole((user as any)?.role, 'admin');
 
   const { daysRemaining, urgent, hidden } = useMemo(() => {
-    if (!company) return { daysRemaining: 0, urgent: false, hidden: true };
-
-    const sub = company.settings?.subscriptionStatus;
-    if (sub === 'active' || sub === 'past_due') {
-      // Paying customer — no banner
-      return { daysRemaining: 0, urgent: false, hidden: true };
-    }
-
-    let trialEnd: Date | null = null;
-    if (company.settings?.trialEndsAt) {
-      trialEnd = new Date(company.settings.trialEndsAt);
-    } else if ((company as any).createdAt) {
-      trialEnd = new Date((company as any).createdAt);
-      trialEnd.setDate(trialEnd.getDate() + 30);
-    }
-    if (!trialEnd || isNaN(trialEnd.getTime())) {
+    const trialEnd = trialEndDate(company as any);
+    if (!trialEnd) {
       return { daysRemaining: 0, urgent: false, hidden: true };
     }
 
@@ -74,16 +64,18 @@ export function TrialBanner() {
           <div>
             <p className="font-semibold">{copy}</p>
             <p className="text-xs">
-              Upgrade now to keep uninterrupted access. Your data stays safe either way.
+              {mayUpgrade ? 'Upgrade now to keep uninterrupted access.' : 'Ask the account owner to upgrade to keep uninterrupted access.'} Your data stays safe either way.
             </p>
           </div>
         </div>
-        <Link
-          to="/crm/settings/billing"
-          className={`px-4 py-2 rounded-lg text-sm font-semibold flex-shrink-0 ${btn}`}
-        >
-          Upgrade
-        </Link>
+        {mayUpgrade && (
+          <Link
+            to="/crm/settings/billing"
+            className={`px-4 py-2 rounded-lg text-sm font-semibold flex-shrink-0 ${btn}`}
+          >
+            Upgrade
+          </Link>
+        )}
       </div>
     </div>
   );

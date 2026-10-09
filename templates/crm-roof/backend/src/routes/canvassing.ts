@@ -300,15 +300,54 @@ app.get('/scripts', async (c) => {
  * `marketing:update` is the right question and already exists — manager and up hold it, the field
  * rung does not. The READ stays open: a canvasser needs the script in front of them.
  */
+/**
+ * A SCRIPT HAS A NAME AND SOMETHING TO SAY. (T60)
+ *
+ *   "Roofing: creating a canvassing script with an empty body still succeeds (201)."
+ *
+ * POST stored `{}` as "New Script" with no steps — a script the canvasser opens at the door to find
+ * "No script steps configured." Each step is { title, body, tips } (CanvassingDashboard's editor);
+ * a step with neither a title nor a body carries nothing and is dropped rather than refused, because
+ * the editor always starts with one blank row. What is left must hold at least one step.
+ *
+ * `partial` is the edit: only the fields sent are judged, so renaming a script never needs its steps.
+ */
+export function scriptInputError(body: any, partial = false): { error: string } | { name?: string; steps?: any[]; isDefault?: boolean } {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return { error: 'Send the script as { name, steps }.' }
+  const out: { name?: string; steps?: any[]; isDefault?: boolean } = {}
+  if (!partial || body.name !== undefined) {
+    const name = typeof body.name === 'string' ? body.name.trim() : ''
+    if (!name) return { error: 'Give the script a name.' }
+    if (name.length > 120) return { error: 'Keep the script name to 120 characters.' }
+    out.name = name
+  }
+  if (!partial || body.steps !== undefined) {
+    if (!Array.isArray(body.steps)) return { error: 'A script needs at least one step.' }
+    const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+    const steps = body.steps
+      .filter((s: any) => s && typeof s === 'object')
+      .map((s: any) => ({ title: text(s.title), body: text(s.body), tips: text(s.tips) }))
+      .filter((s: any) => s.title || s.body)
+    if (!steps.length) return { error: 'A script needs at least one step with a title or something to say.' }
+    out.steps = steps
+  }
+  if (body.isDefault !== undefined) {
+    if (typeof body.isDefault !== 'boolean') return { error: 'isDefault must be true or false.' }
+    out.isDefault = body.isDefault
+  }
+  return out
+}
+
 // POST /scripts — create script
 app.post('/scripts', requirePermission('marketing:update'), async (c) => {
   const { companyId } = c.get('user')
-  const body = await c.req.json()
+  const input = scriptInputError(await c.req.json().catch(() => null))
+  if ('error' in input) return c.json({ error: input.error }, 400)
   const [script] = await db.insert(canvassingScript).values({
     companyId,
-    name: body.name || 'New Script',
-    isDefault: body.isDefault || false,
-    steps: body.steps || [],
+    name: input.name!,
+    isDefault: input.isDefault ?? false,
+    steps: input.steps!,
   }).returning()
   return c.json(script, 201)
 })
@@ -317,11 +356,12 @@ app.post('/scripts', requirePermission('marketing:update'), async (c) => {
 app.put('/scripts/:id', requirePermission('marketing:update'), async (c) => {
   const { companyId } = c.get('user')
   const id = c.req.param('id')
-  const body = await c.req.json()
+  const input = scriptInputError(await c.req.json().catch(() => null), true)
+  if ('error' in input) return c.json({ error: input.error }, 400)
   const updates: any = { updatedAt: new Date() }
-  if (body.name !== undefined) updates.name = body.name
-  if (body.isDefault !== undefined) updates.isDefault = body.isDefault
-  if (body.steps !== undefined) updates.steps = body.steps
+  if (input.name !== undefined) updates.name = input.name
+  if (input.isDefault !== undefined) updates.isDefault = input.isDefault
+  if (input.steps !== undefined) updates.steps = input.steps
 
   const [updated] = await db.update(canvassingScript).set(updates)
     .where(and(eq(canvassingScript.id, id), eq(canvassingScript.companyId, companyId)))

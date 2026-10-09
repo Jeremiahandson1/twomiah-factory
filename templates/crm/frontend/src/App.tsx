@@ -31,6 +31,7 @@ import PurchaseOrdersPage from './pages/PurchaseOrdersPage';
 import BillsPage from './pages/BillsPage';
 import VendorPortalPage from './pages/VendorPortalPage';
 import TeamPage from './pages/TeamPage';
+import MyAccountPage from './pages/MyAccountPage';
 import RFIsPage from './pages/RFIsPage';
 import ChangeOrdersPage from './pages/ChangeOrdersPage';
 import PunchListsPage from './pages/PunchListsPage';
@@ -170,6 +171,7 @@ function App() {
                     <Route path="bills" element={<BillsPage />} />
                     <Route path="documents" element={<DocumentsPage />} />
                     <Route path="team" element={<TeamPage />} />
+                    <Route path="account" element={<MyAccountPage />} />
                     {/* Who changed what — the log has always been written and had nowhere to be read. (T51) */}
                     <Route path="audit" element={<AuditLog />} />
                     <Route path="rfis" element={<RFIsPage />} />

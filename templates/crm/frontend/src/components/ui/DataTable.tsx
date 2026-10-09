@@ -67,6 +67,10 @@ export function DataTable<T extends Record<string, unknown> = Record<string, unk
    * A document listener closes it instead. It is outside the row, so nothing bubbles, and Escape
    * works too. scripts/check-row-action-show.ts (#179) holds every copy of this table to it.
    */
+  // No action this person can use on this row means no ⋮ to open — an empty menu is indistinguishable
+  // from a broken one. Same rule as the shared table and the dispensary fork. (T60: six tenants.)
+  const visibleActions = (row: T) => (actions || []).filter((action) => !action.show || action.show(row));
+
   useEffect(() => {
     if (openMenu === null) return;
     const onDown = (e: MouseEvent) => { if (!menuRef.current?.contains(e.target as Node)) setOpenMenu(null); };
@@ -154,6 +158,7 @@ export function DataTable<T extends Record<string, unknown> = Record<string, unk
                   {actions && (
                     <td className="px-4 py-3">
                       <div className="relative">
+                        {visibleActions(row).length > 0 && (
                         <button
                           aria-label="Row actions"
                           aria-haspopup="menu"
@@ -177,6 +182,7 @@ export function DataTable<T extends Record<string, unknown> = Record<string, unk
                         >
                           <MoreVertical className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                         </button>
+                        )}
                         {openMenu === (row as Record<string, unknown>).id && (
                           <div
                             ref={menuRef}
@@ -185,7 +191,7 @@ export function DataTable<T extends Record<string, unknown> = Record<string, unk
                             className="fixed w-40 bg-white dark:bg-slate-800 rounded-lg shadow-lg border dark:border-slate-700 z-20 py-1"
                             style={{ top: menuPos.top, right: menuPos.right }}
                           >
-                              {actions.filter((action) => !action.show || action.show(row)).map((action, idx) => (
+                              {visibleActions(row).map((action, idx) => (
                                 <button
                                   key={idx}
                                   onClick={(e: React.MouseEvent<HTMLButtonElement>) => {

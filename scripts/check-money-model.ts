@@ -82,7 +82,10 @@ structural.push(
 // mutation (edit/send/payment); the void handler must reject it too, before the net-money check.
 const invRouteSrc = readFileSync(new URL('../packages/tenant-backend/src/invoicing/invoices.ts', import.meta.url), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
-const voidBody = (invRouteSrc.match(/\/:id\/void'[\s\S]{0,900}?\/:id\/refund'/) || invRouteSrc.match(/\/:id\/void'[\s\S]{0,900}/) || [''])[0]
+// The WHOLE handler — from its route to the next one — not a fixed 900-character window: T60 put the
+// refusal's wording ahead of the transaction and the window stopped short of the rule it was reading.
+const voidAt = invRouteSrc.indexOf("/:id/void'"), refundAt = invRouteSrc.indexOf("/:id/refund'", voidAt)
+const voidBody = voidAt < 0 ? '' : invRouteSrc.slice(voidAt, refundAt > voidAt ? refundAt : undefined)
 structural.push(
   [/status === 'refunded'/.test(voidBody), "the void handler must reject a 'refunded' invoice (a reversed sale can't be voided)"],
 )

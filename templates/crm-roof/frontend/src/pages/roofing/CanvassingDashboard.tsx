@@ -176,18 +176,21 @@ export default function CanvassingDashboard() {
     setShowScriptEditor(true)
   }
 
+  // fetch() resolves on a 400 or a 403 just as it does on a 201, so "saved" was shown for a script the
+  // server refused — and since T60 the server refuses a script with no name or nothing to say. The
+  // server's own sentence is what the person sees, and the editor stays open with their work in it.
+  const refusalOf = async (res: Response, fallback: string) => {
+    const data = await res.json().catch(() => null)
+    return (data && typeof data.error === 'string' && data.error) || fallback
+  }
+
   const saveScript = async () => {
     try {
       const payload = { name: scriptName, steps: scriptSteps, isDefault: scriptIsDefault }
-      if (editingScript) {
-        await fetch(`/api/canvassing/scripts/${editingScript.id}`, {
-          method: 'PUT', headers, body: JSON.stringify(payload),
-        })
-      } else {
-        await fetch('/api/canvassing/scripts', {
-          method: 'POST', headers, body: JSON.stringify(payload),
-        })
-      }
+      const res = editingScript
+        ? await fetch(`/api/canvassing/scripts/${editingScript.id}`, { method: 'PUT', headers, body: JSON.stringify(payload) })
+        : await fetch('/api/canvassing/scripts', { method: 'POST', headers, body: JSON.stringify(payload) })
+      if (!res.ok) { toast.error(await refusalOf(res, 'Failed to save script')); return }
       setShowScriptEditor(false)
       load()
       toast.success('Script saved!')
@@ -199,7 +202,8 @@ export default function CanvassingDashboard() {
   const deleteScript = async (script: Script) => {
     if (script.isDefault) { toast.error('Cannot delete the default script'); return }
     try {
-      await fetch(`/api/canvassing/scripts/${script.id}`, { method: 'DELETE', headers })
+      const res = await fetch(`/api/canvassing/scripts/${script.id}`, { method: 'DELETE', headers })
+      if (!res.ok) { toast.error(await refusalOf(res, 'Failed to delete script')); return }
       load()
       toast.success('Script deleted')
     } catch {

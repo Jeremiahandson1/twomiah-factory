@@ -4,8 +4,7 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { company, order, orderItem, product, contact, loyaltyMember, loyaltyReward } from '../../db/schema.ts'
 import { eq, and, sql } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
-import { requireRole } from '../middleware/permissions.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { clientKey } from '../middleware/rateLimit.ts'
 import Stripe from 'stripe'
 import audit from '../services/audit.ts'
@@ -565,9 +564,9 @@ app.get('/loyalty/:phone', requireIntegrationKey, async (c) => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ─── GET /status — Integration status for the settings page ──────────────────
-// Manager and up. The other routes in this file authenticate with an integration KEY (an external
+// Owner and admin, like every other CRM (T60: it was manager and up, and handed a manager the Stripe account id). The other routes in this file authenticate with an integration KEY (an external
 // POS calling in) or are an OAuth callback, and are deliberately left alone. (Dispensary T39 M3)
-app.get('/status', authenticate, requireRole('manager'), async (c) => {
+app.get('/status', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
 
   const [comp] = await db.select({
@@ -618,7 +617,7 @@ app.get('/status', authenticate, requireRole('manager'), async (c) => {
 const maskKey = (key: string | null | undefined) =>
   key ? `${'.'.repeat(8)}${key.slice(-4)}` : null
 
-app.get('/api-key', authenticate, requireRole('admin'), async (c) => {
+app.get('/api-key', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const [comp] = await db.select({ integrationKey: company.integrationKey })
     .from(company).where(eq(company.id, user.companyId)).limit(1)
@@ -630,7 +629,7 @@ app.get('/api-key', authenticate, requireRole('admin'), async (c) => {
   })
 })
 
-app.post('/api-key/rotate', authenticate, requireRole('admin'), async (c) => {
+app.post('/api-key/rotate', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
 
   // 32 bytes of randomness, hex-encoded. Prefixed so a leaked key is recognisable in a log.
@@ -660,7 +659,7 @@ app.post('/api-key/rotate', authenticate, requireRole('admin'), async (c) => {
 
 // ─── QUICKBOOKS OAUTH ─────────────────────────────────────────────────────────
 
-app.get('/quickbooks/auth-url', authenticate, async (c) => {
+app.get('/quickbooks/auth-url', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
 
   // Missing config is a valid state, not a server error — the settings UI shows "not connected".
@@ -768,9 +767,9 @@ app.get('/quickbooks/callback', async (c) => {
   return c.redirect(`${process.env.FRONTEND_URL}/settings/integrations?success=quickbooks`)
 })
 
-// Manager and up. This was `authenticate` alone, so a budtender could do it — disconnecting the accounting integration
+// Owner and admin (T60 — it was manager and up, the one CRM where a manager could; every other CRM's shared integrations route is requireAdmin). Before T41 it was `authenticate` alone, so a budtender could do it — disconnecting the accounting integration
 // is not part of serving a customer, and it changes the SHOP, not an order. (Dispensary T41)
-app.post('/quickbooks/disconnect', authenticate, requireRole('manager'), async (c) => {
+app.post('/quickbooks/disconnect', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
 
   const [comp] = await db.select({ integrations: company.integrations }).from(company).where(eq(company.id, user.companyId)).limit(1)
@@ -790,9 +789,9 @@ app.post('/quickbooks/disconnect', authenticate, requireRole('manager'), async (
   return c.json({ success: true })
 })
 
-// Manager and up. This was `authenticate` alone, so a budtender could do it — pushing a sync to the books
+// Owner and admin (T60 — it was manager and up, the one CRM where a manager could; every other CRM's shared integrations route is requireAdmin). Before T41 it was `authenticate` alone, so a budtender could do it — pushing a sync to the books
 // is not part of serving a customer, and it changes the SHOP, not an order. (Dispensary T41)
-app.post('/quickbooks/sync', authenticate, requireRole('manager'), async (c) => {
+app.post('/quickbooks/sync', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
 
   const [comp] = await db.select({ integrations: company.integrations }).from(company).where(eq(company.id, user.companyId)).limit(1)
@@ -815,7 +814,8 @@ app.post('/quickbooks/sync', authenticate, requireRole('manager'), async (c) => 
 // ─── STRIPE CONNECT ───────────────────────────────────────────────────────────
 
 /**
- * MANAGER AND UP — the same rung as /stripe/disconnect below and /status above. (T41)
+ * OWNER AND ADMIN — the same rung as /stripe/disconnect below, /status above, and the shared integrations route every
+ * other CRM runs. (T41 set it to manager and up; T60 found a manager could still get a live setup link here.)
  *
  * This was `authenticate` alone, so every signed-in role could reach it. T41 proved it as a VIEWER:
  * "GET /api/integrations/stripe/connect-url returns 200 with a live connect.stripe.com setup link,
@@ -832,7 +832,7 @@ app.post('/quickbooks/sync', authenticate, requireRole('manager'), async (c) => 
  * That round fixed disconnect and left connect — one of a pair, which is how both of them have to
  * be checked.
  */
-app.get('/stripe/connect-url', authenticate, requireRole('manager'), async (c) => {
+app.get('/stripe/connect-url', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   // No STRIPE_SECRET_KEY on this CRM → `stripe` is null and this used to crash with a 500 "null is not an object". (SALON-C5)
   if (!stripe) return c.json({ error: 'Card payments are not set up for this CRM yet. Twomiah support can connect Stripe for your account — email support@twomiah.com.' }, 503)
@@ -876,9 +876,9 @@ app.get('/stripe/connect-url', authenticate, requireRole('manager'), async (c) =
   return c.json({ connectUrl: accountLink.url })
 })
 
-// Manager and up. This was `authenticate` alone, so a budtender could do it — disconnecting the payment processor
+// Owner and admin (T60 — it was manager and up, the one CRM where a manager could; every other CRM's shared integrations route is requireAdmin). Before T41 it was `authenticate` alone, so a budtender could do it — disconnecting the payment processor
 // is not part of serving a customer, and it changes the SHOP, not an order. (Dispensary T41)
-app.post('/stripe/disconnect', authenticate, requireRole('manager'), async (c) => {
+app.post('/stripe/disconnect', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
 
   const [comp] = await db.select({ integrations: company.integrations }).from(company).where(eq(company.id, user.companyId)).limit(1)
@@ -893,9 +893,9 @@ app.post('/stripe/disconnect', authenticate, requireRole('manager'), async (c) =
 
 // ─── SMS TOGGLE (Platform Twilio) ─────────────────────────────────────────────
 
-// Manager and up. This was `authenticate` alone, so a budtender could do it — switching the tenant's SMS on or off
+// Owner and admin, as it already was, and as every other CRM's shared integrations route is. Before T41 it was `authenticate` alone, so a budtender could do it — switching the tenant's SMS on or off
 // is not part of serving a customer, and it changes the SHOP, not an order. (Dispensary T41)
-app.post('/sms/toggle', authenticate, requireRole('admin'), async (c) => {
+app.post('/sms/toggle', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const { enabled } = await c.req.json()
 
@@ -914,9 +914,9 @@ app.post('/sms/toggle', authenticate, requireRole('admin'), async (c) => {
 
 // ─── EMAIL TOGGLE (Platform SendGrid) ─────────────────────────────────────────
 
-// Manager and up. This was `authenticate` alone, so a budtender could do it — switching the tenant's email on or off
+// Owner and admin (T60 — it was manager and up, the one CRM where a manager could; every other CRM's shared integrations route is requireAdmin). Before T41 it was `authenticate` alone, so a budtender could do it — switching the tenant's email on or off
 // is not part of serving a customer, and it changes the SHOP, not an order. (Dispensary T41)
-app.post('/email/toggle', authenticate, requireRole('manager'), async (c) => {
+app.post('/email/toggle', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const { enabled } = await c.req.json()
 

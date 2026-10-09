@@ -5,7 +5,7 @@ import { createInvoiceRoutes, createAccountBalanceStore } from '../shared/index.
 import { db } from '../../db/index.ts'
 import { invoice, invoiceLineItem, contact, project, quote, payment, company, clientAccountEntry } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import emailService from '../services/email.ts'
@@ -25,6 +25,9 @@ export default createInvoiceRoutes({
   tables: { invoice, invoiceLineItem, payment, contact, project, quote, company },
   authenticate,
   requirePermission,
+  // Says the right next step in a refusal ("refund them first" only to someone who may refund). (T60)
+  canSee: async (role: string, permission: string, userId?: string) =>
+    hasPermission(role, permission, await getExtraPermissions(userId)),
   emitToCompany,
   EVENTS,
   sendInvoiceEmail: (to, data) => emailService.sendInvoice(to, data),

@@ -107,7 +107,12 @@ export default function SettingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  // hasQB / hasStorm decide WHICH calls are made, so they belong in the dependencies. With [token] alone
+  // the first render — before the company's feature list has arrived, when both read false — was the
+  // only one that ever ran: the storm settings were never fetched, and the section, which does appear
+  // once the feature is known, showed its empty default. "Storm settings say 'No zip codes configured'
+  // when one is set" (T60) — the server was answering ["43004"] the whole time.
+  }, [token, hasQB, hasStorm]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -296,6 +301,9 @@ export default function SettingsPage() {
           <button onClick={openSmsBilling} className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg whitespace-nowrap">Manage billing &rarr;</button>
         </div>
 
+        {/* T60: "Company fields are editable but can't be saved." Save was already admin-only (PUT
+            /api/settings/company is requireAdmin) and the note said so; the fields were still live, so a
+            manager could type into a form with no way to keep it. They follow the Save now. */}
         {/* Company Info */}
         <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
           <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
@@ -304,32 +312,32 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="sm:col-span-2">
               <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Company Name</label>
-              <input value={company.name} onChange={(e) => setCompany({ ...company, name: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+              <input value={company.name} onChange={(e) => setCompany({ ...company, name: e.target.value })} disabled={!isAdmin} className="w-full text-sm border rounded-lg px-3 py-2 disabled:cursor-not-allowed" />
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Phone</label>
-              <input value={company.phone} onChange={(e) => setCompany({ ...company, phone: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+              <input value={company.phone} onChange={(e) => setCompany({ ...company, phone: e.target.value })} disabled={!isAdmin} className="w-full text-sm border rounded-lg px-3 py-2 disabled:cursor-not-allowed" />
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Email</label>
-              <input value={company.email} onChange={(e) => setCompany({ ...company, email: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+              <input value={company.email} onChange={(e) => setCompany({ ...company, email: e.target.value })} disabled={!isAdmin} className="w-full text-sm border rounded-lg px-3 py-2 disabled:cursor-not-allowed" />
             </div>
             <div className="sm:col-span-2">
               <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Address</label>
-              <input value={company.address} onChange={(e) => setCompany({ ...company, address: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+              <input value={company.address} onChange={(e) => setCompany({ ...company, address: e.target.value })} disabled={!isAdmin} className="w-full text-sm border rounded-lg px-3 py-2 disabled:cursor-not-allowed" />
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">City</label>
-              <input value={company.city} onChange={(e) => setCompany({ ...company, city: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+              <input value={company.city} onChange={(e) => setCompany({ ...company, city: e.target.value })} disabled={!isAdmin} className="w-full text-sm border rounded-lg px-3 py-2 disabled:cursor-not-allowed" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">State</label>
-                <input value={company.state} onChange={(e) => setCompany({ ...company, state: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                <input value={company.state} onChange={(e) => setCompany({ ...company, state: e.target.value })} disabled={!isAdmin} className="w-full text-sm border rounded-lg px-3 py-2 disabled:cursor-not-allowed" />
               </div>
               <div>
                 <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Zip</label>
-                <input value={company.zip} onChange={(e) => setCompany({ ...company, zip: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                <input value={company.zip} onChange={(e) => setCompany({ ...company, zip: e.target.value })} disabled={!isAdmin} className="w-full text-sm border rounded-lg px-3 py-2 disabled:cursor-not-allowed" />
               </div>
             </div>
           </div>
@@ -356,16 +364,19 @@ export default function SettingsPage() {
                   type="color"
                   value={branding.primaryColor}
                   onChange={(e) => setBranding({ ...branding, primaryColor: e.target.value })}
+                  disabled={!isAdmin}
                   className="w-10 h-10 rounded border cursor-pointer"
                 />
                 <input
                   value={branding.primaryColor}
                   onChange={(e) => setBranding({ ...branding, primaryColor: e.target.value })}
+                  disabled={!isAdmin}
                   className="w-24 text-sm border rounded-lg px-3 py-2 font-mono"
                 />
               </div>
             </div>
             <div className="flex-1 flex items-end justify-end">
+              {!isAdmin && <span className="text-xs text-gray-500 dark:text-slate-400">Only an administrator can change the branding.</span>}
               {isAdmin && (
                 <button onClick={saveBrandingSettings} disabled={savingBranding} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">
                   <Save className="w-4 h-4" /> {savingBranding ? 'Saving...' : 'Save'}

@@ -58,6 +58,7 @@ const seat = async (email: string, role: string) => {
 const owner = await seat('owner-proc@test.local', 'owner')
 const viewer = await seat('viewer-proc@test.local', 'viewer')
 const field = await seat('field-proc@test.local', 'field')
+const manager = await seat('manager-proc@test.local', 'manager')
 const [client] = await db.insert(contact).values({
   companyId: co.id, name: 'Okonkwo', type: 'client', email: 'okonkwo@test.local',
 } as any).returning()
@@ -73,7 +74,7 @@ const as = (who: any) => async (method: string, path: string, body?: unknown) =>
   const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
   return { status: res.status, json: j, text: t }
 }
-const asOwner = as(owner), asViewer = as(viewer), asField = as(field)
+const asOwner = as(owner), asViewer = as(viewer), asField = as(field), asManager = as(manager)
 
 const invoiceCount = async () => {
   const r: any = await db.execute(sql`SELECT COUNT(*)::int AS n FROM invoice WHERE company_id = ${co.id}`)
@@ -106,6 +107,13 @@ check('…and no invoice has been raised from it yet', before === 0, { before })
   const r = await asField('POST', '/api/recurring/process')
   check('a field technician is REFUSED', r.status === 403, { status: r.status, body: r.text?.slice(0, 200) })
   check('…and still nothing was billed', (await invoiceCount()) === before, { count: await invoiceCount(), before })
+}
+
+// ══════════ T60 · nor a manager — a ROLE refusal, not "no scheduler configured" ═══════════════
+{
+  const r = await asManager('POST', '/api/recurring/process')
+  check('a manager is REFUSED by role (403), not told the scheduler is missing (503)', r.status === 403, { status: r.status, body: r.text?.slice(0, 200) })
+  check('…and nothing was billed', (await invoiceCount()) === before, { count: await invoiceCount(), before })
 }
 
 // ══════════ T41 · the secret is REQUIRED, so not even the owner can run it by hand ═════════════
