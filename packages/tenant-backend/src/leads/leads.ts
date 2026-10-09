@@ -352,7 +352,15 @@ export function createLeadsRoutes(deps: LeadsDeps) {
       conds.push(sql`regexp_replace(coalesce(${t.contact.mobile}, ''), '\\D', '', 'g') like ${p}`)
     }
     let contactRow: any = null
-    if (conds.length) {
+    // A lead that already points at a contact — a pre-T59 website enquiry given an inbox row
+    // (legacyWebsiteLeads.ts) — converts to THAT contact, never a search that could find someone else
+    // or, with no email or phone to search by, create a second copy of the same person.
+    if (existing.convertedContactId) {
+      const [linked] = await db.select().from(t.contact)
+        .where(and(eq(t.contact.id, existing.convertedContactId), eq(t.contact.companyId, currentUser.companyId))).limit(1)
+      contactRow = linked || null
+    }
+    if (!contactRow && conds.length) {
       const [match] = await db.select().from(t.contact).where(and(eq(t.contact.companyId, currentUser.companyId), or(...conds))).orderBy(desc(t.contact.createdAt), asc(t.contact.id)).limit(1)
       contactRow = match || null
     }

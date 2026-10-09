@@ -1312,6 +1312,11 @@ jobs:
       # worst pairings are STATES — a hovered row, a toggled button, the Dismiss control's own ground.
       - name: "lead palette — every ink clears AA on every ground, not just on white"
         run: bun run scripts/check-lead-palette-every-ground.ts
+      # Outside crm, most DELETE handlers wrote no audit row at all. The shared delete floor writes one,
+      # naming the record — but its suites mount it themselves, so unmounting it from one template passed
+      # every suite. This reads each index.ts: after requestScope, before the routes, exactly once. (T59)
+      - name: "delete audit floor — mounted in the right place in every template"
+        run: bun run scripts/check-delete-audit-floor.ts
 
   revenue-one-definition:
     name: "Revenue one definition"

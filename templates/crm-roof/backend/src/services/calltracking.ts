@@ -11,8 +11,10 @@
  */
 
 import { db } from '../../db/index.ts';
-import { contact } from '../../db/schema.ts';
+import { contact, lead } from '../../db/schema.ts';
 import { eq, and, sql, count } from 'drizzle-orm';
+import { insertLead } from '../shared/index.ts';
+import { isFeatureEnabled } from '../middleware/enabledFeature.ts';
 
 /** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
 function rows(result: any): any[] {
@@ -129,6 +131,12 @@ export async function logCall(companyId: string, data: {
     }
   }
 
+  // Where a first-time caller is filed. With the Lead Inbox on, a new caller is an enquiry nobody has
+  // answered yet — the inbox, where it can be marked contacted, converted or dismissed — not a Contact
+  // made for every wrong number and robocall. Without the inbox there is nowhere to triage it, so the
+  // Contact this always wrote stays. (T59 — same rule as the jobs-family templates)
+  const toInbox = await isFeatureEnabled(companyId, 'lead_inbox');
+
   // Try to match caller to contact
   let contactId: string | null = null;
   let isFirstTimeCaller = true;
@@ -140,6 +148,15 @@ export async function logCall(companyId: string, data: {
     if (c) {
       contactId = c.id;
       isFirstTimeCaller = false;
+    } else if (toInbox) {
+      // The first call used to MAKE the contact this lookup finds, which is what made the second call
+      // "not first". It now makes an inbox lead instead, so the inbox is asked too — otherwise every
+      // call from an unconverted number would be a first call, and file another lead.
+      const [l] = await db.select({ id: lead.id })
+        .from(lead)
+        .where(and(eq(lead.companyId, companyId), eq(lead.phone, data.callerNumber)))
+        .limit(1);
+      if (l) isFirstTimeCaller = false;
     }
   }
 
@@ -167,8 +184,30 @@ export async function logCall(companyId: string, data: {
     )
   `);
 
-  // If new caller, optionally create contact
-  if (isFirstTimeCaller && data.callerNumber && data.createContact !== false) {
+  // If new caller, optionally file them — in the Lead Inbox where it is on, as a contact otherwise.
+  // (This template has no socket service, so there is no live LEAD_CREATED push; the inbox reloads.)
+  if (isFirstTimeCaller && data.callerNumber && data.createContact !== false && toInbox) {
+    await insertLead(db, lead, {
+      companyId,
+      sourceId: null,
+      platform: 'phone',
+      parsed: {
+        name: data.callerName || 'Unknown Caller',
+        phone: data.callerNumber,
+        location: [data.callerCity, data.callerState].filter(Boolean).join(', '),
+        // The marketing attribution stays on call_log (the reports read it there); this is what the
+        // person triaging the lead needs to see, and what Convert copies into the contact's notes.
+        description: [
+          trackingSource && `Source: ${trackingSource}`,
+          trackingCampaign && `Campaign: ${trackingCampaign}`,
+          data.keyword && `Keyword: ${data.keyword}`,
+          data.status && data.status !== 'completed' && `Call: ${data.status}`,
+          data.transcription && `Transcription: ${data.transcription}`,
+        ].filter(Boolean).join('\n'),
+      },
+      rawPayload: data,
+    });
+  } else if (isFirstTimeCaller && data.callerNumber && data.createContact !== false) {
     // Split callerName into firstName/lastName
     let firstName = 'Unknown';
     let lastName = 'Caller';

@@ -117,4 +117,17 @@ for (const stmt of ENSURE) {
 }
 console.log('[prune-legacy] recurring tables reconciled')
 
+/**
+ * ONLINE BOOKERS ARE CLIENTS. (T59) routes/booking.ts filed a brand-new booker as a `lead`; it is
+ * `client` now, as on every other vertical. This moves the ones written before: only rows the booking
+ * widget created (source = 'online_booking') that are still `lead`, so a contact somebody has since
+ * retyped by hand is left alone, and a second run matches nothing.
+ */
+try {
+  const res: any = await db.execute(sql.raw(`UPDATE contact SET type = 'client', updated_at = NOW() WHERE type = 'lead' AND source = 'online_booking'`))
+  console.log('[prune-legacy] online bookers filed as clients, rows:', res?.rowCount ?? res?.rowsAffected ?? '?')
+} catch (e: any) {
+  console.warn('[prune-legacy] booker type heal failed:', e?.message || e)
+}
+
 process.exit(0)

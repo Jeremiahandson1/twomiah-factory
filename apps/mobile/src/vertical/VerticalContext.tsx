@@ -27,7 +27,9 @@ interface VerticalContextValue {
   lockedVertical: Vertical | null
 }
 
-const VALID_VERTICALS: Vertical[] = ['contractor', 'fieldservice', 'homecare', 'roofing', 'landscaping', 'dispensary']
+// 'rv' had tabs, an initial tab and screens in verticals.ts but was missing here, so no dealership could
+// ever reach them. (T59)
+const VALID_VERTICALS: Vertical[] = ['contractor', 'fieldservice', 'homecare', 'roofing', 'landscaping', 'dispensary', 'rv']
 
 function readLockedVertical(): Vertical | null {
   const raw = (Constants.expoConfig?.extra as any)?.lockedVertical

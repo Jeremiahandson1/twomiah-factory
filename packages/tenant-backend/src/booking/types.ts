@@ -101,7 +101,7 @@ export interface BookingOptions {
   requirePhone?: boolean
   /** Require the pet's name server-side (vet), so a raw API call can't create a pet-less booking. Default false. */
   requirePet?: boolean
-  /** contact.type for a brand-new booker. Contractor, field service, landscaping, showcase, salon, vet: 'client' — a booker has work on the schedule. RV, restaurant: 'lead'. Default 'lead'. */
+  /** contact.type for a brand-new booker. Every vertical passes 'client' — a booker has work on the schedule. Default 'lead'. */
   contactType?: string
   /** Fallback zone when booking_settings.timezone is unset. Default America/Chicago. */
   defaultTimezone?: string

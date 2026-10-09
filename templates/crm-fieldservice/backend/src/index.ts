@@ -105,6 +105,7 @@ setEmailRecorder(createEmailLogger({ db, tables: { emailLog, company, user }, lo
 const app = new Hono()
 
 import { requestScope } from './services/audit.ts'
+import { deleteAudit } from './middleware/deleteAudit.ts'
 
 /**
  * Every request runs inside the audit scope, so an audit row written from a service function — with
@@ -112,6 +113,7 @@ import { requestScope } from './services/audit.ts'
  * by anything mounted below this must be inside it. (T58k)
  */
 app.use('*', (c, next) => requestScope.run({ c }, next))
+app.use('*', deleteAudit)
 
 app.use('*', secureHeaders({
   crossOriginResourcePolicy: 'cross-origin',

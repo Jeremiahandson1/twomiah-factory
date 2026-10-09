@@ -105,4 +105,17 @@ try {
   console.warn('[prune-legacy] booker type heal failed:', e?.message || e)
 }
 
+/**
+ * PRE-T59 WEBSITE ENQUIRIES GET A LEAD INBOX ROW. The form now writes to the inbox; the enquiries that
+ * arrived before it were written as Contacts and never reached the inbox or its New leads count. Each
+ * untouched one gets an inbox row pointing at its contact — nothing moved, nothing deleted — see
+ * src/shared/leads/legacyWebsiteLeads.ts. Imported dynamically so it can never stop this script.
+ */
+try {
+  const { moveLegacyWebsiteLeadsToInbox } = await import('../src/shared/leads/legacyWebsiteLeads.ts')
+  console.log('[prune-legacy] pre-T59 website enquiries given a Lead Inbox row:', await moveLegacyWebsiteLeadsToInbox(db, sql))
+} catch (e: any) {
+  console.warn('[prune-legacy] website enquiry heal failed:', e?.message || e)
+}
+
 process.exit(0)

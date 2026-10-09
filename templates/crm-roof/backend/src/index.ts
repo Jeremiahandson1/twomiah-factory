@@ -40,6 +40,7 @@ import canvassingRoutes from './routes/canvassing.ts'
 import stormRoutes from './routes/storms.ts'
 import quickbooksRoutes from './routes/quickbooks.ts'
 import leadsRoutes from './routes/leads.ts'
+import dashboardRoutes from './routes/dashboard.ts'
 import documentsRoutes from './routes/documents.ts'
 import calltrackingRoutes from './routes/calltracking.ts'
 import aiReceptionistRoutes from './routes/aiReceptionist.ts'
@@ -286,6 +287,8 @@ app.route('/api/canvassing', canvassingRoutes)
 app.route('/api/storms', stormRoutes)
 app.route('/api/quickbooks', quickbooksRoutes)
 app.route('/api/leads', leadsRoutes)
+// Home figures for the mobile app's roofing dashboard — it asked for this route and got a 404. (T59)
+app.route('/api/dashboard', dashboardRoutes)
 app.route('/api/documents', documentsRoutes)
 app.route('/api/calltracking', calltrackingRoutes)
 app.route('/api/ai-receptionist', aiReceptionistRoutes)

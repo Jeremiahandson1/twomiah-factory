@@ -113,6 +113,9 @@ export type { MessagingBillingStatus } from './messagingBilling'
 
 // Auth — bearer middleware, the role → permission matrix, and the login/refresh/me/password routes, one implementation for every CRM.
 export { createEnabledFeatureGate } from './enabledFeature'
+// A DELETE always leaves an audit row naming what went — unless the handler wrote its own. (T59)
+export { createDeleteAuditFloor } from './audit/deleteFloor'
+export type { DeleteFloorDeps } from './audit/deleteFloor'
 export type { EnabledFeatureDeps, EnabledFeatureGate } from './enabledFeature'
 export { createEmailLogger } from './emailLog'
 export type { EmailLogDeps, EmailLogEntry, EmailRecorder } from './emailLog'
@@ -170,6 +173,7 @@ export { createMarketingService, createMarketingRoutes, MarketingError, SEQUENCE
 export type { MarketingService, MarketingServiceDeps, MarketingRoutesDeps, MarketingTables, MailMessage } from './marketing/marketing'
 
 // Lead Inbox — inbound leads (Factory-forwarded email + secret-locked webhooks), lead sources, convert-to-contact; one implementation for every CRM.
+export { moveLegacyWebsiteLeadsToInbox } from './leads/legacyWebsiteLeads'
 export { createLeadsRoutes, insertLead, parseLeadEmail, parseWebhookPayload, readInboundBody, TRADES_LEAD_PLATFORMS, LEAD_STATUSES } from './leads/leads'
 export type { LeadsDeps, LeadsOptions, LeadsTables, ParsedLead } from './leads/leads'
 

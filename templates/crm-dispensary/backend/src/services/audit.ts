@@ -134,6 +134,10 @@ function resolveActor(req: any): { userId: string | null; email: string | null; 
 }
 
 export async function log({ action, entity, entityId, entityName, changes, metadata, req }: AuditLogInput): Promise<void> {
+  // This request wrote its own entry, so the delete floor (shared/audit/deleteFloor) must not add a
+  // second, duller one beside it. (T59)
+  const scope: any = requestScope.getStore()
+  if (scope) scope.logged = true
   try {
     const actor = resolveActor(req)
     // No company means no row: the column is NOT NULL, so this would throw and be swallowed below. Say so

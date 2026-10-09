@@ -33,6 +33,8 @@ const SOURCE_COLORS: Record<string, { bg: string; text: string; label: string }>
   thumbtack: { bg: '#e3f2fd', text: '#1565c0', label: 'Thumbtack' },
   google_lsa: { bg: '#fce4ec', text: '#c62828', label: 'Google LSA' },
   houzz: { bg: '#f3e5f5', text: '#6a1b9a', label: 'Houzz' },
+  // A first-time caller from call tracking (services/calltracking.ts) — it read "Other" without this. (T59)
+  phone: { bg: '#e3f2fd', text: '#1565c0', label: 'Phone call' },
   other: { bg: '#f5f5f5', text: '#616161', label: 'Other' },
 };
 

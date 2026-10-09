@@ -33,7 +33,7 @@ import { usePushNotifications } from '../../src/hooks/usePushNotifications'
 interface Stats {
   contacts?: number
   newLeads?: number
-  jobs?: { total?: number; today?: number; byStatus?: Record<string, number> }
+  jobs?: { total?: number; today?: number; byStatus?: Record<string, number>; open?: number; inspectionsToday?: number; installsToday?: number }
   quotes?: { total?: number; pending?: number; approved?: number; totalValue?: number }
   invoices?: { total?: number; outstanding?: number; outstandingValue?: number }
   // dispensary
@@ -152,9 +152,9 @@ function getVerticalConfig(vertical: string) {
 function getStatCards(vertical: string, stats: Stats | null, unitCount = 0) {
   if (!stats) return []
   switch (vertical) {
-    // NOTE: 'rv' is not in VerticalContext's VALID_VERTICALS yet, so the app never selects it; these are
-    // the keys the RV dashboard really sends, ready for when it does. "Customers" counted every contact,
-    // leads included — the open sales leads are the dealership's working number.
+    // The keys the RV dashboard really sends (selected since T59 via detectVertical's RV-only features).
+    // "Customers" counted every contact, leads included — the open sales leads are the dealership's
+    // working number.
     case 'rv':
       return [
         { label: 'Inventory', value: unitCount, icon: 'car-sport', color: '#3b82f6' },
@@ -175,12 +175,15 @@ function getStatCards(vertical: string, stats: Stats | null, unitCount = 0) {
         { label: 'Active Visits', value: stats.jobs?.byStatus?.in_progress ?? 0, icon: 'pulse', color: '#22c55e' },
         { label: 'Open Tasks', value: stats.quotes?.pending ?? 0, icon: 'clipboard', color: '#f59e0b' },
       ]
+    // crm-roof's own dashboard (backend/src/routes/dashboard.ts, T59) — it had none, so this screen
+    // showed no cards. A roofing job is inspected and installed, not "scheduled", so it counts those.
     case 'roofing':
       return [
-        { label: 'Jobs Today', value: stats.jobs?.today ?? 0, icon: 'hammer', color: '#3b82f6' },
-        { label: 'Pipeline', value: stats.quotes?.pending ?? 0, icon: 'funnel', color: '#f59e0b' },
-        { label: 'Active Jobs', value: (stats.jobs?.byStatus?.scheduled ?? 0) + (stats.jobs?.byStatus?.in_progress ?? 0), icon: 'construct', color: '#22c55e' },
-        { label: 'Outstanding', value: dollars(stats.invoices?.outstandingValue), icon: 'cash', color: '#8b5cf6' },
+        { label: 'Inspections Today', value: stats.jobs?.inspectionsToday ?? 0, icon: 'search', color: '#3b82f6' },
+        { label: 'Installs Today', value: stats.jobs?.installsToday ?? 0, icon: 'hammer', color: '#22c55e' },
+        ...(typeof stats.newLeads === 'number' ? [{ label: 'New Leads', value: stats.newLeads, icon: 'mail-unread', color: '#ec4899' }] : []),
+        { label: 'Open Jobs', value: stats.jobs?.open ?? 0, icon: 'construct', color: '#f59e0b' },
+        ...(stats.invoices ? [{ label: 'Outstanding', value: dollars(stats.invoices.outstandingValue), icon: 'cash', color: '#8b5cf6' }] : []),
       ]
     // contractor, field service, landscaping — the jobs-family dashboard (packages/tenant-backend/src/reporting/jobsDashboard.ts)
     default:

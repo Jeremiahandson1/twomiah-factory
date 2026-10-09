@@ -7,6 +7,9 @@ import { Vertical } from './verticals'
 
 const FEATURE_SIGNALS: [string[], Vertical][] = [
   // Order matters: more specific matches first
+  // Feature ids only crm-rv has (featureRegistry.ts) — a dealership. /api/auth/me sends no `vertical`,
+  // so without a signal here an RV dealer fell through to 'contractor'. (T59)
+  [['unit_inventory', 'deal_desk', 'deal_pipeline', 'trade_in'], 'rv'],
   [['evv', 'caregivers', 'care_plans'], 'homecare'],
   [['pos', 'loyalty_rewards', 'menu'], 'dispensary'],
   [['canvassing', 'insurance_claims', 'storm_leads'], 'roofing'],
@@ -20,7 +23,7 @@ export function detectVertical(
 ): Vertical {
   // 1. Use explicit vertical if provided and valid
   if (explicitVertical) {
-    const valid: Vertical[] = ['contractor', 'fieldservice', 'homecare', 'roofing', 'landscaping', 'dispensary']
+    const valid: Vertical[] = ['contractor', 'fieldservice', 'homecare', 'roofing', 'landscaping', 'dispensary', 'rv']
     if (valid.includes(explicitVertical as Vertical)) {
       return explicitVertical as Vertical
     }
