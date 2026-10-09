@@ -175,6 +175,31 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // door open on adjust. Rewards are the price list of the programme; they sit where pricebook and
     // settings already sit.
     'loyalty:*',
+    /**
+     * A client's portal LINK is a credential, and handing one out is its own permission. (T62; owner's
+     * decision 2026-10-09: owners, admins and managers.)
+     *
+     *   "The stylist holds contacts:create and contacts:update. That lets them fetch any client's working
+     *    portal link, which is the credential behind the original T42 high."
+     *
+     * Switching a client's portal on, reissuing the link, reading it out and emailing it all asked
+     * contacts:update — which salon stylists and vet staff hold so they can keep a client's card up to
+     * date. Editing an address is not the right to open the customer's portal as them (or, with an
+     * edited email, to mail their link to yourself). Split off the same way loyalty:adjust and sms:send
+     * were: everyone keeps add/edit; the key sits with the desk.
+     */
+    'portal:share',
+    /**
+     * What the business has TAKEN, as one figure: the invoice totals and the dashboard's revenue line.
+     * (T62; owner's decision 2026-10-09: vet staff do not see practice revenue.)
+     *
+     * It rode on invoices:read, and the vet grants its staff invoices:read so they can bill a visit — so
+     * the person at the desk read the practice's month. Billing one owner is not the practice's books.
+     * Granted here, to manager and to viewer (who sees revenue, not cost — owner's decision), so every
+     * vertical reads exactly what it read before; the vet's staff are the only seat with invoices:read
+     * and without this.
+     */
+    'revenue:read',
   ],
   manager: [
     'contacts:*', 'projects:*', 'jobs:*', 'quotes:*', 'invoices:read',
@@ -221,6 +246,10 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // Runs the programme day to day, including the correction a desk sometimes has to make — but
     // does not set the rate or write the reward list. Same line settings:* and payments:* draw.
     'loyalty:read', 'loyalty:enroll', 'loyalty:redeem', 'loyalty:adjust',
+    // Hands a client their portal link — switch it on, reissue it, read it out, email it. (T62; note on admin)
+    'portal:share',
+    // The business's takings as one figure. (T62; note on admin)
+    'revenue:read',
   ],
   field: [
     'contacts:read', 'projects:read', 'jobs:read', 'jobs:update', 'time:read',
@@ -247,6 +276,8 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'team:read', 'company:read', 'dashboard:read', 'schedule:read',
     'tasks:read',
     'loyalty:read',
+    // Sees revenue, not cost (owner's decision) — what it read before revenue:read existed. (T62; note on admin)
+    'revenue:read',
   ],
   user: [],
 }

@@ -108,6 +108,8 @@ export default function SpacesPage() {
                 ) : null}
               </div>
 
+              {/* Prices are withheld (absent) from a seat without invoices:read — no "$0 minimum spend". (T62) */}
+              {('minimumSpend' in s || 'hireFee' in s) && (
               <div className="mt-3 space-y-1 text-sm">
                 <p className="flex items-center gap-2 text-gray-700 dark:text-slate-200">
                   <Wallet className="w-4 h-4 text-orange-500 dark:text-orange-300" />
@@ -116,6 +118,7 @@ export default function SpacesPage() {
                 </p>
                 {s.hireFee ? <p className="text-xs text-gray-500 dark:text-slate-400 pl-6">plus {money(s.hireFee)} hire fee</p> : null}
               </div>
+              )}
 
               {(s.amenities || []).length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-3">

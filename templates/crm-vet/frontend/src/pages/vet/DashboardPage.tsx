@@ -22,7 +22,8 @@ interface Stats {
    * visits nobody had invoiced, so on the 1st of a month the tile reported the month ahead as earned.
    * The other two are those excluded amounts, shown beneath it so the figure accounts for itself. (T51)
    */
-  visits?: { thisMonth?: number; revenueThisMonth?: number; unbilledThisMonth?: number; scheduledThisMonth?: number };
+  // revenueWithheld: this seat may not see the practice's money (vet staff — T62); the three figures are absent.
+  visits?: { thisMonth?: number; revenueThisMonth?: number; unbilledThisMonth?: number; scheduledThisMonth?: number; revenueWithheld?: boolean };
   reminders?: { overdue?: number; dueSoon?: number };
   wellness?: { activeEnrollments?: number };
 }
@@ -211,10 +212,12 @@ export default function DashboardPage() {
             <Stethoscope className="w-5 h-5 text-purple-500 dark:text-purple-300" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{visits.thisMonth || 0}</p>
+          {!visits.revenueWithheld && (
           <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1">
             <DollarSign className="w-3 h-3 text-green-700 dark:text-green-300" />
             {money(visits.revenueThisMonth)} billed
           </p>
+          )}
           {/*
             What the figure above leaves out, where there is anything to leave out. "Billed" on its
             own invites "billed out of what?", and the unbilled number is the one a practice chases

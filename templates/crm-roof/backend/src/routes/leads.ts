@@ -3,7 +3,7 @@ import { db } from '../../db/index.ts'
 import { lead, leadSource, contact } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc, gte } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { createId } from '@paralleldrive/cuid2'
 
 const app = new Hono()
@@ -98,12 +98,21 @@ app.use('*', authenticate)
 
 // ─── Lead Sources CRUD ─────────────────────────────────────────────────────────
 
+// THE WEBHOOK SECRET IS AN INTEGRATION CREDENTIAL — owners and admins only. (T62 High; owner's decision 2026-10-09)
+// Anyone holding it can post leads into this CRM from outside. The list stays readable; the key goes only to
+// integrations:update (owner '*', admin 'integrations:*'; a manager holds only integrations:read).
+const mayHoldSecret = async (c: any): Promise<boolean> => {
+  const u = c.get('user') as any
+  try { return hasPermission(u?.role, 'integrations:update', await getExtraPermissions(u?.userId)) } catch { return false }
+}
+const withoutSecret = <T extends Record<string, any>>(row: T): T => { const { webhookSecret, ...rest } = row as any; return rest as T }
+
 app.get('/sources', async (c) => {
   const currentUser = c.get('user') as any
   const sources = await db.select().from(leadSource)
     .where(eq(leadSource.companyId, currentUser.companyId))
     .orderBy(desc(leadSource.createdAt))
-  return c.json({ data: sources })
+  return c.json({ data: (await mayHoldSecret(c)) ? sources : sources.map(withoutSecret) })
 })
 
 app.post('/sources', requirePermission('leads:create'), async (c) => {
@@ -125,7 +134,7 @@ app.post('/sources', requirePermission('leads:create'), async (c) => {
     companyId: currentUser.companyId,
   }).returning()
 
-  return c.json(source, 201)
+  return c.json((await mayHoldSecret(c)) ? source : withoutSecret(source), 201)
 })
 
 app.put('/sources/:id', requirePermission('leads:update'), async (c) => {
@@ -143,7 +152,7 @@ app.put('/sources/:id', requirePermission('leads:update'), async (c) => {
     .where(eq(leadSource.id, id))
     .returning()
 
-  return c.json(updated)
+  return c.json((await mayHoldSecret(c)) ? updated : withoutSecret(updated))
 })
 
 app.delete('/sources/:id', requirePermission('leads:delete'), async (c) => {

@@ -161,6 +161,9 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
   const mayCreate = useMayWrite('agreements:create')
   const mayUpdate = useMayWrite('agreements:update')
   const mayBill = useMayWrite('invoices:create')
+  // The prices on this page are money — invoices:read, the question agreements.ts asks before it sends `amount`
+  // and `price`. A seat without it is sent neither, and the page drew `Number(undefined) || 0` as "$0.00". (T62)
+  const maySeeMoney = useMayWrite('invoices:read')
   const confirm = useConfirm()
   const [tab, setTab] = useState<string>('agreements'); // agreements, plans, visits
   const [agreements, setAgreements] = useState<Agreement[]>([]);
@@ -371,7 +374,7 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
                     <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Visits</th>
                     <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Expires</th>
                     <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Autopay</th>
-                    <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Price</th>
+                    {maySeeMoney && <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Price</th>}
                     <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
@@ -539,6 +542,7 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowPro
   const { api } = useAgreements();
   // POST /:id/renew asks agreements:update, and so does the autopay toggle below (PUT /:id/autopay).
   const mayUpdate = useMayWrite('agreements:update');
+  const maySeeMoney = useMayWrite('invoices:read'); // see AgreementsPage (T62)
   const endingSoon = agreement.status === 'active' && new Date(agreement.endDate) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   const isExpiringSoon = endingSoon && agreement.renewalType !== 'auto'; // auto-renew agreements renew instead
   const renewsSoon = endingSoon && agreement.renewalType === 'auto';
@@ -589,10 +593,10 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowPro
       <td className="px-4 py-3">
         <AutopayToggle agreement={agreement} onChanged={onChanged} />
       </td>
-      <td className="px-4 py-3 text-right font-medium">
+      {maySeeMoney && <td className="px-4 py-3 text-right font-medium">
         ${(Number(agreement.amount) || 0).toFixed(2)}
         <span className="text-xs text-gray-500 ml-1 dark:text-slate-400">/{agreement.billingFrequency}</span>
-      </td>
+      </td>}
       <td className="px-4 py-3">
         <div className="flex items-center gap-1 justify-end">
           {agreement.status === 'active' && mayUpdate && (
@@ -621,6 +625,7 @@ function PlansTab({ plans, onEdit, onRefresh }: PlansTabProps) {
   // Asked here rather than threaded down from the page: useMayWrite is a hook, so the component that
   // draws the control asks the question itself and there is no prop to forget. (T41)
   const mayUpdate = useMayWrite('agreements:update');
+  const maySeeMoney = useMayWrite('invoices:read'); // see AgreementsPage (T62)
   return (
     <div className="grid grid-cols-3 gap-6">
       {plans.map((plan: Plan) => (
@@ -641,10 +646,14 @@ function PlansTab({ plans, onEdit, onRefresh }: PlansTabProps) {
             )}
           </div>
 
+          {maySeeMoney ? (
           <div className="text-3xl font-bold text-gray-900 mb-4 dark:text-slate-100">
             ${(Number(plan.price) || 0).toFixed(0)}
             <span className="text-base font-normal text-gray-500 dark:text-slate-400">/{plan.billingFrequency}</span>
           </div>
+          ) : (
+          <p className="text-sm text-gray-500 mb-4 capitalize dark:text-slate-400">Billed {plan.billingFrequency}</p>
+          )}
 
           {plan.description && (
             <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">{plan.description}</p>
@@ -1044,7 +1053,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                 <option value="">Select plan...</option>
                 {plans.filter((p: Plan) => p.active).map((p: Plan) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} - ${(Number(p.price) || 0).toFixed(0)}/{p.billingFrequency}
+                    {p.name}{p.price != null ? ` - $${(Number(p.price) || 0).toFixed(0)}` : ''}/{p.billingFrequency}
                   </option>
                 ))}
               </select>

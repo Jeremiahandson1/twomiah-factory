@@ -3,6 +3,7 @@ import { db } from '../../db/index.ts'
 import { contact, patient, appointment, visit, vaccination, wellnessEnrollment, user } from '../../db/schema.ts'
 import { eq, and, gte, lt, lte, count, desc, sql, notInArray } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 
 /**
  * Veterinary practice dashboard — patients, appointments, visit revenue,
@@ -127,6 +128,8 @@ app.get('/stats', async (c) => {
   const scheduledThisMonth = r2(revenueRows
     .filter((r: any) => !happened(r))
     .reduce((s: number, r: any) => s + Number(r.amt || 0), 0))
+  // Vet staff do not see practice revenue. (T62; owner's decision 2026-10-09)
+  const maySeeRevenue = hasPermission(user_?.role, 'revenue:read', await getExtraPermissions(user_?.userId))
 
   return c.json({
     contacts: ownerRows[0]?.value ?? 0,
@@ -142,7 +145,11 @@ app.get('/stats', async (c) => {
     },
     // revenueThisMonth is work DONE and BILLED. The other two are what used to be folded into it,
     // returned so the tile can account for the difference instead of just being smaller. (T51)
-    visits: { thisMonth: visitsMonthRows[0]?.value ?? 0, revenueThisMonth, unbilledThisMonth, scheduledThisMonth },
+    // All three are the practice's money, so they go only to revenue:read — not to staff, who bill a visit
+    // and see that visit's charge. Absent, with revenueWithheld, so the tile cannot print $0.00. (T62)
+    visits: maySeeRevenue
+      ? { thisMonth: visitsMonthRows[0]?.value ?? 0, revenueThisMonth, unbilledThisMonth, scheduledThisMonth }
+      : { thisMonth: visitsMonthRows[0]?.value ?? 0, revenueWithheld: true },
     reminders: { overdue: overdueVaxRows[0]?.value ?? 0, dueSoon: dueSoonVaxRows[0]?.value ?? 0 },
     wellness: { activeEnrollments: wellnessRows[0]?.value ?? 0 },
   })

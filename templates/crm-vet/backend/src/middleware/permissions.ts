@@ -18,6 +18,11 @@ export const {
   // "your pet is out of surgery" is their message to send, not a manager's. (T30 L-RB)
   //
   /**
+   * SUPERSEDED (T62; owner's decision 2026-10-09): vet staff do NOT see practice revenue. The grant below
+   * stays — they bill a visit — and the totals now ask revenue:read as well, which staff do not hold:
+   * /api/invoices/stats refuses them and the dashboard withholds its revenue figures. The T41 note is kept
+   * as the record of why invoices:read itself is here.
+   *
    * T41 ASKED ABOUT THIS AND THE ANSWER IS "INTENDED". Not changed.
    *
    * The report lists, as a medium: "Staff sees practice-wide totals via /api/invoices/stats and

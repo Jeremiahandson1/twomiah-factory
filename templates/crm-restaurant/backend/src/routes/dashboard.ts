@@ -140,7 +140,19 @@ app.get('/recent-activity', async (c) => {
       .map((p) => ({ id: p.id, label: p.label, amount: p.amount, paidAmount: p.paidAmount, state: p.state, dueDate: p.dueDate, eventId, eventName: meta.eventName, clientName: meta.clientName }))
   }).sort((a, b) => (a.dueDate || '9999-12-31').localeCompare(b.dueDate || '9999-12-31')).slice(0, 8)
 
-  return c.json({ newEnquiries, upcomingEvents, duePayments })
+  /**
+   * …AND THE PAYMENTS DUE PANEL TOO. (T62 High — open since T42)
+   *
+   *   "Events: staff still see client balances. The dashboard's Payments Due panel and
+   *    /api/dashboard/recent-activity return amounts, paid amounts and client names, for example
+   *    'Raman 40th Birthday $3,350.00'."
+   *
+   * /stats was closed in T42 and this route was left beside it. Same rule, same permission: who owes the
+   * venue what is invoices:read. The key is absent, not an empty list — an empty list draws "Nothing
+   * outstanding", which is a false statement about the money to the one seat that cannot check it.
+   */
+  const maySeeMoney = hasPermission(user_?.role, 'invoices:read', await getExtraPermissions(user_?.userId))
+  return c.json(maySeeMoney ? { newEnquiries, upcomingEvents, duePayments } : { newEnquiries, upcomingEvents, moneyWithheld: true })
 })
 
 export default app

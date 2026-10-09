@@ -34,6 +34,9 @@ export default function InvoicesPage() {
   const [contacts, setContacts] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  // GET /api/invoices asks invoices:read. A refusal was parsed as an empty list and drawn as "0 invoices" — a number
+  // that was never measured. Said as what it is instead. (T62: "Quotes and Invoices pages say '0' instead of no access")
+  const [refused, setRefused] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [tab, setTab] = useState<'unpaid' | 'all'>('unpaid');
@@ -65,6 +68,8 @@ export default function InvoicesPage() {
         fetch('/api/contacts?limit=200', { headers }),
         fetch('/api/jobs?limit=200', { headers }),
       ]);
+      if (invRes.status === 403) { setRefused(true); return; }
+      setRefused(false);
       const invData = await invRes.json();
       const contData = await contRes.json();
       const jobsData = await jobsRes.json();
@@ -181,6 +186,16 @@ export default function InvoicesPage() {
   };
 
   const totalPages = Math.ceil(total / limit) || 1;
+
+  if (refused) {
+    return (
+      <div className="p-6">
+        <div className="rounded-xl border bg-white p-6 text-sm text-gray-700 dark:bg-slate-900 dark:text-slate-200">
+          Invoices are for the office — an owner, admin, manager or the read-only books seat. Your role can’t open them.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">

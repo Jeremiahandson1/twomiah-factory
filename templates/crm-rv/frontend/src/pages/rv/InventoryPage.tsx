@@ -123,6 +123,9 @@ export default function InventoryPage() {
   // POST /api/units asks contacts:create — crm-rv reuses the contacts verbs for its sales-floor
   // records — and the field rung holds contacts:read only. (T41)
   const mayAddUnit = useMayWrite('contacts:create');
+  // A unit's Edit is PUT (contacts:update) and Delete is DELETE (contacts:delete); both were on every card. (T62)
+  const mayEditUnit = useMayWrite('contacts:update');
+  const mayDeleteUnit = useMayWrite('contacts:delete');
   const { hasFeature } = useAuth();
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -334,12 +337,12 @@ export default function InventoryPage() {
                     </button>
                   )}
                   <div className="ml-auto flex items-center gap-2">
-                    <button onClick={() => { setEditing(u); setShowForm(true); }} className="p-1 text-gray-400 hover:text-gray-600" title="Edit">
+                    {mayEditUnit && <button onClick={() => { setEditing(u); setShowForm(true); }} className="p-1 text-gray-400 hover:text-gray-600" title="Edit">
                       <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => handleDelete(u)} className="p-1 text-gray-400 hover:text-red-600" title="Delete">
+                    </button>}
+                    {mayDeleteUnit && <button onClick={() => handleDelete(u)} className="p-1 text-gray-400 hover:text-red-600" title="Delete">
                       <Trash2 className="w-4 h-4" />
-                    </button>
+                    </button>}
                   </div>
                 </div>
               </div>

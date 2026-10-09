@@ -16,6 +16,8 @@ export default function SettingsPage() {
   //     storm board
   const mayManageIntegrations = useMayWrite('integrations:create');
   const mayWriteStormArea = useMayWrite('storms:update');
+  // …and the storm inputs follow it, not just the buttons: staff could type a zip, a hail size and tick the boxes,
+  // with no Save to keep any of it. (T62: "Roofing storm settings are editable but can't be saved")
   const { token, user: currentUser } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -553,7 +555,8 @@ export default function SettingsPage() {
                   <input
                     value={zipInput}
                     onChange={(e) => setZipInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && addZip()}
+                    onKeyDown={(e) => e.key === 'Enter' && mayWriteStormArea && addZip()}
+                    disabled={!mayWriteStormArea}
                     placeholder="Enter zip code"
                     className="w-32 text-sm border rounded-lg px-3 py-1.5"
                     maxLength={5}
@@ -580,6 +583,7 @@ export default function SettingsPage() {
                     min="0.5"
                     value={stormSettings.minHailSize}
                     onChange={(e) => setStormSettings(prev => ({ ...prev, minHailSize: e.target.value }))}
+                    disabled={!mayWriteStormArea}
                     className="w-full text-sm border rounded-lg px-3 py-2"
                   />
                 </div>
@@ -591,6 +595,7 @@ export default function SettingsPage() {
                     max="1000"
                     value={stormSettings.maxLeadsPerZip}
                     onChange={(e) => setStormSettings(prev => ({ ...prev, maxLeadsPerZip: e.target.value }))}
+                    disabled={!mayWriteStormArea}
                     className="w-full text-sm border rounded-lg px-3 py-2"
                   />
                 </div>
@@ -602,6 +607,7 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={stormSettings.stormAlertEnabled}
                     onChange={(e) => setStormSettings(prev => ({ ...prev, stormAlertEnabled: e.target.checked }))}
+                    disabled={!mayWriteStormArea}
                     className="rounded border-gray-300 dark:border-slate-700"
                   />
                   <span className="text-sm text-gray-700 dark:text-slate-200">Enable storm alerts for service area</span>
@@ -611,6 +617,7 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={stormSettings.autoGenerate}
                     onChange={(e) => setStormSettings(prev => ({ ...prev, autoGenerate: e.target.checked }))}
+                    disabled={!mayWriteStormArea}
                     className="rounded border-gray-300 dark:border-slate-700"
                   />
                   <span className="text-sm text-gray-700 dark:text-slate-200">Auto-generate leads when storms are detected</span>

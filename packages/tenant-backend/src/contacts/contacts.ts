@@ -33,6 +33,12 @@ export interface ContactRelation {
   /** drizzle select map; omit to select every column */
   columns?: Record<string, any>
   orderBy?: any
+  /**
+   * The permission this list's own page asks — quotes:read, invoices:read. A seat without it is not handed the
+   * list: every row links to a page that would refuse it, and the totals are money. (T62: "Field service
+   * contact detail returns quote and invoice totals" to staff.) Needs `canSee`; without it the list is sent.
+   */
+  permission?: string
 }
 
 /** A table whose rows block deleting the contact they point at. */
@@ -79,6 +85,8 @@ export interface ContactDeps {
   audit: { log: (entry: any) => any; diff: (before: any, after: any) => any; ACTIONS: Record<string, string> }
   /** the template's `cleanText(min)` zod helper (strips markup) */
   cleanText: (min?: number) => z.ZodTypeAny
+  /** May this person do X? (role list + per-user grants.) Decides which related lists a contact read carries. */
+  canSee?: (role: string, permission: string, userId?: string) => Promise<boolean>
   options?: ContactOptions
 }
 
@@ -90,10 +98,10 @@ const phoneField = (what: string) => z.string().optional().nullable().refine(isV
 export function standardRelations(t: { project?: any; quote?: any; invoice?: any; job?: any }): ContactRelation[] {
   const out: ContactRelation[] = []
   if (t.project) out.push({ key: 'projects', table: t.project, column: t.project.contactId, columns: { id: t.project.id, name: t.project.name, status: t.project.status } })
-  if (t.quote) out.push({ key: 'quotes', table: t.quote, column: t.quote.contactId, columns: { id: t.quote.id, number: t.quote.number, total: t.quote.total, status: t.quote.status } })
+  if (t.quote) out.push({ key: 'quotes', table: t.quote, column: t.quote.contactId, columns: { id: t.quote.id, number: t.quote.number, total: t.quote.total, status: t.quote.status }, permission: 'quotes:read' })
   // dueDate and the amounts come too: the page derives "overdue" the same way every other surface does,
   // instead of printing the stored status. (T14 M17 / H10)
-  if (t.invoice) out.push({ key: 'invoices', table: t.invoice, column: t.invoice.contactId, columns: { id: t.invoice.id, number: t.invoice.number, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate, status: t.invoice.status } })
+  if (t.invoice) out.push({ key: 'invoices', table: t.invoice, column: t.invoice.contactId, columns: { id: t.invoice.id, number: t.invoice.number, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate, status: t.invoice.status }, permission: 'invoices:read' })
   // A contact's work, which the page counted and never listed: "Invoices 4" over a body showing quotes
   // only. (T14 M6)
   if (t.job) out.push({ key: 'jobs', table: t.job, column: t.job.contactId, columns: { id: t.job.id, number: t.job.number, title: t.job.title, status: t.job.status, scheduledDate: t.job.scheduledDate } })
@@ -299,13 +307,19 @@ export function createContactRoutes(deps: ContactDeps) {
     const id = c.req.param('id')
     const found = await findOwned(id, currentUser.companyId)
     if (!found) return c.json({ error: 'Contact not found' }, 404)
-    const lists = await Promise.all(relations.map((r) => {
+    // Only the lists this seat may open. (T62)
+    const allowed = await Promise.all(relations.map(async (r) => {
+      if (!r.permission || !deps.canSee) return true
+      try { return await deps.canSee(currentUser?.role, r.permission, currentUser?.userId) } catch { return false }
+    }))
+    const visible = relations.filter((_, i) => allowed[i])
+    const lists = await Promise.all(visible.map((r) => {
       let q = (r.columns ? db.select(r.columns) : db.select()).from(r.table).where(eq(r.column, id))
       if (r.orderBy) q = q.orderBy(r.orderBy)
       return q
     }))
     const out: any = withoutPortalCredential(found)
-    relations.forEach((r, i) => { out[r.key] = lists[i] })
+    visible.forEach((r, i) => { out[r.key] = lists[i] })
     return c.json(out)
   })
 

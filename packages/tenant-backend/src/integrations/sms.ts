@@ -434,7 +434,9 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
 
   app.use('*', authenticate)
 
-  app.get('/conversations', async (c) => {
+  // READING a customer's texts asks what the Messages link asks — sms:send. It asked nothing, so a seat with no
+  // SMS right on Events read every conversation the business had. (T62) Unread-count stays open: a number, no text.
+  app.get('/conversations', textsACustomer, async (c) => {
     const user = (c as any).get('user')
     const q = c.req.query()
     return c.json(await sms.getConversations(user.companyId, {
@@ -443,7 +445,7 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
     }))
   })
   app.get('/unread-count', async (c) => c.json({ count: await sms.getUnreadCount(((c as any).get('user')).companyId) }))
-  app.get('/conversations/:id', async (c) => {
+  app.get('/conversations/:id', textsACustomer, async (c) => {
     const conversation = await sms.getConversation(c.req.param('id'), ((c as any).get('user')).companyId)
     return conversation ? c.json(conversation) : c.json({ error: 'Conversation not found' }, 404)
   })

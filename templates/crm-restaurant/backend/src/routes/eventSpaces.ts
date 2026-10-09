@@ -3,7 +3,7 @@ import { db } from '../../db/index.ts'
 import { eventSpace } from '../../db/schema.ts'
 import { eq, and, asc, ne, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
@@ -86,7 +86,10 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
     .where(and(...conditions))
     .orderBy(asc(eventSpace.name))
 
-  return c.json({ data })
+  // A room's minimum spend and hire fee are prices — invoices:read, the rule the event page uses for the same
+  // two figures. The floor team keeps the rooms, their capacities and amenities. (T62)
+  if (hasPermission(currentUser?.role, 'invoices:read', await getExtraPermissions(currentUser?.userId))) return c.json({ data })
+  return c.json({ data: data.map(({ minimumSpend, hireFee, ...rest }: any) => rest), moneyWithheld: true })
 })
 
 // POST /event-spaces

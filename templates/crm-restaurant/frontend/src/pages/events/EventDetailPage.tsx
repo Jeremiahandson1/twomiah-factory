@@ -67,6 +67,8 @@ interface Detail {
   payments?: PaymentLine[];
   invoice?: EventInvoice | null;
   totals?: Totals;
+  // The server withheld the money from this seat (invoices:read). Nothing priced is drawn — not as $0. (T62)
+  moneyWithheld?: boolean;
 }
 interface PackageOption { id: string; name?: string; pricePerPerson?: number | string; minGuests?: number; category?: string }
 interface SpaceOption { id: string; name?: string; seatedCapacity?: number }
@@ -191,6 +193,7 @@ export default function EventDetailPage() {
   const timeline = detail.timeline || [];
   const payments = detail.payments || [];
   const totals = detail.totals || {};
+  const showMoney = !detail.moneyWithheld;
   const heads = ev.guestCountFinal ?? ev.guestCount ?? 0;
 
   // The minimum-spend check is the whole reason a venue takes private events —
@@ -198,7 +201,8 @@ export default function EventDetailPage() {
   // Minimum spend is food & beverage — the room-hire line doesn't count toward it.
   const minSpend = Number(space?.minimumSpend || 0);
   const fbTotal = Number(totals.fbTotal || 0);
-  const belowMinimum = minSpend > 0 && fbTotal < minSpend;
+  // Only when the totals are real: worked out from a withheld F&B figure it read "$0.00 — $9,000.00 short". (T62)
+  const belowMinimum = showMoney && minSpend > 0 && fbTotal < minSpend;
 
   // Warn when the guest count exceeds the room — 200 guests in a 55-standing room
   // saved silently before (M-02). A warning, not a hard block, mirrors the
@@ -209,7 +213,7 @@ export default function EventDetailPage() {
   const tabs: { id: Tab; label: string; icon: React.ReactNode; count: number }[] = [
     { id: 'menu', label: 'Food & Beverage', icon: <UtensilsCrossed className="w-4 h-4" />, count: menu.length },
     { id: 'runsheet', label: 'Run of Show', icon: <Clock className="w-4 h-4" />, count: timeline.length },
-    { id: 'money', label: 'Payments', icon: <Wallet className="w-4 h-4" />, count: payments.length },
+    ...(showMoney ? [{ id: 'money' as Tab, label: 'Payments', icon: <Wallet className="w-4 h-4" />, count: payments.length }] : []),
   ];
 
   return (
@@ -317,6 +321,7 @@ export default function EventDetailPage() {
             <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{heads || '—'}</p>
             <p className="text-xs text-gray-500 dark:text-slate-400">{ev.guestCountFinal ? 'guaranteed' : 'estimated'}</p>
           </div>
+          {showMoney && <>
           <div className="border rounded-lg p-3">
             <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">F&amp;B Total</p>
             <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{money2(fbTotal)}</p>
@@ -329,6 +334,7 @@ export default function EventDetailPage() {
               {totals.invoiced ? `${money2(totals.paid)} paid of ${money2(totals.total)}` : 'estimate — not invoiced yet'}
             </p>
           </div>
+          </>}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -354,7 +360,7 @@ export default function EventDetailPage() {
                   {space.seatedCapacity ? `${space.seatedCapacity} seated` : ''}
                   {space.standingCapacity ? ` · ${space.standingCapacity} standing` : ''}
                 </p>
-                {minSpend > 0 && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Minimum spend {money2(minSpend)}</p>}
+                {showMoney && minSpend > 0 && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Minimum spend {money2(minSpend)}</p>}
               </>
             ) : <p className="text-sm text-gray-500 dark:text-slate-400">No space assigned</p>}
           </div>
@@ -408,8 +414,8 @@ export default function EventDetailPage() {
                     <th className="px-4 py-3 font-medium">Item</th>
                     <th className="px-4 py-3 font-medium">Basis</th>
                     <th className="px-4 py-3 font-medium text-right">Qty</th>
-                    <th className="px-4 py-3 font-medium text-right">Unit</th>
-                    <th className="px-4 py-3 font-medium text-right">Total</th>
+                    {showMoney && <th className="px-4 py-3 font-medium text-right">Unit</th>}
+                    {showMoney && <th className="px-4 py-3 font-medium text-right">Total</th>}
                     <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
@@ -422,18 +428,18 @@ export default function EventDetailPage() {
                       </td>
                       <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{l.perPerson ? 'per person' : 'flat'}</td>
                       <td className="px-4 py-3 text-gray-600 text-right dark:text-slate-400">{l.quantity}</td>
-                      <td className="px-4 py-3 text-gray-600 text-right dark:text-slate-400">{money2(l.unitPrice)}</td>
-                      <td className="px-4 py-3 text-gray-900 font-medium text-right dark:text-slate-100">{money2(lineTotal(l))}</td>
+                      {showMoney && <td className="px-4 py-3 text-gray-600 text-right dark:text-slate-400">{money2(l.unitPrice)}</td>}
+                      {showMoney && <td className="px-4 py-3 text-gray-900 font-medium text-right dark:text-slate-100">{money2(lineTotal(l))}</td>}
                       <td className="px-4 py-3 text-right">
                         {mayEdit && <button onClick={() => removeLine('menu', l.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300" title="Remove"><Trash2 className="w-4 h-4" /></button>}
                       </td>
                     </tr>
                   ))}
-                  <tr className="bg-gray-50 dark:bg-slate-900">
+                  {showMoney && <tr className="bg-gray-50 dark:bg-slate-900">
                     <td colSpan={4} className="px-4 py-3 text-right font-semibold text-gray-700 dark:text-slate-200">Total</td>
                     <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-slate-100">{money2(totals.menuTotal)}</td>
                     <td></td>
-                  </tr>
+                  </tr>}
                 </tbody>
               </table>
             </div>
@@ -472,7 +478,7 @@ export default function EventDetailPage() {
       )}
 
       {/* Payments */}
-      {tab === 'money' && (
+      {tab === 'money' && showMoney && (
         <div className="space-y-3">
           {mayTakeMoney && (
             <div className="flex justify-end">

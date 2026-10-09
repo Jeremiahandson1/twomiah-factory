@@ -13,10 +13,14 @@ app.use('*', authenticate)
 // ==================== SESSIONS ====================
 
 // GET /sessions — list sessions for company
+// ?mine=1 — only the caller's own. The canvasser app asks for this: it opened the first ACTIVE session in the
+// company, which was the owner's, and a door logged there landed in someone else's count. (T62) The dashboard
+// still lists every session — it is the manager's view of the whole team.
 app.get('/sessions', async (c) => {
-  const { companyId } = c.get('user')
+  const { companyId, userId } = c.get('user')
+  const mine = c.req.query('mine') === '1'
   const sessions = await db.select().from(canvassingSession)
-    .where(eq(canvassingSession.companyId, companyId))
+    .where(mine ? and(eq(canvassingSession.companyId, companyId), eq(canvassingSession.userId, userId)) : eq(canvassingSession.companyId, companyId))
     .orderBy(desc(canvassingSession.createdAt))
   return c.json(sessions)
 })

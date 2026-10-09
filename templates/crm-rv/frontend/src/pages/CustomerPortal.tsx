@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
-import { brandSurfaceUnderWhite, maySeeRoute } from '../shared';
+import { brandSurfaceUnderWhite, maySeeRoute, useMayWrite } from '../shared';
 import { SHELL } from '../shellConfig';
 
 interface DashboardStats {
@@ -51,6 +51,10 @@ const tileTone = (name: string) => TILE_TONE[name] ?? TILE_TONE.blue
 export default function CustomerPortal() {
   const { user, company, logout, loading: authLoading, checkAuth, hasFeature } = useAuth();
   const navigate = useNavigate();
+  // Settings is the company's: name, users, integrations, billing — company:update. A seat without it still
+  // has its own sign-in to look after, so its tile is My Account (password and two-factor) rather than a
+  // door to a page of things it cannot change. (T62 Vet: "an 'Account Settings' tile they can't use")
+  const runsTheCompany = useMayWrite('company:update');
   // The shell blanks /crm/settings for a role its vertical does not let in (shellConfig.routeRoles /
   // routePermissions), and this tile was handing that role the door anyway — an offer with a refusal
   // behind it. Same question the sidebar's Settings link asks, from the same declaration, so the two
@@ -267,10 +271,10 @@ export default function CustomerPortal() {
             </a>
           )}
 
-          {/* Settings */}
-          {maySeeSettings && (
+          {/* Settings — or, for a seat that cannot change the company, its own account */}
+          {(maySeeSettings || !runsTheCompany) && (
           <div
-            onClick={() => navigate('/crm/settings')}
+            onClick={() => navigate(runsTheCompany ? '/crm/settings' : '/crm/account')}
             className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden dark:bg-slate-900"
           >
             <div className="absolute top-0 left-0 right-0 h-1 bg-slate-400" />
@@ -280,9 +284,9 @@ export default function CustomerPortal() {
               </div>
               <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-slate-100">Account Settings</h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-slate-100">{runsTheCompany ? 'Account Settings' : 'My Account'}</h3>
             <p className="text-sm text-slate-500">
-              Company info, users, integrations, billing
+              {runsTheCompany ? 'Company info, users, integrations, billing' : 'Your password and two-factor sign-in'}
             </p>
           </div>
           )}

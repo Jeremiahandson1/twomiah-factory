@@ -95,6 +95,12 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
   }, [user])
 
   const loadUsers = async () => {
+    // Asked only of a seat the roster answers — GET /api/company/users is users:read OR team:read. Staff hold
+    // neither, so the page fired a refused request on every open. (T62: "Background 403 calls from Settings.")
+    // Skipped only when the list is KNOWN — `can` says no while it is still loading, and an admin must not lose
+    // the roster to a race. Unknown → ask, which is the old behaviour and the server still answers.
+    const known = Array.isArray((auth as any).permissions) && (auth as any).permissions.length > 0
+    if (can && known && !can('users:read') && !can('team:read')) return
     try { const data = await api.get('/api/company/users'); setUsers(Array.isArray(data) ? data : (data?.data ?? [])) } catch { /* a staff user has no users:read — the tab just stays empty */ }
   }
 

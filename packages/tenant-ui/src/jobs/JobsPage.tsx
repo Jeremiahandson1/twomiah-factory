@@ -8,6 +8,7 @@ import { DataTable, StatusBadge, PageHeader, Button, Modal, ConfirmModal, Field,
 import type { Pagination } from '../invoicing/ui'
 import { resolveJobsConfig, PRIORITY_COLORS } from './types'
 import type { JobsPageProps, JobRow } from './types'
+import { useMayWrite } from '../auth/PermissionsContext'
 
 interface JobForm {
   title: string; description: string; status: string; priority: string; scheduledDate: string; scheduledTime: string; estimatedHours: string
@@ -24,6 +25,9 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
   // jobs:update, and since the T30 blocker fix the API enforces that. The button stayed on the page.
   const mayCreate = cfg.can('jobs:create')
   const maySeeRoster = cfg.can('team:read')
+  // DELETE /api/jobs/:id asks jobs:delete; the row's Delete was offered to everyone. useMayWrite, not cfg.can —
+  // most wrappers never set `can` on JobsConfig, so a cfg.can gate would never close. (T62)
+  const mayDelete = useMayWrite('jobs:delete')
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [data, setData] = useState<JobRow[]>([])
@@ -200,7 +204,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     { label: 'Edit', icon: Edit, onClick: openEdit },
     { label: 'Start', icon: Play, show: (r: JobRow) => r.status !== 'in_progress' && r.status !== 'completed' && r.status !== 'cancelled', onClick: start },
     { label: 'Complete', icon: CheckCircle, show: (r: JobRow) => r.status !== 'completed' && r.status !== 'cancelled', onClick: complete },
-    { label: 'Delete', icon: Trash2, className: 'text-red-600', onClick: (r: JobRow) => { setToDelete(r); setDeleteOpen(true) } },
+    { label: 'Delete', icon: Trash2, className: 'text-red-600', show: () => mayDelete, onClick: (r: JobRow) => { setToDelete(r); setDeleteOpen(true) } },
   ]
   const set = (k: keyof JobForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm({ ...form, [k]: e.target.value })
 

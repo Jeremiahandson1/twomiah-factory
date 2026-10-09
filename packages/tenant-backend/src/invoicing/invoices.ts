@@ -689,7 +689,9 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     })
   })
 
-  app.get('/stats', requirePermission('invoices:read'), async (c) => {
+  // The business's totals, not one invoice: invoices:read AND revenue:read. Vet staff hold the first to bill a
+  // visit and not the second. (T62; owner's decision 2026-10-09)
+  app.get('/stats', requirePermission('invoices:read'), requirePermission('revenue:read'), async (c) => {
     const currentUser = c.get('user') as any
     const invoices = await db.select({ status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate }).from(t.invoice).where(eq(t.invoice.companyId, currentUser.companyId))
     const stats: Record<string, number> = { total: invoices.length, draft: 0, sent: 0, paid: 0, overdue: 0, totalAmount: 0, paidAmount: 0, outstanding: 0, refundedAmount: 0 }

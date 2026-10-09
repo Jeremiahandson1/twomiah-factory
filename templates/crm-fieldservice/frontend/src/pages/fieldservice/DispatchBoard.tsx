@@ -50,7 +50,10 @@ export default function DispatchBoard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [jobsRes, techsRes] = await Promise.all([
+      // SETTLED, not all: the technician list is team:read, which a technician does not hold, and one refused
+      // request emptied the whole board — staff opened Dispatch to a blank day. The day's work is the board; the
+      // picker is the dispatcher's. (T62: "the Dispatch board is empty for staff, because one 403 breaks the page")
+      const [jobsOut, techsOut] = await Promise.allSettled([
         api.get(`/api/jobs?date=${selectedDate}&limit=200`),
         // /assignable, NOT /api/team — team.ts says so three lines above that endpoint: "Pickers
         // must read this, never GET /." GET /api/team ignores ?role entirely (it honours page,
@@ -59,6 +62,9 @@ export default function DispatchBoard() {
         // were being looked for in the wrong place. One line, both halves of the finding. (T42)
         api.get('/api/team/assignable'),
       ]);
+      if (jobsOut.status === 'rejected') throw jobsOut.reason;
+      const jobsRes: any = jobsOut.value;
+      const techsRes: any = techsOut.status === 'fulfilled' ? techsOut.value : [];
       setJobs(jobsRes.data || jobsRes || []);
       setTechs(techsRes.data || techsRes || []);
     } catch (error) {
@@ -398,7 +404,8 @@ function DispatchCard({ job, techs, onAssign, onStatusChange }) {
       {/* Actions */}
       <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-700 space-y-2">
         {/* Assign Dropdown */}
-        {job.status !== 'completed' && (
+        {/* No list to pick from (this seat may not read the team) → no picker, rather than an empty one. (T62) */}
+        {job.status !== 'completed' && techs.length > 0 && (
           <select
             value={job.assignedTo || ''}
             onChange={(e) => {

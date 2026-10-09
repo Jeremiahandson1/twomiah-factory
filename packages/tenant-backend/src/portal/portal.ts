@@ -253,7 +253,10 @@ export function createPortalRoutes(deps: PortalDeps) {
     } catch { /* an unwritten log must not undo a portal change */ }
   }
 
-  app.post('/contacts/:contactId/enable', authenticate, requirePermission('contacts:update'), async (c) => {
+  // Every route below that issues, reads, mails or withdraws the link asks portal:share — owners, admins and
+  // managers. contacts:update is the right to edit a client's card, which salon stylists and vet staff hold;
+  // it is not the right to hold the client's key. (T62; owner's decision 2026-10-09)
+  app.post('/contacts/:contactId/enable', authenticate, requirePermission('portal:share'), async (c) => {
     const user = c.get('user') as any
     if (await portalFeatureOff(user.companyId)) return c.json(PORTAL_OFF, 403)
     const found = await ownContact(c.req.param('contactId'), user.companyId)
@@ -264,7 +267,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     return c.json(issued)
   })
 
-  app.post('/contacts/:contactId/regenerate', authenticate, requirePermission('contacts:update'), async (c) => {
+  app.post('/contacts/:contactId/regenerate', authenticate, requirePermission('portal:share'), async (c) => {
     const user = c.get('user') as any
     // Reissuing a link is the same door as opening it — gating only /enable would leave the way back in.
     if (await portalFeatureOff(user.companyId)) return c.json(PORTAL_OFF, 403)
@@ -276,7 +279,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     return c.json(reissued)
   })
 
-  app.post('/contacts/:contactId/disable', authenticate, requirePermission('contacts:update'), async (c) => {
+  app.post('/contacts/:contactId/disable', authenticate, requirePermission('portal:share'), async (c) => {
     const user = c.get('user') as any
     const found = await ownContact(c.req.param('contactId'), user.companyId)
     if (!found) return c.json({ error: 'Contact not found' }, 404)
@@ -287,7 +290,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     return c.json({ success: true })
   })
 
-  app.post('/contacts/:contactId/send-link', authenticate, requirePermission('contacts:update'), async (c) => {
+  app.post('/contacts/:contactId/send-link', authenticate, requirePermission('portal:share'), async (c) => {
     const user = c.get('user') as any
     const found = await ownContact(c.req.param('contactId'), user.companyId)
     if (!found) return c.json({ error: 'Contact not found' }, 404)
@@ -315,7 +318,7 @@ export function createPortalRoutes(deps: PortalDeps) {
    * a working URL with the customer's bearer token in it. It is gated on `contacts:read`, which the
    * read-only seat holds, so the lowest rung in the company could copy a link that signs change
    * orders in the customer's name. Enabling, reissuing and emailing that link all require
-   * `contacts:update`; reading it off the status panel required nothing of the kind.
+   * `portal:share` (it was `contacts:update` until T62); reading it off the status panel required nothing of the kind.
    *
    * Splitting it is the fix rather than a role test inside the handler: `requirePermission` is the
    * only thing here that knows a user's per-user grants (it reads extra_permissions), and it works as
@@ -341,8 +344,8 @@ export function createPortalRoutes(deps: PortalDeps) {
   })
 
   // The link itself, for the seats that may hand it out — the same permission /enable, /regenerate
-  // and /send-link ask for, because reading a credential out and emailing it are the same act. (T42)
-  app.get('/contacts/:contactId/link', authenticate, requirePermission('contacts:update'), async (c) => {
+  // and /send-link ask for, because reading a credential out and emailing it are the same act. (T42, T62)
+  app.get('/contacts/:contactId/link', authenticate, requirePermission('portal:share'), async (c) => {
     const user = c.get('user') as any
     const found = await ownContact(c.req.param('contactId'), user.companyId)
     if (!found) return c.json({ error: 'Contact not found' }, 404)

@@ -12,6 +12,7 @@ import { StatusBadge, Modal, ConfirmModal, Button, NavLink, Field, inputCls, dat
 
 import { resolveContactsConfig } from './types'
 import type { ContactsPageProps, ContactRow, QuickActionIcon } from './types'
+import { quickActionPermission } from './types'
 
 type Related = { id: string; name?: string; number?: string; title?: string; total?: unknown; amountPaid?: unknown; amountRefunded?: unknown; dueDate?: string; scheduledDate?: string; status?: string; eventDate?: string }
 type Equipment = { id: string; name: string; manufacturer?: string | null; model?: string | null; serialNumber?: string | null; location?: string | null; purchaseDate?: string | null; warrantyExpiry?: string | null }
@@ -87,11 +88,15 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
   // this page do not mount one, and hiding the button on a `false` they never supplied would hide it
   // from their owners too. The server gates the route regardless.
   const mayMerge = cfg.can('contacts:delete')
+  // Edit opens the list's form (PUT, contacts:update); Delete is DELETE (contacts:delete). Both were offered to
+  // every seat that could open the record, and refused on save. (T62)
+  const mayEdit = cfg.can('contacts:update')
+  const mayDelete = cfg.can('contacts:delete')
   // Managing a customer's portal — switching it on, reissuing the link, emailing it, reading it out —
   // is one permission, and it is not the one that opens this page. The server withholds the link from
-  // a seat without it (GET …/link, contacts:update); this is the same answer on the screen, so the
-  // controls are not offered to a seat whose every click would 403. (T42)
-  const mayManagePortal = cfg.can('contacts:update')
+  // a seat without it (GET …/link, portal:share — owners, admins and managers); this is the same answer on
+  // the screen, so the controls are not offered to a seat whose every click would 403. (T42, T62)
+  const mayManagePortal = cfg.can('portal:share')
 
   const showPortal = !!sections.portal && (cfg.portalGate === false || hasFeature(cfg.portalGate))
   const gated = (feature: string) => !cfg.gateByFeature || hasFeature(feature)
@@ -114,7 +119,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
    *
    * The status read says whether the portal is on, when the link expires and when the customer last
    * signed in — everything a read-only seat can see. The URL carries the customer's bearer token and
-   * comes from a route that asks `contacts:update`. A refusal there is an expected answer, not an
+   * comes from a route that asks `portal:share`. A refusal there is an expected answer, not an
    * error: the Link row simply does not appear, which is why it is swallowed rather than toasted.
    */
   const loadPortalStatus = async () => {
@@ -146,7 +151,8 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
   useEffect(() => {
     loadContact()
     if (showPortal) loadPortalStatus()
-    if (sections.sms) loadSms()
+    // only for a seat the thread is read for (sms:send) — the panel below asks the same; anyone else got a 403 (T62)
+    if (sections.sms && cfg.can('sms:send')) loadSms()
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const togglePortal = async () => {
@@ -268,9 +274,12 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
 
   const typeLabel = cfg.types.find((t) => t.value === contact.type)?.label || contact.type
   const projects = sections.projects && gated('projects') ? (contact.projects || []) : []
-  const quotes = sections.quotes && gated('quotes') ? (contact.quotes || []) : []
+  // A list the server left off (this seat may not open quotes / invoices — T62) is absent, not empty: no
+  // section, and no "Quotes 0" in the sidebar for records that exist.
+  const hasQuotes = 'quotes' in contact
+  const quotes = sections.quotes && gated('quotes') && hasQuotes ? (contact.quotes || []) : []
   const events = sections.events && hasFeature('event_bookings') ? (contact.events || []) : []
-  const showInvoices = gated('invoices')
+  const showInvoices = gated('invoices') && 'invoices' in contact
   const invoices = showInvoices ? (contact.invoices || []) : []
   const jobs = contact.jobs || []
   /**
@@ -291,7 +300,8 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
     const open = r.status === 'sent' || r.status === 'partial' || r.status === 'open'
     return open && outstandingOf(r) > 0.005 && isPastDay(r.dueDate) ? 'overdue' : String(r.status || '')
   }
-  const quickActions = cfg.quickActions.filter((a) => !a.feature || hasFeature(a.feature))
+  // …and only the ones this seat could finish: each asks what its destination will ask to save. (T62)
+  const quickActions = cfg.quickActions.filter((a) => (!a.feature || hasFeature(a.feature)) && (() => { const p = quickActionPermission(a); return !p || cfg.can(p) })())
 
   return (
     <div className="space-y-6">
@@ -324,13 +334,13 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
             necessarily leaves the record — but it should not leave you there afterwards. On a company
             with 204 contacts, being dropped at the top of the list is losing your place.
           */}
-          <NavLink to={`/crm/contacts?edit=${id}&returnTo=${encodeURIComponent(`/crm/contacts/${id}`)}`} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2">
+          {mayEdit && <NavLink to={`/crm/contacts?edit=${id}&returnTo=${encodeURIComponent(`/crm/contacts/${id}`)}`} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2">
             <Edit className="w-4 h-4" />Edit
-          </NavLink>
+          </NavLink>}
           {mayMerge && (
             <Button variant="secondary" onClick={() => setMergeOpen(true)}><Merge className="w-4 h-4 inline mr-2" />Merge duplicate</Button>
           )}
-          <Button variant="danger" onClick={() => setDeleteOpen(true)}><Trash2 className="w-4 h-4 inline mr-2" />Delete</Button>
+          {mayDelete && <Button variant="danger" onClick={() => setDeleteOpen(true)}><Trash2 className="w-4 h-4 inline mr-2" />Delete</Button>}
         </div>
       </div>
 
@@ -586,7 +596,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
               {sections.events && hasFeature('event_bookings') && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Events</span><span className="font-medium">{contact.events?.length || 0}</span></div>}
               {sections.patients && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Patients</span><span className="font-medium">{contact.patients?.length || 0}</span></div>}
               {sections.projects && gated('projects') && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Projects</span><span className="font-medium">{contact.projects?.length || 0}</span></div>}
-              {sections.quotes && gated('quotes') && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Quotes</span><span className="font-medium">{contact.quotes?.length || 0}</span></div>}
+              {sections.quotes && gated('quotes') && hasQuotes && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Quotes</span><span className="font-medium">{contact.quotes?.length || 0}</span></div>}
               {showInvoices && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Invoices</span><span className="font-medium">{contact.invoices?.length || 0}</span></div>}
               {sections.equipment && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Equipment</span><span className="font-medium">{contact.equipment?.length || 0}</span></div>}
               {contact.source && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Source</span><span className="font-medium">{contact.source}</span></div>}

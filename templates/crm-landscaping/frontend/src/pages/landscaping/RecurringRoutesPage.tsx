@@ -26,6 +26,8 @@ export default function RecurringRoutesPage() {
    */
   const mayCreateRoute = useMayWrite('jobs:create');
   const mayDeleteRoute = useMayWrite('jobs:delete');
+  // A stop's price and the week's total are money (invoices:read); the server withholds both from staff. (T62)
+  const maySeeMoney = useMayWrite('invoices:read');
   const [board, setBoard] = useState<any[]>([]);
   /**
    * Routes stored against something that is not a day of the week. (T58)
@@ -128,7 +130,8 @@ export default function RecurringRoutesPage() {
                   <div className="font-medium truncate">{r.name}</div>
                   <div className="text-gray-500 flex items-center gap-1 mt-1 dark:text-slate-400"><MapPin className="w-3 h-3" />{r.stopCount} stops</div>
                   <div className="text-gray-500 flex items-center gap-1 dark:text-slate-400"><Clock className="w-3 h-3" />{Math.round(r.estimatedMinutes / 60 * 10) / 10}h</div>
-                  <div className="text-green-700 flex items-center gap-1 dark:text-green-300"><DollarSign className="w-3 h-3" />{r.weeklyRevenue}</div>
+                  {/* Absent for a seat that may not see money (T62) — no "$0" in its place. */}
+                  {r.weeklyRevenue !== undefined && <div className="text-green-700 flex items-center gap-1 dark:text-green-300"><DollarSign className="w-3 h-3" />{r.weeklyRevenue}</div>}
                 </div>
               ))}
               {day.routes.length === 0 && <div className="text-[11px] text-gray-300">—</div>}
@@ -177,7 +180,7 @@ export default function RecurringRoutesPage() {
               <div key={s.id} className="flex justify-between items-center text-sm border-b py-2">
                 <span><span className="text-gray-500 dark:text-slate-400 mr-2">{i + 1}.</span>{s.siteName || s.siteId} <span className="text-gray-500 dark:text-slate-400">· {s.serviceType} · {s.estimatedMinutes}min</span></span>
                 <span className="flex items-center gap-3">
-                  <span className="font-medium">${Number(s.pricePerVisit).toFixed(2)}</span>
+                  {s.pricePerVisit !== undefined && <span className="font-medium">${Number(s.pricePerVisit).toFixed(2)}</span>}
                   <button onClick={() => removeStop(s.id)} className="text-red-500 dark:text-red-400"><Trash2 className="w-4 h-4" /></button>
                 </span>
               </div>
@@ -189,7 +192,7 @@ export default function RecurringRoutesPage() {
             <input className="border rounded px-2 py-1.5 text-sm" placeholder="Site ID" value={stopForm.siteId} onChange={e => setStopForm({ ...stopForm, siteId: e.target.value })} />
             <input className="border rounded px-2 py-1.5 text-sm" placeholder="Service" value={stopForm.serviceType} onChange={e => setStopForm({ ...stopForm, serviceType: e.target.value })} />
             <input className="border rounded px-2 py-1.5 text-sm" type="number" placeholder="Minutes" value={stopForm.estimatedMinutes} onChange={e => setStopForm({ ...stopForm, estimatedMinutes: e.target.value })} />
-            <input className="border rounded px-2 py-1.5 text-sm" type="number" placeholder="Price/visit" value={stopForm.pricePerVisit} onChange={e => setStopForm({ ...stopForm, pricePerVisit: e.target.value })} />
+            {maySeeMoney && <input className="border rounded px-2 py-1.5 text-sm" type="number" placeholder="Price/visit" value={stopForm.pricePerVisit} onChange={e => setStopForm({ ...stopForm, pricePerVisit: e.target.value })} />}
             <button onClick={addStop} className="bg-green-700 text-white rounded px-3 py-1.5 text-sm">Add Stop</button>
           </div>
         </div>

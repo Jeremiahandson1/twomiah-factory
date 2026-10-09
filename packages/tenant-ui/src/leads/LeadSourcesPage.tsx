@@ -29,6 +29,10 @@ export function LeadSourcesPage({ api, toast, config }: { api: LeadsApi; toast?:
    * EMAIL address stays visible to everyone, because it is an address, not a secret.
    */
   const mayManageSources = useMayWrite('contacts:create')
+  // Each control asks its own route's question: pausing is PUT (contacts:update), removing is DELETE
+  // (contacts:delete) — "Remove source" was offered to Vet staff the server then refused. (T62)
+  const mayToggleSources = useMayWrite('contacts:update')
+  const mayRemoveSources = useMayWrite('contacts:delete')
   const platforms: LeadPlatform[] = config?.platforms || TRADES_LEAD_PLATFORMS
   const subtitle = config?.sourcesSubtitle || 'Connect your lead platforms to receive leads automatically'
   const [sources, setSources] = useState<LeadSourceRow[]>([])
@@ -150,24 +154,25 @@ export function LeadSourcesPage({ api, toast, config }: { api: LeadsApi; toast?:
                     <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: source.enabled ? c.okBg : c.mutedBtnBg, color: source.enabled ? c.okText : c.faint }}>{source.enabled ? 'Active' : 'Paused'}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {mayManageSources && <>
+                    {(mayToggleSources || mayRemoveSources) && <>
                     {/* The toggle carried the SAME hardcoded #2e7d32 as the chip beside it — green ink
                         on the dark card, ~2.6:1. statConverted is the palette's green and moves with
                         the theme. Fixed with the chip, because a report naming one site is rarely one
                         site. (T58d) */}
-                    <button type="button" aria-label={source.enabled ? 'Pause source' : 'Resume source'} disabled={busy === `toggle:${source.id}`} onClick={() => toggleSource(source)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: source.enabled ? c.statConverted : c.faint }}>
+                    {mayToggleSources && <button type="button" aria-label={source.enabled ? 'Pause source' : 'Resume source'} disabled={busy === `toggle:${source.id}`} onClick={() => toggleSource(source)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: source.enabled ? c.statConverted : c.faint }}>
                       {source.enabled ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
-                    </button>
-                    <button type="button" aria-label="Remove source" disabled={busy === `delete:${source.id}`} onClick={() => deleteSource(source)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}>
+                    </button>}
+                    {mayRemoveSources && <button type="button" aria-label="Remove source" disabled={busy === `delete:${source.id}`} onClick={() => deleteSource(source)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}>
                       <Trash2 size={18} />
-                    </button>
+                    </button>}
                     </>}
                   </div>
                 </div>
                 <div style={{ padding: '16px 20px' }}>
                   {source.inboundEmail && <CopyField label="Inbound Email Address" icon={<Mail size={14} />} value={source.inboundEmail} field={`email-${source.id}`} />}
-                  {mayManageSources && source.webhookUrl && <CopyField label="Webhook URL (secret included — paste into Zapier / Make / your form builder)" icon={<Webhook size={14} />} value={webhookWithSecret(source)} field={`webhook-${source.id}`} breakAll />}
-                  {mayManageSources && source.webhookSecret && <CopyField label="Webhook Secret (or send it as the x-webhook-secret header)" icon={<KeyRound size={14} />} value={source.webhookSecret} field={`secret-${source.id}`} />}
+                  {!source.webhookSecret && source.webhookUrl && <p style={{ fontSize: 12, color: c.faint, margin: '0 0 12px' }}>The webhook URL carries a secret key, so only an owner or admin can see it.</p>}
+                  {source.webhookSecret && source.webhookUrl && <CopyField label="Webhook URL (secret included — paste into Zapier / Make / your form builder)" icon={<Webhook size={14} />} value={webhookWithSecret(source)} field={`webhook-${source.id}`} breakAll />}
+                  {source.webhookSecret && <CopyField label="Webhook Secret (or send it as the x-webhook-secret header)" icon={<KeyRound size={14} />} value={source.webhookSecret} field={`secret-${source.id}`} />}
                   {info?.instructions && (
                     <div style={{ background: c.infoBg, borderRadius: 8, padding: 14, border: `1px solid ${c.infoBorder}` }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: c.infoHead, marginBottom: 8 }}><Info size={14} /> Setup Instructions</div>

@@ -3,11 +3,24 @@ import { db } from '../../db/index.ts'
 import { recurringRoute, recurringRouteStop, site, user } from '../../db/schema.ts'
 import { eq, and, asc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+/**
+ * WHAT A ROUTE EARNS IS THE BOOKS, NOT THE ROUND. (T62: "Landscaping route cards show weekly revenue ($55)")
+ *
+ * A crew needs the stops, the order and the minutes; the price per visit and the week's total are money,
+ * and money on this fleet is invoices:read — which staff do not hold. Withheld (absent, not 0) from the
+ * list, the board, a route's stops and a stop just added, so the card cannot print "$0".
+ */
+const maySeeMoney = async (c: any): Promise<boolean> => {
+  const u = c.get('user') as any
+  try { return hasPermission(u?.role, 'invoices:read', await getExtraPermissions(u?.userId)) } catch { return false }
+}
+const withoutPrice = <T extends Record<string, any>>(s: T): T => { const { pricePerVisit, ...rest } = s as any; return rest as T }
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -105,6 +118,7 @@ app.get('/', requirePermission('jobs:read'), async (c) => {
     : eq(recurringRoute.companyId, u.companyId)
   const routes = await db.select().from(recurringRoute).where(where).orderBy(asc(recurringRoute.dayOfWeek))
   const stops = await db.select().from(recurringRouteStop).where(eq(recurringRouteStop.companyId, u.companyId))
+  const money = await maySeeMoney(c)
   const data = routes.map(r => {
     const rs = stops.filter(s => s.recurringRouteId === r.id)
     return {
@@ -112,7 +126,7 @@ app.get('/', requirePermission('jobs:read'), async (c) => {
       dayName: DAYS[r.dayOfWeek] ?? '',
       stopCount: rs.length,
       estimatedMinutes: rs.reduce((t, s) => t + (s.estimatedMinutes || 0), 0),
-      weeklyRevenue: Math.round(rs.reduce((t, s) => t + Number(s.pricePerVisit), 0) * 100) / 100,
+      ...(money ? { weeklyRevenue: Math.round(rs.reduce((t, s) => t + Number(s.pricePerVisit), 0) * 100) / 100 } : {}),
     }
   })
   return c.json({ data })
@@ -124,13 +138,14 @@ app.get('/board', requirePermission('jobs:read'), async (c) => {
   const routes = await db.select().from(recurringRoute)
     .where(eq(recurringRoute.companyId, u.companyId)).orderBy(asc(recurringRoute.dayOfWeek))
   const stops = await db.select().from(recurringRouteStop).where(eq(recurringRouteStop.companyId, u.companyId))
+  const money = await maySeeMoney(c)
   const withCounts = (r: any) => {
     const rs = stops.filter(s => s.recurringRouteId === r.id)
     return {
       ...r,
       stopCount: rs.length,
       estimatedMinutes: rs.reduce((t, s) => t + (s.estimatedMinutes || 0), 0),
-      weeklyRevenue: Math.round(rs.reduce((t, s) => t + Number(s.pricePerVisit), 0) * 100) / 100,
+      ...(money ? { weeklyRevenue: Math.round(rs.reduce((t, s) => t + Number(s.pricePerVisit), 0) * 100) / 100 } : {}),
     }
   }
   const board = DAYS.map((dayName, dayOfWeek) => ({
@@ -168,7 +183,8 @@ app.get('/:id', requirePermission('jobs:read'), async (c) => {
   const u = c.get('user') as any
   const route = await routeWithStops(c.req.param('id'), u.companyId)
   if (!route) return c.json({ error: 'Route not found' }, 404)
-  return c.json(route)
+  if (await maySeeMoney(c)) return c.json(route)
+  return c.json({ ...route, stops: route.stops.map(withoutPrice) })
 })
 
 app.post('/', requirePermission('jobs:create'), async (c) => {
@@ -307,6 +323,11 @@ app.post('/:id/stops', requirePermission('jobs:update'), async (c) => {
   const [route] = await db.select().from(recurringRoute)
     .where(and(eq(recurringRoute.id, routeId), eq(recurringRoute.companyId, u.companyId)))
   if (!route) return c.json({ error: 'Route not found' }, 404)
+  // A price is set by the seat that may see it. Staff still add the stop; it goes on at no charge for an
+  // owner or manager to price — the board is theirs to keep moving. (T62, gate both sides)
+  const money = await maySeeMoney(c)
+  const priceGiven = body.pricePerVisit != null && String(body.pricePerVisit).trim() !== '' && Number(body.pricePerVisit) !== 0
+  if (priceGiven && !money) return c.json({ error: 'Pricing a stop is for an owner or manager. Add the stop without a price and they can set it.', field: 'pricePerVisit' }, 403)
   const existing = await db.select().from(recurringRouteStop)
     .where(eq(recurringRouteStop.recurringRouteId, routeId))
   const [stop] = await db.insert(recurringRouteStop).values({
@@ -317,9 +338,9 @@ app.post('/:id/stops', requirePermission('jobs:update'), async (c) => {
     serviceType: body.serviceType ?? 'mowing',
     sortOrder: body.sortOrder ?? existing.length,
     estimatedMinutes: parseInt(body.estimatedMinutes ?? '30', 10),
-    pricePerVisit: String(body.pricePerVisit ?? '0'),
+    pricePerVisit: priceGiven ? String(body.pricePerVisit) : '0',
   }).returning()
-  return c.json(stop, 201)
+  return c.json(money ? stop : withoutPrice(stop), 201)
 })
 
 // Reorder stops: body = { stopIds: [id1, id2, ...] } in new order

@@ -31,6 +31,8 @@ export default function MeasurementsPage() {
   const mayOrderMeasurement = useMayWrite('measurements:create');
   const mayCorrectMeasurement = useMayWrite('measurements:update');
   const mayBuyCredits = useMayWrite('measurements:purchase');
+  // What a report cost is money (invoices:read); the server leaves it off for staff, so the column goes. (T62)
+  const maySeeCost = useMayWrite('invoices:read');
   const { token } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -215,7 +217,7 @@ export default function MeasurementsPage() {
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Quality</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Squares</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Area (sqft)</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Cost</th>
+                  {maySeeCost && <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Cost</th>}
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Date</th>
                   <th className="w-10" />
                 </tr>
@@ -252,9 +254,9 @@ export default function MeasurementsPage() {
                       <td className="px-4 py-3 text-right text-gray-600 dark:text-slate-400">
                         {m.totalArea != null ? Number(m.totalArea).toLocaleString() : '—'}
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-900 dark:text-slate-100">
+                      {maySeeCost && <td className="px-4 py-3 text-right text-gray-900 dark:text-slate-100">
                         {m.cost != null ? `$${Number(m.cost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
-                      </td>
+                      </td>}
                       <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">
                         {m.createdAt ? formatDate(m.createdAt) : '—'}
                       </td>

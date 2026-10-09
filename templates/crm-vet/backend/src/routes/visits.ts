@@ -382,6 +382,28 @@ app.delete('/:id', requirePermission('contacts:update'), async (c) => {
     .limit(1)
   if (!existing) return c.json({ error: 'Visit not found' }, 404)
 
+  /**
+   * A BILLED VISIT IS NOT DELETED UNDER ITS INVOICE — for any role. (T62 Vet, medium)
+   *
+   *   "Staff deleted a visit already invoiced as INV-00202. The invoice is now left with no visit behind
+   *    it. Editing a billed visit's total is already blocked, so deleting it should be blocked too."
+   *
+   * The same rule as the PUT above: once the bill is raised, the way to change it is the invoice. Void it
+   * (or delete it while it is still a draft) and the visit can go. A void invoice no longer asks anyone
+   * for money, and an invoice that no longer exists has nothing to orphan, so neither holds the visit.
+   */
+  if (existing.invoiceId) {
+    const [billed] = await db.select({ id: invoice.id, number: invoice.number, status: invoice.status }).from(invoice)
+      .where(and(eq(invoice.id, existing.invoiceId), eq(invoice.companyId, currentUser.companyId))).limit(1)
+    if (billed && billed.status !== 'void') {
+      return c.json({
+        error: `This visit has been invoiced on ${billed.number}, so it can't be deleted. Void the invoice first (or delete it if it is still a draft), then delete the visit.`,
+        code: 'visit_already_invoiced',
+        invoiceId: billed.id,
+      }, 409)
+    }
+  }
+
   await db.delete(visit).where(eq(visit.id, id))
   await audit.log({ action: 'delete', entity: 'visit', entityId: id, metadata: existing, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'visit' })

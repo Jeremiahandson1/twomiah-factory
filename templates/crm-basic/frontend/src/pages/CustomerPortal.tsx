@@ -9,7 +9,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 // One definition of what money looks like. Building the string here dropped the cents: bare
 // toLocaleString() renders $824.60 as "$824.6" — the defect T12 L1 named, on a screen its fix missed.
-import { money, maySeeRoute } from '../shared';
+import { money, maySeeRoute, useMayWrite } from '../shared';
 import { SHELL } from '../shellConfig';
 import { brandSurfaceUnderWhite } from '../shared';
 
@@ -33,6 +33,10 @@ const tileTone = (name: string) => TILE_TONE[name] ?? TILE_TONE.blue
 export default function CustomerPortal() {
   const { user, company, logout, loading: authLoading, hasFeature } = useAuth();
   const navigate = useNavigate();
+  // Settings is the company's: name, users, integrations, billing — company:update. A seat without it still
+  // has its own sign-in to look after, so its tile is My Account (password and two-factor) rather than a
+  // door to a page of things it cannot change. (T62 Vet: "an 'Account Settings' tile they can't use")
+  const runsTheCompany = useMayWrite('company:update');
   // The shell blanks /crm/settings for a role its vertical does not let in (shellConfig.routeRoles /
   // routePermissions), and this tile was handing that role the door anyway — an offer with a refusal
   // behind it. Same question the sidebar's Settings link asks, from the same declaration, so the two
@@ -155,7 +159,9 @@ export default function CustomerPortal() {
               ...(typeof (stats as any).newLeads === 'number' ? [{ label: 'New Leads', value: (stats as any).newLeads, icon: Inbox, color: 'blue' }] : []),
               { label: 'Open Jobs', value: (stats as any).jobs?.open ?? 0, icon: Briefcase, color: 'emerald' },
               { label: 'Pending Quotes', value: (stats as any).quotes?.pending ?? 0, icon: FileText, color: 'amber' },
-              { label: 'Total Invoiced', value: money((stats as any).invoices?.totalValue ?? 0), icon: DollarSign, color: 'green' },
+              // A money tile only when the figure was SENT — the server leaves it off for a seat that may not see money,
+              // and `?? 0` drew that absence as "$0.00". (T62: "Salon portal home shows '$0.00 Outstanding'")
+              ...((stats as any).invoices?.totalValue !== undefined ? [{ label: 'Total Invoiced', value: money((stats as any).invoices?.totalValue ?? 0), icon: DollarSign, color: 'green' }] : []),
             ].map((stat) => (
               <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-4 dark:bg-slate-900">
                 <div className={`w-8 h-8 rounded-lg ${tileTone(stat.color).chip} flex items-center justify-center mb-2`}>
@@ -261,10 +267,10 @@ export default function CustomerPortal() {
             </div>
           )}
 
-          {/* Settings */}
-          {maySeeSettings && (
+          {/* Settings — or, for a seat that cannot change the company, its own account */}
+          {(maySeeSettings || !runsTheCompany) && (
           <div
-            onClick={() => navigate('/crm/settings')}
+            onClick={() => navigate(runsTheCompany ? '/crm/settings' : '/crm/account')}
             className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden dark:bg-slate-900"
           >
             <div className="absolute top-0 left-0 right-0 h-1 bg-slate-400" />
@@ -274,9 +280,9 @@ export default function CustomerPortal() {
               </div>
               <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 dark:text-slate-400 group-hover:translate-x-1 transition-all" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">Account Settings</h3>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">{runsTheCompany ? 'Account Settings' : 'My Account'}</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Company info, users, integrations, billing
+              {runsTheCompany ? 'Company info, users, integrations, billing' : 'Your password and two-factor sign-in'}
             </p>
           </div>
           )}

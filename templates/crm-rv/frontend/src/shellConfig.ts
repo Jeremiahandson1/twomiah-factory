@@ -33,7 +33,9 @@ const NAV: NavItem[] = [
   { to: '/crm/alerts', icon: BellRing, label: 'Alerts', features: ['deal_pipeline', 'service_dept'], section: 'Operations' },
 
   // Back Office
-  { to: '/crm/accounting', icon: Receipt, label: 'Accounting', section: 'Back Office' },
+  // GET /api/accounting/status asks invoices:read — the link asks the same, so staff are not sent to a books page
+  // that drew "0 entries · $0.00" over a refusal. (T62)
+  { to: '/crm/accounting', icon: Receipt, label: 'Accounting', section: 'Back Office', permission: 'invoices:read' },
   { to: '/crm/invoices', icon: Receipt, label: 'Invoices', section: 'Back Office', permission: 'invoices:read' },
   { to: '/crm/quotes', icon: FileText, label: 'Quotes', section: 'Back Office', permission: 'quotes:read' },
   { to: '/crm/documents', icon: FolderOpen, label: 'Documents', section: 'Back Office' },

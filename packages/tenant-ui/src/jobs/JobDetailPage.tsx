@@ -22,6 +22,8 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
   const [fullscreen, setFullscreen] = useState<JobPhoto | null>(null)
   /** The permission POST /api/jobs/:id/invoice asks for. (T41) */
   const mayInvoice = useMayWrite('invoices:create')
+  /** DELETE /api/jobs/:id asks jobs:delete — staff hold update, not delete, and were offered it. (T62) */
+  const mayDelete = useMayWrite('jobs:delete')
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -119,7 +121,7 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
             </Button>
           )}
           <NavLink to={`/crm/jobs?edit=${id}`} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2"><Edit className="w-4 h-4" />Edit</NavLink>
-          <Button variant="danger" onClick={() => setDeleteOpen(true)}><Trash2 className="w-4 h-4 inline mr-2" />Delete</Button>
+          {mayDelete && <Button variant="danger" onClick={() => setDeleteOpen(true)}><Trash2 className="w-4 h-4 inline mr-2" />Delete</Button>}
         </div>
       </div>
 

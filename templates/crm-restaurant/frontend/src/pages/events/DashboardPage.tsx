@@ -31,7 +31,7 @@ interface UpcomingRow {
   coordinatorFirstName?: string; coordinatorLastName?: string;
 }
 interface DueRow { id: string; label?: string; amount?: number | string; paidAmount?: number; state?: 'unpaid' | 'part_paid'; dueDate?: string; eventId?: string; eventName?: string; clientName?: string }
-interface Activity { newEnquiries?: EnquiryRow[]; upcomingEvents?: UpcomingRow[]; duePayments?: DueRow[] }
+interface Activity { newEnquiries?: EnquiryRow[]; upcomingEvents?: UpcomingRow[]; duePayments?: DueRow[]; moneyWithheld?: boolean }
 
 function money(v: number | string | undefined | null): string {
   return `$${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -266,7 +266,8 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+        {/* Withheld from a seat without invoices:read — the panel goes, rather than saying "Nothing outstanding". (T62) */}
+        {!activity.moneyWithheld && <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
             <Wallet className="w-4 h-4 text-green-700 dark:text-green-300" /> Payments Due
           </h2>
@@ -291,7 +292,7 @@ export default function DashboardPage() {
               ))}
             </ul>
           )}
-        </div>
+        </div>}
       </div>
     </div>
   );

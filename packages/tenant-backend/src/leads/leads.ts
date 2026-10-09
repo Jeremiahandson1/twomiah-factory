@@ -42,6 +42,11 @@ export interface LeadsDeps {
   emitToCompany: (companyId: string, event: string, data: any) => void
   EVENTS: { LEAD_CREATED: string; LEAD_UPDATED: string; CONTACT_CREATED: string }
   audit: { log: (entry: any) => any }
+  /**
+   * May this person do X? (role list + per-user grants — the company routes' contract.) Used to decide who
+   * is handed the lead-source WEBHOOK SECRET. Not wired → shown, so an un-rewired template is unchanged.
+   */
+  canSee?: (role: string, permission: string, userId?: string) => Promise<boolean>
   /** process.env by default: TENANT_ID (Factory tenant id → inbound prefix), FACTORY_SYNC_KEY (X-Factory-Key), FRONTEND_URL. */
   env?: Record<string, string | undefined>
   options?: LeadsOptions
@@ -172,6 +177,24 @@ export function createLeadsRoutes(deps: LeadsDeps) {
   })
   const stripTags = (s: string) => s.replace(/<[^>]*>/g, '').trim()
 
+  /**
+   * THE WEBHOOK SECRET IS AN INTEGRATION CREDENTIAL — owners and admins only. (T62 High; owner's decision 2026-10-09)
+   *
+   *   "Staff can read the lead-source webhook secret. GET /api/leads/sources returns the full webhookSecret …
+   *    Anyone with the secret can post fake leads into the CRM from outside."
+   *
+   * The list is contacts:read — everyone who works leads may see which sources are connected and the inbound
+   * email address. The KEY is integrations:update, the question the shop's other integrations ask (owner '*',
+   * admin 'integrations:*'; a manager holds only integrations:read). Stripped from every response that carries
+   * a source — the list, a create and an edit — so a seat that may add a source still never sees its key.
+   */
+  const mayHoldSecret = async (c: any): Promise<boolean> => {
+    if (!deps.canSee) return true
+    const u = c.get('user')
+    try { return await deps.canSee(u?.role, 'integrations:update', u?.userId) } catch { return false }
+  }
+  const withoutSecret = <T extends Record<string, any>>(row: T): T => { const { webhookSecret, ...rest } = row as any; return rest as T }
+
   app.get('/sources', requirePermission('contacts:read'), async (c) => {
     const currentUser = (c as any).get('user')
     const sources = await db.select().from(t.leadSource)
@@ -187,7 +210,8 @@ export function createLeadsRoutes(deps: LeadsDeps) {
         s.inboundEmail = wantEmail; s.webhookUrl = wantHook
       }
     }
-    return c.json({ data: sources })
+    if (await mayHoldSecret(c)) return c.json({ data: sources })
+    return c.json({ data: sources.map(withoutSecret) })
   })
 
   app.post('/sources', requirePermission('contacts:create'), async (c) => {
@@ -213,7 +237,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
       companyId: currentUser.companyId,
     }).returning()
     await audit.log({ action: 'create', entity: 'lead_source', entityId: source.id, metadata: { platform, label }, req: { user: currentUser } })
-    return c.json(source, 201)
+    return c.json((await mayHoldSecret(c)) ? source : withoutSecret(source), 201)
   })
 
   app.put('/sources/:id', requirePermission('contacts:update'), async (c) => {
@@ -229,7 +253,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     if (parsed.data.enabled !== undefined) updates.enabled = parsed.data.enabled
     if (parsed.data.config !== undefined) updates.config = parsed.data.config
     const [updated] = await db.update(t.leadSource).set(updates).where(eq(t.leadSource.id, id)).returning()
-    return c.json(updated)
+    return c.json((await mayHoldSecret(c)) ? updated : withoutSecret(updated))
   })
 
   app.delete('/sources/:id', requirePermission('contacts:delete'), async (c) => {

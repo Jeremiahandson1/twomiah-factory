@@ -4,11 +4,22 @@ import { db } from '../../db/index.ts'
 import { measurementReport, job, company } from '../../db/schema.ts'
 import { eq, and, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { getFullRoofReport } from '../services/googleSolar.ts'
 import logger from '../services/logger.ts'
 
 const app = new Hono()
+
+/**
+ * WHAT A REPORT COST IS THE BOOKS. (T62: "Roofing measurement reports show the cost per report" to staff.)
+ * A crew reads the squares, the pitch and the area; the price the company paid per report is money, and money is
+ * invoices:read. `cost` comes off every report a read returns, and `pricePerReport` off the credits read.
+ */
+const maySeeMoney = async (c: any): Promise<boolean> => {
+  const u = c.get('user') as any
+  try { return hasPermission(u?.role, 'invoices:read', await getExtraPermissions(u?.userId)) } catch { return false }
+}
+const withoutCost = <T extends Record<string, any>>(r: T): T => { const { cost, ...rest } = r as any; return rest as T }
 
 // ── Authenticated routes ────────────────────────────────
 
@@ -31,7 +42,8 @@ app.get('/', async (c) => {
     .from(measurementReport)
     .where(eq(measurementReport.companyId, currentUser.companyId))
 
-  return c.json({ data: reports, pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) } })
+  const money = await maySeeMoney(c)
+  return c.json({ data: money ? reports : reports.map(withoutCost), pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) } })
 })
 
 // Order a measurement report via Google Solar API
@@ -87,7 +99,7 @@ app.post('/order', requirePermission('measurements:create'), async (c) => {
     logger.error('Background report processing failed', { reportId: report.id, error: err.message })
   })
 
-  return c.json(report, 201)
+  return c.json((await maySeeMoney(c)) ? report : withoutCost(report), 201)
 })
 
 async function processReport(reportId: string, companyId: string, data: { address: string; city: string; state: string; zip: string; jobId?: string }) {
@@ -135,7 +147,8 @@ app.get('/credits/info', async (c) => {
     pricePerReport: company.reportPricePerReport,
   }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
   if (!comp) return c.json({ error: 'Company not found' }, 404)
-  return c.json(comp)
+  if (await maySeeMoney(c)) return c.json(comp)
+  return c.json({ credits: comp.credits })
 })
 
 // Purchase credits (creates Stripe checkout or adds directly in demo mode)
@@ -167,7 +180,7 @@ app.get('/job/:jobId', async (c) => {
 
   if (!report) return c.json({ error: 'No measurement report found for this job' }, 404)
 
-  return c.json(report)
+  return c.json((await maySeeMoney(c)) ? report : withoutCost(report))
 })
 
 // ── Parameterized routes ──
@@ -183,7 +196,7 @@ app.get('/:id', async (c) => {
 
   if (!report) return c.json({ error: 'Measurement report not found' }, 404)
 
-  return c.json(report)
+  return c.json((await maySeeMoney(c)) ? report : withoutCost(report))
 })
 
 // Regenerate a failed report

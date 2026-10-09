@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
+import { useMayWrite } from '../../shared';
 
 const PLAN_TYPES = ['annual', 'semi-annual', 'quarterly'] as const;
 const BILLING_FREQUENCIES = ['monthly', 'quarterly', 'semi-annual', 'annual'] as const;
@@ -43,6 +44,13 @@ export default function MaintenanceContracts() {
   const [statusFilter, setStatusFilter] = useState('active');
   const [showForm, setShowForm] = useState(false);
   const [selectedContract, setSelectedContract] = useState(null);
+  // Each control asks its route's question (POST /api/agreements agreements:create; PUT, renew agreements:update),
+  // and the money asks invoices:read — the server sends no `amount` without it, and this page drew "$0.00" for
+  // every contract and a $0.00 Monthly Revenue. (T62: "Landscaping Maintenance Contracts 'New Contract'";
+  // "Agreements prices … drawn as $0")
+  const mayCreate = useMayWrite('agreements:create');
+  const mayUpdate = useMayWrite('agreements:update');
+  const maySeeMoney = useMayWrite('invoices:read');
 
   useEffect(() => {
     loadData();
@@ -121,25 +129,25 @@ export default function MaintenanceContracts() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Maintenance Contracts</h1>
           <p className="text-gray-500 dark:text-slate-400">Recurring service agreements</p>
         </div>
-        <button
+        {mayCreate && <button
           onClick={() => { setSelectedContract(null); setShowForm(true); }}
           className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
         >
           <Plus className="w-4 h-4" />
           New Contract
-        </button>
+        </button>}
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard icon={FileText} label="Active Contracts" value={stats.active} />
         <StatCard icon={AlertTriangle} label="Expiring Soon" value={stats.expiringSoon} color="orange" />
-        <StatCard
+        {maySeeMoney && <StatCard
           icon={DollarSign}
           label="Monthly Revenue"
           value={`$${stats.monthlyRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           color="green"
-        />
+        />}
         <StatCard icon={Users} label="Total Contracts" value={stats.total} color="blue" />
       </div>
 
@@ -181,7 +189,7 @@ export default function MaintenanceContracts() {
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Customer</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Plan</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Next Service</th>
-                <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Amount</th>
+                {maySeeMoney && <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Amount</th>}
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Status</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Expires</th>
                 <th className="px-4 py-3"></th>
@@ -220,14 +228,14 @@ export default function MaintenanceContracts() {
                           : '-'}
                       </p>
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    {maySeeMoney && <td className="px-4 py-3 text-right">
                       <p className="font-medium text-gray-900 dark:text-white">
                         ${Number(contract.amount || 0).toFixed(2)}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-slate-400">
                         /{contract.billingFrequency || 'mo'}
                       </p>
-                    </td>
+                    </td>}
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[contract.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                         {contract.status}
@@ -248,7 +256,7 @@ export default function MaintenanceContracts() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 justify-end">
-                        {contract.status === 'active' && (
+                        {mayUpdate && contract.status === 'active' && (
                           <button
                             onClick={() => handleRenew(contract.id)}
                             className="p-1.5 text-green-700 hover:bg-green-50 dark:hover:bg-green-500/10 rounded dark:text-green-300"
@@ -257,14 +265,14 @@ export default function MaintenanceContracts() {
                             <RefreshCw className="w-4 h-4" />
                           </button>
                         )}
-                        <button
+                        {mayUpdate && <button
                           onClick={() => { setSelectedContract(contract); setShowForm(true); }}
                           className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 rounded"
                           title="Edit"
                         >
                           <Edit2 className="w-4 h-4" />
-                        </button>
-                        {contract.status === 'active' && (
+                        </button>}
+                        {mayUpdate && contract.status === 'active' && (
                           <button
                             onClick={() => handleCancel(contract.id)}
                             className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded"

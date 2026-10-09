@@ -51,7 +51,10 @@ export default function DispatchBoard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [jobsRes, techsRes] = await Promise.all([
+      // SETTLED, not all: the technician list is team:read, which crew do not hold, and one refused request
+      // emptied the whole board. The day's work is the board; the picker is the dispatcher's. (T62, the field
+      // service finding — this is its copy)
+      const [jobsOut, techsOut] = await Promise.allSettled([
         api.get(`/api/jobs?date=${selectedDate}&limit=200`),
         // Assignable technicians are login USERS (job.assignedToId references
         // user.id), not the crew-roster team_member table which is empty on a
@@ -66,6 +69,9 @@ export default function DispatchBoard() {
         // finding closed on crm-fieldservice in T42 and never swept to this copy. (T48)
         api.get('/api/team/assignable'),
       ]);
+      if (jobsOut.status === 'rejected') throw jobsOut.reason;
+      const jobsRes: any = jobsOut.value;
+      const techsRes: any = techsOut.status === 'fulfilled' ? techsOut.value : [];
       setJobs(jobsRes.data || jobsRes || []);
       // /assignable answers { data: [...] }; company/users answered a bare array. Both shapes are
       // accepted so this keeps working either way, and a revoked seat is still dropped.
@@ -409,7 +415,8 @@ function DispatchCard({ job, techs, onAssign, onStatusChange }) {
       {/* Actions */}
       <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-700 space-y-2">
         {/* Assign Dropdown */}
-        {job.status !== 'completed' && (
+        {/* No list to pick from (this seat may not read the team) → no picker, rather than an empty one. (T62) */}
+        {job.status !== 'completed' && techs.length > 0 && (
           <select
             value={job.assignedToId || ''}
             onChange={(e) => {

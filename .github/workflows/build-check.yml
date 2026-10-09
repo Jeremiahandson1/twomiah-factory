@@ -1335,6 +1335,12 @@ jobs:
         run: bun run scripts/check-roof-map-renders.ts
       - name: "not-ready features — no plan, signup, owner save or Factory save switches one on (owner, 10/09)"
         run: bun run scripts/check-not-ready-features.ts
+      - name: "credentials — a client's portal link and the lead webhook secret stay with the desk (T62)"
+        run: bun run scripts/check-credentials-stay-with-the-desk.ts
+      - name: "practice revenue — the takings ask revenue:read; vet staff bill a visit without reading the month (T62)"
+        run: bun run scripts/check-practice-revenue.ts
+      - name: "contact relations — a contact read carries only the quotes and invoices the reader may open (T62)"
+        run: bun run scripts/check-contact-relations-ask.ts
 
   revenue-one-definition:
     name: "Revenue one definition"

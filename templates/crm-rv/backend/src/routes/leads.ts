@@ -4,7 +4,7 @@ import { createLeadsRoutes } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { lead, leadSource, contact } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 
@@ -13,6 +13,9 @@ export default createLeadsRoutes({
   tables: { lead, leadSource, contact },
   authenticate,
   requirePermission,
+  // Decides who is handed the lead-source webhook secret (integrations:update — owners and admins). (T62)
+  canSee: async (role: string, permission: string, userId?: string) =>
+    hasPermission(role, permission, await getExtraPermissions(userId)),
   emitToCompany,
   EVENTS,
   audit,

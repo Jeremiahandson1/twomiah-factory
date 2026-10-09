@@ -5,7 +5,7 @@ import { lead, leadSource } from '../../db/schema.ts'
 import { contact } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc, sql, gte } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
@@ -113,12 +113,21 @@ app.use('*', authenticate)
 
 // ─── Lead Sources CRUD ─────────────────────────────────────────────────────────
 
+// THE WEBHOOK SECRET IS AN INTEGRATION CREDENTIAL — owners and admins only. (T62 High; owner's decision 2026-10-09)
+// Anyone holding it can post leads into this CRM from outside. The list stays readable; the key goes only to
+// settings:update (this fork's owner/admin line — its matrix has no integrations resource).
+const mayHoldSecret = async (c: any): Promise<boolean> => {
+  const u = c.get('user') as any
+  try { return hasPermission(u?.role, 'settings:update', await getExtraPermissions(u?.userId)) } catch { return false }
+}
+const withoutSecret = <T extends Record<string, any>>(row: T): T => { const { webhookSecret, ...rest } = row as any; return rest as T }
+
 app.get('/sources', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
   const sources = await db.select().from(leadSource)
     .where(eq(leadSource.companyId, currentUser.companyId))
     .orderBy(desc(leadSource.createdAt))
-  return c.json({ data: sources })
+  return c.json({ data: (await mayHoldSecret(c)) ? sources : sources.map(withoutSecret) })
 })
 
 app.post('/sources', requirePermission('contacts:create'), async (c) => {
@@ -141,7 +150,7 @@ app.post('/sources', requirePermission('contacts:create'), async (c) => {
   }).returning()
 
   await audit.log({ action: 'create', entity: 'lead_source', entityId: source.id, metadata: source, req: { user: currentUser } })
-  return c.json(source, 201)
+  return c.json((await mayHoldSecret(c)) ? source : withoutSecret(source), 201)
 })
 
 app.put('/sources/:id', requirePermission('contacts:update'), async (c) => {
@@ -159,7 +168,7 @@ app.put('/sources/:id', requirePermission('contacts:update'), async (c) => {
     .where(eq(leadSource.id, id))
     .returning()
 
-  return c.json(updated)
+  return c.json((await mayHoldSecret(c)) ? updated : withoutSecret(updated))
 })
 
 app.delete('/sources/:id', requirePermission('contacts:delete'), async (c) => {

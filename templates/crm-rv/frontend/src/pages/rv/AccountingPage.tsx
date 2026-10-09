@@ -30,7 +30,13 @@ export default function AccountingPage() {
   const mayConnect = useMayWrite('settings:update');
   const maySync = useMayWrite('integrations:update');
 
-  function load() { api.get('/api/accounting/status').then(setData).catch(() => {}); }
+  // A refused or failed load is said out loud — swallowing it left the defaults on screen, "0 entries · $0.00"
+  // and "Not connected", as though they were the dealership's books. (T62)
+  const [loadErr, setLoadErr] = useState<string>('');
+  function load() {
+    api.get('/api/accounting/status').then((d: any) => { setData(d); setLoadErr(''); })
+      .catch((err: any) => setLoadErr(err?.status === 403 ? 'Accounting is for the people who keep the books — an owner, admin or manager.' : errorText(err, 'Could not load the books. Reload to try again.')));
+  }
   useEffect(() => { load(); }, []);
 
   async function sync() {
@@ -74,6 +80,8 @@ export default function AccountingPage() {
 
       <div className="mt-4"><PageError message={pageErr} onDismiss={() => setPageErr('')} /></div>
 
+      {loadErr ? <div className="mt-4 rounded-xl border bg-white p-6 text-sm text-gray-700 dark:bg-slate-900 dark:text-slate-200">{loadErr}</div> : <>
+
       <div className={`mt-4 rounded-xl border p-4 flex items-center gap-3 ${data.connected ? 'bg-green-50 border-green-200 dark:bg-green-950/40 dark:text-slate-100' : 'bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-slate-100'}`}>
         <Link2 size={18} className={data.connected ? 'text-green-700 dark:text-green-300' : 'text-amber-700 dark:text-amber-300'} />
         <div className="flex-1 text-sm">
@@ -99,6 +107,8 @@ export default function AccountingPage() {
           </tbody>
         </table>
       </div>
+
+      </>}
 
       {done && <div className="mt-4 bg-white rounded-xl border shadow-sm p-4 flex items-center gap-2 text-sm dark:bg-slate-900"><CheckCircle2 className="text-green-700 dark:text-green-300" /><span>Posted <b>{done.posted}</b> entries ({money(done.total)}) to {done.provider} · batch {done.batch}</span></div>}
     </div>

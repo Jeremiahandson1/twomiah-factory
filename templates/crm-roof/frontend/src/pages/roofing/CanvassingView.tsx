@@ -94,7 +94,8 @@ export default function CanvassingView() {
   const load = useCallback(async () => {
     try {
       const [sessRes, scriptRes] = await Promise.all([
-        fetch('/api/canvassing/sessions', { headers }),
+        // YOUR sessions — the first active one in the company was the owner's, and this app opened it. (T62)
+        fetch('/api/canvassing/sessions?mine=1', { headers }),
         fetch('/api/canvassing/scripts', { headers }),
       ])
       const sessData = await sessRes.json()

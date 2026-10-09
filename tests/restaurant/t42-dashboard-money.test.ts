@@ -29,7 +29,7 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
 const { setupSchema } = await import('./setup.ts')
 await setupSchema()
 const { db } = await import('./db/index.ts')
-const { company, user, contact, event, eventMenuItem, invoice } = await import('./db/schema.ts')
+const { company, user, contact, event, eventMenuItem, invoice, eventPayment } = await import('./db/schema.ts')
 
 const [co] = await db.insert(company).values({
   name: 'The Oast House', slug: 'oast-t42-dash', email: 'dash-t42@test.local',
@@ -68,6 +68,10 @@ await db.insert(invoice).values({
   subtotal: '2980.00', taxRate: '0', taxAmount: '0', discount: '0', total: '2980.00', amountPaid: '0',
   dueDate: new Date(Date.now() - 7 * 86400000),
 } as any)
+
+// T62: an installment still owed on the held event — what the Payments Due panel lists. 3,350.00 is a figure
+// nothing else in the payload could produce.
+await db.insert(eventPayment).values({ companyId: co.id, eventId: ev.id, label: 'Final balance', amount: '3350.00', dueDate: future } as any)
 
 const app = new Hono()
 app.route('/api/dashboard', (await import('./src/routes/dashboard.ts')).default)
@@ -112,6 +116,25 @@ console.log('\n══════════ the coordinator — the book, not 
     !/5960|2980/.test(r.text || ''), (r.text || '').slice(0, 300))
   check('T42: …and the page is TOLD the money was withheld, so the cards go rather than read $0.00',
     r.json?.moneyWithheld === true, r.json?.moneyWithheld)
+}
+
+// ══════════ T62 · the Payments Due panel on /recent-activity ══════════════════════════════════════
+//   "Events: staff still see client balances. The dashboard's Payments Due panel and
+//    /api/dashboard/recent-activity return amounts, paid amounts and client names."
+console.log('\n══════════ T62 · Payments Due is the books too ══════════')
+{
+  const recent = async (who: any) => {
+    const res = await app.request('/api/dashboard/recent-activity', { headers: { 'x-test-user': who.id } })
+    const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+    return { status: res.status, json: j, text: t }
+  }
+  const own = await recent(owner)
+  check('T62: the owner sees the installment due — 3,350.00 on the Harper / Diaz wedding',
+    own.status === 200 && (own.json?.duePayments || []).some((p: any) => Number(p.amount) === 3350 && p.clientName === 'Harper / Diaz'), own.json?.duePayments)
+  const coord = await recent(coordinator)
+  check('T62: the coordinator still gets the enquiries and the events ahead', coord.status === 200 && Array.isArray(coord.json?.upcomingEvents), coord.json)
+  check('T62: …with NO duePayments key — absent, so the panel cannot say "Nothing outstanding"', coord.json?.duePayments === undefined && coord.json?.moneyWithheld === true, coord.json)
+  check('T62: …and no amount anywhere in the payload', !/3350/.test(coord.text || ''), (coord.text || '').slice(0, 300))
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)

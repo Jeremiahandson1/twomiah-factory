@@ -4,11 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import {
   Briefcase, Globe, Palette, Users, FileText,
   DollarSign, ArrowRight, ExternalLink, Settings,
-  Clock, LogOut, Camera, Sparkles, BookOpen, Ruler
+  Clock, LogOut, Camera, Ruler
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
-import { brandSurfaceUnderWhite, maySeeRoute } from '../shared';
+import { brandSurfaceUnderWhite, maySeeRoute, useMayWrite } from '../shared';
 import { SHELL } from '../shellConfig';
 
 interface DashboardStats {
@@ -51,6 +51,10 @@ const tileTone = (name: string) => TILE_TONE[name] ?? TILE_TONE.blue
 export default function CustomerPortal() {
   const { user, company, logout, loading: authLoading, checkAuth, hasFeature } = useAuth();
   const navigate = useNavigate();
+  // Settings is the company's: name, users, integrations, billing — company:update. A seat without it still
+  // has its own sign-in to look after, so its tile is My Account (password and two-factor) rather than a
+  // door to a page of things it cannot change. (T62 Vet: "an 'Account Settings' tile they can't use")
+  const runsTheCompany = useMayWrite('company:update');
   // The shell blanks /crm/settings for a role its vertical does not let in (shellConfig.routeRoles /
   // routePermissions), and this tile was handing that role the door anyway — an offer with a refusal
   // behind it. Same question the sidebar's Settings link asks, from the same declaration, so the two
@@ -183,7 +187,9 @@ export default function CustomerPortal() {
               { label: 'Contacts', value: stats.contacts ?? 0, icon: Users, color: 'blue' },
               { label: 'Upcoming Events', value: (stats.events as Record<string, unknown>)?.upcoming30 ?? 0, icon: Briefcase, color: 'emerald' },
               { label: 'Enquiries', value: (stats.pipeline as Record<string, unknown>)?.enquiry ?? 0, icon: FileText, color: 'amber' },
-              { label: 'Outstanding', value: `$${Number((stats.payments as Record<string, unknown>)?.outstanding ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: DollarSign, color: 'green' },
+              // A money tile only when the figure was SENT — the server leaves it off for a seat that may not see money,
+              // and `?? 0` drew that absence as "$0.00". (T62: "Salon portal home shows '$0.00 Outstanding'")
+              ...((stats.payments as Record<string, unknown> | undefined)?.outstanding !== undefined ? [{ label: 'Outstanding', value: `$${Number((stats.payments as Record<string, unknown>)?.outstanding ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: DollarSign, color: 'green' }] : []),
             ] as unknown as StatCard[]).map((stat) => (
               <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-4 dark:bg-slate-900">
                 <div className={`w-8 h-8 rounded-lg ${tileTone(stat.color).chip} flex items-center justify-center mb-2`}>
@@ -268,37 +274,16 @@ export default function CustomerPortal() {
             </a>
           )}
 
-          {/* Pricebook Promo — show if they don't have it yet */}
-          {!hasFeature('pricebook') && (
-            <div
-              onClick={() => navigate('/crm/pricebook-trial')}
-              className="bg-white rounded-xl border border-amber-200 border-dashed p-6 cursor-pointer hover:border-amber-300 hover:shadow-md transition-all group relative overflow-hidden dark:bg-slate-900"
-            >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
-                  <BookOpen className="w-6 h-6 text-amber-700" />
-                </div>
-                <span className="inline-flex items-center gap-1 text-xs font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded-full dark:bg-amber-950/40 dark:text-amber-300">
-                  <Sparkles className="w-3 h-3" />
-                  FREE TRIAL
-                </span>
-              </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-slate-100">Pricebook</h3>
-              <p className="text-sm text-slate-500">
-                Standardized pricing catalog — consistent quotes, faster estimates
-              </p>
-            </div>
-          )}
+          {/* No Pricebook trial tile: this template mounts no /crm/pricebook-trial, so the tile led nowhere. (T62, found beside the vet's) */}
 
           {/* Exterior Visualizer add-on is contractor/roofer-only — no promo on events portals */}
 
           {/* Instant Roof Estimator add-on is contractor/roofer-only — no promo on events portals */}
 
-          {/* Settings */}
-          {maySeeSettings && (
+          {/* Settings — or, for a seat that cannot change the company, its own account */}
+          {(maySeeSettings || !runsTheCompany) && (
           <div
-            onClick={() => navigate('/crm/settings')}
+            onClick={() => navigate(runsTheCompany ? '/crm/settings' : '/crm/account')}
             className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden dark:bg-slate-900"
           >
             <div className="absolute top-0 left-0 right-0 h-1 bg-slate-400" />
@@ -308,9 +293,9 @@ export default function CustomerPortal() {
               </div>
               <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-slate-100">Account Settings</h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-slate-100">{runsTheCompany ? 'Account Settings' : 'My Account'}</h3>
             <p className="text-sm text-slate-500">
-              Company info, users, integrations, billing
+              {runsTheCompany ? 'Company info, users, integrations, billing' : 'Your password and two-factor sign-in'}
             </p>
           </div>
           )}

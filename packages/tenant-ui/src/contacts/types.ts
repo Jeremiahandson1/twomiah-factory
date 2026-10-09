@@ -14,6 +14,12 @@ export interface QuickAction {
   icon?: QuickActionIcon
   /** only shown when hasFeature(feature) — omit for always */
   feature?: string
+  /**
+   * Only shown to a seat holding this — the permission the page it opens will ask to save. Omitted, it is worked
+   * out from the link (quickActionPermission): /crm/quotes → quotes:create, and so on. A plain navigation link
+   * (Patients, Appointments) asks nothing. (T62: "Create Quote/Invoice … staff see that the server refuses")
+   */
+  permission?: string
 }
 
 export interface ContactSections {
@@ -62,6 +68,16 @@ export const DEFAULT_CONTACT_TYPES: ContactType[] = [
   { value: 'subcontractor', label: 'Subcontractor' },
   { value: 'vendor', label: 'Vendor' },
 ]
+
+/** What a quick action's destination will ask to SAVE, by the page it opens. One table for every vertical's list. */
+const CREATES_ON: [RegExp, string][] = [
+  [/^\/crm\/quotes(\?|$)/, 'quotes:create'],
+  [/^\/crm\/jobs(\?|$)/, 'jobs:create'],
+  [/^\/crm\/invoices(\?|$)/, 'invoices:create'],
+  // an event is created on contacts:create (routes/events.ts POST /)
+  [/^\/crm\/events(\?|$)/, 'contacts:create'],
+]
+export const quickActionPermission = (a: QuickAction): string | undefined => a.permission ?? CREATES_ON.find(([re]) => re.test(a.to))?.[1]
 
 export const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
   { label: 'Create Quote', to: '/crm/quotes?contactId=:id', icon: 'quote' },

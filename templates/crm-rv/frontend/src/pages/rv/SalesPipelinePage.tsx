@@ -69,6 +69,9 @@ export default function SalesPipelinePage() {
   const mayCreateLead = useMayWrite('contacts:create');
   // Removing a lead is a delete, not an edit — DELETE /api/sales-leads/:id asks contacts:delete. (T58j)
   const mayDeleteLead = useMayWrite('contacts:delete');
+  // Moving a deal between stages is PUT /api/sales-leads/:id — contacts:update. Staff were offered the drag and
+  // the stage picker and refused on drop. The picker stays, disabled: it is also where a card says its stage. (T62)
+  const mayMoveStage = useMayWrite('contacts:update');
   const { hasFeature } = useAuth();
   const [rows, setRows] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -181,7 +184,7 @@ export default function SalesPipelinePage() {
             <div
               key={stage.value}
               onDragOver={(e) => e.preventDefault()}
-              onDrop={() => { if (dragId) { moveTo(dragId, stage.value); setDragId(null); } }}
+              onDrop={() => { if (dragId && mayMoveStage) { moveTo(dragId, stage.value); setDragId(null); } }}
               className={`flex-shrink-0 w-72 bg-gray-50 dark:bg-slate-800 rounded-xl border-t-4 ${STAGE_ACCENT[stage.value] || 'border-t-gray-300'}`}
             >
               <div className="p-3 flex items-center justify-between">
@@ -192,9 +195,9 @@ export default function SalesPipelinePage() {
                 {grouped[stage.value].map((row) => (
                   <div
                     key={row.lead.id}
-                    draggable
-                    onDragStart={() => setDragId(row.lead.id)}
-                    className="bg-white rounded-lg border p-3 cursor-grab active:cursor-grabbing space-y-2 hover:shadow-sm dark:bg-slate-900"
+                    draggable={mayMoveStage}
+                    onDragStart={() => { if (mayMoveStage) setDragId(row.lead.id); }}
+                    className={`bg-white rounded-lg border p-3 ${mayMoveStage ? 'cursor-grab active:cursor-grabbing' : ''} space-y-2 hover:shadow-sm dark:bg-slate-900`}
                   >
                     <p className="font-medium text-gray-900 flex items-center gap-1 dark:text-slate-100">
                       <User className="w-4 h-4 text-gray-400" /> {row.contactName || 'Unknown'}
@@ -229,7 +232,9 @@ export default function SalesPipelinePage() {
                     <select
                       value={row.lead.stage}
                       onChange={(e) => moveTo(row.lead.id, e.target.value)}
-                      className="w-full text-xs border rounded px-2 py-1 text-gray-600 dark:text-slate-400"
+                      disabled={!mayMoveStage}
+                      title={!mayMoveStage ? 'Moving a deal needs permission to edit it.' : undefined}
+                      className="w-full text-xs border rounded px-2 py-1 text-gray-600 dark:text-slate-400 disabled:opacity-100 disabled:cursor-default"
                     >
                       {STAGES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>

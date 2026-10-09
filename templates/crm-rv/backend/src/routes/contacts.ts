@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { contact, project, quote, invoice, job, repairOrder, salesLead } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { cleanText } from '../utils/sanitize.ts'
@@ -15,6 +15,8 @@ export default createContactRoutes({
   tables: { contact },
   authenticate,
   requirePermission,
+  // which related lists (quotes, invoices) a contact read carries — the permission each list's page asks (T62)
+  canSee: async (role: string, permission: string, userId?: string) => hasPermission(role, permission, await getExtraPermissions(userId)),
   emitToCompany,
   EVENTS,
   audit,

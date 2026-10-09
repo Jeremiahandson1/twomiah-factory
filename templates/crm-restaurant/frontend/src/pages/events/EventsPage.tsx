@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Loader2, X, CalendarDays, Users, DoorOpen, LayoutGrid, List } from 'lucide-react';
 import api from '../../services/api';
+import { useMayWrite } from '../../shared';
 import ClientPicker from '../../components/events/ClientPicker';
 import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
 import { confirmEventRisks } from '../../lib/eventWarnings';
@@ -81,12 +82,14 @@ export default function EventsPage() {
   const [search, setSearch] = useState<string>('');
   const [view, setView] = useState<View>('pipeline');
   const [showForm, setShowForm] = useState<boolean>(false);
+  // POST /api/events asks contacts:create; the coordinator does not hold it and was offered New Enquiry. (T62)
+  const mayCreate = useMayWrite('contacts:create');
   // "Create Event" from a contact lands here with ?contactId= — open the form
   // pre-selected on that contact (H-02: you can now create an event from a contact).
   const [searchParams, setSearchParams] = useSearchParams();
   const contactIdParam = searchParams.get('contactId') || '';
   useEffect(() => {
-    if (contactIdParam) setShowForm(true);
+    if (contactIdParam && mayCreate) setShowForm(true);
   }, [contactIdParam]);
 
   const load = useCallback(async () => {
@@ -115,9 +118,9 @@ export default function EventsPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Events</h1>
           <p className="text-gray-500 dark:text-slate-400">Every enquiry, booking and party in one place</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
+        {mayCreate && <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
           <Plus className="w-4 h-4" /> New Enquiry
-        </button>
+        </button>}
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
@@ -198,6 +201,7 @@ function PipelineView({ events }: { events: EventRow[] }) {
                     )}
                   </div>
                   {e.spaceName && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-1"><DoorOpen className="w-3 h-3" /> {e.spaceName}</p>}
+                  {/* quotedTotal is absent for a seat without invoices:read (T62) */}
                   {e.quotedTotal ? <p className="text-sm font-semibold text-gray-700 mt-2 dark:text-slate-200">{money(e.quotedTotal)}</p> : null}
                 </Link>
               ))}
@@ -212,6 +216,9 @@ function PipelineView({ events }: { events: EventRow[] }) {
 /* ---------------- List ---------------- */
 
 function ListView({ events }: { events: EventRow[] }) {
+  // The server leaves quotedTotal OFF the row for a seat without invoices:read (T62); the key's absence is the
+  // signal, so the column goes rather than printing $0.00 on every event.
+  const showValue = events.length === 0 || events.some((e) => 'quotedTotal' in e);
   return (
     <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
       <table className="w-full text-sm">
@@ -222,7 +229,7 @@ function ListView({ events }: { events: EventRow[] }) {
             <th className="px-4 py-3 font-medium">Client</th>
             <th className="px-4 py-3 font-medium">Space</th>
             <th className="px-4 py-3 font-medium">Guests</th>
-            <th className="px-4 py-3 font-medium">Value</th>
+            {showValue && <th className="px-4 py-3 font-medium">Value</th>}
             <th className="px-4 py-3 font-medium">Status</th>
           </tr>
         </thead>
@@ -240,7 +247,7 @@ function ListView({ events }: { events: EventRow[] }) {
               <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{e.clientName || '—'}</td>
               <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{e.spaceName || '—'}</td>
               <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{e.guestCountFinal ?? e.guestCount ?? '—'}</td>
-              <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{money(e.quotedTotal)}</td>
+              {showValue && <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{money(e.quotedTotal)}</td>}
               <td className="px-4 py-3">
                 <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${STATUS_COLORS[e.status || ''] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                   {e.status || 'enquiry'}

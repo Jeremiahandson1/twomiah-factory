@@ -185,10 +185,14 @@ export function TwoFactorCard({ api, toast }: { api: MfaApi; toast: { success: (
               The replacement is deliberately about what EVERY tenant keeps and no tenant wants
               taken: who their customers are, and what has been paid. It loses nothing of the point,
               which is that the password is currently the only thing in the way.
+
+              …and it is shown to EVERY SEAT, not just the owner. "Every payment in this business" is
+              not true of a stylist or a budtender, who cannot see the takings — the Salon and Dispensary
+              staff read it on their own My Account page. (T62) So it says only what is true of anyone:
+              their sign-in, and what a stolen password would otherwise be enough for.
             */}
-            A six-digit code from your phone, on top of your password. This account can reach every
-            customer record and every payment in this business — the password is the only thing in
-            front of it today.
+            A six-digit code from your phone, on top of your password — so a stolen or guessed password
+            on its own is not enough to sign in as you.
           </p>
         </div>
         <span className={`text-xs font-medium px-2 py-1 rounded-full ${active

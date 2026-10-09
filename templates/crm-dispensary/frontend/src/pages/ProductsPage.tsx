@@ -20,11 +20,12 @@ const categories = [
 ];
 
 const strainTypes = [
-  { value: 'sativa', label: 'Sativa', color: 'bg-orange-100 text-orange-700' },
-  { value: 'indica', label: 'Indica', color: 'bg-purple-100 text-purple-700' },
-  { value: 'hybrid', label: 'Hybrid', color: 'bg-green-100 text-green-700' },
-  { value: 'cbd', label: 'CBD', color: 'bg-blue-100 text-blue-700' },
-  { value: 'na', label: 'N/A', color: 'bg-gray-100 text-gray-600' },
+  // Each chip carries its dark pair — ground AND ink — or it stayed a light chip on a dark page. (T62)
+  { value: 'sativa', label: 'Sativa', color: 'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300' },
+  { value: 'indica', label: 'Indica', color: 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300' },
+  { value: 'hybrid', label: 'Hybrid', color: 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300' },
+  { value: 'cbd', label: 'CBD', color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' },
+  { value: 'na', label: 'N/A', color: 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-300' },
 ];
 
 const initialFormData = {
@@ -536,7 +537,7 @@ export default function ProductsPage() {
           <button
             type="button"
             onClick={() => setModalOpen(false)}
-            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200"
+            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200 dark:hover:bg-slate-700"
           >
             Cancel
           </button>

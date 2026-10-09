@@ -87,6 +87,18 @@ function lineTotal(l: { perPerson: boolean; quantity: number; unitPrice: string 
   return Number(l.unitPrice || 0) * Number(l.quantity || 0)
 }
 
+/**
+ * WHAT AN EVENT IS PRICED AT IS THE BOOKS. (T62: "The Events list shows quoted totals" to staff; the event
+ * page drew "$0.00 — $9,000.00 short".) The same rule the event page already applied to its schedule and its
+ * menu prices — invoices:read — now covers the quote and the deposit on the event row and the room's minimum
+ * spend and hire fee, on every response that carries them. Absent, not zero, with moneyWithheld on the page
+ * read, so the screen leaves the money out rather than working a shortfall out of nothing.
+ */
+const EVENT_MONEY_KEYS = ['quotedTotal', 'depositRequired'] as const
+const SPACE_MONEY_KEYS = ['minimumSpend', 'hireFee'] as const
+const without = (row: any, keys: readonly string[]) => { if (!row) return row; const out = { ...row }; for (const k of keys) delete out[k]; return out }
+const maySeeEventMoney = async (u: any) => hasPermission(u?.role, 'invoices:read', await getExtraPermissions(u?.userId))
+
 // A ledger rule refused the write (it rolled back): answer with its message and status.
 const ledgerError = (c: any, e: unknown) => (e instanceof LedgerError ? c.json({ error: e.message }, e.status) : null)
 
@@ -130,7 +142,8 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
     spaceName: r.spaceName,
     coordinatorFirstName: r.coordinatorFirstName, coordinatorLastName: r.coordinatorLastName,
   }))
-  return c.json({ data: rows })
+  if (await maySeeEventMoney(currentUser)) return c.json({ data: rows })
+  return c.json({ data: rows.map((r: any) => without(r, EVENT_MONEY_KEYS)), moneyWithheld: true })
 })
 
 // GET /events/:id — the full file
@@ -170,13 +183,13 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
    * the money: the schedule, the invoice card, the totals, and the per-line prices (the kitchen
    * needs "120 × plated dinner", not what it is charged at).
    */
-  const maySeeMoney = hasPermission(currentUser?.role, 'invoices:read', await getExtraPermissions(currentUser?.userId))
+  const maySeeMoney = await maySeeEventMoney(currentUser)
   const menuRows = ledger?.menu || []
   return c.json({
-    event: ev,
+    event: maySeeMoney ? ev : without(ev, EVENT_MONEY_KEYS),
     // the customer's portal credential never travels with their record (T42)
     client: client ? withoutPortalCredential(client) : null,
-    space: space || null,
+    space: (maySeeMoney ? space : without(space, SPACE_MONEY_KEYS)) || null,
     menu: maySeeMoney ? menuRows : menuRows.map(({ unitPrice, ...rest }: any) => rest),
     timeline,
     // The schedule, each installment with what the invoice has covered of it (state/paidAmount).
@@ -184,7 +197,7 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
       payments: ledger?.payments || [],
       invoice: inv ? { id: inv.id, number: inv.number, status: deriveStatus(inv), dueDate: inv.dueDate, total: inv.total, taxAmount: inv.taxAmount, amountPaid: inv.amountPaid, amountRefunded: inv.amountRefunded, sentAt: inv.sentAt } : null,
       totals: ledger?.totals,
-    } : { payments: [], invoice: null }),
+    } : { payments: [], invoice: null, moneyWithheld: true }),
   })
 })
 
@@ -209,7 +222,7 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   // Saved as asked; a past date or an over-capacity room is reported, not refused (T17 L1/L2).
   const warnings = await eventWarnings(db, currentUser.companyId, created, { date: true, capacity: true })
-  return c.json({ ...created, warnings }, 201)
+  return c.json({ ...((await maySeeEventMoney(currentUser)) ? created : without(created, EVENT_MONEY_KEYS)), warnings }, 201)
 })
 
 // PUT /events/:id
@@ -229,6 +242,10 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
     'source', 'lostReason', 'dietaryRequirements', 'setupNotes', 'notes'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+  // The quote and the deposit are set by a seat that may see them. Anyone else's form never held the figures,
+  // so whatever it posts back for them is not an answer — dropped, not saved over the real ones. (T62)
+  const editorSeesMoney = await maySeeEventMoney(currentUser)
+  if (!editorSeesMoney) for (const k of EVENT_MONEY_KEYS) delete updates[k]
 
   // The same rules as a create, against the effective values (incoming update falling back to existing),
   // so editing just one of start/end still re-checks the pair. (F5, #162)
@@ -281,7 +298,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   // Only what this edit changed is warned about, so re-saving a past event for another reason is quiet.
   const changed = (k: string) => k in updates && String(updates[k] ?? '') !== String((existing as any)[k] ?? '')
   const warnings = await eventWarnings(db, currentUser.companyId, updated, { date: changed('eventDate'), capacity: changed('spaceId') || changed('guestCount') || changed('guestCountFinal') })
-  return c.json({ ...updated, warnings })
+  return c.json({ ...(editorSeesMoney ? updated : without(updated, EVENT_MONEY_KEYS)), warnings })
 })
 
 // DELETE /events/:id — cancel, keeping the row so win/loss stays measurable. ?keepDeposit=1 closes the
