@@ -500,6 +500,13 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
   // rule, the washes and the browser theme-color, where bright is correct. A colour that already
   // clears the bar comes back untouched, so a tenant on a dark brand sees no change.
   const primaryOnWhite = ensureDark(primaryColor, 1.05 / 4.5 - 0.05)
+  // The accent colour as TEXT on the premium sites' light grounds (eyebrows, service
+  // numbers, team roles). Same idea as primaryOnWhite, measured against the darkest light
+  // ground those templates paint — foodtruck's #fdf8f0 paper, luminance 0.943 — so it
+  // clears AA on white and both papers. Bright accents (the amber default measured 2.05:1)
+  // darken just enough; a dark accent comes back untouched. {{ACCENT_COLOR}} is unchanged
+  // for accents on dark grounds and fills.
+  const accentOnLight = ensureDark(b.accentColor || '#f59e0b', (0.943 + 0.05) / 4.5 - 0.05)
 
   return {
     '{{COMPANY_NAME}}': c.name || 'My Company',
@@ -592,6 +599,7 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{PRIMARY_COLOR_ON_WHITE}}': primaryOnWhite,
     '{{SECONDARY_COLOR}}': ensureDark(b.secondaryColor || (industry === 'home_care' ? '#004d40' : industry === 'automotive' ? '#111827' : industry === 'dispensary' ? '#14532d' : '#1e3a5f')),
     '{{ACCENT_COLOR}}': b.accentColor || '#f59e0b',
+    '{{ACCENT_COLOR_ON_LIGHT}}': accentOnLight,
     // The path writeBrandingAssets is about to write into the CRM's frontend/public, so the seeded company row
     // can point at it. Colours already reached company.primaryColor/secondaryColor through the seed; the logo
     // only ever became a FILE, and company.logo — which the customer portal and the public booking page read —

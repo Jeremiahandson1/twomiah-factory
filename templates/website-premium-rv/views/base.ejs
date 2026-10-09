@@ -7,7 +7,15 @@
   <% var seoDescription = settings.seoDescription || ''; %>
   <% var canonicalBase = (settings.siteOrigin || '').replace(/\/+$/, ''); %>
   <% var canonical = canonicalBase ? canonicalBase + (currentPath || '/') : ''; %>
-  <% var ogImage = settings.logoUrl || settings.heroPhotoUrl || ''; %>
+  <%
+    // Social cards need an absolute URL, and Facebook/X ignore SVG — so an SVG
+    // logo (including the synthesized /images/logo.svg) gives way to the page's
+    // hero photo when there is one.
+    var _hero = typeof lcpImage !== 'undefined' && lcpImage ? lcpImage : '';
+    var _logo = settings.logoUrl || settings.heroPhotoUrl || '';
+    var ogImage = /\.svg(\?|$)/i.test(_logo) && _hero ? _hero : _logo;
+    if (ogImage && ogImage.charAt(0) === '/' && ogImage.charAt(1) !== '/' && canonicalBase) ogImage = canonicalBase + ogImage;
+  %>
   <title><%= seoTitle %></title>
   <meta name="description" content="<%= seoDescription %>">
   <% if (canonical) { %><link rel="canonical" href="<%= canonical %>"><% } %>
@@ -24,6 +32,24 @@
   <meta name="twitter:description" content="<%= seoDescription %>">
   <% if (ogImage) { %><meta name="twitter:image" content="<%= ogImage %>"><% } %>
   <% if (settings.faviconUrl) { %><link rel="icon" href="<%= settings.faviconUrl %>"><% } %>
+  <%
+    // Business markup for Google (schema.org LocalBusiness). Only the facts in
+    // the owner's settings — name, phone, email, address, logo — and nothing
+    // is filled in when a field is empty. Hours are free text on the contact
+    // section, not the opening-hours format schema.org needs, so they are left
+    // out rather than guessed. The synthesized /images/logo.svg is a
+    // placeholder, never the business's logo.
+    var _ld = null;
+    if (canonicalBase && settings.companyName) {
+      _ld = { '@context': 'https://schema.org', '@type': 'LocalBusiness', name: settings.companyName, url: canonicalBase + '/' };
+      if (settings.phone) _ld.telephone = settings.phone;
+      if (settings.email) _ld.email = settings.email;
+      if (settings.address) _ld.address = settings.address;
+      var _ldLogo = settings.logoUrl && settings.logoUrl !== '/images/logo.svg' ? settings.logoUrl : '';
+      if (_ldLogo) { _ld.logo = _ldLogo.charAt(0) === '/' && _ldLogo.charAt(1) !== '/' ? canonicalBase + _ldLogo : _ldLogo; _ld.image = _ld.logo; }
+    }
+  %>
+  <% if (_ld) { %><script type="application/ld+json"><%- JSON.stringify(_ld).replace(/</g, '\\u003c') %></script><% } %>
   <% if (typeof lcpImage !== 'undefined' && lcpImage) { %>
     <link rel="preload" as="image" href="<%= lcpImage %>" fetchpriority="high">
   <% } %>
@@ -59,6 +85,10 @@
 </head>
 <body>
 <% if (settings.googleTagManagerId) { %><noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<%= settings.googleTagManagerId %>" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript><% } %>
+  <%/* Skip link: the first thing a keyboard or screen-reader user reaches,
+       hidden until focused. Fixed colours so it reads on every theme. */%>
+  <style>.skip-link{position:absolute;left:8px;top:-100px;z-index:10000;padding:10px 16px;background:#111;color:#fff;font:600 15px/1.2 system-ui,sans-serif;border-radius:6px;text-decoration:none}.skip-link:focus{top:8px;outline:3px solid #fff;outline-offset:2px}#main:focus{outline:none}</style>
+  <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header">
     <div class="container header-inner">
       <%/* An uploaded logo replaces the text wordmark. /images/logo.svg is the
@@ -100,7 +130,7 @@
     })();
   </script>
 
-  <main>
+  <main id="main" tabindex="-1">
     <%- body %>
   </main>
 

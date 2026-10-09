@@ -162,16 +162,18 @@ function countView(path: string): void {
     .catch(() => { /* non-blocking */ })
 }
 
-async function renderPage(slug: string, currentPath: string): Promise<string | null> {
+async function renderPage(slug: string, currentPath: string, origin: string): Promise<string | null> {
   const [page, settingsRow] = await Promise.all([loadPage(slug), loadSettings()])
   if (!page || !page.isPublished) return null
 
   const homepage = { sections: Array.isArray(page.sections) ? page.sections : [] }
   const settings = settingsRow || { companyName: 'Your Company', nav: [], contactCtaLabel: 'Get in touch' }
 
-  // Per-page SEO overrides
+  // Per-page SEO overrides. siteOrigin drives base.ejs's canonical, og:url and
+  // business markup — without it none of the three render.
   const effectiveSettings = {
     ...settings,
+    siteOrigin: origin,
     seoTitle: page.metaTitle || settings.seoTitle || page.title,
     seoDescription: page.metaDescription || settings.seoDescription || '',
   }
@@ -199,7 +201,7 @@ function defaultHomePlaceholder(siteName: string): string {
 
 // ── Page routes ───────────────────────────────────────────────────────────
 app.get('/', async (c) => {
-  const html = await renderPage('home', '/')
+  const html = await renderPage('home', '/', getSiteOrigin(c))
   if (html) countView('/')
   if (!html) {
     const siteName = process.env.SITE_NAME || 'Your Site'
@@ -231,6 +233,7 @@ app.get('/blog', async (c) => {
   const body = '<section class="blog-section"><div class="container"><h1 class="blog-section__title">From the blog</h1>' + listHtml + '</div></section>'
   const effectiveSettings = {
     ...settings,
+    siteOrigin: getSiteOrigin(c),
     homeHref: '/',
     contactHref: '/contact',
     seoTitle: 'Blog · ' + (settings.companyName || 'Our blog'),
@@ -261,6 +264,7 @@ app.get('/blog/:slug', async (c) => {
   </article>`
   const effectiveSettings = {
     ...settings,
+    siteOrigin: getSiteOrigin(c),
     homeHref: '/',
     contactHref: '/contact',
     seoTitle: post.metaTitle || post.title + ' — ' + (settings.companyName || ''),
@@ -357,7 +361,7 @@ app.get('/book', async (c) => {
         const dur = s.durationMinutes >= 60 ? (s.durationMinutes / 60) + ' hr' : s.durationMinutes + ' min'
         return `<a class="service-card" href="/book/${escape(s.slug)}"><div class="service-card__body"><h2 class="service-card__name">${escape(s.name)}</h2>${s.description ? `<p class="service-card__desc">${escape(s.description)}</p>` : ''}<div class="service-card__meta"><span class="service-card__dur">${dur}</span>${price ? `<span class="service-card__price">${price}</span>` : ''}</div><span class="service-card__cta">Book →</span></div></a>`
       }).join('')}</div></div></section>`
-  const effectiveSettings = { ...settings, homeHref: '/', contactHref: '/contact', seoTitle: 'Book online · ' + (settings.companyName || ''), seoDescription: 'Pick a service and time that works for you.', nav: settings.nav || [] }
+  const effectiveSettings = { ...settings, siteOrigin: getSiteOrigin(c), homeHref: '/', contactHref: '/contact', seoTitle: 'Book online · ' + (settings.companyName || ''), seoDescription: 'Pick a service and time that works for you.', nav: settings.nav || [] }
   const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/book' }) as string
   return c.html(html)
 })
@@ -447,7 +451,7 @@ app.get('/book/:serviceSlug', async (c) => {
     </div>
   </div></section>
   <script src="/scripts/book-flow.js" defer></script>`
-  const effectiveSettings = { ...settings, homeHref: '/', contactHref: '/contact', seoTitle: 'Book ' + service.name + ' · ' + (settings.companyName || ''), seoDescription: service.description || '', nav: settings.nav || [] }
+  const effectiveSettings = { ...settings, siteOrigin: getSiteOrigin(c), homeHref: '/', contactHref: '/contact', seoTitle: 'Book ' + service.name + ' · ' + (settings.companyName || ''), seoDescription: service.description || '', nav: settings.nav || [] }
   const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/book/' + slug }) as string
   return c.html(html)
 })
@@ -1049,11 +1053,114 @@ app.post('/booking/:token/cancel', async (c) => {
   return c.redirect('/booking/' + token)
 })
 
+// ── SEO files ──────────────────────────────────────────────────────────
+// Dynamic sitemap + robots + llms.txt so search engines and AI assistants see
+// whatever's currently published in the pages table.
+//
+// Register BEFORE the catch-all `/:slug` below. Hono runs handlers in
+// registration order, and `/:slug` answers not-found for these names — so
+// declared after it, every premium site served 404 for /sitemap.xml and
+// /robots.txt.
+//
+// One origin for the sitemap, robots, canonical and business markup:
+// SITE_ORIGIN if set, else SITE_URL (deploy sets it; attaching a custom domain
+// points it at the domain), else the host the request came in on.
+
+function getSiteOrigin(c: any): string {
+  const explicit = process.env.SITE_ORIGIN
+  if (explicit) return explicit.replace(/\/+$/, '')
+  return siteOrigin(c)
+}
+
+app.get('/sitemap.xml', async (c) => {
+  const origin = getSiteOrigin(c)
+  const pageRows = await db.select().from(pagesTbl).where(eq(pagesTbl.isPublished, true)).orderBy(asc(pagesTbl.navOrder), asc(pagesTbl.title))
+  const postRows = await db.select().from(postsTbl).where(eq(postsTbl.status, 'published')).orderBy(desc(postsTbl.publishedAt))
+  const urls: string[] = []
+  for (const r of pageRows) {
+    const loc = origin + (r.slug === 'home' ? '/' : '/' + r.slug)
+    const lastmod = r.updatedAt instanceof Date ? r.updatedAt.toISOString() : new Date(r.updatedAt as any).toISOString()
+    urls.push(`  <url><loc>${escapeXml(loc)}</loc><lastmod>${lastmod}</lastmod></url>`)
+  }
+  if (postRows.length > 0) {
+    urls.push(`  <url><loc>${escapeXml(origin + '/blog')}</loc></url>`)
+    for (const r of postRows) {
+      const loc = origin + '/blog/' + r.slug
+      const lastmod = r.updatedAt instanceof Date ? r.updatedAt.toISOString() : new Date(r.updatedAt as any).toISOString()
+      urls.push(`  <url><loc>${escapeXml(loc)}</loc><lastmod>${lastmod}</lastmod></url>`)
+    }
+  }
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+    urls.join('\n') +
+    `\n</urlset>\n`
+  c.header('Content-Type', 'application/xml')
+  c.header('Cache-Control', 'public, max-age=3600')
+  return c.body(xml)
+})
+
+app.get('/robots.txt', async (c) => {
+  const origin = getSiteOrigin(c)
+  const body =
+    `User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /api/\n\nSitemap: ${origin}/sitemap.xml\n`
+  c.header('Content-Type', 'text/plain')
+  c.header('Cache-Control', 'public, max-age=86400')
+  return c.body(body)
+})
+
+// llms.txt (llmstxt.org): a plain summary of the business and an index of its
+// published pages, for AI assistants answering questions about it. Built from
+// the same rows as the sitemap, and states only what the owner's settings and
+// pages already say.
+app.get('/llms.txt', async (c) => {
+  const origin = getSiteOrigin(c)
+  const settings = await loadSettings()
+  const pageRows = await db.select().from(pagesTbl).where(eq(pagesTbl.isPublished, true)).orderBy(asc(pagesTbl.navOrder), asc(pagesTbl.title))
+  const postRows = await db.select().from(postsTbl).where(eq(postsTbl.status, 'published')).orderBy(desc(postsTbl.publishedAt))
+  const oneLine = (s: unknown) => String(s || '').replace(/\s+/g, ' ').trim()
+  const linkText = (s: unknown) => oneLine(s).replace(/[\[\]]/g, '')
+  const name = oneLine(settings?.companyName) || 'Website'
+  const lines: string[] = ['# ' + name, '']
+  const summary = oneLine(settings?.seoDescription) || oneLine(settings?.tagline)
+  if (summary) lines.push('> ' + summary, '')
+  const contact = [
+    settings?.phone ? 'Phone: ' + oneLine(settings.phone) : '',
+    settings?.email ? 'Email: ' + oneLine(settings.email) : '',
+    settings?.address ? 'Address: ' + oneLine(settings.address) : '',
+  ].filter(Boolean)
+  if (contact.length) lines.push(...contact.map(l => '- ' + l), '')
+  if (pageRows.length) {
+    lines.push('## Pages', '')
+    for (const r of pageRows) {
+      const desc = oneLine(r.metaDescription)
+      lines.push(`- [${linkText(r.title)}](${origin}${r.slug === 'home' ? '/' : '/' + r.slug})${desc ? ': ' + desc : ''}`)
+    }
+    lines.push('')
+  }
+  if (postRows.length) {
+    lines.push('## Blog', '')
+    for (const r of postRows) {
+      const desc = oneLine(r.excerpt)
+      lines.push(`- [${linkText(r.title)}](${origin}/blog/${r.slug})${desc ? ': ' + desc : ''}`)
+    }
+    lines.push('')
+  }
+  c.header('Content-Type', 'text/plain; charset=utf-8')
+  c.header('Cache-Control', 'public, max-age=3600')
+  return c.body(lines.join('\n'))
+})
+
+function escapeXml(s: string): string {
+  return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c] || c))
+}
+
 // Match a single slug (no slashes, not an api/admin/uploads/styles/scripts prefix).
+// The SEO file names stay reserved so a page can never be created that
+// shadows them.
 app.get('/:slug', async (c) => {
   const slug = c.req.param('slug')
-  if (['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'book', 'booking'].includes(slug)) return c.notFound()
-  const html = await renderPage(slug, '/' + slug)
+  if (['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'llms.txt', 'blog', 'book', 'booking'].includes(slug)) return c.notFound()
+  const html = await renderPage(slug, '/' + slug, getSiteOrigin(c))
   if (html) countView('/' + slug)
   if (!html) return c.notFound()
   return c.html(html)
@@ -1139,58 +1246,6 @@ function inlineMd(s: string): string {
       const attrs = external ? ' rel="noopener noreferrer" target="_blank"' : ''
       return '<a href="' + safe + '"' + attrs + '>' + text + '</a>'
     })
-}
-
-// ── SEO files ──────────────────────────────────────────────────────────
-// Dynamic sitemap + robots so search engines see whatever's currently
-// published in the pages table. Origin is derived from the incoming
-// request when nothing's been explicitly set.
-
-function getSiteOrigin(c: any): string {
-  const explicit = process.env.SITE_ORIGIN
-  if (explicit) return explicit.replace(/\/+$/, '')
-  const url = new URL(c.req.url)
-  return `${url.protocol}//${url.host}`
-}
-
-app.get('/sitemap.xml', async (c) => {
-  const origin = getSiteOrigin(c)
-  const pageRows = await db.select().from(pagesTbl).where(eq(pagesTbl.isPublished, true)).orderBy(asc(pagesTbl.navOrder), asc(pagesTbl.title))
-  const postRows = await db.select().from(postsTbl).where(eq(postsTbl.status, 'published')).orderBy(desc(postsTbl.publishedAt))
-  const urls: string[] = []
-  for (const r of pageRows) {
-    const loc = origin + (r.slug === 'home' ? '/' : '/' + r.slug)
-    const lastmod = r.updatedAt instanceof Date ? r.updatedAt.toISOString() : new Date(r.updatedAt as any).toISOString()
-    urls.push(`  <url><loc>${escapeXml(loc)}</loc><lastmod>${lastmod}</lastmod></url>`)
-  }
-  if (postRows.length > 0) {
-    urls.push(`  <url><loc>${escapeXml(origin + '/blog')}</loc></url>`)
-    for (const r of postRows) {
-      const loc = origin + '/blog/' + r.slug
-      const lastmod = r.updatedAt instanceof Date ? r.updatedAt.toISOString() : new Date(r.updatedAt as any).toISOString()
-      urls.push(`  <url><loc>${escapeXml(loc)}</loc><lastmod>${lastmod}</lastmod></url>`)
-    }
-  }
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
-    `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-    urls.join('\n') +
-    `\n</urlset>\n`
-  c.header('Content-Type', 'application/xml')
-  c.header('Cache-Control', 'public, max-age=3600')
-  return c.body(xml)
-})
-
-app.get('/robots.txt', async (c) => {
-  const origin = getSiteOrigin(c)
-  const body =
-    `User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /api/\n\nSitemap: ${origin}/sitemap.xml\n`
-  c.header('Content-Type', 'text/plain')
-  c.header('Cache-Control', 'public, max-age=86400')
-  return c.body(body)
-})
-
-function escapeXml(s: string): string {
-  return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c] || c))
 }
 
 // ── Public iCal feed — subscribe URL for any calendar app ─────────────────

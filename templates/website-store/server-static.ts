@@ -147,6 +147,111 @@ function serveStaticDir(dir: string) {
 app.use('/uploads/*', serveStatic({ root: path.relative(process.cwd(), path.dirname(uploadsDir)), rewriteRequestPath: (p) => p.replace('/uploads', '/' + path.basename(uploadsDir)) }))
 registerMedia(app)
 
+// \u2500\u2500 SEO files: sitemap, robots, llms.txt \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// Registered BEFORE the static middleware below. build/ used to ship a static
+// sitemap.xml (wrong namespace, so Google rejected it, and listing pages some
+// templates don't have) and a static robots.txt that ignored the robots text
+// the owner edits in the CMS. These are built from what this site actually
+// serves: a page is listed only when its route is registered AND its view file
+// exists \u2014 the generator deletes a switched-off feature's views, not its routes.
+
+function servesPage(routePath: string, view: string): boolean {
+  return app.routes.some((r) => r.method === 'GET' && r.path === routePath)
+    && fs.existsSync(path.join(__dirname, 'views', view + '.ejs'))
+}
+
+// [path, view, label] for the content pages, in nav order. Transactional pages
+// (order, cart, estimate, success screens) stay out, and so do the dispensary's
+// age-gated pages (menu, loyalty) — they redirect to /age-verify until a visitor
+// confirms their age, and a sitemap must not list a redirect.
+const SEO_PAGES: Array<[string, string, string]> = [
+  ['/', 'home', 'Home'], ['/about', 'about', 'About'], ['/services', 'services-index', 'Services'],
+  ['/services/financing', 'financing', 'Financing'], ['/service-areas', 'service-areas-index', 'Areas we serve'],
+  ['/inventory', 'inventory-list', 'Inventory'],
+  ['/parts', 'parts', 'Parts & accessories'], ['/shop', 'shop', 'Shop'], ['/gallery', 'gallery', 'Gallery'],
+  ['/blog', 'blog', 'Blog'], ['/contact', 'contact', 'Contact'], ['/privacy', 'privacy', 'Privacy policy'],
+  ['/terms', 'terms', 'Terms of service'],
+]
+
+type SeoEntry = { path: string; title: string; summary?: string; group: string }
+
+async function seoEntries(): Promise<SeoEntry[]> {
+  const out: SeoEntry[] = []
+  for (const [p, view, label] of SEO_PAGES) if (servesPage(p, view)) out.push({ path: p, title: label, group: 'Pages' })
+  if (servesPage('/services/:slug', 'service')) {
+    for (const s of loadJSON('services.json') || []) if (s && s.slug && s.visible !== false) out.push({ path: '/services/' + s.slug, title: s.name || s.slug, summary: s.shortDescription, group: 'Services' })
+  }
+  if (servesPage('/product/:slug', 'product')) {
+    const data = await fetchStore('/api/public/products')
+    for (const pr of (data && Array.isArray(data.products) ? data.products : [])) if (pr && pr.slug) out.push({ path: '/product/' + pr.slug, title: pr.name || pr.slug, summary: pr.tagline, group: 'Products' })
+  }
+  if (servesPage('/blog/:slug', 'blog-post')) {
+    for (const p of loadJSON('posts.json') || []) if (p && p.slug && p.published !== false) out.push({ path: '/blog/' + p.slug, title: p.title || p.slug, summary: p.excerpt, group: 'Blog' })
+  }
+  if (servesPage('/p/:pageId', 'custom-page')) {
+    for (const [id, pg] of Object.entries(loadJSON('pages.json') || {}) as Array<[string, any]>) {
+      if (pg && pg.status === 'published' && pg.isCustomPage) out.push({ path: '/p/' + id, title: pg.title || id, summary: pg.seoDescription, group: 'Pages' })
+    }
+  }
+  // One entry per URL — service-areas.json can repeat a city (an empty nearby-
+  // city slot resolves to the home city).
+  const seen = new Set<string>()
+  return out.filter((e) => !seen.has(e.path) && !!seen.add(e.path))
+}
+
+const seoBase = () => BASE_URL.replace(/\/+$/, '')
+const xmlEsc = (s: string) => s.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' } as Record<string, string>)[ch])
+
+app.get('/sitemap.xml', async (c) => {
+  const base = seoBase()
+  const urls = (await seoEntries()).map((e) => '  <url><loc>' + xmlEsc(base + encodeURI(e.path)) + '</loc></url>')
+  const xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + urls.join('\n') + '\n</urlset>\n'
+  return c.body(xml, 200, { 'Content-Type': 'application/xml', 'Cache-Control': 'public, max-age=3600' })
+})
+
+// The owner's robots text from the CMS (Settings), with the Sitemap line always
+// pointing at this site's current address \u2014 the seeded text bakes in whatever
+// address the site had when it was generated.
+app.get('/robots.txt', (c) => {
+  const settings = loadJSON('settings.json') || {}
+  const own = typeof settings.robotsTxt === 'string' && settings.robotsTxt.trim()
+    ? settings.robotsTxt
+    : 'User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/'
+  const rules = own.replace(/\r\n/g, '\n').split('\n').filter((l: string) => !/^\s*sitemap\s*:/i.test(l)).join('\n').trimEnd()
+  return c.body(rules + '\n\nSitemap: ' + seoBase() + '/sitemap.xml\n', 200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' })
+})
+
+// llms.txt (llmstxt.org): a plain summary of the business and an index of its
+// pages, for AI assistants. States only what the site's settings already say,
+// and skips the generator's placeholders (123 Main St, (555) 000-0000) rather
+// than repeat them.
+app.get('/llms.txt', async (c) => {
+  const base = seoBase()
+  const s = loadJSON('settings.json') || {}
+  const real = (v: unknown) => {
+    const t = String(v || '').replace(/\s+/g, ' ').trim()
+    return t && !/\{\{/.test(t) && !/^(123 Main St|\(555\) 000-0000|Your City|ST|00000)$/.test(t) ? t : ''
+  }
+  const linkText = (v: unknown) => String(v || '').replace(/\s+/g, ' ').trim().replace(/[\[\]]/g, '')
+  const lines: string[] = ['# ' + (real(s.siteName) || real(s.companyName) || 'Website'), '']
+  const summary = real(s.defaultMetaDescription)
+  if (summary) lines.push('> ' + summary, '')
+  const where = [real(s.address), real(s.city), real(s.state)].filter(Boolean).join(', ')
+  const contact = [real(s.phone) && 'Phone: ' + real(s.phone), real(s.email) && 'Email: ' + real(s.email), where && 'Address: ' + where].filter(Boolean)
+  if (contact.length) lines.push(...contact.map((l) => '- ' + l), '')
+  const groups = new Map<string, SeoEntry[]>()
+  for (const e of await seoEntries()) groups.set(e.group, [...(groups.get(e.group) || []), e])
+  for (const [group, entries] of groups) {
+    lines.push('## ' + group, '')
+    for (const e of entries) {
+      const summaryText = String(e.summary || '').replace(/\s+/g, ' ').trim()
+      lines.push('- [' + linkText(e.title) + '](' + base + encodeURI(e.path) + ')' + (summaryText ? ': ' + summaryText : ''))
+    }
+    lines.push('')
+  }
+  return c.body(lines.join('\n'), 200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' })
+})
+
 // Website static assets
 app.use('/*', serveStaticDir(path.join(__dirname, 'build')))
 app.use('/*', serveStaticDir(path.join(__dirname, 'public')))

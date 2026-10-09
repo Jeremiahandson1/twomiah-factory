@@ -542,6 +542,10 @@
   <% if (_gtmId) { %>
   <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<%= _gtmId %>" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   <% } %>
+  <%/* Skip link: the first thing a keyboard or screen-reader user reaches,
+       hidden until focused. Fixed colours so it reads on every theme. */%>
+  <style>.skip-link{position:absolute;left:8px;top:-100px;z-index:10000;padding:10px 16px;background:#111;color:#fff;font:600 15px/1.2 system-ui,sans-serif;border-radius:6px;text-decoration:none}.skip-link:focus{top:8px;outline:3px solid #fff;outline-offset:2px}#main:focus{outline:none}</style>
+  <a class="skip-link" href="#main">Skip to content</a>
 
   <!-- Header -->
   <header class="main-header">
@@ -641,7 +645,7 @@
   </header>
 
   <!-- Main Content -->
-  <main>
+  <main id="main" tabindex="-1">
     <%- body %>
   </main>
 
