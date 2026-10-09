@@ -9,7 +9,7 @@ import { requirePermission, hasPermission, getExtraPermissions } from '../middle
 // the frontend's api.company.get()/updateFeatures() calls 404'd, and the only
 // feature writer was the internal factory sync. This powers the self-serve
 // Settings → Features page (every feature free to toggle, admin/owner only).
-import { getFeaturesForTemplate } from '../shared/featureRegistry.ts'
+import { getFeaturesForTemplate, FEATURE_MAP } from '../shared/featureRegistry.ts'
 import { redactCompanyCommercial } from '../shared/index.ts'
 import { CRM_TEMPLATE } from '../config/template.ts'
 import { forgetFeatures } from '../middleware/enabledFeature.ts'
@@ -68,6 +68,13 @@ app.put('/features', requireAdmin, async (c) => {
   const offered = getFeaturesForTemplate(CRM_TEMPLATE).filter((f) => !f.hidden)
   const allowed = new Set<string>([...offered.map(f => f.id), ...((current?.enabledFeatures || []) as string[])])
   const unknown = (features as string[]).filter(f => !allowed.has(f))
+  // A not-ready feature is named for what it is, by its real name — "Unknown feature ids … measurement_reports"
+  // read like a typo for a switch the owner can see in the registry. (Owner, 2026-10-09)
+  const notReady = unknown.filter(f => FEATURE_MAP[f]?.hidden)
+  if (notReady.length) {
+    const names = notReady.map(f => FEATURE_MAP[f].name).join(', ')
+    return c.json({ error: `${names} ${notReady.length === 1 ? "isn't" : "aren't"} ready yet, so ${notReady.length === 1 ? 'it' : 'they'} can't be switched on.`, code: 'feature_not_ready', notReady }, 400)
+  }
   if (unknown.length) return c.json({ error: `Unknown feature ids for this product: ${unknown.join(', ')}` }, 400)
   const next = [...new Set([...offered.filter(f => f.core).map(f => f.id), ...(features as string[])])]
   const [result] = await db.update(company).set({ enabledFeatures: next, updatedAt: new Date() }).where(eq(company.id, currentUser.companyId)).returning()

@@ -51,6 +51,8 @@ for (const [file, re] of [
   const src = read(file)
   const put = src.slice(src.indexOf("put('/features'"))
   if (!put || !re.test(put)) fail(`${file}: the owner's feature save must offer only ready features (filter !f.hidden)`)
+  // …and say so in words: a not-ready feature by its real name, not "Unknown feature ids … measurement_reports"
+  if (!/code: 'feature_not_ready'/.test(put) || !/ready yet, so/.test(put)) fail(`${file}: refusing a not-ready feature must name it and say it isn't ready yet (code feature_not_ready)`)
 }
 
 // 4 — the Factory

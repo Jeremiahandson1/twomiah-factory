@@ -7,7 +7,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, inArray } from 'drizzle-orm'
-import { getFeaturesForTemplate } from '../featureRegistry'
+import { getFeaturesForTemplate, FEATURE_MAP } from '../featureRegistry'
 import { HAS_SCHEME, looksLikeWebAddress, healLogo, normalizeLogo } from './logoAddress'
 import { COMPANY_COMMERCIAL, redactCompanyCommercial } from '../auth/redactSettings'
 export { healLogo, normalizeLogo, isLogoAddress, looksLikeWebAddress } from './logoAddress'
@@ -416,6 +416,13 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     const offered = getFeaturesForTemplate(template).filter((f) => !f.hidden)
     const allowed = new Set<string>([...offered.map((f) => f.id), ...((current?.enabledFeatures || []) as string[])])
     const unknown = (features as string[]).filter((f) => !allowed.has(f))
+    // A not-ready feature is named for what it is, by its real name — "Unknown feature ids … measurement_reports"
+    // read like a typo for a switch the owner can see in the registry. (Owner, 2026-10-09)
+    const notReady = unknown.filter((f) => FEATURE_MAP[f]?.hidden)
+    if (notReady.length) {
+      const names = notReady.map((f) => FEATURE_MAP[f].name).join(', ')
+      return c.json({ error: `${names} ${notReady.length === 1 ? "isn't" : "aren't"} ready yet, so ${notReady.length === 1 ? 'it' : 'they'} can't be switched on.`, code: 'feature_not_ready', notReady }, 400)
+    }
     if (unknown.length) return c.json({ error: `Unknown feature ids for this product: ${unknown.join(', ')}` }, 400)
     const next = [...new Set([...offered.filter((f) => f.core).map((f) => f.id), ...(features as string[])])]
     const [row] = await db.update(t.company).set({ enabledFeatures: next, updatedAt: new Date() }).where(eq(t.company.id, currentUser.companyId)).returning()
