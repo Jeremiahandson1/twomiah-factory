@@ -21,7 +21,7 @@ import {
 } from '../../db/schema.ts';
 import { eq, and, lte, gte, count, asc, desc, sql } from 'drizzle-orm';
 import { notFound } from '../utils/errors.ts'
-import { withoutPortalCredential } from '../shared/index.ts'
+import { withoutPortalCredential, nextNumber, businessToday, companyTimeZone } from '../shared/index.ts'
 
 // ============================================
 // AGREEMENT PLANS (Templates)
@@ -507,25 +507,33 @@ export async function processAgreementBilling(agreementId: string, companyId: st
   const agreement = await getAgreement(agreementId, companyId);
   if (!agreement) throw notFound('Agreement not found');
 
-  // Create invoice
-  const [inv] = await db.insert(invoice).values({
-    companyId,
-    contactId: agreement.contactId,
-    number: `INV-AGR-${Date.now()}`,
-    status: 'sent',
-    issueDate: new Date(),
-    dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    subtotal: String(agreement.amount),
-    total: String(agreement.amount),
-  }).returning();
-
-  // Create line item
-  await db.insert(invoiceLineItem).values({
-    invoiceId: inv.id,
-    description: `${agreement.name} - ${agreement.billingFrequency} billing`,
-    quantity: '1',
-    unitPrice: String(agreement.amount),
-    total: String(agreement.amount),
+  // Brought in line with the shared processor (packages/tenant-backend/src/agreements), which fixed both of
+  // these long ago (N4) while this copy kept them: the invoice takes the next INV- number — not
+  // `INV-AGR-<timestamp>`, which nobody can read aloud and which breaks the sequence — and it and its
+  // line are written in one transaction. Dated today on the COMPANY's calendar: `new Date()` stamped an
+  // evening run's invoice with tomorrow on a UTC server (T59). Service agreements are not offered on this
+  // vertical, so the processor finds nothing to bill today; this is the answer it gives when it does.
+  const today = businessToday(await companyTimeZone(db, companyId));
+  const inv = await db.transaction(async (tx: any) => {
+    const number = await nextNumber(tx, invoice, invoice.number, invoice.companyId, companyId, { prefix: 'INV', pad: 5 });
+    const [created] = await tx.insert(invoice).values({
+      companyId,
+      contactId: agreement.contactId,
+      number,
+      status: 'sent',
+      issueDate: today,
+      dueDate: new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000),
+      subtotal: String(agreement.amount),
+      total: String(agreement.amount),
+    }).returning();
+    await tx.insert(invoiceLineItem).values({
+      invoiceId: created.id,
+      description: `${agreement.name} - ${agreement.billingFrequency} billing`,
+      quantity: '1',
+      unitPrice: String(agreement.amount),
+      total: String(agreement.amount),
+    });
+    return created;
   });
 
   // Record what was billed and when the next one falls due — without this the

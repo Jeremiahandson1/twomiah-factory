@@ -14,7 +14,8 @@
  */
 import { Hono } from 'hono'
 import { eq, and, lte, gte, count, asc, desc, sql, inArray } from 'drizzle-orm'
-import { nextNumber } from '../invoicing/money'
+import { nextNumber, businessToday } from '../invoicing/money'
+import { companyTimeZone } from '../time/businessDay'
 
 /** A refused agreement write: bad input (400) or a customer / plan / agreement not in this company (404). */
 export class AgreementError extends Error {
@@ -645,6 +646,9 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     // teach nextNumber to IGNORE these so they could not hijack the real sequence — damage control for
     // a number that should never have been minted. The line item is written in the same transaction so
     // an invoice can never exist without it. (N4)
+    // Today on the COMPANY's calendar, read before the transaction: `new Date()` dated an evening run's
+    // invoice tomorrow on a UTC server (T59). Net 30 is counted from that day, as it always was meant to be.
+    const today = businessToday(await companyTimeZone(db, companyId))
     const inv = await db.transaction(async (tx: any) => {
       const number = await nextNumber(tx, invoice, invoice.number, invoice.companyId, companyId, { prefix: 'INV', pad: 5 })
       const [created] = await tx.insert(invoice).values({
@@ -652,8 +656,8 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
         contactId: agreement.contactId,
         number,
         status: 'sent',
-        issueDate: new Date(),
-        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        issueDate: today,
+        dueDate: new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000),
         subtotal: String(agreement.amount),
         total: String(agreement.amount),
       }).returning()

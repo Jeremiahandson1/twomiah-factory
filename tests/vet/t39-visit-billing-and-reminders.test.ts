@@ -542,11 +542,19 @@ console.log('\n══════════ a visit cannot be in the future �
   const noneWritten = await count(sql`SELECT COUNT(*)::int AS n FROM visit WHERE reason = 'Mistyped year'`)
   check('T41: …and wrote nothing', noneWritten === 0, { rows: noneWritten })
 
-  // Today still works, including from a clock a few hours ahead of this server.
-  const soon = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString()
+  // Later TODAY is still today — on the practice's calendar (Ohio → America/New_York). T41 used "now +
+  // 6 hours", which is tomorrow from 6pm ET and so passed or failed by the hour the suite ran; the
+  // owner's 11:24pm run then showed the rule itself was wrong across midnight (T59). Both claims are
+  // now made against the practice's own day boundary, so they hold whatever time it is.
+  const { storeDayRange } = await import('./src/shared/index.ts')
+  const dayEnd = storeDayRange('America/New_York').end.getTime()
+  const soon = new Date(Math.max(Date.now(), dayEnd - 60_000)).toISOString()
   const ok = await asOwner('POST', '/api/visits', { patientId: pet.id, visitDate: soon, reason: 'Entered from a clock ahead of UTC' })
-  check('T41: a few hours ahead is still accepted — that is a timezone, not a typo', ok.status === 201,
+  check('T41→T59: the last minute of the practice\'s day is still today, and accepted', ok.status === 201,
     { status: ok.status, body: ok.text?.slice(0, 200) })
+  const pastMidnight = await asOwner('POST', '/api/visits', { patientId: pet.id, visitDate: new Date(dayEnd + 13 * 60_000).toISOString(), reason: 'Just after the practice midnight' })
+  check('T59: 12:13am on the practice\'s next day is refused — the owner\'s case', pastMidnight.status === 400 && pastMidnight.json?.code === 'visit_date_in_future',
+    { status: pastMidnight.status, body: pastMidnight.text?.slice(0, 200) })
 
   // The edit is the likelier typo of the two, so it has the same rule.
   const moved = await asOwner('PUT', `/api/visits/${ok.json?.id}`, { visitDate: '2030-01-01T09:00:00Z' })

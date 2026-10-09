@@ -7,7 +7,7 @@ import { eq, and, desc, sql } from 'drizzle-orm'
 // what stops two concurrent bills taking the same number. See POST /:id/invoice. (T41)
 // dueDateFromTerms: the shared net-30-by-default rule every other invoicing path already uses, so a
 // visit invoice stops being due the day it is raised. A terms value of 0 still means due today. (T51)
-import { insertInvoice, dueDateFromTerms } from '../shared/index.ts'
+import { insertInvoice, dueDateFromTerms, businessToday, markerDay } from '../shared/index.ts'
 // The practice's own clock decides what day it is — the same source invoices and quotes already use
 // to stop an evening bill being stamped with tomorrow. Render runs UTC. (T58)
 import { companyTimeZone, storeDateString, isValidTimeZone, DEFAULT_BUSINESS_ZONE } from '../shared/index.ts'
@@ -65,46 +65,57 @@ app.use('*', authenticate)
  * back to the state map and then to UTC, which is the behaviour every other date in this product has.
  */
 /**
- * A TIMESTAMP AND A DATE ARE DIFFERENT CLAIMS, so they get different rules. (T58c follow-up)
- *
- * My first version compared calendar days for BOTH, and that broke the case T41 put in deliberately:
- * a clinic whose clock is ahead of the server records today's visit, the instant lands a few hours in
- * the future, and refusing it would make the page unusable. Worse, it made the outcome depend on the
- * time of day the suite ran — fine at 2pm, refused at 11pm — which is the flakiness that hid a real
- * defect earlier in this campaign.
- *
- * The two inputs genuinely mean different things:
- *
- *   "2026-10-07"             a person picked a DAY on a date picker. Tomorrow is a mistake, and it is
- *                            the owner's report. Compared as a calendar day in the practice's zone,
- *                            which is the only place its day boundary actually falls.
- *   "2026-10-07T04:30:00Z"   a machine recorded an INSTANT. A few hours ahead is clock or zone skew,
- *                            not a claim about tomorrow, so a bounded window is allowed — and
- *                            anything past it, including a date picked for tomorrow, is refused.
- *
- * Twelve hours covers a mis-set device and any residual zone error once the practice's own zone is
- * resolved, while still refusing a full day ahead. A mistyped year is refused by both paths.
+ * HISTORY. T58c gave an INSTANT a 12-hour clock-skew window so a clinic clock a few hours fast could
+ * still record today's visit, and compared only a picked DAY on the calendar. Near midnight that window
+ * is tomorrow, and the owner's 11:24pm run caught it (T59). Both forms are now a calendar day in the
+ * practice's zone — see visitDateError. The flakiness that window was meant to avoid came from tests
+ * using the real clock; the tests now pin the time instead of the rule bending around them.
  */
-const CLOCK_SKEW_MS = 12 * 60 * 60 * 1000
 
 const FUTURE_VISIT = 'A visit is a record of something that has happened, so its date cannot be in the future. '
   + 'Book an appointment instead, or correct the date.'
 
-export function visitDateError(value: unknown, timeZone: string = DEFAULT_BUSINESS_ZONE): string | null {
+export function visitDateError(value: unknown, timeZone: string = DEFAULT_BUSINESS_ZONE, now: Date = new Date()): string | null {
   if (value === undefined || value === null || String(value).trim() === '') return null
   const raw = String(value).trim()
   const d = new Date(raw)
   if (isNaN(d.getTime())) return 'The visit date is not a date.'
 
-  // A day was chosen: compare days, in the practice's zone. ISO dates compare correctly as strings,
-  // which is the whole reason that format is used here.
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    const tz = isValidTimeZone(timeZone) ? timeZone : DEFAULT_BUSINESS_ZONE
-    return raw > storeDateString(new Date(), tz) ? FUTURE_VISIT : null
-  }
+  /**
+   * BOTH FORMS ARE A DAY ON THE PRACTICE'S CALENDAR. (T59, owner pass at 11:24pm ET)
+   *
+   *   "At 11:24pm ET on Oct 8, visits for 12:13am through 2:44am ET on Oct 9 were all accepted (201).
+   *    Only times past the end of the UTC day are refused."
+   *
+   * A picked DAY was already compared in the practice's zone; an INSTANT was given a 12-hour
+   * clock-skew window instead, and 12:13am on the 9th is 49 minutes ahead — inside it. The window
+   * existed so a clinic clock a few hours fast could still record today's visit, but a few hours fast
+   * near midnight IS tomorrow, which is exactly what the owner caught; and a daytime run can never
+   * show it, which is why it was passed as fixed. The vaccination endpoint had the rule right all
+   * along: the question is which DAY it is where the practice is. So the instant is turned into the
+   * practice's calendar day and compared exactly like a picked one. A time later today is still
+   * today; anything after the practice's midnight is refused.
+   */
+  const tz = isValidTimeZone(timeZone) ? timeZone : DEFAULT_BUSINESS_ZONE
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : storeDateString(d, tz)
+  // ISO dates compare correctly as strings, which is the whole reason that format is used here.
+  return day > storeDateString(now, tz) ? FUTURE_VISIT : null
+}
 
-  // An instant was recorded: allow skew, refuse a real future.
-  return d.getTime() > Date.now() + CLOCK_SKEW_MS ? FUTURE_VISIT : null
+/**
+ * The dates on an invoice raised from a visit, on the PRACTICE's calendar — see the note in the billing
+ * route. `issueDate` is today where the practice is (a midnight-UTC day marker, like every invoice date);
+ * `visitLabel` is the visit's own day as M/D/YYYY: a picked day (stored as a midnight-UTC marker) read
+ * as stored, a recorded instant read in the practice's zone. `now` is a parameter so a test can stand at
+ * 11:24pm ET, the only time of day this can be seen.
+ */
+export function visitInvoiceDates(visitDate: Date | null, timeZone: string, now: Date = new Date()): { issueDate: Date; visitLabel: string } {
+  const tz = isValidTimeZone(timeZone) ? timeZone : DEFAULT_BUSINESS_ZONE
+  const issueDate = businessToday(tz, now)
+  if (!visitDate || isNaN(visitDate.getTime())) return { issueDate, visitLabel: '' }
+  const isMarker = visitDate.getUTCHours() === 0 && visitDate.getUTCMinutes() === 0 && visitDate.getUTCSeconds() === 0 && visitDate.getUTCMilliseconds() === 0
+  const [y, m, d] = (isMarker ? markerDay(visitDate) : storeDateString(visitDate, tz)).split('-')
+  return { issueDate, visitLabel: `${Number(m)}/${Number(d)}/${y}` }
 }
 
 // GET /visits — ?patientId=
@@ -210,6 +221,8 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
 app.post('/:id/invoice', requirePermission('invoices:create'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
+  // The practice's zone, read BEFORE the transaction (an outer db read inside it deadlocks PGlite).
+  const tz = await companyTimeZone(db, currentUser.companyId)
 
   const outcome = await db.transaction(async (tx: any) => {
     // The lock. Scoped to the company, so one tenant cannot block another's row by id.
@@ -249,7 +262,21 @@ app.post('/:id/invoice', requirePermission('invoices:create'), async (c) => {
      */
     const [co] = await tx.select({ settings: company.settings }).from(company)
       .where(eq(company.id, currentUser.companyId)).limit(1)
-    const dueDate = dueDateFromTerms(co?.settings)
+    /**
+     * THE PRACTICE'S DAY, NOT THE SERVER'S. (T59, owner pass at 11:23pm ET)
+     *
+     *   "A visit at 10:24pm ET on Oct 8 produced INV-00178 dated Oct 9, with the line reading
+     *    'Veterinary visit - 10/9/2026'. It should be Oct 8."
+     *
+     * Render runs UTC, and this asked UTC twice: `issueDate: new Date()` (insertInvoice keeps the UTC
+     * day of it) and `toLocaleDateString('en-US')` for the line. From 8pm ET both read tomorrow. Every
+     * other invoice path already asks `businessToday` — the practice's calendar — and counts the due date
+     * from that day; this one now does too. The line names the VISIT's day the same way: a day that was
+     * picked is stored as a midnight-UTC marker and read as stored (converting it into ET would walk it
+     * back a day); a recorded instant is read on the practice's calendar.
+     */
+    const { issueDate: today, visitLabel } = visitInvoiceDates(when, tz)
+    const dueDate = dueDateFromTerms(co?.settings, today)
     const inv = await insertInvoice(
       tx,
       { invoice, invoiceLineItem } as any,
@@ -257,13 +284,13 @@ app.post('/:id/invoice', requirePermission('invoices:create'), async (c) => {
       {
         companyId: currentUser.companyId,
         contactId: pet.ownerId,
-        issueDate: new Date(), dueDate,
+        issueDate: today, dueDate,
         taxRate: 0, status: 'draft',
         // The owner is billed, but the charges are this animal's — the chart's Invoices tab reads it. (T12 M6)
         extra: { patientId: v.patient_id },
       },
       [{
-        description: `Veterinary visit${when ? ' — ' + when.toLocaleDateString('en-US') : ''}${pet.name ? ` (${pet.name})` : ''}`,
+        description: `Veterinary visit${visitLabel ? ' — ' + visitLabel : ''}${pet.name ? ` (${pet.name})` : ''}`,
         quantity: 1, unitPrice: amount,
       }] as any,
     )

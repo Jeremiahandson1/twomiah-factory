@@ -20,7 +20,11 @@ else {
   if (!/const contactId = row\.contract\.contactId \|\| row\.siteContactId/.test(bill)) fail("the invoice goes to the contract's customer, else the site's")
   if (!/isNull\(snowEvent\.invoiceId\)\)\)\s*\.orderBy\(asc\(snowEvent\.servicedAt\)\)\.for\('update'\)/.test(bill)) fail('unbilled visits must be locked (FOR UPDATE) while billing')
   if (!/await insertInvoice\(tx, \{ invoice, invoiceLineItem \} as any, INVOICE_NUMBERING,/.test(bill)) fail('the invoice must be written by the shared insertInvoice inside the transaction')
-  if (!/dueDate: dueDateFromTerms\(settings\), issueDate: new Date\(\), taxRate: defaultTaxRateFrom\(settings\)/.test(bill)) fail("the invoice must use the company's payment terms and default tax")
+  // This used to pin `issueDate: new Date()` — the UTC day, which dates an evening invoice tomorrow (T59).
+  // The rule is the company's terms and tax, dated and counted from the COMPANY's today.
+  if (!/const today = businessToday\(await companyTimeZone\(db, cid\)\)/.test(bill)) fail("the invoice must be dated today on the company's calendar (businessToday), not the server's UTC day")
+  if (!/dueDate: dueDateFromTerms\(settings, today\), issueDate: today, taxRate: defaultTaxRateFrom\(settings\)/.test(bill)) fail("the invoice must use the company's payment terms (counted from that day) and default tax")
+  if (/issueDate: new Date\(\)/.test(bill)) fail('an invoice issue date must not be the server clock')
   if (!/await tx\.update\(snowEvent\)\.set\(\{ invoiceId: created\.id \}\)/.test(bill)) fail('billed visits must be linked to the invoice in the same transaction')
   if (!/Number\(e\.billableAmount\) > 0/.test(bill)) fail('only visits with a charge go on the invoice')
 }

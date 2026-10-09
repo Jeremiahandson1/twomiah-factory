@@ -1321,6 +1321,10 @@ jobs:
       # offered a page that answered 403 on eight templates. Both sides ask the same permission now. (T59)
       - name: "audit route — asks the same permission as the Audit Log link"
         run: bun run scripts/check-audit-route-matches-nav.ts
+      # "A visit at 10:24pm ET produced an invoice dated tomorrow." Render runs UTC; an invoice dated by
+      # the server clock is tomorrow after 8pm Eastern, and no daytime test can see it. (T59)
+      - name: "invoice dates — every invoice is dated on the company's own calendar"
+        run: bun run scripts/check-invoice-date-is-business-day.ts
 
   revenue-one-definition:
     name: "Revenue one definition"

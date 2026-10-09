@@ -15,7 +15,7 @@
 import { and, eq, isNotNull, lte, ne, or, sql } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { wellnessPlan, wellnessEnrollment, patient, contact, invoice, invoiceLineItem, company } from '../../db/schema.ts'
-import { insertInvoice, dueDateFromTerms, defaultTaxRateFrom } from '../shared/index.ts'
+import { insertInvoice, dueDateFromTerms, defaultTaxRateFrom, businessToday, companyTimeZone } from '../shared/index.ts'
 
 const INVOICE_NUMBERING = { prefix: 'INV', pad: 5, seed: 0 }
 const iso = (d: Date) => d.toISOString().slice(0, 10)
@@ -64,10 +64,14 @@ async function billPeriod(row: any, period: string): Promise<BilledOne | null> {
 
     const [co] = await tx.select({ settings: company.settings }).from(company).where(eq(company.id, row.companyId)).limit(1)
     const settings = (co?.settings as any) || {}
+    // Today on the PRACTICE's calendar, read through `tx` (an outer db read here deadlocks PGlite).
+    // `new Date()` dated an evening run's invoices tomorrow on a UTC server — the owner's visit-invoice
+    // finding, in its sibling. (T59)
+    const today = businessToday(await companyTimeZone(tx, row.companyId))
     const created = await insertInvoice(tx, { invoice, invoiceLineItem } as any, INVOICE_NUMBERING, {
       companyId: row.companyId, contactId,
       notes: `Wellness plan — ${plan?.name || 'plan'}${pet?.name ? ` for ${pet.name}` : ''}`,
-      dueDate: dueDateFromTerms(settings), issueDate: new Date(), taxRate: defaultTaxRateFrom(settings),
+      dueDate: dueDateFromTerms(settings, today), issueDate: today, taxRate: defaultTaxRateFrom(settings),
     }, [{ description: `${plan?.name || 'Wellness plan'}${pet?.name ? ` — ${pet.name}` : ''} (${period}, per ${unit})`, quantity: 1, unitPrice: price }])
 
     await tx.update(wellnessEnrollment)

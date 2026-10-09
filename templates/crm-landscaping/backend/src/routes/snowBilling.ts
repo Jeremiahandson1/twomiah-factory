@@ -5,7 +5,7 @@ import { eq, and, desc, asc, isNull, inArray } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
-import { insertInvoice, defaultTaxRateFrom, dueDateFromTerms } from '../shared/index.ts'
+import { insertInvoice, defaultTaxRateFrom, dueDateFromTerms, businessToday, companyTimeZone } from '../shared/index.ts'
 
 // The same numbering as this CRM's invoices (routes/invoices.ts sets no numbering → the shared default INV-00001).
 const INVOICE_NUMBERING = { prefix: 'INV', pad: 5, seed: 0 }
@@ -510,6 +510,9 @@ app.post('/contracts/:id/bill', requirePermission('invoices:create'), async (c) 
   if (!contactId) return c.json({ error: 'This contract has no customer to bill — set one on the site first.' }, 400)
   const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, cid)).limit(1)
   const settings = (co?.settings as any) || {}
+  // Today on the COMPANY's calendar — `new Date()` dated an evening invoice tomorrow on a UTC server,
+  // the bug the vet owner caught on visit invoices (T59). Read before the transaction opens.
+  const today = businessToday(await companyTimeZone(db, cid))
 
   const result = await db.transaction(async (tx: any) => {
     const unbilled = await tx.select().from(snowEvent)
@@ -521,7 +524,7 @@ app.post('/contracts/:id/bill', requirePermission('invoices:create'), async (c) 
     }
     const created = await insertInvoice(tx, { invoice, invoiceLineItem } as any, INVOICE_NUMBERING, {
       companyId: cid, contactId, notes: `Snow & ice service — ${row.siteName || 'site'}`,
-      dueDate: dueDateFromTerms(settings), issueDate: new Date(), taxRate: defaultTaxRateFrom(settings),
+      dueDate: dueDateFromTerms(settings, today), issueDate: today, taxRate: defaultTaxRateFrom(settings),
     }, billable.map(snowEventLine))
     await tx.update(snowEvent).set({ invoiceId: created.id }).where(inArray(snowEvent.id, billable.map((e: any) => e.id)))
     return { invoice: created, billedVisits: billable.length }
