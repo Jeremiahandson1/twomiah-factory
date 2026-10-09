@@ -1152,3 +1152,29 @@ export const gbpConnection = pgTable('gbp_connection', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
+
+// The audit trail — who changed what, when. crm-roof was the one CRM without it: no table, no service,
+// no route, so nothing a roofing company did left a trace. Same shape as every other template. (T59)
+export const auditLog = pgTable('audit_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  action: text('action').notNull(),
+  entity: text('entity').notNull(),
+  entityId: text('entity_id'),
+  entityName: text('entity_name'),
+  changes: json('changes'),
+  metadata: json('metadata'),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+
+  userId: text('user_id'),
+  userName: text('user_name'),
+  userEmail: text('user_email'),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('audit_log_company_id_idx').on(t.companyId),
+  index('audit_log_entity_entity_id_idx').on(t.entity, t.entityId),
+  index('audit_log_user_id_idx').on(t.userId),
+  index('audit_log_created_at_idx').on(t.createdAt),
+])

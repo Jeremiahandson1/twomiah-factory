@@ -1,9 +1,0 @@
-// A DELETE always leaves an audit row naming what went, unless its handler wrote its own — the shared
-// floor (packages/tenant-backend/src/audit/deleteFloor.ts), wired to this template's db, schema and
-// audit service. Mounted in index.ts directly after requestScope opens, so it can see audit.log's mark. (T59)
-import { createDeleteAuditFloor } from '../shared/index.ts'
-import { db } from '../../db/index.ts'
-import * as schema from '../../db/schema.ts'
-import audit, { requestScope } from '../services/audit.ts'
-
-export const deleteAudit = createDeleteAuditFloor({ db, schema, log: audit.log, scope: requestScope })

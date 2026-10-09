@@ -1312,11 +1312,15 @@ jobs:
       # worst pairings are STATES — a hovered row, a toggled button, the Dismiss control's own ground.
       - name: "lead palette — every ink clears AA on every ground, not just on white"
         run: bun run scripts/check-lead-palette-every-ground.ts
-      # Outside crm, most DELETE handlers wrote no audit row at all. The shared delete floor writes one,
-      # naming the record — but its suites mount it themselves, so unmounting it from one template passed
-      # every suite. This reads each index.ts: after requestScope, before the routes, exactly once. (T59)
-      - name: "delete audit floor — mounted in the right place in every template"
-        run: bun run scripts/check-delete-audit-floor.ts
+      # Outside crm, most writes left no audit row at all. The shared write floor records one, naming the
+      # record — but its suites mount it themselves, so unmounting it from one template passed every suite.
+      # This reads each index.ts: after requestScope, before the routes, exactly once. (T59)
+      - name: "write audit floor — mounted in the right place in every template"
+        run: bun run scripts/check-write-audit-floor.ts
+      # The Audit Log link asked reports:read and GET /api/audit asked requireRole('admin'), so a manager was
+      # offered a page that answered 403 on eight templates. Both sides ask the same permission now. (T59)
+      - name: "audit route — asks the same permission as the Audit Log link"
+        run: bun run scripts/check-audit-route-matches-nav.ts
 
   revenue-one-definition:
     name: "Revenue one definition"
@@ -2522,3 +2526,18 @@ jobs:
           bun-version: latest
       - name: "check roof write controls ask permission"
         run: bun run scripts/check-roof-write-controls-ask-permission.ts
+
+  mobile-typecheck:
+    name: "The mobile app type-checks"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      # tsconfig extended expo/tsconfig.base, which the installed expo ships without, so tsc ran with defaults
+      # and reported 2,168 errors that said nothing about the code — and nobody could type-check a mobile
+      # change. It is spelled out now and comes back clean; this keeps it that way. node + the local tsc,
+      # not bunx: an empty bunx tsc run is not proof of zero errors.
+      - name: "tsc --noEmit (apps/mobile)"
+        run: bun install --frozen-lockfile && cd apps/mobile && node node_modules/typescript/bin/tsc --noEmit -p .

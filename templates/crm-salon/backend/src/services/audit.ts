@@ -155,7 +155,7 @@ function resolveActor(req: any): { userId: string | null; email: string | null; 
  * Create audit log entry
  */
 export async function log({ action, entity, entityId, entityName, changes, metadata, userId, companyId, req }: AuditLogInput): Promise<void> {
-  // This request wrote its own entry, so the delete floor (shared/audit/deleteFloor) must not add a
+  // This request wrote its own entry, so the write floor (shared/audit/writeFloor) must not add a
   // second, duller one beside it. (T59)
   const scope: any = requestScope.getStore();
   if (scope) scope.logged = true;

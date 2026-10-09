@@ -42,6 +42,21 @@ Then in `apps/mobile/eas.json`, replace:
 - [ ] `eas login`
 - [ ] From `apps/mobile/`: `eas init` (creates EAS project, sets `EAS_PROJECT_ID`)
 - [ ] Confirm `apps/mobile/app.config.ts` `extra.eas.projectId` resolves correctly (uses `process.env.EAS_PROJECT_ID`)
+- [ ] **Do this BEFORE the first store build:** with `EAS_PROJECT_ID` set, `app.config.ts` turns on
+      over-the-air updates (`expo-updates` is installed; each `eas.json` build profile has its own
+      channel). Builds made without it can never receive an OTA update — only a new store build.
+
+### Shipping a fix after launch (no store review)
+
+A JavaScript-only change (screens, logic, text — every mobile fix so far):
+
+    cd apps/mobile
+    eas update --channel production --message "what changed"
+
+(`build-production` / `roofer-production` for the branded variants.) Installed apps pick it up the
+next time they open. A NATIVE change (new permission, new native module, an Expo SDK bump) still needs
+`eas build` + store submission — and bump `version` in `app.config.ts`, because `runtimeVersion` follows
+it and keeps a JS update from reaching a build without the native code it needs.
 
 ## 5. App icons & splash (required before any build)
 

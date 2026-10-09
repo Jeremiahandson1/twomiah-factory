@@ -60,6 +60,9 @@ import inboundMessagesRoutes from './routes/inboundMessages.ts'
 import gbpRoutes, { gbpInternal } from './routes/gbp.ts'
 import onboardingRoutes from './routes/onboarding.ts'
 import mediaRoutes from './routes/media.ts'
+import { requestScope } from './services/audit.ts'
+import { writeAudit } from './middleware/writeAudit.ts'
+import auditRoutes from './routes/audit.ts'
 
 const app = new Hono()
 
@@ -161,6 +164,11 @@ app.use('/api/portal/verify', createRateLimiter(15 * 60 * 1000, 10))
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime() }))
 
 // API routes
+// The live request for audit.log (it reads the actor and IP from it), then the floor that gives every
+// successful write an audit row naming its record — both before the first route, or they never run. (T59)
+app.use('*', (c, next) => requestScope.run({ c }, next))
+app.use('*', writeAudit)
+
 app.route('/api/auth', authRoutes)
 app.route('/api/platform-support', platformSupportRoutes)
 app.route('/api/messaging-billing', messagingBillingRoutes)
@@ -289,6 +297,8 @@ app.route('/api/quickbooks', quickbooksRoutes)
 app.route('/api/leads', leadsRoutes)
 // Home figures for the mobile app's roofing dashboard — it asked for this route and got a 404. (T59)
 app.route('/api/dashboard', dashboardRoutes)
+// The audit trail, which this template never had. Behind reports:read, like every other CRM. (T59)
+app.route('/api/audit', auditRoutes)
 app.route('/api/documents', documentsRoutes)
 app.route('/api/calltracking', calltrackingRoutes)
 app.route('/api/ai-receptionist', aiReceptionistRoutes)

@@ -35,6 +35,7 @@ function normalize(s: any): BookingSettings {
     confirmationMessage: s?.confirmationMessage || '',
     notifyEmail: s?.notifyEmail !== false,
     notifySms: s?.notifySms === true,
+    requireAddress: s?.requireAddress === true,
   }
 }
 
@@ -151,6 +152,16 @@ export function BookingSettingsTab({ api, toast, config, onSaved }: { api: Booki
             </select>
           </Field>
         </div>
+        {/* Where the work happens decides it: at the customer's, you need the address; at yours, you
+            don't. It was fixed per vertical, so a mobile groomer never got one and a drop-off shop was
+            forced to ask. (T59) */}
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input type="checkbox" checked={settings.requireAddress} onChange={e => set('requireAddress', e.target.checked)} className={`${check} mt-0.5`} />
+          <span className="text-sm text-gray-700 dark:text-slate-200">
+            Ask for the customer&apos;s address
+            <span className="block text-xs text-gray-500 dark:text-slate-400">On if you go to them (a service visit, mobile grooming, a delivery). Off if they come to you.</span>
+          </span>
+        </label>
       </div>
 
       <div className={`${card} space-y-4`}>

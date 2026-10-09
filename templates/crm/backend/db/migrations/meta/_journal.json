@@ -281,6 +281,13 @@
       "when": 1792400201000,
       "tag": "0039_warranty_claim_job",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1792400202000,
+      "tag": "0040_booking_settings_require_address",
+      "breakpoints": true
     }
   ]
 }

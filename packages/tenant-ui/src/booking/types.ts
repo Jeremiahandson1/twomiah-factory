@@ -71,4 +71,6 @@ export interface BookingSettings {
   confirmationMessage: string
   notifyEmail: boolean
   notifySms: boolean
+  /** Ask the customer for their address on the booking widget — the business's own answer. (T59) */
+  requireAddress: boolean
 }

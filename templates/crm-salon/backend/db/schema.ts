@@ -1744,6 +1744,7 @@ export const bookingSettings = pgTable('booking_settings', {
   concurrentBookings: integer('concurrent_bookings').default(1).notNull(), // chairs that can take an online booking at the same time (SALON-N3)
   workingHours: json('working_hours').notNull(),
   timezone: text('timezone').default('America/Chicago').notNull(), // salon-local tz for slot times (CC-33)
+  requireAddress: boolean('require_address'), // ask the customer's address? null = the vertical's default (T59)
 
   primaryColor: text('primary_color'),
   logo: text('logo'),

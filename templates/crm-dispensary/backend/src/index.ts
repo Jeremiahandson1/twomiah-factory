@@ -145,14 +145,14 @@ const CSP = [
   'upgrade-insecure-requests',
 ].join('; ')
 import { requestScope } from './services/audit.ts'
-import { deleteAudit } from './middleware/deleteAudit.ts'
+import { writeAudit } from './middleware/writeAudit.ts'
 
 /**
  * Every request runs inside the audit scope, so a row written from a service function can still
  * record the client's address. FIRST, so everything mounted below is inside it. (T58k)
  */
 app.use('*', (c, next) => requestScope.run({ c }, next))
-app.use('*', deleteAudit)
+app.use('*', writeAudit)
 
 app.use('*', secureHeaders({
   crossOriginResourcePolicy: 'cross-origin',

@@ -77,12 +77,28 @@ function asset(variant: Variant, file: string): string {
 export default ({ config }: ConfigContext): ExpoConfig => {
   const variant = resolveVariant()
   const v = VARIANTS[variant]
+  const projectId = process.env.EAS_PROJECT_ID || ''
 
   return {
     ...config,
     name: v.appName,
     slug: v.slug,
     version: '1.0.0',
+    /**
+     * OVER-THE-AIR UPDATES (EAS Update). (T59)
+     *
+     * A JavaScript fix — every mobile fix so far — reaches installed apps in minutes, without a store
+     * review, instead of waiting for a new build. Native changes (a new permission, a new native module)
+     * still need a store build; `runtimeVersion: appVersion` is what keeps the two apart: an update is
+     * only offered to builds with the same `version`, so bump `version` whenever a native change ships.
+     *
+     * The update URL needs the EAS project id, which comes from `eas init` (an Expo account step). Until
+     * EAS_PROJECT_ID is set the app is built exactly as before, with updates off.
+     */
+    runtimeVersion: { policy: 'appVersion' },
+    ...(projectId
+      ? { updates: { url: `https://u.expo.dev/${projectId}`, enabled: true, checkAutomatically: 'ON_LOAD', fallbackToCacheTimeout: 0 } }
+      : { updates: { enabled: false } }),
     orientation: 'portrait',
     icon: asset(variant, 'icon.png'),
     scheme: v.scheme,
@@ -140,7 +156,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       '@react-native-community/datetimepicker',
     ],
     extra: {
-      eas: { projectId: process.env.EAS_PROJECT_ID || '' },
+      eas: { projectId },
       apiUrl: '',
       appVariant: variant,
       appName: v.appName,

@@ -1785,6 +1785,7 @@ export const bookingSettings = pgTable('booking_settings', {
   slotDurationMinutes: integer('slot_duration_minutes').default(60).notNull(),
   concurrentBookings: integer('concurrent_bookings').default(1).notNull(), // bookings one slot can take at once (crews / chairs / rooms)
   timezone: text('timezone').default('America/Chicago').notNull(), // business-local zone the slot times are shown in
+  requireAddress: boolean('require_address'), // ask the customer's address? null = the vertical's default (T59)
   workingHours: json('working_hours').notNull(),
 
   primaryColor: text('primary_color'),

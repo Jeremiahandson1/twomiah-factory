@@ -218,6 +218,13 @@
       "when": 1791601402000,
       "tag": "0030_snow_event_bill_below_trigger",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1791601403000,
+      "tag": "0031_booking_settings_require_address",
+      "breakpoints": true
     }
   ]
 }

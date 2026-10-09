@@ -31,6 +31,7 @@ import ReviewsPage from './pages/roofing/ReviewsPage'
 import FinancingPage from './pages/roofing/FinancingPage'
 import StormRadarPage from './pages/roofing/StormRadarPage'
 import LeadInboxPage from './pages/leads/LeadInboxPage'
+import AuditLog from './pages/AuditLog'
 import LeadSourcesPage from './pages/leads/LeadSourcesPage'
 import AIReceptionistPage from './pages/roofing/AIReceptionistPage'
 import DocumentsPage from './pages/DocumentsPage'
@@ -200,6 +201,7 @@ export default function App() {
                 <Route path="canvassing" element={<FeatureRoute feature="canvassing_tool"><CanvassingDashboard /></FeatureRoute>} />
                 <Route path="storm-leads" element={<FeatureRoute feature="storm_lead_gen"><StormLeadsPage /></FeatureRoute>} />
                 <Route path="leads" element={<FeatureRoute feature="lead_inbox"><LeadInboxPage /></FeatureRoute>} />
+                <Route path="audit" element={<AuditLog />} />
                 <Route path="lead-sources" element={<FeatureRoute feature="lead_inbox"><LeadSourcesPage /></FeatureRoute>} />
                 <Route path="settings/estimator" element={<EstimatorSettingsPage />} />
                 <Route path="settings/features" element={<FeaturesSettingsPage />} />

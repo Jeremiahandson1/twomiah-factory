@@ -76,7 +76,17 @@ export function createBookingService(deps: BookingDeps) {
       title: row.welcomeMessage || 'Book an appointment',
       description: '',
       requirePhone,
-      requireAddress,
+      /**
+       * ASK FOR THE ADDRESS WHERE THE WORK HAPPENS AT THE CUSTOMER'S. (T59)
+       *
+       * This was the vertical's fixed answer — trades always, salon / vet / showcase never — so a mobile
+       * dog groomer on the salon template never learned the address it drives to, and a repair shop
+       * customers drop off at forced one. That is a property of the BUSINESS (Square Appointments asks
+       * per service; Housecall Pro checks the service area), so it is the business's own switch now:
+       * booking_settings.require_address. Null — never set — keeps the vertical's answer, so nothing
+       * changes for anyone until the owner flips it.
+       */
+      requireAddress: typeof row.requireAddress === 'boolean' ? row.requireAddress : requireAddress,
       logoUrl: row.logo ?? null,
       updatedAt: row.updatedAt ?? null,
     }
@@ -163,6 +173,8 @@ export function createBookingService(deps: BookingDeps) {
     if (typeof data.logo === 'string' || data.logo === null) u.logo = data.logo
     if (typeof data.notifyEmail === 'boolean') u.notifyEmail = data.notifyEmail
     if (typeof data.notifySms === 'boolean') u.notifySms = data.notifySms
+    // true / false is the owner's own answer; null hands it back to the vertical's default.
+    if (typeof data.requireAddress === 'boolean' || data.requireAddress === null) u.requireAddress = data.requireAddress
     await db.update(t.bookingSettings).set(u).where(eq(t.bookingSettings.companyId, companyId))
     return getSettings(companyId)
   }
@@ -418,7 +430,7 @@ export function createBookingService(deps: BookingDeps) {
     if (date < win.first) throw new BookingError('That date is in the past.')
     if (date > win.last) throw new BookingError(`Please choose a date within ${win.days} days.`)
     if (requirePhone && !data.phone?.trim()) throw new BookingError('Phone number is required.')
-    if (requireAddress && !data.address?.trim()) throw new BookingError('Address is required.')
+    if (settings.requireAddress && !data.address?.trim()) throw new BookingError('Address is required.')
     if (requirePet && !data.petName?.trim()) throw new BookingError("The pet's name is required.")
     if (serviceId && !(await catalog.resolve(companyId, serviceId))) throw new BookingError('That service is not available for online booking.')
     const email = data.email.trim().toLowerCase()

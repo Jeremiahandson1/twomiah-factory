@@ -1,34 +1,53 @@
 {
-  "cli": { "version": ">= 12.0.0" },
+  "cli": {
+    "version": ">= 12.0.0"
+  },
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "development"
     },
     "preview": {
-      "android": { "buildType": "apk" },
-      "distribution": "internal"
+      "android": {
+        "buildType": "apk"
+      },
+      "distribution": "internal",
+      "channel": "preview"
     },
     "production": {
-      "android": { "buildType": "app-bundle" }
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "channel": "production"
     },
-
     "build-preview": {
       "extends": "preview",
-      "env": { "APP_VARIANT": "build" }
+      "env": {
+        "APP_VARIANT": "build"
+      },
+      "channel": "build-preview"
     },
     "build-production": {
       "extends": "production",
-      "env": { "APP_VARIANT": "build" }
+      "env": {
+        "APP_VARIANT": "build"
+      },
+      "channel": "build-production"
     },
-
     "roofer-preview": {
       "extends": "preview",
-      "env": { "APP_VARIANT": "roofer" }
+      "env": {
+        "APP_VARIANT": "roofer"
+      },
+      "channel": "roofer-preview"
     },
     "roofer-production": {
       "extends": "production",
-      "env": { "APP_VARIANT": "roofer" }
+      "env": {
+        "APP_VARIANT": "roofer"
+      },
+      "channel": "roofer-production"
     }
   },
   "submit": {

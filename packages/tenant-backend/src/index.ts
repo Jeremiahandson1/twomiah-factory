@@ -113,9 +113,9 @@ export type { MessagingBillingStatus } from './messagingBilling'
 
 // Auth — bearer middleware, the role → permission matrix, and the login/refresh/me/password routes, one implementation for every CRM.
 export { createEnabledFeatureGate } from './enabledFeature'
-// A DELETE always leaves an audit row naming what went — unless the handler wrote its own. (T59)
-export { createDeleteAuditFloor } from './audit/deleteFloor'
-export type { DeleteFloorDeps } from './audit/deleteFloor'
+// Every write leaves an audit row naming its record — unless the handler wrote its own. (T59)
+export { createWriteAuditFloor } from './audit/writeFloor'
+export type { WriteFloorDeps } from './audit/writeFloor'
 export type { EnabledFeatureDeps, EnabledFeatureGate } from './enabledFeature'
 export { createEmailLogger } from './emailLog'
 export type { EmailLogDeps, EmailLogEntry, EmailRecorder } from './emailLog'
