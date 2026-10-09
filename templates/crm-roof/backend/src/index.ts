@@ -74,7 +74,9 @@ app.use('*', secureHeaders({
 // from this origin; Vite emits external bundles (no inline scripts). Allowed third-party
 // script surfaces: Stripe, Google Maps (address autocomplete), Leaflet from unpkg.
 // img/connect stay broad (https:) because media lives on R2/customer URLs and the API host can
-// differ from the page host on custom domains.
+// differ from the page host on custom domains. connect-src also allows data: — MapLibre fetch()es an image
+// source's URL, and the DIY measurement preview hands it the satellite picture as a data: URL; without it the
+// browser refused the picture and the editor canvas stayed blank. (T61)
 const CSP = [
   "default-src 'self'",
   "script-src 'self' https://js.stripe.com https://maps.googleapis.com https://maps.gstatic.com https://unpkg.com",
@@ -82,7 +84,7 @@ const CSP = [
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
   "media-src 'self' blob: https:",
-  "connect-src 'self' https: wss:",
+  "connect-src 'self' https: wss: data:",
   "frame-src https://js.stripe.com https://hooks.stripe.com https://www.google.com https://maps.google.com",
   "worker-src 'self' blob:",
   "object-src 'none'",

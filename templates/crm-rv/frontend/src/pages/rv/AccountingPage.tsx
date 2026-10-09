@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Receipt, Loader2, RefreshCw, CheckCircle2, Link2 } from 'lucide-react';
 import api from '../../services/api';
 import { formatDate } from '../../utils/date';
-import { PageError, errorText } from '../../shared';
+import { PageError, errorText, useMayWrite } from '../../shared';
 
 /**
  * AN ACCOUNTING PAGE DOES NOT ROUND. (T41)
@@ -21,6 +21,14 @@ export default function AccountingPage() {
   const [syncing, setSyncing] = useState(false);
   const [done, setDone] = useState<any>(null);
   const [pageErr, setPageErr] = useState<string>('');
+  /**
+   * The buttons follow the routes they call. (T61, open since T42: "QuickBooks Connect and Sync still
+   * show for the manager, but the server refuses them.") Connect is GET /api/quickbooks/auth-url, which
+   * asks settings:update; Sync is POST /api/accounting/sync, which asks integrations:update. A manager
+   * holds neither — the books are the owner's and the admins'. The page itself stays readable.
+   */
+  const mayConnect = useMayWrite('settings:update');
+  const maySync = useMayWrite('integrations:update');
 
   function load() { api.get('/api/accounting/status').then(setData).catch(() => {}); }
   useEffect(() => { load(); }, []);
@@ -72,13 +80,15 @@ export default function AccountingPage() {
           <span className="font-semibold">{data.provider}</span> — {data.connected ? 'Connected' : 'Not connected'}
           {!data.connected && <span className="block text-xs text-amber-700 dark:text-amber-300">Connect your books to post automatically. Demo — OAuth on integration; native GL is the upgrade path.</span>}
         </div>
-        {!data.connected && <button onClick={connect} className="px-3 py-1.5 rounded-lg bg-white border text-sm font-medium hover:bg-gray-50 dark:bg-slate-900">Connect</button>}
+        {!data.connected && !mayConnect && <span className="text-xs text-gray-600 dark:text-slate-400">An owner or admin connects the books.</span>}
+        {!data.connected && mayConnect && <button onClick={connect} className="px-3 py-1.5 rounded-lg bg-white border text-sm font-medium hover:bg-gray-50 dark:bg-slate-900">Connect</button>}
       </div>
 
       <div className="mt-4 bg-white rounded-xl border shadow-sm overflow-x-auto dark:bg-slate-900">
         <div className="px-4 py-2.5 border-b flex items-center justify-between flex-wrap gap-2">
           <span className="text-sm font-semibold text-gray-600 dark:text-slate-400">Ready to post · {pending.length} entr{pending.length === 1 ? 'y' : 'ies'} · {money(pendingTotal)}</span>
-          <button onClick={sync} disabled={syncing || !pending.length} className="px-4 py-1.5 rounded-lg bg-green-700 text-white text-sm font-medium hover:bg-green-800 disabled:opacity-50 inline-flex items-center gap-1.5">{syncing ? <Loader2 className="animate-spin" size={15} /> : <RefreshCw size={15} />}Sync to {String(data.provider || '').split(' ')[0]}</button>
+          {!maySync && <span className="text-xs text-gray-600 dark:text-slate-400">An owner or admin posts to the books.</span>}
+          {maySync && <button onClick={sync} disabled={syncing || !pending.length} className="px-4 py-1.5 rounded-lg bg-green-700 text-white text-sm font-medium hover:bg-green-800 disabled:opacity-50 inline-flex items-center gap-1.5">{syncing ? <Loader2 className="animate-spin" size={15} /> : <RefreshCw size={15} />}Sync to {String(data.provider || '').split(' ')[0]}</button>}
         </div>
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 dark:bg-slate-900 dark:text-slate-400"><tr><th className="px-4 py-2 text-left font-semibold">Type</th><th className="px-4 py-2 text-left font-semibold">Ref</th><th className="px-4 py-2 text-left font-semibold">Customer</th><th className="px-4 py-2 text-left font-semibold">Date</th><th className="px-4 py-2 text-right font-semibold">Amount</th></tr></thead>

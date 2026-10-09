@@ -1331,6 +1331,8 @@ jobs:
         run: bun run scripts/check-integrations-admin-only.ts
       - name: "my account — every role reaches its own two-factor and password (T60)"
         run: bun run scripts/check-my-account-reachable.ts
+      - name: "roof map — the DIY measurement map can fetch its picture, label its lines and find its addresses (T61)"
+        run: bun run scripts/check-roof-map-renders.ts
 
   revenue-one-definition:
     name: "Revenue one definition"

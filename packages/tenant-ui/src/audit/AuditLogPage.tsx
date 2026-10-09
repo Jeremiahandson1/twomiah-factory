@@ -131,6 +131,8 @@ const inputCls = 'px-3 py-2 border border-gray-300 rounded-lg text-gray-900 text
 export function AuditLogPage({ api, toast, timeZone, canReadUsers = false }: AuditLogPageProps) {
   const [logs, setLogs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  // The server refused this person (audit:read — owners and admins). Not a load failure, and not an empty log. (T61)
+  const [denied, setDenied] = useState(false)
   const [pagination, setPagination] = useState<any>(null)
   const [page, setPage] = useState(1)
 
@@ -159,7 +161,8 @@ export function AuditLogPage({ api, toast, timeZone, canReadUsers = false }: Aud
       const data = await api.get('/api/audit', params)
       setLogs(Array.isArray(data) ? data : data?.data || [])
       setPagination(data?.pagination || null)
-    } catch {
+    } catch (err: any) {
+      if (err?.status === 403) { setDenied(true); return }
       toast.error('Failed to load the audit log')
     } finally {
       setLoading(false)
@@ -208,6 +211,15 @@ export function AuditLogPage({ api, toast, timeZone, canReadUsers = false }: Aud
       .catch(() => {})
     return () => { cancelled = true }
   }, [canReadUsers]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A shell that blocks the route says this first; one that only hides the menu link (crm-roof) relies on
+  // it — so a typed URL gets the same answer the menu would have given.
+  if (denied) return (
+    <div className="max-w-xl mx-auto mt-16 text-center bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700 p-8">
+      <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100 mb-2">You don't have access to the Audit Log</h1>
+      <p className="text-sm text-gray-600 dark:text-slate-400">The audit log is limited to admins and the owner. Ask them if you need something from it.</p>
+    </div>
+  )
 
   return (
     <div className="space-y-6">

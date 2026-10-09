@@ -5,7 +5,7 @@ import { base32Encode, base32Decode, generateTOTPCode, verifyTOTP } from '../sha
 import { db } from '../../db/index.ts'
 import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requireRole } from '../middleware/permissions.ts'
+import { requireRole, requirePermission } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { sendSMS } from '../services/sms.ts'
 // The one writer for security_events. There were seven hand-rolled copies of that INSERT in this
@@ -816,9 +816,15 @@ app.post('/sessions/revoke-user/:userId', requireRole('owner'), async (c) => {
 // ==========================================
 // Security Events (CC6.2)
 // ==========================================
+//
+// Owners and admins only — audit:read, the audit log's permission, because these ARE that kind of record:
+// every sign-in, lockout and MFA change, with the IP address and browser. They were requireRole('manager');
+// the Security page already showed the tab to admins alone, so a manager could still read all of them
+// through the API. (Owner's decision, 2026-10-09, T61.) POST /events/log stays open: it is how a session
+// reports its OWN event, not a read.
 
 // List security events (admin only, paginated, filterable)
-app.get('/events', requireRole('manager'), async (c) => {
+app.get('/events', requirePermission('audit:read'), async (c) => {
   const currentUser = c.get('user') as any
   const page = +(c.req.query('page') || '1')
   const limit = +(c.req.query('limit') || '50')
@@ -888,7 +894,7 @@ app.get('/events', requireRole('manager'), async (c) => {
  * Declared BEFORE any `/events/:id` would be: a literal segment under a parameterised sibling is how
  * /api/team/assignable ended up answering "Team member not found" on this very template.
  */
-app.get('/events/types', requireRole('manager'), async (c) => {
+app.get('/events/types', requirePermission('audit:read'), async (c) => {
   const currentUser = c.get('user') as any
   const result = await db.execute(sql`
     SELECT event_type, COUNT(*)::int AS count
@@ -904,7 +910,7 @@ app.get('/events/types', requireRole('manager'), async (c) => {
 })
 
 // Event summary: counts by type and severity for last 24h/7d/30d
-app.get('/events/summary', requireRole('manager'), async (c) => {
+app.get('/events/summary', requirePermission('audit:read'), async (c) => {
   const currentUser = c.get('user') as any
 
   const [byType24h, byType7d, byType30d, bySeverity24h, bySeverity7d, bySeverity30d] = await Promise.all([
@@ -969,7 +975,7 @@ app.get('/events/summary', requireRole('manager'), async (c) => {
 })
 
 // Acknowledge a security event
-app.put('/events/:id/acknowledge', requireRole('manager'), async (c) => {
+app.put('/events/:id/acknowledge', requirePermission('audit:read'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

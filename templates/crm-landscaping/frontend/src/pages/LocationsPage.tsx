@@ -1,7 +1,8 @@
 /**
  * Locations Page — Fleet tier
  * Multi-branch operations: each location has its own code, service area,
- * phone, and manager. Techs and jobs can be assigned per location.
+ * phone, and manager. (T61: the words on the page name no trade — this file serves a gym as well as a
+ * field-service crew, and "assign techs and jobs" read wrong on the gym.)
  */
 import { useState, useEffect } from 'react';
 import { MapPin, Plus, Loader2 } from 'lucide-react';
@@ -55,12 +56,12 @@ export default function LocationsPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <div><h1 className="text-2xl font-bold flex items-center gap-2"><MapPin className="w-6 h-6 text-sky-500 dark:text-sky-300" />Locations</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Multi-branch dispatch — assign techs and jobs per location</p></div>
+        <div><h1 className="text-2xl font-bold flex items-center gap-2"><MapPin className="w-6 h-6 text-sky-500 dark:text-sky-300" />Locations</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Your branches — each with its own address, phone and time zone</p></div>
         {mayCreate && <button onClick={() => setShowCreate(true)} className="bg-sky-700 hover:bg-sky-800 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Location</button>}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {locations.length === 0 ? <div className="col-span-full bg-white rounded-lg border p-12 text-center text-gray-500 dark:text-slate-400 dark:bg-slate-900">{mayCreate ? 'No locations yet. Add your first branch to enable multi-location dispatch.' : 'No locations yet. An owner or admin can add branches.'}</div> :
+        {locations.length === 0 ? <div className="col-span-full bg-white rounded-lg border p-12 text-center text-gray-500 dark:text-slate-400 dark:bg-slate-900">{mayCreate ? 'No locations yet. Add your first branch.' : 'No locations yet. An owner or admin can add branches.'}</div> :
           locations.map((l) => (
             <div key={l.id} className={`bg-white dark:bg-slate-900 rounded-lg border p-5 ${!l.isActive ? 'opacity-50' : ''}`}>
               <div className="flex items-start justify-between mb-3">

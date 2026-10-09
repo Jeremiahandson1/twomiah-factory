@@ -55,9 +55,11 @@ check('a settings string is parsed, not passed through raw', !('plan' in redactC
 
 // ─────────────────────────────────────────────── /api/company for a non-updater: columns AND blob
 {
-  const row = { id: 'c1', name: 'Shop', subscriptionTier: 'starter10', seatLimit: 10, integrations: { stripeAccountId: 'acct_1' }, settings: paid }
+  const row = { id: 'c1', name: 'Shop', subscriptionTier: 'starter10', seatLimit: 10, integrations: { stripeAccountId: 'acct_1' }, licenseType: 'lifetime', lifetimeAccess: true, licenseNumber: 'LIC-123', settings: paid }
   const out: any = redactCompanyCommercial(row)
   check('company: the commercial columns go', !('subscriptionTier' in out) && !('seatLimit' in out) && !('integrations' in out))
+  check('company: …and which licence the shop bought (T61)', !('licenseType' in out) && !('lifetimeAccess' in out), out)
+  check("company: the business's own trade licence number is not commercial — it stays", out.licenseNumber === 'LIC-123')
   check('company: …and so does the copy inside settings', PRIVATE_SETTING_KEYS.every((k) => !(k in out.settings)), out.settings)
   check('company: the name and operating settings stay', out.name === 'Shop' && out.settings.timezone === 'America/New_York')
   check('company: the row passed in still holds its settings', (row.settings as any).monthlyAmount === 99)

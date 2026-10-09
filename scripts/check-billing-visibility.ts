@@ -46,6 +46,11 @@ const roofGet = roof.slice(roof.indexOf("app.get('/', async"), roof.indexOf("app
 if (!/hasPermission\(currentUser\.role, 'company:update'/.test(roofGet) || !/redactCompanyCommercial\(safe\)/.test(roofGet)) fail("crm-roof GET /api/company must redact the commercial terms for a non-updater, asked with 'company:update'")
 const disp = read('templates/crm-dispensary/backend/src/routes/company.ts')
 if (!/clone\.settings = redactCompanySettings\(clone\.settings, \{ privileged: isPrivilegedRole\(role\) \}\)/.test(disp)) fail('crm-dispensary GET /api/company must keep redacting settings by role')
+// …and the commercial COLUMNS from the shared list, not a hand-kept copy of two of its keys (T61)
+if (!/if \(!isPrivilegedRole\(role\)\) for \(const f of COMPANY_COMMERCIAL\) delete clone\[f\]/.test(disp)) fail('crm-dispensary GET /api/company must strip the shared COMPANY_COMMERCIAL list for a non-privileged role')
+for (const k of ['licenseType', 'lifetimeAccess', 'subscriptionTier', 'integrations']) {
+  if (!new RegExp(`'${k}'`).test(redact.slice(redact.indexOf('export const COMPANY_COMMERCIAL'), redact.indexOf('] as const', redact.indexOf('export const COMPANY_COMMERCIAL'))))) fail(`COMPANY_COMMERCIAL lost '${k}'`)
+}
 // every other CRM must answer /api/company through the shared route (or one of the two above)
 for (const t of crms) {
   const p = `templates/${t}/backend/src/routes/company.ts`

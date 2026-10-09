@@ -45,6 +45,16 @@ for (const t of TEMPLATES) {
   if (!/isAdmin \? api\.get\('\/api\/audit'/.test(order) || !/\{isAdmin && \(<div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">/.test(order)) fail("crm-dispensary: the order page's Audit Trail must be fetched and shown only for owners and admins")
 }
 
+// …and its Security Events are the same kind of record — sign-ins, lockouts, IPs — so they ask the same
+// question. (Owner's decision, 2026-10-09, T61: they were requireRole('manager'), readable through the API.)
+{
+  const sec = read('templates/crm-dispensary/backend/src/routes/security.ts')
+  const routes = [...sec.matchAll(/^app\.(get|put|post|delete)\('(\/events[^']*)',\s*([^\n]*?)async/gm)]
+  const reads = routes.filter((r) => r[2] !== '/events/log')
+  if (reads.length < 4) fail(`crm-dispensary security: expected the events list, types, summary and acknowledge (found ${reads.length})`)
+  for (const [, verb, path, mw] of reads) if (!/requirePermission\('audit:read'\)/.test(mw)) fail(`crm-dispensary: ${verb.toUpperCase()} /api/security${path} must ask requirePermission('audit:read') — it asks ${mw.trim() || 'nothing'}`)
+}
+
 // No role below admin holds it, in either matrix.
 const roleLists = (src: string) => {
   const out: Record<string, string> = {}

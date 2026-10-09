@@ -1,6 +1,14 @@
 // Shared MapLibre GL JS configuration for the roof estimator.
 // Provides tile sources (Nearmap or Google satellite) and common style.
 
+/**
+ * Where the label layers' fonts come from. The edge and segment labels are text layers ('Open Sans Bold'),
+ * and MapLibre refuses a text layer in a style with no glyphs — "use of text-field requires a style glyphs
+ * property" — so every style carries it. fonts.openmaptiles.org serves Open Sans Bold (checked: 200, pbf);
+ * MapLibre's own demotiles server does not (404). connect-src https: already allows it. (T61)
+ */
+const GLYPHS = 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf'
+
 export interface MapTileConfig {
   nearmapTileUrl?: string | null
   googleApiKey?: string
@@ -17,6 +25,7 @@ export function buildMapStyle(config: MapTileConfig) {
   if (nearmapTileUrl) {
     return {
       version: 8 as const,
+      glyphs: GLYPHS,
       sources: {
         satellite: {
           type: 'raster' as const,
@@ -43,6 +52,7 @@ export function buildMapStyle(config: MapTileConfig) {
   if (googleApiKey) {
     return {
       version: 8 as const,
+      glyphs: GLYPHS,
       sources: {
         satellite: {
           type: 'raster' as const,
@@ -69,6 +79,7 @@ export function buildMapStyle(config: MapTileConfig) {
   // Bare style with no basemap (will use stored aerial as image source)
   return {
     version: 8 as const,
+    glyphs: GLYPHS,
     sources: {},
     layers: [],
   }
@@ -84,6 +95,7 @@ export function buildImageStyle(
 ) {
   return {
     version: 8 as const,
+    glyphs: GLYPHS,
     sources: {
       aerial: {
         type: 'image' as const,

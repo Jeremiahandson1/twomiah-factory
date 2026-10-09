@@ -140,7 +140,8 @@ export const isPrivilegedRole = (role: unknown): boolean =>
  * Nothing on any screen reads either field — checked across every template's frontend and the
  * shared tenant-ui before removing them — so this costs no UI.
  */
-export const COMPANY_COMMERCIAL = ['integrations', 'subscriptionTier', 'subscriptionStatus', 'seatLimit', 'trialEndsAt', 'billingEmail'] as const
+// licenseType and lifetimeAccess joined in T61: they say which licence the shop bought, beside subscriptionTier.
+export const COMPANY_COMMERCIAL = ['integrations', 'subscriptionTier', 'subscriptionStatus', 'seatLimit', 'trialEndsAt', 'billingEmail', 'licenseType', 'lifetimeAccess'] as const
 
 /**
  * …AND THE SAME TERMS INSIDE `settings`. (T60)

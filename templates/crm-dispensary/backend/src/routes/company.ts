@@ -8,7 +8,7 @@ import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { requirePermission, invalidateExtraPermissions } from '../middleware/permissions.ts'
 
 import { getFeaturesForTemplate } from '../shared/featureRegistry.ts'
-import { passwordSchema } from '../shared/index.ts'
+import { passwordSchema, COMPANY_COMMERCIAL } from '../shared/index.ts'
 import { CRM_TEMPLATE } from '../config/template.ts'
 import { loyaltyConfigResponse, LOYALTY_SETTING_KEYS } from '../utils/loyaltyConfig.ts'
 import { storeTimeZone, isValidTimeZone } from '../utils/isoTime.ts'
@@ -57,10 +57,8 @@ function sanitizeCompany<T extends Record<string, any>>(row: T, role?: unknown):
    * The whole bag goes rather than named keys inside it: a denylist inside an extensible object is
    * wrong as soon as the next connector adds a field.
    */
-  if (!isPrivilegedRole(role)) {
-    delete clone.integrations
-    delete clone.subscriptionTier
-  }
+  // The shared list, not a copy of it — this deleted two of its keys by hand and so missed the rest. (T61)
+  if (!isPrivilegedRole(role)) for (const f of COMPANY_COMMERCIAL) delete clone[f]
   // Settings → Loyalty reads these flat keys; they live under settings.loyalty. Without them the
   // screen fell back to its own placeholder numbers and looked like it had loaded a saved config. (T21 M7)
   Object.assign(clone, loyaltyConfigResponse(row))

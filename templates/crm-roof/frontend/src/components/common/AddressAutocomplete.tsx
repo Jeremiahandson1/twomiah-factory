@@ -25,19 +25,35 @@ function loadGooglePlaces(): Promise<void> {
     return Promise.reject(new Error('Google Maps API key not configured'))
   }
 
+  /**
+   * READY IS NOT LOADED. (T61)
+   *
+   * With `loading=async` the script tag's onload fires when the BOOTSTRAP has arrived, before
+   * google.maps is built — so the component then called google.maps.importLibrary and got
+   * "importLibrary is not a function" (seen in a real browser on the roofing tenant; a few seconds
+   * later the same call works). Google's signal for "ready" is the `callback` parameter, so that is
+   * what resolves this now. A script already on the page is waited for the same way: poll for the
+   * API rather than trust a load event that may have fired long ago, or fired too early.
+   */
   window._googleMapsLoading = new Promise<void>((resolve, reject) => {
+    const ready = () => typeof window.google?.maps?.importLibrary === 'function' || !!window.google?.maps?.places
     const existing = document.querySelector('script[src*="maps.googleapis.com/maps/api"]')
     if (existing) {
-      existing.addEventListener('load', () => resolve())
-      existing.addEventListener('error', () => reject(new Error('Google Maps script failed to load')))
+      if (ready()) { resolve(); return }
+      const started = Date.now()
+      const iv = setInterval(() => {
+        if (ready()) { clearInterval(iv); resolve() }
+        else if (Date.now() - started > 15000) { clearInterval(iv); reject(new Error('Google Maps did not finish loading')) }
+      }, 100)
+      existing.addEventListener('error', () => { clearInterval(iv); reject(new Error('Google Maps script failed to load')) })
       return
     }
 
+    ;(window as any).__twomiahMapsReady = () => resolve()
     const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places&loading=async`
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places&loading=async&callback=__twomiahMapsReady`
     script.async = true
     script.defer = true
-    script.onload = () => resolve()
     script.onerror = () => reject(new Error('Google Maps script failed to load'))
     document.head.appendChild(script)
   })
@@ -99,7 +115,8 @@ export default function AddressAutocomplete({
 
         try {
           // Import the places library (required for new API)
-          await window.google.maps.importLibrary('places')
+          // `libraries=places` already loads it; importLibrary is the modern way to be sure, when present.
+          if (typeof window.google.maps.importLibrary === 'function') await window.google.maps.importLibrary('places')
 
           // Try new PlaceAutocompleteElement first
           if (window.google.maps.places.PlaceAutocompleteElement) {
