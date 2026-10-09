@@ -76,9 +76,20 @@ console.log('\n══════════ reading the trail ═════�
 {
   const r = await as(owner)('GET', '/api/audit?limit=20')
   const list: any[] = r.json?.data || r.json?.logs || []
-  check('the owner reads it (reports:read)', r.status === 200 && list.some((x) => (x.entity_id ?? x.entityId) === crewId), { status: r.status, rows: list.length })
+  check('the owner reads it (audit:read)', r.status === 200 && list.some((x) => (x.entity_id ?? x.entityId) === crewId), { status: r.status, rows: list.length })
   const f = await as(crew)('GET', '/api/audit')
-  check('a crew member is refused — field holds no reports:read', f.status === 403, { status: f.status })
+  check('a crew member is refused — field holds no audit:read', f.status === 403, { status: f.status })
+
+  // The owner's decision (2026-10-09): owners and admins only. A manager holds reports:read and used to
+  // get in; the log carries everybody's sign-ins, IPs and two-factor changes.
+  const [admin] = await db.insert(user).values({ email: 'admin-ra59@test.local', passwordHash: 'x', firstName: 'A', lastName: 'R', role: 'admin', companyId: co.id, isActive: true } as any).returning()
+  const [manager] = await db.insert(user).values({ email: 'manager-ra59@test.local', passwordHash: 'x', firstName: 'M', lastName: 'R', role: 'manager', companyId: co.id, isActive: true } as any).returning()
+  for (const p of ['/api/audit', '/api/audit/filters', `/api/audit/crew/${crewId}`]) {
+    const m = await as(manager)('GET', p)
+    check(`a MANAGER is refused ${p} — the audit log is owners and admins only`, m.status === 403, { status: m.status })
+  }
+  const a = await as(admin)('GET', '/api/audit?limit=20')
+  check('…while an admin reads it', a.status === 200, { status: a.status, body: a.text.slice(0, 160) })
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)

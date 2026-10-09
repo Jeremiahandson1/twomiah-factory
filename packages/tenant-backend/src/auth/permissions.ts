@@ -18,6 +18,14 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // fails the build on exactly that). Reads in those routes stay open, so field/viewer need no grant.
     'submittals:*', 'aia-forms:*', 'draw-schedules:*', 'lien-waivers:*',
     'company:update', 'dashboard:*', 'schedule:*', 'pricebook:*', 'marketing:*',
+    /**
+     * The audit log is the owner's and the admins'. (Owner's decision, 2026-10-09)
+     *
+     * It was on reports:read, which a manager holds — and the log carries everybody's sign-ins, IP
+     * addresses and two-factor changes, not just the business's records. Its own permission, granted
+     * here and nowhere else (owner holds '*'), so a manager can still have reports without it.
+     */
+    'audit:read',
     'tasks:*',
     /**
      * Seeing the login list, because an admin can already CHANGE it. (T32 B6)

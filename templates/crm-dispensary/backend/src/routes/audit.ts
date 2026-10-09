@@ -2,14 +2,15 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requireRole } from '../middleware/permissions.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import audit, { dateConditions, searchCondition } from '../services/audit.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
 
-// All audit endpoints require manager+ (owner/manager)
-app.use('*', requireRole('manager'))
+// Owners and admins only — audit:read, which admin's list carries and manager's does not. It carries
+// everybody's sign-ins and two-factor changes. (Owner's decision, 2026-10-09; it was requireRole('manager').)
+app.use('*', requirePermission('audit:read'))
 
 // Filtered audit log
 app.get('/', async (c) => {

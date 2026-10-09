@@ -32,9 +32,9 @@ const NAV: NavItem[] = [
   { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'], minRole: 'admin' },
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], permission: 'sms:send' },
   { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'reports:read' },
-  // The audit trail. Behind reports:read, the same permission the /api/audit route requires, so the
+  // The audit trail — owners and admins only (owner's decision, 10/09). Behind audit:read, the same permission the /api/audit route requires, so the
   // entry never offers a seat a page it would be refused. (T51)
-  { to: '/crm/audit', icon: FileText, label: 'Audit Log', permission: 'reports:read' },
+  { to: '/crm/audit', icon: FileText, label: 'Audit Log', permission: 'audit:read' },
   { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'] },
   { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'] },
   { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'] },

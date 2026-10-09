@@ -45,7 +45,7 @@ export function timelineFor(status: string): string[] {
 export default function OrderDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { isManager, company } = useAuth();
+  const { isManager, isAdmin, company } = useAuth();
   // The clock the shop keeps its books on. Rendering an order's time with the browser's zone showed
   // a manager in Central 11:01 AM for a sale the Ohio till rang at 12:01 PM. (T45 M24)
   const storeTz = (company as any)?.timeZone as string | undefined;
@@ -107,7 +107,9 @@ export default function OrderDetailPage() {
     try {
       const [orderData, auditData] = await Promise.all([
         api.get(`/api/orders/${id}`),
-        api.get('/api/audit', { entity: 'order', entityId: id, limit: 20 }).then((r: any) => r?.data || r).catch(() => []),
+        // The trail is audit:read — owners and admins. Anyone else is not asked for it, rather than refused
+        // and shown "No audit entries", which is false. (Owner's decision, 2026-10-09)
+        isAdmin ? api.get('/api/audit', { entity: 'order', entityId: id, limit: 20 }).then((r: any) => r?.data || r).catch(() => []) : Promise.resolve([]),
       ]);
       setOrder(orderData);
       setAuditLog(Array.isArray(auditData) ? auditData : auditData?.data || []);
@@ -602,8 +604,8 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {/* Audit Trail */}
-          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+          {/* Audit Trail — owners and admins only */}
+          {isAdmin && (<div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
             <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Audit Trail</h2>
             <div className="space-y-3">
               {auditLog.length > 0 ? auditLog.map((entry: any, idx: number) => (
@@ -620,7 +622,7 @@ export default function OrderDetailPage() {
                 <p className="text-gray-500 text-sm dark:text-slate-400">No audit entries</p>
               )}
             </div>
-          </div>
+          </div>)}
         </div>
       </div>
 

@@ -26,6 +26,7 @@ const WHO_CAN_OPEN: Record<string, string> = {
   'invoices:read': 'Invoices are limited to the people who handle the money',
   'quotes:read': 'Quotes are limited to the people who handle the money',
   'reports:read': 'Reports are limited to managers and above',
+  'audit:read': 'The audit log is limited to admins and the owner',
   'marketing:read': 'Marketing is limited to managers and above',
   'team:read': 'The team roster is limited to managers and above',
   'company:update': 'Company setup is limited to admins and the owner',

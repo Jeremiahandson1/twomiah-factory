@@ -49,9 +49,9 @@ const NAV: NavItem[] = [
   { to: '/crm/tasks', icon: ListTodo, label: 'Tasks', features: ['projects'] },
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], permission: 'sms:send' },
   { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'reports:read' },
-  // The audit trail. Behind reports:read, the same permission the /api/audit route requires, so the
+  // The audit trail — owners and admins only (owner's decision, 10/09). Behind audit:read, the same permission the /api/audit route requires, so the
   // entry never offers a seat a page it would be refused. (T51)
-  { to: '/crm/audit', icon: FileText, label: 'Audit Log', permission: 'reports:read' },
+  { to: '/crm/audit', icon: FileText, label: 'Audit Log', permission: 'audit:read' },
   { to: '/crm/job-costing', icon: Calculator, label: 'Job Costing', features: ['job_costing'], permission: 'reports:read' },
   { to: '/crm/selections', icon: CheckSquare, label: 'Selections', features: ['selections'], permission: 'selections:read' },
   { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'] },

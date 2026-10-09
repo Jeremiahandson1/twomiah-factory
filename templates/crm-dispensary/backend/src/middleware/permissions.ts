@@ -20,7 +20,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   manager: [
     'contacts:*', 'products:*', 'orders:*', 'loyalty:*', 'delivery:*',
-    'cash:*', 'analytics:read', 'audit:read', 'team:read', 'documents:*',
+    // no audit:read — the audit log is the owner's and the admins' (owner's decision, 2026-10-09)
+    'cash:*', 'analytics:read', 'team:read', 'documents:*',
     'merch:*', 'company:read', 'dashboard:*', 'inventory:*',
     'leads:*', 'support:*', 'marketing:read',
   ],
@@ -37,7 +38,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   viewer: [
     'contacts:read', 'products:read', 'orders:read', 'loyalty:read',
-    'delivery:read', 'cash:read', 'analytics:read', 'audit:read',
+    'delivery:read', 'cash:read', 'analytics:read', // no audit:read: owners and admins only (2026-10-09)
     'team:read', 'documents:read', 'company:read', 'dashboard:read',
     'inventory:read', 'leads:read', 'support:read',
   ],

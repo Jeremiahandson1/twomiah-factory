@@ -96,7 +96,8 @@ const ALL_NAV_ITEMS = [
 
   // Operations
   { to: '/crm/cash', icon: DollarSign, label: 'Cash', features: ['cash_management'] },
-  { to: '/crm/audit', icon: Shield, label: 'Audit Log' , minRole: 'manager'},
+  // Owners and admins only, as GET /api/audit now asks (audit:read). (Owner's decision, 2026-10-09)
+  { to: '/crm/audit', icon: Shield, label: 'Audit Log' , minRole: 'admin'},
   { to: '/crm/team', icon: Users2, label: 'Team' , minRole: 'manager'},
   { to: '/crm/enterprise', icon: Briefcase, label: 'Enterprise', features: ['franchise', 'multi_store'] },
 
