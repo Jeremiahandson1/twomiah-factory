@@ -236,7 +236,7 @@ export default function LeadSourcesPage() {
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {mayToggle && <button onClick={() => toggleSource(source)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: source.enabled ? c.ok : c.muted }}>
+                    {mayToggle && <button aria-label={source.enabled ? `Pause ${source.label}` : `Resume ${source.label}`} aria-pressed={!!source.enabled} onClick={() => toggleSource(source)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: source.enabled ? c.ok : c.muted }}>
                       {source.enabled ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
                     </button>}
                     {mayRemove && <button aria-label="Remove source" onClick={() => deleteSource(source.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.danger }}>
@@ -256,6 +256,7 @@ export default function LeadSourcesPage() {
                           {source.inboundEmail}
                         </code>
                         <button
+                          aria-label={copiedField === `email-${source.id}` ? 'Copied' : 'Copy inbound email address'}
                           onClick={() => copyToClipboard(source.inboundEmail!, `email-${source.id}`)}
                           style={{ padding: '8px', border: `1px solid ${c.control}`, borderRadius: 6, background: c.panel, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                         >
@@ -275,6 +276,7 @@ export default function LeadSourcesPage() {
                           {source.webhookUrl}
                         </code>
                         <button
+                          aria-label={copiedField === `webhook-${source.id}` ? 'Copied' : 'Copy webhook URL'}
                           onClick={() => copyToClipboard(source.webhookUrl!, `webhook-${source.id}`)}
                           style={{ padding: '8px', border: `1px solid ${c.control}`, borderRadius: 6, background: c.panel, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                         >
@@ -294,6 +296,7 @@ export default function LeadSourcesPage() {
                           {source.webhookSecret}
                         </code>
                         <button
+                          aria-label={copiedField === `secret-${source.id}` ? 'Copied' : 'Copy webhook secret'}
                           onClick={() => copyToClipboard(source.webhookSecret!, `secret-${source.id}`)}
                           style={{ padding: '8px', border: `1px solid ${c.control}`, borderRadius: 6, background: c.panel, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                         >

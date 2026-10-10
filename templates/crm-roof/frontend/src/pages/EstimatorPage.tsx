@@ -90,7 +90,7 @@ export default function EstimatorPage() {
           <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Enable Estimator</h2>
           <p className="text-xs text-gray-500 mt-0.5 dark:text-slate-400">When disabled, visitors who go to the estimate page will be redirected to your contact page instead.</p>
         </div>
-        <button onClick={() => setSettings(s => ({ ...s, estimatorEnabled: !s.estimatorEnabled }))} className="flex items-center">
+        <button onClick={() => setSettings(s => ({ ...s, estimatorEnabled: !s.estimatorEnabled }))} aria-label="Enable Estimator" aria-pressed={!!settings.estimatorEnabled} className="flex items-center">
           {settings.estimatorEnabled
             ? <ToggleRight className="w-10 h-10 text-green-500 dark:text-green-300" />
             : <ToggleLeft className="w-10 h-10 text-gray-300" />}

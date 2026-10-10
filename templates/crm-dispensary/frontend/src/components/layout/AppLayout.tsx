@@ -500,6 +500,7 @@ export default function AppLayout() {
               <div className="relative">
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  aria-label="Account menu"
                   className="flex items-center gap-2 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"
                   aria-expanded={userMenuOpen}
                   aria-haspopup="true"

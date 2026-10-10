@@ -306,6 +306,7 @@ export default function PlatformPage() {
                       <div className="flex items-center gap-3">
                         <button
                           onClick={() => !step.completed && markStepComplete(step.id)}
+                          aria-label={`${step.completed ? 'Completed' : 'Mark complete'}: ${step.title || step.name || `Step ${i + 1}`}`}
                           className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
                             step.completed
                               ? 'bg-green-700 border-green-500 text-white'

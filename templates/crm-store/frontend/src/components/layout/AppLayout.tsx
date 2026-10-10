@@ -37,7 +37,7 @@ export default function AppLayout() {
         <div className="flex items-center gap-2 font-semibold text-gray-900 dark:text-slate-100">
           <Store className="h-5 w-5 text-primary-500" /> {companyName}
         </div>
-        <button onClick={() => setOpen(!open)} className="p-2 text-gray-600 dark:text-slate-300">
+        <button onClick={() => setOpen(!open)} aria-label={open ? "Close menu" : "Open menu"} aria-expanded={open} className="p-2 text-gray-600 dark:text-slate-300">
           {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
       </div>
