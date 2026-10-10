@@ -451,6 +451,20 @@ function ensureDark(hex: string, maxLuminance = 0.16): string {
   }
   return rgbToHex([r, g, b])
 }
+// The mirror of ensureDark: a color LIGHT enough to read as text on the near-black
+// grounds the website themes paint (footers, dark sections — #0a0a0a to #111827).
+// AA against the lightest of those (#111827, luminance 0.0092) needs luminance
+// >= 4.5 * 0.0592 - 0.05 = 0.2164. Mixes toward white so the hue survives.
+function ensureLight(hex: string, minLuminance = 0.22): string {
+  const rgb = hexToRgb(hex)
+  if (!rgb) return hex
+  if (relLuminance(rgb) >= minLuminance) return hex
+  let [r, g, b] = rgb
+  for (let i = 0; i < 40 && relLuminance([r, g, b]) < minLuminance; i++) {
+    r += (255 - r) * 0.08; g += (255 - g) * 0.08; b += (255 - b) * 0.08
+  }
+  return rgbToHex([r, g, b])
+}
 
 function buildTokenMap(config: GenerateConfig, slug: string): Record<string, string> {
   const c = config.company || ({} as GenerateConfig['company'])
@@ -597,6 +611,9 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{HASHED_DEFAULT_PASSWORD}}': bcrypt.hashSync(defaultPassword, 10),
     '{{PRIMARY_COLOR}}': primaryColor,
     '{{PRIMARY_COLOR_ON_WHITE}}': primaryOnWhite,
+    // Brand / accent as TEXT on the themes' near-black grounds (see ensureLight).
+    '{{PRIMARY_COLOR_ON_DARK}}': ensureLight(primaryColor),
+    '{{ACCENT_COLOR_ON_DARK}}': ensureLight(b.accentColor || '#f59e0b'),
     '{{SECONDARY_COLOR}}': ensureDark(b.secondaryColor || (industry === 'home_care' ? '#004d40' : industry === 'automotive' ? '#111827' : industry === 'dispensary' ? '#14532d' : '#1e3a5f')),
     '{{ACCENT_COLOR}}': b.accentColor || '#f59e0b',
     '{{ACCENT_COLOR_ON_LIGHT}}': accentOnLight,

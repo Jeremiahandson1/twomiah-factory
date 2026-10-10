@@ -31,7 +31,7 @@ const phoneRaw = phone.replace(/\D/g, '');
 
       <div style="text-align:center;margin:3rem 0;">
         <h2>Don't See Your City?</h2>
-        <p style="color:#6b7280;max-width:500px;margin:0.5rem auto 1.5rem;">We may still serve your area. Give us a call and we'll let you know.</p>
+        <p style="color:#4b5563;max-width:500px;margin:0.5rem auto 1.5rem;">We may still serve your area. Give us a call and we'll let you know.</p>
         <a href="tel:<%= phoneRaw %>" class="btn btn-primary btn-lg"><%= phone %></a>
       </div>
     </div>
@@ -54,7 +54,7 @@ const phoneRaw = phone.replace(/\D/g, '');
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 .area-service-card:hover {
-  border-color: var(--color-primary);
+  border-color: var(--primary);
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 .area-service-card h3 {
@@ -64,12 +64,13 @@ const phoneRaw = phone.replace(/\D/g, '');
 }
 .area-service-card p {
   font-size: 0.9rem;
-  color: #6b7280;
+  color: #4b5563;
   margin: 0 0 0.75rem;
 }
+/* --primary: the brand darkened to read on white and the themes' grey grounds. */
 .area-service-link {
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--color-primary);
+  color: var(--primary);
 }
 </style>

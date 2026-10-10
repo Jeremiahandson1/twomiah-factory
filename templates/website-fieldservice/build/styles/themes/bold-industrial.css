@@ -24,6 +24,12 @@
   --electric-blue: {{PRIMARY_COLOR}};
   --electric-blue-dim: color-mix(in srgb, {{PRIMARY_COLOR}} 15%, transparent);
   --electric-blue-glow: color-mix(in srgb, {{PRIMARY_COLOR}} 40%, transparent);
+  /* --electric-blue is the RAW brand: fine for bars/borders/glows, not for text.
+     -ink: brand as a fill under white text (AA vs white). -on-dark: brand as text
+     on this theme's slate grounds, nudged lighter so it also clears AA on the
+     translucent cards over them (#262626). */
+  --electric-blue-ink: {{PRIMARY_COLOR_ON_WHITE}};
+  --electric-blue-on-dark: color-mix(in srgb, {{PRIMARY_COLOR_ON_DARK}} 80%, #ffffff);
   --steel-gray: #1e293b;
   --light-steel: #334155;
   --text-muted: #94a3b8;
@@ -208,9 +214,9 @@ header {
 .hero-overlay {
   background: linear-gradient(
     180deg,
-    rgba(0, 0, 0, 0.55) 0%,
-    rgba(0, 0, 0, 0.4) 45%,
-    rgba(17, 17, 17, 0.66) 100%
+    rgba(0, 0, 0, 0.62) 0%,
+    rgba(0, 0, 0, 0.52) 45%,
+    rgba(17, 17, 17, 0.7) 100%
   ) !important;
 }
 
@@ -251,7 +257,7 @@ button[type="submit"] {
   letter-spacing: 0.1em;
   border: 2px solid transparent;
   transition: all 0.2s ease;
-  background: var(--electric-blue);
+  background: var(--electric-blue-ink);
   color: #fff;
   position: relative;
   overflow: hidden;
@@ -282,22 +288,28 @@ button[type="submit"] {
 .hero-cta:hover,
 button[type="submit"]:hover {
   transform: none;
-  background: color-mix(in srgb, {{PRIMARY_COLOR}} 82%, #000000);
+  background: color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 82%, #000000);
   box-shadow: 0 0 20px var(--electric-blue-glow), 0 0 40px color-mix(in srgb, var(--electric-blue) 15%, transparent);
 }
 
 .btn-secondary,
 .btn-outline {
   background: transparent;
-  border: 2px solid var(--electric-blue);
-  color: var(--electric-blue);
+  border: 2px solid var(--primary);
+  color: var(--primary);
   border-radius: 2px;
+}
+
+/* On this theme's dark grounds the outline button uses the light brand. */
+:is(.hero, .hero-section, .hero-video, .service-hero, .cta-section, .cta-banner, .blog-preview-section, .contact-section, .home-faq, .trust-section, footer) :is(.btn-secondary, .btn-outline) {
+  border-color: var(--electric-blue-on-dark);
+  color: var(--electric-blue-on-dark);
 }
 
 .btn-secondary:hover,
 .btn-outline:hover {
-  background: var(--electric-blue);
-  border-color: var(--electric-blue);
+  background: var(--electric-blue-ink);
+  border-color: var(--electric-blue-ink);
   color: #fff;
   box-shadow: 0 0 20px var(--electric-blue-glow);
 }
@@ -353,7 +365,7 @@ button[type="submit"]:hover {
   text-transform: uppercase;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: var(--electric-blue);
+  color: var(--electric-blue-on-dark);
   font-size: 1.25rem;
 }
 
@@ -497,7 +509,7 @@ footer h4 {
   font-family: 'Rajdhani', sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--electric-blue) !important;
+  color: var(--electric-blue-on-dark) !important;
   font-weight: 700;
 }
 
@@ -510,7 +522,7 @@ footer a {
 
 .footer a:hover,
 footer a:hover {
-  color: var(--electric-blue) !important;
+  color: var(--electric-blue-on-dark) !important;
 }
 
 .footer-logo span {
@@ -611,7 +623,7 @@ form textarea:focus {
 }
 
 .blog-card h3 a {
-  color: var(--electric-blue) !important;
+  color: var(--electric-blue-on-dark) !important;
 }
 
 /* ── Breadcrumbs ── */
@@ -713,13 +725,18 @@ form input, form textarea, form select {
   color: #1a1a1a !important;
 }
 .contact-form label, form label { color: rgba(255, 255, 255, 0.85) !important; }
+/* ...so the form card those labels sit in must be a dark panel too (base main.css
+   paints .contact-form-container white and .checkbox-item light grey). */
+.contact-section .contact-form-container { background: var(--steel-gray) !important; }
+.contact-section .checkbox-item { background: rgba(255, 255, 255, 0.06) !important; }
+.contact-section .checkbox-item:hover { background: rgba(255, 255, 255, 0.12) !important; }
 
 /* Contact section: whiten EVERY text element on the dark panel — the GET IN TOUCH
    info block (phone/email/address) was dark-navy text → dark-on-dark/unreadable.
    Inputs keep dark text on their white field. */
 .contact-section h1, .contact-section h2, .contact-section h3, .contact-section h4,
 .contact-section p, .contact-section span, .contact-section a,
-.contact-section strong, .contact-section li, .contact-section .contact-info * {
+.contact-section strong, .contact-section li, .contact-section address, .contact-section .contact-info * {
   color: rgba(255, 255, 255, 0.9) !important;
 }
 .contact-section input, .contact-section textarea, .contact-section select {
@@ -741,3 +758,20 @@ form input, form textarea, form select {
 .hero-video h2::after {
   content: none;
 }
+
+/* ════════ Readability guards: brand-coloured text on this theme's dark grounds
+   uses the light brand variant; base text colours meant for light sections are
+   re-pointed where this theme keeps the section dark. ════════ */
+.hero-video-content .hero-tagline,
+.blog-preview-content .read-more,
+.badge-info .stars,
+footer .hours strong {
+  color: var(--electric-blue-on-dark) !important;
+}
+.badge-info .count { color: var(--text-muted) !important; }
+.review-badge .badge-text { color: var(--text-on-dark) !important; }
+.service-sidebar .cta-card,
+.service-sidebar .cta-card h3,
+.service-sidebar .cta-card p { color: #fff !important; }
+.service-cta h2 { color: #fff !important; }
+.service-cta p { color: rgba(255, 255, 255, 0.9) !important; }

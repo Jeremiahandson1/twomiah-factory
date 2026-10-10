@@ -46,6 +46,10 @@
   --industrial-yellow: var(--gold, #f5a623);
   --industrial-orange: var(--gold, #e8740c);
   --industrial-red: var(--accent, {{ACCENT_COLOR}});
+  /* The "yellow" is the tenant's brand and can be any colour. As TEXT on this
+     theme's near-black grounds it uses the brand lightened to read there; the raw
+     brand stays on borders, stripes and button fills. */
+  --industrial-text: color-mix(in srgb, {{PRIMARY_COLOR_ON_DARK}} 78%, #ffffff); /* clears AA on the #2a2a2a cards too */
   --dark-bg: #1a1a1a;
   --darker-bg: #111111;
   --steel-gray: #2a2a2a;
@@ -114,11 +118,11 @@ p {
 }
 
 .main-header .utility-nav a:hover {
-  color: var(--industrial-yellow) !important;
+  color: var(--industrial-text) !important;
 }
 
 .main-header .utility-nav a[href="/visualize"] {
-  color: var(--industrial-yellow) !important;
+  color: var(--industrial-text) !important;
 }
 
 .main-header .header-phone {
@@ -130,7 +134,7 @@ p {
 }
 
 .main-header .header-phone:hover {
-  color: var(--industrial-yellow) !important;
+  color: var(--industrial-text) !important;
 }
 
 .main-header .header-phone svg {
@@ -138,8 +142,8 @@ p {
 }
 
 .main-header .header-top-right .btn {
-  background: var(--industrial-yellow) !important;
-  color: var(--dark-bg) !important;
+  background: var(--brand-fill, var(--industrial-yellow)) !important;
+  color: var(--brand-ink, var(--dark-bg)) !important;
   border: none;
   border-radius: 0;
   font-family: 'Oswald', 'Oswald Fallback', sans-serif;
@@ -172,7 +176,7 @@ p {
 }
 
 .services-nav ul > li > a:hover {
-  color: var(--industrial-yellow) !important;
+  color: var(--industrial-text) !important;
   background: rgba(245, 166, 35, 0.08) !important;
   border-bottom-color: var(--industrial-yellow);
 }
@@ -197,7 +201,7 @@ p {
 
 .services-nav .dropdown a:hover {
   background: rgba(245, 166, 35, 0.12) !important;
-  color: var(--industrial-yellow) !important;
+  color: var(--industrial-text) !important;
 }
 
 /* Nav toggle (mobile) */
@@ -213,7 +217,7 @@ p {
 }
 
 .mobile-nav .mobile-section-label {
-  color: var(--industrial-yellow) !important;
+  color: var(--industrial-text) !important;
   font-family: 'Oswald', 'Oswald Fallback', sans-serif;
 }
 
@@ -247,9 +251,9 @@ p {
 .hero-overlay {
   background: linear-gradient(
     180deg,
-    rgba(0, 0, 0, 0.55) 0%,
-    rgba(0, 0, 0, 0.4) 45%,
-    rgba(17, 17, 17, 0.66) 100%
+    rgba(0, 0, 0, 0.62) 0%,
+    rgba(0, 0, 0, 0.55) 45%,
+    rgba(17, 17, 17, 0.72) 100%
   ) !important;
 }
 
@@ -269,7 +273,7 @@ p {
 .hero h1 span,
 .hero-section h1 span,
 .hero-video h1 span {
-  color: var(--industrial-yellow);
+  color: var(--industrial-text);
   display: inline;
 }
 
@@ -304,8 +308,9 @@ button[type="submit"] {
   border: 3px solid transparent;
   transition: all 0.15s ease;
   position: relative;
-  background: var(--industrial-yellow);
-  color: #fff;
+  /* Brand fill; the ink is picked from the fill so it reads on any brand. */
+  background: var(--brand-fill, var(--industrial-yellow));
+  color: var(--brand-ink, #fff);
 }
 
 .btn:hover,
@@ -314,24 +319,37 @@ button[type="submit"] {
 .hero-cta:hover,
 button[type="submit"]:hover {
   transform: none !important;
-  background: var(--industrial-orange);
-  color: #fff;
+  background: var(--brand-fill, var(--industrial-orange));
+  color: var(--brand-ink, #fff);
   box-shadow: 0 0 0 3px var(--industrial-yellow), var(--shadow);
 }
 
 .btn-secondary,
 .btn-outline {
   background: transparent !important;
-  border: 3px solid #fff !important;
-  color: #fff !important;
+  border: 3px solid var(--dark-bg) !important;
+  color: var(--dark-bg) !important;
   border-radius: 0 !important;
+}
+
+/* White outline only on the theme's dark grounds; the light (#e0e0e0/#e8e8e8)
+   sections (projects, about CTA) keep the dark outline above. */
+.hero .btn-secondary, .hero .btn-outline,
+.hero-video .btn-secondary, .hero-video .btn-outline,
+.hero-section .btn-secondary, .hero-section .btn-outline,
+.cta-section .btn-outline, .cta-banner .btn-outline,
+.service-hero .btn-outline, .service-cta .btn-outline,
+.why-choose-section .btn-outline, .blog-preview-section .btn-outline,
+.contact-section .btn-outline, .home-faq .btn-outline {
+  border-color: #fff !important;
+  color: #fff !important;
 }
 
 .btn-secondary:hover,
 .btn-outline:hover {
-  background: var(--industrial-yellow) !important;
-  border-color: var(--industrial-yellow) !important;
-  color: var(--dark-bg) !important;
+  background: var(--brand-fill, var(--industrial-yellow)) !important;
+  border-color: var(--brand-fill, var(--industrial-yellow)) !important;
+  color: var(--brand-ink, var(--dark-bg)) !important;
 }
 
 /* ── Services Section ──────────────────────────────────── */
@@ -410,7 +428,7 @@ button[type="submit"]:hover {
   text-transform: uppercase !important;
   font-weight: 700 !important;
   letter-spacing: 0.04em;
-  color: var(--industrial-yellow) !important;
+  color: var(--industrial-text) !important;
   font-size: 1.3rem;
   margin-bottom: 10px;
 }
@@ -425,7 +443,7 @@ button[type="submit"]:hover {
 
 .service-card a,
 .card a {
-  color: var(--industrial-yellow) !important;
+  color: var(--industrial-text) !important;
   font-family: 'Oswald', 'Oswald Fallback', sans-serif;
   text-transform: uppercase;
   font-weight: 600;
@@ -480,7 +498,7 @@ section h2 + p {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 0.95rem;
-  color: #666;
+  color: #555;
   font-weight: 400;
 }
 
@@ -519,7 +537,7 @@ section h2 + p {
 
 .why-item h3,
 .why-item h4 {
-  color: var(--industrial-yellow) !important;
+  color: var(--industrial-text) !important;
   font-family: 'Oswald', 'Oswald Fallback', sans-serif;
   text-transform: uppercase;
   font-weight: 600;
@@ -532,7 +550,7 @@ section h2 + p {
 
 .why-item svg,
 .why-item .icon {
-  color: var(--industrial-yellow) !important;
+  color: var(--industrial-text) !important;
 }
 
 /* ── Testimonials ──────────────────────────────────────── */
@@ -580,6 +598,14 @@ section h2 + p {
   font-weight: 600;
   color: var(--dark-bg);
 }
+
+/* Base styles paint the testimonials as a navy band with white text; this theme
+   repaints the band light and the card white, so the text goes dark with it. */
+.testimonials-section h2 { color: var(--dark-bg); }
+.testimonial-content blockquote { color: #333; }
+.testimonial-stars { color: var(--brand-text-on-light, #7a5600); }
+.testimonial-author strong { color: var(--dark-bg); }
+.testimonial-author span { color: #555; }
 
 /* ── CTA Section ───────────────────────────────────────── */
 .cta-section,
@@ -713,7 +739,7 @@ footer h3,
 footer h4 {
   font-family: 'Oswald', 'Oswald Fallback', sans-serif !important;
   text-transform: uppercase !important;
-  color: var(--industrial-yellow) !important;
+  color: var(--industrial-text) !important;
   font-weight: 600;
   letter-spacing: 0.04em;
   font-size: 1rem;
@@ -731,7 +757,7 @@ footer h4 {
 }
 
 .main-footer .footer-logo .logo-icon svg {
-  color: var(--industrial-yellow);
+  color: var(--industrial-text);
 }
 
 .main-footer ul {
@@ -754,7 +780,7 @@ footer a {
 
 .footer a:hover,
 footer a:hover {
-  color: var(--industrial-yellow) !important;
+  color: var(--industrial-text) !important;
 }
 
 .main-footer .social-links a {
@@ -762,7 +788,7 @@ footer a:hover {
 }
 
 .main-footer .social-links a:hover {
-  color: var(--industrial-yellow) !important;
+  color: var(--industrial-text) !important;
 }
 
 .main-footer .social-links svg {
@@ -790,7 +816,7 @@ footer a:hover {
 }
 
 .main-footer .hours strong {
-  color: var(--industrial-yellow);
+  color: var(--industrial-text);
   font-family: 'Oswald', 'Oswald Fallback', sans-serif;
   text-transform: uppercase;
 }
@@ -800,11 +826,11 @@ footer a:hover {
   border-top: 1px solid rgba(245, 166, 35, 0.2);
   padding: 16px 0;
   font-size: 0.82rem;
-  color: #666;
+  color: #999;
 }
 
 .footer-bottom p {
-  color: #666;
+  color: #999;
 }
 
 /* ── Trust / Brand Bar ─────────────────────────────────── */
@@ -929,14 +955,16 @@ form input, form textarea, form select {
   background: #ffffff !important;
   color: #1a1a1a !important;
 }
-.contact-form label, form label { color: rgba(255, 255, 255, 0.85) !important; }
+/* Labels go white only on the dark contact panel; forms in white cards (service-page
+   estimate card) keep the dark label colour set above. */
+.contact-section .contact-form label, .contact-section form label { color: rgba(255, 255, 255, 0.85) !important; }
 
 /* Contact section: whiten EVERY text element on the dark panel — the GET IN TOUCH
    info block (phone/email/address) was dark-navy text → dark-on-dark/unreadable.
    Inputs keep dark text on their white field. */
 .contact-section h1, .contact-section h2, .contact-section h3, .contact-section h4,
 .contact-section p, .contact-section span, .contact-section a,
-.contact-section strong, .contact-section li, .contact-section .contact-info * {
+.contact-section strong, .contact-section li, .contact-section address, .contact-section .contact-info * {
   color: rgba(255, 255, 255, 0.9) !important;
 }
 .contact-section input, .contact-section textarea, .contact-section select {
@@ -976,9 +1004,16 @@ form input, form textarea, form select {
    stays on underlines, borders, and button backgrounds (non-text), where it's fine.
    (The .contact-form-container h2/label dark-text rule above has higher specificity,
    so the white form card keeps its dark text.) */
-.section-title, section h2,
 .service-card h3, .card h3, .feature-card h3,
 .why-item h3, .why-item h4 {
+  color: #ffffff !important;
+}
+/* Section headings follow their ground: white on the dark sections, dark on the
+   light (#e0e0e0 / #e8e8e8) ones. Forcing every section h2 white hid "Explore Our
+   Dealership", "Our Story", "What Sets Us Apart"... on the light sections. */
+.why-choose-section h2, .cta-section h2, .cta-banner h2, .service-cta h2,
+.trust-section h2, .brands-section h2, .contact-section h2, .home-faq h2,
+.blog-preview-section h2 {
   color: #ffffff !important;
 }
 .service-card a, .card a {
@@ -1003,3 +1038,17 @@ form input, form textarea, form select {
 .hero-video h2::after {
   content: none;
 }
+
+/* ════════ Contrast (text on this theme's own grounds) ════════ */
+/* Trust badges. The strip is dark (.trust-section) unless it lands on an even
+   child, where "section:nth-child(even)" (more specific) repaints it #e0e0e0 —
+   so the text follows the same selector the background does. */
+.badge-info .count { color: #555; }
+section.trust-section:nth-child(odd) .badge-info .stars,
+section.brands-section:nth-child(odd) .badge-info .stars { color: var(--industrial-text); }
+section.trust-section:nth-child(odd) .badge-info .count,
+section.brands-section:nth-child(odd) .badge-info .count { color: #b5b5b5; }
+section.trust-section:nth-child(even) .badge-info .stars,
+section.brands-section:nth-child(even) .badge-info .stars { color: var(--brand-text-on-light); }
+/* Blog cards are dark here: their "Read more" is brand text on dark. */
+.blog-preview-section .read-more { color: var(--industrial-text); }

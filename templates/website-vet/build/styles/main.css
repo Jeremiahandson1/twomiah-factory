@@ -17,6 +17,20 @@
   --gold-light: {{PRIMARY_COLOR}};
   --gold-dark:  {{PRIMARY_COLOR}};
 
+  /* Readable brand variants (WCAG AA). Raw --gold/--warm stay for fills,
+     borders and icons; TEXT and white-text grounds use these instead.
+       --gold-fill    ground under white text (>= 4.5:1 with #fff)
+       --gold-ink     brand text on white AND cream/ice grounds
+       --gold-on-dark brand text on the dark navy hero/CTA grounds
+       --warm-ink     accent text (eyebrows) on white/cream grounds
+     base.ejs recomputes these at runtime when settings colours change. */
+  --gold-fill:    {{PRIMARY_COLOR_ON_WHITE}};
+  --gold-ink:     color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 85%, #000000);
+  --gold-on-dark: {{PRIMARY_COLOR_ON_DARK}};
+  --warm-ink:     color-mix(in srgb, {{ACCENT_COLOR_ON_LIGHT}} 88%, #000000);
+  --warm-fill:    {{ACCENT_COLOR_ON_LIGHT}};
+  --warm-on-dark: {{ACCENT_COLOR_ON_DARK}};
+
   /* Warm Accent — Amber (badges, trust indicators, highlights) */
   --warm:      #f59e0b;
   --warm-dark: #d97706;
@@ -548,7 +562,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 /* ========== TRUST BAR ========== */
 .trust-bar {
-  background: var(--gold);
+  background: var(--gold-fill);
   padding: 18px 0;
 }
 
@@ -1767,6 +1781,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 }
 
 .page-hero h1 {
+  color: #fff; /* themes colour every h1 dark; this hero is navy */
   margin-bottom: 15px;
 }
 
@@ -1943,7 +1958,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 .service-hero .back-link {
   display: inline-block;
-  color: var(--gold);
+  color: color-mix(in srgb, var(--gold-on-dark) 45%, #ffffff); /* hero is a navy scrim over a photo, not near-black: tint toward white */
   margin-bottom: 20px;
   font-weight: 600;
 }
@@ -1954,7 +1969,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 .service-hero .tagline {
   font-size: 1.3rem;
-  color: var(--gold);
+  color: color-mix(in srgb, var(--gold-on-dark) 45%, #ffffff); /* hero is a navy scrim over a photo, not near-black: tint toward white */
   margin-bottom: 20px;
 }
 
@@ -3332,7 +3347,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--warm);
+  color: var(--warm-ink);
   margin-bottom: 12px;
 }
 
@@ -3468,7 +3483,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 }
 
 .area-pill-active {
-  background: var(--gold);
+  background: var(--gold-fill);
   border-color: var(--gold);
   color: #fff;
   font-weight: 600;
@@ -3476,7 +3491,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 /* ── CTA BANNER ── */
 .hc-cta-banner {
-  background: linear-gradient(135deg, var(--navy) 0%, var(--gold) 100%);
+  background: linear-gradient(135deg, var(--navy) 0%, var(--gold-fill) 100%);
   padding: 70px 0;
   text-align: center;
 }
@@ -3588,7 +3603,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #999;
+  color: #666;
   margin-bottom: 2px;
 }
 
@@ -3616,7 +3631,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 }
 
 .form-subhead {
-  color: #888;
+  color: #666;
   font-size: 0.9rem;
   margin: 0 0 24px;
 }

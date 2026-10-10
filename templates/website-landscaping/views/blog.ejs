@@ -101,11 +101,13 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   text-align: center;
 }
 .blog-page .page-hero h1 {
+  color: #fff;
   font-family: 'Bebas Neue', sans-serif;
   font-size: 3rem;
   margin-bottom: 10px;
 }
 .blog-page .page-hero .hero-tagline {
+  color: #fff;
   opacity: 0.85;
   max-width: 600px;
   margin: 0 auto;
@@ -121,6 +123,9 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   margin-bottom: 16px;
 }
 .blog-page .back-link:hover { color: white; }
+/* The CTA band is dark in every theme; the themes' outline button colours are for light grounds. */
+.blog-cta-section .btn-outline { color: #fff; border-color: #fff; background: transparent; }
+.blog-cta-section .btn-outline:hover { background: rgba(255,255,255,0.12); color: #fff; }
 
 .blog-list-section {
   padding: 60px 0;
@@ -162,7 +167,7 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   background: linear-gradient(135deg, var(--dark-bg, #1a1a2e), #2a2a4e);
 }
 .blog-category-badge {
-  background: var(--accent, #c8963e);
+  background: {{ACCENT_COLOR_ON_LIGHT}};
   color: white;
   padding: 6px 16px;
   border-radius: 20px;
@@ -181,7 +186,7 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   display: flex;
   gap: 16px;
   font-size: 0.85rem;
-  color: #888;
+  color: #666;
   margin-bottom: 12px;
 }
 .blog-card-content h2 {
@@ -198,7 +203,7 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   flex: 1;
 }
 .blog-read-more {
-  color: var(--accent, #c8963e);
+  color: {{ACCENT_COLOR_ON_LIGHT}};
   font-weight: 600;
   font-size: 0.9rem;
   margin-top: 16px;
@@ -208,7 +213,7 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
 .blog-empty {
   text-align: center;
   padding: 80px 20px;
-  color: #888;
+  color: #666;
 }
 
 .blog-cta-section {
@@ -218,11 +223,13 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   text-align: center;
 }
 .blog-cta-section h2 {
+  color: #fff;
   font-family: 'Bebas Neue', sans-serif;
   font-size: 2.2rem;
   margin-bottom: 10px;
 }
 .blog-cta-section p {
+  color: #fff;
   opacity: 0.85;
   margin-bottom: 24px;
 }

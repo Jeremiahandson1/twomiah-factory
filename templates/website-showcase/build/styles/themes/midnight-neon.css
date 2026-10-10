@@ -22,15 +22,20 @@ body{font-family:var(--font-body);background:#070b14;color:var(--sx-ink);line-he
 h1,h2,h3,h4,h5,h6{font-family:var(--font-heading);font-weight:800;letter-spacing:-.02em;line-height:1.05;color:#fff}
 .hero h1,h1{font-size:clamp(2.6rem,6vw,4.8rem);text-shadow:0 0 30px rgba(41,163,221,.45)}
 p{color:var(--sx-mut);line-height:1.75}
-a{color:var(--color-accent,#29a3dd)}
+/* brand lightened to read 4.5:1 on these near-black grounds (raw brand failed on dark brands) */
+a{color:{{PRIMARY_COLOR_ON_DARK}}}
 
 .header,.site-header{background:rgba(7,11,20,.82);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,.06)}
 
 .btn,.button,a.button,.btn-primary,button[type=submit]{
   border-radius:10px;font-family:var(--font-heading);font-weight:800;text-transform:uppercase;letter-spacing:.03em;
-  background:linear-gradient(180deg,var(--color-accent,#29a3dd),var(--color-primary,#0a5cf0));
+  /* white label on the brand darkened to read 4.5:1 against white: readable for any brand */
+  background:linear-gradient(180deg,{{PRIMARY_COLOR_ON_WHITE}},color-mix(in srgb,{{PRIMARY_COLOR_ON_WHITE}} 82%,#000));
   color:#fff;border:0;box-shadow:0 0 22px rgba(41,163,221,.45);transition:transform .15s,box-shadow .15s}
 .btn:hover,.button:hover,a.button:hover,.btn-primary:hover{transform:translateY(-2px);box-shadow:0 0 34px rgba(41,163,221,.65)}
+/* Outline buttons stay outlines: the fill above is for solid buttons only. */
+.btn-outline{background:transparent;color:{{PRIMARY_COLOR_ON_DARK}};border:2px solid {{PRIMARY_COLOR_ON_DARK}};box-shadow:none}
+.btn-outline-light{background:transparent;color:#fff;border:2px solid rgba(255,255,255,.7);box-shadow:none}
 
 .hero,.hero-section{background:
   radial-gradient(ellipse at 50% 0%,rgba(41,163,221,.30),transparent 55%),
@@ -39,3 +44,27 @@ a{color:var(--color-accent,#29a3dd)}
 .card,.service-card,.feature-card{background:#0f1626;border:1px solid rgba(255,255,255,.07);
   border-radius:var(--border-radius);box-shadow:var(--shadow);transition:transform .2s,box-shadow .2s}
 .card:hover,.service-card:hover,.feature-card:hover{transform:translateY(-6px);border-color:var(--color-accent,#29a3dd);box-shadow:var(--shadow-lg)}
+
+/* ── The base template was written for light grounds. Where this theme's dark ground (body, or the
+   .card fill above) now sits behind text the base coloured dark, lift that text; where the base
+   keeps a light panel, keep its text dark. ── */
+.service-card .service-content h3,.home-faq h2{color:#fff}
+.home-faq-item{background:#0f1626;border-color:rgba(255,255,255,.07)}
+.home-faq-item summary:hover{background:rgba(255,255,255,.04)}
+.home-faq-item p{color:var(--sx-mut)}
+/* footer links inherit the footer text colour in the base; the a{} rule above made them brand */
+.main-footer a{color:inherit}
+/* blog-post.ejs article body hard-codes dark ink (#333/#111/#1a1a2e) on what is here the dark page */
+.blog-post-page .post-content .prose{color:var(--sx-ink)}
+.blog-post-page .post-content .prose h2,.blog-post-page .post-content .prose strong{color:#fff}
+.blog-post-page .post-content .prose a{color:{{PRIMARY_COLOR_ON_DARK}}}
+/* about.ejs inline styles hard-code dark ink for its unpainted (now dark) sections */
+.about-page .about-content h2,.about-page .about-cta h2{color:#fff}
+.page-hero p{color:inherit} /* page heroes are brand/navy filled: white text, not the muted grey (about, privacy, terms) */
+.about-page .about-content p,.about-page .about-cta p{color:var(--sx-mut)}
+.about-page .about-cta .btn-outline{color:{{PRIMARY_COLOR_ON_DARK}};border-color:{{PRIMARY_COLOR_ON_DARK}}}
+/* contact page: its section keeps the base's light panel (var(--gray-100)) but its text has no
+   rules of its own and inherited this theme's light ink — give it dark ink to match the panel */
+.contact-page .contact-section{color:#1c2333}
+.contact-page .contact-section :where(h1,h2,h3,h4,h5,h6,p,li,address,span,strong,label){color:inherit}
+.contact-page .contact-section a:not(.btn){color:{{PRIMARY_COLOR_ON_WHITE}}}

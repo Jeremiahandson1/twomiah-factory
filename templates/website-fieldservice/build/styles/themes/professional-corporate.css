@@ -30,6 +30,14 @@
   --warm-gray: #78716c;
   --warm-dark: #292524;
   --warm-border: #e7e5e4;
+  /* Readable brand variants. --forest-green / --warm-amber are the RAW brand and
+     accent (a yellow or orange brand reads ~1.8:1 as text on white or under white
+     text). -ink: AA as text on white AND as a fill under white text. -deep: dark
+     enough for the footer/hero's muted white text. */
+  --forest-green-ink: {{PRIMARY_COLOR_ON_WHITE}};
+  --forest-green-deep: color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 65%, #000000);
+  --forest-green-on-dark: {{PRIMARY_COLOR_ON_DARK}};
+  --warm-amber-ink: {{ACCENT_COLOR_ON_LIGHT}};
 }
 
 /* ── Body ── */
@@ -92,12 +100,12 @@ header {
 }
 
 .utility-nav a[href="/visualize"] {
-  color: var(--warm-amber) !important;
+  color: var(--warm-amber-ink) !important;
   font-weight: 800;
 }
 
 .header-phone {
-  color: var(--forest-green) !important;
+  color: var(--forest-green-ink) !important;
   font-family: 'Nunito', sans-serif;
   font-weight: 800;
 }
@@ -112,11 +120,11 @@ header {
 
 /* Services Bar */
 .services-bar {
-  background: var(--forest-green) !important;
+  background: var(--forest-green-ink) !important;
 }
 
 .services-nav ul > li > a {
-  color: rgba(255, 255, 255, 0.9) !important;
+  color: #fff !important;
   font-family: 'Nunito', sans-serif;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -150,12 +158,12 @@ header {
 
 .services-nav .dropdown a:hover {
   background: var(--forest-green-pale) !important;
-  color: var(--forest-green) !important;
+  color: var(--forest-green-ink) !important;
 }
 
 /* Mobile Nav */
 .mobile-nav {
-  background: var(--forest-green) !important;
+  background: var(--forest-green-deep) !important;
 }
 
 .mobile-nav ul > li > a {
@@ -172,7 +180,7 @@ header {
 }
 
 .mobile-nav .dropdown a {
-  color: rgba(255, 255, 255, 0.7) !important;
+  color: rgba(255, 255, 255, 0.8) !important;
 }
 
 /* ── Hero Section ── */
@@ -187,9 +195,9 @@ header {
 .hero-overlay {
   background: linear-gradient(
     160deg,
-    color-mix(in srgb, var(--forest-green) 82%, transparent) 0%,
-    color-mix(in srgb, var(--forest-green-light) 72%, transparent) 50%,
-    color-mix(in srgb, var(--warm-amber) 25%, transparent) 100%
+    color-mix(in srgb, var(--forest-green-deep) 88%, transparent) 0%,
+    color-mix(in srgb, var(--forest-green-deep) 80%, transparent) 50%,
+    color-mix(in srgb, var(--forest-green-ink) 72%, transparent) 100%
   ) !important;
 }
 
@@ -231,7 +239,7 @@ button[type="submit"] {
   text-transform: none;
   border: none;
   transition: all 0.3s ease;
-  background: var(--warm-amber);
+  background: var(--warm-amber-ink);
   color: #fff;
   box-shadow: 0 4px 14px color-mix(in srgb, var(--warm-amber) 25%, transparent);
 }
@@ -242,33 +250,46 @@ button[type="submit"] {
 .hero-cta:hover,
 button[type="submit"]:hover {
   transform: translateY(-2px);
-  background: color-mix(in srgb, {{ACCENT_COLOR}} 82%, #000000);
+  background: color-mix(in srgb, {{ACCENT_COLOR_ON_LIGHT}} 82%, #000000);
   box-shadow: 0 6px 20px color-mix(in srgb, var(--warm-amber) 35%, transparent);
 }
 
+/* Outline buttons are dark-on-light by default (most sit on white/off-white
+   sections) and turn white only inside this theme's dark grounds below. */
 .btn-secondary,
 .btn-outline {
   background: transparent;
-  border: 2px solid #fff;
-  color: #fff;
+  border: 2px solid var(--forest-green-ink);
+  color: var(--forest-green-ink);
   border-radius: 50px;
   box-shadow: none;
 }
 
 .btn-secondary:hover,
 .btn-outline:hover {
+  background: var(--forest-green-ink);
+  color: #fff;
+  border-color: var(--forest-green-ink);
+}
+
+:is(.hero, .hero-section, .hero-video, .service-hero, .service-cta, .cta-section, .cta-banner, .cta-card, footer) :is(.btn-secondary, .btn-outline) {
+  border-color: #fff;
+  color: #fff;
+}
+
+:is(.hero, .hero-section, .hero-video, .service-hero, .service-cta, .cta-section, .cta-banner, .cta-card, footer) :is(.btn-secondary, .btn-outline):hover {
   background: #fff;
-  color: var(--forest-green);
+  color: var(--forest-green-ink);
   border-color: #fff;
 }
 
 .btn-sm {
-  background: var(--forest-green);
+  background: var(--forest-green-ink);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--forest-green) 20%, transparent);
 }
 
 .btn-sm:hover {
-  background: var(--forest-green-light);
+  background: var(--forest-green-deep);
   box-shadow: 0 4px 12px color-mix(in srgb, var(--forest-green) 30%, transparent);
 }
 
@@ -300,7 +321,7 @@ button[type="submit"]:hover {
   font-family: 'Nunito', sans-serif;
   font-weight: 800;
   font-size: 1.2rem;
-  color: var(--forest-green);
+  color: var(--forest-green-ink);
   text-transform: none;
 }
 
@@ -389,7 +410,7 @@ section h2::after {
 /* ── CTA Section ── */
 .cta-section,
 .cta-banner {
-  background: var(--forest-green) !important;
+  background: color-mix(in srgb, var(--forest-green-ink) 85%, #000000) !important;
   border-radius: 16px;
   text-align: center;
   color: #fff;
@@ -435,7 +456,7 @@ section h2::after {
 .footer,
 footer,
 .main-footer {
-  background: var(--forest-green) !important;
+  background: var(--forest-green-deep) !important;
   color: rgba(255, 255, 255, 0.85) !important;
   border-top: none;
 }
@@ -500,11 +521,13 @@ footer p {
   color: var(--warm-amber-light) !important;
 }
 
-.hours {
+.footer .hours,
+footer .hours {
   color: rgba(255, 255, 255, 0.8) !important;
 }
 
-.hours strong {
+.footer .hours strong,
+footer .hours strong {
   color: #fff !important;
 }
 
@@ -575,7 +598,7 @@ form textarea:focus {
 }
 
 .blog-card h3 a {
-  color: var(--forest-green) !important;
+  color: var(--forest-green-ink) !important;
   font-family: 'Nunito', sans-serif;
   font-weight: 800;
 }
@@ -587,7 +610,7 @@ form textarea:focus {
 }
 
 .breadcrumb a {
-  color: var(--forest-green) !important;
+  color: var(--forest-green-ink) !important;
 }
 
 /* ── Responsive ── */
@@ -634,7 +657,7 @@ form textarea:focus {
    fieldservice/landscaping share the contractor .service-hero markup; the theme
    colored headings dark, which vanish on the navy service hero + sidebar CTA. */
 .service-hero h1 { color: #fff !important; }
-.service-hero .hero-tagline { color: var(--gold, #d4a84b) !important; }
+.service-hero .hero-tagline { color: color-mix(in srgb, var(--forest-green-on-dark) 40%, #ffffff) !important; }
 .service-hero .hero-description,
 .service-hero .hero-copy p,
 .service-hero p { color: rgba(255, 255, 255, 0.92) !important; }
@@ -649,6 +672,7 @@ form textarea:focus {
    dark-overlaid photo. The theme's global/section heading color (navy, slate,
    ink) is unreadable there, and only h1 was overridden — the h2 subtitle
    inherited the dark color. Every hero heading level must stay light. ════════ */
+.hero-video h1,
 .hero h2,
 .hero-section h2,
 .hero-video h2 {
@@ -659,4 +683,14 @@ form textarea:focus {
 .hero-section h2::after,
 .hero-video h2::after {
   content: none;
+}
+/* The homepage .hero-video copy sits on the dark brand overlay: the theme's
+   global p colour (#57534e) made the description dark-on-dark, and the tagline
+   took the raw brand colour (public-pages .hero-tagline) — unreadable for light
+   brands. */
+.hero-video-content .hero-awards {
+  color: rgba(255, 255, 255, 0.92);
+}
+.hero-video-content .hero-tagline {
+  color: var(--forest-green-on-dark);
 }

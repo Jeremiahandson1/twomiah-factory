@@ -210,7 +210,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 }
 
 .top-bar-links a:hover {
-  color: var(--gold);
+  color: {{PRIMARY_COLOR_ON_DARK}};
 }
 
 .top-bar-contact {
@@ -230,7 +230,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 }
 
 .top-bar-contact a:hover {
-  color: var(--gold);
+  color: {{PRIMARY_COLOR_ON_DARK}};
 }
 
 /* ========== MAIN HEADER ========== */
@@ -1091,7 +1091,8 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 }
 
 .badge-info .stars {
-  color: var(--gold);
+  /* brand as text on the white trust strip: the darkened-for-white variant */
+  color: {{PRIMARY_COLOR_ON_WHITE}};
   font-weight: 600;
   font-size: 1rem;
 }
@@ -1386,7 +1387,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
   text-transform: uppercase;
   letter-spacing: 1px;
   margin-bottom: 20px;
-  color: var(--gold);
+  color: {{PRIMARY_COLOR_ON_DARK}};
 }
 
 .footer-col ul li {
@@ -1401,7 +1402,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 .footer-col ul a:hover {
   opacity: 1;
-  color: var(--gold);
+  color: {{PRIMARY_COLOR_ON_DARK}};
 }
 
 .contact-list li {
@@ -1426,7 +1427,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
   display: block;
   margin-bottom: 5px;
   font-size: 13px;
-  color: var(--gold);
+  color: {{PRIMARY_COLOR_ON_DARK}};
 }
 
 .hours span {
@@ -1708,7 +1709,8 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 .service-hero .back-link {
   display: inline-block;
-  color: var(--gold);
+  /* mid-dark ground (photo/brand overlay), not near-black: tint ON_DARK toward white */
+  color: color-mix(in srgb, {{PRIMARY_COLOR_ON_DARK}} 35%, #fff);
   margin-bottom: 20px;
   font-weight: 600;
 }
@@ -1719,7 +1721,8 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 .service-hero .tagline {
   font-size: 1.3rem;
-  color: var(--gold);
+  /* mid-dark ground (photo/brand overlay), not near-black: tint ON_DARK toward white */
+  color: color-mix(in srgb, {{PRIMARY_COLOR_ON_DARK}} 35%, #fff);
   margin-bottom: 20px;
 }
 

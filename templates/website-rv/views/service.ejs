@@ -158,7 +158,7 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
               <div class="offerings-grid">
                 <% service.offerings.forEach(function(offering, index) { %>
                   <div class="offering-card">
-                    <div class="offering-number"><%= String(index + 1).padStart(2, '0') %></div>
+                    <div class="offering-number" aria-hidden="true"><%= String(index + 1).padStart(2, '0') %></div>
                     <h3><%= offering.title %></h3>
                     <p><%= offering.description %></p>
                   </div>

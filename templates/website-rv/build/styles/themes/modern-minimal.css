@@ -208,7 +208,7 @@ p {
 }
 
 .mobile-nav .mobile-section-label {
-  color: var(--mm-text-light) !important;
+  color: var(--mm-text-muted) !important;
   font-family: 'DM Sans', sans-serif;
   font-weight: 500;
 }
@@ -238,7 +238,9 @@ p {
 .hero::after,
 .hero-section::after,
 .hero-overlay {
-  background: rgba(0, 0, 0, 0.15) !important;
+  /* A 15% veil left white hero text unreadable on bright photos (sky, siding).
+     Still a neutral, photo-forward scrim, just deep enough for the copy. */
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.58) 100%) !important;
 }
 
 .hero h1,
@@ -261,9 +263,9 @@ p {
   font-family: 'DM Sans', sans-serif;
   font-weight: 400;
   font-size: 1.1rem;
-  opacity: 0.88;
+  opacity: 1;
   max-width: 480px;
-  color: rgba(255, 255, 255, 0.88);
+  color: rgba(255, 255, 255, 0.92);
   text-transform: none;
   letter-spacing: 0;
   line-height: 1.6;
@@ -517,6 +519,14 @@ section h2 + p {
   color: var(--mm-text);
 }
 
+/* Base styles paint the testimonials as a navy band with white text; this theme
+   repaints the band and the card light, so the text goes dark with it. */
+.testimonials-section h2 { color: var(--mm-text); }
+.testimonial-content blockquote { color: var(--mm-text); }
+.testimonial-stars { color: var(--mm-text); }
+.testimonial-author strong { color: var(--mm-text); }
+.testimonial-author span { color: #555; }
+
 /* ── CTA Section ───────────────────────────────────────── */
 .cta-section,
 .cta-banner {
@@ -647,13 +657,13 @@ footer h4 {
 }
 
 .main-footer p {
-  color: var(--mm-text-muted);
+  color: #555;
   font-size: 0.9rem;
 }
 
 .footer a,
 footer a {
-  color: var(--mm-text-muted) !important;
+  color: #555 !important;
   text-decoration: none;
   font-family: 'DM Sans', sans-serif;
   font-size: 0.88rem;
@@ -682,7 +692,7 @@ footer a:hover {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  color: var(--mm-text-muted);
+  color: #555;
   font-size: 0.9rem;
 }
 
@@ -695,7 +705,7 @@ footer a:hover {
 .main-footer .hours {
   margin-top: 14px;
   font-size: 0.88rem;
-  color: var(--mm-text-light);
+  color: #555;
 }
 
 .main-footer .hours strong {
@@ -712,7 +722,7 @@ footer a:hover {
 }
 
 .footer-bottom p {
-  color: var(--mm-text-light);
+  color: #595959;
 }
 
 /* ── Trust / Brand Bar ─────────────────────────────────── */

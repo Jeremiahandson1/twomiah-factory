@@ -172,7 +172,7 @@ const otherPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   flex-wrap: wrap;
 }
 .post-category {
-  background: var(--accent, #c8963e);
+  background: color-mix(in srgb, var(--accent, #c8963e) 70%, #000);
   color: white;
   padding: 4px 12px;
   border-radius: 20px;
@@ -200,15 +200,16 @@ const otherPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   gap: 50px;
   align-items: start;
 }
+/* The article body sits on the THEME's page ground (dark in two of three themes): take the theme's
+   text colours rather than fixed dark ink (#333/#111/#1a1a2e measured ~1:1 there). */
 .post-content .prose {
   font-size: 1.05rem;
   line-height: 1.8;
-  color: #333;
+  color: inherit; /* not public-pages .prose (#475569, a light-page grey) */
 }
 .post-content .prose h2 {
   font-family: 'Bebas Neue', sans-serif;
   font-size: 1.8rem;
-  color: var(--dark-bg, #1a1a2e);
   margin-top: 40px;
   margin-bottom: 16px;
 }
@@ -228,7 +229,8 @@ const otherPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   margin-bottom: 8px;
   line-height: 1.6;
 }
-.post-content .prose strong { color: #111; }
+.post-content .prose strong { color: inherit; }
+.post-content .prose h2, .post-content .prose h3, .post-content .prose h4 { color: inherit; } /* beats public-pages .prose h2 (#1e293b) */
 .post-featured-image {
   margin-bottom: 30px;
   border-radius: 12px;
@@ -320,7 +322,7 @@ const otherPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   transition: color 0.15s;
 }
 .sidebar-services li:last-child a { border-bottom: none; }
-.sidebar-services li a:hover { color: var(--accent, #c8963e); }
+.sidebar-services li a:hover { color: color-mix(in srgb, var(--accent, #c8963e) 70%, #000); }
 .sidebar-services li a svg { margin-left: auto; opacity: 0.4; }
 .service-icon-small { font-size: 1.2rem; }
 
@@ -356,7 +358,7 @@ const otherPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   box-shadow: 0 6px 20px rgba(0,0,0,0.1);
 }
 .more-post-category {
-  background: var(--accent, #c8963e);
+  background: color-mix(in srgb, var(--accent, #c8963e) 70%, #000);
   color: white;
   padding: 3px 10px;
   border-radius: 12px;
@@ -380,7 +382,7 @@ const otherPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   flex: 1;
 }
 .more-post-card .blog-read-more {
-  color: var(--accent, #c8963e);
+  color: color-mix(in srgb, var(--accent, #c8963e) 70%, #000);
   font-weight: 600;
   font-size: 0.85rem;
   margin-top: 14px;

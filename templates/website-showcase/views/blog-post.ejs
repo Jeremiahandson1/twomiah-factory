@@ -193,6 +193,9 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
 </div>
 
 <style>
+/* The gold accent (--accent is not defined by this template, so it is always the #c8963e fallback)
+   measured 2.66:1 against white; where it fills under white text or is text on white it is
+   darkened 30% (5.0:1). On the dark sidebar it stays as is. */
 .blog-post-page .post-hero {
   background: var(--dark-bg, #1a1a2e);
   color: white;
@@ -216,7 +219,7 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   flex-wrap: wrap;
 }
 .post-category {
-  background: var(--accent, #c8963e);
+  background: color-mix(in srgb, var(--accent, #c8963e) 70%, #000);
   color: white;
   padding: 4px 12px;
   border-radius: 20px;
@@ -260,7 +263,7 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   margin-bottom: 18px;
 }
 .post-content .prose a {
-  color: var(--accent, #c8963e);
+  color: color-mix(in srgb, var(--accent, #c8963e) 70%, #000);
   font-weight: 500;
 }
 .post-content .prose a:hover { text-decoration: underline; }
@@ -364,7 +367,7 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   transition: color 0.15s;
 }
 .sidebar-services li:last-child a { border-bottom: none; }
-.sidebar-services li a:hover { color: var(--accent, #c8963e); }
+.sidebar-services li a:hover { color: color-mix(in srgb, var(--accent, #c8963e) 70%, #000); }
 .sidebar-services li a svg { margin-left: auto; opacity: 0.4; }
 .service-icon-small { font-size: 1.2rem; }
 
@@ -400,7 +403,7 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   box-shadow: 0 6px 20px rgba(0,0,0,0.1);
 }
 .more-post-category {
-  background: var(--accent, #c8963e);
+  background: color-mix(in srgb, var(--accent, #c8963e) 70%, #000);
   color: white;
   padding: 3px 10px;
   border-radius: 12px;
@@ -424,7 +427,7 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   flex: 1;
 }
 .more-post-card .blog-read-more {
-  color: var(--accent, #c8963e);
+  color: color-mix(in srgb, var(--accent, #c8963e) 70%, #000);
   font-weight: 600;
   font-size: 0.85rem;
   margin-top: 14px;
@@ -446,6 +449,7 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   opacity: 0.85;
   margin-bottom: 24px;
 }
+.post-bottom-cta .btn-outline { color: #fff; border-color: #fff; background: transparent; }
 
 @media (max-width: 900px) {
   .post-layout {

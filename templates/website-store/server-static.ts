@@ -178,9 +178,7 @@ type SeoEntry = { path: string; title: string; summary?: string; group: string }
 async function seoEntries(): Promise<SeoEntry[]> {
   const out: SeoEntry[] = []
   for (const [p, view, label] of SEO_PAGES) if (servesPage(p, view)) out.push({ path: p, title: label, group: 'Pages' })
-  if (servesPage('/services/:slug', 'service')) {
-    for (const s of loadJSON('services.json') || []) if (s && s.slug && s.visible !== false) out.push({ path: '/services/' + s.slug, title: s.name || s.slug, summary: s.shortDescription, group: 'Services' })
-  }
+  // No /services/:slug entries: a store redirects every /services URL to /shop.
   if (servesPage('/product/:slug', 'product')) {
     const data = await fetchStore('/api/public/products')
     for (const pr of (data && Array.isArray(data.products) ? data.products : [])) if (pr && pr.slug) out.push({ path: '/product/' + pr.slug, title: pr.name || pr.slug, summary: pr.tagline, group: 'Products' })

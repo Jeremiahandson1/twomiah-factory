@@ -27,13 +27,13 @@
   --sw-darker: #080808;
   --sw-white: #ffffff;
   --sw-off-white: #f0f0f0;
-  --sw-neon: {{PRIMARY_COLOR}};
+  --sw-neon: {{PRIMARY_COLOR_ON_DARK}}; /* neon is text on black and a fill under black text: the brand lightened for near-black serves both (a dark brand measured 1.4:1) */
   --sw-neon-dim: color-mix(in srgb, {{PRIMARY_COLOR}} 60%, transparent);
   --sw-neon-glow: color-mix(in srgb, {{PRIMARY_COLOR}} 15%, transparent);
   --sw-pink: {{ACCENT_COLOR}};
   --sw-pink-glow: color-mix(in srgb, {{ACCENT_COLOR}} 15%, transparent);
   --sw-text: #e0e0e0;
-  --sw-text-muted: #777777;
+  --sw-text-muted: #8c8c8c; /* #777 measured 4.0:1 on the black footer/header */
   --sw-border: rgba(255, 255, 255, 0.12);
   --sw-border-thick: rgba(255, 255, 255, 0.9);
 }
@@ -244,7 +244,9 @@ a {
 /* ── Buttons ── */
 .btn-primary,
 button[type="submit"] {
-  background: var(--sw-neon) !important;
+  /* black label: the brand lightened to read 4.5:1 on near-black also reads >5:1 under black
+     (raw dark brands measured 1.65:1) */
+  background: {{PRIMARY_COLOR_ON_DARK}} !important;
   color: var(--sw-black) !important;
   border: none !important;
   border-radius: 0 !important;
@@ -592,7 +594,7 @@ button[type="submit"]:hover {
 }
 
 .cta-section p {
-  color: var(--sw-text-muted) !important;
+  color: #c4c4c4 !important; /* the muted grey measured 3.4:1 over the CTA's green aurora */
 }
 
 /* ── FAQ Section ── */
@@ -909,7 +911,7 @@ a, button, .btn, .card, .service-card {
 
 /* ── Live Status ── */
 .live-status {
-  color: var(--sw-neon) !important;
+  color: {{PRIMARY_COLOR_ON_DARK}} !important;
   font-family: 'Barlow', sans-serif;
   font-weight: 700;
   text-transform: uppercase;
@@ -929,3 +931,10 @@ a, button, .btn, .card, .service-card {
     font-size: 2rem;
   }
 }
+
+/* the magnetic button wraps its label in a span; the global span colour must not override it */
+.btn-primary .btn-text { color: inherit; }
+
+/* The base form card is var(--white); this theme sets white headings/labels inside it. Give the card
+   the theme's own dark surface (measured 1.0:1 white-on-white in the light colour scheme). */
+.contact-form-container { background: var(--sw-dark); border: 1px solid var(--sw-border); }
