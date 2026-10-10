@@ -1,8 +1,16 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import api, { User } from '../services/api'
 
+/**
+ * `permissions` — what this person may do, as the server answered it on /login and /me.
+ *
+ * Every store screen decided on `role === 'owner'`, which is why the store could only ever have an
+ * owner and everybody else. The shared PermissionsProvider reads exactly `{ user, permissions }`, so
+ * App.tsx mounts it with these and `useMayWrite` / `usePermissions` answer on every screen.
+ */
 type AuthValue = {
   user: User | null
+  permissions: string[] | null
   loading: boolean
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<void>
@@ -13,12 +21,13 @@ const AuthContext = createContext<AuthValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
+  const [permissions, setPermissions] = useState<string[] | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!api.hasToken) { setLoading(false); return }
     api.getMe()
-      .then(setUser)
+      .then((s) => { setUser(s.user); setPermissions(s.permissions) })
       .catch((err) => {
         const e = err as { status?: number; isTransient?: boolean }
         const isTransient = e?.isTransient === true || e?.status === 0 || (typeof e?.status === 'number' && e.status >= 500)
@@ -31,16 +40,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const login = async (email: string, password: string) => {
-    const u = await api.login(email, password)
-    setUser(u)
+    const s = await api.login(email, password)
+    setUser(s.user)
+    setPermissions(s.permissions)
   }
   const logout = async () => {
     await api.logout()
     setUser(null)
+    setPermissions(null)
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, isAuthenticated: !!user, login, logout }}>
+    <AuthContext.Provider value={{ user, permissions, loading, isAuthenticated: !!user, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

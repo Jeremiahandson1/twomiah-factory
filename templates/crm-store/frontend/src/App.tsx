@@ -20,9 +20,21 @@ import LoyaltyPage from './pages/LoyaltyPage'
 import SettingsPage from './pages/SettingsPage'
 import OnboardingWizard from './pages/OnboardingWizard'
 import ContactSupportPage from './pages/support/ContactSupportPage'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import api from './services/api'
-import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage } from './shared'
+import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage, PermissionsProvider } from './shared'
+
+/**
+ * What the signed-in person may do, made askable on every screen.
+ *
+ * The store forks the auth context, so the shared provider is handed the values instead of reading
+ * them itself — the same bridge crm-roof uses. Inside AuthProvider and ABOVE the routes, so every
+ * screen, the store's own and the shared ones (Email, Google Reviews), is under it.
+ */
+function StorePermissions({ children }: { children: ReactNode }) {
+  const { user, permissions } = useAuth()
+  return <PermissionsProvider role={user?.role ?? null} permissions={permissions}>{children}</PermissionsProvider>
+}
 
 function Protected({ children }: { children: JSX.Element }) {
   const { isAuthenticated, loading } = useAuth()
@@ -63,6 +75,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <StorePermissions>
         <ToastProvider>
           <Routes>
             <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
@@ -94,6 +107,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ToastProvider>
+        </StorePermissions>
       </AuthProvider>
     </BrowserRouter>
   )

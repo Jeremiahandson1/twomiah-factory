@@ -124,8 +124,8 @@ const MOUNT_GUARD = /app\.use\('\*',[^)\n]*require(Admin|Owner|Role|Permission|A
  *
  * crm-store inboundMessages is a different argument. The other ten verticals put the WHOLE module
  * behind requireAdmin — inbox and reply together — because branded email is an owner-configured
- * surface there. crm-store has two roles, owner and staff, and no admin tier at all; its staff role
- * exists to do the work, and answering the customer email that came in IS the work. The template
+ * surface there. crm-store has owner, manager and staff and no admin tier at all; its manager and
+ * staff seats exist to do the work, and answering the customer email that came in IS the work. The template
  * opens the inbox to staff for reading, so refusing them the reply would leave a read-only inbox for
  * the only people who use it. Gate the whole module or none of it; store chose none, on purpose.
  */

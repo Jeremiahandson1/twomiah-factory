@@ -6,9 +6,22 @@ import { db } from '../../db/index.ts'
 import { users, storeSettings } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { getPermissions, getExtraPermissions } from '../middleware/permissions.ts'
 import { sendPasswordReset } from '../services/email.ts'
 
 const auth = new Hono()
+
+/**
+ * What this person may do, on /login and /me, so the screens can ask the server's own matrix instead of
+ * guessing from the role name. The store's screens decided everything on `role === 'owner'`, which is
+ * why a third seat could not exist. Same shape as the shared auth module's effectivePermissions.
+ */
+const effectivePermissions = async (userId: string, role: string): Promise<string[]> => {
+  const base = getPermissions(role)
+  if (base.includes('*')) return base
+  const extra = (await getExtraPermissions(userId)) || []
+  return Array.from(new Set([...base, ...extra]))
+}
 
 const generateTokens = (userId: string, email: string, role: string) => ({
   accessToken: jwt.sign({ userId, email, role }, process.env.JWT_SECRET!, { expiresIn: '15m' }),
@@ -74,6 +87,7 @@ auth.post('/login', async (c) => {
   return c.json({
     ...tokens,
     user: { id: u.id, email: u.email, name: u.name, role: u.role },
+    permissions: await effectivePermissions(u.id, u.role),
   })
 })
 
@@ -114,7 +128,7 @@ auth.get('/me', authenticate, async (c) => {
     id: users.id, email: users.email, name: users.name, role: users.role,
   }).from(users).where(eq(users.id, u.userId)).limit(1)
   if (!found) return c.json({ error: 'Not found' }, 404)
-  return c.json({ user: found })
+  return c.json({ user: found, permissions: await effectivePermissions(found.id, found.role) })
 })
 
 const passwordSchema = z.object({

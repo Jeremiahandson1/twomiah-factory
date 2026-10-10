@@ -4,12 +4,25 @@ import { ArrowLeft } from 'lucide-react'
 import api, { Order, type RateQuote } from '../services/api'
 import { useToast } from '../contexts/ToastContext'
 import { money, formatDate, statusColor } from '../lib/format'
+import { usePermissions } from '../shared'
 
 const NEXT_STATUS: Record<string, string[]> = {
   paid: ['fulfilled', 'shipped', 'cancelled', 'refunded'],
   fulfilled: ['shipped', 'refunded'],
   shipped: ['delivered', 'refunded'],
   delivered: ['refunded'],
+}
+
+// The server's rule (backend routes/orders.ts isFulfilment), so the buttons offered are the ones it
+// accepts: moving a PAID order along the floor is orders:update, which staff hold; anything that changes
+// whether it was paid for — cancel, refund, shipping an unpaid order — is orders:refund.
+const COUNTED = ['paid', 'fulfilled', 'shipped', 'delivered']
+const FULFILMENT = ['fulfilled', 'shipped', 'delivered']
+const moveNeeds = (from: string, to: string) => (COUNTED.includes(from) && FULFILMENT.includes(to)) ? 'orders:update' : 'orders:refund'
+/** Offer the control unless the permission list has arrived and says no. */
+function useMay() {
+  const { known, can } = usePermissions()
+  return (permission: string) => !known || can(permission)
 }
 
 export default function OrderDetailPage() {
@@ -20,6 +33,7 @@ export default function OrderDetailPage() {
   const [carrier, setCarrier] = useState('')
   const [tracking, setTracking] = useState('')
   const [note, setNote] = useState('')
+  const may = useMay()
 
   const load = () => api.getOrder(id!).then((o) => {
     setOrder(o); setCarrier(o.trackingCarrier || ''); setTracking(o.trackingNumber || ''); setNote(o.internalNote || '')
@@ -54,10 +68,10 @@ export default function OrderDetailPage() {
         <span className={`rounded-full px-3 py-1 text-sm font-medium ${statusColor(order.status)}`}>{order.status}</span>
       </div>
 
-      {/* Status actions */}
-      {NEXT_STATUS[order.status]?.length > 0 && (
+      {/* Status actions — only the moves this person may make */}
+      {(NEXT_STATUS[order.status] || []).some((s) => may(moveNeeds(order.status, s))) && (
         <div className="card p-4 flex flex-wrap gap-2">
-          {NEXT_STATUS[order.status].map((s) => (
+          {NEXT_STATUS[order.status].filter((s) => may(moveNeeds(order.status, s))).map((s) => (
             <button key={s} onClick={() => setStatus(s)} className="btn-secondary text-xs capitalize">Mark {s}</button>
           ))}
         </div>
@@ -106,7 +120,8 @@ export default function OrderDetailPage() {
               {order.supplierCostCents != null && <div>Supplier cost: ${(order.supplierCostCents / 100).toFixed(2)} <span className="text-gray-400">(margin ${((order.totalCents - order.supplierCostCents) / 100).toFixed(2)})</span></div>}
               {order.supplierError && <div className="text-red-600 text-xs dark:text-red-400">{order.supplierError}</div>}
             </div>
-            {!order.supplierOrderId && (
+            {/* Forwarding and holding run on the supplier connection — the owner's (integrations:update). */}
+            {!order.supplierOrderId && may('integrations:update') && (
               <div className="flex gap-2 mt-3">
                 <button className="btn-primary text-xs" onClick={async () => { try { const r: any = await api.forwardOrderToSupplier(order.id); toast(r?.ok ? 'Sent to supplier' : (r?.note || 'Could not forward'), r?.ok ? undefined : 'error'); load() } catch (e: any) { toast(e?.message || 'Could not forward', 'error') } }}>Send to supplier now</button>
                 {order.supplierStatus !== 'hold' && <button className="btn-secondary text-xs" onClick={async () => { await api.holdSupplierOrder(order.id); toast('Held — will not auto-forward'); load() }}>Hold</button>}
@@ -136,10 +151,14 @@ export default function OrderDetailPage() {
           <div><label className="label">Tracking number</label><input className="input" value={tracking} onChange={(e) => setTracking(e.target.value)} /></div>
         </div>
         <div><label className="label">Internal note</label><textarea className="input" value={note} onChange={(e) => setNote(e.target.value)} /></div>
-        <div className="flex gap-2">
-          <button onClick={() => saveFulfillment(false)} className="btn-secondary">Save</button>
-          <button onClick={() => saveFulfillment(true)} className="btn-primary">Save & mark shipped</button>
-        </div>
+        {may('orders:update') && (
+          <div className="flex gap-2">
+            <button onClick={() => saveFulfillment(false)} className="btn-secondary">Save</button>
+            {may(moveNeeds(order.status, 'shipped')) && (
+              <button onClick={() => saveFulfillment(true)} className="btn-primary">Save & mark shipped</button>
+            )}
+          </div>
+        )}
       </div>
       {/* Shipping label */}
       <LabelPanel orderId={id!} order={order} onBought={load} />
@@ -154,6 +173,9 @@ function LabelPanel({ orderId, order, onBought }: { orderId: string; order: Orde
   const [connected, setConnected] = useState<boolean | null>(null)
   const [rates, setRates] = useState<RateQuote[] | null>(null)
   const [busy, setBusy] = useState(false)
+  const may = useMay()
+  // Buying marks the order shipped, so it is the same move as "Mark shipped" (backend routes/shipping.ts).
+  const mayBuy = may('shipping:label') && may(moveNeeds(order.status, 'shipped'))
 
   useEffect(() => {
     api.shippingConfig().then((c) => setConnected(c.connected)).catch(() => setConnected(false))
@@ -200,6 +222,8 @@ function LabelPanel({ orderId, order, onBought }: { orderId: string; order: Orde
         </div>
       ) : !order.shippingAddress ? (
         <p className="text-sm text-gray-500 dark:text-slate-400">This order has no shipping address, so a label cannot be bought.</p>
+      ) : !mayBuy ? (
+        <p className="text-sm text-gray-500 dark:text-slate-400">This order is not paid, so shipping it is for a manager or the owner.</p>
       ) : (
         <>
           {!rates ? (

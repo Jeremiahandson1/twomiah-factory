@@ -92,7 +92,9 @@ for (const tpl of templates) {
    * direct <TwoFactorCard> in the template's own page. A template with its OWN settings page and no
    * card does not offer two-factor and is not required to mount it.
    */
-  const viaShared = /from '\.\.\/shared'/.test(sp)
+  // The shared SettingsPage BY NAME, not any import from ../shared: crm-store's own settings page imports
+  // the permission hooks from there (useMayWrite, useKnownPermission) and was read as rendering the card.
+  const viaShared = /import\s*\{[^}]*\bSettingsPage\b[^}]*\}\s*from '\.\.\/shared'/.test(sp)
   const direct = /TwoFactorCard/.test(strip(sp))
   if (!viaShared && !direct) { consistent.push(`${tpl} (own settings page, no card)`); continue }
   offers.push(tpl)

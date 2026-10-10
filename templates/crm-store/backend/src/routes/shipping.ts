@@ -9,11 +9,14 @@ import { eq } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { encryptJSON } from '../lib/crypto.ts'
 import { getActiveShipping, DEFAULT_PARCEL } from '../shipping/index.ts'
-import { notifyShipped } from './orders.ts'
+import { notifyShipped, orderForCaller, isFulfilment, refundRefusal, may } from './orders.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import logger from '../services/logger.ts'
 
 const admin = new Hono()
-admin.use('*', authenticate)
+// Reading the carrier set-up and buying a label for an order is the packing bench (shipping:label,
+// staff); connecting, replacing or disconnecting the carrier account is shipping:configure, the manager's.
+admin.use('*', authenticate, requirePermission('shipping:read'))
 
 const addressSchema = z.object({
   name: z.string().optional(),
@@ -54,7 +57,7 @@ const connectSchema = z.object({
   defaultParcel: parcelSchema.optional(),
 })
 
-admin.post('/config', async (c) => {
+admin.post('/config', requirePermission('shipping:configure'), async (c) => {
   const parsed = connectSchema.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'Provide an API key and a valid ship-from address' }, 400)
 
@@ -74,7 +77,7 @@ admin.post('/config', async (c) => {
   return c.json({ ok: true, connected: true })
 })
 
-admin.delete('/config', async (c) => {
+admin.delete('/config', requirePermission('shipping:configure'), async (c) => {
   const [existing] = await db.select().from(shippingConfig).limit(1)
   if (existing) {
     await db.update(shippingConfig)
@@ -85,7 +88,7 @@ admin.delete('/config', async (c) => {
 })
 
 /** Quotes for one order, so the merchant can see the price before buying. */
-admin.get('/orders/:id/rates', async (c) => {
+admin.get('/orders/:id/rates', requirePermission('shipping:label'), async (c) => {
   const active = await getActiveShipping()
   if (!active) return c.json({ error: 'No carrier account connected' }, 400)
 
@@ -107,7 +110,7 @@ admin.get('/orders/:id/rates', async (c) => {
 
 const buySchema = z.object({ rateId: z.string().optional(), markShipped: z.boolean().default(true) })
 
-admin.post('/orders/:id/label', async (c) => {
+admin.post('/orders/:id/label', requirePermission('shipping:label'), async (c) => {
   const active = await getActiveShipping()
   if (!active) return c.json({ error: 'No carrier account connected' }, 400)
 
@@ -118,6 +121,9 @@ admin.post('/orders/:id/label', async (c) => {
   if (!order) return c.json({ error: 'Order not found' }, 404)
   if (!order.shippingAddress) return c.json({ error: 'This order has no shipping address' }, 400)
   if (order.labelUrl) return c.json({ error: 'A label has already been bought for this order' }, 400)
+  // Marking it shipped is a status change, and orders.ts's rule applies: an order nobody paid for is
+  // not shipped from the packing bench.
+  if (body.markShipped && !isFulfilment(order.status, 'shipped') && !may(c, 'orders:refund')) return refundRefusal(c)
 
   try {
     const label = await active.provider.buyLabel({
@@ -141,7 +147,7 @@ admin.post('/orders/:id/label', async (c) => {
     const [updated] = await db.update(orders).set(patch).where(eq(orders.id, order.id)).returning()
     if (body.markShipped && order.status !== 'shipped') void notifyShipped(updated)
 
-    return c.json({ label, order: updated })
+    return c.json({ label, order: orderForCaller(c, updated) })
   } catch (err: any) {
     logger.error('label purchase failed', { orderId: order.id, error: err?.message })
     return c.json({ error: err?.message || 'Could not buy that label' }, 502)

@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AtSign, Globe, Inbox } from 'lucide-react'
-import api, { StoreSettings, StoreUser } from '../services/api'
+import api, { StoreSettings, StoreUser, type AssignableRole } from '../services/api'
 import { useToast } from '../contexts/ToastContext'
 import { useAuth } from '../contexts/AuthContext'
 import { centsToDollars, dollarsToCents } from '../lib/format'
+import { useMayWrite, useKnownPermission } from '../shared'
+
+// What each seat is for, said where the owner picks it. The rules themselves are the backend's
+// middleware/permissions.ts; this is the one-line version a shopkeeper reads.
+const ROLE_OPTIONS: { value: AssignableRole; label: string; hint: string }[] = [
+  { value: 'staff', label: 'Staff', hint: 'Packs and ships orders, adds and edits products, answers reviews.' },
+  { value: 'manager', label: 'Manager', hint: 'Everything staff do, plus refunds and cancellations, discount codes, shipping set-up, deleting products and the loyalty programme.' },
+]
 
 export default function SettingsPage() {
   const navigate = useNavigate()
@@ -18,25 +26,40 @@ export default function SettingsPage() {
   const [pw, setPw] = useState({ current: '', next: '' })
   const [pwSaving, setPwSaving] = useState(false)
 
-  // Staff logins. Nothing in this app could create a second login before, so a
+  // Team logins. Nothing in this app could create a second login before, so a
   // store on a seat-based plan was permanently a one-person account.
+  //
+  // Each control asks the permission its route asks (backend routes/settings.ts, routes/users.ts),
+  // instead of `role === 'owner'` — the rank check that kept the store at two roles.
   const { user } = useAuth()
-  const isOwner = user?.role === 'owner'
+  const maySaveSettings = useMayWrite('settings:update')
+  // null until the list arrives: the team list is fetched on a real yes, never on a guess.
+  const mayManageTeam = useKnownPermission('users:read')
   const [staff, setStaff] = useState<StoreUser[]>([])
-  const [newStaff, setNewStaff] = useState({ name: '', email: '', password: '' })
+  const [newStaff, setNewStaff] = useState<{ name: string; email: string; password: string; role: AssignableRole }>({ name: '', email: '', password: '', role: 'staff' })
   const [addingStaff, setAddingStaff] = useState(false)
 
   const loadStaff = () => {
-    if (!isOwner) return
+    if (mayManageTeam !== true) return
     api.listUsers().then(setStaff).catch(() => { /* non-fatal: the rest of Settings still works */ })
   }
-  useEffect(loadStaff, [isOwner])
+  useEffect(loadStaff, [mayManageTeam])
+
+  const changeRole = async (u: StoreUser, role: AssignableRole) => {
+    try {
+      await api.updateUser(u.id, { role })
+      toast(`${u.name || u.email} is now ${role === 'manager' ? 'a manager' : 'staff'}`)
+      loadStaff()
+    } catch (e: any) {
+      toast(e?.message || 'Could not change the role', 'error')
+    }
+  }
 
   // Revoke = deactivate, never delete: orders and fulfilment history reference
   // the user. Until now a departing employee kept full access to products,
   // orders, customers and payments with no way to remove them.
   const toggleStaffAccess = async (id: string, currentlyActive: boolean) => {
-    if (currentlyActive && !confirm('Revoke access for this staff member? They will not be able to sign in.')) return
+    if (currentlyActive && !confirm('Revoke access for this team member? They will not be able to sign in.')) return
     try {
       await api.updateUser(id, { isActive: !currentlyActive })
       toast(currentlyActive ? 'Access revoked' : 'Access restored')
@@ -50,11 +73,11 @@ export default function SettingsPage() {
     setAddingStaff(true)
     try {
       await api.createUser(newStaff)
-      toast('Staff member added')
-      setNewStaff({ name: '', email: '', password: '' })
+      toast(newStaff.role === 'manager' ? 'Manager added' : 'Staff member added')
+      setNewStaff({ name: '', email: '', password: '', role: 'staff' })
       loadStaff()
     } catch (e: any) {
-      toast(e?.message || 'Could not add the staff member', 'error')
+      toast(e?.message || 'Could not add the team member', 'error')
     } finally { setAddingStaff(false) }
   }
 
@@ -179,17 +202,19 @@ export default function SettingsPage() {
             <div className="col-span-1"><button onClick={() => delTax(i)} className="text-red-600 text-sm pb-2 dark:text-red-400">✕</button></div>
           </div>
         ))}
-        {/* Store settings are owner-level on the server (PATCH /api/admin/settings requires owner), so
-            the control says so here rather than letting staff fill the form and collect a 403. */}
-        <button onClick={save} className="btn-primary mt-2" disabled={saving || !isOwner} title={isOwner ? undefined : 'Only the store owner can change these settings'}>{saving ? 'Saving…' : 'Save settings'}</button>
-        {!isOwner && <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Only the store owner can change these settings.</p>}
+        {/* Store settings are settings:update on the server (PATCH /api/admin/settings) — the owner's, a
+            shop having no admin seat — so the control says so here rather than collecting a 403. */}
+        <button onClick={save} className="btn-primary mt-2" disabled={saving || !maySaveSettings} title={maySaveSettings ? undefined : 'Only the store owner can change these settings'}>{saving ? 'Saving…' : 'Save settings'}</button>
+        {!maySaveSettings && <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Only the store owner can change these settings.</p>}
       </div>
 
       <div className="card p-5 space-y-3">
         <h2 className="font-semibold text-gray-900 dark:text-slate-100">Email</h2>
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => navigate('/settings/email')} className="btn-secondary text-sm inline-flex items-center gap-1.5"><AtSign className="h-4 w-4" /> Branded Email</button>
-          <button onClick={() => navigate('/settings/email-domain')} className="btn-secondary text-sm inline-flex items-center gap-1.5"><Globe className="h-4 w-4" /> Email Domain</button>
+          {/* Branded addresses and the sending domain are store configuration (settings:update, as
+              routes/emailAliases.ts asks); the inbox is everyone's — answering a customer is the work. */}
+          {maySaveSettings && <button onClick={() => navigate('/settings/email')} className="btn-secondary text-sm inline-flex items-center gap-1.5"><AtSign className="h-4 w-4" /> Branded Email</button>}
+          {maySaveSettings && <button onClick={() => navigate('/settings/email-domain')} className="btn-secondary text-sm inline-flex items-center gap-1.5"><Globe className="h-4 w-4" /> Email Domain</button>}
           <button onClick={() => navigate('/settings/email-inbox')} className="btn-secondary text-sm inline-flex items-center gap-1.5"><Inbox className="h-4 w-4" /> Email Inbox</button>
         </div>
       </div>
@@ -201,9 +226,9 @@ export default function SettingsPage() {
         <button onClick={changePassword} className="btn-secondary" disabled={pwSaving || !pw.current || pw.next.length < 8}>{pwSaving ? 'Saving…' : 'Update password'}</button>
       </div>
 
-      {/* Staff logins. Owner-only: the backend rejects this for role 'staff',
-          so the card is hidden rather than showing buttons that 403. */}
-      {isOwner && (
+      {/* Team logins. Owner-only (users:read / team:create / team:update): the backend refuses a manager
+          or staff, so the card is hidden rather than showing buttons that 403. */}
+      {mayManageTeam === true && (
         <div className="card p-5 space-y-4">
           <h2 className="font-semibold text-gray-900 dark:text-slate-100">Team</h2>
 
@@ -215,7 +240,19 @@ export default function SettingsPage() {
                   <p className="text-xs text-gray-500 dark:text-slate-400">{u.email}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 capitalize dark:text-slate-300 dark:bg-slate-800">{u.role}</span>
+                  {/* The owner's seat, and your own, are not changed here (routes/users.ts refuses both). */}
+                  {u.role !== 'owner' && u.id !== user?.id && u.isActive !== false ? (
+                    <select
+                      aria-label={`Role for ${u.name || u.email}`}
+                      value={u.role === 'manager' ? 'manager' : 'staff'}
+                      onChange={(e) => changeRole(u, e.target.value as AssignableRole)}
+                      className="input py-1 text-xs w-auto"
+                    >
+                      {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                    </select>
+                  ) : (
+                    <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 capitalize dark:text-slate-300 dark:bg-slate-800">{u.role}</span>
+                  )}
                   {u.id !== user?.id ? (
                     <button
                       onClick={() => toggleStaffAccess(u.id, u.isActive !== false)}
@@ -230,14 +267,21 @@ export default function SettingsPage() {
             {staff.length === 0 && <p className="px-4 py-6 text-sm text-gray-400 text-center">Just you so far</p>}
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div><label className="label">Name</label><input className="input" value={newStaff.name} onChange={(e) => setNewStaff({ ...newStaff, name: e.target.value })} /></div>
             <div><label className="label">Email</label><input className="input" type="email" value={newStaff.email} onChange={(e) => setNewStaff({ ...newStaff, email: e.target.value })} /></div>
             <div><label className="label">Temporary password</label><input className="input" value={newStaff.password} onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })} placeholder="At least 8 characters" /></div>
+            <div>
+              <label className="label" htmlFor="new-member-role">Role</label>
+              <select id="new-member-role" className="input" value={newStaff.role} onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value as AssignableRole })}>
+                {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
           </div>
+          <p className="text-xs text-gray-500 dark:text-slate-400">{ROLE_OPTIONS.find((r) => r.value === newStaff.role)?.hint}</p>
           <p className="text-xs text-gray-400">Share the password with them — they can change it from this page after signing in.</p>
           <button onClick={addStaff} className="btn-primary" disabled={addingStaff || !newStaff.name.trim() || !newStaff.email.trim() || newStaff.password.length < 8}>
-            {addingStaff ? 'Adding…' : 'Add staff member'}
+            {addingStaff ? 'Adding…' : newStaff.role === 'manager' ? 'Add manager' : 'Add staff member'}
           </button>
         </div>
       )}

@@ -4,10 +4,34 @@ import { db } from '../../db/index.ts'
 import { orders, orderItems, storeSettings, productVariants } from '../../db/schema.ts'
 import { eq, and, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission, hasPermission } from '../middleware/permissions.ts'
 import { sendOrderShipped } from '../services/email.ts'
 
 const admin = new Hono()
-admin.use('*', authenticate)
+admin.use('*', authenticate, requirePermission('orders:read'))
+
+export const may = (c: any, permission: string) => hasPermission((c.get('user') as any)?.role, permission)
+
+// What the shop paid its supplier, and the margin over it, is margin:read — the fleet's line for cost.
+// Staff pack the order; they do not need to know what it cost us. (owner's decision, T42)
+export const orderForCaller = (c: any, order: any) => {
+  if (!order || may(c, 'margin:read')) return order
+  const { supplierCostCents: _cost, ...rest } = order
+  return rest
+}
+
+/**
+ * A status change staff may make: moving a PAID order along the floor — fulfilled, shipped, delivered.
+ * Everything else changes whether the order was paid for (cancel, refund, mark paid or pending, reopen a
+ * cancelled one, ship one nobody paid for) and is orders:refund, the manager's and the owner's.
+ */
+const COUNTED = ['paid', 'fulfilled', 'shipped', 'delivered']
+const FULFILMENT = ['fulfilled', 'shipped', 'delivered']
+export const isFulfilment = (from: string, to: string) => COUNTED.includes(from) && FULFILMENT.includes(to)
+export const refundRefusal = (c: any) => c.json({
+  error: 'Cancelling, refunding or changing whether an order was paid is for a manager or the owner.',
+  required: 'orders:refund',
+}, 403)
 
 // Email the customer that their order shipped (with tracking). Non-blocking.
 export async function notifyShipped(order: typeof orders.$inferSelect): Promise<void> {
@@ -34,7 +58,7 @@ admin.get('/', async (c) => {
   const rows = status
     ? await db.select().from(orders).where(eq(orders.status, status as any)).orderBy(desc(orders.createdAt))
     : await db.select().from(orders).orderBy(desc(orders.createdAt))
-  return c.json({ orders: rows })
+  return c.json({ orders: rows.map((o) => orderForCaller(c, o)) })
 })
 
 admin.get('/stats', async (c) => {
@@ -48,7 +72,9 @@ admin.get('/stats', async (c) => {
     paidCount: Number(row.paidCount),
     pendingFulfillment: Number(row.pendingFulfillment),
     atSupplier: Number(row.atSupplier),
-    revenueCents: Number(row.revenueCents),
+    // The shop's takings as one figure is revenue:read — staff see how many orders are waiting, not
+    // what the business has taken. null, not 0: "no revenue" and "not yours to see" are different.
+    revenueCents: may(c, 'revenue:read') ? Number(row.revenueCents) : null,
   } })
 })
 
@@ -72,19 +98,20 @@ admin.get('/:id', async (c) => {
   const [order] = await db.select().from(orders).where(eq(orders.id, c.req.param('id'))).limit(1)
   if (!order) return c.json({ error: 'Not found' }, 404)
   const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id))
-  return c.json({ order: { ...order, items } })
+  return c.json({ order: orderForCaller(c, { ...order, items }) })
 })
 
 const statusSchema = z.object({
   status: z.enum(['pending', 'paid', 'fulfilled', 'shipped', 'delivered', 'cancelled', 'refunded']),
 })
 
-admin.patch('/:id/status', async (c) => {
+admin.patch('/:id/status', requirePermission('orders:update'), async (c) => {
   const parsed = statusSchema.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'Invalid status' }, 400)
   const [prev] = await db.select().from(orders).where(eq(orders.id, c.req.param('id'))).limit(1)
   if (!prev) return c.json({ error: 'Not found' }, 404)
   const next = parsed.data.status
+  if (!isFulfilment(prev.status, next) && !may(c, 'orders:refund')) return refundRefusal(c)
   const patch: Record<string, unknown> = { status: next, updatedAt: new Date() }
   if (next === 'fulfilled' || next === 'shipped') patch.fulfilledAt = new Date()
   const [updated] = await db.update(orders).set(patch).where(eq(orders.id, prev.id)).returning()
@@ -94,8 +121,8 @@ admin.patch('/:id/status', async (c) => {
   // to cancelled/refunded must add the units back — exactly once, and only from a
   // state that actually decremented: a still-'pending' order never counted, and an
   // order already cancelled/refunded must not double-restock. Untracked variants
-  // (inventoryQty IS NULL = unlimited) are skipped by the WHERE guard.
-  const COUNTED = ['paid', 'fulfilled', 'shipped', 'delivered']
+  // (inventoryQty IS NULL = unlimited) are skipped by the WHERE guard. COUNTED is the module's own
+  // list above — the same "this order was paid for" the permission rule reads.
   if ((next === 'cancelled' || next === 'refunded') && COUNTED.includes(prev.status)) {
     const items = await db.select().from(orderItems).where(eq(orderItems.orderId, prev.id))
     for (const it of items) {
@@ -107,7 +134,7 @@ admin.patch('/:id/status', async (c) => {
   }
 
   if (next === 'shipped' && prev.status !== 'shipped') void notifyShipped(updated)
-  return c.json({ order: updated })
+  return c.json({ order: orderForCaller(c, updated) })
 })
 
 const fulfillSchema = z.object({
@@ -117,17 +144,19 @@ const fulfillSchema = z.object({
   markShipped: z.boolean().optional(),
 })
 
-admin.patch('/:id/fulfillment', async (c) => {
+admin.patch('/:id/fulfillment', requirePermission('orders:update'), async (c) => {
   const parsed = fulfillSchema.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'Invalid fulfillment' }, 400)
   const [prev] = await db.select().from(orders).where(eq(orders.id, c.req.param('id'))).limit(1)
   if (!prev) return c.json({ error: 'Not found' }, 404)
+  // "Save & mark shipped" is a status change too, and the same rule applies to it.
+  if (parsed.data.markShipped && !isFulfilment(prev.status, 'shipped') && !may(c, 'orders:refund')) return refundRefusal(c)
   const patch: Record<string, unknown> = { ...parsed.data, updatedAt: new Date() }
   delete (patch as any).markShipped
   if (parsed.data.markShipped) { patch.status = 'shipped'; patch.fulfilledAt = new Date() }
   const [updated] = await db.update(orders).set(patch).where(eq(orders.id, prev.id)).returning()
   if (parsed.data.markShipped && prev.status !== 'shipped') void notifyShipped(updated)
-  return c.json({ order: updated })
+  return c.json({ order: orderForCaller(c, updated) })
 })
 
 export default admin

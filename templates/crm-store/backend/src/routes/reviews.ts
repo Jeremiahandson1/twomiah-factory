@@ -4,9 +4,11 @@ import { db } from '../../db/index.ts'
 import { productReviews, products } from '../../db/schema.ts'
 import { eq, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const admin = new Hono()
-admin.use('*', authenticate)
+// Staff publish or reject a review (reviews:update); deleting one for good is the manager's (reviews:delete).
+admin.use('*', authenticate, requirePermission('reviews:read'))
 
 // Moderation queue. Defaults to what needs a decision.
 admin.get('/', async (c) => {
@@ -44,7 +46,7 @@ admin.get('/counts', async (c) => {
 
 const patchSchema = z.object({ status: z.enum(['pending', 'approved', 'rejected']) })
 
-admin.patch('/:id', async (c) => {
+admin.patch('/:id', requirePermission('reviews:update'), async (c) => {
   const parsed = patchSchema.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'Invalid status' }, 400)
   const [updated] = await db.update(productReviews)
@@ -55,7 +57,7 @@ admin.patch('/:id', async (c) => {
   return c.json(updated)
 })
 
-admin.delete('/:id', async (c) => {
+admin.delete('/:id', requirePermission('reviews:delete'), async (c) => {
   await db.delete(productReviews).where(eq(productReviews.id, c.req.param('id')))
   return c.json({ ok: true })
 })

@@ -289,7 +289,7 @@ export const users = pgTable('users', {
   email: text('email').notNull(),
   passwordHash: text('password_hash').notNull(),
   name: text('name'),
-  role: text('role').notNull().default('owner'), // owner | staff
+  role: text('role').notNull().default('owner'), // owner | manager | staff — what each may do is src/middleware/permissions.ts
   isActive: boolean('is_active').notNull().default(true),
   refreshToken: text('refresh_token'), // last-issued refresh token (rotated on refresh/logout)
   resetToken: text('reset_token'), // one-time password-reset token (1h expiry)

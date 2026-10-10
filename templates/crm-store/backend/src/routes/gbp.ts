@@ -1,11 +1,12 @@
 // Google Business Profile — reviews inbox. Logic lives in the vendored shared
 // package; this wires tenant auth + the factory-key'd token drop. Mirrors the
-// other CRM templates (crm-store uses requireRole instead of requireAdmin).
+// other CRM templates (crm-store asks integrations:update — owner and admin — where they use requireAdmin).
 import { Hono } from 'hono'
 import { createGbpAdminRoutes, createGbpInternalRoutes } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { gbpConnection } from '../../db/schema.ts'
-import { authenticate, requireRole } from '../middleware/auth.ts'
+import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 export const gbpInternal = new Hono()
 gbpInternal.use('*', async (c, next) => {
@@ -17,6 +18,6 @@ gbpInternal.use('*', async (c, next) => {
 gbpInternal.route('/', createGbpInternalRoutes({ db, gbpConnectionTable: gbpConnection }))
 
 const app = new Hono()
-app.use('*', authenticate, requireRole('owner', 'admin'))
+app.use('*', authenticate, requirePermission('integrations:update'))
 app.route('/', createGbpAdminRoutes({ db, gbpConnectionTable: gbpConnection }))
 export default app

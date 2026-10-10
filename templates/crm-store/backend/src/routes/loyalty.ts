@@ -3,7 +3,8 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { loyaltyMembers, loyaltyRewards, storeSettings } from '../../db/schema.ts'
 import { eq, desc, ilike } from 'drizzle-orm'
-import { authenticate, requireOwner } from '../middleware/auth.ts'
+import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { loyaltyConfig, loyaltyConfigResponse, punchCardProgress } from '../shared/index.ts'
 import { memberHistory, normalizeEmail } from '../services/loyalty.ts'
 
@@ -13,11 +14,11 @@ import { memberHistory, normalizeEmail } from '../services/loyalty.ts'
 // Who may do what. This shipped with nothing but `authenticate`, so any signed-in staff member could
 // rewrite the reward list — make a $50-off reward cost 1 point and then spend it. The salon found the
 // same door open as run LY0928 H3, where the gate at least asked for a permission every stylist
-// happened to hold; here there was no gate at all. crm-store has two rungs, owner and staff, and
-// gates on rank everywhere else (settings, payments, users), so this follows that:
+// happened to hold; here there was no gate at all. It now asks the fleet's loyalty permissions:
 //
-//   read   — staff. Looking up a shopper's balance is desk work.
-//   write  — owner. The reward list and the earn rate are the programme's price list.
+//   read       — everyone (loyalty:read). Looking up a shopper's balance is desk work.
+//   configure  — manager and owner (loyalty:configure). The reward list and the earn rate are the
+//                programme's price list. Was owner-only while the store had no manager seat.
 const admin = new Hono()
 admin.use('*', authenticate)
 
@@ -43,7 +44,7 @@ const configSchema = z.object({
   }).optional(),
 })
 
-admin.put('/config', requireOwner, async (c) => {
+admin.put('/config', requirePermission('loyalty:configure'), async (c) => {
   const d = configSchema.parse(await c.req.json())
   const [row] = await db.select().from(storeSettings).limit(1)
   if (!row) return c.json({ error: 'Store settings have not been created yet' }, 404)
@@ -121,13 +122,13 @@ admin.get('/rewards', async (c) => {
   return c.json({ rewards })
 })
 
-admin.post('/rewards', requireOwner, async (c) => {
+admin.post('/rewards', requirePermission('loyalty:configure'), async (c) => {
   const d = rewardSchema.parse(await c.req.json())
   const [row] = await db.insert(loyaltyRewards).values(d as any).returning()
   return c.json(row, 201)
 })
 
-admin.put('/rewards/:id', requireOwner, async (c) => {
+admin.put('/rewards/:id', requirePermission('loyalty:configure'), async (c) => {
   const d = rewardSchema.parse(await c.req.json())
   const [row] = await db.update(loyaltyRewards).set({ ...d, updatedAt: new Date() } as any)
     .where(eq(loyaltyRewards.id, c.req.param('id'))).returning()
@@ -135,7 +136,7 @@ admin.put('/rewards/:id', requireOwner, async (c) => {
   return c.json(row)
 })
 
-admin.delete('/rewards/:id', requireOwner, async (c) => {
+admin.delete('/rewards/:id', requirePermission('loyalty:configure'), async (c) => {
   const [row] = await db.delete(loyaltyRewards).where(eq(loyaltyRewards.id, c.req.param('id'))).returning()
   if (!row) return c.json({ error: 'Reward not found' }, 404)
   return c.json({ success: true })

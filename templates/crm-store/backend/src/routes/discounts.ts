@@ -4,11 +4,13 @@ import { db } from '../../db/index.ts'
 import { discountCodes } from '../../db/schema.ts'
 import { eq, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 // Admin CRUD for discount / promo codes. Validation + application happens
 // server-side at checkout (routes/public.ts); usage is counted on finalize.
 const admin = new Hono()
-admin.use('*', authenticate)
+// Staff can read the codes to answer a shopper; writing one is giving money away, so it is the manager's.
+admin.use('*', authenticate, requirePermission('discounts:read'))
 
 admin.get('/', async (c) => {
   const codes = await db.select().from(discountCodes).orderBy(desc(discountCodes.createdAt))
@@ -25,7 +27,7 @@ const codeSchema = z.object({
   expiresAt: z.string().datetime().nullable().optional(),
 })
 
-admin.post('/', async (c) => {
+admin.post('/', requirePermission('discounts:create'), async (c) => {
   const parsed = codeSchema.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'Invalid code', details: parsed.error.flatten() }, 400)
   const d = parsed.data
@@ -43,7 +45,7 @@ admin.post('/', async (c) => {
   return c.json({ code: created }, 201)
 })
 
-admin.patch('/:id', async (c) => {
+admin.patch('/:id', requirePermission('discounts:update'), async (c) => {
   const parsed = codeSchema.partial().safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'Invalid code' }, 400)
   const patch: Record<string, unknown> = { ...parsed.data }
@@ -54,7 +56,7 @@ admin.patch('/:id', async (c) => {
   return c.json({ code: updated })
 })
 
-admin.delete('/:id', async (c) => {
+admin.delete('/:id', requirePermission('discounts:delete'), async (c) => {
   await db.delete(discountCodes).where(eq(discountCodes.id, c.req.param('id')))
   return c.json({ ok: true })
 })

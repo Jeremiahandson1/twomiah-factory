@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import api, { LoyaltyConfig, LoyaltyMember, LoyaltyReward, LoyaltyPunchCard } from '../services/api'
 import { useToast } from '../contexts/ToastContext'
 import { centsToDollars, dollarsToCents } from '../lib/format'
+import { useMayWrite } from '../shared'
 
 /**
  * Loyalty — the programme's settings, who is on it, and what they can spend points on.
@@ -41,6 +42,9 @@ export default function LoyaltyPage() {
 
   const [form, setForm] = useState({ ...BLANK_REWARD })
   const [editingId, setEditingId] = useState<string | null>(null)
+  // The reward list and the earn rate are the programme's price list — loyalty:configure, the manager's
+  // and the owner's. Staff look shoppers up and read what the programme offers.
+  const mayConfigure = useMayWrite('loyalty:configure')
 
   const load = async () => {
     setLoading(true)
@@ -195,7 +199,7 @@ export default function LoyaltyPage() {
                       </td>
                       <td className="px-4 py-2.5 tabular-nums text-gray-600 dark:text-slate-300">{r.usedCount}</td>
                       <td className="px-4 py-2.5 whitespace-nowrap text-right">
-                        <button
+                        {mayConfigure && <><button
                           onClick={() => {
                             setEditingId(r.id)
                             setForm({
@@ -209,7 +213,7 @@ export default function LoyaltyPage() {
                           }}
                           className="px-2 py-1 text-indigo-700 hover:underline dark:text-indigo-300"
                         >Edit</button>
-                        <button onClick={() => removeReward(r)} className="px-2 py-1 text-red-600 hover:underline dark:text-red-400">Delete</button>
+                        <button onClick={() => removeReward(r)} className="px-2 py-1 text-red-600 hover:underline dark:text-red-400">Delete</button></>}
                       </td>
                     </tr>
                   ))}
@@ -218,7 +222,10 @@ export default function LoyaltyPage() {
             )}
           </div>
 
-          <div className="h-fit space-y-3 rounded border border-gray-200 bg-white p-5 dark:bg-slate-900">
+          {!mayConfigure && (
+            <p className="h-fit text-sm text-gray-500 dark:text-slate-400">Rewards are set by a manager or the owner.</p>
+          )}
+          {mayConfigure && <div className="h-fit space-y-3 rounded border border-gray-200 bg-white p-5 dark:bg-slate-900">
             <h2 className="font-semibold text-gray-900 dark:text-slate-100">{editingId ? 'Edit reward' : 'Add a reward'}</h2>
 
             <label className="block text-sm text-gray-600 dark:text-slate-300">Name
@@ -270,12 +277,13 @@ export default function LoyaltyPage() {
                   className="px-3 py-2 text-gray-700 hover:underline dark:text-slate-200">Cancel</button>
               )}
             </div>
-          </div>
+          </div>}
         </div>
       )}
 
       {tab === 'settings' && config && (
-        <div className="max-w-xl space-y-4 rounded border border-gray-200 bg-white p-5 dark:bg-slate-900">
+        <fieldset disabled={!mayConfigure} className="max-w-xl space-y-4 rounded border border-gray-200 bg-white p-5 dark:bg-slate-900">
+          {!mayConfigure && <p className="text-sm text-gray-500 dark:text-slate-400">The programme is set by a manager or the owner.</p>}
           <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
             <input type="checkbox" checked={config.loyaltyEnabled}
               onChange={(e) => saveConfig({ loyaltyEnabled: e.target.checked })} />
@@ -319,7 +327,7 @@ export default function LoyaltyPage() {
           </fieldset>
 
           {saving && <p className="text-sm text-gray-500 dark:text-slate-400">Saving…</p>}
-        </div>
+        </fieldset>
       )}
     </div>
   )

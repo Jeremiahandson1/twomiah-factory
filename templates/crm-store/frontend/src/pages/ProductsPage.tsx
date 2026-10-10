@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Plus, Package } from 'lucide-react'
 import api, { Product } from '../services/api'
 import { money, statusColor } from '../lib/format'
+import { useMayWrite } from '../shared'
 
 function startingPrice(p: Product) {
   if (!p.variants.length) return null
@@ -17,6 +18,7 @@ function totalInventory(p: Product) {
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  const mayCreate = useMayWrite('products:create')
 
   useEffect(() => { api.listProducts().then(setProducts).catch(() => {}).finally(() => setLoading(false)) }, [])
 
@@ -24,14 +26,14 @@ export default function ProductsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Products</h1>
-        <Link to="/products/new" className="btn-primary"><Plus className="h-4 w-4" /> New product</Link>
+        {mayCreate && <Link to="/products/new" className="btn-primary"><Plus className="h-4 w-4" /> New product</Link>}
       </div>
 
       {loading ? <PageSpinner /> : products.length === 0 ? (
         <div className="card p-10 text-center">
           <Package className="h-10 w-10 mx-auto text-gray-300" />
           <p className="mt-3 text-gray-500 dark:text-slate-400">No products yet.</p>
-          <Link to="/products/new" className="btn-primary mt-4 inline-flex"><Plus className="h-4 w-4" /> Add your first product</Link>
+          {mayCreate && <Link to="/products/new" className="btn-primary mt-4 inline-flex"><Plus className="h-4 w-4" /> Add your first product</Link>}
         </div>
       ) : (
         <div className="card overflow-hidden">

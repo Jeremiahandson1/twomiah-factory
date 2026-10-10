@@ -200,6 +200,20 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
      * and without this.
      */
     'revenue:read',
+    /**
+     * The online shop's back office (crm-store). (Owner's decision, 2026-10-10)
+     *
+     * The store shipped with two roles, owner and staff, and gated on rank: a handful of routes were
+     * requireOwner and everything else was open to whoever could sign in. So the newest hire could
+     * refund an order, delete the catalogue and write discount codes, and an owner had no seat in
+     * between to hand the day-to-day to. It now runs this matrix like every other CRM.
+     *
+     * orders:refund is its own verb for the same reason bills:pay and financing:approve are: packing and
+     * shipping an order is the work, deciding that it was never paid for — cancel, refund, mark paid or
+     * pending, reopen — is the money. Additive for every other vertical: nothing else gates on these
+     * five (crm-dispensary's orders/products live in its own forked matrix).
+     */
+    'orders:*', 'products:*', 'discounts:*', 'shipping:*', 'reviews:*',
   ],
   manager: [
     'contacts:*', 'projects:*', 'jobs:*', 'quotes:*', 'invoices:read',
@@ -250,6 +264,10 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'portal:share',
     // The business's takings as one figure. (T62; note on admin)
     'revenue:read',
+    // The shop's manager runs it: refunds and cancellations, discount codes, the carrier account,
+    // deleting from the catalogue and moderating reviews. Not payments, settings or logins — the same
+    // line payments:* and settings:* already draw. (crm-store; note on admin)
+    'orders:*', 'products:*', 'discounts:*', 'shipping:*', 'reviews:*',
   ],
   field: [
     'contacts:read', 'projects:read', 'jobs:read', 'jobs:update', 'time:read',
@@ -331,6 +349,9 @@ export function createPermissions(deps: PermissionsDeps) {
   const GRANT_CACHE = new Map<string, { at: number; list: string[] }>()
   async function getExtraPermissions(userId: string | undefined): Promise<string[]> {
     if (!userId) return []
+    // crm-store's `users` table has no extra_permissions column — it has no per-user grants to hand
+    // out — so there is nothing to read, rather than a select that throws on every guarded request.
+    if (!user.extraPermissions) return []
     const hit = GRANT_CACHE.get(userId)
     if (hit && Date.now() - hit.at < 15_000) return hit.list
     let list: string[] = []

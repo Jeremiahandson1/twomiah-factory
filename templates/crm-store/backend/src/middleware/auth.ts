@@ -38,13 +38,8 @@ export const authenticate = async (c: Context, next: Next) => {
   }
 }
 
-export const requireRole = (...roles: string[]) => async (c: Context, next: Next) => {
-  const u = c.get('user')
-  if (!u) return c.json({ error: 'Not authenticated' }, 401)
-  if (!roles.includes(u.role)) return c.json({ error: 'Insufficient permissions' }, 403)
-  await next()
-}
-
-export const requireOwner = requireRole('owner')
+// Who may do what is ./permissions.ts (requirePermission), the fleet's matrix. The rank gates that used
+// to live here — requireRole('owner'), requireOwner — are gone: a rank is not a permission, and they
+// are why the store could only ever have an owner and everybody else.
 
 export default authenticate

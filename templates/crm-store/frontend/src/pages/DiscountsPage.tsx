@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import api, { DiscountCode } from '../services/api'
 import { useToast } from '../contexts/ToastContext'
 import { centsToDollars, dollarsToCents } from '../lib/format'
+import { useMayWrite } from '../shared'
 
 const BLANK = { code: '', type: 'percent' as 'percent' | 'fixed', value: '', minSubtotal: '', maxUses: '', expiresAt: '' }
 
@@ -11,6 +12,10 @@ export default function DiscountsPage() {
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ ...BLANK })
   const [saving, setSaving] = useState(false)
+  // A code is money off, so writing one is the manager's; staff read them to answer a shopper.
+  const mayCreate = useMayWrite('discounts:create')
+  const mayUpdate = useMayWrite('discounts:update')
+  const mayDelete = useMayWrite('discounts:delete')
 
   const load = async () => { setLoading(true); try { setCodes(await api.listDiscounts()) } finally { setLoading(false) } }
   useEffect(() => { load() }, [])
@@ -39,7 +44,7 @@ export default function DiscountsPage() {
     <div className="space-y-6">
       <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100">Discount codes</h1>
 
-      <div className="card p-5 space-y-4">
+      {mayCreate && <div className="card p-5 space-y-4">
         <h2 className="font-semibold text-gray-900 dark:text-slate-100">Create a code</h2>
         <div className="grid grid-cols-2 gap-4">
           <div><label className="label">Code</label><input className="input uppercase" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="SAVE10" /></div>
@@ -54,7 +59,7 @@ export default function DiscountsPage() {
           <div><label className="label">Expires <span className="text-gray-400">(optional)</span></label><input className="input" type="date" value={form.expiresAt} onChange={(e) => setForm({ ...form, expiresAt: e.target.value })} /></div>
         </div>
         <button onClick={create} className="btn-primary" disabled={saving || !form.code || !form.value}>{saving ? 'Creating…' : 'Create code'}</button>
-      </div>
+      </div>}
 
       <div className="card p-5">
         <h2 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">All codes</h2>
@@ -71,8 +76,10 @@ export default function DiscountsPage() {
                     <td className="pr-4">{c.minSubtotalCents ? `$${centsToDollars(c.minSubtotalCents)}` : '—'}</td>
                     <td className="pr-4">{c.expiresAt ? new Date(c.expiresAt).toLocaleDateString() : '—'}</td>
                     <td className="text-right whitespace-nowrap">
-                      <button onClick={() => toggle(c)} className={`text-xs px-2 py-1 rounded ${c.active ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>{c.active ? 'Active' : 'Inactive'}</button>
-                      <button onClick={() => del(c)} className="text-xs text-red-600 ml-2 dark:text-red-400">Delete</button>
+                      {mayUpdate
+                        ? <button onClick={() => toggle(c)} className={`text-xs px-2 py-1 rounded ${c.active ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>{c.active ? 'Active' : 'Inactive'}</button>
+                        : <span className={`text-xs px-2 py-1 rounded ${c.active ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>{c.active ? 'Active' : 'Inactive'}</span>}
+                      {mayDelete && <button onClick={() => del(c)} className="text-xs text-red-600 ml-2 dark:text-red-400">Delete</button>}
                     </td>
                   </tr>
                 ))}

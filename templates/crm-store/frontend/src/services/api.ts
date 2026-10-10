@@ -35,8 +35,8 @@ export type VendorTicket = {
   status: string; priority: string; created_at: string
 }
 
-// A staff login for the store admin. Mirrors the `users` table's public columns
-// (role is 'owner' | 'staff'); password material never reaches the browser.
+// A team login for the store admin. Mirrors the `users` table's public columns
+// (role is 'owner' | 'manager' | 'staff'); password material never reaches the browser.
 export type StoreUser = {
   id: string
   email: string
@@ -123,6 +123,13 @@ export type PaymentStatus = {
   webhookUrl: string
 }
 export type User = { id: string; email: string; name: string | null; role: string }
+/** The role a login can be given from Settings — 'owner' is minted with the store, never handed out. */
+export type AssignableRole = 'manager' | 'staff'
+/**
+ * Who is signed in, and what they may do. `permissions` is the server's own answer (routes/auth.ts) —
+ * the screens ask it through the shared PermissionsProvider rather than guessing from the role name.
+ */
+export type Session = { user: User; permissions: string[] }
 
 export type Review = {
   id: string; productId: string; productName?: string | null; productSlug?: string | null
@@ -203,13 +210,16 @@ class ApiClient {
 
   // ── Auth ──
   async login(email: string, password: string) {
-    const data = await this.request<{ accessToken: string; refreshToken: string; user: User }>(
+    const data = await this.request<{ accessToken: string; refreshToken: string; user: User; permissions?: string[] }>(
       '/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }, false)
     this.setTokens(data.accessToken, data.refreshToken)
-    return data.user
+    return { user: data.user, permissions: Array.isArray(data.permissions) ? data.permissions : [] } as Session
   }
   async logout() { try { await this.request('/api/auth/logout', { method: 'POST' }) } finally { this.clearTokens() } }
-  async getMe() { return (await this.request<{ user: User }>('/api/auth/me')).user }
+  async getMe(): Promise<Session> {
+    const data = await this.request<{ user: User; permissions?: string[] }>('/api/auth/me')
+    return { user: data.user, permissions: Array.isArray(data.permissions) ? data.permissions : [] }
+  }
   async changePassword(currentPassword: string, newPassword: string) {
     return this.request('/api/auth/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) })
   }
@@ -241,7 +251,7 @@ class ApiClient {
   // ── Orders ──
   async listOrders(status?: string) { return (await this.request<{ orders: Order[] }>(`/api/admin/orders${status ? `?status=${status}` : ''}`)).orders }
   async getOrder(id: string) { return (await this.request<{ order: Order }>(`/api/admin/orders/${id}`)).order }
-  async orderStats() { return (await this.request<{ stats: { paidCount: number; pendingFulfillment: number; revenueCents: number; atSupplier: number } }>('/api/admin/orders/stats')).stats }
+  async orderStats() { return (await this.request<{ stats: { paidCount: number; pendingFulfillment: number; revenueCents: number | null; atSupplier: number } }>('/api/admin/orders/stats')).stats }
   async listCustomers() { return (await this.request<{ customers: any[] }>('/api/admin/orders/customers')).customers }
   async setOrderStatus(id: string, status: string) { return (await this.request<{ order: Order }>(`/api/admin/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })).order }
   async setFulfillment(id: string, body: { trackingCarrier?: string; trackingNumber?: string; internalNote?: string; markShipped?: boolean }) { return (await this.request<{ order: Order }>(`/api/admin/orders/${id}/fulfillment`, { method: 'PATCH', body: JSON.stringify(body) })).order }
@@ -271,14 +281,15 @@ class ApiClient {
       body: JSON.stringify(input),
     })
   }
-  // Staff logins. Owner-only on the backend; `staff` is the only creatable role.
+  // Team logins. Owner-only on the backend (users:read, team:create, team:update); manager and staff are
+  // the roles it hands out.
   async listUsers() { return (await this.request<{ data: StoreUser[] }>('/api/admin/users')).data }
-  async createUser(input: { name: string; email: string; password: string }) {
+  async createUser(input: { name: string; email: string; password: string; role: AssignableRole }) {
     return this.request<StoreUser>('/api/admin/users', { method: 'POST', body: JSON.stringify(input) })
   }
   // Revoke = deactivate. Orders and fulfilment reference the user, and the seat
   // count is of active users, so isActive=false is what frees a seat.
-  async updateUser(id: string, input: { name?: string; isActive?: boolean }) {
+  async updateUser(id: string, input: { name?: string; isActive?: boolean; role?: AssignableRole }) {
     return this.request<StoreUser>(`/api/admin/users/${id}`, { method: 'PUT', body: JSON.stringify(input) })
   }
   async connectSupplier(body: { provider: string; mode: string; apiKey: string; accountEmail?: string }) { return this.request('/api/admin/suppliers/connect', { method: 'POST', body: JSON.stringify(body) }) }

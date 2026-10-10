@@ -1,23 +1,30 @@
-// Staff accounts for the store admin.
+// Team logins for the store admin.
 //
 // crm-store shipped with no way to create a second login: nothing in the app
 // ever inserted into `users`, so a store owner paying a seat-based plan was
-// permanently a one-person account. The schema has always modelled this
-// (`role: owner | staff`) — only the route was missing.
+// permanently a one-person account.
 //
-// Owner-only on purpose: `staff` should not be able to mint more logins.
+// Logins are the owner's (users:read, team:create, team:update — admin and up, and a shop has no admin
+// seat): a manager runs the shop but does not decide who else gets into it.
+//
+// The roles a login can hold here: owner, manager, staff (middleware/permissions.ts says what each may do).
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, sql } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { users } from '../../db/schema.ts'
-import { authenticate, requireOwner } from '../middleware/auth.ts'
+import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
 
-// GET / — the staff list. Password material never leaves the server.
-app.get('/', requireOwner, async (c) => {
+// The roles the owner hands out. 'owner' is not one of them: the store has one owner, minted when the
+// store itself was provisioned, and making a second is not a button.
+const ASSIGNABLE_ROLES = ['manager', 'staff'] as const
+
+// GET / — the team list. Password material never leaves the server.
+app.get('/', requirePermission('users:read'), async (c) => {
   const list = await db
     .select({
       id: users.id,
@@ -32,18 +39,16 @@ app.get('/', requireOwner, async (c) => {
   return c.json({ data: list })
 })
 
-// POST / — add a staff login. The owner sets the first password and passes it
+// POST / — add a team login. The owner sets the first password and passes it
 // on; there is deliberately no invite email, because tenant outbound mail isn't
 // proven on every store and an invite that silently never arrives is
 // indistinguishable from a broken product.
-app.post('/', requireOwner, async (c) => {
+app.post('/', requirePermission('team:create'), async (c) => {
   const schema = z.object({
     email: z.string().email(),
     password: z.string().min(8),
     name: z.string().min(1),
-    // 'owner' is intentionally not creatable — the store has one owner, minted
-    // when the store itself was provisioned.
-    role: z.enum(['staff']).default('staff'),
+    role: z.enum(ASSIGNABLE_ROLES, { errorMap: () => ({ message: 'Role must be manager or staff' }) }).default('staff'),
   })
 
   const body = (await c.req.json().catch(() => null)) ?? {}
@@ -109,30 +114,40 @@ app.post('/', requireOwner, async (c) => {
   return c.json(outcome.body as any, outcome.status)
 })
 
-// PUT /:id — rename a staff member, or revoke their access.
+// PUT /:id — rename a team member, change their role, or revoke their access.
 //
 // Deactivation, not deletion: orders and fulfilment history reference the user,
 // and the seat count is of ACTIVE users so isActive=false is what frees a seat.
 // Until this existed a store owner had NO way to remove a login — a departing
 // employee kept full access to products, orders, customers and payments, and
 // the only recourse was editing the database.
-app.put('/:id', requireOwner, async (c) => {
+app.put('/:id', requirePermission('team:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
   const schema = z.object({
     name: z.string().min(1).optional(),
     isActive: z.boolean().optional(),
+    // Promote a member of staff to manager or back. Without this the only way to change somebody's
+    // seat was to revoke the login and make a new one — under a different email, because the old
+    // address stays taken.
+    role: z.enum(ASSIGNABLE_ROLES, { errorMap: () => ({ message: 'Role must be manager or staff' }) }).optional(),
   })
   const parsed = schema.safeParse(await c.req.json().catch(() => ({})))
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Invalid changes' }, 400)
   const data = parsed.data
-  // Only name/isActive are editable — role escalation is deliberately ignored. But a body
-  // with just {role} left data empty, and an empty UPDATE SET 500'd. Return a clean 400. (BUG-10)
-  if (Object.keys(data).length === 0) return c.json({ error: 'No editable changes provided (roles are managed separately).' }, 400)
+  // An empty UPDATE SET 500'd. Return a clean 400. (BUG-10)
+  if (Object.keys(data).length === 0) return c.json({ error: 'No editable changes provided.' }, 400)
 
   const [target] = await db.select().from(users).where(eq(users.id, id)).limit(1)
   if (!target) return c.json({ error: 'User not found' }, 404)
+
+  // The owner's seat is not changed from this screen — demoting it would leave the store with nobody
+  // who can reach payments, settings or logins. And nobody re-roles themselves.
+  if (data.role !== undefined && data.role !== target.role) {
+    if (target.role === 'owner') return c.json({ error: "The owner's role can't be changed." }, 400)
+    if (id === currentUser.userId) return c.json({ error: "You can't change your own role." }, 400)
+  }
 
   // An owner locking themselves out has no way back in without a DB edit.
   if (data.isActive === false) {

@@ -2,8 +2,8 @@
 //
 // crm-store needs its own fixture rather than the generic one because its auth is nothing like the
 // contractor lineage's: the table is `users` (not `user`), there is NO companyId at all — the whole
-// database IS the tenant, it is single-tenant per deployment — and the role gate is requireOwner
-// rather than requireAdmin. The generic fixture imports `user` and `companyId` and would not even
+// database IS the tenant, it is single-tenant per deployment. Who may do what is the REAL
+// src/middleware/permissions.ts, which the sandbox does not replace. The generic fixture imports `user` and `companyId` and would not even
 // load here.
 //
 // The real JWT path below is preserved verbatim, so a test that sends no x-test-user header still
@@ -53,14 +53,5 @@ export const authenticate = async (c: Context, next: Next) => {
     return c.json({ error: 'Invalid token' }, 401)
   }
 }
-
-export const requireRole = (...roles: string[]) => async (c: Context, next: Next) => {
-  const u = c.get('user')
-  if (!u) return c.json({ error: 'Not authenticated' }, 401)
-  if (!roles.includes(u.role)) return c.json({ error: 'Insufficient permissions' }, 403)
-  await next()
-}
-
-export const requireOwner = requireRole('owner')
 
 export default authenticate

@@ -4,6 +4,7 @@ import { ArrowLeft, Trash2, Plus, Star, StarOff, Upload, Loader2 } from 'lucide-
 import api, { Product, ProductVariant } from '../services/api'
 import { useToast } from '../contexts/ToastContext'
 import { dollarsToCents, centsToDollars, money } from '../lib/format'
+import { useMayWrite, useKnownPermission } from '../shared'
 
 const BLANK = {
   name: '', tagline: '', description: '', status: 'draft' as const,
@@ -20,6 +21,8 @@ export default function ProductEditPage() {
   const [product, setProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
+  // Staff add and edit; taking a product off sale for good is the manager's (products:delete).
+  const mayDelete = useMayWrite('products:delete')
 
   useEffect(() => {
     if (isNew) return
@@ -64,7 +67,7 @@ export default function ProductEditPage() {
     <div className="max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
         <Link to="/products" className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-slate-200"><ArrowLeft className="h-4 w-4" /> Products</Link>
-        {!isNew && <button onClick={remove} className="text-sm text-red-600 flex items-center gap-1 dark:text-red-400"><Trash2 className="h-4 w-4" /> Delete</button>}
+        {!isNew && mayDelete && <button onClick={remove} className="text-sm text-red-600 flex items-center gap-1 dark:text-red-400"><Trash2 className="h-4 w-4" /> Delete</button>}
       </div>
 
       <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{isNew ? 'New product' : form.name}</h1>
@@ -125,7 +128,12 @@ function VariantsSection({ product, onChange }: { product: Product; onChange: ()
   // Dropship: variant → supplier-item links (only shown when a supplier is connected)
   const [supplierConnected, setSupplierConnected] = useState(false)
   const [supplierMap, setSupplierMap] = useState<Record<string, { ref: string; name: string | null }>>({})
+  // The supplier connection is the owner's (integrations:update): ask only once we know the answer is
+  // yes, rather than sending a request every other seat is refused.
+  const mayLinkSupplier = useKnownPermission('integrations:update')
+  const mayDeleteVariant = useMayWrite('products:delete')
   useEffect(() => {
+    if (mayLinkSupplier !== true) return
     api.getSupplierStatus().then((st: any) => {
       if (!st?.config?.connected) return
       setSupplierConnected(true)
@@ -135,7 +143,7 @@ function VariantsSection({ product, onChange }: { product: Product; onChange: ()
         setSupplierMap(m)
       }).catch(() => {})
     }).catch(() => {})
-  }, [])
+  }, [mayLinkSupplier])
   const { toast } = useToast()
   const [adding, setAdding] = useState(false)
   const blank = { sku: '', name: 'Default', price: '', inventory: '' }
@@ -192,7 +200,7 @@ function VariantsSection({ product, onChange }: { product: Product; onChange: ()
             supplierRef={supplierMap[v.id]?.ref ?? ''}
             supplierName={supplierMap[v.id]?.name ?? null}
             onSave={(next) => saveRow(v, next)}
-            onDelete={() => del(v)}
+            onDelete={mayDeleteVariant ? () => del(v) : undefined}
           />
         ))}
       </div>
@@ -220,7 +228,8 @@ function VariantRow({ v, supplierConnected, supplierRef, supplierName, onSave, o
   supplierRef: string
   supplierName: string | null
   onSave: (next: { price: string; inv: string; ref: string }) => Promise<void>
-  onDelete: () => void
+  /** Absent when this person may not remove a variant from sale. */
+  onDelete?: () => void
 }) {
   const [price, setPrice] = useState(centsToDollars(v.priceCents))
   const [inv, setInv] = useState<string>(v.inventoryQty == null ? '' : String(v.inventoryQty))
@@ -255,7 +264,7 @@ function VariantRow({ v, supplierConnected, supplierRef, supplierName, onSave, o
         <input className="input w-32 py-1" placeholder="Supplier item id" value={ref} onChange={(e) => setRef(e.target.value)} title={supplierName || 'Supplier item id (Printful sync variant / CJ vid). Blank = not dropshipped.'} />
       )}
       <button onClick={save} disabled={!dirty || saving} className="btn-primary text-xs px-2 py-1 disabled:opacity-40">{saving ? '…' : 'Save'}</button>
-      <button aria-label="Delete product" onClick={onDelete} className="text-gray-300 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+      {onDelete && <button aria-label={`Delete variant ${v.sku}`} onClick={onDelete} className="text-gray-300 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>}
     </div>
   )
 }

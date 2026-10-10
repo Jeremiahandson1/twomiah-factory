@@ -5,10 +5,13 @@ import { db } from '../../db/index.ts'
 import { products, productImages, productVariants } from '../../db/schema.ts'
 import { eq, inArray, asc, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { storageConfigured, putObject, deleteObject, keyFromMediaUrl } from '../services/storage.ts'
 
 const admin = new Hono()
-admin.use('*', authenticate)
+// Staff add and edit products, variants, stock and images (products:create / products:update).
+// Taking something off sale for good — deleting a product or a variant — is products:delete, the manager's.
+admin.use('*', authenticate, requirePermission('products:read'))
 
 function slugify(s: string) {
   return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -50,7 +53,7 @@ const productSchema = z.object({
   position: z.number().int().optional(),
 })
 
-admin.post('/', async (c) => {
+admin.post('/', requirePermission('products:create'), async (c) => {
   const parsed = productSchema.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'Invalid product', details: parsed.error.flatten() }, 400)
   const data = parsed.data
@@ -74,7 +77,7 @@ admin.get('/:id', async (c) => {
   return c.json({ product: { ...p, images: imgs, variants: vars } })
 })
 
-admin.patch('/:id', async (c) => {
+admin.patch('/:id', requirePermission('products:update'), async (c) => {
   const parsed = productSchema.partial().safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'Invalid product' }, 400)
   const patch: Record<string, unknown> = { ...parsed.data, updatedAt: new Date() }
@@ -84,7 +87,7 @@ admin.patch('/:id', async (c) => {
   return c.json({ product: updated })
 })
 
-admin.delete('/:id', async (c) => {
+admin.delete('/:id', requirePermission('products:delete'), async (c) => {
   await db.delete(products).where(eq(products.id, c.req.param('id')))
   return c.json({ ok: true })
 })
@@ -104,7 +107,7 @@ const variantSchema = z.object({
   position: z.number().int().optional(),
 })
 
-admin.post('/:id/variants', async (c) => {
+admin.post('/:id/variants', requirePermission('products:update'), async (c) => {
   const parsed = variantSchema.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'Invalid variant', details: parsed.error.flatten() }, 400)
   const [created] = await db.insert(productVariants)
@@ -112,7 +115,7 @@ admin.post('/:id/variants', async (c) => {
   return c.json({ variant: created }, 201)
 })
 
-admin.patch('/variants/:variantId', async (c) => {
+admin.patch('/variants/:variantId', requirePermission('products:update'), async (c) => {
   const parsed = variantSchema.partial().safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'Invalid variant' }, 400)
   const [updated] = await db.update(productVariants)
@@ -121,7 +124,7 @@ admin.patch('/variants/:variantId', async (c) => {
   return c.json({ variant: updated })
 })
 
-admin.delete('/variants/:variantId', async (c) => {
+admin.delete('/variants/:variantId', requirePermission('products:delete'), async (c) => {
   await db.delete(productVariants).where(eq(productVariants.id, c.req.param('variantId')))
   return c.json({ ok: true })
 })
@@ -148,7 +151,7 @@ const imageSchema = z.object({
   isPrimary: z.boolean().optional(),
 })
 
-admin.post('/:id/images', async (c) => {
+admin.post('/:id/images', requirePermission('products:update'), async (c) => {
   const parsed = imageSchema.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'Invalid image' }, 400)
   const productId = c.req.param('id')
@@ -167,7 +170,7 @@ const UPLOAD_EXT: Record<string, string> = {
   'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif',
 }
 
-admin.post('/:id/images/upload', async (c) => {
+admin.post('/:id/images/upload', requirePermission('products:update'), async (c) => {
   if (!storageConfigured()) return c.json({ error: 'Image storage is not configured for this store' }, 503)
   const productId = c.req.param('id')
   const [product] = await db.select().from(products).where(eq(products.id, productId)).limit(1)
@@ -193,7 +196,7 @@ admin.post('/:id/images/upload', async (c) => {
   return c.json({ image: created }, 201)
 })
 
-admin.patch('/images/:imageId', async (c) => {
+admin.patch('/images/:imageId', requirePermission('products:update'), async (c) => {
   const parsed = imageSchema.partial().safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'Invalid image' }, 400)
   const [img] = await db.select().from(productImages).where(eq(productImages.id, c.req.param('imageId'))).limit(1)
@@ -206,7 +209,7 @@ admin.patch('/images/:imageId', async (c) => {
   return c.json({ image: updated })
 })
 
-admin.delete('/images/:imageId', async (c) => {
+admin.delete('/images/:imageId', requirePermission('products:update'), async (c) => {
   const [img] = await db.select().from(productImages).where(eq(productImages.id, c.req.param('imageId'))).limit(1)
   await db.delete(productImages).where(eq(productImages.id, c.req.param('imageId')))
   // If it was an uploaded (proxied) image, drop the R2 object too. Best-effort.

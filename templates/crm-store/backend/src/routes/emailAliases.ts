@@ -5,10 +5,11 @@ import { Hono } from 'hono'
 import { createEmailAliasesRoutes, createFactoryApiClient } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { emailAlias } from '../../db/schema.ts'
-import { authenticate, requireOwner } from '../middleware/auth.ts'
+import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
-app.use('*', authenticate, requireOwner)
+app.use('*', authenticate, requirePermission('settings:update'))
 app.route('/', createEmailAliasesRoutes({
   db,
   emailAliasesTable: emailAlias,

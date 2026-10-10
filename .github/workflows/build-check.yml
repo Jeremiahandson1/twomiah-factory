@@ -2377,6 +2377,17 @@ jobs:
       - name: "Write routes authorise"
         run: bun run scripts/check-write-routes-authorise.ts
 
+  store-routes-ask-permission:
+    name: "every crm-store write asks a permission — owner, manager, staff"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Store routes ask a permission, no rank gates"
+        run: bun run scripts/check-store-routes-ask-permission.ts
+
   read-routes-authorise:
     name: "a money read authorises too, not just the write beside it"
     runs-on: ubuntu-latest

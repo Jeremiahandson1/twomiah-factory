@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Star, Check, X, Trash2, ShieldCheck } from 'lucide-react'
 import api, { type Review } from '../services/api'
 import { useToast } from '../contexts/ToastContext'
+import { useMayWrite } from '../shared'
 
 // Reviews arrive as pending and only go public once approved — an open review
 // box on a small store is a spam magnet.
@@ -11,6 +12,9 @@ export default function ReviewsPage() {
   const [rows, setRows] = useState<Review[]>([])
   const [counts, setCounts] = useState({ pending: 0, approved: 0, rejected: 0 })
   const [loading, setLoading] = useState(true)
+  // Staff publish or reject; deleting a review for good is the manager's.
+  const mayDecide = useMayWrite('reviews:update')
+  const mayDelete = useMayWrite('reviews:delete')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -94,13 +98,13 @@ export default function ReviewsPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  {r.status !== 'approved' && (
+                  {mayDecide && r.status !== 'approved' && (
                     <button onClick={() => decide(r.id, 'approved')} title="Publish" className="p-2 text-green-700 hover:bg-green-50 rounded-lg dark:text-green-300"><Check className="h-4 w-4" /></button>
                   )}
-                  {r.status !== 'rejected' && (
+                  {mayDecide && r.status !== 'rejected' && (
                     <button onClick={() => decide(r.id, 'rejected')} title="Reject" className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400"><X className="h-4 w-4" /></button>
                   )}
-                  <button onClick={() => remove(r.id)} title="Delete" className="p-2 text-red-600 hover:bg-red-50 rounded-lg dark:text-red-400"><Trash2 className="h-4 w-4" /></button>
+                  {mayDelete && <button onClick={() => remove(r.id)} title="Delete" className="p-2 text-red-600 hover:bg-red-50 rounded-lg dark:text-red-400"><Trash2 className="h-4 w-4" /></button>}
                 </div>
               </div>
             </div>

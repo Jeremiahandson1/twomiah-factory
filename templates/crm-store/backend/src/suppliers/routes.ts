@@ -6,14 +6,15 @@ import crypto from 'crypto'
 import { eq } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { supplierConfig, variantSupplierMap, productVariants, orders } from '../../db/schema.ts'
-import { authenticate, requireOwner } from '../middleware/auth.ts'
+import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { encryptJSON } from '../lib/crypto.ts'
 import logger from '../services/logger.ts'
 import { buildProvider, getActiveSupplier, forwardOrderToSupplier } from './index.ts'
 import type { SupplierCredentials } from './types.ts'
 
 const admin = new Hono()
-admin.use('*', authenticate, requireOwner)
+admin.use('*', authenticate, requirePermission('integrations:update'))
 
 admin.get('/', async (c) => {
   const [cfg] = await db.select().from(supplierConfig).limit(1)

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Truck, CheckCircle2 } from 'lucide-react'
 import api from '../services/api'
 import { useToast } from '../contexts/ToastContext'
+import { useKnownPermission } from '../shared'
 
 // Dropship supplier connection — mirrors PaymentsPage. Connect once; paid
 // orders forward themselves and tracking flows back automatically.
@@ -27,8 +28,15 @@ export default function SuppliersPage() {
   const [saving, setSaving] = useState(false)
   const f = PROVIDER_FIELDS[form.provider] || PROVIDER_FIELDS.printful
 
+  // The supplier connection is the owner's (integrations:update). The menu hides this page from
+  // everyone else; reached by its address, it says so instead of a form every button of which is refused.
+  const mayManage = useKnownPermission('integrations:update')
+
   const load = () => api.getSupplierStatus().then(setStatus).catch(() => {}).finally(() => setLoading(false))
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    if (mayManage === true) load()
+    else if (mayManage === false) setLoading(false)
+  }, [mayManage])
 
   const connect = async () => {
     setSaving(true)
@@ -50,6 +58,12 @@ export default function SuppliersPage() {
     load()
   }
 
+  if (mayManage === false) return (
+    <div className="max-w-2xl space-y-3">
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Suppliers</h1>
+      <p className="text-sm text-gray-500 dark:text-slate-400">The supplier connection is managed by the store owner.</p>
+    </div>
+  )
   if (loading) return <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-primary-500" /></div>
   const connected = status?.config?.connected
 

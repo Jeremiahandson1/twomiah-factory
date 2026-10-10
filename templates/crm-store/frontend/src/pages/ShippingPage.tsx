@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Truck, CheckCircle2 } from 'lucide-react'
 import api, { type ShippingConfig } from '../services/api'
 import { useToast } from '../contexts/ToastContext'
+import { useMayWrite } from '../shared'
 
 // Carrier account for buying labels. Mirrors PaymentsPage/SuppliersPage:
 // connect once, then buy a label from any order.
@@ -13,6 +14,8 @@ export default function ShippingPage() {
   const [from, setFrom] = useState({ name: '', line1: '', line2: '', city: '', state: '', postalCode: '', country: 'US', phone: '' })
   const [parcel, setParcel] = useState({ lengthIn: '10', widthIn: '8', heightIn: '4', weightOz: '16' })
   const [saving, setSaving] = useState(false)
+  // The carrier account is the manager's (shipping:configure). Staff buy labels from the order page.
+  const mayConfigure = useMayWrite('shipping:configure')
 
   const load = async () => {
     try {
@@ -77,11 +80,15 @@ export default function ShippingPage() {
       {cfg?.connected && (
         <div className="card p-4 flex items-center justify-between">
           <span className="flex items-center gap-2 text-green-700 dark:text-green-300"><CheckCircle2 className="h-4 w-4" /> Connected to {cfg.provider} ({cfg.mode})</span>
-          <button onClick={disconnect} className="btn-secondary">Disconnect</button>
+          {mayConfigure && <button onClick={disconnect} className="btn-secondary">Disconnect</button>}
         </div>
       )}
 
-      <div className="card p-5 space-y-4">
+      {!mayConfigure && (
+        <p className="text-sm text-gray-500 dark:text-slate-400">The carrier account is set up by a manager or the owner. Labels are bought from each order.</p>
+      )}
+
+      {mayConfigure && <div className="card p-5 space-y-4">
         <h2 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100"><Truck className="h-4 w-4" /> EasyPost</h2>
         <p className="text-sm text-gray-500 dark:text-slate-400">
           One account covers USPS, UPS and FedEx. Test mode gives real label URLs without buying postage.
@@ -125,7 +132,7 @@ export default function ShippingPage() {
         <button onClick={connect} disabled={saving || (!apiKey && !cfg?.connected) || !from.line1 || !from.postalCode} className="btn-primary">
           {saving ? 'Saving…' : cfg?.connected ? 'Update carrier settings' : 'Connect carrier'}
         </button>
-      </div>
+      </div>}
     </div>
   )
 }
