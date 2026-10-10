@@ -91,6 +91,9 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
   // Edit opens the list's form (PUT, contacts:update); Delete is DELETE (contacts:delete). Both were offered to
   // every seat that could open the record, and refused on save. (T62)
   const mayEdit = cfg.can('contacts:update')
+  // A location is POST /:id/sites (contacts:create). The SMS opt-out is a PUT on the contact (contacts:update) —
+  // mayEdit. Both were offered to technicians and refused. (T63)
+  const mayAddSite = cfg.can('contacts:create')
   const mayDelete = cfg.can('contacts:delete')
   // Managing a customer's portal — switching it on, reissuing the link, emailing it, reading it out —
   // is one permission, and it is not the one that opens this page. The server withholds the link from
@@ -535,7 +538,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                 <h2 className={h2}>Locations</h2>
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-gray-500 dark:text-slate-400">{contact.sites?.length || 0}</span>
-                  <button type="button" onClick={() => setSiteModalOpen(true)} className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 flex items-center gap-1"><Plus className="w-3 h-3" />Add Location</button>
+                  {mayAddSite && <button type="button" onClick={() => setSiteModalOpen(true)} className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 flex items-center gap-1"><Plus className="w-3 h-3" />Add Location</button>}
                 </div>
               </div>
               {contact.sites && contact.sites.length > 0 ? (
@@ -563,9 +566,14 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
             <div className={card}>
               <div className="p-4 border-b dark:border-slate-800 flex items-center justify-between">
                 <h2 className={`${h2} flex items-center gap-2`}><MessageSquare className="w-4 h-4" /> Messages</h2>
+                {/* Somebody who may not change it still needs to know the customer said no to texts. */}
+                {mayEdit ? (
                 <button type="button" onClick={toggleOptOut} className={`text-xs px-2 py-1 rounded ${contact.optedOutSms ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-200' : 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-300'}`}>
                   {contact.optedOutSms ? 'Opted Out — Re-enable' : 'Opt Out SMS'}
                 </button>
+                ) : contact.optedOutSms ? (
+                  <span className="text-xs px-2 py-1 rounded bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-200">Opted out of SMS</span>
+                ) : null}
               </div>
               <div className="max-h-80 overflow-y-auto p-4 space-y-2">
                 {smsMessages.length === 0 && !smsLoading && <p className="text-center text-sm text-gray-500 dark:text-slate-400 py-6">No messages yet</p>}

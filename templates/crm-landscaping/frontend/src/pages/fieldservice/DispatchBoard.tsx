@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 // The day on the wall behind the dispatcher, not the day in UTC. (Evergreen BUG-28)
-import { todayKey, dayKeyPlus } from '../../shared';
+import { todayKey, dayKeyPlus, useMayWrite } from '../../shared';
 import { useToast } from '../../contexts/ToastContext';
 
 const SERVICE_TYPES = ['install', 'repair', 'maintenance', 'emergency'] as const;
@@ -41,6 +41,8 @@ export default function DispatchBoard() {
   const toast = useToast();
   const [jobs, setJobs] = useState([]);
   const [techs, setTechs] = useState([]);
+  // The technician list is team:read. A seat without it is not asked for it — it would only be refused. (T63)
+  const maySeeRoster = useMayWrite('team:read');
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(todayKey());
 
@@ -67,7 +69,7 @@ export default function DispatchBoard() {
         // crew matched by email. company/users is "a bare array including the owner" by its own
         // description — which is how the read-only viewer was offered as a technician here, the same
         // finding closed on crm-fieldservice in T42 and never swept to this copy. (T48)
-        api.get('/api/team/assignable'),
+        maySeeRoster ? api.get('/api/team/assignable') : Promise.resolve([]),
       ]);
       if (jobsOut.status === 'rejected') throw jobsOut.reason;
       const jobsRes: any = jobsOut.value;

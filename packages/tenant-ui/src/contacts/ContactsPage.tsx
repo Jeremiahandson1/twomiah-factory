@@ -9,6 +9,7 @@ import { DataTable, StatusBadge, PageHeader, Button, Modal, ConfirmModal, Field,
 import type { Pagination } from '../invoicing/ui'
 import { resolveContactsConfig, isValidPhone } from './types'
 import type { ContactsPageProps, ContactRow } from './types'
+import { SourceField } from './SourceField'
 
 interface ContactForm {
   type: string; name: string; company: string; email: string; phone: string; mobile: string
@@ -20,6 +21,10 @@ const emptyForm = (type: string): ContactForm => ({ type, name: '', company: '',
 export function ContactsPage({ api, toast, config }: ContactsPageProps) {
   const cfg = resolveContactsConfig(config)
   const mayCreate = cfg.can('contacts:create')
+  // The row menu asks each route's question: Edit and Convert are PUT/POST on contacts:update (so is the vendor
+  // invite), Delete is contacts:delete. T62 closed the detail page; the list's menu still offered both. (T63)
+  const mayEdit = cfg.can('contacts:update')
+  const mayDelete = cfg.can('contacts:delete')
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [contacts, setContacts] = useState<ContactRow[]>([])
@@ -127,7 +132,7 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
   // open the modal, then clear the param.
   useEffect(() => {
     const editId = searchParams.get('edit')
-    if (!editId) return
+    if (!editId || !mayEdit) return
     let cancelled = false
     api.get(`/api/contacts/${editId}`).then((row: ContactRow) => {
       if (cancelled || !row) return
@@ -208,16 +213,16 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
     // min-h-6 (24px) and inline-flex: a bare inline <a> is only as tall as its text, which measured under
     // 24px on a phone — below the smallest target WCAG 2.2 asks for, and a real miss when the row it sits
     // in opens the contact. The row's own click is already stopped here. (Field Service T30 L-MOB3)
-    { key: 'email', label: 'Email', render: (val: unknown) => val ? <a href={`mailto:${val}`} onClick={(e) => e.stopPropagation()} className="inline-flex items-center min-h-6 text-orange-500 dark:text-orange-200 hover:underline">{String(val)}</a> : '-' },
+    { key: 'email', label: 'Email', render: (val: unknown) => val ? <a href={`mailto:${val}`} onClick={(e) => e.stopPropagation()} className="inline-flex items-center min-h-6 max-w-full break-all text-orange-500 dark:text-orange-200 hover:underline">{String(val)}</a> : '-' },
     { key: 'phone', label: 'Phone', render: (val: unknown) => <span className="text-gray-700 dark:text-slate-200">{String(val || '-')}</span> },
     { key: 'city', label: 'Location', render: (_v: unknown, row: ContactRow) => <span className="text-gray-700 dark:text-slate-200">{row.city && row.state ? `${row.city}, ${row.state}` : row.city || row.state || '-'}</span> },
   ]
 
   const actions = [
-    { label: 'Edit', icon: Edit, onClick: openEdit },
-    { label: `Convert to ${cfg.convertLabel}`, icon: UserCheck, show: (row: ContactRow) => row.type === 'lead', onClick: convert },
+    { label: 'Edit', icon: Edit, show: () => mayEdit, onClick: openEdit },
+    { label: `Convert to ${cfg.convertLabel}`, icon: UserCheck, show: (row: ContactRow) => mayEdit && row.type === 'lead', onClick: convert },
     ...(cfg.vendorPortalInvite ? [{
-      label: 'Invite to vendor portal', icon: Handshake, show: (row: ContactRow) => row.type === 'vendor',
+      label: 'Invite to vendor portal', icon: Handshake, show: (row: ContactRow) => mayEdit && row.type === 'vendor',
       onClick: async (row: ContactRow) => {
         try {
           await api.post(`/api/vendor-portal/contacts/${row.id}/invite`)
@@ -225,7 +230,7 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
         } catch (err) { toast.error(errMsg(err, 'Failed to send invite')) }
       },
     }] : []),
-    { label: 'Delete', icon: Trash2, className: 'text-red-600', onClick: (row: ContactRow) => { setToDelete(row); setDeleteOpen(true) } },
+    { label: 'Delete', icon: Trash2, className: 'text-red-600', show: () => mayDelete, onClick: (row: ContactRow) => { setToDelete(row); setDeleteOpen(true) } },
   ]
 
   const set = (k: keyof ContactForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm({ ...form, [k]: e.target.value })
@@ -294,7 +299,8 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
           <Field label="Email"><input type="email" value={form.email} onChange={set('email')} className={inputCls} /></Field>
           <Field label="Phone"><input type="tel" value={form.phone} onChange={set('phone')} className={inputCls} /></Field>
           <Field label="Mobile"><input type="tel" value={form.mobile} onChange={set('mobile')} className={inputCls} /></Field>
-          <Field label="Source"><input type="text" value={form.source} onChange={set('source')} className={inputCls} placeholder="Referral, Website, etc." /></Field>
+          {/* The company's source choices, plus Other for one-offs; managers and up edit the list. (T63) */}
+          <SourceField api={api as any} value={form.source} onChange={(v) => setForm({ ...form, source: v })} toast={toast} />
           <div className="md:col-span-2"><Field label="Address"><input type="text" value={form.address} onChange={set('address')} className={inputCls} /></Field></div>
           <Field label="City"><input type="text" value={form.city} onChange={set('city')} className={inputCls} /></Field>
           <div className="grid grid-cols-2 gap-4">

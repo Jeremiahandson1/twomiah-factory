@@ -3,7 +3,7 @@
 import { createContactRoutes, standardRelations, standardGuards } from '../shared/index.ts'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { contact, project, quote, invoice, job, appointment, serviceRecord, membershipEnrollment } from '../../db/schema.ts'
+import { contact, company, project, quote, invoice, job, appointment, serviceRecord, membershipEnrollment } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -12,7 +12,8 @@ import { cleanText } from '../utils/sanitize.ts'
 
 export default createContactRoutes({
   db,
-  tables: { contact },
+  // company: the source choices live in its settings (GET/PUT /api/contacts/source-options) (T63)
+  tables: { contact, company },
   authenticate,
   requirePermission,
   // which related lists (quotes, invoices) a contact read carries — the permission each list's page asks (T62)

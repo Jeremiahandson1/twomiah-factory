@@ -433,9 +433,10 @@ function SendReminderModal({ contactIds, defaultMessage, onDone, onClose }: { co
   const [result, setResult] = useState<{ sent?: number; failed?: number; noPhone?: number; reason?: string | null } | null>(null);
   // Texting runs on a prepaid usage wallet billed by Twomiah. Warn BEFORE sending when it is empty
   // or texting is not enabled — a failed send used to be reported as "sent". (SALON-C4)
-  const [wallet, setWallet] = useState<{ configured: boolean; enabled: boolean; walletCents: number } | null>(null);
+  // walletEmpty is what every seat is told; walletCents only reaches whoever settles the bill. (T63)
+  const [wallet, setWallet] = useState<{ configured: boolean; enabled: boolean; walletEmpty?: boolean; walletCents?: number } | null>(null);
   useEffect(() => { api.get('/api/messaging-billing/status').then((w) => setWallet(w)).catch(() => setWallet(null)); }, []);
-  const walletEmpty = !!wallet?.configured && (!wallet.enabled || wallet.walletCents <= 0);
+  const walletEmpty = !!wallet?.configured && (!wallet.enabled || (wallet.walletEmpty ?? Number(wallet.walletCents ?? 0) <= 0));
 
   const send = async () => {
     if (!message.trim()) { toast.error('Message is required'); return; }

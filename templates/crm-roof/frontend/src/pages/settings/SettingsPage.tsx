@@ -294,7 +294,9 @@ export default function SettingsPage() {
           <Settings className="w-6 h-6 text-gray-400" /> Settings
         </h1>
 
-        {/* SMS & AI Billing */}
+        {/* SMS & AI Billing — the wallet is the bill, and GET /messaging-billing/portal-link is requireAdmin; staff
+            were offered "Manage billing" and refused. Shown to the same seats the route serves. (T63) */}
+        {isAdmin && (
         <div className="bg-white rounded-xl shadow-sm border p-6 flex items-center justify-between gap-4 dark:bg-slate-900">
           <div>
             <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100"><MessageSquare className="w-4 h-4 text-gray-400" /> SMS &amp; AI Usage</h2>
@@ -302,6 +304,7 @@ export default function SettingsPage() {
           </div>
           <button onClick={openSmsBilling} className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg whitespace-nowrap">Manage billing &rarr;</button>
         </div>
+        )}
 
         {/* T60: "Company fields are editable but can't be saved." Save was already admin-only (PUT
             /api/settings/company is requireAdmin) and the note said so; the fields were still live, so a

@@ -77,7 +77,8 @@ export interface ContactOptions {
 
 export interface ContactDeps {
   db: any
-  tables: { contact: any }
+  /** `company` holds the source choices (settings.leadSourceOptions); without it the defaults are served read-only. */
+  tables: { contact: any; company?: any }
   authenticate: any
   requirePermission: (permission: string) => any
   emitToCompany: (companyId: string, event: string, data: any) => void
@@ -91,6 +92,19 @@ export interface ContactDeps {
 }
 
 const PHONE_RE = /^[0-9+()\-.\s]+$/
+/** Offered until a manager saves the company's own list. Neutral across verticals: every business gets referrals. */
+export const DEFAULT_SOURCE_OPTIONS = ['Referral', 'Repeat customer', 'Website', 'Google', 'Facebook', 'Instagram', 'Walk-in']
+/** Trimmed, blanks dropped, duplicates (ignoring case) dropped — first spelling wins. Never contains "Other": that is the form's own way out. */
+export const cleanSourceOptions = (raw: unknown[]): string[] => {
+  const seen = new Set<string>(), out: string[] = []
+  for (const o of raw) {
+    const v = String(o ?? '').trim().replace(/\s+/g, ' ')
+    const k = v.toLowerCase()
+    if (!v || k === 'other' || seen.has(k)) continue
+    seen.add(k); out.push(v)
+  }
+  return out
+}
 export const isValidPhone = (v: unknown) => !v || (PHONE_RE.test(String(v)) && String(v).replace(/\D/g, '').length >= 7)
 const phoneField = (what: string) => z.string().optional().nullable().refine(isValidPhone, { message: `Enter a valid ${what} (at least 7 digits)` })
 
@@ -208,6 +222,43 @@ export function createContactRoutes(deps: ContactDeps) {
       db.select({ value: count() }).from(t.contact).where(where),
     ])
     return c.json({ data: data.map(withoutPortalCredential), pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
+  })
+
+  /**
+   * THE SOURCE CHOICES — a list managers keep, everyone picks from. (T63; owner's decision 2026-10-09)
+   *
+   *   "Anyone should be able to add a lead, but only managers should be able to add a source, like a dropdown …
+   *    staff should be able to choose the lead source, and add an Other for one-offs, but not add actual lead
+   *    source choices."
+   *
+   * contact.source stays free text: a one-off "Other" is written on that contact and never joins this list. The list
+   * is company.settings.leadSourceOptions; until a manager saves one, the defaults below are offered. Read with
+   * contacts:read (anybody who can open the form); written with leads:update — owners, admins and managers, the
+   * same people who connect where leads come from on the Lead Sources page.
+   */
+  app.get('/source-options', requirePermission('contacts:read'), async (c) => {
+    const currentUser = c.get('user') as any
+    if (!t.company) return c.json({ options: DEFAULT_SOURCE_OPTIONS, isDefault: true })
+    const [co] = await db.select({ settings: t.company.settings }).from(t.company).where(eq(t.company.id, currentUser.companyId)).limit(1)
+    const saved = (co?.settings as any)?.leadSourceOptions
+    return Array.isArray(saved) ? c.json({ options: cleanSourceOptions(saved), isDefault: false }) : c.json({ options: DEFAULT_SOURCE_OPTIONS, isDefault: true })
+  })
+
+  app.put('/source-options', requirePermission('leads:update'), async (c) => {
+    const currentUser = c.get('user') as any
+    if (!t.company) return c.json({ error: 'Source choices cannot be saved on this CRM.' }, 400)
+    const body = await c.req.json().catch(() => ({}))
+    if (!Array.isArray(body?.options)) return c.json({ error: 'Send the full list of source choices.', field: 'options' }, 400)
+    const tooLong = body.options.find((o: unknown) => String(o ?? '').trim().length > 40)
+    if (tooLong) return c.json({ error: `"${String(tooLong).trim().slice(0, 40)}…" is too long for a source — 40 characters at most.`, field: 'options' }, 400)
+    const options = cleanSourceOptions(body.options)
+    if (options.length > 50) return c.json({ error: 'That is more than 50 source choices — combine some, or use Other for the rare ones.', field: 'options' }, 400)
+    // read-merge-write: the settings blob holds the plan and the money defaults too, and must keep them
+    const [co] = await db.select({ settings: t.company.settings }).from(t.company).where(eq(t.company.id, currentUser.companyId)).limit(1)
+    const before = (co?.settings as any)?.leadSourceOptions
+    await db.update(t.company).set({ settings: { ...((co?.settings as any) || {}), leadSourceOptions: options } }).where(eq(t.company.id, currentUser.companyId))
+    try { audit.log({ action: audit.ACTIONS.UPDATE, entity: 'company', entityId: currentUser.companyId, entityName: 'Lead source choices', changes: { leadSourceOptions: { old: before ?? null, new: options } }, req: c }) } catch { /* the save stands */ }
+    return c.json({ options, isDefault: false })
   })
 
   app.get('/stats', requirePermission('contacts:read'), async (c) => {

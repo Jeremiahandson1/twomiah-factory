@@ -66,7 +66,8 @@ const NAV: NavItem[] = [
   { to: '/crm/parts', icon: Box, label: 'Parts & Materials', section: 'Operations', features: ['parts_tracking'] },
   { to: '/crm/pricebook-rates', icon: BookMarked, label: 'Flat-Rate Pricing', section: 'Operations', features: ['flat_rate_pricebook'] },
   { to: '/crm/recurring-routes', icon: Route, label: 'Route Board', section: 'Operations', features: ['recurring_routes'] },
-  { to: '/crm/area-pricing', icon: Ruler, label: 'Area Pricing', section: 'Operations', features: ['area_pricing'] },
+  // Every read on that page asks quotes:read (rates, the quote calculator) — the link asks the same. (T63)
+  { to: '/crm/area-pricing', icon: Ruler, label: 'Area Pricing', section: 'Operations', features: ['area_pricing'], permission: 'quotes:read' },
   // EVERY endpoint behind this page is an `invoices:*` one — contracts carry the rates, an event
   // stores the billable amount it computes, and there is a Bill button. T41: "The Snow page tells
   // staff 'No snow contracts yet' instead of 'no access', and still shows New Contract." A 403 read

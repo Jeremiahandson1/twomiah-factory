@@ -40,5 +40,30 @@ check('…and ?mine=1 returns exactly that one', mine.status === 200 && mine.jso
 const team = await as(owner)('GET', '/api/canvassing/sessions')
 check('the unfiltered list (the dashboard) still shows the whole team', team.status === 200 && team.json?.length === 2, team.json?.map?.((s: any) => s.name))
 
+// ══ T63: the server holds the line too — a canvasser cannot reach the owner's session by id ══
+const ownerId = os.json?.id
+const unfiltered = await as(canvasser)('GET', '/api/canvassing/sessions')
+check('T63: the canvasser\'s UNFILTERED list is still only theirs', unfiltered.status === 200 && unfiltered.json?.length === 1 && unfiltered.json[0].id === cs.json?.id, unfiltered.json?.map?.((s: any) => s.name))
+for (const [m, path, body] of [
+  ['GET', `/api/canvassing/sessions/${ownerId}`, undefined],
+  ['GET', `/api/canvassing/sessions/${ownerId}/stops`, undefined],
+  ['GET', `/api/canvassing/sessions/${ownerId}/map`, undefined],
+  ['PUT', `/api/canvassing/sessions/${ownerId}`, { name: 'renamed by a canvasser' }],
+  ['POST', `/api/canvassing/sessions/${ownerId}/stops`, { outcome: 'no_answer', address: '1 Elm St' }],
+  ['POST', `/api/canvassing/sessions/${ownerId}/end`, {}],
+] as const) {
+  const r = await as(canvasser)(m, path, body)
+  check(`T63: canvasser ${m} ${path.replace(ownerId, ':owners')} → 404`, r.status === 404, r)
+}
+const ownStop = await as(canvasser)('POST', `/api/canvassing/sessions/${cs.json?.id}/stops`, { outcome: 'no_answer', address: '2 Maple Ave' })
+check('T63: the canvasser logs a door in their OWN session', ownStop.status === 201, ownStop)
+const ownerStop = await as(owner)('POST', `/api/canvassing/sessions/${ownerId}/stops`, { outcome: 'no_answer', address: '3 Elm St' })
+const editOthers = await as(canvasser)('PUT', `/api/canvassing/stops/${ownerStop.json?.id}`, { notes: 'not mine' })
+check('T63: the canvasser cannot edit a stop in the owner\'s session (404)', ownerStop.status === 201 && editOthers.status === 404, { o: ownerStop.status, e: editOthers.status })
+const editOwn = await as(canvasser)('PUT', `/api/canvassing/stops/${ownStop.json?.id}`, { notes: 'came back later' })
+check('T63: …and edits their own', editOwn.status === 200, editOwn)
+const ownerReads = await as(owner)('GET', `/api/canvassing/sessions/${cs.json?.id}`)
+check('T63: the owner (team view) opens the canvasser\'s session', ownerReads.status === 200, ownerReads.status)
+
 console.log(`\nt62 canvass mine: ${passed} passed, ${failed} failed`)
 if (failed) process.exit(1)

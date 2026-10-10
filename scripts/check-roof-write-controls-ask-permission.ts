@@ -61,8 +61,6 @@ const NOT_SWEPT: Record<string, string> = {
     'ads:update (approve, request changes, create an experiment). Roof forks the shared Ads page; the shared one is on the same list.',
   'pages/leads/LeadInboxPage.tsx':
     'leads:update to triage and leads:create (or contacts:create) to convert — roof keeps its own copy of a page the shared sweep already gated.',
-  'pages/leads/LeadSourcesPage.tsx':
-    'leads:update, and the webhook SECRET and the secret-bearing URL must be withheld as well as the controls — the shared copy does both already.',
   'pages/roofing/ImportPage.tsx':
     'admin-by-route: routes/import.ts carries app.use(requireAdmin), so a non-admin gets 403 rather than a wrong answer. Needs the control hidden and the raw "403" text replaced.',
   'pages/settings/EstimatorSettingsPage.tsx':

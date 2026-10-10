@@ -48,10 +48,24 @@ export async function fetchMessagingBillingStatus(): Promise<MessagingBillingSta
   }
 }
 
-export function createMessagingBillingRoutes(): Hono {
+/**
+ * WHO MAY READ THE WALLET. (T63: "/messaging-billing/status still returns the wallet balance" to staff.)
+ *
+ * The balance, the ledger and the monthly charges are the bill, and the bill stays with whoever settles it —
+ * company:update, the line GET /api/company already draws (check-billing-visibility). Everyone else is told what a
+ * send screen needs: is texting configured, is it on, and is the wallet empty. Not wired → the full status, so an
+ * un-rewired template is unchanged.
+ */
+export interface MessagingBillingOptions { mayReadWallet?: (c: any) => Promise<boolean> }
+
+export function createMessagingBillingRoutes(opts: MessagingBillingOptions = {}): Hono {
   const app = new Hono()
 
-  app.get('/status', async (c) => c.json(await fetchMessagingBillingStatus()))
+  app.get('/status', async (c) => {
+    const s = await fetchMessagingBillingStatus()
+    if (!opts.mayReadWallet || await opts.mayReadWallet(c).catch(() => false)) return c.json({ ...s, walletEmpty: s.walletCents <= 0 })
+    return c.json({ configured: s.configured, enabled: s.enabled, aiEnabled: s.aiEnabled, walletEmpty: s.walletCents <= 0, ...(s.error ? { error: 'Billing service unavailable' } : {}) })
+  })
 
   app.get('/portal-link', async (c) => {
     const { url, key, tenantId } = cfg()

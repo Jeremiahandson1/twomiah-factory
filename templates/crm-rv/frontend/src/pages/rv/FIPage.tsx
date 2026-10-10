@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CreditCard, Loader2, Send, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import api from '../../services/api';
+import { useMayWrite } from '../../shared';
 import { DEAL_DEFAULTS, dealTotals, type Deal } from '../../lib/deal';
 
 const money = (n: number) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -17,6 +18,8 @@ function payment(principal: number, apr: number, months: number) {
 // sent back to Desking rather than financed at the sticker price. (RV T19 H1)
 export default function FIPage() {
   const [leads, setLeads] = useState<any[]>([]);
+  // POST /api/fi/submit asks financing:create — managers and up. Staff were offered the button and refused. (T63)
+  const maySubmit = useMayWrite('financing:create');
   const [products, setProducts] = useState<any[]>([]);
   const [leadId, setLeadId] = useState('');
   const [info, setInfo] = useState<any>(null);
@@ -137,8 +140,8 @@ export default function FIPage() {
             <div className="text-2xl font-bold">{money(amountFinanced)}</div>
             <div className="text-xs text-gray-500 dark:text-slate-400">+ {money(productTotal)} F&I products · est. {money(estPay)}/mo @ {apr}% / {months}mo</div>
           </div>
-          <button onClick={submit} disabled={submitting} className="px-5 py-2.5 rounded-lg bg-violet-700 text-white font-medium hover:bg-violet-800 disabled:opacity-50 inline-flex items-center gap-2">
-            {submitting ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}{submitting ? 'Submitting…' : 'Submit credit app'}</button>
+          {maySubmit && <button onClick={submit} disabled={submitting} className="px-5 py-2.5 rounded-lg bg-violet-700 text-white font-medium hover:bg-violet-800 disabled:opacity-50 inline-flex items-center gap-2">
+            {submitting ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}{submitting ? 'Submitting…' : 'Submit credit app'}</button>}
         </div>
 
         {decision && (decision.error

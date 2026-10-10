@@ -1,12 +1,15 @@
 import { useEffect, useState, type ChangeEvent } from 'react';
 import { Package, Search, Loader2, Info, Upload, X, CheckCircle2 } from 'lucide-react';
 import api from '../../services/api';
-import { PageError, errorText } from '../../shared';
+import { PageError, errorText, useMayWrite } from '../../shared';
 
 const money = (n?: number) => (n ? '$' + Number(n).toFixed(2) : '');
 
 export default function OEMPartsPage() {
   const [q, setQ] = useState('');
+  // Importing a price file and ordering a part both ask inventory:create (POST /api/oem-parts/import,
+  // POST /api/parts-orders/create) — staff were offered both and refused. (T63)
+  const mayStock = useMayWrite('inventory:create');
   const [oem, setOem] = useState('');
   const [category, setCategory] = useState('');
   const [parts, setParts] = useState<any[]>([]);
@@ -84,10 +87,10 @@ export default function OEMPartsPage() {
             <p className="text-sm text-gray-500 dark:text-slate-400">Search parts by number, name, or unit — price, fitment, availability, supersessions.</p>
           </div>
         </div>
-        <button onClick={() => setShowImport((s) => !s)}
+        {mayStock && <button onClick={() => setShowImport((s) => !s)}
           className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-sm font-medium hover:bg-slate-50">
           <Upload size={15} /> Import parts
-        </button>
+        </button>}
       </div>
 
       <div className="mt-3"><PageError message={pageErr} onDismiss={() => setPageErr('')} /></div>
@@ -100,7 +103,7 @@ export default function OEMPartsPage() {
       ) : (
         <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex gap-2 dark:text-amber-300 dark:bg-amber-950/40">
           <Info size={15} className="shrink-0 mt-0.5" />
-          <span><b>Demo catalog.</b> Import your own parts to go live — your OEM price files (downloaded from your dealer portal) or your parts export from your old system. <button onClick={() => setShowImport(true)} className="underline font-medium">Import now →</button></span>
+          <span><b>Demo catalog.</b> Import your own parts to go live — your OEM price files (downloaded from your dealer portal) or your parts export from your old system.{mayStock && <> <button onClick={() => setShowImport(true)} className="underline font-medium">Import now →</button></>}</span>
         </div>
       )}
 
@@ -180,7 +183,7 @@ export default function OEMPartsPage() {
                   <td className="px-4 py-2 text-gray-500 text-xs align-top dark:text-slate-400">{p.fitment || '—'}</td>
                   <td className="px-4 py-2 text-right font-semibold align-top">{money(p.price)}{p.msrp && p.msrp > p.price ? <span className="block text-[10px] text-gray-500 dark:text-slate-400 line-through font-normal">{money(p.msrp)}</span> : null}</td>
                   <td className="px-4 py-2 align-top"><span className={`text-xs px-2 py-0.5 rounded-full ${/in stock/i.test(p.availability) ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>{p.availability}</span></td>
-                  <td className="px-4 py-2 align-top">{ordered[p.partNumber] ? <span className="text-xs text-green-700 font-medium whitespace-nowrap dark:text-green-300">✓ {ordered[p.partNumber]}</span> : <button onClick={() => order(p)} className="text-xs px-2.5 py-1 rounded border border-slate-300 hover:bg-slate-50">Order</button>}</td>
+                  <td className="px-4 py-2 align-top">{ordered[p.partNumber] ? <span className="text-xs text-green-700 font-medium whitespace-nowrap dark:text-green-300">✓ {ordered[p.partNumber]}</span> : mayStock ? <button onClick={() => order(p)} className="text-xs px-2.5 py-1 rounded border border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-800">Order</button> : null}</td>
                 </tr>
               ))}
             </tbody>

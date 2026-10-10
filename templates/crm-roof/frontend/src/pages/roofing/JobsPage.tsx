@@ -72,6 +72,11 @@ export default function JobsPage() {
   const [typeFilter, setTypeFilter] = useState('');
   const [crewFilter, setCrewFilter] = useState('');
   const [repFilter, setRepFilter] = useState('');
+  // "My jobs" — the jobs I'm the sales rep on; everyone still sees every job (owner's decision, T63).
+  const [mineOnly, setMineOnly] = useState(false);
+  // The rep list is GET /api/users — users:read or team:read. Crew hold neither, so for them it was a refused request and
+  // an empty "All Reps" picker. Asked only of a seat it answers; the picker only when it has names. (T63)
+  const maySeeRoster = useMayWrite('team:read');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
@@ -99,12 +104,14 @@ export default function JobsPage() {
       if (search) params.set('search', search);
       if (statusFilter) params.set('status', statusFilter);
       if (typeFilter) params.set('jobType', typeFilter);
-      if (crewFilter) params.set('crewId', crewFilter);
-      if (repFilter) params.set('salesRepId', repFilter);
+      // The API's names. These sent crewId / salesRepId, which it never read — both filters returned every job. (T63)
+      if (crewFilter) params.set('assignedCrewId', crewFilter);
+      if (repFilter) params.set('assignedSalesRepId', repFilter);
+      if (mineOnly) params.set('mine', '1');
 
       const [jobsRes, usersRes, crewsRes] = await Promise.all([
         fetch(`/api/jobs?${params}`, { headers }),
-        fetch('/api/users', { headers }),
+        maySeeRoster ? fetch('/api/users', { headers }) : Promise.resolve(new Response('[]')),
         fetch('/api/crews', { headers }),
       ]);
       const jobsData = await jobsRes.json();
@@ -126,10 +133,10 @@ export default function JobsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, statusFilter, typeFilter, crewFilter, repFilter, token]);
+  }, [page, search, statusFilter, typeFilter, crewFilter, repFilter, mineOnly, token]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); }, [search, statusFilter, typeFilter, crewFilter, repFilter]);
+  useEffect(() => { setPage(1); }, [search, statusFilter, typeFilter, crewFilter, repFilter, mineOnly]);
 
   const openCreate = async () => {
     setForm({ contactId: '', jobType: 'retail', address: '', city: '', state: '', zip: '', roofType: '', stories: '', notes: '' });
@@ -200,6 +207,10 @@ export default function JobsPage() {
               className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg"
             />
           </div>
+          <button type="button" onClick={() => setMineOnly(!mineOnly)} aria-pressed={mineOnly}
+            className={`text-sm px-3 py-2 rounded-lg border font-medium ${mineOnly ? 'bg-blue-100 border-blue-300 text-blue-800 dark:bg-blue-950/40 dark:border-blue-700 dark:text-blue-200' : 'bg-white border-gray-300 text-gray-700 dark:bg-slate-900 dark:border-slate-600 dark:text-slate-200'}`}>
+            My jobs
+          </button>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
             <option value="">All Statuses</option>
             {STATUSES.map((s) => <option key={s} value={s}>{formatStatus(s)}</option>)}
@@ -212,10 +223,10 @@ export default function JobsPage() {
             <option value="">All Crews</option>
             {crews.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <select value={repFilter} onChange={(e) => setRepFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
+          {users.length > 0 && <select value={repFilter} onChange={(e) => setRepFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
             <option value="">All Sales Reps</option>
             {users.map((u: any) => <option key={u.id} value={u.id}>{displayName(u)}</option>)}
-          </select>
+          </select>}
         </div>
 
         {/* Table */}

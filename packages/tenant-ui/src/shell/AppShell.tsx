@@ -23,13 +23,15 @@ const WHO_CAN_OPEN: Record<string, string> = {
   manager: 'This page is limited to managers and above',
   // …and by permission, for the pages the server gates that way. Keyed by the permission string itself,
   // so the sentence a person reads is looked up with the same key the guard checks. (T30 M-R1)
-  'invoices:read': 'Invoices are limited to the people who handle the money',
-  'quotes:read': 'Quotes are limited to the people who handle the money',
-  'reports:read': 'Reports are limited to managers and above',
-  'audit:read': 'The audit log is limited to admins and the owner',
-  'marketing:read': 'Marketing is limited to managers and above',
-  'team:read': 'The team roster is limited to managers and above',
-  'company:update': 'Company setup is limited to admins and the owner',
+  // "This page", not the permission's own noun: more than one page sits behind each of these, and RV's Accounting
+  // page — behind invoices:read — told staff "Invoices are limited…". (T63) The heading above already names the page.
+  'invoices:read': 'This page is limited to the people who handle the money',
+  'quotes:read': 'This page is limited to the people who handle the money',
+  'reports:read': 'This page is limited to managers and above',
+  'audit:read': 'This page is limited to admins and the owner',
+  'marketing:read': 'This page is limited to managers and above',
+  'team:read': 'This page is limited to managers and above',
+  'company:update': 'This page is limited to admins and the owner',
 }
 
 /** "/crm/lead-sources" → "Lead Sources", for a gated route with no menu entry to take a label from. */

@@ -136,6 +136,9 @@ app.get('/', async (c) => {
   const jobType = c.req.query('jobType')
   const assignedSalesRepId = c.req.query('assignedSalesRepId')
   const assignedCrewId = c.req.query('assignedCrewId')
+  // "My jobs": the jobs this person is the sales rep on — read from the session, so the screen need not know the id.
+  // Crews carry a foreman's NAME, not a login, so a crew is not something a person can be matched to. (T63)
+  const mine = c.req.query('mine') === '1'
   const search = c.req.query('search')
   const page = +(c.req.query('page') || '1')
   const limit = +(c.req.query('limit') || '50')
@@ -145,6 +148,7 @@ app.get('/', async (c) => {
   if (jobType) conditions.push(eq(job.jobType, jobType))
   if (assignedSalesRepId) conditions.push(eq(job.assignedSalesRepId, assignedSalesRepId))
   if (assignedCrewId) conditions.push(eq(job.assignedCrewId, assignedCrewId))
+  if (mine) conditions.push(eq(job.assignedSalesRepId, currentUser.userId))
 
   if (search) {
     const searchPattern = `%${search}%`
@@ -377,6 +381,11 @@ app.put('/:id', requirePermission('jobs:update'), async (c) => {
   if (data.contactId && !(await ownContact(currentUser.companyId, data.contactId))) return c.json({ error: 'That contact does not exist.' }, 404)
 
   const updateData: Record<string, any> = { ...data, updatedAt: new Date() }
+  // Unassigning: the picker's "Unassigned" sends '' (or null), and the schema turns both into "not sent" — so a rep or
+  // crew could be set and never taken off. Present-and-empty means clear. (T63)
+  for (const k of ['assignedSalesRepId', 'assignedCrewId'] as const) {
+    if (k in rawBody && (rawBody[k] === '' || rawBody[k] === null)) updateData[k] = null
+  }
   for (const f of JOB_DATE_FIELDS) { if (dates.values[f] === undefined) delete updateData[f]; else updateData[f] = dates.values[f] }
   if (data.deductible !== undefined) updateData.deductible = data.deductible.toString()
   if (data.rcv !== undefined) updateData.rcv = data.rcv.toString()

@@ -130,7 +130,9 @@ app.get('/sources', requirePermission('contacts:read'), async (c) => {
   return c.json({ data: (await mayHoldSecret(c)) ? sources : sources.map(withoutSecret) })
 })
 
-app.post('/sources', requirePermission('contacts:create'), async (c) => {
+// Where leads come from is shop setup — managers and up. This fork's budtender holds leads:create to work LEADS,
+// so a source asks leads:update (manager 'leads:*', admin 'leads:*'). (T63; owner's decision 2026-10-09)
+app.post('/sources', requirePermission('leads:update'), async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.json()
   const inboundEmail = `leads+${currentUser.companyId.slice(0, 8)}-${body.platform}@inbound.twomiah.com`
@@ -153,7 +155,7 @@ app.post('/sources', requirePermission('contacts:create'), async (c) => {
   return c.json((await mayHoldSecret(c)) ? source : withoutSecret(source), 201)
 })
 
-app.put('/sources/:id', requirePermission('contacts:update'), async (c) => {
+app.put('/sources/:id', requirePermission('leads:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const body = await c.req.json()
@@ -171,7 +173,7 @@ app.put('/sources/:id', requirePermission('contacts:update'), async (c) => {
   return c.json((await mayHoldSecret(c)) ? updated : withoutSecret(updated))
 })
 
-app.delete('/sources/:id', requirePermission('contacts:delete'), async (c) => {
+app.delete('/sources/:id', requirePermission('leads:delete'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

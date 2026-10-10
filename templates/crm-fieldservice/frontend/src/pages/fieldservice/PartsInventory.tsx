@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
+import { useMayWrite } from '../../shared';
 
 const CATEGORIES = [
   'Filters',
@@ -27,6 +28,9 @@ export default function PartsInventory() {
   const [showLowStock, setShowLowStock] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [selectedPart, setSelectedPart] = useState(null);
+  // Add is POST /api/inventory/items (inventory:create), Edit is PUT (inventory:update) — technicians hold neither. (T63)
+  const mayAdd = useMayWrite('inventory:create');
+  const mayEdit = useMayWrite('inventory:update');
 
   useEffect(() => {
     loadParts();
@@ -71,13 +75,13 @@ export default function PartsInventory() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Parts Inventory</h1>
           <p className="text-gray-500 dark:text-slate-400">Track parts and materials</p>
         </div>
-        <button
+        {mayAdd && <button
           onClick={() => { setSelectedPart(null); setShowForm(true); }}
           className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
         >
           <Plus className="w-4 h-4" />
           Add Part
-        </button>
+        </button>}
       </div>
 
       {/* Stats */}
@@ -195,13 +199,13 @@ export default function PartsInventory() {
                       {part.location || part.locationName || '-'}
                     </td>
                     <td className="px-4 py-3">
-                      <button
+                      {mayEdit && <button
                         onClick={() => { setSelectedPart(part); setShowForm(true); }}
                         className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 rounded"
                         title="Edit"
                       >
                         <Edit2 className="w-4 h-4" />
-                      </button>
+                      </button>}
                     </td>
                   </tr>
                 );
@@ -212,12 +216,12 @@ export default function PartsInventory() {
             <div className="text-center py-12">
               <Package className="w-12 h-12 mx-auto text-gray-400 mb-3" />
               <p className="text-gray-500 dark:text-slate-400">No parts found</p>
-              <button
+              {mayAdd && <button
                 onClick={() => setShowForm(true)}
                 className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300"
               >
                 Add your first part
-              </button>
+              </button>}
             </div>
           )}
         </div>

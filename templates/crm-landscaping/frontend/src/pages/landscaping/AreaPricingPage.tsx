@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Trash2, Calculator, Loader2, Ruler } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
+import { useMayWrite } from '../../shared';
 import { SitePicker, useSites } from './SitePicker';
 
 const AREA_FIELDS = [
@@ -16,6 +17,10 @@ const EMPTY = { serviceType: '', areaField: 'lawnSqft', ratePer1000Sqft: '', min
 
 export default function AreaPricingPage() {
   const toast = useToast();
+  // Each control asks its route: a rate is quotes:create / quotes:delete, a property's measurements contacts:update. (T63)
+  const mayAddRate = useMayWrite('quotes:create');
+  const mayDeleteRate = useMayWrite('quotes:delete');
+  const maySaveMeasurements = useMayWrite('contacts:update');
   const [rates, setRates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<any>(EMPTY);
@@ -93,14 +98,14 @@ export default function AreaPricingPage() {
                   <td>${Number(r.ratePer1000Sqft).toFixed(2)}</td>
                   <td>${Number(r.minCharge).toFixed(2)}</td>
                   <td>{r.unitLabel}</td>
-                  <td><button onClick={() => removeRate(r.id)} className="text-red-600 p-1 hover:bg-red-50 rounded dark:text-red-400"><Trash2 className="w-4 h-4" /></button></td>
+                  <td>{mayDeleteRate && <button onClick={() => removeRate(r.id)} className="text-red-600 p-1 hover:bg-red-50 rounded dark:text-red-400"><Trash2 className="w-4 h-4" /></button>}</td>
                 </tr>
               ))}
               {rates.length === 0 && <tr><td colSpan={6} className="py-4 text-gray-500 dark:text-slate-400">No rates yet — add one below.</td></tr>}
             </tbody>
           </table>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mt-4 items-end">
+        {mayAddRate && <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mt-4 items-end">
           <input className="border rounded px-2 py-1.5 text-sm" placeholder="Service (e.g. mowing)" value={form.serviceType} onChange={e => setForm({ ...form, serviceType: e.target.value })} />
           <select className="border rounded px-2 py-1.5 text-sm" value={form.areaField} onChange={e => setForm({ ...form, areaField: e.target.value })}>
             {AREA_FIELDS.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
@@ -109,7 +114,7 @@ export default function AreaPricingPage() {
           <input className="border rounded px-2 py-1.5 text-sm" type="number" placeholder="Min $" value={form.minCharge} onChange={e => setForm({ ...form, minCharge: e.target.value })} />
           <input className="border rounded px-2 py-1.5 text-sm" placeholder="Unit" value={form.unitLabel} onChange={e => setForm({ ...form, unitLabel: e.target.value })} />
           <button onClick={addRate} className="flex items-center justify-center gap-1 bg-green-700 text-white rounded px-3 py-1.5 text-sm"><Plus className="w-4 h-4" /> Add</button>
-        </div>
+        </div>}
       </section>
 
       {/* Site measurements */}
@@ -124,7 +129,7 @@ export default function AreaPricingPage() {
             <input key={f} className="border rounded px-2 py-1.5 text-sm" type="number" placeholder={f.replace('Sqft', '') + ' sq ft'} value={measure[f]} onChange={e => setMeasure({ ...measure, [f]: e.target.value })} />
           ))}
         </div>
-        <button onClick={saveMeasurements} className="mt-3 bg-gray-800 text-white rounded px-4 py-1.5 text-sm">Save Measurements</button>
+        {maySaveMeasurements && <button onClick={saveMeasurements} className="mt-3 bg-gray-800 text-white rounded px-4 py-1.5 text-sm">Save Measurements</button>}
       </section>
 
       {/* Quote calculator */}

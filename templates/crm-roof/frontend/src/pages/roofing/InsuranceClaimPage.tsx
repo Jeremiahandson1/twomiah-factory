@@ -687,6 +687,9 @@ export default function InsuranceClaimPage() {
   // `finalApprovedAmount` stays authoritative when it has been entered — a carrier's revised figure
   // beats our arithmetic — and the ladder says so, so a stale entry is visible rather than silent.
   // (roof T18 D3)
+  // The server leaves the claim's figures off for a seat without invoices:read and says so. Nothing priced is drawn
+  // then — every figure below would otherwise read $0.00 and the panel would ask them to "enter the RCV". (T63)
+  const showMoney = !claim.moneyWithheld;
   const baseRcv = Number(claim.rcv || 0);
   const supTotal = Number(claim.supplementAmount || 0);
   const hasFinal = claim.finalApprovedAmount != null && String(claim.finalApprovedAmount) !== '';
@@ -889,6 +892,7 @@ export default function InsuranceClaimPage() {
             </div>
 
             {/* Financials */}
+            {showMoney && (
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
               <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                 <DollarSign className="w-4 h-4 text-green-500 dark:text-green-300" /> Financials
@@ -987,8 +991,10 @@ export default function InsuranceClaimPage() {
               </div>
               )}
             </div>
+            )}
 
-            {/* Documents / Xactimate */}
+            {/* Documents / Xactimate — the scope is a priced document, so it goes with the money (T63) */}
+            {showMoney && (
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
               <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                 <FileText className="w-4 h-4 text-gray-400" /> Documents & Xactimate Export
@@ -1071,6 +1077,7 @@ export default function InsuranceClaimPage() {
                 </div>
               )}
             </div>
+            )}
 
             {/* Supplements */}
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
@@ -1096,7 +1103,7 @@ export default function InsuranceClaimPage() {
                             {formatStatus(sup.status)}
                           </span>
                         </div>
-                        <span className="text-sm font-bold">{fmt$(sup.totalAmount)}</span>
+                        {showMoney && <span className="text-sm font-bold">{fmt$(sup.totalAmount)}</span>}
                       </div>
                       <p className="text-sm text-gray-600 mb-2 dark:text-slate-400">{sup.reason}</p>
                       {Array.isArray(sup.lineItems) && sup.lineItems.length > 0 && (
@@ -1106,13 +1113,13 @@ export default function InsuranceClaimPage() {
                               <tr key={i} className="border-b last:border-0">
                                 <td className="py-0.5 font-mono text-gray-500 dark:text-slate-400">{li.code || '—'}</td>
                                 <td className="py-0.5">{li.description}</td>
-                                <td className="py-0.5 text-right">{fmt$(li.total)}</td>
+                                {showMoney && <td className="py-0.5 text-right">{fmt$(li.total)}</td>}
                               </tr>
                             ))}
                           </tbody>
                         </table>
                       )}
-                      {sup.status === 'approved' && sup.approvedAmount && (
+                      {showMoney && sup.status === 'approved' && sup.approvedAmount && (
                         <p className="text-xs text-green-700 font-medium dark:text-green-300">Approved: {fmt$(sup.approvedAmount)}</p>
                       )}
                       {sup.status === 'denied' && sup.denialReason && (

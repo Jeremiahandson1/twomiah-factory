@@ -64,14 +64,28 @@ check('junk is refused', !!junk && /not a date/i.test(junk), junk)
  * ran, fine at 2pm and refused at 11pm. That flakiness hid a real defect earlier in this campaign,
  * so these are expressed as offsets from NOW and are deterministic at every hour.
  */
-const hours = (n: number) => new Date(Date.now() + n * 3_600_000).toISOString()
-check('a timestamp 6 hours ahead is accepted — a clock ahead of the server, which is T41\'s case',
-  visitDateError(hours(6), 'America/New_York') === null, visitDateError(hours(6), 'America/New_York'))
-check('…and one 2 hours ahead', visitDateError(hours(2), 'UTC') === null, visitDateError(hours(2), 'UTC'))
-check('…and one in the past, obviously', visitDateError(hours(-30), 'UTC') === null)
-check('a timestamp a full day ahead is refused — that is not skew',
-  visitDateError(hours(25), 'America/New_York') !== null, visitDateError(hours(25), 'America/New_York'))
-check('…and so is one a week ahead', visitDateError(hours(24 * 7), 'UTC') !== null)
+/*
+ * PINNED, NOT OFFSET FROM THE REAL CLOCK. (T63)
+ *
+ * These were offsets from Date.now() and asserted the T58 skew window ("6 hours ahead is accepted"). T59 replaced
+ * that window with the practice's calendar day — the owner's 11:24pm case — so "6 hours ahead" is today at 2pm and
+ * tomorrow at 11pm, and this went red every evening (caught at 23:08Z while the code was right). visitDateError
+ * takes `now`; every case below passes it, so the rule is checked on BOTH sides of midnight at any hour the suite runs.
+ */
+const NOON_ET = new Date('2026-10-09T16:00:00Z')          // 12:00 Oct 9 in New York, 16:00 Oct 9 UTC
+const LATE_ET = new Date('2026-10-10T03:24:00Z')          // 11:24pm Oct 9 in New York — T59's moment
+const at = (now: Date, n: number) => new Date(now.getTime() + n * 3_600_000).toISOString()
+check('midday: a timestamp 6 hours ahead is accepted — still today where the practice is (a clock ahead of the server)',
+  visitDateError(at(NOON_ET, 6), 'America/New_York', NOON_ET) === null, visitDateError(at(NOON_ET, 6), 'America/New_York', NOON_ET))
+check('…and one 2 hours ahead, in a UTC practice', visitDateError(at(NOON_ET, 2), 'UTC', NOON_ET) === null, visitDateError(at(NOON_ET, 2), 'UTC', NOON_ET))
+check('…and one in the past, obviously', visitDateError(at(NOON_ET, -30), 'UTC', NOON_ET) === null)
+check('11:24pm: 49 minutes ahead is after the practice\'s midnight — refused (T59)',
+  visitDateError(at(LATE_ET, 49 / 60), 'America/New_York', LATE_ET) !== null, visitDateError(at(LATE_ET, 49 / 60), 'America/New_York', LATE_ET))
+check('…while 30 minutes ahead is still tonight — accepted',
+  visitDateError(at(LATE_ET, 0.5), 'America/New_York', LATE_ET) === null, visitDateError(at(LATE_ET, 0.5), 'America/New_York', LATE_ET))
+check('a timestamp a full day ahead is refused',
+  visitDateError(at(NOON_ET, 25), 'America/New_York', NOON_ET) !== null, visitDateError(at(NOON_ET, 25), 'America/New_York', NOON_ET))
+check('…and so is one a week ahead', visitDateError(at(NOON_ET, 24 * 7), 'UTC', NOON_ET) !== null)
 
 // An unknown zone must not throw or silently accept everything — it falls back, and the rule holds.
 // A DATE two days out, so this is about the zone fallback and not about the skew window.

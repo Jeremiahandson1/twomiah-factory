@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
+import { useMayWrite } from '../../shared';
 
 const SERVICE_CATEGORIES = ['Diagnostic', 'Repair', 'Installation', 'Maintenance'];
 
@@ -20,6 +21,9 @@ export default function FlatRatePricebook() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
+  // A rate is POST/PUT /api/pricebook/items — pricebook:create / pricebook:update. Crew hold neither. (T63)
+  const mayAdd = useMayWrite('pricebook:create');
+  const mayEdit = useMayWrite('pricebook:update');
 
   useEffect(() => {
     loadData();
@@ -80,13 +84,13 @@ export default function FlatRatePricebook() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Flat Rate Pricebook</h1>
           <p className="text-gray-500 dark:text-slate-400">Standard pricing for field services</p>
         </div>
-        <button
+        {mayAdd && <button
           onClick={() => { setSelectedItem(null); setShowForm(true); }}
           className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
         >
           <Plus className="w-4 h-4" />
           Add Rate
-        </button>
+        </button>}
       </div>
 
       {/* Stats */}
@@ -133,12 +137,12 @@ export default function FlatRatePricebook() {
         <div className="text-center py-12 bg-gray-50 dark:bg-slate-800 rounded-xl">
           <BookOpen className="w-12 h-12 mx-auto text-gray-400 mb-3" />
           <p className="text-gray-500 dark:text-slate-400">No rates found</p>
-          <button
+          {mayAdd && <button
             onClick={() => setShowForm(true)}
             className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300"
           >
             Add your first service rate
-          </button>
+          </button>}
         </div>
       ) : (
         <div className="space-y-6">
@@ -214,13 +218,13 @@ export default function FlatRatePricebook() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <button
+                        {mayEdit && <button
                           onClick={() => { setSelectedItem(item); setShowForm(true); }}
                           className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 rounded"
                           title="Edit"
                         >
                           <Edit2 className="w-4 h-4" />
-                        </button>
+                        </button>}
                       </td>
                     </tr>
                   ))}

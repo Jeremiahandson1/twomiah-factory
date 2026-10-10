@@ -28,11 +28,12 @@ export function LeadSourcesPage({ api, toast, config }: { api: LeadsApi; toast?:
    * the same question as managing the source: whoever may connect one may read its key. The inbound
    * EMAIL address stays visible to everyone, because it is an address, not a secret.
    */
-  const mayManageSources = useMayWrite('contacts:create')
+  // Sources are managers and up — leads:create / leads:update / leads:delete, the routes' own questions. (T63)
+  const mayManageSources = useMayWrite('leads:create')
   // Each control asks its own route's question: pausing is PUT (contacts:update), removing is DELETE
   // (contacts:delete) — "Remove source" was offered to Vet staff the server then refused. (T62)
-  const mayToggleSources = useMayWrite('contacts:update')
-  const mayRemoveSources = useMayWrite('contacts:delete')
+  const mayToggleSources = useMayWrite('leads:update')
+  const mayRemoveSources = useMayWrite('leads:delete')
   const platforms: LeadPlatform[] = config?.platforms || TRADES_LEAD_PLATFORMS
   const subtitle = config?.sourcesSubtitle || 'Connect your lead platforms to receive leads automatically'
   const [sources, setSources] = useState<LeadSourceRow[]>([])
@@ -170,10 +171,14 @@ export function LeadSourcesPage({ api, toast, config }: { api: LeadsApi; toast?:
                 </div>
                 <div style={{ padding: '16px 20px' }}>
                   {source.inboundEmail && <CopyField label="Inbound Email Address" icon={<Mail size={14} />} value={source.inboundEmail} field={`email-${source.id}`} />}
-                  {!source.webhookSecret && source.webhookUrl && <p style={{ fontSize: 12, color: c.faint, margin: '0 0 12px' }}>The webhook URL carries a secret key, so only an owner or admin can see it.</p>}
+                  {/* Setting a source up is the integration, and the integration's key goes only to owners and admins.
+                      The steps below point at "the webhook URL below", which nobody else is shown — so anybody else gets
+                      this one line instead of instructions they cannot follow. (T63: "the setup text mentions a webhook
+                      URL the stylist can't see") */}
+                  {!source.webhookSecret && source.webhookUrl && <p style={{ fontSize: 12, color: c.faint, margin: '0 0 12px' }}>An owner or admin connects this source — the webhook URL carries a secret key, so only they can see it and the setup steps.</p>}
                   {source.webhookSecret && source.webhookUrl && <CopyField label="Webhook URL (secret included — paste into Zapier / Make / your form builder)" icon={<Webhook size={14} />} value={webhookWithSecret(source)} field={`webhook-${source.id}`} breakAll />}
                   {source.webhookSecret && <CopyField label="Webhook Secret (or send it as the x-webhook-secret header)" icon={<KeyRound size={14} />} value={source.webhookSecret} field={`secret-${source.id}`} />}
-                  {info?.instructions && (
+                  {info?.instructions && (source.webhookSecret || !source.webhookUrl) && (
                     <div style={{ background: c.infoBg, borderRadius: 8, padding: 14, border: `1px solid ${c.infoBorder}` }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: c.infoHead, marginBottom: 8 }}><Info size={14} /> Setup Instructions</div>
                       <ol style={{ paddingLeft: 20, margin: 0, fontSize: 13, color: c.infoBody, lineHeight: 1.8 }}>

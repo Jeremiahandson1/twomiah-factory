@@ -5,10 +5,37 @@ import { db } from '../../db/index.ts'
 import { canvassingSession, canvassingStop, canvassingScript, contact, job } from '../../db/schema.ts'
 import { eq, and, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+/**
+ * A SESSION BELONGS TO ITS CANVASSER. (T63, Roofing)
+ *
+ *   "The canvassing sessions API has no ownership check. Staff can list everyone's sessions and post into the
+ *    owner's open one. The screen no longer offers it."
+ *
+ * T62 made the canvasser app ASK for its own sessions (?mine=1); the server still answered anything. Now a seat
+ * without canvassing:manage — the field rung, which holds create and update — reads and writes only sessions it
+ * started, and their stops. The team view (the dashboard, a manager reviewing a rep's night) is canvassing:manage:
+ * owner '*', admin and manager 'canvassing:*'. Registered here, under authenticate and above every route, so it
+ * is the gate for all of them. Another canvasser's session answers 404 — it is not theirs to know about.
+ */
+const seesTeam = async (u: any): Promise<boolean> => {
+  try { return hasPermission(u?.role, 'canvassing:manage', await getExtraPermissions(u?.userId)) } catch { return false }
+}
+const ownSessionOnly = async (c: any, next: any) => {
+  const u = c.get('user') as any
+  if (await seesTeam(u)) return next()
+  const id = c.req.param('id') ?? c.req.param('sessionId')
+  const [s] = await db.select({ userId: canvassingSession.userId }).from(canvassingSession)
+    .where(and(eq(canvassingSession.id, id), eq(canvassingSession.companyId, u.companyId))).limit(1)
+  if (!s || s.userId !== u.userId) return c.json({ error: 'Session not found' }, 404)
+  return next()
+}
+app.use('/sessions/:id', ownSessionOnly)
+app.use('/sessions/:id/*', ownSessionOnly)
 
 // ==================== SESSIONS ====================
 
@@ -18,7 +45,8 @@ app.use('*', authenticate)
 // still lists every session — it is the manager's view of the whole team.
 app.get('/sessions', async (c) => {
   const { companyId, userId } = c.get('user')
-  const mine = c.req.query('mine') === '1'
+  // ?mine=1 for anyone; a seat without the team view gets only its own whatever it asks. (T63)
+  const mine = c.req.query('mine') === '1' || !(await seesTeam(c.get('user')))
   const sessions = await db.select().from(canvassingSession)
     .where(mine ? and(eq(canvassingSession.companyId, companyId), eq(canvassingSession.userId, userId)) : eq(canvassingSession.companyId, companyId))
     .orderBy(desc(canvassingSession.createdAt))
@@ -250,6 +278,14 @@ app.put('/stops/:id', requirePermission('canvassing:update'), async (c) => {
   // no recognised field gets a 500 that reads as a server fault. (T42)
   if (Object.keys(updates).length === 0) {
     return c.json({ error: 'Nothing to update' }, 400)
+  }
+  // A stop is edited through its session's owner, the same rule as the session routes above. (T63)
+  if (!(await seesTeam(c.get('user')))) {
+    const u = c.get('user') as any
+    const [own] = await db.select({ userId: canvassingSession.userId }).from(canvassingStop)
+      .innerJoin(canvassingSession, eq(canvassingStop.sessionId, canvassingSession.id))
+      .where(and(eq(canvassingStop.id, id), eq(canvassingStop.companyId, companyId))).limit(1)
+    if (!own || own.userId !== u.userId) return c.json({ error: 'Stop not found' }, 404)
   }
 
   const [updated] = await db.update(canvassingStop).set(updates)

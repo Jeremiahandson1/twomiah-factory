@@ -214,7 +214,10 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     return c.json({ data: sources.map(withoutSecret) })
   })
 
-  app.post('/sources', requirePermission('contacts:create'), async (c) => {
+  // Where leads COME FROM is shop setup, managers and up: leads:create / leads:update / leads:delete — the resource
+  // roof's sources already used (admin + manager 'leads:*'). Staff keep reading the list and working the leads.
+  // (T63; owner's decision 2026-10-09: "should a stylist be able to add and pause lead sources?" — no.)
+  app.post('/sources', requirePermission('leads:create'), async (c) => {
     const currentUser = (c as any).get('user')
     const parsed = sourceCreateSchema.safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return c.json({ error: parsed.error.errors[0]?.message || 'Invalid source' }, 400)
@@ -240,7 +243,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     return c.json((await mayHoldSecret(c)) ? source : withoutSecret(source), 201)
   })
 
-  app.put('/sources/:id', requirePermission('contacts:update'), async (c) => {
+  app.put('/sources/:id', requirePermission('leads:update'), async (c) => {
     const currentUser = (c as any).get('user')
     const id = c.req.param('id')
     const parsed = sourceUpdateSchema.safeParse(await c.req.json().catch(() => ({})))
@@ -256,7 +259,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     return c.json((await mayHoldSecret(c)) ? updated : withoutSecret(updated))
   })
 
-  app.delete('/sources/:id', requirePermission('contacts:delete'), async (c) => {
+  app.delete('/sources/:id', requirePermission('leads:delete'), async (c) => {
     const currentUser = (c as any).get('user')
     const id = c.req.param('id')
     const [existing] = await db.select().from(t.leadSource)

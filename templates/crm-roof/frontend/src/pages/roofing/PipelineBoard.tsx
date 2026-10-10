@@ -71,7 +71,7 @@ export default function PipelineBoard() {
   // simply stops being draggable and the drop handler refuses. field holds jobs:update and
   // keeps the board; the viewer can read it and no longer move the work. (T42)
   const mayMoveJob = useMayWrite('jobs:update');
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -85,6 +85,8 @@ export default function PipelineBoard() {
   const [filterType, setFilterType] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
   const [filterCanvassing, setFilterCanvassing] = useState(false);
+  // "My jobs" — cards where I'm the sales rep (owner's decision, T63)
+  const [mineOnly, setMineOnly] = useState(false);
 
   const [dragJobId, setDragJobId] = useState<string | null>(null);
 
@@ -113,8 +115,10 @@ export default function PipelineBoard() {
   }, [load]);
 
   const filteredJobs = jobs.filter((j) => {
-    if (filterRep && j.salesRepId !== filterRep) return false;
-    if (filterCrew && j.crewId !== filterCrew) return false;
+    // The job's own names — j.salesRepId never existed, so choosing a rep emptied the board. (T63)
+    if (filterRep && j.assignedSalesRepId !== filterRep) return false;
+    if (filterCrew && j.assignedCrewId !== filterCrew) return false;
+    if (mineOnly && j.assignedSalesRepId !== user?.userId) return false;
     if (filterType && j.jobType !== filterType) return false;
     if (filterPriority && j.priority !== filterPriority) return false;
     if (filterCanvassing && j.source !== 'canvassing') return false;
@@ -240,6 +244,10 @@ export default function PipelineBoard() {
           <option value="high">High</option>
           <option value="urgent">Urgent</option>
         </select>
+        <button type="button" onClick={() => setMineOnly(!mineOnly)} aria-pressed={mineOnly}
+          className={`text-sm px-3 py-1.5 rounded-lg border font-medium ${mineOnly ? 'bg-blue-100 border-blue-300 text-blue-800 dark:bg-blue-950/40 dark:border-blue-700 dark:text-blue-200' : 'bg-white border-gray-300 text-gray-700 dark:bg-slate-900 dark:border-slate-600 dark:text-slate-200'}`}>
+          My jobs
+        </button>
         <button
           onClick={() => setFilterCanvassing(!filterCanvassing)}
           className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border font-medium transition ${
@@ -326,17 +334,17 @@ export default function PipelineBoard() {
                             }`} title={`Claim: ${job.claimStatus}`} />
                           )}
 
-                          {job.salesRepId && repMap[job.salesRepId] && (
+                          {job.assignedSalesRepId && repMap[job.assignedSalesRepId] && (
                             <span className="flex items-center gap-0.5 text-[10px] text-gray-500 dark:text-slate-400">
                               <User className="w-3 h-3" />
-                              {getInitials(repMap[job.salesRepId])}
+                              {getInitials(repMap[job.assignedSalesRepId])}
                             </span>
                           )}
 
-                          {job.crewId && crewMap[job.crewId] && (
+                          {job.assignedCrewId && crewMap[job.assignedCrewId] && (
                             <span className="flex items-center gap-0.5 text-[10px] text-gray-500 dark:text-slate-400">
                               <Users className="w-3 h-3" />
-                              {crewMap[job.crewId]}
+                              {crewMap[job.assignedCrewId]}
                             </span>
                           )}
 

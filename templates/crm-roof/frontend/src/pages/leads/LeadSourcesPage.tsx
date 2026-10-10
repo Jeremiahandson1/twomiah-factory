@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useIsDark } from '../../shared';
+import { useIsDark, useMayWrite } from '../../shared';
 import {
   Settings, Plus, Trash2, ToggleLeft, ToggleRight, Copy, Check,
   Mail, Webhook, Info
@@ -107,6 +107,10 @@ export default function LeadSourcesPage() {
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  // The routes ask leads:create / leads:update / leads:delete (managers and up); staff were offered all three. (T63)
+  const mayAdd = useMayWrite('leads:create');
+  const mayToggle = useMayWrite('leads:update');
+  const mayRemove = useMayWrite('leads:delete');
   const [copiedField, setCopiedField] = useState('');
 
   const fetchSources = useCallback(async () => {
@@ -165,12 +169,12 @@ export default function LeadSourcesPage() {
           </h1>
           <p style={{ color: c.muted, marginTop: 4, fontSize: 14 }}>Connect your lead platforms to receive leads automatically</p>
         </div>
-        <button
+        {mayAdd && <button
           onClick={() => setShowAdd(true)}
           style={{ padding: '8px 20px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
         >
           <Plus size={16} /> Add Source
-        </button>
+        </button>}
       </div>
 
       {/* Add Source Modal */}
@@ -232,12 +236,12 @@ export default function LeadSourcesPage() {
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button onClick={() => toggleSource(source)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: source.enabled ? c.ok : c.muted }}>
+                    {mayToggle && <button onClick={() => toggleSource(source)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: source.enabled ? c.ok : c.muted }}>
                       {source.enabled ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
-                    </button>
-                    <button onClick={() => deleteSource(source.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.danger }}>
+                    </button>}
+                    {mayRemove && <button onClick={() => deleteSource(source.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.danger }}>
                       <Trash2 size={18} />
-                    </button>
+                    </button>}
                   </div>
                 </div>
 

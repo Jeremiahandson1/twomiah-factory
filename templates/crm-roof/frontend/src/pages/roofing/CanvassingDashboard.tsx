@@ -67,11 +67,14 @@ export default function CanvassingDashboard() {
 
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
 
+  // The rep list is GET /api/users — users:read or team:read. Crew hold neither, so for them it was a refused request and
+  // an empty "All Reps" picker. Asked only of a seat it answers; the picker only when it has names. (T63)
+  const maySeeRoster = useMayWrite('team:read')
   const load = useCallback(async () => {
     try {
       const [sessRes, usersRes, scriptRes] = await Promise.all([
         fetch('/api/canvassing/sessions', { headers }),
-        fetch('/api/users', { headers }),
+        maySeeRoster ? fetch('/api/users', { headers }) : Promise.resolve(new Response('[]')),
         fetch('/api/canvassing/scripts', { headers }),
       ])
       const sessData = await sessRes.json()
@@ -321,13 +324,13 @@ export default function CanvassingDashboard() {
 
       {/* Filters */}
       <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <select value={filterRep} onChange={(e) => setFilterRep(e.target.value)}
+        {users.length > 0 && <select value={filterRep} onChange={(e) => setFilterRep(e.target.value)}
           className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900">
           <option value="">All Reps</option>
           {users.map((u: any) => (
             <option key={u.id} value={u.id}>{displayName(u)}</option>
           ))}
-        </select>
+        </select>}
         <input type="text" value={filterWeather} onChange={(e) => setFilterWeather(e.target.value)}
           placeholder="Filter by weather event..." className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900" />
         <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)}

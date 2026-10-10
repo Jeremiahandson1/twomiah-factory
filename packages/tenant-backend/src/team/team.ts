@@ -175,8 +175,29 @@ export function createTeamRoutes(deps: TeamDeps) {
   // crew roster (team_member): the roster can hold non-login people and different ids, and once it has a
   // row GET / stops falling back to users — which used to make every login user vanish from the "Assigned
   // To" picker the moment one roster member was added. Pickers must read this, never GET /. (F-14 / assignee)
-  app.get('/assignable', requirePermission('team:read'), async (c) => {
+  /**
+   * WHO CAN BE GIVEN WORK is a question the person BOOKING the work has to ask. (T63, Salon)
+   *
+   *   "A stylist can no longer pick themselves when booking or logging a service. Only 'Unassigned' is
+   *    offered, because the picker now calls /api/team/assignable, which returns 403 for stylists."
+   *
+   * It asked team:read — the roster, which is the manager's page. A salon stylist books appointments
+   * (schedule:create) and so has to be able to say who takes them, themselves included. So: team:read OR
+   * schedule:create. Only the salon's stylist seat holds the second without the first, so no other vertical
+   * moves. The list a booker gets is names and roles — no email addresses unless they may read the roster.
+   * Not wired with canSee → the old team:read gate, unchanged.
+   */
+  const mayPickAssignee = async (c: any, next: any) => {
+    if (!deps.canSee) return requirePermission('team:read')(c, next)
+    const u = (c as any).get('user')
+    const ok = await Promise.resolve(deps.canSee(u?.role, 'team:read', u?.userId)).catch(() => false)
+      || await Promise.resolve(deps.canSee(u?.role, 'schedule:create', u?.userId)).catch(() => false)
+    if (!ok) return c.json({ error: 'Permission denied', required: 'team:read' }, 403)
+    return next()
+  }
+  app.get('/assignable', mayPickAssignee, async (c) => {
     const user = (c as any).get('user')
+    const seesRoster = !deps.canSee || await Promise.resolve(deps.canSee(user?.role, 'team:read', user?.userId)).catch(() => false)
     const rows = await db.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName, email: t.user.email, role: t.user.role, isActive: t.user.isActive })
       /**
        * A READ-ONLY SEAT CANNOT BE SENT TO A JOB. (T42 "viewer offered as a technician in Dispatch")
@@ -204,7 +225,9 @@ export function createTeamRoutes(deps: TeamDeps) {
       if (m.email && seen.has(String(m.email).toLowerCase())) continue
       data.push({ id: m.id, name: m.name, email: m.email, role: m.role, active: true, kind: 'member' as const } as any)
     }
-    return c.json({ data })
+    if (seesRoster) return c.json({ data })
+    // a booker, not a roster reader: who, not how to reach them
+    return c.json({ data: data.map(({ email, ...rest }: any) => rest) })
   })
 
   app.get('/:id', requirePermission('team:read'), async (c) => {

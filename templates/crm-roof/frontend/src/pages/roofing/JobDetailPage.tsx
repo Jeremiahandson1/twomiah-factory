@@ -196,7 +196,9 @@ export default function JobDetailPage() {
         // silently reverted to "Unassigned".
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [field]: value || null }),
+        // The job's own field names (assignedSalesRepId / assignedCrewId). This sent salesRepId / crewId, which the
+        // API dropped and answered 200 — so a rep or crew picked here never saved. '' clears. (T63)
+        body: JSON.stringify({ [field]: value || '' }),
       });
       if (!res.ok) throw new Error();
       setJob((prev: any) => ({ ...prev, [field]: value || null }));
@@ -833,8 +835,8 @@ export default function JobDetailPage() {
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Sales Rep</label>
                   <select disabled={!mayWorkJob}
-                    value={job.salesRepId || ''}
-                    onChange={(e) => updateAssignment('salesRepId', e.target.value)}
+                    value={job.assignedSalesRepId || ''}
+                    onChange={(e) => updateAssignment('assignedSalesRepId', e.target.value)}
                     className="w-full text-sm border rounded-lg px-3 py-2"
                   >
                     <option value="">Unassigned</option>
@@ -846,8 +848,8 @@ export default function JobDetailPage() {
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Crew</label>
                   <select disabled={!mayWorkJob}
-                    value={job.crewId || ''}
-                    onChange={(e) => updateAssignment('crewId', e.target.value)}
+                    value={job.assignedCrewId || ''}
+                    onChange={(e) => updateAssignment('assignedCrewId', e.target.value)}
                     className="w-full text-sm border rounded-lg px-3 py-2"
                   >
                     <option value="">Unassigned</option>

@@ -4,10 +4,35 @@ import { db } from '../../db/index.ts'
 import { insuranceClaim, supplement, adjusterContact, claimActivity, job, measurementReport, company } from '../../db/schema.ts'
 import { eq, and, ne, desc, sql } from 'drizzle-orm'
 import { authenticate, requireManager } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { phone as phoneField, email as emailField, optional } from '../lib/validation.ts'
 import { generateXactimateScopeDocument } from '../services/xactimate.ts'
 import logger from '../services/logger.ts'
+
+/**
+ * WHAT THE CARRIER PAYS IS THE BOOKS. (T63; owner's decision 2026-10-09: "should staff see claim and supplement
+ * amounts? /api/jobs hides the same money from them" — no.)
+ *
+ * invoices:read, the rule /api/jobs already applies to the same job. The crew keeps the claim — carrier, claim
+ * number, status, dates, adjuster, the scope's codes and quantities — and loses the figures: the claim's six money
+ * fields, a supplement's totals and its line prices, dollar amounts written into the activity log, and the
+ * priced Xactimate export. Absent, not zero, with moneyWithheld on the claim so the page draws no $0.
+ */
+const maySeeClaimMoney = async (c: any): Promise<boolean> => {
+  const u = c.get('user') as any
+  try { return hasPermission(u?.role, 'invoices:read', await getExtraPermissions(u?.userId)) } catch { return false }
+}
+const CLAIM_MONEY = ['deductible', 'rcv', 'acv', 'depreciationHeld', 'supplementAmount', 'finalApprovedAmount'] as const
+const LINE_MONEY = ['unitPrice', 'unitCost', 'price', 'total', 'amount'] as const
+const drop = (row: any, keys: readonly string[]) => { const out = { ...(row || {}) }; for (const k of keys) delete out[k]; return out }
+const claimWithoutMoney = (claim: any) => ({ ...drop(claim, CLAIM_MONEY), moneyWithheld: true })
+const supplementWithoutMoney = (sup: any) => ({
+  ...drop(sup, ['totalAmount', 'approvedAmount']),
+  lineItems: Array.isArray(sup?.lineItems) ? sup.lineItems.map((li: any) => drop(li, LINE_MONEY)) : sup?.lineItems,
+  moneyWithheld: true,
+})
+/** A dollar figure inside free text — "submitted — $4,210.50 — hail" — read by a seat that may not see money. */
+const withoutDollarFigures = (text: any) => typeof text === 'string' ? text.replace(/-?\$\s?\d[\d,]*(\.\d+)?/g, '(amount hidden)') : text
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -90,7 +115,7 @@ app.get('/claims/:jobId', async (c) => {
     .limit(1)
 
   if (!claim) return c.json({ error: 'No claim found for this job' }, 404)
-  return c.json(claim)
+  return c.json((await maySeeClaimMoney(c)) ? claim : claimWithoutMoney(claim))
 })
 
 // Update claim
@@ -206,7 +231,7 @@ app.get('/claims/:claimId/supplements', async (c) => {
     .where(and(eq(supplement.claimId, claimId), eq(supplement.companyId, currentUser.companyId)))
     .orderBy(supplement.createdAt)
 
-  return c.json(supplements)
+  return c.json((await maySeeClaimMoney(c)) ? supplements : supplements.map(supplementWithoutMoney))
 })
 
 // Create supplement
@@ -612,7 +637,8 @@ app.get('/claims/:claimId/activity', async (c) => {
     .where(and(eq(claimActivity.claimId, claimId), eq(claimActivity.companyId, currentUser.companyId)))
     .orderBy(desc(claimActivity.createdAt))
 
-  return c.json(activities)
+  if (await maySeeClaimMoney(c)) return c.json(activities)
+  return c.json(activities.map((a: any) => ({ ...a, body: withoutDollarFigures(a.body) })))
 })
 
 app.post('/claims/:claimId/activity', requirePermission('insurance:create'), async (c) => {
@@ -748,7 +774,8 @@ app.post('/claims/:claimId/xactimate-export', requirePermission('insurance:creat
   }
 })
 
-app.get('/claims/:claimId/xactimate-export', async (c) => {
+// The export IS the priced scope — every line has a unit price — so it is the money rule, whole. (T63)
+app.get('/claims/:claimId/xactimate-export', requirePermission('invoices:read'), async (c) => {
   const currentUser = c.get('user') as any
   const claimId = c.req.param('claimId')
 

@@ -1,8 +1,9 @@
 // T62 High — "Staff can read the lead-source webhook secret … Anyone with the secret can post fake leads into
 // the CRM from outside." Owner's decision (2026-10-09): owners and admins only.
 //
-// Vet staff hold contacts:create, so they may add a source and read the list — and still must never be
-// handed its key. Asserted through the real leads route: the list, a create and an edit, per role.
+// T63 — owner's decision (2026-10-09): ADDING and PAUSING a source is managers and up as well ("staff can create
+// a lead source they can't delete. Is that acceptable?" — no: managers set up where leads come from). Staff keep
+// reading the list. Asserted through the real leads route, per role.
 import { Hono } from 'hono'
 
 let failed = 0, passed = 0
@@ -29,9 +30,13 @@ const as = (who: any) => async (method: string, path: string, body?: unknown) =>
   return { status: res.status, json: j }
 }
 
-const made = await as(staff)('POST', '/api/leads/sources', { platform: 'google_business' })
-check('vet staff may connect a source (they hold contacts:create)', made.status === 201, made)
-check('…and are NOT handed its webhook secret', made.status === 201 && !('webhookSecret' in (made.json || {})), made.json)
+// ── T63: staff do not set up sources ──
+const refused = await as(staff)('POST', '/api/leads/sources', { platform: 'yelp' })
+check('vet staff cannot connect a source (403) — managers and up', refused.status === 403, refused)
+
+const made = await as(manager)('POST', '/api/leads/sources', { platform: 'google_business' })
+check('a manager connects a source', made.status === 201, made)
+check('…and is NOT handed its webhook secret (owners and admins only)', made.status === 201 && !('webhookSecret' in (made.json || {})), made.json)
 const id = made.json?.id
 
 for (const [who, label] of [[staff, 'staff'], [manager, 'a manager']] as const) {
@@ -41,8 +46,10 @@ for (const [who, label] of [[staff, 'staff'], [manager, 'a manager']] as const) 
   check(`…without the secret`, !!row && !('webhookSecret' in row), row)
   check(`…but with the inbound email address, which is not a secret`, !!row?.inboundEmail, row)
 }
-const edit = await as(staff)('PUT', `/api/leads/sources/${id}`, { label: 'Google' })
-check('an edit by staff does not return the secret either', edit.status === 200 && !('webhookSecret' in (edit.json || {})), edit.json)
+const pause = await as(staff)('PUT', `/api/leads/sources/${id}`, { enabled: false })
+check('staff cannot pause a source (403)', pause.status === 403, pause)
+const edit = await as(manager)('PUT', `/api/leads/sources/${id}`, { label: 'Google' })
+check('a manager edits it, and the reply carries no secret', edit.status === 200 && !('webhookSecret' in (edit.json || {})), edit.json)
 
 for (const [who, label] of [[owner, 'the owner'], [admin, 'an admin']] as const) {
   const row = ((await as(who)('GET', '/api/leads/sources')).json?.data || []).find((s: any) => s.id === id)
