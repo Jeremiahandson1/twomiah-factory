@@ -125,6 +125,18 @@ export function usePermissions() {
  * The shape every shared page should use for a write control, so none of them has to re-derive the
  * rule above. `useMayWrite('invoices:create')`.
  */
+/**
+ * "Does this person hold it?" — null until the permission list has ARRIVED, then true or false. (T64)
+ *
+ * useMayWrite answers yes while the list is unknown, which is right for offering a control (the server refuses a
+ * wrong guess) and wrong for deciding to MAKE a request: roof's pages fetched the roster on that first render, were
+ * refused, and never asked again. A read gated on this waits for a real answer; put it in the load's dependencies.
+ */
+export function useKnownPermission(permission: string): boolean | null {
+  const { known, can } = usePermissions()
+  return known ? can(permission) : null
+}
+
 export function useMayWrite(permission: string): boolean {
   const { known, can } = usePermissions()
   return !known || can(permission)

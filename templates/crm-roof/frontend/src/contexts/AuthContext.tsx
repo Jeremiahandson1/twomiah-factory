@@ -1,7 +1,9 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 import { getAccessToken, getRefreshToken, setTokens, clearTokens } from '../lib/authToken'
 
-type User = { userId: string; email: string; role: string; companyId: string }
+// What /api/auth/login and /api/auth/me actually send (routes/auth.ts) — measured live. This said `userId`, which the
+// server has never sent, so every user.userId read undefined. (T64)
+type User = { id: string; email: string; role: string; firstName?: string | null; lastName?: string | null; phone?: string | null }
 // primaryColor and logo have been on the company row all along — /api/auth/me returns them and Settings →
 // Company sets them — this type just never named them, so anything in roof that wanted the tenant's brand
 // could not reach it without a cast. Optional, because a company that has never set one has neither.

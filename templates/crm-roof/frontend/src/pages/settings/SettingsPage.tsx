@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useMayWrite } from '../../shared';
+import { useMayWrite, useKnownPermission } from '../../shared';
 import { formatDate } from '../../utils/date';
 import { useNavigate } from 'react-router-dom';
 import { Settings, Building2, Palette, Users, Plus, Send, X, Save, Calculator, ChevronRight, Zap, MessageSquare, Link2, Unlink, RefreshCw, CloudLightning, CreditCard, SlidersHorizontal, AtSign, Globe, Inbox } from 'lucide-react';
@@ -16,7 +16,7 @@ export default function SettingsPage() {
   //     storm board
   const mayManageIntegrations = useMayWrite('integrations:create');
   // Asked only of a seat the server answers — staff were refused these in the background on every load. (T64)
-  const maySeeRoster = useMayWrite('team:read');
+  const maySeeRoster = useKnownPermission('team:read'); // null until known — waits for a real yes (T64)
   const mayWriteStormArea = useMayWrite('storms:update');
   // …and the storm inputs follow it, not just the buttons: staff could type a zip, a hail size and tick the boxes,
   // with no Save to keep any of it. (T62: "Roofing storm settings are editable but can't be saved")
@@ -116,7 +116,7 @@ export default function SettingsPage() {
   // only one that ever ran: the storm settings were never fetched, and the section, which does appear
   // once the feature is known, showed its empty default. "Storm settings say 'No zip codes configured'
   // when one is set" (T60) — the server was answering ["43004"] the whole time.
-  }, [token, hasQB, hasStorm]);
+  }, [token, hasQB, hasStorm, maySeeRoster]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -680,7 +680,7 @@ export default function SettingsPage() {
                   <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 capitalize dark:bg-slate-800 dark:text-slate-400">
                     {u.role || 'user'}
                   </span>
-                  {u.id === currentUser?.userId
+                  {u.id === currentUser?.id
                     ? <span className="text-xs text-gray-500 dark:text-slate-400">You</span>
                     : canManageUsers ? (
                       <button

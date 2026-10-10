@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { BarChart3, TrendingUp, DollarSign, Users, Briefcase } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useMayWrite } from '../../shared';
+import { useKnownPermission } from '../../shared';
 import { displayName } from '../../utils/user';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -124,8 +124,9 @@ export default function ReportsPage() {
   };
 
   // Asked only of a seat the server answers — staff were refused these in the background on every load. (T64)
-  const maySeeRoster = useMayWrite('team:read');
-  const maySeeMoney = useMayWrite('invoices:read');
+  // null until the permission list arrives — the requests wait for a real yes (T64)
+  const maySeeRoster = useKnownPermission('team:read');
+  const maySeeMoney = useKnownPermission('invoices:read');
   const load = useCallback(async () => {
     try {
       const [jobsAll, usersRes, crewsRes, moneyRes] = await Promise.all([
@@ -147,7 +148,7 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, maySeeRoster, maySeeMoney]);
 
   useEffect(() => { load(); }, [load]);
 

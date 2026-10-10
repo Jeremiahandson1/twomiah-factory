@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useMayWrite } from '../../shared'
+import { useMayWrite, useKnownPermission } from '../../shared'
 import { formatDate } from '../../utils/date';
 import { useNavigate } from 'react-router-dom'
 import {
@@ -69,7 +69,8 @@ export default function CanvassingDashboard() {
 
   // The rep list is GET /api/users — users:read or team:read. Crew hold neither, so for them it was a refused request and
   // an empty "All Reps" picker. Asked only of a seat it answers; the picker only when it has names. (T63)
-  const maySeeRoster = useMayWrite('team:read')
+  // null until the permission list arrives — the request waits for a real yes (T64)
+  const maySeeRoster = useKnownPermission('team:read')
   const load = useCallback(async () => {
     try {
       const [sessRes, usersRes, scriptRes] = await Promise.all([
@@ -88,7 +89,7 @@ export default function CanvassingDashboard() {
     } finally {
       setLoading(false)
     }
-  }, [token])
+  }, [token, maySeeRoster])
 
   useEffect(() => { load() }, [load])
 
@@ -154,7 +155,7 @@ export default function CanvassingDashboard() {
   monthSessions.forEach((s: Session) => {
     const u = users.find((u: any) => u.id === s.userId)
     // A canvasser is not handed the roster, and sees only their own sessions — so their row is "You", not "Unknown". (T64)
-    const name = u ? displayName(u) : (s.userId === user?.userId ? 'You' : 'Unknown')
+    const name = u ? displayName(u) : (s.userId === user?.id ? displayName(user) : 'Unknown')
     if (!repLeads[s.userId]) repLeads[s.userId] = { name, leads: 0, doors: 0 }
     repLeads[s.userId].leads += s.leadsCreated || 0
     repLeads[s.userId].doors += s.totalDoors || 0
@@ -163,7 +164,7 @@ export default function CanvassingDashboard() {
 
   const userMap: Record<string, string> = {}
   users.forEach((u: any) => { userMap[u.id] = displayName(u) })
-  if (user?.userId && !userMap[user.userId]) userMap[user.userId] = 'You'
+  if (user?.id && !userMap[user.id]) userMap[user.id] = displayName(user)
 
   // Script editor handlers
   const openScriptEditor = (script?: Script) => {

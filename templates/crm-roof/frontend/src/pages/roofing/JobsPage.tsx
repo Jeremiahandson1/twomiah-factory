@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '../../utils/date';
-import { useMayWrite } from '../../shared';
+import { useMayWrite, useKnownPermission } from '../../shared';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, ChevronLeft, ChevronRight, Briefcase } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -76,7 +76,7 @@ export default function JobsPage() {
   const [mineOnly, setMineOnly] = useState(false);
   // The rep list is GET /api/users — users:read or team:read. Crew hold neither, so for them it was a refused request and
   // an empty "All Reps" picker. Asked only of a seat it answers; the picker only when it has names. (T63)
-  const maySeeRoster = useMayWrite('team:read');
+  const maySeeRoster = useKnownPermission('team:read'); // null until known — waits for a real yes (T64)
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
@@ -133,7 +133,7 @@ export default function JobsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, statusFilter, typeFilter, crewFilter, repFilter, mineOnly, token]);
+  }, [page, search, statusFilter, typeFilter, crewFilter, repFilter, mineOnly, token, maySeeRoster]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setPage(1); }, [search, statusFilter, typeFilter, crewFilter, repFilter, mineOnly]);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useMayWrite } from '../../shared';
+import { useMayWrite, useKnownPermission } from '../../shared';
 import { useNavigate } from 'react-router-dom';
 import { Filter, GripVertical, User, Users, Ruler, Clock, DollarSign, AlertTriangle, MapPin, Zap } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -72,7 +72,7 @@ export default function PipelineBoard() {
   // keeps the board; the viewer can read it and no longer move the work. (T42)
   const mayMoveJob = useMayWrite('jobs:update');
   // Asked only of a seat the server answers — staff were refused these in the background on every load. (T64)
-  const maySeeRoster = useMayWrite('team:read');
+  const maySeeRoster = useKnownPermission('team:read'); // null until known — waits for a real yes (T64)
   const { token, user } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -110,7 +110,7 @@ export default function PipelineBoard() {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, maySeeRoster]);
 
   useEffect(() => {
     load();
@@ -120,7 +120,7 @@ export default function PipelineBoard() {
     // The job's own names — j.salesRepId never existed, so choosing a rep emptied the board. (T63)
     if (filterRep && j.assignedSalesRepId !== filterRep) return false;
     if (filterCrew && j.assignedCrewId !== filterCrew) return false;
-    if (mineOnly && j.assignedSalesRepId !== user?.userId) return false;
+    if (mineOnly && j.assignedSalesRepId !== user?.id) return false;
     if (filterType && j.jobType !== filterType) return false;
     if (filterPriority && j.priority !== filterPriority) return false;
     if (filterCanvassing && j.source !== 'canvassing') return false;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useMayWrite } from '../../shared';
+import { useMayWrite, useKnownPermission } from '../../shared';
 import { formatDate } from '../../utils/date';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
@@ -59,7 +59,7 @@ export default function JobDetailPage() {
   // seat holds jobs:read only, and loses all of it. (T42)
   const mayWorkJob = useMayWrite('jobs:update');
   // Asked only of a seat the server answers — staff were refused these in the background on every load. (T64)
-  const maySeeRoster = useMayWrite('team:read');
+  const maySeeRoster = useKnownPermission('team:read'); // null until known — waits for a real yes (T64)
   // Ordering a measurement is a different module with its own route and its own verb.
   const mayOrderMeasurement = useMayWrite('measurements:create');
   const { id } = useParams<{ id: string }>();
@@ -117,7 +117,7 @@ export default function JobDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [id, token]);
+  }, [id, token, maySeeRoster]);
 
   useEffect(() => {
     load();
