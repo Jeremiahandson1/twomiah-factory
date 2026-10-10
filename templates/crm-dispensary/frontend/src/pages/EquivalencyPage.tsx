@@ -511,7 +511,7 @@ const unitOf = (rule: any): string => {
                     <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{perUnit == null ? '—' : `${perUnit.toFixed(2)}g`}</td>
                     <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">{lineGrams == null ? '—' : `${lineGrams.toFixed(1)}g`}</td>
                     <td className="px-4 py-3 text-right">
-                      <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400">
+                      <button aria-label="Remove from cart" onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </td>

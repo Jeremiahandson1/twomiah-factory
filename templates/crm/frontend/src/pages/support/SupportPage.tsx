@@ -215,7 +215,7 @@ export default function SupportPage() {
               placeholder="Ask a question..."
               className="flex-1 px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none"
             />
-            <button onClick={sendChatMessage} disabled={chatLoading || !chatInput.trim()}
+            <button aria-label="Send message" onClick={sendChatMessage} disabled={chatLoading || !chatInput.trim()}
               className="px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg text-sm">
               <Send size={16} />
             </button>
@@ -280,7 +280,7 @@ export default function SupportPage() {
             <p className="text-xs text-gray-500 mb-2 dark:text-slate-400">Rate this support experience</p>
             <div className="flex items-center gap-1 mb-2">
               {[1, 2, 3, 4, 5].map(n => (
-                <button key={n} onClick={() => setRatingValue(n)} className="p-1">
+                <button aria-label={`Rate ${n} out of 5`} key={n} onClick={() => setRatingValue(n)} className="p-1">
                   <Star size={20} className={n <= ratingValue ? 'text-yellow-700 dark:text-yellow-400 fill-yellow-400' : 'text-gray-500 dark:text-gray-400'} />
                 </button>
               ))}
@@ -400,7 +400,7 @@ export default function SupportPage() {
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl w-full max-w-md p-5">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">New Ticket</h2>
-              <button onClick={() => setShowCreate(false)} className="text-gray-500 hover:text-gray-900 dark:hover:text-white dark:text-slate-400"><X size={18} /></button>
+              <button aria-label="Close" onClick={() => setShowCreate(false)} className="text-gray-500 hover:text-gray-900 dark:hover:text-white dark:text-slate-400"><X size={18} /></button>
             </div>
             <div className="space-y-3">
               <input value={newTicket.subject} onChange={e => setNewTicket({ ...newTicket, subject: e.target.value })}

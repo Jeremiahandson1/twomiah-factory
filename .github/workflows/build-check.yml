@@ -1343,8 +1343,8 @@ jobs:
         run: bun run scripts/check-contact-relations-ask.ts
       - name: "dark hover pairs — a light hover ground carries its dark partner, so a hovered row stays readable (T64)"
         run: bun run scripts/check-dark-hover-pairs.ts
-      - name: "arrow buttons — a page/day/back arrow says what it does to a screen reader (T64)"
-        run: bun run scripts/check-arrow-buttons-named.ts
+      - name: "icon buttons — every icon-only button says what it does to a screen reader (T64 arrows, T65 all)"
+        run: bun run scripts/check-icon-buttons-named.ts
 
   revenue-one-definition:
     name: "Revenue one definition"

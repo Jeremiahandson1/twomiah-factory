@@ -200,7 +200,7 @@ export default function FraudDetectionPage() {
               {scanResults.alertsGenerated || 0} new alerts &middot; {scanResults.transactionsScanned || 0} transactions scanned &middot; {scanResults.duration || '0s'}
             </div>
           </div>
-          <button onClick={() => setScanResults(null)} className="text-green-700 hover:text-green-800 dark:hover:text-green-300 dark:text-green-300"><XCircle className="w-5 h-5" /></button>
+          <button aria-label="Clear results" onClick={() => setScanResults(null)} className="text-green-700 hover:text-green-800 dark:hover:text-green-300 dark:text-green-300"><XCircle className="w-5 h-5" /></button>
         </div>
       )}
 

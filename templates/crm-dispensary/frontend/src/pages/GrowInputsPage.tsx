@@ -666,7 +666,7 @@ function InventoryTab() {
                   <option value="mg/L">mg/L</option>
                   <option value="g/L">g/L</option>
                 </select>
-                <button onClick={() => removeIngredient(i)} className="p-1.5 text-red-400 hover:text-red-300 hover:bg-slate-800 rounded">
+                <button aria-label="Remove ingredient" onClick={() => removeIngredient(i)} className="p-1.5 text-red-400 hover:text-red-300 hover:bg-slate-800 rounded">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -1401,7 +1401,7 @@ function PoliciesTab() {
                   onChange={(e) => updateRule(i, 'description', e.target.value)}
                   className="flex-1 px-3 py-1.5 bg-slate-800 border border-slate-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-orange-500"
                 />
-                <button onClick={() => removeRule(i)} className="p-1.5 text-red-400 hover:text-red-300 hover:bg-slate-800 rounded">
+                <button aria-label="Remove rule" onClick={() => removeRule(i)} className="p-1.5 text-red-400 hover:text-red-300 hover:bg-slate-800 rounded">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -1426,7 +1426,7 @@ function PoliciesTab() {
               {formData.bannedIngredients.map((ing, i) => (
                 <span key={i} className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-red-900/50 text-red-300 rounded-full border border-red-700">
                   {ing}
-                  <button onClick={() => removeBannedIngredient(i)} className="hover:text-red-100">
+                  <button aria-label="Remove ingredient" onClick={() => removeBannedIngredient(i)} className="hover:text-red-100">
                     <XCircle className="w-3 h-3" />
                   </button>
                 </span>

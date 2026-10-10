@@ -140,7 +140,7 @@ export default function VisitEditorModal({ patientId, visit, onSave, onClose }: 
               <Stethoscope className="w-5 h-5 text-purple-500 dark:text-purple-300" />
               {visit?.id ? 'Edit Visit' : 'New Visit'}
             </h2>
-            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">

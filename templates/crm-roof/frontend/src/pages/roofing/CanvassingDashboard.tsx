@@ -457,7 +457,7 @@ export default function CanvassingDashboard() {
                       {mayWriteScripts && (<button onClick={(e) => { e.stopPropagation(); openScriptEditor(script) }}
                         className="text-xs text-gray-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 px-2 py-1">Edit</button>)}
                       {!script.isDefault && (
-                        mayWriteScripts && (<button onClick={(e) => { e.stopPropagation(); deleteScript(script) }}
+                        mayWriteScripts && (<button aria-label="Delete script" onClick={(e) => { e.stopPropagation(); deleteScript(script) }}
                           className="text-gray-400 hover:text-red-600 px-1 py-1">
                           <Trash2 size={12} />
                         </button>)
@@ -479,7 +479,7 @@ export default function CanvassingDashboard() {
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto dark:bg-slate-900">
             <div className="p-6 border-b flex items-center justify-between">
               <h2 className="text-lg font-bold">{editingScript ? 'Edit Script' : 'New Script'}</h2>
-              <button onClick={() => setShowScriptEditor(false)}><X size={20} /></button>
+              <button aria-label="Close" onClick={() => setShowScriptEditor(false)}><X size={20} /></button>
             </div>
             <div className="p-6 space-y-4">
               <div>
@@ -500,7 +500,7 @@ export default function CanvassingDashboard() {
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-gray-500 dark:text-slate-400">Step {i + 1}</span>
                         {scriptSteps.length > 1 && (
-                          <button onClick={() => setScriptSteps(prev => prev.filter((_, j) => j !== i))}
+                          <button aria-label="Remove step" onClick={() => setScriptSteps(prev => prev.filter((_, j) => j !== i))}
                             className="text-xs text-red-500 dark:text-red-400"><Trash2 size={12} /></button>
                         )}
                       </div>

@@ -477,7 +477,7 @@ function InventoryCountTab() {
               {scannedEpcs.map((epc, i) => (
                 <div key={epc} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-800">
                   <span className="font-mono text-sm text-gray-700 dark:text-slate-200">{epc}</span>
-                  <button onClick={() => removeEpc(epc)} className="text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300"><XCircle className="w-4 h-4" /></button>
+                  <button aria-label="Remove tag" onClick={() => removeEpc(epc)} className="text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300"><XCircle className="w-4 h-4" /></button>
                 </div>
               ))}
             </div>

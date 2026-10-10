@@ -250,7 +250,7 @@ export default function ReportsPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Reports</h1>
           <p className="text-gray-600 dark:text-slate-400">Custom reports and business intelligence</p>
         </div>
-        <button
+        <button aria-label="Refresh"
           onClick={() => {
             if (tab === 'dashboard') loadWidgets();
             if (tab === 'saved') loadReports();
@@ -305,7 +305,7 @@ export default function ReportsPage() {
                         <Icon className="w-4 h-4 text-green-700 dark:text-green-300" />
                         <h3 className="font-medium text-gray-900 text-sm dark:text-slate-100">{widget.title}</h3>
                       </div>
-                      <button
+                      <button aria-label="Remove widget"
                         onClick={() => deleteWidget(widget.id)}
                         className="p-1 text-gray-400 hover:text-red-500 rounded"
                       >
@@ -419,7 +419,7 @@ export default function ReportsPage() {
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 mb-6 overflow-hidden dark:bg-slate-900">
               <div className="px-5 py-4 border-b bg-gray-50 flex items-center justify-between dark:bg-slate-900">
                 <h3 className="font-semibold text-gray-900 dark:text-slate-100">{viewingReport.name} - Results</h3>
-                <button onClick={() => { setViewingReport(null); setReportResults(null); }} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200">
+                <button aria-label="Close" onClick={() => { setViewingReport(null); setReportResults(null); }} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -493,7 +493,7 @@ export default function ReportsPage() {
                       <Play className="w-3.5 h-3.5" />
                       Run
                     </button>
-                    <button
+                    <button aria-label="Delete report"
                       onClick={() => deleteReport(report.id)}
                       className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg border border-red-200"
                     >

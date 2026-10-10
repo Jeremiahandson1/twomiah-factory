@@ -65,7 +65,7 @@ export default function PortalLayout() {
                 {label}
               </NavLink>
             ))}
-            <button
+            <button aria-label="Sign out"
               onClick={handleLogout}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-red-400 hover:bg-gray-700/50 ml-2"
             >

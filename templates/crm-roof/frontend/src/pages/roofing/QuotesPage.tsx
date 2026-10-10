@@ -321,7 +321,7 @@ export default function QuotesPage() {
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Signed Acceptance</h3>
                 <p className="text-sm text-gray-500 dark:text-slate-400">{certQuote.quoteNumber || 'Proposal'}</p>
               </div>
-              <button onClick={() => setCertQuote(null)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200">
+              <button aria-label="Close" onClick={() => setCertQuote(null)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -358,7 +358,7 @@ export default function QuotesPage() {
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
                 <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" /> New Quote
               </h2>
-              <button onClick={() => setModalOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200">
+              <button aria-label="Close" onClick={() => setModalOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -429,7 +429,7 @@ export default function QuotesPage() {
                         </td>
                         <td className="py-1 pl-1">
                           {form.lineItems.length > 1 && (
-                            <button onClick={() => removeLine(idx)} className="p-1 text-gray-400 hover:text-red-500">
+                            <button aria-label="Remove line item" onClick={() => removeLine(idx)} className="p-1 text-gray-400 hover:text-red-500">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}

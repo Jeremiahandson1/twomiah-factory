@@ -154,7 +154,7 @@ export default function ProjectDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <button
+          <button aria-label="Back"
             onClick={() => navigate('/crm/projects')}
             className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"
           >

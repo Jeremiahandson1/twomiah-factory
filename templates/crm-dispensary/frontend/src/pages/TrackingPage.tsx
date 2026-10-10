@@ -150,7 +150,7 @@ export default function TrackingPage() {
               Create Route
             </Button>
           )}
-          <button
+          <button aria-label="Refresh"
             onClick={() => tab === 'routes' ? loadRoutes() : loadDrivers()}
             className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-600 dark:text-slate-400"
           >

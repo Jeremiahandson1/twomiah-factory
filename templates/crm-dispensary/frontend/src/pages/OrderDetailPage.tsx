@@ -250,7 +250,7 @@ export default function OrderDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/crm/orders')} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
+          <button aria-label="Back" onClick={() => navigate('/crm/orders')} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
             <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-slate-400" />
           </button>
           <div>

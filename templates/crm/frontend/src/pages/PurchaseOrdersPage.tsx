@@ -193,7 +193,7 @@ export default function PurchaseOrdersPage() {
                   <input value={l.description} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLine(i, { description: e.target.value })} placeholder="Description" className="flex-1 px-3 py-2 border rounded-lg" />
                   <input type="number" value={l.quantity} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLine(i, { quantity: e.target.value })} placeholder="Qty" className="w-20 px-3 py-2 border rounded-lg" />
                   <input type="number" value={l.unitCost} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLine(i, { unitCost: e.target.value })} placeholder="Unit $" className="w-28 px-3 py-2 border rounded-lg" />
-                  <button onClick={() => setForm(f => ({ ...f, lines: f.lines.filter((_, idx) => idx !== i) }))} disabled={form.lines.length === 1} className="p-2 text-gray-400 hover:text-red-600 disabled:opacity-30"><Trash2 className="w-4 h-4" /></button>
+                  <button aria-label="Remove line item" onClick={() => setForm(f => ({ ...f, lines: f.lines.filter((_, idx) => idx !== i) }))} disabled={form.lines.length === 1} className="p-2 text-gray-400 hover:text-red-600 disabled:opacity-30"><Trash2 className="w-4 h-4" /></button>
                 </div>
               ))}
             </div>

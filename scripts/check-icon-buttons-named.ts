@@ -1,11 +1,13 @@
-// CI guard: an arrow-only button says what it does to a screen reader. (T64)
+// CI guard: an icon-only button says what it does to a screen reader. (T64 arrows → T65 every icon)
 //
 //   "Field service: the Contacts previous/next buttons have no accessible name for screen readers."
 //
-// A <button> whose only content is a ChevronLeft / ChevronRight icon must carry aria-label or title — page, day and
-// week arrows and Back buttons, 36 of them when this was written. The opening tag is read with brace and quote depth,
-// because a regex stops at the `>` of `onClick={() => …}` and silently skips the very buttons it is looking for.
-//   bun scripts/check-arrow-buttons-named.ts
+// That was 36 arrows; the same was true of 237 more — the trash cans, pencils, X's, refresh and send buttons a screen
+// reader announced as just "button". A <button> whose only content is ONE icon component must carry aria-label (or
+// title), named for what it DOES there — an X closes a window in one place and removes a line item in another, so the
+// name cannot come from the icon. The opening tag is read with brace and quote depth, because a regex stops at the `>`
+// of `onClick={() => …}` and silently skips the very buttons it is looking for.
+//   bun scripts/check-icon-buttons-named.ts
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
@@ -39,14 +41,15 @@ for (const f of roots.flatMap(walk)) {
     const close = s.indexOf('</button>', end)
     if (attrs.trimEnd().endsWith('/') || close < 0) { i = end; continue }
     const inner = s.slice(end, close).replace(/\s+/g, ' ').trim()
-    const iconOnly = /^<Chevron(Left|Right)\b/.test(inner) && inner.endsWith('/>') && tagEnd(inner, 1) === inner.length
+    // exactly one self-closing component and nothing else — no text a screen reader could fall back on
+    const iconOnly = /^<[A-Z]\w*\b/.test(inner) && inner.endsWith('/>') && tagEnd(inner, 1) === inner.length
     if (iconOnly) {
       seen++
-      if (!/aria-label|title=/.test(attrs)) { n++; console.error(`FAIL: ${f}:${s.slice(0, i).split('\n').length} — an arrow-only button with no aria-label`) }
+      if (!/aria-label|title=/.test(attrs)) { n++; console.error(`FAIL: ${f}:${s.slice(0, i).split('\n').length} — <${inner.match(/^<(\w+)/)?.[1]}> button with no aria-label`) }
     }
     i = end
   }
 }
-if (seen < 30) { console.error(`arrow buttons: only ${seen} found — the walk is not reading the screens`); process.exit(1) }
-if (n) { console.error(`\narrow buttons: ${n} with no accessible name`); process.exit(1) }
-console.log(`arrow buttons: all ${seen} arrow-only buttons are named, across ${roots.length} frontends`)
+if (seen < 200) { console.error(`icon buttons: only ${seen} found — the walk is not reading the screens`); process.exit(1) }
+if (n) { console.error(`\nicon buttons: ${n} with no accessible name`); process.exit(1) }
+console.log(`icon buttons: all ${seen} icon-only buttons are named, across ${roots.length} frontends`)

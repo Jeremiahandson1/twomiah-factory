@@ -349,7 +349,7 @@ export default function PurchaseOrdersPage() {
                 <h3 className="text-lg font-semibold">
                   Receiving: {selectedPO.poNumber || selectedPO.id?.slice(0, 8)} &mdash; {selectedPO.supplierName}
                 </h3>
-                <button onClick={() => setSelectedPO(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400"><X className="w-5 h-5" /></button>
+                <button aria-label="Close" onClick={() => setSelectedPO(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400"><X className="w-5 h-5" /></button>
               </div>
               <div className="overflow-x-auto border rounded-lg mb-4">
                 <table className="w-full">
@@ -524,7 +524,7 @@ export default function PurchaseOrdersPage() {
                         </td>
                         <td className="px-3 py-2 font-medium">${((parseFloat(li.quantity) || 0) * (parseFloat(li.unitCost) || 0)).toFixed(2)}</td>
                         <td className="px-3 py-2">
-                          <button onClick={() => removeLineItem(i)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400"><X className="w-4 h-4" /></button>
+                          <button aria-label="Remove line item" onClick={() => removeLineItem(i)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400"><X className="w-4 h-4" /></button>
                         </td>
                       </tr>
                     ))}

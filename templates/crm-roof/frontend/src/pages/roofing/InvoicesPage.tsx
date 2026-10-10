@@ -346,7 +346,7 @@ export default function InvoicesPage() {
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
                 <Receipt className="w-5 h-5 text-blue-600 dark:text-blue-400" /> New Invoice
               </h2>
-              <button onClick={() => setModalOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
+              <button aria-label="Close" onClick={() => setModalOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -394,7 +394,7 @@ export default function InvoicesPage() {
                     />
                     <span className="text-sm text-gray-700 w-20 text-right dark:text-slate-200">${(num0(li.quantity) * num0(li.unitPrice)).toFixed(2)}</span>
                     {form.lineItems.length > 1 && (
-                      <button onClick={() => setForm((prev) => ({ ...prev, lineItems: prev.lineItems.filter((_, i) => i !== idx) }))} className="p-1 text-gray-400 hover:text-red-500">
+                      <button aria-label="Remove line item" onClick={() => setForm((prev) => ({ ...prev, lineItems: prev.lineItems.filter((_, i) => i !== idx) }))} className="p-1 text-gray-400 hover:text-red-500">
                         <X className="w-3.5 h-3.5" />
                       </button>
                     )}

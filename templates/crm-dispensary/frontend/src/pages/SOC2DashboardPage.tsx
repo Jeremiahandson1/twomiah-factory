@@ -640,7 +640,7 @@ export default function SOC2DashboardPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button
+                          <button aria-label="Edit retention policy"
                             onClick={() => openRetentionModal(policy)}
                             className="p-1.5 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
                           >

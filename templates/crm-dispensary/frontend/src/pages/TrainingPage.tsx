@@ -264,7 +264,7 @@ export default function TrainingPage() {
             <div className="max-w-2xl mx-auto">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold">Quiz: {activeQuiz.course?.title}</h3>
-                <button onClick={() => setActiveQuiz(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400"><X className="w-5 h-5" /></button>
+                <button aria-label="Close" onClick={() => setActiveQuiz(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400"><X className="w-5 h-5" /></button>
               </div>
               <div className="border rounded-lg p-6 bg-white space-y-6 dark:bg-slate-900">
                 <p className="font-medium text-lg">{activeQuiz.step.question}</p>
@@ -495,7 +495,7 @@ export default function TrainingPage() {
                       {step.type === 'quiz' && <><HelpCircle className="w-3 h-3" />Quiz Question</>}
                       <span className="text-gray-500 dark:text-slate-400">#{i + 1}</span>
                     </span>
-                    <button onClick={() => removeStep(i)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400"><X className="w-4 h-4" /></button>
+                    <button aria-label="Remove step" onClick={() => removeStep(i)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400"><X className="w-4 h-4" /></button>
                   </div>
                   {step.type === 'text' && (
                     <div className="space-y-2">

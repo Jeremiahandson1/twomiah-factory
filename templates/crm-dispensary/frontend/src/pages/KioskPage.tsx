@@ -104,7 +104,7 @@ export default function KioskPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Kiosk Management</h1>
           <p className="text-gray-600 dark:text-slate-400">Setup and monitor in-store ordering kiosks</p>
         </div>
-        <button
+        <button aria-label="Refresh"
           onClick={() => { if (tab === 'sessions') loadSessions(); if (tab === 'stats') loadStats(); }}
           className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-600 dark:text-slate-400"
         >

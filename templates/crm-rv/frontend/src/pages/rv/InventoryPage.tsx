@@ -450,7 +450,7 @@ function FeedUrlModal({ onClose }: { onClose: () => void }) {
               <Link2 className="w-5 h-5 text-orange-500 dark:text-orange-300" />
               Syndication Feed URLs
             </h2>
-            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
 
           <p className="text-sm text-gray-500 mb-4 dark:text-slate-400">
@@ -827,7 +827,7 @@ function UnitFormModal({ unit, onSave, onClose }: UnitFormModalProps) {
         <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">{unit ? 'Edit Unit' : 'Add Unit'}</h2>
-            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -966,7 +966,7 @@ function RecallModal({ unit, onClose }: RecallModalProps) {
               <ShieldAlert className="w-5 h-5 text-amber-700 dark:text-amber-300" />
               Recalls — {[unit.year, unit.make, unit.modelName].filter(Boolean).join(' ')}
             </h2>
-            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
 
           {loading ? (

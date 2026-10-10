@@ -228,7 +228,7 @@ export function NewPatientModal({ onSave, onClose, patient }: NewPatientModalPro
         <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">{editing ? 'Edit Patient' : 'New Patient'}</h2>
-            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">

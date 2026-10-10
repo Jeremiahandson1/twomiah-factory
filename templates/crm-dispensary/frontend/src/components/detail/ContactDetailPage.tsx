@@ -144,7 +144,7 @@ export default function ContactDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <button
+          <button aria-label="Back"
             onClick={() => navigate('/crm/customers')}
             className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"
           >

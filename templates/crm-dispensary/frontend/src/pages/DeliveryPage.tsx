@@ -115,7 +115,7 @@ export default function DeliveryPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Delivery Management</h1>
           <p className="text-gray-600 dark:text-slate-400">Track and manage cannabis deliveries</p>
         </div>
-        <button
+        <button aria-label="Refresh"
           onClick={() => tab === 'active' || tab === 'queue' ? loadDeliveries() : loadZones()}
           className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-600 dark:text-slate-400"
         >

@@ -329,13 +329,13 @@ export default function AIReceptionistPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {mayWriteReceptionist && (<button
+                        {mayWriteReceptionist && (<button aria-label="Edit rule"
                           onClick={() => openEdit(rule)}
                           className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition"
                         >
                           <Pencil size={15} />
                         </button>)}
-                        {mayRemoveRule && (<button
+                        {mayRemoveRule && (<button aria-label="Delete rule"
                           onClick={() => deleteRule(rule.id)}
                           className="p-1.5 rounded hover:bg-red-600/20 text-gray-500 dark:text-slate-400 hover:text-red-400 transition"
                         >
@@ -500,7 +500,7 @@ export default function AIReceptionistPage() {
           <div className="relative bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl w-full max-w-lg mx-4 p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold">{editingRule ? 'Edit Rule' : 'New Rule'}</h2>
-              <button onClick={closeModal} className="text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white">
+              <button aria-label="Close" onClick={closeModal} className="text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white">
                 <X size={20} />
               </button>
             </div>

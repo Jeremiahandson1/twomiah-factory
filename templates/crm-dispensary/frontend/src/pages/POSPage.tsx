@@ -765,7 +765,7 @@ export default function POSPage() {
                   )}
                 </div>
               </div>
-              <button onClick={() => { setCustomer(null); setLoyaltyApplied(false); setLoyaltyDiscount(0); }} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200">
+              <button aria-label="Clear customer" onClick={() => { setCustomer(null); setLoyaltyApplied(false); setLoyaltyDiscount(0); }} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -844,14 +844,14 @@ export default function POSPage() {
                   <p className="text-xs text-gray-500 dark:text-slate-400">${Number(item.price).toFixed(2)} ea</p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button
+                  <button aria-label="Decrease quantity"
                     onClick={() => updateQuantity(item.id, -1)}
                     className="w-7 h-7 rounded-full bg-white border flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-800 dark:bg-slate-900"
                   >
                     <Minus className="w-3 h-3" />
                   </button>
                   <span className="w-8 text-center font-medium text-sm">{item.quantity}</span>
-                  <button
+                  <button aria-label="Increase quantity"
                     onClick={() => updateQuantity(item.id, 1)}
                     className="w-7 h-7 rounded-full bg-white border flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-800 dark:bg-slate-900"
                   >
@@ -861,7 +861,7 @@ export default function POSPage() {
                 <span className="font-medium text-gray-900 text-sm w-16 text-right dark:text-slate-100">
                   ${Number(item.price * item.quantity).toFixed(2)}
                 </span>
-                <button onClick={() => removeItem(item.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-300">
+                <button aria-label="Remove from cart" onClick={() => removeItem(item.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-300">
                   <Trash2 className="w-4 h-4" />
                 </button>
                 {overStock && (

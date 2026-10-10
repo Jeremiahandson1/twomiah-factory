@@ -266,7 +266,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
 
                   {/* Actions */}
                   <div className="relative group">
-                    <button className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
+                    <button aria-label="More actions" className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
                       <MoreVertical className="w-4 h-4 text-gray-400" />
                     </button>
                     <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border py-1 hidden group-hover:block z-10 dark:bg-slate-900">

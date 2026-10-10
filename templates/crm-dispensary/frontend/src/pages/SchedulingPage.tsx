@@ -407,7 +407,7 @@ export default function SchedulingPage() {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold flex items-center gap-2"><Clock className="w-5 h-5" />Time Entries</h3>
-            <button onClick={loadTimeEntries} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"><RefreshCw className="w-4 h-4" /></button>
+            <button aria-label="Refresh" onClick={loadTimeEntries} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"><RefreshCw className="w-4 h-4" /></button>
           </div>
           <div className="overflow-x-auto border rounded-lg">
             <table className="w-full">

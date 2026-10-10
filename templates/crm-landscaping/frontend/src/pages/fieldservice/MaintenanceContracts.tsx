@@ -392,7 +392,7 @@ function ContractFormModal({ contract, onSave, onClose }) {
             <h2 className="text-lg font-bold">
               {contract ? 'Edit Contract' : 'New Maintenance Contract'}
             </h2>
-            <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded">
+            <button aria-label="Close" onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded">
               <X className="w-5 h-5" />
             </button>
           </div>

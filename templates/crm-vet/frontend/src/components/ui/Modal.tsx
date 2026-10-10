@@ -57,7 +57,7 @@ export function Modal({
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
               {showClose && (
-                <button
+                <button aria-label="Close"
                   onClick={onClose}
                   className="p-1 text-gray-400 hover:text-gray-600 dark:text-slate-400 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
                 >

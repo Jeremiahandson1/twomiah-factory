@@ -217,7 +217,7 @@ export default function RecurringForm({ api }: RecurringPageProps) {
     <div className="max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <button onClick={() => navigate('/recurring')} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
+        <button aria-label="Back" onClick={() => navigate('/recurring')} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
@@ -398,7 +398,7 @@ export default function RecurringForm({ api }: RecurringPageProps) {
                 <div className="w-28 py-2 text-right font-medium">
                   ${((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
-                <button
+                <button aria-label="Remove line item"
                   type="button"
                   onClick={() => removeLineItem(index)}
                   className="p-2 text-gray-400 hover:text-red-500"

@@ -144,7 +144,7 @@ export function DataTable<T extends Record<string, unknown> = Record<string, unk
                   {actions && (
                     <td className="px-4 py-3">
                       <div className="relative">
-                        <button
+                        <button aria-label="More actions"
                           onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                             e.stopPropagation();
                             const rowId = (row as Record<string, unknown>).id as string | number;

@@ -209,7 +209,7 @@ function NewExperimentModal({ onClose, onCreated }: { onClose: () => void; onCre
       <div className="bg-white dark:bg-slate-900 rounded-lg p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-gray-900 dark:text-white">New A/B test</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400"><X className="w-4 h-4" /></button>
+          <button aria-label="Close" onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400"><X className="w-4 h-4" /></button>
         </div>
         <form onSubmit={submit} className="space-y-3">
           <div>
@@ -634,7 +634,7 @@ function ApprovalsTab({ onCountChange }: { onCountChange: (n: number) => void })
           <div className="relative bg-white dark:bg-slate-900 rounded-xl shadow-xl border dark:border-slate-800 w-full max-w-lg">
             <div className="flex items-center justify-between p-4 border-b dark:border-slate-800">
               <h3 className="font-semibold text-gray-900 dark:text-white">Request Changes</h3>
-              <button onClick={() => { setChangesModal(null); setFeedback(''); }} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
+              <button aria-label="Close" onClick={() => { setChangesModal(null); setFeedback(''); }} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
                 <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
@@ -702,7 +702,7 @@ function AdDetailSlideOver({ ad, onClose }: { ad: any; onClose: () => void }) {
       <div className="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-white dark:bg-slate-900 shadow-xl border-l dark:border-slate-800 overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b dark:border-slate-800">
           <h3 className="font-semibold text-gray-900 dark:text-white">Ad Details</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
+          <button aria-label="Close" onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
             <X className="w-5 h-5 text-gray-400" />
           </button>
         </div>

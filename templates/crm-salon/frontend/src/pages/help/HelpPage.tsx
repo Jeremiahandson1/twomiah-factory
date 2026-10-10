@@ -160,7 +160,7 @@ export default function HelpPage() {
             <input value={chatInput} onChange={e => setChatInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
               placeholder="Ask a question..." className="flex-1 px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none" />
-            <button onClick={sendChat} disabled={chatLoading || !chatInput.trim()}
+            <button aria-label="Send message" onClick={sendChat} disabled={chatLoading || !chatInput.trim()}
               className="px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg text-sm">
               <Send size={16} />
             </button>
@@ -179,7 +179,7 @@ export default function HelpPage() {
       <div className="p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <button onClick={() => setView('browse')} className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"><ArrowLeft size={18} /></button>
+            <button aria-label="Back" onClick={() => setView('browse')} className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"><ArrowLeft size={18} /></button>
             <h1 className="text-lg font-bold text-gray-900 dark:text-white">Manage Help Articles</h1>
           </div>
           <button onClick={() => setEditArticle({ title: '', content: '', category: '', isFaq: false, sortOrder: 0 })}
@@ -199,8 +199,8 @@ export default function HelpPage() {
                 </div>
               </div>
               <div className="flex gap-1">
-                <button onClick={() => setEditArticle(a)} className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"><Edit2 size={14} /></button>
-                <button onClick={() => deleteArticle(a.id)} className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-red-400"><Trash2 size={14} /></button>
+                <button aria-label="Edit article" onClick={() => setEditArticle(a)} className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"><Edit2 size={14} /></button>
+                <button aria-label="Delete article" onClick={() => deleteArticle(a.id)} className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-red-400"><Trash2 size={14} /></button>
               </div>
             </div>
           ))}
@@ -213,7 +213,7 @@ export default function HelpPage() {
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl w-full max-w-lg p-5">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white">{editArticle.id ? 'Edit' : 'New'} Article</h2>
-                <button onClick={() => setEditArticle(null)} className="text-gray-500 hover:text-gray-900 dark:hover:text-white dark:text-slate-400"><X size={18} /></button>
+                <button aria-label="Close" onClick={() => setEditArticle(null)} className="text-gray-500 hover:text-gray-900 dark:hover:text-white dark:text-slate-400"><X size={18} /></button>
               </div>
               <div className="space-y-3">
                 <input value={editArticle.title || ''} onChange={e => setEditArticle({ ...editArticle, title: e.target.value })}

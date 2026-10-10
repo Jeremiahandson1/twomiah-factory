@@ -1172,7 +1172,7 @@ export default function InsuranceClaimPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Log Activity</h2>
-              <button onClick={() => setActivityOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
+              <button aria-label="Close" onClick={() => setActivityOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-3">
               <div>
@@ -1218,7 +1218,7 @@ export default function InsuranceClaimPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 p-6 max-h-[85vh] overflow-y-auto dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Add Supplement</h2>
-              <button onClick={() => setSupOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
+              <button aria-label="Close" onClick={() => setSupOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-4">
               <div>
@@ -1273,7 +1273,7 @@ export default function InsuranceClaimPage() {
                         <td className="py-1 pr-1 text-right text-xs font-medium">{fmt$(li.total)}</td>
                         <td className="py-1">
                           {supLineItems.length > 1 && (
-                            <button onClick={() => setSupLineItems(prev => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 dark:hover:text-red-300"><X className="w-3.5 h-3.5" /></button>
+                            <button aria-label="Remove line item" onClick={() => setSupLineItems(prev => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 dark:hover:text-red-300"><X className="w-3.5 h-3.5" /></button>
                           )}
                         </td>
                       </tr>
@@ -1316,7 +1316,7 @@ export default function InsuranceClaimPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Edit {editSup.supplementNumber}</h2>
-              <button onClick={() => setEditSup(null)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
+              <button aria-label="Close" onClick={() => setEditSup(null)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
             </div>
             <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Reason</label>
             <textarea value={editReason} onChange={(e) => setEditReason(e.target.value)} rows={2} className="w-full text-sm border rounded-lg px-3 py-2 mb-4" placeholder="Why is this supplement needed?" />
@@ -1369,7 +1369,7 @@ export default function InsuranceClaimPage() {
               <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">
                 {decideMode === 'approve' ? 'Record approval' : 'Record denial'} — {decideSup.supplementNumber}
               </h2>
-              <button onClick={() => setDecideSup(null)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
+              <button aria-label="Close" onClick={() => setDecideSup(null)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
             </div>
             <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">Requested {fmt$(decideSup.totalAmount)}</p>
 

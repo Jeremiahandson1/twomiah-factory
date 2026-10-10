@@ -90,7 +90,7 @@ export default function CurbsidePage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Curbside Pickup</h1>
           <p className="text-gray-600 dark:text-slate-400">Manage curbside check-ins and fulfillment</p>
         </div>
-        <button onClick={() => { loadPickups(); loadStats(); }} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-600 dark:text-slate-400">
+        <button aria-label="Refresh" onClick={() => { loadPickups(); loadStats(); }} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-600 dark:text-slate-400">
           <RefreshCw className="w-5 h-5" />
         </button>
       </div>

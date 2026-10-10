@@ -165,7 +165,7 @@ export default function FleetPage({ api, config }: FleetPageProps) {
           <p className="text-gray-500 dark:text-slate-400">Track vehicles, trips, and maintenance</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
+          <button aria-label="Refresh"
             onClick={loadData}
             className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800"
           >
@@ -395,7 +395,7 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }: VehicleCardProp
           <Wrench className="w-4 h-4" />
           Service
         </button>
-        <button
+        <button aria-label="More actions"
           onClick={onEdit}
           className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"
         >

@@ -349,7 +349,7 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }: TaskItem
             task, its status, its due date and its checklist all still render. (T42) */}
         <div className="relative">
           {mayWrite && (
-            <button
+            <button aria-label="More actions"
               onClick={() => setShowMenu(!showMenu)}
               className="p-1 text-gray-400 hover:text-gray-600 rounded"
             >
@@ -547,7 +547,7 @@ function TaskFormModal({ task, onSave, onClose, api }: TaskFormModalProps) {
                   <div key={item.id} className="flex items-center gap-2 text-sm">
                     <Circle className="w-4 h-4 text-gray-300" />
                     <span className="flex-1">{item.text}</span>
-                    <button
+                    <button aria-label="Remove checklist item"
                       type="button"
                       onClick={() => removeChecklistItem(item.id)}
                       className="text-gray-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-300"
@@ -566,7 +566,7 @@ function TaskFormModal({ task, onSave, onClose, api }: TaskFormModalProps) {
                   placeholder="Add checklist item"
                   className="flex-1 px-3 py-2 border rounded-lg text-sm"
                 />
-                <button
+                <button aria-label="Add checklist item"
                   type="button"
                   onClick={addChecklistItem}
                   className="px-3 py-2 text-orange-600 hover:bg-orange-50 rounded-lg dark:text-orange-300"
@@ -642,7 +642,7 @@ export function TaskWidget({ api }: { api: TasksApi }) {
       ) : (
         tasks.slice(0, 5).map((task: TaskData) => (
           <div key={task.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg">
-            <button onClick={() => handleToggle(task.id)}>
+            <button aria-label="Mark task complete" onClick={() => handleToggle(task.id)}>
               <Circle className="w-4 h-4 text-gray-300 hover:text-gray-400" />
             </button>
             <div className="flex-1 min-w-0">

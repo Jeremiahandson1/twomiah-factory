@@ -626,10 +626,10 @@ function JobDetailScreen({
         {fullscreenPhoto && (
           <div className="fixed inset-0 bg-black z-50 flex flex-col">
             <div className="flex items-center justify-between p-4">
-              <button onClick={() => setFullscreenPhoto(null)} className="p-2 text-white">
+              <button aria-label="Close" onClick={() => setFullscreenPhoto(null)} className="p-2 text-white">
                 <X className="w-6 h-6" />
               </button>
-              <button onClick={() => handleDeletePhoto(fullscreenPhoto.id)} className="p-2 text-red-400">
+              <button aria-label="Delete photo" onClick={() => handleDeletePhoto(fullscreenPhoto.id)} className="p-2 text-red-400">
                 <Trash2 className="w-5 h-5" />
               </button>
             </div>
@@ -649,7 +649,7 @@ function JobDetailScreen({
           <div className="bg-white w-full rounded-t-2xl p-6 space-y-4 dark:bg-slate-900">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900 dark:text-slate-100">Complete Job</h3>
-              <button onClick={() => setShowCompleteConfirm(false)} className="p-2 rounded-lg active:bg-gray-100">
+              <button aria-label="Close" onClick={() => setShowCompleteConfirm(false)} className="p-2 rounded-lg active:bg-gray-100">
                 <X className="w-5 h-5 text-gray-500 dark:text-slate-400" />
               </button>
             </div>

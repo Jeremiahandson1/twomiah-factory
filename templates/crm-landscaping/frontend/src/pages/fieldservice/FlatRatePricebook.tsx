@@ -315,7 +315,7 @@ function RateFormModal({ item, categories, onSave, onClose }) {
         <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto text-gray-900 dark:text-slate-100">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">{item ? 'Edit Rate' : 'Add Rate'}</h2>
-            <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded">
+            <button aria-label="Close" onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded">
               <X className="w-5 h-5" />
             </button>
           </div>

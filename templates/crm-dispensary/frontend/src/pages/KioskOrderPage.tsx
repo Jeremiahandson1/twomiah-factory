@@ -443,7 +443,7 @@ export default function KioskOrderPage() {
                   </div>
                   <div className="mt-auto flex items-center justify-between">
                     <span className="text-xl font-bold text-green-700">${Number(product.price || 0).toFixed(2)}</span>
-                    <button
+                    <button aria-label="Add to cart"
                       onClick={() => addToCart(product)}
                       className="w-12 h-12 bg-green-700 hover:bg-green-800 text-white rounded-xl flex items-center justify-center transition-colors touch-manipulation"
                     >
@@ -511,21 +511,21 @@ export default function KioskOrderPage() {
                     <p className="text-green-700 font-bold text-lg">${Number(item.price).toFixed(2)}</p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <button
+                    <button aria-label="Decrease quantity"
                       onClick={() => updateQuantity(item.productId, -1)}
                       className="w-10 h-10 rounded-lg bg-gray-100 hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center justify-center transition-colors touch-manipulation dark:bg-slate-800"
                     >
                       <Minus className="w-5 h-5" />
                     </button>
                     <span className="text-xl font-bold w-8 text-center">{item.quantity}</span>
-                    <button
+                    <button aria-label="Increase quantity"
                       onClick={() => updateQuantity(item.productId, 1)}
                       className="w-10 h-10 rounded-lg bg-gray-100 hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center justify-center transition-colors touch-manipulation dark:bg-slate-800"
                     >
                       <Plus className="w-5 h-5" />
                     </button>
                   </div>
-                  <button
+                  <button aria-label="Remove from cart"
                     onClick={() => removeFromCart(item.productId)}
                     className="w-10 h-10 rounded-lg text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors touch-manipulation"
                   >

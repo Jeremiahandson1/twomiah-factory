@@ -544,7 +544,7 @@ export default function CanvassingView() {
             <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-6 dark:bg-slate-900">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold">New Canvassing Session</h2>
-                <button onClick={() => setShowStartModal(false)}><X size={20} /></button>
+                <button aria-label="Close" onClick={() => setShowStartModal(false)}><X size={20} /></button>
               </div>
               <div className="space-y-3">
                 <div>
@@ -629,7 +629,7 @@ export default function CanvassingView() {
             </div>
 
             {/* FAB */}
-            {mayCanvass && (<button onClick={openLogModal}
+            {mayCanvass && (<button aria-label="Log a door" onClick={openLogModal}
               className="absolute bottom-6 right-6 w-16 h-16 bg-blue-600 text-white rounded-full shadow-xl flex items-center justify-center active:bg-blue-700 z-[1000]">
               <DoorOpen size={28} />
             </button>)}
@@ -727,7 +727,7 @@ export default function CanvassingView() {
         <div className="fixed inset-0 bg-white z-50 flex flex-col dark:bg-slate-900">
           {/* Modal Header */}
           <div className="bg-white border-b px-4 py-3 flex items-center justify-between flex-shrink-0 dark:bg-slate-900">
-            <button onClick={() => setShowLogModal(false)} className="text-gray-500 dark:text-slate-400"><X size={20} /></button>
+            <button aria-label="Close" onClick={() => setShowLogModal(false)} className="text-gray-500 dark:text-slate-400"><X size={20} /></button>
             <h2 className="font-bold">Log Door Knock</h2>
             <div className="flex gap-1">
               {[0, 1, 2, 3].map((i) => (
@@ -816,7 +816,7 @@ export default function CanvassingView() {
                     {logPhotos.map((photo, i) => (
                       <div key={i} className="relative">
                         <img src={photo} alt={`Photo ${i + 1}`} className="w-full h-20 object-cover rounded-lg" />
-                        <button onClick={() => setLogPhotos((prev) => prev.filter((_, j) => j !== i))}
+                        <button aria-label="Remove photo" onClick={() => setLogPhotos((prev) => prev.filter((_, j) => j !== i))}
                           className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 text-white rounded-full flex items-center justify-center text-xs">
                           <X size={10} />
                         </button>

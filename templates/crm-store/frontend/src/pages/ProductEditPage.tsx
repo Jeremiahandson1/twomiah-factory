@@ -255,7 +255,7 @@ function VariantRow({ v, supplierConnected, supplierRef, supplierName, onSave, o
         <input className="input w-32 py-1" placeholder="Supplier item id" value={ref} onChange={(e) => setRef(e.target.value)} title={supplierName || 'Supplier item id (Printful sync variant / CJ vid). Blank = not dropshipped.'} />
       )}
       <button onClick={save} disabled={!dirty || saving} className="btn-primary text-xs px-2 py-1 disabled:opacity-40">{saving ? '…' : 'Save'}</button>
-      <button onClick={onDelete} className="text-gray-300 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+      <button aria-label="Delete product" onClick={onDelete} className="text-gray-300 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
     </div>
   )
 }

@@ -670,7 +670,7 @@ export default function LocationsPage() {
                         <td className="px-4 py-2 text-sm font-mono text-gray-900 dark:text-slate-100">{item.sku}</td>
                         <td className="px-4 py-2 text-sm text-right text-gray-900 dark:text-slate-100">{item.counted}</td>
                         <td className="px-4 py-2 text-center">
-                          <button onClick={() => removeCountItem(idx)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400">
+                          <button aria-label="Remove item" onClick={() => removeCountItem(idx)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400">
                             <Trash2 className="w-3 h-3" />
                           </button>
                         </td>
@@ -902,7 +902,7 @@ export default function LocationsPage() {
                       className="w-24 px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-white text-sm"
                       placeholder="Qty"
                     />
-                    <button onClick={() => removeTransferItem(idx)} className="text-red-400 hover:text-red-300">
+                    <button aria-label="Remove item" onClick={() => removeTransferItem(idx)} className="text-red-400 hover:text-red-300">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>

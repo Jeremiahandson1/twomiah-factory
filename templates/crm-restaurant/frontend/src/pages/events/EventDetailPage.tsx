@@ -598,7 +598,7 @@ function ModalShell({ title, onClose, children }: { title: string; onClose: () =
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">{title}</h2>
-            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
           {children}
         </div>

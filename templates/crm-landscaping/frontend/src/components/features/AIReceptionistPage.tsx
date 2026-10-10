@@ -278,9 +278,9 @@ export function AIReceptionistPage() {
                     <TableCell className="text-slate-600 dark:text-slate-400 text-sm max-w-xs truncate">{(rule.messageTemplate || '').substring(0, 50)}...</TableCell>
                     <TableCell>{rule.isActive ? <span className="text-emerald-700 dark:text-emerald-400 text-sm">Active</span> : <span className="text-slate-500 text-sm dark:text-slate-400">Inactive</span>}</TableCell>
                     {(mayEdit || mayDelete) && <TableCell><div className="flex gap-1">
-                      {mayEdit && <button onClick={() => toggleRuleActive(rule)} className={`p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded ${rule.isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}><Check className="w-4 h-4" /></button>}
-                      {mayEdit && <button onClick={() => { setEditItem(rule); setShowForm(true); }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"><Edit2 className="w-4 h-4 text-slate-600 dark:text-slate-400" /></button>}
-                      {mayDelete && <button onClick={() => setDeleteTarget(rule)} className="p-1.5 hover:bg-red-500/20 rounded"><Trash2 className="w-4 h-4 text-red-700 dark:text-red-400" /></button>}
+                      {mayEdit && <button aria-label="Turn rule on or off" onClick={() => toggleRuleActive(rule)} className={`p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded ${rule.isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}><Check className="w-4 h-4" /></button>}
+                      {mayEdit && <button aria-label="Edit rule" onClick={() => { setEditItem(rule); setShowForm(true); }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"><Edit2 className="w-4 h-4 text-slate-600 dark:text-slate-400" /></button>}
+                      {mayDelete && <button aria-label="Delete rule" onClick={() => setDeleteTarget(rule)} className="p-1.5 hover:bg-red-500/20 rounded"><Trash2 className="w-4 h-4 text-red-700 dark:text-red-400" /></button>}
                     </div></TableCell>}
                   </TableRow>
                 ))}

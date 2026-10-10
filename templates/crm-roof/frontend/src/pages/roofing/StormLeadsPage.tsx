@@ -333,8 +333,8 @@ export default function StormLeadsPage() {
                 )}
               </div>
               <div className="flex items-center gap-1">
-                <button onClick={() => setViewMode('list')} className={`p-1.5 rounded ${viewMode === 'list' ? 'bg-gray-200 dark:bg-slate-700 dark:text-slate-100' : ''}`}><List size={16} /></button>
-                <button onClick={() => setViewMode('map')} className={`p-1.5 rounded ${viewMode === 'map' ? 'bg-gray-200 dark:bg-slate-700 dark:text-slate-100' : ''}`}><MapIcon size={16} /></button>
+                <button aria-label="List view" onClick={() => setViewMode('list')} className={`p-1.5 rounded ${viewMode === 'list' ? 'bg-gray-200 dark:bg-slate-700 dark:text-slate-100' : ''}`}><List size={16} /></button>
+                <button aria-label="Map view" onClick={() => setViewMode('map')} className={`p-1.5 rounded ${viewMode === 'map' ? 'bg-gray-200 dark:bg-slate-700 dark:text-slate-100' : ''}`}><MapIcon size={16} /></button>
               </div>
             </div>
 
@@ -413,7 +413,7 @@ export default function StormLeadsPage() {
           <div className="bg-white rounded-2xl max-w-md w-full p-6 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold">New Storm Event</h2>
-              <button onClick={() => setShowNewEvent(false)}><X size={20} /></button>
+              <button aria-label="Close" onClick={() => setShowNewEvent(false)}><X size={20} /></button>
             </div>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
@@ -464,7 +464,7 @@ export default function StormLeadsPage() {
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold">Convert to CRM Lead</h2>
-              <button onClick={() => setShowConvertModal(null)}><X size={20} /></button>
+              <button aria-label="Close" onClick={() => setShowConvertModal(null)}><X size={20} /></button>
             </div>
             <div className="space-y-3">
               <div>

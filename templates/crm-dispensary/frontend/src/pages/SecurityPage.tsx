@@ -520,7 +520,7 @@ export default function SecurityPage() {
                         {device.lastUsed ? relativeTime(device.lastUsed) : 'Never'}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button
+                        <button aria-label="Delete device"
                           onClick={() => { setDeviceToDelete(device); setDeleteDeviceOpen(true); }}
                           className="p-1.5 text-gray-500 dark:text-slate-400 hover:text-red-400 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
                         >
@@ -607,7 +607,7 @@ export default function SecurityPage() {
                       <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">Secret Key (for manual entry):</p>
                       <div className="flex items-center gap-2">
                         <code className="text-emerald-400 font-mono text-lg tracking-wider">{setupData.secret}</code>
-                        <button
+                        <button aria-label="Copy secret"
                           onClick={() => { navigator.clipboard.writeText(setupData.secret); toast.success('Secret copied'); }}
                           className="p-1 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100"
                         >

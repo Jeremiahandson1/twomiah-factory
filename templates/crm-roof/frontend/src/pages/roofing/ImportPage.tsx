@@ -231,7 +231,7 @@ export default function ImportPage() {
                   </p>
                 </div>
               </div>
-              <button
+              <button aria-label="Remove file"
                 onClick={(e) => { e.stopPropagation(); removeFile(entry.name) }}
                 className="text-gray-400 hover:text-red-500 p-1"
               >

@@ -231,7 +231,7 @@ export default function MenuSyncPage() {
                             <RefreshCw className={`w-4 h-4 mr-1 inline ${syncing[platform.id] ? 'animate-spin' : ''}`} />
                             {syncing[platform.id] ? 'Syncing...' : 'Sync Now'}
                           </Button>
-                          <button onClick={() => openConfig(platform)}
+                          <button aria-label="Configure" onClick={() => openConfig(platform)}
                             className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">
                             <Settings className="w-4 h-4" />
                           </button>

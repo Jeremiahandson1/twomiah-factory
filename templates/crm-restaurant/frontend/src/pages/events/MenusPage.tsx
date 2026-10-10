@@ -244,7 +244,7 @@ function PackageModal({ pkg, onSave, onClose }: { pkg: Package | null; onSave: (
         <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">{pkg ? 'Edit Package' : 'New Package'}</h2>
-            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

@@ -239,7 +239,7 @@ export default function LeadSourcesPage() {
                     {mayToggle && <button onClick={() => toggleSource(source)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: source.enabled ? c.ok : c.muted }}>
                       {source.enabled ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
                     </button>}
-                    {mayRemove && <button onClick={() => deleteSource(source.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.danger }}>
+                    {mayRemove && <button aria-label="Remove source" onClick={() => deleteSource(source.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.danger }}>
                       <Trash2 size={18} />
                     </button>}
                   </div>

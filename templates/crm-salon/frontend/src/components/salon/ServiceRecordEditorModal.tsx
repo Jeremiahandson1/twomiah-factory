@@ -216,7 +216,7 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
             <h2 className="text-lg font-bold flex items-center gap-2">
               <Scissors className="w-5 h-5 text-teal-700 dark:text-teal-300" /> {record?.id ? 'Edit Service Record' : 'New Service Record'}
             </h2>
-            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
 
           {visitWarnings(profile, services.find((s) => s.id === form.serviceId)).length > 0 && (
