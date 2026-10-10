@@ -319,7 +319,7 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
               {record?.id && (
                 <button type="button" onClick={handleDelete} disabled={saving} className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 dark:text-red-400">Delete</button>
               )}
-              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
                 {saving ? 'Saving...' : 'Save Record'}
               </button>

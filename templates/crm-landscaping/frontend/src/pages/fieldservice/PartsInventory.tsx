@@ -105,9 +105,9 @@ export default function PartsInventory() {
         />
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1">
+      {/* Filters — wrap at phone width: the longer category names pushed this row 13px past a 390px screen. (T64) */}
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="relative flex-1 min-w-[12rem]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
@@ -120,7 +120,7 @@ export default function PartsInventory() {
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className="px-4 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
+          className="max-w-full min-w-0 px-4 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
         >
           <option value="">All Categories</option>
           {categories.map(cat => (

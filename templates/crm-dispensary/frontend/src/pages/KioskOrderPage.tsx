@@ -513,14 +513,14 @@ export default function KioskOrderPage() {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => updateQuantity(item.productId, -1)}
-                      className="w-10 h-10 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors touch-manipulation dark:bg-slate-800"
+                      className="w-10 h-10 rounded-lg bg-gray-100 hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center justify-center transition-colors touch-manipulation dark:bg-slate-800"
                     >
                       <Minus className="w-5 h-5" />
                     </button>
                     <span className="text-xl font-bold w-8 text-center">{item.quantity}</span>
                     <button
                       onClick={() => updateQuantity(item.productId, 1)}
-                      className="w-10 h-10 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors touch-manipulation dark:bg-slate-800"
+                      className="w-10 h-10 rounded-lg bg-gray-100 hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center justify-center transition-colors touch-manipulation dark:bg-slate-800"
                     >
                       <Plus className="w-5 h-5" />
                     </button>

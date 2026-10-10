@@ -291,7 +291,7 @@ export function PortalSharedDocuments() {
 }
 
 export function FilterBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return <button onClick={onClick} className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${active ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700'}`}>{children}</button>
+  return <button onClick={onClick} className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${active ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700'}`}>{children}</button>
 }
 
 export function DocRow({ name, typeLabel, meta, description, url, thumbnailUrl }: { name: string; typeLabel: string; meta: string[]; description?: string | null; url: string; thumbnailUrl?: string | null }) {
@@ -306,7 +306,7 @@ export function DocRow({ name, typeLabel, meta, description, url, thumbnailUrl }
             {description && <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">{description}</p>}
           </div>
         </div>
-        <a href={url} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 shrink-0 dark:text-slate-200 dark:bg-slate-900 dark:border-slate-700"><Download className="w-3.5 h-3.5" /> Download</a>
+        <a href={url} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 shrink-0 dark:text-slate-200 dark:bg-slate-900 dark:border-slate-700"><Download className="w-3.5 h-3.5" /> Download</a>
       </div>
     </div>
   )

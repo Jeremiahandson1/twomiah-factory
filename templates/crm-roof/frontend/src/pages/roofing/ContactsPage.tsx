@@ -270,7 +270,7 @@ export default function ContactsPage() {
                   <div
                     key={contact.id}
                     onClick={() => selectContact(contact)}
-                    className={`px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors ${
+                    className={`px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors ${
                       selected?.id === contact.id ? 'bg-blue-50 border-l-2 border-l-blue-600 dark:bg-blue-950/40 dark:text-slate-100' : ''
                     }`}
                   >
@@ -294,10 +294,10 @@ export default function ContactsPage() {
               <div className="flex items-center justify-between mt-3">
                 <p className="text-xs text-gray-500 dark:text-slate-400">Page {page} of {totalPages}</p>
                 <div className="flex gap-1">
-                  <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-30">
+                  <button aria-label="Previous page" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-30">
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-30">
+                  <button aria-label="Next page" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-30">
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -317,7 +317,7 @@ export default function ContactsPage() {
                       </h2>
                     </div>
                     <div className="flex items-center gap-1">
-                      {mayEditContact && (<button onClick={() => openEdit(selected)} className="px-2.5 py-1 text-xs font-medium border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200">Edit</button>)}
+                      {mayEditContact && (<button onClick={() => openEdit(selected)} className="px-2.5 py-1 text-xs font-medium border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 dark:hover:bg-slate-800 dark:border-slate-700 dark:text-slate-200">Edit</button>)}
                       {mayDeleteContact && (<button onClick={() => deleteContact(selected)} className="px-2.5 py-1 text-xs font-medium border border-red-200 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10">Delete</button>)}
                       <button onClick={() => setSelected(null)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200 ml-1">
                         <X className="w-4 h-4" />
@@ -399,7 +399,7 @@ export default function ContactsPage() {
                           <div
                             key={job.id}
                             onClick={() => navigate(`/crm/jobs/${job.id}`)}
-                            className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 cursor-pointer border"
+                            className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer border"
                           >
                             <div>
                               <p className="text-sm font-mono font-semibold text-gray-700 dark:text-slate-200">

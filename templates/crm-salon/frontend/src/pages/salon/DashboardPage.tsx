@@ -251,7 +251,7 @@ export default function DashboardPage() {
             <ul className="divide-y">
               {(activity.recentClients || []).map((c) => (
                 <li key={c.id} className="py-2">
-                  <Link to={`/crm/clients/${c.id}`} className="block hover:bg-gray-50 -mx-2 px-2 rounded">
+                  <Link to={`/crm/clients/${c.id}`} className="block hover:bg-gray-50 dark:hover:bg-slate-800 -mx-2 px-2 rounded">
                     <p className="font-medium text-gray-900 dark:text-slate-100">{c.name || 'Unnamed'}</p>
                     <p className="text-xs text-gray-500 dark:text-slate-400">{[c.phone, c.email].filter(Boolean).join(' · ') || '—'}</p>
                   </Link>

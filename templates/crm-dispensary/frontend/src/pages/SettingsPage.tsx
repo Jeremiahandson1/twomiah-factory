@@ -553,35 +553,35 @@ export default function SettingsPage() {
             </button>
           ))}
           <div className="border-t my-3 pt-3">
-            <button onClick={() => navigate('/crm/settings/billing')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:text-slate-400">
+            <button onClick={() => navigate('/crm/settings/billing')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 dark:text-slate-400">
               <CreditCard className="w-5 h-5" />
               Billing &amp; Payments
             </button>
-            <button onClick={() => navigate('/crm/settings/integrations')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:text-slate-400">
+            <button onClick={() => navigate('/crm/settings/integrations')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 dark:text-slate-400">
               <Plug className="w-5 h-5" />
               Integrations
             </button>
-            <button onClick={() => navigate('/crm/settings/features')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:text-slate-400">
+            <button onClick={() => navigate('/crm/settings/features')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 dark:text-slate-400">
               <ToggleLeft className="w-5 h-5" />
               Features
             </button>
             {/* Onboarding points owners here to bring their customers and products across, and
                 until now the link went nowhere. Owner/admin only, matching the API. (T45 H4) */}
             {isAdmin && (
-              <button onClick={() => navigate('/crm/settings/import')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:text-slate-400">
+              <button onClick={() => navigate('/crm/settings/import')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 dark:text-slate-400">
                 <Upload className="w-5 h-5" />
                 Import
               </button>
             )}
-            <button onClick={() => navigate('/crm/settings/email')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:text-slate-400">
+            <button onClick={() => navigate('/crm/settings/email')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 dark:text-slate-400">
               <AtSign className="w-5 h-5" />
               Branded Email
             </button>
-            <button onClick={() => navigate('/crm/settings/email-domain')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:text-slate-400">
+            <button onClick={() => navigate('/crm/settings/email-domain')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 dark:text-slate-400">
               <Globe className="w-5 h-5" />
               Email Domain
             </button>
-            <button onClick={() => navigate('/crm/settings/email-inbox')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:text-slate-400">
+            <button onClick={() => navigate('/crm/settings/email-inbox')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 dark:text-slate-400">
               <Inbox className="w-5 h-5" />
               Email Inbox
             </button>
@@ -1206,7 +1206,7 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     <div className="flex justify-end gap-2 mt-6">
-                      <button onClick={() => setAddUserOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
+                      <button onClick={() => setAddUserOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
                       <Button onClick={handleAddUser} disabled={addingUser}>{addingUser ? 'Adding...' : 'Add User'}</Button>
                     </div>
                   </div>
@@ -1230,7 +1230,7 @@ export default function SettingsPage() {
                       </tr>
                     )}
                     {users.map((u: any) => (
-                      <tr key={u.id} className="hover:bg-gray-50">
+                      <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                         <td className="px-4 py-3 text-sm">{u.firstName} {u.lastName}</td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{u.email}</td>
                         <td className="px-4 py-3 text-sm capitalize">{u.role}</td>

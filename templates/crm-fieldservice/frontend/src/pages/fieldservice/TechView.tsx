@@ -456,7 +456,7 @@ function JobDetailScreen({
     <div className="flex flex-col h-full bg-gray-50 dark:bg-slate-900">
       {/* Header */}
       <div className="bg-white border-b px-4 py-3 flex items-center gap-3 dark:bg-slate-900">
-        <button onClick={onBack} className="p-2 -ml-2 rounded-lg active:bg-gray-100">
+        <button aria-label="Back" onClick={onBack} className="p-2 -ml-2 rounded-lg active:bg-gray-100">
           <ChevronLeft className="w-6 h-6 text-gray-600 dark:text-slate-400" />
         </button>
         <div className="flex-1 min-w-0">
@@ -780,7 +780,7 @@ function ChecklistScreen({ job, onBack, onComplete }: { job: Job; onBack: () => 
     <div className="flex flex-col h-full bg-gray-50 dark:bg-slate-900">
       {/* Header */}
       <div className="bg-white border-b px-4 py-3 flex items-center gap-3 dark:bg-slate-900">
-        <button onClick={onBack} className="p-2 -ml-2 rounded-lg active:bg-gray-100">
+        <button aria-label="Back" onClick={onBack} className="p-2 -ml-2 rounded-lg active:bg-gray-100">
           <ChevronLeft className="w-6 h-6 text-gray-600 dark:text-slate-400" />
         </button>
         <div className="flex-1">

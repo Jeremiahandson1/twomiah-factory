@@ -398,7 +398,7 @@ function SelectionRow({ selection, onSelect, onRefresh }: SelectionRowProps) {
   };
 
   return (
-    <div className="p-4 hover:bg-gray-50">
+    <div className="p-4 hover:bg-gray-50 dark:hover:bg-slate-800">
       <div className="flex items-start gap-4">
         {/* Image or placeholder */}
         <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden dark:bg-slate-800">

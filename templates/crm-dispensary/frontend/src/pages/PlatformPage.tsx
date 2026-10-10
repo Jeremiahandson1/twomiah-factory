@@ -370,7 +370,7 @@ export default function PlatformPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => setCart([])}
-                      className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white rounded-lg hover:bg-gray-50 border border-gray-200 dark:text-slate-200 dark:bg-slate-900 dark:border-slate-700"
+                      className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 border border-gray-200 dark:text-slate-200 dark:bg-slate-900 dark:border-slate-700"
                     >
                       Clear
                     </button>
@@ -450,7 +450,7 @@ export default function PlatformPage() {
                       </thead>
                       <tbody className="divide-y">
                         {orders.map(order => (
-                          <tr key={order.id} className="hover:bg-gray-50">
+                          <tr key={order.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                             <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">#{order.orderNumber || order.id?.slice(0, 8)}</td>
                             <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                               {order.createdAt ? formatDate(order.createdAt) : '—'}

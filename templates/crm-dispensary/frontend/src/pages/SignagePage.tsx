@@ -136,7 +136,7 @@ export default function SignagePage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Digital Signage</h1>
           <p className="text-gray-600 dark:text-slate-400">Manage menu boards, promos, and in-store displays</p>
         </div>
-        <button onClick={loadScreens} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 dark:text-slate-400">
+        <button onClick={loadScreens} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-600 dark:text-slate-400">
           <RefreshCw className="w-5 h-5" />
         </button>
       </div>
@@ -470,7 +470,7 @@ export default function SignagePage() {
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setScreenModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
+          <button onClick={() => setScreenModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg font-medium dark:text-slate-200">Cancel</button>
           <Button onClick={handleSaveScreen} disabled={saving}>
             {saving ? 'Saving...' : editingScreen ? 'Update' : 'Create'}
           </Button>

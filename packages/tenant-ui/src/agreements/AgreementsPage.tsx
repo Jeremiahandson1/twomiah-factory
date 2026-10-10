@@ -73,7 +73,8 @@ interface Plan {
   durationMonths: number;
   autoRenew: boolean;
   active: boolean;
-  _count?: { agreements?: number };
+  /** customers on this plan right now (GET /api/agreements/plans) */
+  activeAgreements?: number;
 }
 
 interface AgreementStats {
@@ -233,14 +234,14 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
           {mayCreate && (
             <button
               onClick={() => { setSelectedPlan(null); setShowPlanForm(true); }}
-              className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50"
+              className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"
             >
               <FileText className="w-4 h-4" />
               New Plan
             </button>
           )}
           {mayBill && (
-            <button onClick={runBilling} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200">
+            <button onClick={runBilling} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 dark:hover:bg-slate-800 dark:border-slate-700 dark:text-slate-200">
 
               Bill due agreements
 
@@ -608,7 +609,7 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowPro
               <RefreshCw className="w-4 h-4" />
             </button>
           )}
-          <button
+          <button aria-label="Open"
             onClick={onView}
             className="p-1.5 text-gray-400 hover:text-gray-600 rounded"
           >
@@ -633,7 +634,7 @@ function PlansTab({ plans, onEdit, onRefresh }: PlansTabProps) {
           <div className="flex items-start justify-between mb-4">
             <div>
               <h3 className="text-lg font-bold text-gray-900 dark:text-slate-100">{plan.name}</h3>
-              <p className="text-sm text-gray-500 dark:text-slate-400">{plan._count?.agreements || 0} active</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">{plan.activeAgreements ?? 0} active</p>
             </div>
             {mayUpdate && (
               <button

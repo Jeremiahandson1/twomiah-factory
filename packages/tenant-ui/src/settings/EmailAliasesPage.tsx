@@ -159,7 +159,7 @@ export function EmailAliasesPage(): React.ReactElement {
           )}
 
           {!adding && domain && (
-            <button onClick={() => setAdding(true)} className="w-full py-3 border border-dashed border-gray-300 text-gray-600 rounded-md text-sm hover:bg-gray-50 dark:text-slate-300">+ Add email address</button>
+            <button onClick={() => setAdding(true)} className="w-full py-3 border border-dashed border-gray-300 text-gray-600 rounded-md text-sm hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300">+ Add email address</button>
           )}
         </div>
       )}

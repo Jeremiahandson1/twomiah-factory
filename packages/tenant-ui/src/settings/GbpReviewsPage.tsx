@@ -110,7 +110,7 @@ export function GbpReviewsPage(): React.ReactElement {
           {locations.length === 0 && !error && <p className="text-sm text-gray-500 dark:text-slate-400">No listings found on that Google account.</p>}
           <div className="space-y-2">
             {locations.map(l => (
-              <button key={l.locationName} disabled={busy} onClick={() => pickLocation(l)} className="block w-full text-left px-4 py-2 border rounded-md hover:bg-gray-50 text-sm">{l.title}</button>
+              <button key={l.locationName} disabled={busy} onClick={() => pickLocation(l)} className="block w-full text-left px-4 py-2 border rounded-md hover:bg-gray-50 dark:hover:bg-slate-800 text-sm">{l.title}</button>
             ))}
           </div>
         </div>
@@ -147,7 +147,7 @@ export function GbpReviewsPage(): React.ReactElement {
                     <textarea className="w-full border rounded-md p-2 text-sm min-h-[80px]" value={replyText} onChange={e => setReplyText(e.target.value)} placeholder="Thank them, address concerns…" />
                     <div className="flex gap-2 mt-2">
                       <button disabled={busy || !replyText.trim()} onClick={() => sendReply(r.name)} className="px-4 py-1.5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white rounded-md text-xs font-semibold">{busy ? 'Sending…' : 'Post reply'}</button>
-                      <button onClick={() => { setReplyFor(null); setReplyText('') }} className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-md text-xs dark:bg-slate-800 dark:text-slate-100">Cancel</button>
+                      <button onClick={() => { setReplyFor(null); setReplyText('') }} className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-md text-xs dark:bg-slate-800 dark:text-slate-100">Cancel</button>
                     </div>
                   </div>
                 ) : (

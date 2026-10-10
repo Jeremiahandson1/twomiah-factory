@@ -531,7 +531,7 @@ export default function CustomersPage() {
         <div className="flex justify-end gap-3 mt-6">
           <button
             onClick={() => setModalOpen(false)}
-            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200"
+            className="px-4 py-2 text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg font-medium dark:text-slate-200"
           >
             Cancel
           </button>

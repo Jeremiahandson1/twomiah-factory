@@ -58,6 +58,8 @@ export default function JobDetailPage() {
   // closing and advancing its own work, uploading photos and adding notes. The read-only office
   // seat holds jobs:read only, and loses all of it. (T42)
   const mayWorkJob = useMayWrite('jobs:update');
+  // Asked only of a seat the server answers — staff were refused these in the background on every load. (T64)
+  const maySeeRoster = useMayWrite('team:read');
   // Ordering a measurement is a different module with its own route and its own verb.
   const mayOrderMeasurement = useMayWrite('measurements:create');
   const { id } = useParams<{ id: string }>();
@@ -93,7 +95,7 @@ export default function JobDetailPage() {
     try {
       const [jobRes, usersRes, crewsRes, timelineRes] = await Promise.all([
         fetch(`/api/jobs/${id}`, { headers }),
-        fetch('/api/users', { headers }),
+        maySeeRoster ? fetch('/api/users', { headers }) : Promise.resolve(new Response('[]')),
         fetch('/api/crews', { headers }),
         fetch(`/api/jobs/${id}/timeline`, { headers }).catch(() => null),
       ]);
@@ -729,7 +731,7 @@ export default function JobDetailPage() {
               {mayWorkJob && (<button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-200"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-800 dark:text-slate-200"
               >
                 <Upload className="w-4 h-4" />
                 {uploading ? 'Uploading...' : 'Upload Photos'}
@@ -874,7 +876,7 @@ export default function JobDetailPage() {
                     <Link
                       key={q.id}
                       to={`/crm/quotes/${q.id}`}
-                      className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50"
+                      className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"
                     >
                       <div>
                         <p className="text-sm font-medium">Quote #{q.quoteNumber || q.id}</p>
@@ -909,7 +911,7 @@ export default function JobDetailPage() {
                     <Link
                       key={inv.id}
                       to={`/crm/invoices/${inv.id}`}
-                      className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50"
+                      className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"
                     >
                       <div>
                         <p className="text-sm font-medium">Invoice #{inv.invoiceNumber || inv.id}</p>

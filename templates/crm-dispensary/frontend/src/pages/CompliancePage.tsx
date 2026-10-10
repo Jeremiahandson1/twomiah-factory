@@ -489,7 +489,7 @@ export default function CompliancePage() {
                     <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No licenses added yet</td>
                   </tr>
                 ) : licenses.map(license => (
-                  <tr key={license.id} className="hover:bg-gray-50">
+                  <tr key={license.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{licenceType(license) || '—'}</td>
                     <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-slate-100">{license.licenseNumber}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{licenceAuthority(license) || '—'}</td>
@@ -587,7 +587,7 @@ export default function CompliancePage() {
                     <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No reports generated yet</td>
                   </tr>
                 ) : reports.map(report => (
-                  <tr key={report.id} className="hover:bg-gray-50">
+                  <tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">
                       {report.createdAt ? formatDate(report.createdAt) : '—'}
                     </td>
@@ -664,7 +664,7 @@ export default function CompliancePage() {
                       <td colSpan={10} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No waste entries recorded</td>
                     </tr>
                   ) : wasteEntries.map(entry => (
-                    <tr key={entry.id} className="hover:bg-gray-50">
+                    <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">
                         {entry.createdAt ? formatDate(entry.createdAt) : '—'}
                       </td>

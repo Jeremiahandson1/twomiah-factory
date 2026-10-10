@@ -354,7 +354,7 @@ export default function OfflinePage() {
                               <RotateCcw className="w-3 h-3" />Retry
                             </button>
                             <button onClick={() => skipItem(item.id)}
-                              className="flex items-center gap-1 text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-400">
+                              className="flex items-center gap-1 text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-800 dark:text-slate-400">
                               <SkipForward className="w-3 h-3" />Skip
                             </button>
                           </div>

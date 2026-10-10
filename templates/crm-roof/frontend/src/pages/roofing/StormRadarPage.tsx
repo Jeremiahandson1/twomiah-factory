@@ -118,7 +118,7 @@ export default function StormRadarPage() {
           <tbody>
             {events.length === 0 ? <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">No storm events yet. {status?.configured ? 'Click "Sync Now" to pull events.' : 'Configure a weather provider to start pulling events.'}</td></tr> :
               events.map((e) => (
-                <tr key={e.id} className="border-b hover:bg-gray-50">
+                <tr key={e.id} className="border-b hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3 text-sm font-semibold">{(e.eventType || '').replace(/_/g, ' ')}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${SEVERITY_COLORS[e.severity] || 'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'}`}>{e.severity || '—'}</span></td>
                   <td className="px-4 py-3 text-sm">{e.city ? `${e.city}, ` : ''}{e.state || ''} {e.zip || ''}</td>

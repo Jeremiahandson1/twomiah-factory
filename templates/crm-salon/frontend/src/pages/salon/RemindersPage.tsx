@@ -489,7 +489,7 @@ function SendReminderModal({ contactIds, defaultMessage, onDone, onClose }: { co
                 <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+                <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
                 <button onClick={send} disabled={sending || contactIds.length === 0 || walletEmpty} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
                   {sending ? 'Sending...' : 'Send'}
                 </button>

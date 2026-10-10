@@ -102,7 +102,7 @@ export default function GeofencesPage() {
             className={`px-4 py-2 rounded-lg text-sm ${
               filter === f
                 ? 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40'
-                : 'text-gray-600 hover:bg-gray-100 dark:text-slate-300'
+                : 'text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 dark:text-slate-300'
             }`}
           >
             {f === 'active' ? 'Active' : f === 'all' ? 'All' : 'Inactive'}
@@ -201,7 +201,7 @@ function GeofenceCard({ geofence, onEdit, onDelete, onToggle }) {
       <div className="flex gap-2 pt-3 border-t">
         <button
           onClick={onEdit}
-          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg dark:text-slate-400"
+          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400"
         >
           <Edit2 className="w-4 h-4" />
           Edit
@@ -435,7 +435,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900 dark:border-slate-700 dark:text-slate-100"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               >
                 Cancel
               </button>

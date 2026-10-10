@@ -105,7 +105,7 @@ export default function SEOPagesPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">SEO Product Pages</h1>
           <p className="text-gray-600 dark:text-slate-400">Manage product page SEO and search appearance</p>
         </div>
-        <button onClick={loadPages} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 dark:text-slate-400">
+        <button onClick={loadPages} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-600 dark:text-slate-400">
           <RefreshCw className="w-5 h-5" />
         </button>
       </div>
@@ -160,7 +160,7 @@ export default function SEOPagesPage() {
                 </thead>
                 <tbody className="divide-y">
                   {pages.map(page => (
-                    <tr key={page.id} className="hover:bg-gray-50">
+                    <tr key={page.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{page.productName || page.product || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 font-mono dark:text-slate-400">{page.slug || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate dark:text-slate-400">{page.metaTitle || '—'}</td>
@@ -317,7 +317,7 @@ export default function SEOPagesPage() {
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setEditModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
+          <button onClick={() => setEditModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg font-medium dark:text-slate-200">Cancel</button>
           <Button onClick={handleSave} disabled={saving}>
             {saving ? 'Saving...' : 'Save'}
           </Button>

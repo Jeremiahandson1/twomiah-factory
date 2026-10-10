@@ -508,7 +508,7 @@ function EquipmentRow({ equipment, onEdit, onHistory }: EquipmentRowProps) {
         <div className="flex items-center gap-2 justify-end">
           <button
             onClick={onHistory}
-            className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+            className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800"
             title="Service History"
           >
             <History className="w-4 h-4" />
@@ -516,7 +516,7 @@ function EquipmentRow({ equipment, onEdit, onHistory }: EquipmentRowProps) {
           {mayUpdate && (
             <button
               onClick={onEdit}
-              className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+              className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800"
               aria-label={`Edit ${equipment.name}`}
             >
               <Edit2 className="w-4 h-4" />

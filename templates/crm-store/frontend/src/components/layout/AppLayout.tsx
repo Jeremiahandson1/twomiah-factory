@@ -52,14 +52,14 @@ export default function AppLayout() {
             {NAV.map(({ to, label, icon: Icon, end }) => (
               <NavLink key={to} to={to} end={end} onClick={() => setOpen(false)}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-50 dark:text-slate-300'}`}>
+                  `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'}`}>
                 <Icon className="h-4 w-4" /> {label}
               </NavLink>
             ))}
           </nav>
           <div className="p-3 border-t mt-auto">
             <div className="px-3 py-2 text-xs text-gray-500 truncate dark:text-slate-400">{user?.email}</div>
-            <button onClick={doLogout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:text-slate-300">
+            <button onClick={doLogout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300">
               <LogOut className="h-4 w-4" /> Sign out
             </button>
           </div>

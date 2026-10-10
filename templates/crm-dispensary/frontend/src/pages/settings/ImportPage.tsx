@@ -180,7 +180,7 @@ export default function ImportPage() {
           <button
             onClick={runPreview}
             disabled={!file || previewing || !canImport}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200"
+            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200"
           >
             {previewing ? <><Loader2 className="w-4 h-4 inline mr-2 animate-spin" />Checking…</> : 'Check the file'}
           </button>

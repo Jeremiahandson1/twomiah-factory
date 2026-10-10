@@ -126,7 +126,7 @@ export default function CheckinPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => { loadQueue(); loadStats(); }}
-            className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 dark:text-slate-400"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-600 dark:text-slate-400"
           >
             <RefreshCw className="w-5 h-5" />
           </button>
@@ -293,7 +293,7 @@ export default function CheckinPage() {
                       </thead>
                       <tbody className="divide-y">
                         {completedQueue.map(entry => (
-                          <tr key={entry.id} className="hover:bg-gray-50">
+                          <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                             <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">{entry.name}</td>
                             <td className="px-4 py-3">
                               <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${queueStatuses[entry.status]}`}>
@@ -489,7 +489,7 @@ export default function CheckinPage() {
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setCheckinModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
+          <button onClick={() => setCheckinModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg font-medium dark:text-slate-200">Cancel</button>
           <Button onClick={handleCheckin} disabled={submitting}>
             {submitting ? 'Checking in...' : 'Check In'}
           </Button>

@@ -146,7 +146,7 @@ export default function ContactDetailPage() {
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/crm/customers')}
-            className="p-2 hover:bg-gray-100 rounded-lg"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -171,7 +171,7 @@ export default function ContactDetailPage() {
           {can('contacts:update') && (
             <Link
               to={`/crm/customers?edit=${id}`}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2 dark:bg-slate-800 dark:text-slate-200"
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center gap-2 dark:bg-slate-800 dark:text-slate-200"
             >
               <Edit className="w-4 h-4" />
               Edit
@@ -279,7 +279,7 @@ export default function ContactDetailPage() {
                   <Link
                     key={order.id}
                     to={`/crm/orders/${order.id}`}
-                    className="p-4 flex items-center justify-between hover:bg-gray-50"
+                    className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-800"
                   >
                     <div className="flex items-center gap-3">
                       <ShoppingCart className="w-5 h-5 text-gray-400" />
@@ -398,7 +398,7 @@ export default function ContactDetailPage() {
             <div className="space-y-2">
               <Link
                 to={`/crm/orders/new?customerId=${id}`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
+                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
                 <ShoppingCart className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Create Order
@@ -431,7 +431,7 @@ export default function ContactDetailPage() {
                     toast.error(err?.message || 'Failed to adjust points (manager role required).');
                   }
                 }}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
+                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
                 <Gift className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Adjust Loyalty Points
@@ -440,7 +440,7 @@ export default function ContactDetailPage() {
               {contact.phone && (
                 <button
                   onClick={() => { setSmsBody(''); setSmsOpen(true); }}
-                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
+                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg flex items-center gap-2 dark:bg-slate-900"
                 >
                   <MessageSquare className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                   Send SMS
@@ -472,7 +472,7 @@ export default function ContactDetailPage() {
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setSmsOpen(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
+          <button onClick={() => setSmsOpen(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg font-medium dark:text-slate-200">Cancel</button>
           <button
             onClick={handleSendSms}
             disabled={smsSending}

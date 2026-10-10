@@ -59,7 +59,7 @@ export default function FinancingPage() {
           <tbody>
             {apps.length === 0 ? <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">No financing applications yet.</td></tr> :
               apps.map((a) => (
-                <tr key={a.id} className="border-b hover:bg-gray-50">
+                <tr key={a.id} className="border-b hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3 font-mono text-xs">{a.contactId.substring(0, 8)}…</td>
                   <td className="px-4 py-3 text-sm font-semibold">{LENDER_LABELS[a.lender] || a.lender}</td>
                   <td className="px-4 py-3 font-mono text-sm">${Number(a.amountRequested).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>

@@ -272,7 +272,7 @@ export default function CashPage() {
                 const expected = Number(session.openingAmount || 0) + Number(session.cashSales || 0) - Number(session.cashRefunds || 0);
                 const variance = session.closingAmount != null ? Number(session.closingAmount) - expected : null;
                 return (
-                  <tr key={session.id} className="hover:bg-gray-50">
+                  <tr key={session.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">
                       {session.openedAt ? formatDateInZone(session.openedAt, storeTz) : '—'}
                     </td>

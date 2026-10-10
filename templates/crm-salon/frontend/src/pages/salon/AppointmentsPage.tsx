@@ -202,7 +202,7 @@ export default function AppointmentsPage() {
           <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           <input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="pl-10 pr-4 py-2 border rounded-lg" />
         </div>
-        <button onClick={() => setDay(todayStr())} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">Today</button>
+        <button onClick={() => setDay(todayStr())} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">Today</button>
         <span className="text-sm text-gray-500 dark:text-slate-400">
           {booked} booked{done ? ` · ${done} done` : ''}{cancelled ? ` · ${cancelled} cancelled / no-show` : ''}
         </span>
@@ -251,17 +251,17 @@ export default function AppointmentsPage() {
                 </button>
               )}
               {!CLOSED.has(a.status || 'scheduled') && a.contactId && (
-                <button onClick={() => setClosing(a)} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg hover:bg-gray-50 text-sm">
+                <button onClick={() => setClosing(a)} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-sm">
                   <Scissors className="w-4 h-4" /> Log Service
                 </button>
               )}
               {!CLOSED.has(a.status || 'scheduled') && (
-                <button onClick={() => setResched(a)} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg hover:bg-gray-50 text-sm" title="Move to another day or time">
+                <button onClick={() => setResched(a)} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-sm" title="Move to another day or time">
                   <CalendarClock className="w-4 h-4" /> Reschedule
                 </button>
               )}
               {CLOSED.has(a.status || 'scheduled') && a.status !== 'completed' && (
-                <button onClick={() => setStatus(a, 'scheduled')} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg hover:bg-gray-50 text-sm" title="Undo the cancellation / no-show">
+                <button onClick={() => setStatus(a, 'scheduled')} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-sm" title="Undo the cancellation / no-show">
                   <RotateCcw className="w-4 h-4" /> Reopen
                 </button>
               )}
@@ -382,7 +382,7 @@ function RescheduleModal({ appt, onSave, onClose }: { appt: Appointment; onSave:
             </div>
             <p className="text-xs text-gray-500 dark:text-slate-400">Leave End blank to keep the service's normal duration. Stylist and chair conflicts are checked before the move is saved.</p>
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">{saving ? 'Saving...' : 'Move appointment'}</button>
             </div>
           </form>
@@ -544,7 +544,7 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
                 {saving ? 'Saving...' : 'Create'}
               </button>

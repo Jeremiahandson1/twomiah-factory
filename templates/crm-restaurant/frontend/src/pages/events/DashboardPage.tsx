@@ -176,7 +176,7 @@ export default function DashboardPage() {
         <h2 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Pipeline</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {stages.map((s) => (
-            <Link key={s.key} to="/crm/events" className="border rounded-lg p-3 hover:bg-gray-50">
+            <Link key={s.key} to="/crm/events" className="border rounded-lg p-3 hover:bg-gray-50 dark:hover:bg-slate-800">
               <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[s.key] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>{s.label}</span>
               <p className="text-2xl font-bold text-gray-900 mt-2 dark:text-slate-100">{pipeline[s.key] || 0}</p>
             </Link>
@@ -224,7 +224,7 @@ export default function DashboardPage() {
             <ul className="divide-y">
               {(activity.newEnquiries || []).map((e) => (
                 <li key={e.id} className="py-2">
-                  <Link to={`/crm/events/${e.id}`} className="block hover:bg-gray-50 -mx-2 px-2 rounded">
+                  <Link to={`/crm/events/${e.id}`} className="block hover:bg-gray-50 dark:hover:bg-slate-800 -mx-2 px-2 rounded">
                     <p className="font-medium text-gray-900 break-words min-w-0 dark:text-slate-100">{e.name || 'Untitled'}</p>
                     <p className="text-xs text-gray-500 capitalize dark:text-slate-400">
                       {fmtEventDate(e.eventDate)}{e.guestCount ? ` · ${e.guestCount} guests` : ''}{e.eventType ? ` · ${prettyType(e.eventType)}` : ''}
@@ -247,7 +247,7 @@ export default function DashboardPage() {
             <ul className="divide-y">
               {(activity.upcomingEvents || []).map((e) => (
                 <li key={e.id} className="py-2">
-                  <Link to={`/crm/events/${e.id}`} className="block hover:bg-gray-50 -mx-2 px-2 rounded">
+                  <Link to={`/crm/events/${e.id}`} className="block hover:bg-gray-50 dark:hover:bg-slate-800 -mx-2 px-2 rounded">
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-medium text-gray-900 break-words min-w-0 dark:text-slate-100">{e.name || 'Untitled'}</p>
                       {(e.guestCountFinal || e.guestCount) && (
@@ -277,7 +277,7 @@ export default function DashboardPage() {
             <ul className="divide-y">
               {(activity.duePayments || []).map((p) => (
                 <li key={p.id} className="py-2">
-                  <Link to={p.eventId ? `/crm/events/${p.eventId}` : '/crm/events'} className="block hover:bg-gray-50 -mx-2 px-2 rounded">
+                  <Link to={p.eventId ? `/crm/events/${p.eventId}` : '/crm/events'} className="block hover:bg-gray-50 dark:hover:bg-slate-800 -mx-2 px-2 rounded">
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-medium text-gray-900 dark:text-slate-100">{p.eventName || 'Event'}</p>
                       <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{money(p.amount)}</span>

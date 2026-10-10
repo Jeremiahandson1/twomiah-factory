@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { BarChart3, TrendingUp, DollarSign, Users, Briefcase } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useMayWrite } from '../../shared';
 import { displayName } from '../../utils/user';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -122,14 +123,17 @@ export default function ReportsPage() {
     return { jobs: all, withheld };
   };
 
+  // Asked only of a seat the server answers — staff were refused these in the background on every load. (T64)
+  const maySeeRoster = useMayWrite('team:read');
+  const maySeeMoney = useMayWrite('invoices:read');
   const load = useCallback(async () => {
     try {
       const [jobsAll, usersRes, crewsRes, moneyRes] = await Promise.all([
         fetchAllJobs(),
-        fetch('/api/users', { headers }),
+        maySeeRoster ? fetch('/api/users', { headers }) : Promise.resolve(new Response('[]')),
         fetch('/api/crews', { headers }),
         // H3: the money, as opposed to what the pipeline is thought to be worth
-        fetch('/api/invoices/summary', { headers }),
+        maySeeMoney ? fetch('/api/invoices/summary', { headers }) : Promise.resolve(new Response('null')),
       ]);
       setMoney(moneyRes.ok ? await moneyRes.json() : null);
       setJobMoneyWithheld(jobsAll.withheld);

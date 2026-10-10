@@ -270,7 +270,7 @@ export default function TrainingPage() {
                 <p className="font-medium text-lg">{activeQuiz.step.question}</p>
                 <div className="space-y-3">
                   {(activeQuiz.step.options || []).map((opt: string, i: number) => (
-                    <label key={i} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer ${quizAnswers[0] === i ? 'border-green-500 bg-green-50 dark:bg-green-950/40 dark:text-slate-100' : 'hover:bg-gray-50'} ${quizSubmitted && activeQuiz.step.correctIndex === i ? 'border-green-500 bg-green-50 dark:bg-green-950/40 dark:text-slate-100' : ''} ${quizSubmitted && quizAnswers[0] === i && activeQuiz.step.correctIndex !== i ? 'border-red-500 bg-red-50 dark:bg-red-950/40 dark:text-slate-100' : ''}`}>
+                    <label key={i} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer ${quizAnswers[0] === i ? 'border-green-500 bg-green-50 dark:bg-green-950/40 dark:text-slate-100' : 'hover:bg-gray-50 dark:hover:bg-slate-800'} ${quizSubmitted && activeQuiz.step.correctIndex === i ? 'border-green-500 bg-green-50 dark:bg-green-950/40 dark:text-slate-100' : ''} ${quizSubmitted && quizAnswers[0] === i && activeQuiz.step.correctIndex !== i ? 'border-red-500 bg-red-50 dark:bg-red-950/40 dark:text-slate-100' : ''}`}>
                       <input type="radio" name="quiz" checked={quizAnswers[0] === i} onChange={() => setQuizAnswers({ 0: i })}
                         disabled={quizSubmitted} className="text-green-700 dark:text-green-300" />
                       <span>{opt}</span>
@@ -427,7 +427,7 @@ export default function TrainingPage() {
               <label className="block text-sm font-medium mb-2">Or Select Employees</label>
               <div className="border rounded-lg max-h-48 overflow-y-auto">
                 {employees.map(emp => (
-                  <label key={emp.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b last:border-b-0">
+                  <label key={emp.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer border-b last:border-b-0">
                     <input type="checkbox" checked={selectedEmployees.includes(emp.id)}
                       onChange={() => toggleEmployee(emp.id)} className="rounded text-green-700 dark:text-green-300" />
                     <span className="text-sm">{emp.name}</span>
@@ -534,20 +534,20 @@ export default function TrainingPage() {
               ))}
             </div>
             <div className="flex gap-2 mt-3">
-              <button onClick={() => addStep('text')} className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">
+              <button onClick={() => addStep('text')} className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">
                 <FileText className="w-3 h-3" />Add Text
               </button>
-              <button onClick={() => addStep('video')} className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">
+              <button onClick={() => addStep('video')} className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">
                 <Video className="w-3 h-3" />Add Video
               </button>
-              <button onClick={() => addStep('quiz')} className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">
+              <button onClick={() => addStep('quiz')} className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">
                 <HelpCircle className="w-3 h-3" />Add Quiz
               </button>
             </div>
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setCourseModal(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button>
+          <button onClick={() => setCourseModal(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button>
           <Button onClick={handleCreateCourse} disabled={savingCourse}>{savingCourse ? 'Creating...' : 'Create Course'}</Button>
         </div>
       </Modal>

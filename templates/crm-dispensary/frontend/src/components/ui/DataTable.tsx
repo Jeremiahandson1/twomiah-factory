@@ -169,7 +169,7 @@ export function DataTable<Row extends { id?: any } = any>({
               data.map((row, rowIdx) => (
                 <tr
                   key={row.id || rowIdx}
-                  className={`hover:bg-gray-50 ${onRowClick ? 'cursor-pointer' : ''}`}
+                  className={`hover:bg-gray-50 dark:hover:bg-slate-800 ${onRowClick ? 'cursor-pointer' : ''}`}
                   onClick={() => onRowClick?.(row)}
                 >
                   {/* Cells are bounded and wrap. One 300-character customer name with no spaces
@@ -208,7 +208,7 @@ export function DataTable<Row extends { id?: any } = any>({
                             setMenuPos({ top, left });
                             setOpenMenu(row.id);
                           }}
-                          className="p-1.5 rounded-md border border-gray-200 hover:bg-gray-100 hover:border-gray-300 text-gray-500 hover:text-gray-700 transition-colors dark:border-slate-700 dark:text-slate-400"
+                          className="p-1.5 rounded-md border border-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 hover:border-gray-300 text-gray-500 hover:text-gray-700 transition-colors dark:border-slate-700 dark:text-slate-400"
                         >
                           <MoreVertical className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                         </button>
@@ -256,20 +256,20 @@ export function DataTable<Row extends { id?: any } = any>({
             Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
           </p>
           <div className="flex items-center gap-2">
-            <button
+            <button aria-label="Previous page"
               onClick={() => onPageChange(pagination.page - 1)}
               disabled={pagination.page <= 1}
-              className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <span className="text-sm text-gray-600 dark:text-slate-400">
               Page {pagination.page} of {pagination.pages}
             </span>
-            <button
+            <button aria-label="Next page"
               onClick={() => onPageChange(pagination.page + 1)}
               disabled={pagination.page >= pagination.pages}
-              className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -327,9 +327,9 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 export function Button({ children, variant = 'primary', size = 'md', className = '', ...props }: ButtonProps) {
   const variants: Record<string, string> = {
     primary: 'bg-orange-500 hover:bg-orange-600 text-white',
-    secondary: 'bg-gray-100 hover:bg-gray-200 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+    secondary: 'bg-gray-100 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
     danger: 'bg-red-600 hover:bg-red-700 text-white',
-    ghost: 'hover:bg-gray-100 text-gray-700',
+    ghost: 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-700',
   };
 
   const sizes = {

@@ -48,7 +48,7 @@ export default function OnboardingWizard() {
   const Nav = ({ backTo, nextLabel, onNext }: { backTo: number | null; nextLabel: string; onNext: () => void }) => (
     <div className="flex justify-between mt-6">
       {backTo !== null
-        ? <button onClick={() => setCurrentStep(backTo)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm dark:text-slate-200 dark:bg-slate-800">Back</button>
+        ? <button onClick={() => setCurrentStep(backTo)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 rounded-md text-sm dark:text-slate-200 dark:bg-slate-800">Back</button>
         : <div />}
       <button onClick={onNext} className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg">
         {nextLabel} <ChevronRight className="w-4 h-4" />

@@ -110,7 +110,7 @@ export function EmailAliasesStep({ productId, onBack, onNext, defaultForwardTo }
         <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 mb-2">Pre-checked addresses</div>
         <div className="grid grid-cols-2 gap-2">
           {defaults.map(local => (
-            <label key={local} className="flex items-center gap-2 text-sm p-2 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
+            <label key={local} className="flex items-center gap-2 text-sm p-2 border border-gray-200 rounded hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer">
               <input type="checkbox" checked={checked.has(local)} onChange={() => toggleAlias(local)} />
               <span className="font-mono">{local}@</span>
             </label>
@@ -137,11 +137,11 @@ export function EmailAliasesStep({ productId, onBack, onNext, defaultForwardTo }
           <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 mb-1">Add another</label>
           <input type="text" value={newAlias} onChange={e => { setNewAlias(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, '')); setError(''); }} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addExtra(); } }} placeholder="billing" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
         </div>
-        <button onClick={addExtra} className="px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md text-sm dark:bg-slate-800 dark:text-slate-100">Add</button>
+        <button onClick={addExtra} className="px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:hover:bg-slate-700 border border-gray-300 rounded-md text-sm dark:bg-slate-800 dark:text-slate-100">Add</button>
       </div>
 
       <div className="flex justify-between">
-        <button onClick={onBack} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm dark:text-slate-200 dark:bg-slate-800">Back</button>
+        <button onClick={onBack} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 rounded-md text-sm dark:text-slate-200 dark:bg-slate-800">Back</button>
         <button onClick={saveAndContinue} disabled={saving} className="px-5 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white rounded-md text-sm font-semibold">
           {saving ? 'Saving…' : 'Save & Continue'}
         </button>

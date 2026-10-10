@@ -37,7 +37,7 @@ export default function CanvassingDashboard() {
   // canvassing:*, which the field rung holds so it can log a knock. A grant that hands over the
   // playbook along with the clipboard is the over-widening the T41 note already undid. (T42)
   const mayWriteScripts = useMayWrite('marketing:update');
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
 
@@ -153,7 +153,8 @@ export default function CanvassingDashboard() {
   const repLeads: Record<string, { name: string; leads: number; doors: number }> = {}
   monthSessions.forEach((s: Session) => {
     const u = users.find((u: any) => u.id === s.userId)
-    const name = displayName(u)
+    // A canvasser is not handed the roster, and sees only their own sessions — so their row is "You", not "Unknown". (T64)
+    const name = u ? displayName(u) : (s.userId === user?.userId ? 'You' : 'Unknown')
     if (!repLeads[s.userId]) repLeads[s.userId] = { name, leads: 0, doors: 0 }
     repLeads[s.userId].leads += s.leadsCreated || 0
     repLeads[s.userId].doors += s.totalDoors || 0
@@ -162,6 +163,7 @@ export default function CanvassingDashboard() {
 
   const userMap: Record<string, string> = {}
   users.forEach((u: any) => { userMap[u.id] = displayName(u) })
+  if (user?.userId && !userMap[user.userId]) userMap[user.userId] = 'You'
 
   // Script editor handlers
   const openScriptEditor = (script?: Script) => {
@@ -369,7 +371,7 @@ export default function CanvassingDashboard() {
               </thead>
               <tbody>
                 {filteredSessions.map((s: Session) => (
-                  <tr key={s.id} className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => loadSessionDetail(s)}>
+                  <tr key={s.id} className="border-b hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer" onClick={() => loadSessionDetail(s)}>
                     <td className="px-4 py-3 text-sm">{userMap[s.userId] || 'Unknown'}</td>
                     <td className="px-4 py-3">
                       <p className="font-medium truncate max-w-[200px]">{s.name}</p>

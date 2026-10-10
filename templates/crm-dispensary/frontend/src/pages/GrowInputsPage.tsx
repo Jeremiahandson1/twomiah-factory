@@ -193,7 +193,7 @@ export default function GrowInputsPage() {
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
+                : 'bg-white text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
             } dark:bg-slate-900 dark:text-slate-300`}
           >
             <tab.icon className="w-4 h-4" />
@@ -514,7 +514,7 @@ function InventoryTab() {
         <button
           onClick={() => setOrganicOnly(!organicOnly)}
           className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-            organicOnly ? 'bg-green-50 border-green-300 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'border-gray-300 text-gray-600 hover:bg-gray-50 dark:text-slate-300'
+            organicOnly ? 'bg-green-50 border-green-300 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'border-gray-300 text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'
           } dark:text-slate-300`}
         >
           <Leaf className="w-4 h-4" />
@@ -935,7 +935,7 @@ function ApplicationsTab() {
                     <button
                       key={opt.id}
                       onClick={() => selectInput(opt)}
-                      className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm text-gray-900 flex items-center justify-between dark:text-slate-100"
+                      className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-slate-800 text-sm text-gray-900 flex items-center justify-between dark:text-slate-100"
                     >
                       <span>{opt.name} <span className="text-gray-500 dark:text-slate-400">({opt.brand})</span></span>
                       <span className={`px-1.5 py-0.5 text-[10px] rounded-full ${typeColors[opt.type] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>{opt.type}</span>
@@ -978,7 +978,7 @@ function ApplicationsTab() {
                   key={t}
                   onClick={() => { setTargetTab(t); setFormData({ ...formData, targetId: '' }); }}
                   className={`px-3 py-1 text-xs font-medium rounded-lg capitalize transition-colors ${
-                    targetTab === t ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:text-slate-300 dark:bg-slate-800'
+                    targetTab === t ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:hover:bg-slate-700 dark:text-slate-300 dark:bg-slate-800'
                   } dark:text-slate-300`}
                 >
                   {t}

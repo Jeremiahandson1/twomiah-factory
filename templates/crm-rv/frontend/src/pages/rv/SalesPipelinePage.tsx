@@ -160,7 +160,7 @@ export default function SalesPipelinePage() {
             contacts:create, which the field rung does not hold. (T41 RV) */}
         <div className="flex items-center gap-2">
           {mayCreateLead && (
-            <button onClick={() => setShowAdf(true)} className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50">
+            <button onClick={() => setShowAdf(true)} className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">
               <Upload className="w-4 h-4" /> Import ADF
             </button>
           )}

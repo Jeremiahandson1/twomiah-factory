@@ -192,7 +192,7 @@ export default function PredictiveInventoryPage() {
                 </thead>
                 <tbody className="divide-y">
                   {forecasts.map(f => (
-                    <tr key={f.id} className="hover:bg-gray-50">
+                    <tr key={f.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{f.productName || f.product || '—'}</td>
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{f.currentStock ?? 0}</td>
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{Number(f.dailyAvgSales || 0).toFixed(1)}</td>
@@ -248,7 +248,7 @@ export default function PredictiveInventoryPage() {
                 </thead>
                 <tbody className="divide-y">
                   {suggestions.map(s => (
-                    <tr key={s.id} className="hover:bg-gray-50">
+                    <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{s.productName || s.product || '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${urgencyColors[s.urgency] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>

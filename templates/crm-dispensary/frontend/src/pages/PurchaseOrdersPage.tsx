@@ -242,7 +242,7 @@ export default function PurchaseOrdersPage() {
       <PageHeader title="Purchase Orders" action={
         <div className="flex gap-2">
           <button onClick={createFromSuggestions} disabled={creatingSuggested}
-            className="flex items-center gap-1 px-3 py-2 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50">
+            className="flex items-center gap-1 px-3 py-2 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50">
             <Sparkles className="w-4 h-4" />{creatingSuggested ? 'Creating...' : 'From Suggestions'}
           </button>
           {mayWrite && <Button onClick={() => setOrderModal(true)}><Plus className="w-4 h-4 mr-2 inline" />Create PO</Button>}
@@ -284,7 +284,7 @@ export default function PurchaseOrdersPage() {
                 </thead>
                 <tbody>
                   {orders.map(po => (
-                    <tr key={po.id} className="border-t hover:bg-gray-50">
+                    <tr key={po.id} className="border-t hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-3 text-sm font-medium text-green-700 dark:text-green-300">{po.poNumber || po.id?.slice(0, 8)}</td>
                       <td className="px-4 py-3 text-sm font-medium">{po.supplierName}</td>
                       <td className="px-4 py-3 text-sm">{po.itemCount || 0}</td>
@@ -328,7 +328,7 @@ export default function PurchaseOrdersPage() {
               ) : (
                 <div className="space-y-3">
                   {receivableOrders.map(po => (
-                    <div key={po.id} className="border rounded-lg p-4 bg-white flex items-center justify-between hover:bg-gray-50 cursor-pointer dark:bg-slate-900"
+                    <div key={po.id} className="border rounded-lg p-4 bg-white flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer dark:bg-slate-900"
                       onClick={() => selectPOForReceive(po)}>
                       <div>
                         <div className="font-medium">{po.poNumber || po.id?.slice(0, 8)} &mdash; {po.supplierName}</div>
@@ -411,7 +411,7 @@ export default function PurchaseOrdersPage() {
             <div className="space-y-3">
               {supplierGroups.map(group => (
                 <div key={group.supplierName} className="border rounded-lg bg-white dark:bg-slate-900">
-                  <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50"
+                  <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800"
                     onClick={() => setExpandedSupplier(expandedSupplier === group.supplierName ? null : group.supplierName)}>
                     <div>
                       <div className="font-semibold">{group.supplierName}</div>
@@ -488,7 +488,7 @@ export default function PurchaseOrdersPage() {
               {searchResults.length > 0 && (
                 <div className="absolute top-full left-0 right-0 bg-white border rounded-b-lg shadow-lg z-10 max-h-40 overflow-y-auto dark:bg-slate-900">
                   {searchResults.map(p => (
-                    <div key={p.id} className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm flex justify-between"
+                    <div key={p.id} className="px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer text-sm flex justify-between"
                       onClick={() => addLineItem(p)}>
                       <span>{p.name}</span>
                       <span className="text-gray-500 dark:text-slate-400">{p.sku}</span>
@@ -548,7 +548,7 @@ export default function PurchaseOrdersPage() {
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setOrderModal(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button>
+          <button onClick={() => setOrderModal(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button>
           <Button onClick={handleCreatePO} disabled={saving}>{saving ? 'Creating...' : 'Create PO'}</Button>
         </div>
       </Modal>

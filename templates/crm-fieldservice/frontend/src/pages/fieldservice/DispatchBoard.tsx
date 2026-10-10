@@ -146,7 +146,7 @@ export default function DispatchBoard() {
           <p className="text-gray-600 dark:text-slate-400">{dateDisplay}</p>
         </div>
         <div className="flex items-center gap-3">
-          <button
+          <button aria-label="Previous day"
             onClick={() => navigateDate(-1)}
             className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg"
           >
@@ -158,7 +158,7 @@ export default function DispatchBoard() {
             onChange={(e) => setSelectedDate(e.target.value)}
             className="px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
           />
-          <button
+          <button aria-label="Next day"
             onClick={() => navigateDate(1)}
             className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg"
           >

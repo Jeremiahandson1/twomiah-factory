@@ -112,7 +112,7 @@ export default function AdjusterDirectoryPage() {
                   <tr><td colSpan={8} className="text-center py-12 text-gray-500 dark:text-slate-400">No adjusters in directory yet. They'll be added as you log insurance claims.</td></tr>
                 ) : (
                   adjusters.map((adj) => (
-                    <tr key={adj.id} className="border-b last:border-0 hover:bg-gray-50">
+                    <tr key={adj.id} className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{adj.name}</td>
                       <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{adj.adjusterCompany || adj.company_name || '—'}</td>
                       <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{adj.insuranceCarrier}</td>
@@ -187,7 +187,7 @@ export default function AdjusterDirectoryPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setAddOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
+              <button onClick={() => setAddOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={saveAdjuster} disabled={submitting} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {submitting ? 'Saving...' : editId ? 'Save Changes' : 'Add Adjuster'}
               </button>

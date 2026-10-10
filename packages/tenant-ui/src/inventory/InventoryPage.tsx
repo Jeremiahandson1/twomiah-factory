@@ -168,7 +168,7 @@ export default function InventoryPage({ api }: InventoryPageProps) {
           {mayUpdate && (
             <button
               onClick={() => setShowTransfer(true)}
-              className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50"
+              className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"
             >
               <ArrowRightLeft className="w-4 h-4" />
               Transfer
@@ -470,7 +470,7 @@ function LocationsTab({ locations, onAddLocation, onRefresh }: LocationsTabProps
             className={`w-full p-4 rounded-xl border text-left transition-colors ${
               selectedLocation === loc.id
                 ? 'border-orange-300 bg-orange-50 dark:bg-orange-950/40 dark:text-slate-100'
-                : 'hover:bg-gray-50'
+                : 'hover:bg-gray-50 dark:hover:bg-slate-800'
             }`}
           >
             <div className="flex items-center gap-3">
@@ -727,7 +727,7 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"
               >
                 Cancel
               </button>

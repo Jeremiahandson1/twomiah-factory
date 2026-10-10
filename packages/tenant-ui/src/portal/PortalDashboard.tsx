@@ -109,8 +109,8 @@ export function PortalDashboard() {
           <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Quick Actions</h2>
           <div className="flex flex-wrap gap-3">
             {hasQuotes && <PLink to={link('quotes')} className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"><FileText className="w-4 h-4" /> Review Quotes</PLink>}
-            {hasInvoices && <PLink to={link('invoices')} className="inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700"><Receipt className="w-4 h-4" /> View Invoices</PLink>}
-            {hasRequest && <PLink to={link('serviceRequest')} className="inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700"><LifeBuoy className="w-4 h-4" /> {config.labels.serviceRequest}</PLink>}
+            {hasInvoices && <PLink to={link('invoices')} className="inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700"><Receipt className="w-4 h-4" /> View Invoices</PLink>}
+            {hasRequest && <PLink to={link('serviceRequest')} className="inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700"><LifeBuoy className="w-4 h-4" /> {config.labels.serviceRequest}</PLink>}
           </div>
         </div>
       )}

@@ -320,7 +320,7 @@ export default function MarketplacePage() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleTestConnection(integration.id)}
-                      className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:text-slate-200 dark:bg-slate-900 dark:border-slate-700"
+                      className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-200 dark:bg-slate-900 dark:border-slate-700"
                     >
                       Test
                     </button>
@@ -406,7 +406,7 @@ export default function MarketplacePage() {
           )}
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setConfigModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
+          <button onClick={() => setConfigModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg font-medium dark:text-slate-200">Cancel</button>
           <Button onClick={handleSaveConfig} disabled={savingConfig}>
             {savingConfig ? 'Saving...' : 'Save'}
           </Button>

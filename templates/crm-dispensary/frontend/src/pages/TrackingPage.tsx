@@ -152,7 +152,7 @@ export default function TrackingPage() {
           )}
           <button
             onClick={() => tab === 'routes' ? loadRoutes() : loadDrivers()}
-            className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 dark:text-slate-400"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-600 dark:text-slate-400"
           >
             <RefreshCw className="w-5 h-5" />
           </button>
@@ -244,14 +244,14 @@ export default function TrackingPage() {
                 <button
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                   disabled={page <= 1}
-                  className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                  className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50"
                 >
                   Previous
                 </button>
                 <button
                   onClick={() => setPage(p => p + 1)}
                   disabled={page >= pagination.pages}
-                  className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                  className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50"
                 >
                   Next
                 </button>
@@ -391,7 +391,7 @@ export default function TrackingPage() {
                 <p className="p-4 text-sm text-gray-500 text-center dark:text-slate-400">No queued orders available</p>
               ) : (
                 availableOrders.map(order => (
-                  <label key={order.id} className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer">
+                  <label key={order.id} className="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={selectedOrders.includes(order.id)}
@@ -413,7 +413,7 @@ export default function TrackingPage() {
         </div>
 
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setCreateModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">
+          <button onClick={() => setCreateModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg font-medium dark:text-slate-200">
             Cancel
           </button>
           <Button onClick={handleCreateRoute} disabled={creating}>

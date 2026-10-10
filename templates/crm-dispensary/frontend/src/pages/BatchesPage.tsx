@@ -586,7 +586,7 @@ export default function BatchesPage() {
                   </td>
                 </tr>
               ) : batches.map(batch => (
-                <tr key={batch.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => viewBatchDetail(batch)}>
+                <tr key={batch.id} className="hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer" onClick={() => viewBatchDetail(batch)}>
                   <td className="px-4 py-3 text-sm font-mono font-medium text-gray-900 dark:text-slate-100">{batch.batchNumber}</td>
                   <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">{batch.productName || '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{batch.strain || '—'}</td>
@@ -633,14 +633,14 @@ export default function BatchesPage() {
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-800"
               >
                 Previous
               </button>
               <button
                 onClick={() => setPage(p => p + 1)}
                 disabled={page >= Math.ceil(total / 25)}
-                className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-800"
               >
                 Next
               </button>
@@ -859,7 +859,7 @@ export default function BatchesPage() {
           </div>
         </div>
         <div className="mt-6 flex justify-end gap-2">
-          <button onClick={() => setLiftFor(null)} className="rounded-lg px-4 py-2 font-medium text-gray-700 hover:bg-gray-100 dark:text-slate-200">Cancel</button>
+          <button onClick={() => setLiftFor(null)} className="rounded-lg px-4 py-2 font-medium text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 dark:text-slate-200">Cancel</button>
           <Button onClick={doLiftRecall} disabled={lifting || !liftReason.trim()}>
             {lifting ? 'Lifting…' : 'Lift recall'}
           </Button>

@@ -223,7 +223,7 @@ export default function IntegrationsPage() {
             <button
               onClick={handleRotateApiKey}
               disabled={saving === 'apiKey'}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200"
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200"
             >
               {saving === 'apiKey' ? 'Working...' : apiKey.configured ? 'Replace key' : 'Create key'}
             </button>
@@ -237,7 +237,7 @@ export default function IntegrationsPage() {
                 <code className="flex-1 px-3 py-2 bg-white border rounded text-sm font-mono break-all text-gray-900 dark:bg-slate-950 dark:text-slate-100 dark:border-slate-700">{newApiKey}</code>
                 <button
                   onClick={() => { navigator.clipboard?.writeText(newApiKey); setSuccess('API key copied'); }}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200"
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 dark:hover:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
                   title="Copy"
                 >
                   <Copy className="w-4 h-4" />
@@ -281,7 +281,7 @@ export default function IntegrationsPage() {
                   <button
                     onClick={handleSyncNow}
                     disabled={saving === 'sync'}
-                    className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg flex items-center gap-1 dark:text-slate-400"
+                    className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg flex items-center gap-1 dark:text-slate-400"
                   >
                     {saving === 'sync' ? (
                       <Loader2 className="w-4 h-4 animate-spin" />

@@ -73,7 +73,7 @@ export function InboundMessagesPage(): React.ReactElement {
               <button
                 key={m.id}
                 onClick={() => setSelected(m)}
-                className={'w-full text-left px-3 py-2 border-b border-gray-100 hover:bg-gray-50 ' + (selected?.id === m.id ? 'bg-orange-50 dark:bg-orange-950/40 dark:text-slate-100' : '')}
+                className={'w-full text-left px-3 py-2 border-b border-gray-100 hover:bg-gray-50 dark:hover:bg-slate-800 ' + (selected?.id === m.id ? 'bg-orange-50 dark:bg-orange-950/40 dark:text-slate-100' : '')}
               >
                 <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-0.5">
                   <span className="font-mono truncate">{m.toLocalPart}@</span>

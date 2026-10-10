@@ -394,7 +394,7 @@ export default function EODReportPage() {
                     { id: 'safe_count', label: 'Safe count completed' },
                     { id: 'visitor_log', label: 'Visitor log reviewed' },
                   ]).map((item: any) => (
-                    <label key={item.id} className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                    <label key={item.id} className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 p-2 rounded">
                       <input type="checkbox" checked={checklist[item.id] || false}
                         onChange={e => setChecklist({ ...checklist, [item.id]: e.target.checked })}
                         disabled={report.status === 'submitted'}
@@ -500,7 +500,7 @@ export default function EODReportPage() {
                   {history.map(r => {
                     const variance = (r.cashActual || 0) - (r.cashExpected || 0);
                     return (
-                      <tr key={r.id} className="border-t hover:bg-gray-50">
+                      <tr key={r.id} className="border-t hover:bg-gray-50 dark:hover:bg-slate-800">
                         <td className="px-4 py-3 text-sm font-medium">{r.date}</td>
                         <td className="px-4 py-3 text-sm">{r.locationName || 'All'}</td>
                         <td className="px-4 py-3 text-sm font-medium">${(r.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>

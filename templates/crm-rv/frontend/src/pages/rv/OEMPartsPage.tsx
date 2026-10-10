@@ -88,7 +88,7 @@ export default function OEMPartsPage() {
           </div>
         </div>
         {mayStock && <button onClick={() => setShowImport((s) => !s)}
-          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-sm font-medium hover:bg-slate-50">
+          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800">
           <Upload size={15} /> Import parts
         </button>}
       </div>
@@ -118,7 +118,7 @@ export default function OEMPartsPage() {
             We auto-detect columns (Part Number / Description / Price / Cost / Brand / Qty / Fitment). Re-importing updates existing parts by part number.
           </p>
           <div className="flex flex-wrap gap-3 items-center mb-3">
-            <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-sm cursor-pointer hover:bg-slate-50">
+            <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
               <Upload size={14} /> Choose CSV
               <input type="file" accept=".csv,.txt" onChange={onFile} className="hidden" />
             </label>

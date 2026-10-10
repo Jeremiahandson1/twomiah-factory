@@ -261,7 +261,7 @@ export default function InvoicesPage() {
                   invoices.map((inv) => {
                     const balance = Number(inv.total || 0) - Number(inv.amountPaid || 0);
                     return (
-                      <tr key={inv.id} className="border-b last:border-0 hover:bg-gray-50">
+                      <tr key={inv.id} className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-slate-800">
                         <td
                           className="px-4 py-3 font-mono text-xs font-semibold text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
                           onClick={() => navigate(`/crm/invoices/${inv.id}`)}
@@ -326,10 +326,10 @@ export default function InvoicesPage() {
             <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50 dark:bg-slate-900">
               <p className="text-xs text-gray-500 dark:text-slate-400">Page {page} of {totalPages}</p>
               <div className="flex gap-1">
-                <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-30">
+                <button aria-label="Previous page" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-30">
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-30">
+                <button aria-label="Next page" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-30">
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
@@ -424,7 +424,7 @@ export default function InvoicesPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
+              <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={handleCreate} disabled={saving} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {saving ? 'Creating...' : 'Create Invoice'}
               </button>
@@ -467,7 +467,7 @@ export default function InvoicesPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <button onClick={() => setPaymentOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
+              <button onClick={() => setPaymentOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={recordPayment} className="px-4 py-2 text-sm bg-green-700 text-white rounded-lg hover:bg-green-800">Record</button>
             </div>
           </div>

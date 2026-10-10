@@ -436,7 +436,7 @@ function TakeoffItemCard({ item, onUpdate }: TakeoffItemCardProps) {
     <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
       {/* Header */}
       <div
-        className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50"
+        className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800"
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-4">

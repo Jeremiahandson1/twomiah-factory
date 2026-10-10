@@ -149,7 +149,7 @@ export default function DailyLogsPage() {
             <div><label className="block text-sm font-medium mb-1">Safety Notes</label><textarea value={form.safetyNotes} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({...form, safetyNotes: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" /></div>
           </div>
         </div>
-        <div className="flex justify-end gap-3 mt-6"><button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
+        <div className="flex justify-end gap-3 mt-6"><button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
       </Modal>
       <ConfirmModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} onConfirm={handleDelete} title="Delete Log" message="Delete this daily log?" confirmText="Delete" />
     </div>

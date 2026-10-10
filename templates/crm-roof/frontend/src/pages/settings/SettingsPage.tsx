@@ -15,6 +15,8 @@ export default function SettingsPage() {
   //   · the storm service area is storms:update — manager and above, since a manager runs the
   //     storm board
   const mayManageIntegrations = useMayWrite('integrations:create');
+  // Asked only of a seat the server answers — staff were refused these in the background on every load. (T64)
+  const maySeeRoster = useMayWrite('team:read');
   const mayWriteStormArea = useMayWrite('storms:update');
   // …and the storm inputs follow it, not just the buttons: staff could type a zip, a hail size and tick the boxes,
   // with no Save to keep any of it. (T62: "Roofing storm settings are editable but can't be saved")
@@ -72,7 +74,7 @@ export default function SettingsPage() {
         fetch('/api/settings/company', { headers }).catch(() => null),
         // includeInactive: this list has to show revoked people so they can be
         // restored. The assignment dropdowns elsewhere still get active-only.
-        fetch('/api/users?includeInactive=1', { headers }),
+        maySeeRoster ? fetch('/api/users?includeInactive=1', { headers }) : Promise.resolve(new Response('[]')),
       ];
       if (hasQB) fetches.push(fetch('/api/quickbooks/status', { headers }).catch(() => null));
       if (hasStorm) fetches.push(fetch('/api/storms/service-area', { headers }).catch(() => null));
@@ -754,7 +756,7 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <button onClick={() => setInviteOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
+              <button onClick={() => setInviteOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={inviteUser} disabled={inviting} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 <Send className="w-4 h-4" /> {inviting ? 'Adding...' : 'Add User'}
               </button>

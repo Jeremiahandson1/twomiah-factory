@@ -421,7 +421,7 @@ export default function MetrcPage() {
                       <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No packages found</td>
                     </tr>
                   ) : packages.map(pkg => (
-                    <tr key={pkg.id} className="hover:bg-gray-50">
+                    <tr key={pkg.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-slate-100">{pkg.tag || pkg.metrcTag || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">{pkg.itemName || pkg.name || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{pkg.category || '—'}</td>
@@ -463,14 +463,14 @@ export default function MetrcPage() {
                   <button
                     onClick={() => setPackagePage(p => Math.max(1, p - 1))}
                     disabled={packagePage <= 1}
-                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-800"
                   >
                     Previous
                   </button>
                   <button
                     onClick={() => setPackagePage(p => p + 1)}
                     disabled={packagePage >= Math.ceil(packageTotal / 25)}
-                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-800"
                   >
                     Next
                   </button>
@@ -509,7 +509,7 @@ export default function MetrcPage() {
                       <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No Metrc sales found</td>
                     </tr>
                   ) : sales.map(sale => (
-                    <tr key={sale.id} className="hover:bg-gray-50">
+                    <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{sale.receiptNumber || sale.id}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                         {sale.salesDateTime ? formatDate(sale.salesDateTime) : sale.date || '—'}
@@ -534,14 +534,14 @@ export default function MetrcPage() {
                   <button
                     onClick={() => setSalesPage(p => Math.max(1, p - 1))}
                     disabled={salesPage <= 1}
-                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-800"
                   >
                     Previous
                   </button>
                   <button
                     onClick={() => setSalesPage(p => p + 1)}
                     disabled={salesPage >= Math.ceil(salesTotal / 25)}
-                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-800"
                   >
                     Next
                   </button>
@@ -581,7 +581,7 @@ export default function MetrcPage() {
                       <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No transfers found</td>
                     </tr>
                   ) : transfers.map(transfer => (
-                    <tr key={transfer.id} className="hover:bg-gray-50">
+                    <tr key={transfer.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{transfer.manifestNumber || transfer.id}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{transfer.transferType || transfer.type || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{transfer.shipperFacilityName || transfer.from || '—'}</td>
@@ -614,14 +614,14 @@ export default function MetrcPage() {
                   <button
                     onClick={() => setTransfersPage(p => Math.max(1, p - 1))}
                     disabled={transfersPage <= 1}
-                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-800"
                   >
                     Previous
                   </button>
                   <button
                     onClick={() => setTransfersPage(p => p + 1)}
                     disabled={transfersPage >= Math.ceil(transfersTotal / 25)}
-                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-800"
                   >
                     Next
                   </button>
@@ -665,7 +665,7 @@ export default function MetrcPage() {
                     <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No sync history</td>
                   </tr>
                 ) : syncLogs.map(log => (
-                  <tr key={log.id} className="hover:bg-gray-50">
+                  <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">
                       {log.createdAt ? new Date(log.createdAt).toLocaleString() : '—'}
                     </td>

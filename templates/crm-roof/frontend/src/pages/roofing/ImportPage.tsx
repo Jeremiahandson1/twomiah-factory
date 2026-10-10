@@ -275,7 +275,7 @@ export default function ImportPage() {
             <button
               onClick={() => runImport(true)}
               disabled={importing || files.every(f => f.loading)}
-              className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200"
+              className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-slate-700 transition disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200"
             >
               {importing ? <><Loader2 size={16} className="inline animate-spin mr-2" />Previewing...</> : 'Preview (Dry Run)'}
             </button>
@@ -400,7 +400,7 @@ export default function ImportPage() {
                 </button>
                 <button
                   onClick={() => { setResults(null); setFiles([]) }}
-                  className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition dark:bg-slate-800 dark:text-slate-200"
+                  className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-slate-700 transition dark:bg-slate-800 dark:text-slate-200"
                 >
                   Start Over
                 </button>
@@ -408,7 +408,7 @@ export default function ImportPage() {
             ) : (
               <button
                 onClick={() => { setResults(null); setFiles([]) }}
-                className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition dark:bg-slate-800 dark:text-slate-200"
+                className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-slate-700 transition dark:bg-slate-800 dark:text-slate-200"
               >
                 Import More
               </button>

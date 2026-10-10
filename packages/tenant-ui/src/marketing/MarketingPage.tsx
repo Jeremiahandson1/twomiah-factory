@@ -128,7 +128,7 @@ function CampaignsTab({ api, toast, contactTypes, onChanged }: { api: MarketingA
                         <button onClick={() => setSchedule({ campaign: c, when: '' })} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg dark:text-blue-300" title="Schedule"><Calendar className="w-4 h-4" /></button>
                       </>}
                       {c.status === 'scheduled' && <button onClick={() => unschedule(c)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg dark:text-blue-300" title="Cancel schedule"><X className="w-4 h-4" /></button>}
-                      {c.status !== 'sent' && c.status !== 'sending' && <button onClick={() => setForm({ open: true, campaign: c })} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100" title="Edit"><Edit2 className="w-4 h-4" /></button>}
+                      {c.status !== 'sent' && c.status !== 'sending' && <button onClick={() => setForm({ open: true, campaign: c })} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800" title="Edit"><Edit2 className="w-4 h-4" /></button>}
                       {c.status !== 'sending' && <button onClick={() => setToDelete(c)} className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50" title="Delete"><Trash2 className="w-4 h-4" /></button>}
                     </div>
                   </td>

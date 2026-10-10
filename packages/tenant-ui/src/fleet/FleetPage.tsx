@@ -167,7 +167,7 @@ export default function FleetPage({ api, config }: FleetPageProps) {
         <div className="flex items-center gap-2">
           <button
             onClick={loadData}
-            className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+            className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800"
           >
             <RefreshCw className="w-5 h-5" />
           </button>
@@ -383,21 +383,21 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }: VehicleCardProp
       <div className="mt-4 pt-4 border-t flex items-center gap-2">
         <button
           onClick={onFuel}
-          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg dark:text-slate-400"
+          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400"
         >
           <Fuel className="w-4 h-4" />
           Fuel
         </button>
         <button
           onClick={onMaintenance}
-          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg dark:text-slate-400"
+          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400"
         >
           <Wrench className="w-4 h-4" />
           Service
         </button>
         <button
           onClick={onEdit}
-          className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-50"
+          className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"
         >
           <MoreVertical className="w-4 h-4" />
         </button>

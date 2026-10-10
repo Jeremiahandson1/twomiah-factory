@@ -318,7 +318,7 @@ export default function PayByBankPage() {
                   <button
                     key={c.id}
                     onClick={() => selectCustomer(c)}
-                    className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center justify-between"
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-slate-800 flex items-center justify-between"
                   >
                     <div>
                       <p className="font-medium text-gray-900 dark:text-slate-100">{c.name || `${c.firstName} ${c.lastName}`}</p>
@@ -352,7 +352,7 @@ export default function PayByBankPage() {
                     </Button>
                     <button
                       onClick={() => { setSelectedCustomer(null); setAccounts([]); }}
-                      className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400"
+                      className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400"
                     >
                       Change
                     </button>
@@ -425,7 +425,7 @@ export default function PayByBankPage() {
                 className={`px-3 py-1.5 text-sm font-medium rounded-lg whitespace-nowrap ${
                   txnFilter === s.value
                     ? 'bg-green-700 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
+                    : 'bg-white text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
                 } dark:bg-slate-900 dark:text-slate-300`}
               >
                 {s.label}
@@ -458,7 +458,7 @@ export default function PayByBankPage() {
                       <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No transactions found</td>
                     </tr>
                   ) : transactions.map(txn => (
-                    <tr key={txn.id} className="hover:bg-gray-50">
+                    <tr key={txn.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                         {txn.createdAt ? formatDate(txn.createdAt) : '—'}
                       </td>
@@ -489,14 +489,14 @@ export default function PayByBankPage() {
                   <button
                     onClick={() => setTxnPage(p => Math.max(1, p - 1))}
                     disabled={txnPage <= 1}
-                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-800"
                   >
                     Previous
                   </button>
                   <button
                     onClick={() => setTxnPage(p => p + 1)}
                     disabled={txnPage >= Math.ceil(txnTotal / 25)}
-                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-800"
                   >
                     Next
                   </button>

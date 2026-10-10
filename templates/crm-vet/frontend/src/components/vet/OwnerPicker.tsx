@@ -117,7 +117,7 @@ export default function OwnerPicker({ value, onChange, initialLabel }: OwnerPick
                     type="button"
                     key={c.id}
                     onClick={() => pick(c)}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center justify-between"
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-800 flex items-center justify-between"
                   >
                     <span>
                       <span className="block text-sm font-medium text-gray-900 dark:text-slate-100">{contactName(c)}</span>

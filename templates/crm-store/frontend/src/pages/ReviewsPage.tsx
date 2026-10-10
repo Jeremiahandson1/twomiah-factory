@@ -98,7 +98,7 @@ export default function ReviewsPage() {
                     <button onClick={() => decide(r.id, 'approved')} title="Publish" className="p-2 text-green-700 hover:bg-green-50 rounded-lg dark:text-green-300"><Check className="h-4 w-4" /></button>
                   )}
                   {r.status !== 'rejected' && (
-                    <button onClick={() => decide(r.id, 'rejected')} title="Reject" className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg dark:text-slate-400"><X className="h-4 w-4" /></button>
+                    <button onClick={() => decide(r.id, 'rejected')} title="Reject" className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400"><X className="h-4 w-4" /></button>
                   )}
                   <button onClick={() => remove(r.id)} title="Delete" className="p-2 text-red-600 hover:bg-red-50 rounded-lg dark:text-red-400"><Trash2 className="h-4 w-4" /></button>
                 </div>

@@ -150,7 +150,7 @@ export default function RecommendationsPage() {
             if (tab === 'trending') loadTrending();
             if (tab === 'performance') loadPerformance();
           }}
-          className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 dark:text-slate-400"
+          className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-600 dark:text-slate-400"
         >
           <RefreshCw className="w-5 h-5" />
         </button>
@@ -218,8 +218,8 @@ export default function RecommendationsPage() {
                 <div className="flex items-center justify-between mt-4">
                   <p className="text-sm text-gray-600 dark:text-slate-400">Page {trendingPagination.page} of {trendingPagination.pages}</p>
                   <div className="flex gap-2">
-                    <button onClick={() => setTrendingPage(p => Math.max(1, p - 1))} disabled={trendingPage <= 1} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50">Previous</button>
-                    <button onClick={() => setTrendingPage(p => p + 1)} disabled={trendingPage >= trendingPagination.pages} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50">Next</button>
+                    <button onClick={() => setTrendingPage(p => Math.max(1, p - 1))} disabled={trendingPage <= 1} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50">Previous</button>
+                    <button onClick={() => setTrendingPage(p => p + 1)} disabled={trendingPage >= trendingPagination.pages} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50">Next</button>
                   </div>
                 </div>
               )}
@@ -258,7 +258,7 @@ export default function RecommendationsPage() {
                   <button
                     key={c.id}
                     onClick={() => loadCustomerRecs(c)}
-                    className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
                   >
                     <p className="font-medium text-gray-900 dark:text-slate-100">{c.name || c.firstName + ' ' + c.lastName}</p>
                     <p className="text-sm text-gray-500 dark:text-slate-400">{c.email || c.phone || '--'}</p>
@@ -359,7 +359,7 @@ export default function RecommendationsPage() {
                   <button
                     key={p.id}
                     onClick={() => loadSimilar(p)}
-                    className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
                   >
                     <p className="font-medium text-gray-900 dark:text-slate-100">{p.name}</p>
                     <p className="text-sm text-gray-500 dark:text-slate-400">{p.category} | ${Number(p.price || 0).toFixed(2)}</p>

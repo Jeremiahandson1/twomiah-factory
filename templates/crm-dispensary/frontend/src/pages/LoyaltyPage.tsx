@@ -489,7 +489,7 @@ export default function LoyaltyPage() {
               </thead>
               <tbody className="divide-y">
                 {members.map(member => (
-                  <tr key={member.id} className="hover:bg-gray-50">
+                  <tr key={member.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-900 dark:text-slate-100">{member.customerName || member.name}</p>
                       <p className="text-xs text-gray-500 dark:text-slate-400">{member.email || member.phone || ''}</p>
@@ -625,7 +625,7 @@ export default function LoyaltyPage() {
           </label>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setRewardModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
+          <button onClick={() => setRewardModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg font-medium dark:text-slate-200">Cancel</button>
           <Button onClick={handleSaveReward} disabled={savingReward}>
             {savingReward ? 'Saving...' : editingReward ? 'Update' : 'Create'}
           </Button>

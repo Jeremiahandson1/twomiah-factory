@@ -254,7 +254,7 @@ export default function StormLeadsPage() {
           )}
           {events.map(event => (
             <button key={event.id} onClick={() => selectEvent(event)}
-              className={`w-full text-left p-4 border-b hover:bg-gray-50 ${selectedEvent?.id === event.id ? 'bg-blue-50 border-l-2 border-l-blue-600 dark:bg-blue-950/40 dark:text-slate-100' : ''}`}>
+              className={`w-full text-left p-4 border-b hover:bg-gray-50 dark:hover:bg-slate-800 ${selectedEvent?.id === event.id ? 'bg-blue-50 border-l-2 border-l-blue-600 dark:bg-blue-950/40 dark:text-slate-100' : ''}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Zap size={14} className={event.status === 'detected' ? 'text-yellow-500 dark:text-yellow-300' : 'text-gray-400'} />
@@ -356,7 +356,7 @@ export default function StormLeadsPage() {
                   </thead>
                   <tbody>
                     {leads.map(lead => (
-                      <tr key={lead.id} className={`border-b hover:bg-gray-50 ${lead.isExistingCustomer ? 'border-l-2 border-l-yellow-400' : ''}`}>
+                      <tr key={lead.id} className={`border-b hover:bg-gray-50 dark:hover:bg-slate-800 ${lead.isExistingCustomer ? 'border-l-2 border-l-yellow-400' : ''}`}>
                         <td className="px-4 py-2">
                           <input type="checkbox" checked={selectedLeads.has(lead.id)} onChange={() => toggleLead(lead.id)} className="rounded" />
                         </td>

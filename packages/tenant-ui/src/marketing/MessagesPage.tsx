@@ -107,7 +107,7 @@ export function MessagesPage({ api, toast, config }: { api: MarketingApi; toast:
         {selected ? (
           <>
             <div className="p-4 bg-white border-b flex items-center gap-3 dark:bg-slate-900 dark:border-slate-800">
-              <button onClick={() => setSelected(null)} className="md:hidden p-2 hover:bg-gray-100 rounded-lg" aria-label="Back"><ArrowLeft className="w-5 h-5" /></button>
+              <button onClick={() => setSelected(null)} className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg" aria-label="Back"><ArrowLeft className="w-5 h-5" /></button>
               <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center dark:bg-orange-950/40"><User className="w-5 h-5 text-orange-600 dark:text-orange-300" /></div>
               <div className="flex-1">
                 <p className="font-medium text-gray-900 dark:text-slate-100">{selected.contact?.name || fmtPhone(selected.phoneNumber)}</p>

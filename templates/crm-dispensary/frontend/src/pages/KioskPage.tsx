@@ -106,7 +106,7 @@ export default function KioskPage() {
         </div>
         <button
           onClick={() => { if (tab === 'sessions') loadSessions(); if (tab === 'stats') loadStats(); }}
-          className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 dark:text-slate-400"
+          className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-600 dark:text-slate-400"
         >
           <RefreshCw className="w-5 h-5" />
         </button>
@@ -234,7 +234,7 @@ export default function KioskPage() {
                 className={`px-3 py-1.5 text-sm font-medium rounded-lg whitespace-nowrap ${
                   statusFilter === s.value
                     ? 'bg-green-700 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                    : 'bg-white text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 border border-gray-200'
                 } dark:bg-slate-900`}
               >
                 {s.label}
@@ -262,7 +262,7 @@ export default function KioskPage() {
                   </thead>
                   <tbody className="divide-y">
                     {sessions.map(session => (
-                      <tr key={session.id} className="hover:bg-gray-50">
+                      <tr key={session.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                         <td className="px-4 py-3 font-mono text-gray-900 dark:text-slate-100">{session.id?.slice(0, 8)}</td>
                         <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{session.locationName || '--'}</td>
                         <td className="px-4 py-3">
@@ -297,14 +297,14 @@ export default function KioskPage() {
                     <button
                       onClick={() => setPage(p => Math.max(1, p - 1))}
                       disabled={page <= 1}
-                      className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                      className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50"
                     >
                       Previous
                     </button>
                     <button
                       onClick={() => setPage(p => p + 1)}
                       disabled={page >= pagination.pages}
-                      className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                      className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50"
                     >
                       Next
                     </button>

@@ -391,7 +391,7 @@ export default function RoofReportsPage() {
                   type="button"
                   onClick={() => handleGenerate('manual')}
                   disabled={purchasing}
-                  className="flex flex-col items-center gap-1 p-4 border-2 border-gray-200 bg-gray-50 rounded-xl hover:border-gray-400 hover:bg-gray-100 transition-colors disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900"
+                  className="flex flex-col items-center gap-1 p-4 border-2 border-gray-200 bg-gray-50 rounded-xl hover:border-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900"
                 >
                   <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">DIY Measurement</span>
                   <span className="text-xs text-gray-500 dark:text-slate-400">Draw lines on satellite image yourself</span>
@@ -421,7 +421,7 @@ export default function RoofReportsPage() {
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors dark:text-slate-200"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors dark:text-slate-200"
                 >
                   Cancel
                 </button>
@@ -465,7 +465,7 @@ export default function RoofReportsPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {reports.map((report) => (
-                <tr key={report.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0" />

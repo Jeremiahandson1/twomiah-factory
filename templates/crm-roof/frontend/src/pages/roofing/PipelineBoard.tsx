@@ -71,6 +71,8 @@ export default function PipelineBoard() {
   // simply stops being draggable and the drop handler refuses. field holds jobs:update and
   // keeps the board; the viewer can read it and no longer move the work. (T42)
   const mayMoveJob = useMayWrite('jobs:update');
+  // Asked only of a seat the server answers — staff were refused these in the background on every load. (T64)
+  const maySeeRoster = useMayWrite('team:read');
   const { token, user } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -94,7 +96,7 @@ export default function PipelineBoard() {
     try {
       const [jobsRes, usersRes, crewsRes] = await Promise.all([
         fetch('/api/jobs?limit=500', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } }),
+        maySeeRoster ? fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } }) : Promise.resolve(new Response('[]')),
         fetch('/api/crews', { headers: { Authorization: `Bearer ${token}` } }),
       ]);
       const jobsData = await jobsRes.json();

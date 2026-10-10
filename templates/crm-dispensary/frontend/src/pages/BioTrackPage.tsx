@@ -325,7 +325,7 @@ export default function BioTrackPage() {
                     <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No sync history</td>
                   </tr>
                 ) : syncLogs.map(log => (
-                  <tr key={log.id} className="hover:bg-gray-50">
+                  <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">
                       {log.createdAt ? new Date(log.createdAt).toLocaleString() : '—'}
                     </td>

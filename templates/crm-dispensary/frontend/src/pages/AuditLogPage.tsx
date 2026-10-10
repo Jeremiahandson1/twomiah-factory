@@ -248,7 +248,7 @@ export default function AuditLogPage() {
             </thead>
             <tbody className="divide-y">
               {logs.map((log: any, idx: number) => (
-                <tr key={log.id || idx} className="hover:bg-gray-50">
+                <tr key={log.id || idx} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap dark:text-slate-200">
                     {log.createdAt ? formatDateTime(log.createdAt, storeTz) : '—'}
                   </td>
@@ -297,14 +297,14 @@ export default function AuditLogPage() {
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="px-3 py-1 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Previous
               </button>
               <button
                 onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
                 disabled={page >= pagination.totalPages}
-                className="px-3 py-1 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Next
               </button>

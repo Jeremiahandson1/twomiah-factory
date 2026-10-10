@@ -260,7 +260,7 @@ export default function Roof3DViewer({ segments, edges, centerLat, centerLng, re
         </div>
         <button
           onClick={resetCamera}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border rounded-lg hover:bg-gray-50 transition-colors dark:text-slate-400"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors dark:text-slate-400"
         >
           <RotateCcw className="w-3.5 h-3.5" /> Reset View
         </button>

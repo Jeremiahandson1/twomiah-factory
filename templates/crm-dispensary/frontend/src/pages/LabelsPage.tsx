@@ -408,7 +408,7 @@ export default function LabelsPage() {
                     ) : printProducts.length === 0 ? (
                       <p className="text-gray-500 text-sm text-center py-6 dark:text-slate-400">No products found</p>
                     ) : printProducts.map(product => (
-                      <label key={product.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b last:border-b-0">
+                      <label key={product.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer border-b last:border-b-0">
                         <input
                           type="checkbox"
                           checked={selectedProductIds.includes(product.id)}
@@ -481,7 +481,7 @@ export default function LabelsPage() {
                   <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No print jobs yet</td>
                 </tr>
               ) : printJobs.map(job => (
-                <tr key={job.id} className="hover:bg-gray-50">
+                <tr key={job.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">
                     {job.createdAt ? new Date(job.createdAt).toLocaleString() : '—'}
                   </td>

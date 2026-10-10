@@ -89,7 +89,7 @@ export default function AccountingPage() {
           {!data.connected && <span className="block text-xs text-amber-700 dark:text-amber-300">Connect your books to post automatically. Demo — OAuth on integration; native GL is the upgrade path.</span>}
         </div>
         {!data.connected && !mayConnect && <span className="text-xs text-gray-600 dark:text-slate-400">An owner or admin connects the books.</span>}
-        {!data.connected && mayConnect && <button onClick={connect} className="px-3 py-1.5 rounded-lg bg-white border text-sm font-medium hover:bg-gray-50 dark:bg-slate-900">Connect</button>}
+        {!data.connected && mayConnect && <button onClick={connect} className="px-3 py-1.5 rounded-lg bg-white border text-sm font-medium hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-900">Connect</button>}
       </div>
 
       <div className="mt-4 bg-white rounded-xl border shadow-sm overflow-x-auto dark:bg-slate-900">

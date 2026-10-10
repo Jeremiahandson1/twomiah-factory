@@ -156,7 +156,7 @@ export function TwoFactorCard({ api, toast }: { api: MfaApi; toast: { success: (
           {recoveryCodes.map((c) => <li key={c} className="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 rounded">{c}</li>)}
         </ul>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={copyCodes} className={`${btn} bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-100`}>Copy all</button>
+          <button type="button" onClick={copyCodes} className={`${btn} bg-gray-100 text-gray-800 hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700 dark:text-slate-100`}>Copy all</button>
           <button
             type="button"
             onClick={() => { if (kept) { setRecoveryCodes(null) } else { toast.error('Copy them first — this is the only time they are shown') } }}
@@ -253,7 +253,7 @@ export function TwoFactorCard({ api, toast }: { api: MfaApi; toast: { success: (
               </div>
             </div>
           ) : (
-            <button type="button" onClick={() => setShowOff(true)} className={`${btn} bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-100`}>
+            <button type="button" onClick={() => setShowOff(true)} className={`${btn} bg-gray-100 text-gray-800 hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700 dark:text-slate-100`}>
               Turn off, or get new recovery codes
             </button>
           )}

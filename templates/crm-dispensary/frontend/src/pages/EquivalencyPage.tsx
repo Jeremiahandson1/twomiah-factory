@@ -314,7 +314,7 @@ const unitOf = (rule: any): string => {
             <button
               onClick={handleSeedDefaults}
               disabled={seeding}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 dark:text-slate-200 dark:bg-slate-900 dark:border-slate-700"
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 dark:text-slate-200 dark:bg-slate-900 dark:border-slate-700"
             >
               {seeding ? 'Seeding...' : 'Seed Defaults'}
             </button>
@@ -347,7 +347,7 @@ const unitOf = (rule: any): string => {
                 </thead>
                 <tbody className="divide-y">
                   {rules.map(rule => (
-                    <tr key={rule.id} className="hover:bg-gray-50">
+                    <tr key={rule.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-200">{rule.state || 'All'}</td>
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{rule.category}</td>
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{factorOf(rule) || '—'}{factorOf(rule) ? 'g' : ''}</td>
@@ -504,7 +504,7 @@ const unitOf = (rule: any): string => {
                   const qty = Number(item.quantity) || 0;
                   const perUnit = lineGrams != null && qty > 0 ? lineGrams / qty : null;
                   return (
-                  <tr key={item.id} className="hover:bg-gray-50">
+                  <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{item.productName}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{item.category}</td>
                     <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{item.quantity}</td>
@@ -610,7 +610,7 @@ const unitOf = (rule: any): string => {
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setRuleModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
+          <button onClick={() => setRuleModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg font-medium dark:text-slate-200">Cancel</button>
           <Button onClick={handleSaveRule} disabled={savingRule}>
             {savingRule ? 'Saving...' : editingRule ? 'Update' : 'Create'}
           </Button>

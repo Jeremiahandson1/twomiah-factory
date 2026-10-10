@@ -95,7 +95,7 @@ export default function AILeadResponderPage() {
                   <div className="text-xs text-gray-500 dark:text-slate-400">Interested in <span className="font-medium text-gray-700 dark:text-slate-200">{interestLabel(selected)}</span>{unavailableLabel(selected) && <span className="text-amber-700 font-medium dark:text-amber-300"> ({unavailableLabel(selected)} — the draft offers an available alternative)</span>} · via {(selected.source || '').replace(/_/g, ' ')}</div>
                 </div>
                 <button onClick={() => draftFor(selected)} disabled={loading}
-                  className="text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-50 inline-flex items-center gap-1.5 disabled:opacity-50">
+                  className="text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-50 dark:hover:bg-slate-800 inline-flex items-center gap-1.5 disabled:opacity-50">
                   {loading ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />} {draft ? 'Regenerate' : 'Draft response'}
                 </button>
               </div>
@@ -112,7 +112,7 @@ export default function AILeadResponderPage() {
                       <input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} className="w-full text-sm font-medium p-2 border rounded-lg" />
                       <textarea value={emailBody} onChange={(e) => setEmailBody(e.target.value)} className="w-full text-sm p-2 border rounded-lg h-40 leading-relaxed" />
                       <div className="flex gap-2">
-                        <button onClick={() => copy('email', `Subject: ${emailSubject}\n\n${emailBody}`)} className="text-xs px-3 py-1.5 rounded-lg border hover:bg-gray-50 inline-flex items-center gap-1.5">{copied === 'email' ? <Check size={13} /> : <Copy size={13} />} Copy</button>
+                        <button onClick={() => copy('email', `Subject: ${emailSubject}\n\n${emailBody}`)} className="text-xs px-3 py-1.5 rounded-lg border hover:bg-gray-50 dark:hover:bg-slate-800 inline-flex items-center gap-1.5">{copied === 'email' ? <Check size={13} /> : <Copy size={13} />} Copy</button>
                         {selected.email
                           ? <a href={mailto(selected.email)} className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 inline-flex items-center gap-1.5"><Mail size={13} /> Open in email app</a>
                           : <span className="text-xs text-gray-500 dark:text-slate-400 self-center">No email address on file</span>}
@@ -126,7 +126,7 @@ export default function AILeadResponderPage() {
                     <div className="p-4 space-y-2">
                       <textarea value={sms} onChange={(e) => setSms(e.target.value)} className="w-full text-sm p-2 border rounded-lg h-20" />
                       <div className="flex items-center gap-2">
-                        <button onClick={() => copy('sms', sms)} className="text-xs px-3 py-1.5 rounded-lg border hover:bg-gray-50 inline-flex items-center gap-1.5">{copied === 'sms' ? <Check size={13} /> : <Copy size={13} />} Copy</button>
+                        <button onClick={() => copy('sms', sms)} className="text-xs px-3 py-1.5 rounded-lg border hover:bg-gray-50 dark:hover:bg-slate-800 inline-flex items-center gap-1.5">{copied === 'sms' ? <Check size={13} /> : <Copy size={13} />} Copy</button>
                         <button onClick={sendSms} disabled={smsSending || smsSent || !sms.trim() || !selected.contactId} className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 inline-flex items-center gap-1.5">{smsSending ? <Loader2 className="animate-spin" size={13} /> : <Send size={13} />} {smsSent ? 'Sent ✓' : smsSending ? 'Sending…' : 'Send text'}</button>
                         <span className="text-[11px] text-gray-500 dark:text-slate-400 ml-auto">{sms.length} chars</span>
                       </div>

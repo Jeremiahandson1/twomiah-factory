@@ -624,25 +624,25 @@ export default function MapEdgeEditor({
           <div className="flex items-center bg-white rounded-lg border shadow-sm overflow-hidden dark:bg-slate-900">
             <button
               onClick={() => { setMode('select'); setAddStart(null) }}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${mode === 'select' ? 'bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'text-gray-600 hover:bg-gray-50 dark:text-slate-300'}`}
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${mode === 'select' ? 'bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'}`}
             >
               <MousePointer2 className="w-3.5 h-3.5" /> Select
             </button>
             <button
               onClick={() => { setMode('add'); setAddStart(null) }}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-l transition-colors ${mode === 'add' ? 'bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'text-gray-600 hover:bg-gray-50 dark:text-slate-300'}`}
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-l transition-colors ${mode === 'add' ? 'bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'}`}
             >
               <Plus className="w-3.5 h-3.5" /> Add Line
             </button>
             <button
               onClick={() => { setMode('delete'); setAddStart(null) }}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-l transition-colors ${mode === 'delete' ? 'bg-red-50 text-red-700 dark:text-red-400 dark:bg-red-950/40' : 'text-gray-600 hover:bg-gray-50 dark:text-slate-300'}`}
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-l transition-colors ${mode === 'delete' ? 'bg-red-50 text-red-700 dark:text-red-400 dark:bg-red-950/40' : 'text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'}`}
             >
               <Trash2 className="w-3.5 h-3.5" /> Delete
             </button>
             {mayDrawReport && (<button
               onClick={() => { setMode('ai_segment'); setAddStart(null) }}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-l transition-colors ${mode === 'ai_segment' ? 'bg-purple-50 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40' : 'text-gray-600 hover:bg-gray-50 dark:text-slate-300'}`}
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-l transition-colors ${mode === 'ai_segment' ? 'bg-purple-50 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40' : 'text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'}`}
               title="AI Segment — click on a roof face to auto-detect its boundary"
             >
               {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}

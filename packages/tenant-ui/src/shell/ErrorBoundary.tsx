@@ -39,7 +39,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
           )}
           <div className="flex gap-3 justify-center">
             <button type="button" onClick={this.handleReset} className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"><RefreshCw className="w-4 h-4" />Try Again</button>
-            <button type="button" onClick={() => { window.location.href = '/' }} className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-200"><Home className="w-4 h-4" />Go Home</button>
+            <button type="button" onClick={() => { window.location.href = '/' }} className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-800 dark:text-slate-200"><Home className="w-4 h-4" />Go Home</button>
           </div>
         </div>
       </div>

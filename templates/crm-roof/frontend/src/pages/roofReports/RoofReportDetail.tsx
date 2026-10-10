@@ -156,7 +156,7 @@ export default function RoofReportDetail() {
         <div className="flex items-center gap-2">
           <button
             onClick={handleViewHtml}
-            className="flex items-center gap-2 px-4 py-2.5 border text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 border text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
           >
             <ExternalLink className="w-4 h-4" />
             View Full Report
@@ -175,13 +175,13 @@ export default function RoofReportDetail() {
       <div className="flex items-center gap-1 bg-white rounded-lg border shadow-sm p-1 w-fit dark:bg-slate-900">
         <button
           onClick={() => setViewTab('2d')}
-          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md transition-colors ${viewTab === '2d' ? 'bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'text-gray-600 hover:bg-gray-50 dark:text-slate-300'}`}
+          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md transition-colors ${viewTab === '2d' ? 'bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'}`}
         >
           <Eye className="w-4 h-4" /> 2D Report
         </button>
         <button
           onClick={() => setViewTab('3d')}
-          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md transition-colors ${viewTab === '3d' ? 'bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'text-gray-600 hover:bg-gray-50 dark:text-slate-300'}`}
+          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md transition-colors ${viewTab === '3d' ? 'bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'}`}
         >
           <Box className="w-4 h-4" /> 3D View
         </button>
@@ -289,7 +289,7 @@ export default function RoofReportDetail() {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {measurements.map((m) => (
-              <tr key={m.label} className="hover:bg-gray-50">
+              <tr key={m.label} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                 <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{m.label}</td>
                 <td className="px-4 py-3 text-sm text-gray-700 text-right dark:text-slate-200">
                   {m.value != null ? `${Number(m.value).toLocaleString()} ${m.unit}` : '-'}
@@ -319,7 +319,7 @@ export default function RoofReportDetail() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {report.segments.map((seg, i) => (
-                <tr key={i} className="hover:bg-gray-50">
+                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{seg.name || `Segment ${i + 1}`}</td>
                   <td className="px-4 py-3 text-sm text-gray-700 text-right dark:text-slate-200">{Number(seg.area || seg.areaSqft || 0).toLocaleString()}</td>
                   <td className="px-4 py-3 text-sm text-gray-700 text-right dark:text-slate-200">{seg.pitch}</td>

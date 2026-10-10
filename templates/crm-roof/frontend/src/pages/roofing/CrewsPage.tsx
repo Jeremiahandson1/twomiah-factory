@@ -122,7 +122,7 @@ export default function CrewsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  {mayEditCrew && (<button onClick={() => openEdit(crew)} className="px-2 py-0.5 text-xs font-medium border border-gray-200 rounded text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200">Edit</button>)}
+                  {mayEditCrew && (<button onClick={() => openEdit(crew)} className="px-2 py-0.5 text-xs font-medium border border-gray-200 rounded text-gray-700 hover:bg-gray-50 dark:hover:bg-slate-800 dark:border-slate-700 dark:text-slate-200">Edit</button>)}
                   {mayRemoveCrew && (<button onClick={() => deleteCrew(crew)} className="px-2 py-0.5 text-xs font-medium border border-red-200 text-red-700 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-500/10">Delete</button>)}
                 </div>
               </div>
@@ -197,7 +197,7 @@ export default function CrewsPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
+              <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={handleCreate} disabled={saving} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Create Crew'}
               </button>

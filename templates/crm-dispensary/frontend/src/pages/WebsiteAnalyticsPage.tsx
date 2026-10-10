@@ -81,7 +81,7 @@ export default function WebsiteAnalyticsPage() {
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
+                : 'bg-white text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
             } dark:bg-slate-900 dark:text-slate-300`}
           >
             <tab.icon className="w-4 h-4" />
@@ -208,7 +208,7 @@ function TrafficTab({ dateRange }: { dateRange: { start: string; end: string } }
               {referrers.length === 0 ? (
                 <tr><td colSpan={3} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No referrer data</td></tr>
               ) : referrers.map((ref, i) => (
-                <tr key={i} className="hover:bg-gray-50">
+                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{ref.source || 'Direct'}</td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{(ref.sessions || 0).toLocaleString()}</td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{ref.percentage != null ? `${ref.percentage}%` : '--'}</td>
@@ -238,7 +238,7 @@ function TrafficTab({ dateRange }: { dateRange: { start: string; end: string } }
               {campaigns.length === 0 ? (
                 <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No campaign data</td></tr>
               ) : campaigns.map((camp, i) => (
-                <tr key={i} className="hover:bg-gray-50">
+                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{camp.campaign || '--'}</td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{camp.source || '--'}</td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{camp.medium || '--'}</td>
@@ -380,7 +380,7 @@ function RealtimeTab() {
               {(!realtime?.activePages || realtime.activePages.length === 0) ? (
                 <tr><td colSpan={2} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No active pages</td></tr>
               ) : realtime.activePages.map((pg: any, i: number) => (
-                <tr key={i} className="hover:bg-gray-50">
+                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{pg.path}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center gap-1.5">

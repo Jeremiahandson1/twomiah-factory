@@ -145,7 +145,7 @@ export default function MenuOrderPage() {
           </p>
           <button
             onClick={() => { setPlaced(null); setCheckout(false); }}
-            className="mt-6 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200"
+            className="mt-6 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 dark:hover:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
           >
             Order something else
           </button>
@@ -237,7 +237,7 @@ export default function MenuOrderPage() {
                     className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border font-medium transition ${
                       form.orderType === opt.value
                         ? 'border-green-500 bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-300'
-                        : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-300'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
                     }`}
                   >
                     <opt.icon className="w-4 h-4" />{opt.label}

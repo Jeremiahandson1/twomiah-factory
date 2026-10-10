@@ -74,7 +74,7 @@ export default function EstimatorPage() {
         </div>
         <div className="flex items-center gap-3">
           {siteUrl && (
-            <a href={siteUrl + '/estimate'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-4 py-2.5 border text-sm font-medium rounded-lg hover:bg-gray-50">
+            <a href={siteUrl + '/estimate'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-4 py-2.5 border text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">
               <ExternalLink className="w-4 h-4" /> View on Website
             </a>
           )}

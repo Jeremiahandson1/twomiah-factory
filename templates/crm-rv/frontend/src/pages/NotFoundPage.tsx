@@ -12,7 +12,7 @@ export default function NotFoundPage() {
         <p className="mt-2 text-gray-500 dark:text-slate-400">The page you’re looking for doesn’t exist or has moved.</p>
         <div className="mt-6 flex items-center justify-center gap-3">
           <Link to="/crm" className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium">Go to the CRM</Link>
-          <Link to="/" className="px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-100 dark:border-slate-700 dark:text-slate-200">Home</Link>
+          <Link to="/" className="px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 dark:border-slate-700 dark:text-slate-200">Home</Link>
         </div>
       </div>
     </div>

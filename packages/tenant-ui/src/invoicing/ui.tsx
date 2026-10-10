@@ -432,8 +432,8 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
         <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-slate-800 text-sm text-gray-600 dark:text-slate-400">
           <span>Page {pagination.page} of {pagination.pages} · {pagination.total} total</span>
           <div className="flex gap-2">
-            <button disabled={pagination.page <= 1} onClick={() => onPageChange?.(pagination.page - 1)} className="p-1.5 rounded border border-gray-300 dark:border-slate-600 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronLeft className="w-4 h-4" /></button>
-            <button disabled={pagination.page >= pagination.pages} onClick={() => onPageChange?.(pagination.page + 1)} className="p-1.5 rounded border border-gray-300 dark:border-slate-600 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronRight className="w-4 h-4" /></button>
+            <button aria-label="Previous page" disabled={pagination.page <= 1} onClick={() => onPageChange?.(pagination.page - 1)} className="p-1.5 rounded border border-gray-300 dark:border-slate-600 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronLeft className="w-4 h-4" /></button>
+            <button aria-label="Next page" disabled={pagination.page >= pagination.pages} onClick={() => onPageChange?.(pagination.page + 1)} className="p-1.5 rounded border border-gray-300 dark:border-slate-600 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronRight className="w-4 h-4" /></button>
           </div>
         </div>
       )}

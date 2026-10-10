@@ -27,7 +27,7 @@ export default function CustomersPage() {
             </thead>
             <tbody className="divide-y">
               {customers.map((c) => (
-                <tr key={c.email} className="hover:bg-gray-50">
+                <tr key={c.email} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-900 dark:text-slate-100">{c.name || c.email}</div>
                     <div className="text-xs text-gray-500 dark:text-slate-400">{c.email}{c.phone ? ` · ${c.phone}` : ''}</div>

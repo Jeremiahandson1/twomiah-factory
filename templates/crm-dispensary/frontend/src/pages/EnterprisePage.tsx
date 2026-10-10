@@ -228,7 +228,7 @@ function StoreGroupsTab() {
                           </thead>
                           <tbody className="divide-y divide-gray-100">
                             {groupDashboard.locations.map((loc: any, i: number) => (
-                              <tr key={i} className="hover:bg-gray-50">
+                              <tr key={i} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                                 <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{loc.name}</td>
                                 <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                 <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{loc.orders || 0}</td>
@@ -336,7 +336,7 @@ function MultiStoreReportsTab() {
               {salesData.length === 0 ? (
                 <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No sales data</td></tr>
               ) : salesData.map((loc, i) => (
-                <tr key={i} className="hover:bg-gray-50">
+                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{loc.name}</td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.today || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.thisWeek || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
@@ -372,7 +372,7 @@ function MultiStoreReportsTab() {
               {inventoryData.length === 0 ? (
                 <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No inventory data</td></tr>
               ) : inventoryData.map((loc, i) => (
-                <tr key={i} className="hover:bg-gray-50">
+                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{loc.name}</td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{loc.totalSkus || 0}</td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{(loc.totalUnits || 0).toLocaleString()}</td>
@@ -407,7 +407,7 @@ function MultiStoreReportsTab() {
               {complianceData.length === 0 ? (
                 <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No compliance data</td></tr>
               ) : complianceData.map((loc, i) => (
-                <tr key={i} className="hover:bg-gray-50">
+                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{loc.name}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${loc.licenseStatus === 'active' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40'}`}>
@@ -634,7 +634,7 @@ function APIDocsTab() {
               <div key={ep.id} className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
                 <button
                   onClick={() => setExpandedEndpoint(isExpanded ? null : ep.id)}
-                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 text-left"
+                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-slate-800 text-left"
                 >
                   <span className={`px-2 py-0.5 text-xs font-bold rounded uppercase ${methodColors[ep.method] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                     {ep.method}

@@ -121,7 +121,7 @@ export default function AlertsPage() {
                     <button onClick={() => convert(row.alert.id)} className="flex items-center gap-1 text-sm px-3 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600">
                       <ArrowRightCircle className="w-4 h-4" /> Convert
                     </button>
-                    <button onClick={() => dismiss(row.alert.id)} className="flex items-center gap-1 text-sm px-3 py-1.5 border rounded-lg hover:bg-gray-50">
+                    <button onClick={() => dismiss(row.alert.id)} className="flex items-center gap-1 text-sm px-3 py-1.5 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">
                       <Check className="w-4 h-4" /> Dismiss
                     </button>
                   </div>

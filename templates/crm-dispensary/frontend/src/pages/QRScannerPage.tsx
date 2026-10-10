@@ -54,7 +54,7 @@ export default function QRScannerPage() {
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
+                : 'bg-white text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
             } dark:bg-slate-900 dark:text-slate-300`}
           >
             <tab.icon className="w-4 h-4" />
@@ -221,7 +221,7 @@ function ScannerTab() {
                 className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                   context === ctx.value
                     ? 'bg-orange-500 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:text-slate-300 dark:bg-slate-800'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:hover:bg-slate-700 dark:text-slate-300 dark:bg-slate-800'
                 } dark:text-slate-300`}
               >
                 <ctx.icon className="w-4 h-4" />
@@ -277,7 +277,7 @@ function ScannerTab() {
               <button
                 key={scan.id || i}
                 onClick={() => handleScan(scan.data)}
-                className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 text-left"
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-slate-800 text-left"
               >
                 <div className="flex items-center gap-3">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
@@ -788,7 +788,7 @@ function AnalyticsTab() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {topProducts.slice(0, 10).map((item: any, i: number) => (
-                  <tr key={item.id || i} className="hover:bg-gray-50">
+                  <tr key={item.id || i} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-2 text-sm text-gray-500 dark:text-slate-400">{i + 1}</td>
                     <td className="px-4 py-2 text-sm font-medium text-gray-900 dark:text-slate-100">{item.name}</td>
                     <td className="px-4 py-2 text-sm text-right text-gray-700 dark:text-slate-200">{item.scanCount}</td>
@@ -817,7 +817,7 @@ function AnalyticsTab() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {topInputs.slice(0, 10).map((item: any, i: number) => (
-                  <tr key={item.id || i} className="hover:bg-gray-50">
+                  <tr key={item.id || i} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-2 text-sm text-gray-500 dark:text-slate-400">{i + 1}</td>
                     <td className="px-4 py-2 text-sm font-medium text-gray-900 dark:text-slate-100">{item.name}</td>
                     <td className="px-4 py-2 text-sm text-right text-gray-700 dark:text-slate-200">{item.scanCount}</td>

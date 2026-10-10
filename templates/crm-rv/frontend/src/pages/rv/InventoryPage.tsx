@@ -225,7 +225,7 @@ export default function InventoryPage() {
               {mayManageFeed && (
               <button
                 onClick={() => setShowFeedUrls(true)}
-                className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"
               >
                 <Link2 className="w-4 h-4" />
                 Feed URL
@@ -234,7 +234,7 @@ export default function InventoryPage() {
               <button
                 onClick={exportFeed}
                 disabled={exporting}
-                className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50"
               >
                 <Download className="w-4 h-4" />
                 {exporting ? 'Exporting...' : 'Export Feed'}
@@ -483,7 +483,7 @@ function FeedUrlModal({ onClose }: { onClose: () => void }) {
                         type="button"
                         onClick={() => copy(key, value)}
                         title="Copy"
-                        className="p-2 border rounded-lg hover:bg-gray-50"
+                        className="p-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"
                       >
                         {copied === key ? <Check className="w-4 h-4 text-green-700 dark:text-green-300" /> : <Copy className="w-4 h-4 text-gray-500 dark:text-slate-400" />}
                       </button>
@@ -499,7 +499,7 @@ function FeedUrlModal({ onClose }: { onClose: () => void }) {
               type="button"
               onClick={rotate}
               disabled={rotating || loading}
-              className="flex items-center justify-center gap-2 flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              className="flex items-center justify-center gap-2 flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${rotating ? 'animate-spin' : ''}`} />
               {rotating ? 'Rotating...' : 'Rotate token'}
@@ -903,7 +903,7 @@ function UnitFormModal({ unit, onSave, onClose }: UnitFormModalProps) {
 
             <PageError message={err} />
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50">
                 {saving ? 'Saving...' : 'Save Unit'}
               </button>
@@ -1004,7 +1004,7 @@ function RecallModal({ unit, onClose }: RecallModalProps) {
           )}
 
           <div className="pt-5">
-            <button onClick={onClose} className="w-full px-4 py-2 border rounded-lg hover:bg-gray-50">Close</button>
+            <button onClick={onClose} className="w-full px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Close</button>
           </div>
         </div>
       </div>

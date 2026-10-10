@@ -117,7 +117,7 @@ export default function DeliveryPage() {
         </div>
         <button
           onClick={() => tab === 'active' || tab === 'queue' ? loadDeliveries() : loadZones()}
-          className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 dark:text-slate-400"
+          className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-600 dark:text-slate-400"
         >
           <RefreshCw className="w-5 h-5" />
         </button>
@@ -153,7 +153,7 @@ export default function DeliveryPage() {
                 className={`px-3 py-1.5 text-sm font-medium rounded-lg whitespace-nowrap ${
                   statusFilter === s.value
                     ? 'bg-green-700 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
+                    : 'bg-white text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
                 } dark:bg-slate-900 dark:text-slate-300`}
               >
                 {s.label}
@@ -354,7 +354,7 @@ export default function DeliveryPage() {
               </label>
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setZoneModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
+              <button onClick={() => setZoneModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg font-medium dark:text-slate-200">Cancel</button>
               <Button onClick={handleSaveZone} disabled={savingZone}>
                 {savingZone ? 'Saving...' : 'Create Zone'}
               </Button>

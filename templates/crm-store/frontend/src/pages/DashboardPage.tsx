@@ -57,7 +57,7 @@ export default function DashboardPage() {
         ) : (
           <div className="divide-y">
             {orders.map((o) => (
-              <Link key={o.id} to={`/orders/${o.id}`} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50">
+              <Link key={o.id} to={`/orders/${o.id}`} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 dark:hover:bg-slate-800">
                 <div>
                   <div className="font-medium text-sm text-gray-900 dark:text-slate-100">{o.orderNumber || 'Pending'}</div>
                   <div className="text-xs text-gray-500 dark:text-slate-400">{o.customerEmail} · {formatDate(o.createdAt)}</div>

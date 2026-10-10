@@ -256,7 +256,7 @@ export default function ReportsPage() {
             if (tab === 'saved') loadReports();
             if (tab === 'budtender') loadBudtenderPerformance();
           }}
-          className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 dark:text-slate-400"
+          className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-600 dark:text-slate-400"
         >
           <RefreshCw className="w-5 h-5" />
         </button>
@@ -395,7 +395,7 @@ export default function ReportsPage() {
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setWidgetModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
+              <button onClick={() => setWidgetModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg font-medium dark:text-slate-200">Cancel</button>
               <Button onClick={handleAddWidget} disabled={savingWidget}>
                 {savingWidget ? 'Adding...' : 'Add Widget'}
               </Button>
@@ -448,7 +448,7 @@ export default function ReportsPage() {
                           </thead>
                           <tbody className="divide-y">
                             {reportResults.rows.map((row: any, idx: number) => (
-                              <tr key={idx} className="hover:bg-gray-50">
+                              <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                                 {Object.values(row).map((val: any, cIdx: number) => (
                                   <td key={cIdx} className="px-3 py-2 text-gray-600 dark:text-slate-400">{typeof val === 'number' ? val.toLocaleString() : String(val ?? '--')}</td>
                                 ))}
@@ -516,8 +516,8 @@ export default function ReportsPage() {
             <div className="flex items-center justify-between mt-4">
               <p className="text-sm text-gray-600 dark:text-slate-400">Page {reportsPagination.page} of {reportsPagination.pages}</p>
               <div className="flex gap-2">
-                <button onClick={() => setReportsPage(p => Math.max(1, p - 1))} disabled={reportsPage <= 1} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50">Previous</button>
-                <button onClick={() => setReportsPage(p => p + 1)} disabled={reportsPage >= reportsPagination.pages} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50">Next</button>
+                <button onClick={() => setReportsPage(p => Math.max(1, p - 1))} disabled={reportsPage <= 1} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50">Previous</button>
+                <button onClick={() => setReportsPage(p => p + 1)} disabled={reportsPage >= reportsPagination.pages} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50">Next</button>
               </div>
             </div>
           )}
@@ -594,7 +594,7 @@ export default function ReportsPage() {
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setReportModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
+              <button onClick={() => setReportModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg font-medium dark:text-slate-200">Cancel</button>
               <Button onClick={handleCreateReport} disabled={savingReport}>
                 {savingReport ? 'Creating...' : 'Create Report'}
               </Button>
@@ -617,7 +617,7 @@ export default function ReportsPage() {
                   className={`px-3 py-1.5 text-sm font-medium rounded-lg whitespace-nowrap ${
                     dateRange === opt.value
                       ? 'bg-green-700 text-white'
-                      : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
+                      : 'bg-white text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
                   } dark:bg-slate-900 dark:text-slate-300`}
                 >
                   {opt.label}
@@ -666,7 +666,7 @@ export default function ReportsPage() {
                   </thead>
                   <tbody className="divide-y">
                     {budtenderData.map(bt => (
-                      <tr key={bt.id} className="hover:bg-gray-50">
+                      <tr key={bt.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-sm font-bold flex-shrink-0 dark:text-green-300 dark:bg-green-950/40">
@@ -698,8 +698,8 @@ export default function ReportsPage() {
                 <div className="px-4 py-3 border-t flex items-center justify-between">
                   <p className="text-sm text-gray-600 dark:text-slate-400">Page {budtenderPagination.page} of {budtenderPagination.pages}</p>
                   <div className="flex gap-2">
-                    <button onClick={() => setBudtenderPage(p => Math.max(1, p - 1))} disabled={budtenderPage <= 1} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50">Previous</button>
-                    <button onClick={() => setBudtenderPage(p => p + 1)} disabled={budtenderPage >= budtenderPagination.pages} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50">Next</button>
+                    <button onClick={() => setBudtenderPage(p => Math.max(1, p - 1))} disabled={budtenderPage <= 1} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50">Previous</button>
+                    <button onClick={() => setBudtenderPage(p => p + 1)} disabled={budtenderPage >= budtenderPagination.pages} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50">Next</button>
                   </div>
                 </div>
               )}

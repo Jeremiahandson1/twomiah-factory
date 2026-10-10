@@ -290,15 +290,15 @@ export default function SchedulingPage() {
       {tab === 'calendar' && (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <button onClick={() => setWeekOffset(w => w - 1)} className="p-2 hover:bg-gray-100 rounded-lg">
+            <button aria-label="Previous week" onClick={() => setWeekOffset(w => w - 1)} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
               <ChevronLeft className="w-5 h-5" />
             </button>
             <div className="text-lg font-semibold">
               {weekDates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {weekDates[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setWeekOffset(0)} className="px-3 py-1 text-sm bg-gray-100 rounded hover:bg-gray-200 dark:bg-slate-800">Today</button>
-              <button onClick={() => setWeekOffset(w => w + 1)} className="p-2 hover:bg-gray-100 rounded-lg">
+              <button onClick={() => setWeekOffset(0)} className="px-3 py-1 text-sm bg-gray-100 rounded hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-800">Today</button>
+              <button aria-label="Next week" onClick={() => setWeekOffset(w => w + 1)} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>
@@ -331,7 +331,7 @@ export default function SchedulingPage() {
                 </thead>
                 <tbody>
                   {employees.map(emp => (
-                    <tr key={emp.id} className="border-t hover:bg-gray-50">
+                    <tr key={emp.id} className="border-t hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-2 text-sm font-medium">{emp.name}</td>
                       {weekDates.map((d, i) => {
                         const dateStr = formatDate(d);
@@ -407,7 +407,7 @@ export default function SchedulingPage() {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold flex items-center gap-2"><Clock className="w-5 h-5" />Time Entries</h3>
-            <button onClick={loadTimeEntries} className="p-2 hover:bg-gray-100 rounded-lg"><RefreshCw className="w-4 h-4" /></button>
+            <button onClick={loadTimeEntries} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"><RefreshCw className="w-4 h-4" /></button>
           </div>
           <div className="overflow-x-auto border rounded-lg">
             <table className="w-full">
@@ -507,7 +507,7 @@ export default function SchedulingPage() {
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setTemplateModal(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button>
+              <button onClick={() => setTemplateModal(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button>
               <Button onClick={saveTemplate}>Save Template</Button>
             </div>
           </Modal>
@@ -607,7 +607,7 @@ export default function SchedulingPage() {
             )}
           </div>
           <div className="flex gap-3">
-            <button onClick={() => setShiftModal(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button>
+            <button onClick={() => setShiftModal(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button>
             <Button onClick={handleSaveShift} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
           </div>
         </div>

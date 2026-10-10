@@ -255,7 +255,7 @@ export default function DashboardPage() {
             <ul className="divide-y">
               {(activity.recentPatients || []).map((p) => (
                 <li key={p.id} className="py-2">
-                  <Link to={`/crm/patients/${p.id}`} className="block hover:bg-gray-50 -mx-2 px-2 rounded">
+                  <Link to={`/crm/patients/${p.id}`} className="block hover:bg-gray-50 dark:hover:bg-slate-800 -mx-2 px-2 rounded">
                     <p className="font-medium text-gray-900 dark:text-slate-100">{p.name || 'Unnamed'}</p>
                     <p className="text-xs text-gray-500 capitalize dark:text-slate-400">
                       {[p.species, p.breed].filter(Boolean).join(' · ') || '—'}
@@ -281,7 +281,7 @@ export default function DashboardPage() {
                 <li key={v.id} className="py-2">
                   <Link
                     to={v.patientId ? `/crm/patients/${v.patientId}` : '#'}
-                    className="block hover:bg-gray-50 -mx-2 px-2 rounded"
+                    className="block hover:bg-gray-50 dark:hover:bg-slate-800 -mx-2 px-2 rounded"
                   >
                     <div className="flex items-center justify-between">
                       <p className="font-medium text-gray-900 dark:text-slate-100">{v.patientName || 'Patient'}</p>

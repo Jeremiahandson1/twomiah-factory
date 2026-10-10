@@ -219,7 +219,7 @@ export default function FraudDetectionPage() {
           <div className="flex gap-2 mb-4">
             {['all', 'critical', 'high', 'medium', 'low'].map(f => (
               <button key={f} onClick={() => setAlertFilter(f)}
-                className={`px-3 py-1 text-sm rounded-full ${alertFilter === f ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:text-slate-300 dark:bg-slate-800'} dark:text-slate-300`}>
+                className={`px-3 py-1 text-sm rounded-full ${alertFilter === f ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:hover:bg-slate-700 dark:text-slate-300 dark:bg-slate-800'} dark:text-slate-300`}>
                 {f.charAt(0).toUpperCase() + f.slice(1)}
               </button>
             ))}
@@ -246,7 +246,7 @@ export default function FraudDetectionPage() {
                 </thead>
                 <tbody>
                   {alerts.map(alert => (
-                    <tr key={alert.id} className="border-t hover:bg-gray-50">
+                    <tr key={alert.id} className="border-t hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${SEVERITY_STYLES[alert.severity] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                           {alert.severity}
@@ -284,7 +284,7 @@ export default function FraudDetectionPage() {
                                 <CheckCircle className="w-3 h-3" />Resolve
                               </button>
                               <button onClick={() => handleAlertAction(alert.id, 'dismiss')}
-                                className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 flex items-center gap-1 dark:bg-slate-800 dark:text-slate-400">
+                                className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center gap-1 dark:bg-slate-800 dark:text-slate-400">
                                 <XCircle className="w-3 h-3" />Dismiss
                               </button>
                             </>
@@ -461,7 +461,7 @@ export default function FraudDetectionPage() {
           </label>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setRuleModal(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button>
+          <button onClick={() => setRuleModal(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button>
           <Button onClick={handleSaveRule} disabled={savingRule}>{savingRule ? 'Saving...' : 'Save Rule'}</Button>
         </div>
       </Modal>

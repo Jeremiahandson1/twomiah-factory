@@ -154,7 +154,7 @@ export default function ProductDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/crm/products')} className="p-2 hover:bg-gray-100 rounded-lg">
+          <button onClick={() => navigate('/crm/products')} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
             <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-slate-400" />
           </button>
           <div>
@@ -191,7 +191,7 @@ export default function ProductDetailPage() {
           </div>
           <label className="block">
             <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-            <span className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg cursor-pointer text-sm font-medium text-gray-700 transition-colors dark:bg-slate-800 dark:text-slate-200">
+            <span className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-lg cursor-pointer text-sm font-medium text-gray-700 transition-colors dark:bg-slate-800 dark:text-slate-200">
               <Upload className="w-4 h-4" /> Upload Image
             </span>
           </label>

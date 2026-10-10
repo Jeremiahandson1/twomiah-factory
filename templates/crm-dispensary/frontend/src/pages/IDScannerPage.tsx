@@ -217,7 +217,7 @@ export default function IDScannerPage() {
                     className={`px-4 py-2 text-sm font-medium rounded-lg ${
                       scanMethod === m.value
                         ? 'bg-green-700 text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:text-slate-300 dark:bg-slate-800'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:hover:bg-slate-700 dark:text-slate-300 dark:bg-slate-800'
                     } dark:text-slate-300`}
                   >
                     {m.label}
@@ -461,7 +461,7 @@ export default function IDScannerPage() {
                       <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No scan history found</td>
                     </tr>
                   ) : history.map(scan => (
-                    <tr key={scan.id} className="hover:bg-gray-50">
+                    <tr key={scan.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                         {scan.createdAt ? new Date(scan.createdAt).toLocaleString() : '—'}
                       </td>

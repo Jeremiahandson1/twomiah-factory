@@ -316,7 +316,7 @@ export default function AIBudtenderPage() {
                       <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No AI sessions found</td>
                     </tr>
                   ) : sessions.map(session => (
-                    <tr key={session.id} className="hover:bg-gray-50">
+                    <tr key={session.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                         {session.createdAt ? new Date(session.createdAt).toLocaleString() : '—'}
                       </td>
@@ -367,14 +367,14 @@ export default function AIBudtenderPage() {
                   <button
                     onClick={() => setSessionsPage(p => Math.max(1, p - 1))}
                     disabled={sessionsPage <= 1}
-                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-800"
                   >
                     Previous
                   </button>
                   <button
                     onClick={() => setSessionsPage(p => p + 1)}
                     disabled={sessionsPage >= Math.ceil(sessionsTotal / 25)}
-                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                    className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-800"
                   >
                     Next
                   </button>
@@ -577,7 +577,7 @@ export default function AIBudtenderPage() {
                           <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No recommendation data yet</td>
                         </tr>
                       ) : analytics.topProducts.map((product: any, index: number) => (
-                        <tr key={product.id || index} className="hover:bg-gray-50">
+                        <tr key={product.id || index} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                           <td className="px-4 py-3 text-sm font-bold text-gray-500 dark:text-slate-400">#{index + 1}</td>
                           <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{product.name}</td>
                           <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{product.category || '—'}</td>

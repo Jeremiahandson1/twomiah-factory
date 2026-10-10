@@ -224,7 +224,7 @@ export function DataTable<T extends Record<string, unknown> = Record<string, unk
             Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
           </p>
           <div className="flex items-center gap-2">
-            <button
+            <button aria-label="Previous page"
               onClick={() => onPageChange(pagination.page - 1)}
               disabled={pagination.page <= 1}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -234,7 +234,7 @@ export function DataTable<T extends Record<string, unknown> = Record<string, unk
             <span className="text-sm text-gray-600 dark:text-slate-400">
               Page {pagination.page} of {pagination.pages || pagination.totalPages}
             </span>
-            <button
+            <button aria-label="Next page"
               onClick={() => onPageChange(pagination.page + 1)}
               disabled={pagination.page >= (pagination.pages || pagination.totalPages || 0)}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -301,9 +301,9 @@ export function PageHeader({ title, subtitle, action }: PageHeaderProps) {
 
 const dtButtonVariants: Record<string, string> = {
   primary: 'bg-orange-500 hover:bg-orange-600 text-white',
-  secondary: 'bg-gray-100 hover:bg-gray-200 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  secondary: 'bg-gray-100 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
   danger: 'bg-red-600 hover:bg-red-700 text-white',
-  ghost: 'hover:bg-gray-100 text-gray-700',
+  ghost: 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-700',
 };
 
 const dtButtonSizes: Record<string, string> = {

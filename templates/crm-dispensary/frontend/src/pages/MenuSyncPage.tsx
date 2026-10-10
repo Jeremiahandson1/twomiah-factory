@@ -232,7 +232,7 @@ export default function MenuSyncPage() {
                             {syncing[platform.id] ? 'Syncing...' : 'Sync Now'}
                           </Button>
                           <button onClick={() => openConfig(platform)}
-                            className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">
+                            className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">
                             <Settings className="w-4 h-4" />
                           </button>
                           <button onClick={() => disconnectPlatform(platform.id)}
@@ -425,7 +425,7 @@ export default function MenuSyncPage() {
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setConfigModal(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button>
+          <button onClick={() => setConfigModal(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button>
           <Button onClick={saveConnection} disabled={savingConfig}>
             {savingConfig ? 'Saving...' : connections[configPlatform?.id] ? 'Update' : 'Connect'}
           </Button>

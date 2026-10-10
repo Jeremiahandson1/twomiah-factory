@@ -9,7 +9,20 @@ function getSystemTheme(): 'light' | 'dark' {
 
 function applyTheme(theme: Theme) {
   const resolved = theme === 'system' ? getSystemTheme() : theme
-  document.documentElement.classList.toggle('dark', resolved === 'dark')
+  const root = document.documentElement
+  const dark = resolved === 'dark'
+  if (root.classList.contains('dark') === dark) return
+  /*
+   * SWITCH EVERYTHING AT ONCE. (T64) A ground with `transition-colors` fades over ~150ms while its text changes
+   * instantly, so for the first frames a tile read white under light ink — measured at 1.1:1 one frame after the toggle.
+   * Transitions are suspended for the switch and restored two frames later, once the new colours are painted.
+   */
+  const freeze = document.createElement('style')
+  freeze.textContent = '*,*::before,*::after{transition:none!important}'
+  document.head.appendChild(freeze)
+  root.classList.toggle('dark', dark)
+  void window.getComputedStyle(root).backgroundColor // commit the new colours before transitions come back
+  requestAnimationFrame(() => requestAnimationFrame(() => freeze.remove()))
 }
 
 /**

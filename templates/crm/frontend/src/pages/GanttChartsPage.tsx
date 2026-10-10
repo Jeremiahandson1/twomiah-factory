@@ -106,7 +106,7 @@ export default function GanttChartsPage() {
           const color = STATUS_COLORS[p.status] || '#94a3b8';
 
           return (
-            // hover:bg-gray-50 had no dark partner, so hovering a row in dark mode painted a
+            // hover:bg-gray-50 dark:hover:bg-slate-800 had no dark partner, so hovering a row in dark mode painted a
             // near-white ground under light text and the row went blank under the cursor.
             <div key={p.id} className="flex border-b hover:bg-gray-50 dark:hover:bg-slate-800" style={{ height: rowHeight }}>
               <div className="w-64 flex-shrink-0 px-4 py-3 border-r">

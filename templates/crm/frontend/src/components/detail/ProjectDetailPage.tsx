@@ -156,7 +156,7 @@ export default function ProjectDetailPage() {
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/crm/projects')}
-            className="p-2 hover:bg-gray-100 rounded-lg"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -293,7 +293,7 @@ export default function ProjectDetailPage() {
                   <Link
                     key={job.id}
                     to={`/crm/jobs/${job.id}`}
-                    className="p-4 flex items-center justify-between hover:bg-gray-50"
+                    className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-800"
                   >
                     <div className="flex items-center gap-3">
                       <Briefcase className="w-5 h-5 text-gray-400" />
@@ -535,7 +535,7 @@ export default function ProjectDetailPage() {
               {can('jobs:create') && (
                 <Link
                   to={`/crm/jobs?projectId=${id}&new=true`}
-                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
+                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg flex items-center gap-2 dark:bg-slate-900"
                 >
                   <Briefcase className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                   Add Job
@@ -544,7 +544,7 @@ export default function ProjectDetailPage() {
               {can('rfis:create') && (
                 <Link
                   to={`/crm/rfis?projectId=${id}&new=true`}
-                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
+                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg flex items-center gap-2 dark:bg-slate-900"
                 >
                   <FileQuestion className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                   Create RFI
@@ -553,7 +553,7 @@ export default function ProjectDetailPage() {
               {can('change-orders:create') && (
                 <Link
                   to={`/crm/change-orders?projectId=${id}&new=true`}
-                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
+                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg flex items-center gap-2 dark:bg-slate-900"
                 >
                   <FileDiff className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                   Create Change Order
@@ -562,7 +562,7 @@ export default function ProjectDetailPage() {
               {can('punch-lists:create') && (
                 <Link
                   to={`/crm/punch-lists?projectId=${id}&new=true`}
-                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
+                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg flex items-center gap-2 dark:bg-slate-900"
                 >
                   <ClipboardList className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                   Add Punch List Item
@@ -571,7 +571,7 @@ export default function ProjectDetailPage() {
               {can('daily-logs:create') && (
                 <Link
                   to={`/crm/daily-logs?projectId=${id}&new=true`}
-                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
+                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg flex items-center gap-2 dark:bg-slate-900"
                 >
                   <FileText className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                   Add Daily Log

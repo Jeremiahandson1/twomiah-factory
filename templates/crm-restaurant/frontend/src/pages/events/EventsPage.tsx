@@ -137,13 +137,13 @@ export default function EventsPage() {
         <div className="flex border rounded-lg overflow-hidden">
           <button
             onClick={() => setView('pipeline')}
-            className={`flex items-center gap-1 px-3 py-2 text-sm ${view === 'pipeline' ? 'bg-orange-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:bg-slate-800'} dark:bg-slate-900 dark:text-slate-300`}
+            className={`flex items-center gap-1 px-3 py-2 text-sm ${view === 'pipeline' ? 'bg-orange-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300 dark:bg-slate-800'} dark:bg-slate-900 dark:text-slate-300`}
           >
             <LayoutGrid className="w-4 h-4" /> Pipeline
           </button>
           <button
             onClick={() => setView('list')}
-            className={`flex items-center gap-1 px-3 py-2 text-sm ${view === 'list' ? 'bg-orange-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:bg-slate-800'} dark:bg-slate-900 dark:text-slate-300`}
+            className={`flex items-center gap-1 px-3 py-2 text-sm ${view === 'list' ? 'bg-orange-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300 dark:bg-slate-800'} dark:bg-slate-900 dark:text-slate-300`}
           >
             <List className="w-4 h-4" /> List
           </button>
@@ -400,7 +400,7 @@ function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => vo
             </div>
             <FormError message={err} />
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
                 {saving ? 'Saving...' : 'Create'}
               </button>

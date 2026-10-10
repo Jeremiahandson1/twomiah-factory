@@ -131,7 +131,7 @@ export default function MaterialsPage() {
                     <tr
                       key={order.id}
                       onClick={() => order.jobId && navigate(`/crm/jobs/${order.jobId}`)}
-                      className="border-b last:border-0 hover:bg-gray-50 cursor-pointer"
+                      className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer"
                     >
                       <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700 dark:text-slate-200">
                         {/* jobNumber is the real "ROOF-0005"; never glue the raw
@@ -166,10 +166,10 @@ export default function MaterialsPage() {
             <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50 dark:bg-slate-900">
               <p className="text-xs text-gray-500 dark:text-slate-400">Page {page} of {totalPages}</p>
               <div className="flex gap-1">
-                <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-30">
+                <button aria-label="Previous page" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-30">
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-30">
+                <button aria-label="Next page" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-30">
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>

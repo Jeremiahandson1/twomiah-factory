@@ -190,7 +190,7 @@ export default function MeasurementsPage() {
             {credits !== null && (
               mayBuyCredits && (<button
                 onClick={() => setBuyOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border rounded-lg text-sm hover:bg-gray-50 dark:bg-slate-900"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-900"
               >
                 <CreditCard className="w-4 h-4 text-gray-400" />
                 <span className="font-medium">{credits}</span>
@@ -232,7 +232,7 @@ export default function MeasurementsPage() {
                     <tr
                       key={m.id}
                       onClick={() => setSelectedReport(m)}
-                      className="border-b last:border-0 hover:bg-gray-50 cursor-pointer"
+                      className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer"
                     >
                       <td className="px-4 py-3 text-gray-900 max-w-[200px] truncate dark:text-slate-100">
                         {m.address}, {m.city}
@@ -282,10 +282,10 @@ export default function MeasurementsPage() {
             <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50 dark:bg-slate-900">
               <p className="text-xs text-gray-500 dark:text-slate-400">Page {page} of {totalPages}</p>
               <div className="flex gap-1">
-                <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-30">
+                <button aria-label="Previous page" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-30">
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-30">
+                <button aria-label="Next page" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-30">
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
@@ -334,7 +334,7 @@ export default function MeasurementsPage() {
             </div>
             <p className="text-xs text-gray-500 dark:text-slate-400 mt-3">Uses 1 credit (${pricePerReport}/report). Powered by Google Solar API.</p>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setOrderOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
+              <button onClick={() => setOrderOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={orderReport} disabled={ordering || (credits !== null && credits <= 0)} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
                 <Ruler className="w-4 h-4" /> {ordering ? 'Ordering...' : 'Order Report'}
               </button>
@@ -446,7 +446,7 @@ export default function MeasurementsPage() {
                   </button>)
                 )}
                 {selectedReport.jobId && (
-                  <button onClick={() => { setSelectedReport(null); navigate(`/crm/jobs/${selectedReport.jobId}`); }} className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-200">
+                  <button onClick={() => { setSelectedReport(null); navigate(`/crm/jobs/${selectedReport.jobId}`); }} className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-800 dark:text-slate-200">
                     View Job
                   </button>
                 )}
@@ -466,7 +466,7 @@ export default function MeasurementsPage() {
               <input type="number" step="0.01" value={manualSquares} onChange={(e) => setManualSquares(e.target.value)} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="e.g. 24.5" />
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setManualOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
+              <button onClick={() => setManualOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={() => saveManualEntry(selectedReport.id)} className="px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700">Save</button>
             </div>
           </div>
@@ -489,7 +489,7 @@ export default function MeasurementsPage() {
                   <button
                     key={q}
                     onClick={() => setBuyQty(q)}
-                    className={`px-3 py-1.5 text-sm rounded-lg border ${buyQty === q ? 'bg-purple-600 text-white border-purple-600' : 'bg-white dark:bg-slate-900 text-gray-700 hover:bg-gray-50 dark:text-slate-200'} dark:text-slate-200`}
+                    className={`px-3 py-1.5 text-sm rounded-lg border ${buyQty === q ? 'bg-purple-600 text-white border-purple-600' : 'bg-white dark:bg-slate-900 text-gray-700 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-200'} dark:text-slate-200`}
                   >
                     {q}
                   </button>
@@ -500,7 +500,7 @@ export default function MeasurementsPage() {
               </p>
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setBuyOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
+              <button onClick={() => setBuyOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={purchaseCredits} disabled={buying} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
                 <CreditCard className="w-4 h-4" /> {buying ? 'Processing...' : 'Purchase'}
               </button>

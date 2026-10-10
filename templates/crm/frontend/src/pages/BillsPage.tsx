@@ -258,7 +258,7 @@ export default function BillsPage() {
             <textarea value={form.notes} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, notes: e.target.value })} rows={2} className="w-full px-3 py-2 border rounded-lg" /></div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button>
+          <button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button>
           <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
         </div>
       </Modal>
@@ -295,7 +295,7 @@ export default function BillsPage() {
             <input value={payNotes} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPayNotes(e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Part payment, retention held…" /></div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setPayOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button>
+          <button onClick={() => setPayOpen(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button>
           <Button onClick={handlePay}>Record</Button>
         </div>
       </Modal>

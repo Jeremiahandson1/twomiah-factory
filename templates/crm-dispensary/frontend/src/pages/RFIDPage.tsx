@@ -66,7 +66,7 @@ export default function RFIDPage() {
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
+                : 'bg-white text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 border border-gray-200 dark:text-slate-300 dark:bg-slate-800'
             } dark:bg-slate-900 dark:text-slate-300`}
           >
             <tab.icon className="w-4 h-4" />
@@ -475,7 +475,7 @@ function InventoryCountTab() {
             </div>
             <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y dark:border-slate-700">
               {scannedEpcs.map((epc, i) => (
-                <div key={epc} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50">
+                <div key={epc} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-800">
                   <span className="font-mono text-sm text-gray-700 dark:text-slate-200">{epc}</span>
                   <button onClick={() => removeEpc(epc)} className="text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300"><XCircle className="w-4 h-4" /></button>
                 </div>

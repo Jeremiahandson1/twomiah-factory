@@ -800,7 +800,7 @@ export default function InsuranceClaimPage() {
                           isActive ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-300 dark:text-blue-300 dark:bg-blue-950/40' :
                           isPast ? 'bg-green-50 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
                           (mayWriteClaim
-                            ? 'bg-gray-50 text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:bg-slate-800'
+                            ? 'bg-gray-50 text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 dark:text-slate-300 dark:bg-slate-800'
                             : 'bg-gray-50 text-gray-600 dark:text-slate-300 dark:bg-slate-800')
                         } ${isDenied && isActive ? 'bg-red-100 text-red-700 ring-red-300 dark:text-red-400 dark:bg-red-950/40' : ''} dark:text-blue-300`}
                       >
@@ -1203,7 +1203,7 @@ export default function InsuranceClaimPage() {
               )}
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setActivityOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
+              <button onClick={() => setActivityOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={submitActivity} disabled={submittingActivity} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {submittingActivity ? 'Saving...' : 'Log'}
               </button>
@@ -1300,7 +1300,7 @@ export default function InsuranceClaimPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setSupOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
+              <button onClick={() => setSupOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={createSupplement} disabled={submittingSup} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {submittingSup ? 'Creating...' : 'Save as Draft'}
               </button>
@@ -1351,7 +1351,7 @@ export default function InsuranceClaimPage() {
             </p>
 
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setEditSup(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
+              <button onClick={() => setEditSup(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={saveSupplementEdit} disabled={savingEdit} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {savingEdit ? 'Saving...' : 'Save Changes'}
               </button>
@@ -1390,7 +1390,7 @@ export default function InsuranceClaimPage() {
             )}
 
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setDecideSup(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
+              <button onClick={() => setDecideSup(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
               <button
                 onClick={decide}
                 disabled={deciding}

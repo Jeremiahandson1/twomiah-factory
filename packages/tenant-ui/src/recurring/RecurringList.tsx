@@ -203,7 +203,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               filter === s
                 ? 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:text-slate-300 dark:bg-slate-800'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:hover:bg-slate-700 dark:text-slate-300 dark:bg-slate-800'
             } dark:text-slate-300`}
           >
             {s === '' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
@@ -226,7 +226,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
       ) : (
         <div className="bg-white rounded-xl border divide-y dark:bg-slate-900">
           {recurring.map((item: Record<string, unknown>) => (
-            <div key={item.id as string} className="p-4 hover:bg-gray-50">
+            <div key={item.id as string} className="p-4 hover:bg-gray-50 dark:hover:bg-slate-800">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className={`p-2 rounded-lg ${item.status === 'active' ? 'bg-green-100 dark:bg-green-950/40 dark:text-slate-100' : 'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'}`}>
@@ -240,10 +240,11 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
                       <span>{FREQUENCIES[item.frequency as string] || item.frequency as string}</span>
                       <span>•</span>
                       <span>${Number(item.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      {(item._count as Record<string, unknown>)?.generatedInvoices as number > 0 && (
+                      {/* invoiceCount is what the API sends (invoice_count, camelised); _count.generatedInvoices never existed. (T64) */}
+                      {Number(item.invoiceCount || 0) > 0 && (
                         <>
                           <span>•</span>
-                          <span>{(item._count as Record<string, unknown>).generatedInvoices as number} generated</span>
+                          <span>{Number(item.invoiceCount)} generated</span>
                         </>
                       )}
                     </div>
@@ -265,20 +266,20 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
 
                   {/* Actions */}
                   <div className="relative group">
-                    <button className="p-2 hover:bg-gray-100 rounded-lg">
+                    <button className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
                       <MoreVertical className="w-4 h-4 text-gray-400" />
                     </button>
                     <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border py-1 hidden group-hover:block z-10 dark:bg-slate-900">
                       <Link
                         to={`/recurring/${item.id}`}
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-slate-200"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-200"
                       >
                         View Details
                       </Link>
                       {mayRaise && item.status === 'active' && (
                         <button
                           onClick={() => handleGenerateNow(item.id as string)}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-slate-200"
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-200"
                         >
                           Generate Invoice Now
                         </button>
@@ -287,7 +288,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
                         <>
                           <button
                             onClick={() => handlePause(item.id as string)}
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-slate-200"
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-200"
                           >
                             Pause
                           </button>
@@ -296,7 +297,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
                       {mayManage && item.status === 'paused' && (
                         <button
                           onClick={() => handleResume(item.id as string)}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-slate-200"
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-200"
                         >
                           Resume
                         </button>

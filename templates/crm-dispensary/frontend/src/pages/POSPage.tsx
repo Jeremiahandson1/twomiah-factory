@@ -793,7 +793,7 @@ export default function POSPage() {
                         <button
                           key={c.id}
                           onClick={() => selectCustomer(c)}
-                          className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm"
+                          className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-800 text-sm"
                         >
                           <p className="font-medium text-gray-900 dark:text-slate-100">{c.name}</p>
                           <p className="text-xs text-gray-500 dark:text-slate-400">{c.phone || c.email || ''}</p>
@@ -846,14 +846,14 @@ export default function POSPage() {
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => updateQuantity(item.id, -1)}
-                    className="w-7 h-7 rounded-full bg-white border flex items-center justify-center hover:bg-gray-100 dark:bg-slate-900"
+                    className="w-7 h-7 rounded-full bg-white border flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-800 dark:bg-slate-900"
                   >
                     <Minus className="w-3 h-3" />
                   </button>
                   <span className="w-8 text-center font-medium text-sm">{item.quantity}</span>
                   <button
                     onClick={() => updateQuantity(item.id, 1)}
-                    className="w-7 h-7 rounded-full bg-white border flex items-center justify-center hover:bg-gray-100 dark:bg-slate-900"
+                    className="w-7 h-7 rounded-full bg-white border flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-800 dark:bg-slate-900"
                   >
                     <Plus className="w-3 h-3" />
                   </button>

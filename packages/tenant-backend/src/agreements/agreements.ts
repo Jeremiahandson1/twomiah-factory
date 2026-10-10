@@ -136,7 +136,12 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
   async function getPlans(companyId: string, { active }: { active?: boolean | null } = {}) {
     const conditions = [eq(agreementPlan.companyId, companyId)]
     if (active !== null && active !== undefined) conditions.push(eq(agreementPlan.active, active))
-    return db.select().from(agreementPlan).where(and(...conditions)).orderBy(asc(agreementPlan.name), asc(agreementPlan.id))
+    const plans = await db.select().from(agreementPlan).where(and(...conditions)).orderBy(asc(agreementPlan.name), asc(agreementPlan.id))
+    // How many customers are on each plan right now. The plan card read `_count.agreements`, which this never
+    // sent, so every plan said "0 active" — on a tenant with 3. (T64)
+    const counts = await db.select({ planId: serviceAgreement.planId, n: count() }).from(serviceAgreement)
+      .where(and(eq(serviceAgreement.companyId, companyId), eq(serviceAgreement.status, 'active'))).groupBy(serviceAgreement.planId)
+    return plans.map((p: any) => ({ ...p, activeAgreements: Number(counts.find((c: any) => c.planId === p.id)?.n || 0) }))
   }
   async function createPlan(companyId: string, data: any) {
     const [plan] = await db.insert(agreementPlan).values({

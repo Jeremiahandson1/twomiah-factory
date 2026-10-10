@@ -503,7 +503,7 @@ export default function LocationsPage() {
                         <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No inventory at this location</td>
                       </tr>
                     ) : inventory.map(item => (
-                      <tr key={item.id} className={`hover:bg-gray-50 ${item.quantity <= (item.minQuantity || 0) ? 'bg-red-50 dark:bg-red-950/40 dark:text-slate-100' : ''}`}>
+                      <tr key={item.id} className={`hover:bg-gray-50 dark:hover:bg-slate-800 ${item.quantity <= (item.minQuantity || 0) ? 'bg-red-50 dark:bg-red-950/40 dark:text-slate-100' : ''}`}>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{item.productName || item.name || '—'}</td>
                         <td className="px-4 py-3 text-sm font-mono text-gray-600 dark:text-slate-400">{item.sku || '—'}</td>
                         <td className={`px-4 py-3 text-sm text-right font-medium ${item.quantity <= (item.minQuantity || 0) ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-slate-200'} dark:text-slate-100`}>
@@ -561,7 +561,7 @@ export default function LocationsPage() {
                       <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No transfers yet</td>
                     </tr>
                   ) : transfers.map(transfer => (
-                    <tr key={transfer.id} className="hover:bg-gray-50">
+                    <tr key={transfer.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">
                         {transfer.createdAt ? formatDate(transfer.createdAt) : '—'}
                       </td>

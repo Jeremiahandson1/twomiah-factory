@@ -479,7 +479,7 @@ export default function GamifiedLoyaltyPage() {
               </label>
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setChallengeModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
+              <button onClick={() => setChallengeModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg font-medium dark:text-slate-200">Cancel</button>
               <Button onClick={saveChallenge} disabled={savingChallenge}>
                 {savingChallenge ? 'Saving...' : editingChallenge ? 'Update Challenge' : 'Create Challenge'}
               </Button>
@@ -532,7 +532,7 @@ export default function GamifiedLoyaltyPage() {
                       <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No participants yet</td>
                     </tr>
                   ) : leaderboard.map((entry, index) => (
-                    <tr key={entry.id || index} className="hover:bg-gray-50">
+                    <tr key={entry.id || index} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-3 text-sm">
                         {index < 3 ? (
                           <span className={`w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-xs ${
@@ -704,7 +704,7 @@ export default function GamifiedLoyaltyPage() {
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setEventModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
+              <button onClick={() => setEventModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg font-medium dark:text-slate-200">Cancel</button>
               <Button onClick={saveEvent} disabled={savingEvent}>
                 {savingEvent ? 'Saving...' : 'Create Event'}
               </Button>
@@ -746,7 +746,7 @@ export default function GamifiedLoyaltyPage() {
                   <button
                     key={m.id}
                     onClick={() => selectMember(m)}
-                    className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center justify-between"
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-slate-800 flex items-center justify-between"
                   >
                     <div>
                       <p className="font-medium text-gray-900 dark:text-slate-100">{m.name || `${m.firstName} ${m.lastName}`}</p>
@@ -775,7 +775,7 @@ export default function GamifiedLoyaltyPage() {
                   </div>
                   <button
                     onClick={() => { setSelectedMember(null); setMemberProgress([]); }}
-                    className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400"
+                    className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400"
                   >
                     Change
                   </button>

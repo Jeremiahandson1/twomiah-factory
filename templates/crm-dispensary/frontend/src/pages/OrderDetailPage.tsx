@@ -250,7 +250,7 @@ export default function OrderDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/crm/orders')} className="p-2 hover:bg-gray-100 rounded-lg">
+          <button onClick={() => navigate('/crm/orders')} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
             <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-slate-400" />
           </button>
           <div>
@@ -273,7 +273,7 @@ export default function OrderDetailPage() {
           <button
             onClick={printReceipt}
             disabled={printing}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-60 flex items-center gap-2 dark:border-slate-700 dark:text-slate-200"
+            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2 dark:border-slate-700 dark:text-slate-200"
           >
             <Printer className="w-4 h-4" /> {printing ? 'Preparing…' : 'Print Receipt'}
           </button>

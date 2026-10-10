@@ -192,7 +192,7 @@ export default function TasksPage({ api }: TasksPageProps) {
             className={`px-4 py-2 rounded-lg text-sm font-medium capitalize ${
               filter === f
                 ? 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40'
-                : 'text-gray-600 hover:bg-gray-100 dark:text-slate-300'
+                : 'text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 dark:text-slate-300'
             }`}
           >
             {f}
@@ -288,7 +288,7 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }: TaskItem
   const isOverdue = task.status !== 'completed' && task.dueDate && new Date(task.dueDate) < new Date();
 
   return (
-    <div className={`p-4 hover:bg-gray-50 ${task.status === 'completed' ? 'opacity-60' : ''}`}>
+    <div className={`p-4 hover:bg-gray-50 dark:hover:bg-slate-800 ${task.status === 'completed' ? 'opacity-60' : ''}`}>
       <div className="flex items-start gap-3">
         {/* Checkbox */}
         <button onClick={onToggle} className="mt-0.5" disabled={!mayWrite} aria-disabled={!mayWrite}>
@@ -362,14 +362,14 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }: TaskItem
               <div className="absolute right-0 mt-1 bg-white border rounded-lg shadow-lg py-1 z-10 w-32 dark:bg-slate-900">
                 <button
                   onClick={() => { setShowMenu(false); onEdit(); }}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full dark:text-slate-200"
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-slate-800 w-full dark:text-slate-200"
                 >
                   <Edit2 className="w-4 h-4" />
                   Edit
                 </button>
                 <button
                   onClick={() => { setShowMenu(false); onDelete(); }}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-gray-50 w-full dark:text-red-400"
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-gray-50 dark:hover:bg-slate-800 w-full dark:text-red-400"
                 >
                   <Trash2 className="w-4 h-4" />
                   Delete
@@ -580,7 +580,7 @@ function TaskFormModal({ task, onSave, onClose, api }: TaskFormModalProps) {
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900 dark:border-slate-700 dark:text-slate-100"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               >
                 Cancel
               </button>
@@ -641,7 +641,7 @@ export function TaskWidget({ api }: { api: TasksApi }) {
         <p className="text-sm text-gray-500 text-center py-4 dark:text-slate-400">No upcoming tasks</p>
       ) : (
         tasks.slice(0, 5).map((task: TaskData) => (
-          <div key={task.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg">
+          <div key={task.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg">
             <button onClick={() => handleToggle(task.id)}>
               <Circle className="w-4 h-4 text-gray-300 hover:text-gray-400" />
             </button>

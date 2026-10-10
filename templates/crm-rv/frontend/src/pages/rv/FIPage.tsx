@@ -124,7 +124,7 @@ export default function FIPage() {
             <div className="text-sm font-semibold text-gray-700 mb-2 dark:text-slate-200">F&I menu</div>
             <div className="space-y-1.5">
               {products.map((p) => (
-                <label key={p.id} className="flex items-center gap-2 text-sm p-1.5 rounded hover:bg-gray-50 cursor-pointer">
+                <label key={p.id} className="flex items-center gap-2 text-sm p-1.5 rounded hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer">
                   <input type="checkbox" checked={!!sel[p.id]} onChange={(e) => setSel((s) => ({ ...s, [p.id]: e.target.checked }))} />
                   <span className="flex-1">{p.name}<span className="block text-[11px] text-gray-500 dark:text-slate-400">{p.desc}</span></span>
                   <span className="font-medium">{money(p.price)}</span>

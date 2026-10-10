@@ -165,7 +165,7 @@ export default function ReferralsPage() {
             if (tab === 'referrals') loadReferrals();
             if (tab === 'stats') loadStats();
           }}
-          className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 dark:text-slate-400"
+          className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-600 dark:text-slate-400"
         >
           <RefreshCw className="w-5 h-5" />
         </button>
@@ -373,7 +373,7 @@ export default function ReferralsPage() {
                   </thead>
                   <tbody className="divide-y">
                     {referrals.map(ref => (
-                      <tr key={ref.id} className="hover:bg-gray-50">
+                      <tr key={ref.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                         <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{ref.referrerName || '--'}</td>
                         <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{ref.referredName || '--'}</td>
                         <td className="px-4 py-3 font-mono text-gray-600 dark:text-slate-400">{ref.code || '--'}</td>
@@ -416,8 +416,8 @@ export default function ReferralsPage() {
                 <div className="px-4 py-3 border-t flex items-center justify-between">
                   <p className="text-sm text-gray-600 dark:text-slate-400">Page {pagination.page} of {pagination.pages}</p>
                   <div className="flex gap-2">
-                    <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50">Previous</button>
-                    <button onClick={() => setPage(p => p + 1)} disabled={page >= pagination.pages} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50">Next</button>
+                    <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50">Previous</button>
+                    <button onClick={() => setPage(p => p + 1)} disabled={page >= pagination.pages} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50">Next</button>
                   </div>
                 </div>
               )}

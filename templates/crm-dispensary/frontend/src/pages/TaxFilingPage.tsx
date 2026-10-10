@@ -237,7 +237,7 @@ export default function TaxFilingPage() {
                 </thead>
                 <tbody className="divide-y">
                   {filings.map(filing => (
-                    <tr key={filing.id} className="hover:bg-gray-50">
+                    <tr key={filing.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                         {(filing.type || '').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
                       </td>
@@ -426,7 +426,7 @@ export default function TaxFilingPage() {
                     </thead>
                     <tbody className="divide-y">
                       {summary.breakdown.map((row: any, i: number) => (
-                        <tr key={i} className="hover:bg-gray-50">
+                        <tr key={i} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                           <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{row.type || '—'}</td>
                           <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">${Number(row.collected || 0).toFixed(2)}</td>
                           <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">${Number(row.filed || 0).toFixed(2)}</td>
@@ -513,7 +513,7 @@ export default function TaxFilingPage() {
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setGenerateModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
+          <button onClick={() => setGenerateModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg font-medium dark:text-slate-200">Cancel</button>
           <Button onClick={handleGenerate} disabled={generating}>
             {generating ? 'Generating...' : 'Generate'}
           </Button>
@@ -691,7 +691,7 @@ export default function TaxFilingPage() {
               ? 'This return has been set aside.'
               : detailFiling ? 'A submitted return stays as it was filed — generate an amended one for the same period instead.' : ''}
           </span>}
-          <button onClick={() => setDetailModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Close</button>
+          <button onClick={() => setDetailModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg font-medium dark:text-slate-200">Close</button>
         </div>
       </Modal>
 
@@ -717,7 +717,7 @@ export default function TaxFilingPage() {
           </div>
         </div>
         <div className="mt-6 flex justify-end gap-2">
-          <button onClick={() => setSupersedeFor(null)} className="rounded-lg px-4 py-2 font-medium text-gray-700 hover:bg-gray-100 dark:text-slate-200">Cancel</button>
+          <button onClick={() => setSupersedeFor(null)} className="rounded-lg px-4 py-2 font-medium text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 dark:text-slate-200">Cancel</button>
           <Button onClick={doSupersede} disabled={superseding || !supersedeReason.trim()}>
             {superseding ? 'Setting aside…' : 'Set aside'}
           </Button>

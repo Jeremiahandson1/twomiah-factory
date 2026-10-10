@@ -636,7 +636,7 @@ function FormButtons({ saving, onClose, label = 'Save', error = '' }: { saving: 
         </div>
       ) : null}
       <div className="flex gap-3 pt-2">
-        <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+        <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
         <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
           {saving ? 'Saving...' : label}
         </button>

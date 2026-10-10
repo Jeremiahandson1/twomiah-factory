@@ -151,14 +151,14 @@ export default function RFIsPage() {
             <div><label className="block text-sm font-medium mb-1">Due Date</label><input type="date" value={form.dueDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, dueDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           </div>
         </div>
-        <div className="flex justify-end gap-3 mt-6"><button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
+        <div className="flex justify-end gap-3 mt-6"><button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
       </Modal>
       <Modal isOpen={respondOpen} onClose={() => setRespondOpen(false)} title="Respond to RFI" size="md">
         <div className="space-y-4">
           <div className="p-3 bg-gray-50 rounded-lg dark:bg-slate-900"><p className="font-medium">{respondRfi?.subject as string}</p><p className="text-sm text-gray-600 mt-1 dark:text-slate-400">{respondRfi?.question as string}</p></div>
           <div><label className="block text-sm font-medium mb-1">Response *</label><textarea value={response} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setResponse(e.target.value)} rows={4} className="w-full px-3 py-2 border rounded-lg" /></div>
         </div>
-        <div className="flex justify-end gap-3 mt-6"><button onClick={() => setRespondOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button><Button onClick={handleRespond}>Submit Response</Button></div>
+        <div className="flex justify-end gap-3 mt-6"><button onClick={() => setRespondOpen(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button><Button onClick={handleRespond}>Submit Response</Button></div>
       </Modal>
       <ConfirmModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} onConfirm={handleDelete} title="Delete RFI" message={`Delete ${toDelete?.number as string}?`} confirmText="Delete" />
     </div>

@@ -401,7 +401,7 @@ export default function CanvassingView() {
     return (
       <div className="min-h-screen bg-gray-50 pb-20 dark:bg-slate-900">
         <div className="bg-white border-b px-4 py-3 flex items-center gap-3 dark:bg-slate-900">
-          <button onClick={() => setShowSummary(null)} className="text-gray-500 dark:text-slate-400"><ChevronLeft size={20} /></button>
+          <button aria-label="Back" onClick={() => setShowSummary(null)} className="text-gray-500 dark:text-slate-400"><ChevronLeft size={20} /></button>
           <h1 className="text-lg font-bold truncate">{s.name}</h1>
         </div>
 

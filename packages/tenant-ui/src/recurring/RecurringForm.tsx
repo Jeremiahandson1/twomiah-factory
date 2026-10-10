@@ -217,7 +217,7 @@ export default function RecurringForm({ api }: RecurringPageProps) {
     <div className="max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <button onClick={() => navigate('/recurring')} className="p-2 hover:bg-gray-100 rounded-lg">
+        <button onClick={() => navigate('/recurring')} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
@@ -488,7 +488,7 @@ export default function RecurringForm({ api }: RecurringPageProps) {
           <button
             type="button"
             onClick={() => navigate('/recurring')}
-            className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900 dark:border-slate-700 dark:text-slate-100"
+            className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-900 dark:border-slate-700 dark:text-slate-100"
           >
             Cancel
           </button>

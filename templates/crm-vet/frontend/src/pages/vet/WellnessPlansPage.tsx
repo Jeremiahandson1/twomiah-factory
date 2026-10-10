@@ -313,7 +313,7 @@ function EnrollModal({ plans, onSave, onClose }: { plans: WellnessPlan[]; onSave
               </select>
             </div>
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
                 {saving ? 'Enrolling…' : 'Enroll'}
               </button>
@@ -409,7 +409,7 @@ function PlanModal({ plan, onSave, onClose }: { plan: WellnessPlan | null; onSav
               <label htmlFor="active" className="text-sm font-medium text-gray-700 dark:text-slate-200">Active</label>
             </div>
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
                 {saving ? 'Saving...' : 'Save Plan'}
               </button>
