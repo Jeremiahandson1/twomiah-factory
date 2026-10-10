@@ -1951,6 +1951,17 @@ jobs:
       - name: "Check no migration splits into prose"
         run: bun run scripts/check-migration-statements-parse.ts
 
+  migrate-classifies-what-drizzle-printed:
+    name: "A cold database is retried, a broken migration is named"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Run every migrate.ts against drizzle-kit's real output (storetest 10/10: ECONNREFUSED called a broken migration)"
+        run: bun run scripts/check-migrate-classifies-what-drizzle-printed.ts
+
   session-cap-agrees:
     name: "The session cap agrees across every fork"
     runs-on: ubuntu-latest

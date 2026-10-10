@@ -1,4 +1,4 @@
-import { execSync } from 'child_process'
+import { execSync, spawnSync } from 'child_process'
 import pg from 'pg'
 
 const MAX_RETRIES = 20
@@ -7,7 +7,13 @@ const RETRY_DELAY_MS = 10000
 for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
   try {
     console.log(`[migrate] Attempt ${attempt}/${MAX_RETRIES}...`)
-    execSync('bun x drizzle-kit migrate', { stdio: 'inherit' })
+    // drizzle-kit PRINTS its error and exits 1 — with stdio 'inherit' the caught error said only "Command failed",
+    // so the classifier below never saw ECONNREFUSED and called a cold database a broken migration, quitting on
+    // attempt 1 (storetest, 10/10). Capture the output, echo it unchanged, and classify what it actually said.
+    const run = spawnSync('bun', ['x', 'drizzle-kit', 'migrate'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+    process.stdout.write(run.stdout || '')
+    process.stderr.write(run.stderr || '')
+    if (run.status !== 0) throw Object.assign(new Error('Command failed: bun x drizzle-kit migrate'), { output: [run.stdout, run.stderr, run.error?.message].filter(Boolean).join('\n') })
     console.log('[migrate] Success')
     break
   } catch (err: any) {
@@ -19,13 +25,13 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     // crm-vet spent four days unable to apply migrations 0029 to 0034 while its log blamed the
     // database. The start command swallows the exit code and `drizzle-kit push --force` papers over
     // the schema afterwards, so this message is the only warning anyone ever gets.
-    const text = [err?.message, err?.cause?.message, String(err)].filter(Boolean).join(' | ')
+    const text = [err?.output, err?.message, err?.cause?.message, String(err)].filter(Boolean).join(' | ')
     const isConnection = /ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNRESET|starting up|not yet accepting|terminating connection|Connection terminated|socket hang up|password authentication failed/i.test(text)
 
     if (!isConnection) {
       console.error('')
       console.error('[migrate] A MIGRATION FAILED. This is not a connection problem and retrying will not fix it.')
-      console.error(`[migrate] ${text.split('\n')[0]}`)
+      console.error(`[migrate] ${(text.match(/\b(?:\w*Error\b|ECONN\w+|ENOTFOUND|ETIMEDOUT|EAI_AGAIN).*$/m)?.[0] || text.split('\n')[0]).trim()}`)
       console.error('[migrate] Every migration in this run was rolled back — drizzle applies a run in ONE')
       console.error('[migrate] transaction — so this migration AND EVERY MIGRATION AFTER IT is unapplied.')
       console.error('[migrate] The service will still start, because the start command continues past this and')
@@ -37,7 +43,7 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     }
 
     if (attempt === MAX_RETRIES) {
-      console.error(`[migrate] Could not reach the database after ${MAX_RETRIES} attempts: ${text.split('\n')[0]}`)
+      console.error(`[migrate] Could not reach the database after ${MAX_RETRIES} attempts: ${(text.match(/\b(?:\w*Error\b|ECONN\w+|ENOTFOUND|ETIMEDOUT|EAI_AGAIN).*$/m)?.[0] || text.split('\n')[0]).trim()}`)
       process.exit(1)
     }
     console.log(`[migrate] Database not reachable yet, retrying in ${RETRY_DELAY_MS / 1000}s...`)
