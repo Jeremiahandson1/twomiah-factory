@@ -77,6 +77,13 @@ const SKIP_PATTERNS = ['node_modules', '.git', 'package-lock.json', 'bun.lock', 
 
 export interface GenerateConfig {
   tenant_id?: string
+  /**
+   * The Factory row's slug — what deploy.ts names the Render services by (<tenant_slug>-site,
+   * <tenant_slug>-<suffix>-api). Used ONLY for the tokens that are those services' addresses; the
+   * tenant's identity (COMPANY_SLUG: company row lookups, offline DB, caches, booking widget) stays
+   * slugify(company.name), as every existing tenant was generated with.
+   */
+  tenant_slug?: string
   products: string[]
   websiteTheme?: string
   company: {
@@ -463,7 +470,12 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
   // "View website" link, company.website, and the standard sites' canonicals and
   // sitemaps. The site service is always <slug>-site on Render.
   const hasSite = (config.products || []).includes('website') || (config.products || []).includes('cms')
-  const renderSiteOrigin = 'https://' + slug + '-site.onrender.com'
+  // Render hosts are named by the TENANT's slug (deploy.ts), and that is not always slugify(name): an
+  // intake tenant is '<name>-intake', a test tenant is 'storetest-…', a long name is cut at 40 here and
+  // not at signup. Built from the name, the store's storefront address pointed at a service that does
+  // not exist, and its abandoned-cart and review emails linked there. Addresses only — see tenant_slug.
+  const serviceSlug = config.tenant_slug || slug
+  const renderSiteOrigin = 'https://' + serviceSlug + '-site.onrender.com'
   const siteOrigin = c.domain ? 'https://' + c.domain : (hasSite ? renderSiteOrigin : '')
 
   const ownerParts = (c.ownerName || 'Admin User').split(' ')
@@ -540,11 +552,11 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     // Central routing keeps this aligned. Automotive stays inline so
     // we don't disturb the parked template.
     '{{BACKEND_URL}}': industry === 'automotive'
-      ? 'https://' + slug + '-drive-api.onrender.com'
-      : 'https://' + buildCrmApiHost(slug, industry),
+      ? 'https://' + serviceSlug + '-drive-api.onrender.com'
+      : 'https://' + buildCrmApiHost(serviceSlug, industry),
     '{{FRONTEND_URL}}': industry === 'automotive'
-      ? 'https://' + slug + '-drive-api.onrender.com'
-      : 'https://' + buildCrmApiHost(slug, industry),
+      ? 'https://' + serviceSlug + '-drive-api.onrender.com'
+      : 'https://' + buildCrmApiHost(serviceSlug, industry),
     '{{INDUSTRY}}': industryLabel,
     '{{META_DESCRIPTION}}': isStore
       ? 'Shop ' + (c.name || 'our store') + ' online — quality products with fast, secure checkout.'
@@ -569,7 +581,7 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
       : 'Serving ' + (c.serviceRegion || c.city || 'the area') + ' with quality workmanship.',
     '{{TRUST_BADGE_1}}': industry === 'home_care' ? 'Licensed & Insured' : industry === 'dispensary' ? 'State Licensed' : 'Licensed & Insured',
     '{{TRUST_BADGE_2}}': industry === 'home_care' ? 'Background Checked Caregivers' : industry === 'dispensary' ? 'Lab Tested Products' : 'Free Estimates',
-    '{{RENDER_DOMAIN}}': slug + '-site.onrender.com',
+    '{{RENDER_DOMAIN}}': serviceSlug + '-site.onrender.com',
     '{{ABOUT_TEXT}}': config.content?.aboutText || (industry === 'home_care'
       ? (c.name || 'We') + ' provide compassionate in-home care services throughout ' + (c.city || 'the area') + '.'
       : industry === 'field_service'

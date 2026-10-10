@@ -273,7 +273,9 @@ class ApiClient {
   // factory with the tenant sync key; nothing tenant-identifying is sent
   // from the browser.
   async getPlatformTickets() {
-    return this.request<{ data: VendorTicket[]; unavailable?: boolean }>('/api/platform-support/tickets')
+    // statusUrl: routes/platformSupport.ts sends it (null when the Factory is not configured); the
+    // page links to it, and this type left it out.
+    return this.request<{ data: VendorTicket[]; unavailable?: boolean; statusUrl?: string | null }>('/api/platform-support/tickets')
   }
   async createPlatformTicket(input: { subject: string; description?: string; priority?: string }) {
     return this.request<{ number?: string }>('/api/platform-support/tickets', {

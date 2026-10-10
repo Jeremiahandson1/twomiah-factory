@@ -1985,6 +1985,18 @@ jobs:
       - name: "Replay every journal against an empty database"
         run: bun run scripts/check-migrations-build-the-schema.ts
 
+  render-hosts-follow-tenant-slug:
+    name: "Render addresses follow the row's slug; the tenant's identity slug does not move"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun install
+      - name: "Generate one tenant twice and compare every file"
+        run: bun run scripts/check-render-hosts-follow-tenant-slug.ts
+
   gate-in-scope:
     name: "Permission flags are used where they are declared"
     runs-on: ubuntu-latest

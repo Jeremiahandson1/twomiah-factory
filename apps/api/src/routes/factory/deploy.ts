@@ -205,7 +205,7 @@ factory.post('/customers/:id/update-code', requireRole('owner', 'admin'), async 
 
   // Regenerate the code from template using existing config
   const config = (tenant.config || job?.config || {}) as GenerateConfig
-  const { zipPath } = await generate(config)
+  const { zipPath } = await generate({ ...config, tenant_slug: tenant.slug }) // Render hosts follow the row's slug (GenerateConfig.tenant_slug)
 
   // Push code update — safe, no destructive operations
   const result = await updateCustomerCode(
@@ -328,7 +328,7 @@ factory.post('/customers/:id/regenerate', requireRole('owner', 'admin', 'editor'
     const config: GenerateConfig = job.config || buildConfigFromTenantAndJob(tenant, job)
 
     console.log('[Factory] Regenerating for', tenant.slug)
-    const result = await generate(config)
+    const result = await generate({ ...config, tenant_slug: tenant.slug }) // Render hosts follow the row's slug (GenerateConfig.tenant_slug)
 
     const jobRecord: Record<string, any> = {
       tenant_id: tenantId,
@@ -399,7 +399,7 @@ factory.post('/customers/:id/resync-shared-code', requireRole('owner', 'admin'),
 
     const config = (job.config || tenant.config || buildConfigFromTenantAndJob(tenant, job)) as GenerateConfig
     console.log('[Factory] Resync-shared-code regenerating for', tenant.slug)
-    const { zipPath } = await generate(config)
+    const { zipPath } = await generate({ ...config, tenant_slug: tenant.slug }) // Render hosts follow the row's slug (GenerateConfig.tenant_slug)
 
     const result = await updateCustomerCode(
       { id: tenant.id, slug: tenant.slug, name: tenant.name, renderServiceIds: serviceIds },
@@ -493,7 +493,7 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
     }
 
     console.log('[Deploy] Regenerating fresh zip for', tenant.slug)
-    const genResult = await generate(config)
+    const genResult = await generate({ ...config, tenant_slug: tenant.slug }) // Render hosts follow the row's slug (GenerateConfig.tenant_slug)
     const OUTPUT_DIR = process.env.FACTORY_OUTPUT_DIR || path.resolve(process.cwd(), '..', '..', 'generated')
     const zipPath = path.join(OUTPUT_DIR, genResult.zipName)
     if (!fs.existsSync(zipPath)) throw new Error('Regenerated zip not found at ' + zipPath)

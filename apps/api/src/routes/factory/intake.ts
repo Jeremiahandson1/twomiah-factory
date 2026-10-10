@@ -337,6 +337,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     // Auto-generate code build so triggerAutoDeploy has a factory_jobs record to deploy
     const genConfig: GenerateConfig = {
       tenant_id: tenant.id,
+      tenant_slug: tenant.slug,
       products: body.products || ['crm', 'website'],
       websiteTheme: body.website_theme || undefined,
       company: {
@@ -2039,6 +2040,7 @@ factory.post('/public/intake/:id/checkout-premium', rateLimit(60 * 60 * 1000, 10
       const intake = (tenant.intake_data && tenant.intake_data.intake) || {}
       const genConfig: GenerateConfig = {
         tenant_id: tenant.id,
+        tenant_slug: tenant.slug,
         products,
         company: {
           name: intake.businessName || tenant.name || '',
