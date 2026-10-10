@@ -106,8 +106,8 @@
 }
 
 .btn-primary {
-  background: var(--color-accent);
-  color: #1e293b;
+  background: var(--brand-fill, var(--color-accent));
+  color: var(--brand-ink, #1e293b);
 }
 
 .btn-primary:hover {
@@ -297,7 +297,7 @@
 }
 
 .results-count {
-  color: #64748b;
+  color: #4b5563; /* #64748b missed AA on the themes' grey bands */
   font-size: 0.9rem;
 }
 
@@ -444,7 +444,7 @@
 
 .gallery-card-content .project-category {
   font-size: 0.75rem;
-  color: var(--color-accent);
+  color: var(--brand-ink, #fff); /* it sits on the brand-filled chip */
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -500,7 +500,7 @@
 
 .gallery-cta .btn-primary,
 .cta-content .btn-primary {
-  color: #ffffff;
+  color: var(--brand-ink, #ffffff);
 }
 
 .gallery-cta .btn-outline,
@@ -629,7 +629,8 @@
 
 .hero-tagline {
   font-size: 1.25rem;
-  color: var(--color-accent);
+  /* heroes are dark: the brand lightened enough to read on navy/near-black */
+  color: color-mix(in srgb, var(--brand-text-on-dark, #e0b04a) 70%, #ffffff);
   font-weight: 600;
   margin: 0 0 12px;
 }
@@ -850,9 +851,11 @@
   font-size: 1.35rem;
   font-weight: 700;
   margin: 0 0 8px;
+  color: #fff; /* navy card; themes colour every h3/p dark by default */
 }
 
 .cta-card > p {
+  color: #fff;
   opacity: 0.9;
   margin: 0 0 24px;
   line-height: 1.5;
@@ -881,7 +884,7 @@
 .cta-card .btn-primary {
   width: 100%;
   padding: 14px 20px;
-  color: #ffffff;
+  color: var(--brand-ink, #ffffff);
 }
 
 .cta-card .btn-outline {
@@ -1121,9 +1124,11 @@
   font-size: 2.25rem;
   font-weight: 700;
   margin: 0 0 12px;
+  color: #fff; /* the band is navy; themes colour every h2/p dark by default */
 }
 
 .service-cta > .container > p {
+  color: #fff;
   font-size: 1.15rem;
   opacity: 0.9;
   margin: 0 0 32px;
@@ -1174,7 +1179,7 @@
 .other-services h3 {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #64748b;
+  color: #4b5563; /* #64748b missed AA on the grey band */
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin: 0 0 20px;
@@ -1992,4 +1997,36 @@
   padding: 6px 14px;
   border-radius: 20px;
   white-space: nowrap;
+}
+
+/* ═══ Designed-dark bands (contrast) ═══════════════════════════════════════════
+   These bands are navy/near-black by design, but every theme colours h1-h6 and p
+   dark at the element level and repaints "section:nth-child(even)" light, so on
+   some pages the band went light under white text and on others the text went dark
+   on the navy. Pin the CTA grounds, and give the text in all of them its light ink. */
+.gallery-cta,
+.service-cta {
+  background: linear-gradient(135deg, var(--navy-dark, #1e3a5f) 0%, var(--navy, #24476b) 100%) !important;
+}
+.page-hero h1, .page-hero h2, .service-hero h1,
+.gallery-hero h1, .gallery-cta h2, .service-cta h2,
+.blog-cta-section h2, .post-hero h1, .post-bottom-cta h2, .sidebar-cta h3 {
+  color: #fff;
+}
+.page-hero p, .gallery-hero p, .gallery-cta p, .service-cta p,
+.blog-cta-section p, .post-hero p, .post-bottom-cta p, .sidebar-cta p {
+  color: rgba(255, 255, 255, 0.92);
+}
+.gallery-cta .btn-outline, .gallery-cta .btn-outline-light,
+.service-cta .btn-outline, .service-cta .btn-outline-light,
+.blog-cta-section .btn-outline, .post-bottom-cta .btn-outline,
+.page-hero .btn-outline, .gallery-hero .btn-outline {
+  background: transparent !important;
+  border-color: rgba(255, 255, 255, 0.7) !important;
+  color: #fff !important;
+}
+.gallery-cta .btn-outline:hover, .gallery-cta .btn-outline-light:hover,
+.service-cta .btn-outline:hover, .service-cta .btn-outline-light:hover,
+.blog-cta-section .btn-outline:hover, .post-bottom-cta .btn-outline:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
 }

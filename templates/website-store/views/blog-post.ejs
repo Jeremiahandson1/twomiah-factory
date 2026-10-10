@@ -216,7 +216,7 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   flex-wrap: wrap;
 }
 .post-category {
-  background: var(--accent, #c8963e);
+  background: var(--accent, #836229);
   color: white;
   padding: 4px 12px;
   border-radius: 20px;
@@ -229,6 +229,7 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   opacity: 0.75;
 }
 .post-hero h1 {
+  color: inherit; /* white from the dark hero; the themes' bare h1 colour was dark-on-dark */
   font-family: 'Bebas Neue', sans-serif;
   font-size: 2.8rem;
   line-height: 1.1;
@@ -260,7 +261,7 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   margin-bottom: 18px;
 }
 .post-content .prose a {
-  color: var(--accent, #c8963e);
+  color: var(--accent, #836229);
   font-weight: 500;
 }
 .post-content .prose a:hover { text-decoration: underline; }
@@ -311,11 +312,13 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   margin-bottom: 24px;
 }
 .sidebar-cta h3 {
+  color: inherit;
   font-family: 'Bebas Neue', sans-serif;
   font-size: 1.4rem;
   margin-bottom: 6px;
 }
 .sidebar-cta p {
+  color: inherit;
   opacity: 0.8;
   font-size: 0.9rem;
   margin-bottom: 16px;
@@ -364,7 +367,7 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   transition: color 0.15s;
 }
 .sidebar-services li:last-child a { border-bottom: none; }
-.sidebar-services li a:hover { color: var(--accent, #c8963e); }
+.sidebar-services li a:hover { color: var(--accent, #836229); }
 .sidebar-services li a svg { margin-left: auto; opacity: 0.4; }
 .service-icon-small { font-size: 1.2rem; }
 
@@ -400,7 +403,7 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   box-shadow: 0 6px 20px rgba(0,0,0,0.1);
 }
 .more-post-category {
-  background: var(--accent, #c8963e);
+  background: var(--accent, #836229);
   color: white;
   padding: 3px 10px;
   border-radius: 12px;
@@ -424,7 +427,7 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   flex: 1;
 }
 .more-post-card .blog-read-more {
-  color: var(--accent, #c8963e);
+  color: var(--accent, #836229);
   font-weight: 600;
   font-size: 0.85rem;
   margin-top: 14px;
@@ -438,13 +441,20 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   text-align: center;
 }
 .post-bottom-cta h2 {
+  color: inherit;
   font-family: 'Bebas Neue', sans-serif;
   font-size: 2.2rem;
   margin-bottom: 10px;
 }
 .post-bottom-cta p {
+  color: inherit;
   opacity: 0.85;
   margin-bottom: 24px;
+}
+/* The themes force .btn-outline to dark ink (!important); this band is dark. */
+.post-bottom-cta .btn-outline {
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.7) !important;
 }
 
 @media (max-width: 900px) {

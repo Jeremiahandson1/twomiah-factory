@@ -23,10 +23,14 @@
   /* Theme palette */
   --cm-emerald: {{PRIMARY_COLOR}};
   --cm-emerald-light: color-mix(in srgb, {{PRIMARY_COLOR}} 15%, #ffffff);
-  --cm-emerald-dark: color-mix(in srgb, {{PRIMARY_COLOR}} 80%, #000000);
+  /* The brand as a FILL under white button text, and as text on white: darkened only as far as AA needs. */
+  --cm-emerald-ink: {{PRIMARY_COLOR_ON_WHITE}};
+  --cm-emerald-dark: color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 80%, #000000);
   --cm-text: #1a1a1a;
-  --cm-text-secondary: #6b7280;
-  --cm-text-muted: #9ca3af;
+  /* Secondary copy sits under opacity 0.9 in many base rules (footer, CTA), which took #6b7280 to
+     3.96:1 on white; #4b5563 stays above AA through that. Muted (#9ca3af, 2.5:1) -> #6b7280. */
+  --cm-text-secondary: #4b5563;
+  --cm-text-muted: #6b7280;
   --cm-divider: #f3f4f6;
   --cm-bg: #ffffff;
 }
@@ -203,7 +207,7 @@ button[type="submit"] {
   border: none;
   border-radius: 0;
   padding: 14px 32px;
-  background: var(--cm-emerald) !important;
+  background: var(--cm-emerald-ink) !important;
   color: #ffffff !important;
   transition: background 0.2s ease;
   box-shadow: none !important;
@@ -482,12 +486,22 @@ footer a:hover {
 .footer-bottom p {
   font-size: 0.8rem !important;
   color: var(--cm-text-muted) !important;
+  opacity: 1; /* base fades it to 0.9; on this white footer that drops muted grey below AA */
   text-align: center;
 }
 
 .hours {
   font-size: 0.8rem;
   color: var(--cm-text-muted);
+}
+
+/* Base paints these for a navy footer (brand-gold label, 0.92 fade); this footer is white. */
+.hours strong {
+  color: var(--cm-emerald-ink);
+}
+
+.hours span {
+  opacity: 1;
 }
 
 .contact-list li {

@@ -659,6 +659,8 @@ function getImageUrl(p) {
     background: var(--green-dark); color: rgba(255,255,255,0.8); text-align: center;
     padding: 10px 0; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.02em;
   }
+  /* every theme colours bare spans globally; the notice text must take the bar's own colour */
+  .age-notice-bar span { color: inherit; }
 
   /* Store Hours */
   .hours-section { padding: 60px 0; background: #fff; }

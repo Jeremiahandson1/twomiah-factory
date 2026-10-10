@@ -228,12 +228,14 @@
 }
 
 .gallery-hero h1 {
+  color: #fff;
   font-size: 3rem;
   font-weight: 800;
   margin: 0 0 16px;
 }
 
 .gallery-hero p {
+  color: #fff;
   font-size: 1.2rem;
   opacity: 0.9;
   max-width: 600px;
@@ -286,18 +288,19 @@
 }
 
 .filter-btn:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  border-color: {{PRIMARY_COLOR_ON_WHITE}};
+  color: {{PRIMARY_COLOR_ON_WHITE}};
 }
 
+/* Readable-on-white brand: the raw brand under white text fails for light brands. */
 .filter-btn.active {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
+  background: {{PRIMARY_COLOR_ON_WHITE}};
+  border-color: {{PRIMARY_COLOR_ON_WHITE}};
   color: white;
 }
 
 .results-count {
-  color: #64748b;
+  color: #475569;
   font-size: 0.9rem;
 }
 
@@ -440,9 +443,12 @@
   padding: 20px;
 }
 
+/* main.css gives .project-category a brand-colour pill; this rule set the text to
+   the same brand colour (invisible). White text on the readable brand fill. */
 .gallery-card-content .project-category {
   font-size: 0.75rem;
-  color: var(--color-accent);
+  color: #fff;
+  background: {{PRIMARY_COLOR_ON_WHITE}};
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;

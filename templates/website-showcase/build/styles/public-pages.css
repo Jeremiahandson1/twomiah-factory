@@ -117,7 +117,7 @@
 
 .btn-outline {
   background: transparent;
-  color: var(--color-primary);
+  color: {{PRIMARY_COLOR_ON_WHITE}};
   border: 2px solid var(--color-primary);
 }
 
@@ -287,12 +287,13 @@
 
 .filter-btn:hover {
   border-color: var(--color-primary);
-  color: var(--color-primary);
+  color: {{PRIMARY_COLOR_ON_WHITE}};
 }
 
+/* white label: fill with the brand darkened to read 4.5:1 against white (raw brand measured 1.85:1) */
 .filter-btn.active {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
+  background: {{PRIMARY_COLOR_ON_WHITE}};
+  border-color: {{PRIMARY_COLOR_ON_WHITE}};
   color: white;
 }
 
@@ -324,6 +325,7 @@
 }
 
 .gallery-empty p {
+  color: inherit;
   margin: 0;
 }
 
@@ -473,6 +475,7 @@
 }
 
 .gallery-cta h2 {
+  color: inherit; /* main.css still colours this navy for its old light version of the band */
   font-size: 2.25rem;
   font-weight: 700;
   margin: 0 0 12px;
@@ -480,6 +483,7 @@
 
 .gallery-cta > .container > p,
 .cta-content > p {
+  color: inherit; /* beats main.css .gallery-cta p (gray-600) on this navy band */
   font-size: 1.15rem;
   opacity: 0.9;
   margin: 0 0 32px;
@@ -622,7 +626,8 @@
 
 .hero-tagline {
   font-size: 1.25rem;
-  color: var(--color-accent);
+  /* mid-dark ground (photo/brand overlay), not near-black: tint ON_DARK toward white */
+  color: color-mix(in srgb, {{PRIMARY_COLOR_ON_DARK}} 35%, #fff);
   font-weight: 600;
   margin: 0 0 12px;
 }
@@ -1261,7 +1266,8 @@
 .custom-hero .hero-tagline {
   display: inline-block;
   background: rgba(212, 168, 75, 0.2);
-  color: var(--color-accent);
+  /* mid-dark ground (photo/brand overlay), not near-black: tint ON_DARK toward white */
+  color: color-mix(in srgb, {{PRIMARY_COLOR_ON_DARK}} 35%, #fff);
   padding: 8px 20px;
   border-radius: 30px;
   font-weight: 600;

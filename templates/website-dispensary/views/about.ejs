@@ -29,7 +29,7 @@ const phoneRaw = phone.replace(/\D/g, '');
         </div>
         <div class="about-image">
           <div class="about-placeholder">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="1.5">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
               <polyline points="9 22 9 12 15 12 15 22"></polyline>
             </svg>
@@ -46,7 +46,7 @@ const phoneRaw = phone.replace(/\D/g, '');
       <div class="values-grid">
         <div class="value-card">
           <div class="value-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
             </svg>
           </div>
@@ -55,7 +55,7 @@ const phoneRaw = phone.replace(/\D/g, '');
         </div>
         <div class="value-card">
           <div class="value-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2">
               <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
               <polyline points="22 4 12 14.01 9 11.01"></polyline>
             </svg>
@@ -65,7 +65,7 @@ const phoneRaw = phone.replace(/\D/g, '');
         </div>
         <div class="value-card">
           <div class="value-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2">
               <circle cx="12" cy="12" r="10"></circle>
               <polyline points="12 6 12 12 16 14"></polyline>
             </svg>
@@ -75,7 +75,7 @@ const phoneRaw = phone.replace(/\D/g, '');
         </div>
         <div class="value-card">
           <div class="value-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
               <circle cx="9" cy="7" r="4"></circle>
               <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
@@ -103,8 +103,10 @@ const phoneRaw = phone.replace(/\D/g, '');
 </div>
 
 <style>
+/* --primary is not defined by this template (it is --color-primary): the hero painted nothing and
+   its white text sat on whatever the theme's page ground was. Brand darkened to read 4.5:1 under white. */
 .about-page .page-hero {
-  background: linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 70%, #000) 100%);
+  background: linear-gradient(135deg, color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 85%, #000) 0%, color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 60%, #000) 100%); /* a step darker: the hero's text is dimmed (.8/.9 opacity, off-white theme ink) */
   color: #fff;
   padding: 3rem 0;
 }
@@ -115,8 +117,10 @@ const phoneRaw = phone.replace(/\D/g, '');
 
 .about-story { padding: 4rem 0; }
 .about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: center; }
-.about-content h2 { font-size: 2rem; margin-bottom: 1rem; color: #1a1a1a; }
-.about-content p { font-size: 1.05rem; line-height: 1.8; color: #444; margin-bottom: 1rem; }
+/* .about-story and .about-cta are unpainted, so they sit on the THEME's page ground (dark in two of
+   the three themes): their text takes the theme's heading/body colours instead of fixed dark ink. */
+.about-content h2 { font-size: 2rem; margin-bottom: 1rem; }
+.about-content p { font-size: 1.05rem; line-height: 1.8; margin-bottom: 1rem; }
 .about-placeholder { background: #f5f5f5; border-radius: 12px; height: 300px; display: flex; align-items: center; justify-content: center; }
 
 .about-values { padding: 4rem 0; background: #f9fafb; }
@@ -128,14 +132,14 @@ const phoneRaw = phone.replace(/\D/g, '');
 .value-card p { font-size: 0.95rem; color: #666; line-height: 1.6; }
 
 .about-cta { padding: 4rem 0; text-align: center; }
-.about-cta h2 { font-size: 2rem; margin-bottom: 0.75rem; color: #1a1a1a; }
-.about-cta p { font-size: 1.1rem; color: #555; margin-bottom: 2rem; }
+.about-cta h2 { font-size: 2rem; margin-bottom: 0.75rem; }
+.about-cta p { font-size: 1.1rem; margin-bottom: 2rem; }
 .cta-buttons { display: flex; gap: 1rem; justify-content: center; }
 .btn { display: inline-block; padding: 0.85rem 2rem; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 1rem; transition: all 0.2s; }
-.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary { background: {{PRIMARY_COLOR_ON_WHITE}}; color: #fff; }
 .btn-primary:hover { filter: brightness(1.1); }
-.btn-outline { border: 2px solid var(--primary); color: var(--primary); background: transparent; }
-.btn-outline:hover { background: var(--primary); color: #fff; }
+.btn-outline { border: 2px solid currentColor; color: inherit; background: transparent; } /* takes the ground's text colour */
+.btn-outline:hover { background: {{PRIMARY_COLOR_ON_WHITE}}; color: #fff; }
 
 @media (max-width: 768px) {
   .about-grid { grid-template-columns: 1fr; }

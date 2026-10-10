@@ -101,11 +101,14 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   text-align: center;
 }
 .blog-page .page-hero h1 {
+  color: #fff; /* themes colour every h1 dark */
   font-family: 'Bebas Neue', sans-serif;
   font-size: 3rem;
   margin-bottom: 10px;
 }
 .blog-page .page-hero .hero-tagline {
+  /* accent tinted toward white: reads on the near-black hero at 0.85 opacity */
+  color: color-mix(in srgb, var(--warm-on-dark, #f59e0b) 45%, #ffffff);
   opacity: 0.85;
   max-width: 600px;
   margin: 0 auto;
@@ -162,7 +165,7 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   background: linear-gradient(135deg, var(--dark-bg, #1a1a2e), #2a2a4e);
 }
 .blog-category-badge {
-  background: var(--accent, #c8963e);
+  background: var(--warm-fill, #8a5a00);
   color: white;
   padding: 6px 16px;
   border-radius: 20px;
@@ -181,7 +184,7 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   display: flex;
   gap: 16px;
   font-size: 0.85rem;
-  color: #888;
+  color: #666;
   margin-bottom: 12px;
 }
 .blog-card-content h2 {
@@ -198,7 +201,7 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   flex: 1;
 }
 .blog-read-more {
-  color: var(--accent, #c8963e);
+  color: var(--warm-ink, #7a5000);
   font-weight: 600;
   font-size: 0.9rem;
   margin-top: 16px;
@@ -208,7 +211,7 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
 .blog-empty {
   text-align: center;
   padding: 80px 20px;
-  color: #888;
+  color: #666;
 }
 
 .blog-cta-section {
@@ -218,6 +221,7 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   text-align: center;
 }
 .blog-cta-section h2 {
+  color: #fff; /* themes' `section h2` beat the inherited white */
   font-family: 'Bebas Neue', sans-serif;
   font-size: 2.2rem;
   margin-bottom: 10px;
@@ -225,6 +229,10 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
 .blog-cta-section p {
   opacity: 0.85;
   margin-bottom: 24px;
+}
+.blog-cta-section .btn-outline {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.6);
 }
 
 @media (max-width: 768px) {

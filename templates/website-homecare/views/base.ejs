@@ -75,6 +75,16 @@
     const _gold = _pc || '#009688';
     const _warm = _ac || '#f59e0b';
     const _hasColors = !!(_pc || _sc || _ac);
+    // Readable variants of the runtime colours — same maths as the generator's
+    // ensureDark/ensureLight, so --gold-fill/--gold-ink/--gold-on-dark/--warm-ink
+    // (main.css :root) stay AA when an admin changes colours in settings.
+    const _rgb = (hex) => { let s = String(hex || '').replace('#', ''); if (s.length === 3) s = s.split('').map(c => c + c).join(''); if (!/^[0-9a-fA-F]{6}$/.test(s)) return null; return [0, 2, 4].map(i => parseInt(s.slice(i, i + 2), 16)); };
+    const _lum = (c) => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+    const _hex = (c) => '#' + c.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+    const _dark = (hex, max) => { let c = _rgb(hex); if (!c) return hex; for (let i = 0; i < 24 && _lum(c) > max; i++) c = c.map(v => v * 0.9); return _hex(c); };
+    const _light = (hex, min) => { let c = _rgb(hex); if (!c) return hex; for (let i = 0; i < 40 && _lum(c) < min; i++) c = c.map(v => v + (255 - v) * 0.08); return _hex(c); };
+    const _goldFill = _dark(_gold, 1.05 / 4.5 - 0.05);
+    const _warmOnLight = _dark(_warm, (0.943 + 0.05) / 4.5 - 0.05);
   %>
   <% if (_hasColors) { %>
   <style>
@@ -87,6 +97,12 @@
       --gold-dark:  <%= _lh(_gold, -15) %>;
       --warm:       <%= _warm %>;
       --warm-dark:  <%= _lh(_warm, -15) %>;
+      --gold-fill:    <%= _goldFill %>;
+      --gold-ink:     color-mix(in srgb, <%= _goldFill %> 85%, #000000);
+      --gold-on-dark: <%= _light(_gold, 0.22) %>;
+      --warm-ink:     color-mix(in srgb, <%= _warmOnLight %> 88%, #000000);
+      --warm-fill:    <%= _warmOnLight %>;
+      --warm-on-dark: <%= _light(_warm, 0.22) %>;
       <% if (_ow) { %>--off-white: <%= _ow %>;<% } %>
       --color-primary:       <%= _gold %>;
       --color-primary-light: <%= _lh(_gold, 20) %>;
@@ -363,6 +379,10 @@
   <% if (_gtmId) { %>
   <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<%= _gtmId %>" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   <% } %>
+  <%/* Skip link: the first thing a keyboard or screen-reader user reaches,
+       hidden until focused. Fixed colours so it reads on every theme. */%>
+  <style>.skip-link{position:absolute;left:8px;top:-100px;z-index:10000;padding:10px 16px;background:#111;color:#fff;font:600 15px/1.2 system-ui,sans-serif;border-radius:6px;text-decoration:none}.skip-link:focus{top:8px;outline:3px solid #fff;outline-offset:2px}#main:focus{outline:none}</style>
+  <a class="skip-link" href="#main">Skip to content</a>
 
   <!-- Header -->
   <header class="main-header" id="main-header">
@@ -440,7 +460,7 @@
           </li>
         <% }); %>
         <li>
-          <a href="tel:<%= phoneRaw %>" style="color: var(--gold); font-weight:700;">
+          <a href="tel:<%= phoneRaw %>" style="color: var(--gold-on-dark); font-weight:700;">
              <%= phone %>
           </a>
         </li>
@@ -452,7 +472,7 @@
   </header>
 
     <!-- Main Content -->
-  <main>
+  <main id="main" tabindex="-1">
     <%- body %>
   </main>
 
