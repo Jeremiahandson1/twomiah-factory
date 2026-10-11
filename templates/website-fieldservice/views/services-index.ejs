@@ -1,3 +1,7 @@
+<%
+const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+const phoneRaw = phone.replace(/\D/g, '');
+%>
 <div class="services-index-page">
   <section class="page-hero">
     <div class="container">
@@ -34,7 +38,7 @@
         <p>Tell us what you need and we'll be in touch soon.</p>
         <div class="cta-buttons">
           <a href="/contact" class="btn btn-primary">Schedule Service</a>
-          <a href="tel:{{COMPANY_PHONE_RAW}}" class="btn btn-outline">Call {{COMPANY_PHONE}}</a>
+          <% if (phoneRaw) { %><a href="tel:<%= phoneRaw %>" class="btn btn-outline">Call <%= phone %></a><% } %>
         </div>
       </div>
     </div>

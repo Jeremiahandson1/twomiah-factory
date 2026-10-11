@@ -46,9 +46,9 @@ const _emailOk = typeof email === 'string' && /^[^\s<>]+@[^\s<>]+\.[^\s<>]+$/.te
 // One FAQ list, rendered on the page AND in the FAQPage JSON-LD so the two can never disagree.
 // Neutral questions only: a site states only what its owner supplied.
 const _faqs = [
-  { q: 'Where are you located?', a: "We're in " + city + ', ' + state + '. You will find our address, phone number and a map in the contact section of this page.' },
+  { q: 'Where are you located?', a: "We're in " + city + ', ' + state + '. You will find ' + ((address || phone) ? 'our ' + [address ? 'address' : '', phone ? 'phone number' : ''].filter(Boolean).join(', ') + ' and ' : '') + 'a map in the contact section of this page.' },
   { q: 'What do you offer?', a: _svcNames.length ? "Take a look at Our Services above, or get in touch and ask. We're happy to help." : "Get in touch and tell us what you're looking for. We're happy to help." },
-  { q: 'How do I get in touch?', a: 'Call us at ' + phone + (_emailOk ? ', email ' + email : '') + ", or send us a message with the form on this page. We'll be in touch soon." },
+  { q: 'How do I get in touch?', a: (phone ? 'Call us at ' + phone + (_emailOk ? ', email ' + email : '') + ', or send' : (_emailOk ? 'Email us at ' + email + ', or send' : 'Send')) + " us a message with the form on this page. We'll be in touch soon." },
 ];
 %>
 
@@ -147,7 +147,7 @@ const _faqs = [
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           </div>
           <h3>Easy to Reach</h3>
-          <p>Call, email, or use the form below. Tell us what you're looking for and we'll be in touch soon.</p>
+          <p><%= (phone && _emailOk) ? 'Call, email, or use' : phone ? 'Call or use' : _emailOk ? 'Email or use' : 'Use' %> the form below. Tell us what you're looking for and we'll be in touch soon.</p>
         </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
@@ -326,14 +326,24 @@ const _faqs = [
           <%= line %><% if (i === 0 && ctaTitleLines.length > 1) { %><br><% } %>
         <% }); %>
       </h2>
-      <p><%= ctaSection.description || "Get in touch and tell us what you're looking for." %></p>
+      <%
+        // Seeded copy that says "call" reads wrong with no phone on file (the owner's own wording is left alone).
+        const _ctaDesc = phoneRaw ? ctaSection.description : String(ctaSection.description || '').replace('Call or send us a message', 'Send us a message').replace('Call ahead to confirm', 'Get in touch to confirm');
+      %>
+      <p><%= _ctaDesc || "Get in touch and tell us what you're looking for." %></p>
       <div class="cta-buttons">
         <a href="<%= ctaSection.primaryButtonLink || '#contact' %>" class="btn btn-primary btn-lg">
           <%= ctaSection.primaryButtonText || 'Get in Touch' %>
         </a>
-        <a href="<%= ctaSection.secondaryButtonLink || 'tel:' + phoneRaw %>" class="btn btn-outline btn-lg">
-          <%= ctaSection.secondaryButtonText || 'Call ' + phone %>
-        </a>
+        <%
+          // A "Call" button baked in at generation with no number follows the live phone setting.
+          let _ctaLink = ctaSection.secondaryButtonLink || 'tel:' + phoneRaw;
+          let _ctaText = ctaSection.secondaryButtonText || 'Call ' + phone;
+          if (/^tel:\D*$/.test(_ctaLink)) { _ctaLink = 'tel:' + phoneRaw; if (_ctaText.trim() === 'Call') _ctaText = 'Call ' + phone; }
+        %>
+        <% if (!/^tel:\D*$/.test(_ctaLink)) { %><a href="<%= _ctaLink %>" class="btn btn-outline btn-lg">
+          <%= _ctaText %>
+        </a><% } %>
       </div>
     </div>
   </section>
@@ -391,7 +401,7 @@ const _faqs = [
       <div class="contact-grid">
         <div class="contact-info">
           <h2>Contact Us</h2>
-          <div class="contact-item">
+          <% if (phoneRaw) { %><div class="contact-item">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
             </svg>
@@ -399,8 +409,8 @@ const _faqs = [
               <strong>Phone</strong>
               <a href="tel:<%= phoneRaw %>"><%= phone %></a>
             </div>
-          </div>
-          <div class="contact-item">
+          </div><% } %>
+          <% if (email) { %><div class="contact-item">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
               <polyline points="22,6 12,13 2,6"></polyline>
@@ -409,7 +419,7 @@ const _faqs = [
               <strong>Email</strong>
               <a href="mailto:<%= email %>"><%= email %></a>
             </div>
-          </div>
+          </div><% } %>
           <div class="contact-item">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
@@ -417,7 +427,7 @@ const _faqs = [
             </svg>
             <div>
               <strong>Address</strong>
-              <span><%= address %><br/><%= city %>, <%= state %> <%= zip %></span>
+              <span><% if (address) { %><%= address %><br/><% } %><%= city %>, <%= state %><% if (zip) { %> <%= zip %><% } %></span>
             </div>
           </div>
           <% if (openDays.length > 0) { %>
@@ -500,7 +510,7 @@ const _faqs = [
   <!-- Map Section -->
   <section class="map-section">
     <iframe 
-      src="https://maps.google.com/maps?q=<%= encodeURIComponent(address + ', ' + city + ', ' + state + ' ' + zip) %>&output=embed"
+      src="https://maps.google.com/maps?q=<%= encodeURIComponent((address ? address + ', ' : '') + city + ', ' + state + (zip ? ' ' + zip : '')) %>&output=embed"
       allowfullscreen="" 
       loading="lazy"
       title="Location Map"
@@ -515,15 +525,15 @@ const _faqs = [
     "name": "{{COMPANY_NAME}}",
     "image": "{{SITE_URL}}/logo.jpg",
     "url": "{{SITE_URL}}",
-    "telephone": <%- _jsonStr('+1' + phoneRaw) %>,
-<% if (_emailOk) { %>    "email": <%- _jsonStr(email) %>,
+<% if (phoneRaw) { %>    "telephone": <%- _jsonStr('+1' + phoneRaw) %>,
+<% } %><% if (_emailOk) { %>    "email": <%- _jsonStr(email) %>,
 <% } %>    "address": {
       "@type": "PostalAddress",
-      "streetAddress": <%- _jsonStr(address) %>,
-      "addressLocality": <%- _jsonStr(city) %>,
+<% if (address) { %>      "streetAddress": <%- _jsonStr(address) %>,
+<% } %>      "addressLocality": <%- _jsonStr(city) %>,
       "addressRegion": <%- _jsonStr(state) %>,
-      "postalCode": <%- _jsonStr(zip) %>,
-      "addressCountry": "US"
+<% if (zip) { %>      "postalCode": <%- _jsonStr(zip) %>,
+<% } %>      "addressCountry": "US"
     },
     "areaServed": [
       <% serviceAreas.forEach(function(area, index) { %>
@@ -694,7 +704,7 @@ const _faqs = [
         throw new Error('Submission failed');
       }
     } catch (err) {
-      errorDiv.textContent = 'Something went wrong. Please try again or call us directly.';
+      errorDiv.textContent = <%- JSON.stringify(phoneRaw ? 'Something went wrong. Please try again or call us directly.' : 'Something went wrong. Please try again in a moment.') %>;
       errorDiv.style.display = 'block';
     }
     

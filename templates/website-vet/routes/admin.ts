@@ -122,39 +122,29 @@ initFile(homepageFile, {
   hero: {
     tagline: '{{HERO_TAGLINE}}',
     title: '{{COMPANY_NAME}}',
-    subtitle: 'Professional {{INDUSTRY}} Services',
-    description: 'Serving the {{SERVICE_REGION}} with Quality & Professionalism',
+    subtitle: '{{INDUSTRY}} in {{CITY}}',
+    description: '{{COMPANY_NAME}} serves the {{SERVICE_REGION}}.',
     image: '',
     animation: 'none',
-    primaryButtonText: 'Request Free Estimate',
+    primaryButtonText: 'Contact Us',
     primaryButtonLink: '#contact',
     secondaryButtonText: 'View Our Work',
     secondaryButtonLink: '/gallery'
   },
-  trustBadges: [
-    { id: uuidv4(), type: 'google', label: '5.0 Rating', sublabel: 'Google Reviews', enabled: true },
-    { id: uuidv4(), type: 'years', label: 'Years', sublabel: 'Experience', enabled: true },
-    { id: uuidv4(), type: 'bbb', label: 'A+', sublabel: 'BBB Rating', enabled: true }
-  ],
+  // Ratings, years in business and BBB grades are the owner's to add, never a default.
+  trustBadges: [],
   ctaSection: {
     title: 'Ready to get started?',
-    description: "Contact us today for a free consultation and estimate.",
-    primaryButtonText: 'Get a Free Estimate',
+    description: "Tell us what you need and we'll be in touch soon.",
+    primaryButtonText: 'Contact Us',
     primaryButtonLink: '#contact',
     secondaryButtonText: 'Call {{COMPANY_PHONE}}',
     secondaryButtonLink: 'tel:{{COMPANY_PHONE_RAW}}',
     backgroundImage: ''
   },
-  serviceAreas: ['{{CITY}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}', '{{NEARBY_CITY_4}}'],
-  businessHours: {
-    monday: { open: '8:00 AM', close: '5:00 PM', closed: false },
-    tuesday: { open: '8:00 AM', close: '5:00 PM', closed: false },
-    wednesday: { open: '8:00 AM', close: '5:00 PM', closed: false },
-    thursday: { open: '8:00 AM', close: '5:00 PM', closed: false },
-    friday: { open: '8:00 AM', close: '5:00 PM', closed: false },
-    saturday: { open: 'By Appointment', close: '', closed: false },
-    sunday: { open: '', close: '', closed: true }
-  }
+  serviceAreas: ['{{CITY}}'],
+  // Hours are the owner's to enter; none are invented. Same shape as data/homepage.json.
+  businessHours: Object.fromEntries(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((d) => [d, { open: '', close: '', closed: true }]))
 });
 
 // Default content templates
@@ -164,18 +154,17 @@ initFile(templatesFile, [
     name: 'About Us',
     description: 'Standard about page template',
     content: `<h2>Our Story</h2>
-<p>{{COMPANY_NAME}} has been proudly serving the {{SERVICE_REGION}} with professional {{INDUSTRY}} services.</p>
+<p>[Tell your story: when and why {{COMPANY_NAME}} started, and the {{SERVICE_REGION}} community you serve.]</p>
 
 <h2>Our Mission</h2>
-<p>We are committed to delivering the highest quality workmanship while maintaining honest, transparent communication with every customer.</p>
+<p>We are committed to quality work and honest, transparent communication with every customer.</p>
 
 <h2>Why Choose Us?</h2>
-<p><strong>Experienced Team</strong> - Our skilled professionals bring years of expertise to every project.</p>
-<p><strong>Quality Materials</strong> - We use only the best materials from trusted manufacturers.</p>
-<p><strong>Customer Focused</strong> - Your satisfaction is our top priority.</p>
-<p><strong>Licensed &amp; Insured</strong> - Full protection for your peace of mind.</p>`,
+<p><strong>Careful Work</strong> - We take the time to do every job right.</p>
+<p><strong>Customer Focused</strong> - Straight answers and clear communication from start to finish.</p>
+<p><strong>[Your credentials]</strong> - [List your licenses, insurance, and certifications here, or remove this line.]</p>`,
     heroDescription: 'Learn about {{COMPANY_NAME}} and our commitment to quality.',
-    tagline: 'Quality You Can Trust'
+    tagline: 'About Us'
   },
   {
     id: 'faq',
@@ -184,19 +173,19 @@ initFile(templatesFile, [
     content: `<h2>Frequently Asked Questions</h2>
 
 <h3>How long does a typical project take?</h3>
-<p>Project timelines vary depending on scope. We'll provide a detailed timeline during your estimate.</p>
+<p>Project timelines vary depending on scope. We'll give you a timeline when we talk through the details.</p>
 
 <h3>Do you offer financing?</h3>
-<p>Yes! We offer flexible financing options to help make your project affordable. Contact us to learn about current programs.</p>
+<p>[Describe any financing options you offer, or remove this question.]</p>
 
 <h3>Are you licensed and insured?</h3>
-<p>Absolutely. We are fully licensed and carry comprehensive insurance coverage for your protection.</p>
+<p>[State your license and insurance details, or remove this question.]</p>
 
 <h3>What areas do you serve?</h3>
 <p>We serve {{CITY}} and the surrounding {{SERVICE_REGION}} area.</p>
 
 <h3>What warranties do you offer?</h3>
-<p>We stand behind our work with comprehensive warranties. Specific terms vary by service.</p>`,
+<p>[Describe the warranty terms you offer, or remove this question.]</p>`,
     heroDescription: 'Get answers to common questions about our services.',
     tagline: 'Your Questions Answered'
   }
@@ -228,7 +217,7 @@ if (!fs.existsSync(settingsFile)) {
       googleBusiness: ''
     },
     defaultMetaTitle: '{{COMPANY_NAME}} - {{INDUSTRY}} Services in {{CITY}}',
-    defaultMetaDescription: 'Professional {{INDUSTRY}} services in the {{SERVICE_REGION}}. Contact us today for a free estimate.',
+    defaultMetaDescription: '{{COMPANY_NAME}}, serving the {{SERVICE_REGION}}.',
     analytics: {
       googleAnalyticsId: '',
       facebookPixelId: '',

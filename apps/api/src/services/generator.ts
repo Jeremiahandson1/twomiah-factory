@@ -254,7 +254,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       else if (verticalFor(industry) === 'store') websiteTemplate = 'website-store'
       else if (industry && industry !== 'other') websiteTemplate = 'website-contractor'
 
-      copyTemplate(websiteTemplate, path.join(workDir, 'website'), tokens)
+      copyTemplate(websiteTemplate, path.join(workDir, 'website'), websiteTokenMap(config, tokens))
       injectCSSColors(path.join(workDir, 'website'), config.branding, industry)
       if (isPremium) injectBrandFonts(path.join(workDir, 'website'), config.branding)
 
@@ -285,6 +285,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       stripWebsiteFeatures(path.join(workDir, 'website'), websiteFeatures)
       await writeBrandingAssets(path.join(workDir, 'website'), config.branding, config.company?.name)
       injectWizardContent(path.join(workDir, 'website'), config)
+      syncNavToServices(path.join(workDir, 'website'))
       fillWebsiteImages(path.join(workDir, 'website'), config)
       seedHelpArticles(path.join(workDir, 'website'))
       processEnvTemplate(path.join(workDir, 'website'), tokens)
@@ -475,6 +476,24 @@ function ensureLight(hex: string, minLuminance = 0.22): string {
     r += (255 - r) * 0.08; g += (255 - g) * 0.08; b += (255 - b) * 0.08
   }
   return rgbToHex([r, g, b])
+}
+
+// A public website states only contact details the owner gave. The free preview collects none
+// (name, type, city, state), and the signup no address or ZIP, so buildTokenMap's stand-ins —
+// (555) 000-0000, info@<slug>.com, 123 Main St, 00000 — were printed on the page, in the footer
+// and in the LocalBusiness schema as if they were the business's own. On the website they are
+// blank instead, and the templates leave out whatever is blank. The CRM and every other product
+// keep buildTokenMap's values unchanged.
+function websiteTokenMap(config: GenerateConfig, tokens: Record<string, string>): Record<string, string> {
+  const c = config.company || ({} as GenerateConfig['company'])
+  return {
+    ...tokens,
+    '{{COMPANY_EMAIL}}': c.email || '',
+    '{{COMPANY_PHONE}}': c.phone || '',
+    '{{COMPANY_PHONE_RAW}}': (c.phone || '').replace(/\D/g, ''),
+    '{{COMPANY_ADDRESS}}': c.address || '',
+    '{{ZIP}}': c.zip || '',
+  }
 }
 
 function buildTokenMap(config: GenerateConfig, slug: string): Record<string, string> {
@@ -1315,7 +1334,7 @@ function injectWizardContent(websiteDir: string, config: GenerateConfig) {
   // and are themselves overridden by anything AI/wizard content provides next.
   // Tokens needed because the template's homepage.json was already token-substituted
   // by copyTemplate; our overlay strings contain {{CITY}}/{{STATE}}/etc.
-  const tokens = buildTokenMap(config, slugify(config.company.name))
+  const tokens = websiteTokenMap(config, buildTokenMap(config, slugify(config.company.name)))
   applyIndustryDefaults(websiteDir, config.company?.industry, tokens)
 
   // Step 2: seed services.json if empty (so wizard.services + content-pack
@@ -1449,6 +1468,92 @@ function injectWizardContent(websiteDir: string, config: GenerateConfig) {
       if (wizardContent.heroTagline) homepage.heroTagline = wizardContent.heroTagline
       fs.writeFileSync(homepageFile, JSON.stringify(homepage, null, 2))
     } catch (e: any) { console.warn('[Factory] Could not inject homepage content:', e.message) }
+  }
+}
+
+// The trade templates' nav-config.json ships a services menu for the template's OWN sample
+// services (Roofing / Siding / Windows…, AC / Heating / Plumbing…). When the owner names their
+// own, services.json is rewritten but the menu was not, so a lawn-care-only owner's header still
+// offered Hardscaping and Snow Removal. Rebuild the service entries from services.json: keep a
+// template entry (and each dropdown link) only when it points at a service the site has, add any
+// service the menu does not reach, and fold the overflow under "More Services". Items that are
+// not service pages (/gallery, /blog, /inventory, /#about…) are left exactly as they were.
+function syncNavToServices(websiteDir: string) {
+  const navFile = path.join(websiteDir, 'data', 'nav-config.json')
+  const servicesFile = path.join(websiteDir, 'data', 'services.json')
+  if (!fs.existsSync(navFile) || !fs.existsSync(servicesFile)) return
+  try {
+    const raw = JSON.parse(fs.readFileSync(navFile, 'utf8'))
+    const items: any[] = Array.isArray(raw) ? raw : Array.isArray(raw?.items) ? raw.items : []
+    const services: any[] = JSON.parse(fs.readFileSync(servicesFile, 'utf8'))
+    if (!Array.isArray(services)) return
+    const slugOf = (href: any) => {
+      const m = /^\/services\/([^/?#]+)/.exec(String(href || ''))
+      return m ? decodeURIComponent(m[1]) : null
+    }
+    const isServiceItem = (it: any) => !!slugOf(it?.href) || (String(it?.href || '') === '/services' && Array.isArray(it?.children))
+    const firstAt = items.findIndex(isServiceItem)
+    if (firstAt === -1) return // anchor-style menus (homecare, vet, showcase…) list no service pages
+
+    const live = services.filter((s: any) => s && s.slug && s.visible !== false)
+    const have = new Set(live.map((s: any) => String(s.slug)))
+    const covered = new Set<string>()
+    const kept: any[] = []
+    let dropped = false
+    for (const it of items.filter(isServiceItem)) {
+      const own = slugOf(it.href)
+      const all = Array.isArray(it.children) ? it.children : []
+      const children = all.filter((ch: any) => {
+        const s = slugOf(ch?.href)
+        return s != null && have.has(s)
+      })
+      if (children.length !== all.length) dropped = true
+      if (own ? !have.has(own) : children.length === 0) { dropped = true; continue }
+      if (own) covered.add(own)
+      children.forEach((ch: any) => covered.add(slugOf(ch.href)!))
+      kept.push({ ...it, children })
+    }
+    // The template's own services, untouched: its menu already matches, so leave it as designed.
+    if (!dropped) return
+    // The owner's list, then. A dropdown line that only re-links its parent's page ("Metal Roofing",
+    // "Storm Damage", "Commercial Grounds" → /services/roofing) names a specialty the owner never
+    // gave, so only links to their other service pages stay, and each entry takes the owner's name.
+    const nameOf = new Map(live.map((s: any) => [String(s.slug), String(s.name || s.title || s.slug)]))
+    for (const it of kept) {
+      const own = slugOf(it.href)
+      const seen = new Set<string>()
+      it.children = it.children.filter((ch: any) => {
+        const s = slugOf(ch.href)!
+        if (s === own || seen.has(s)) return false
+        seen.add(s)
+        return true
+      })
+      if (own && nameOf.has(own)) it.label = nameOf.get(own)
+      it.children = it.children.map((ch: any) => ({ ...ch, label: nameOf.get(slugOf(ch.href)!) || ch.label }))
+    }
+    covered.clear()
+    kept.forEach((it) => {
+      const own = slugOf(it.href)
+      if (own) covered.add(own)
+      it.children.forEach((ch: any) => covered.add(slugOf(ch.href)!))
+    })
+    const missing = live.filter((s: any) => !covered.has(String(s.slug)))
+      .map((s: any) => ({ id: String(s.slug), label: String(s.name || s.title || s.slug), href: '/services/' + encodeURIComponent(String(s.slug)), visible: true, children: [] }))
+    const MAX_TOP = 6
+    let serviceItems = [...kept, ...missing]
+    if (serviceItems.length > MAX_TOP) {
+      const extra = serviceItems.slice(MAX_TOP - 1)
+      serviceItems = [...serviceItems.slice(0, MAX_TOP - 1), {
+        id: 'more-services', label: 'More Services', href: '/#services', visible: true,
+        children: extra.flatMap((it: any) => [{ label: it.label, href: it.href }, ...(it.children || []).filter((ch: any) => ch.href !== it.href)]),
+      }]
+    }
+    const before = items.slice(0, firstAt).filter((it) => !isServiceItem(it))
+    const after = items.slice(firstAt).filter((it) => !isServiceItem(it))
+    const next = [...before, ...serviceItems, ...after]
+    fs.writeFileSync(navFile, JSON.stringify(Array.isArray(raw) ? next : { ...raw, items: next }, null, 2))
+  } catch (e: any) {
+    console.warn('[Factory] Could not sync the services menu:', e.message)
   }
 }
 

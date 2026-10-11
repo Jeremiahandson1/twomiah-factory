@@ -1,6 +1,7 @@
 <%
 const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
 const phoneRaw = phone.replace(/\D/g, '');
+const email = (typeof settings !== 'undefined' && settings && settings.email) ? settings.email : '{{COMPANY_EMAIL}}';
 %>
 
 <div class="about-page">
@@ -25,7 +26,7 @@ const phoneRaw = phone.replace(/\D/g, '');
         <div class="about-content">
           <h2>Our Story</h2>
           <p>{{COMPANY_NAME}} is based in {{CITY}}, {{STATE}}, serving {{SERVICE_AREAS}}.</p>
-          <p>Have a question, or want to know more about what we offer? We'd love to hear from you. Call us or send a message and we'll be in touch soon.</p>
+          <p>Have a question, or want to know more about what we offer? We'd love to hear from you. <%= phoneRaw ? 'Call us or send a message' : 'Send us a message' %> and we'll be in touch soon.</p>
         </div>
         <div class="about-image">
           <div class="about-placeholder">
@@ -60,7 +61,7 @@ const phoneRaw = phone.replace(/\D/g, '');
             </svg>
           </div>
           <h3>Easy to Reach</h3>
-          <p>Call, email, or send us a message, whichever suits you.</p>
+          <p><%= (phoneRaw && email) ? 'Call, email, or send us a message, whichever suits you.' : phoneRaw ? 'Call or send us a message, whichever suits you.' : email ? 'Email or send us a message, whichever suits you.' : 'Send us a message through our contact form.' %></p>
         </div>
         <div class="value-card">
           <div class="value-icon">
@@ -95,7 +96,7 @@ const phoneRaw = phone.replace(/\D/g, '');
       <p>Get in touch. We'd love to hear from you.</p>
       <div class="cta-buttons">
         <a href="/contact" class="btn btn-primary">Contact Us</a>
-        <a href="tel:<%= phoneRaw %>" class="btn btn-outline">Call <%= phone %></a>
+        <% if (phoneRaw) { %><a href="tel:<%= phoneRaw %>" class="btn btn-outline">Call <%= phone %></a><% } %>
       </div>
     </div>
   </section>

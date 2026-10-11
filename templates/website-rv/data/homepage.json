@@ -54,7 +54,7 @@
     "secondaryButtonLink": "tel:{{COMPANY_PHONE_RAW}}",
     "backgroundImage": "",
     "headline": "Ready to hit the road?",
-    "subtext": "Call {{COMPANY_PHONE}} or fill out the form and we'll be in touch soon."
+    "subtext": "Fill out the form and we'll be in touch soon."
   },
   "serviceAreas": [
     "{{CITY}}",

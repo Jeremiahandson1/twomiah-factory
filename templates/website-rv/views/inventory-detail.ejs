@@ -161,7 +161,7 @@ const calcPrice = Number(u.internetPrice || u.listedPrice || u.msrp || 0) || 0;
         <div class="ivd-cta-row">
           <a href="#reserve" class="btn btn-primary btn-lg" id="ivd-reserve-cta">Reserve This Unit</a>
           <a href="#request-quote" class="btn btn-outline-light btn-lg">Request a Quote</a>
-          <a href="tel:<%= phoneRaw %>" class="btn btn-outline-light btn-lg">Call <%= phone %></a>
+          <% if (phoneRaw) { %><a href="tel:<%= phoneRaw %>" class="btn btn-outline-light btn-lg">Call <%= phone %></a><% } %>
         </div>
       </div>
     </div>
@@ -203,7 +203,7 @@ const calcPrice = Number(u.internetPrice || u.listedPrice || u.msrp || 0) || 0;
           </div>
           <div id="reserveError" class="ivd-form-msg error">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-            <span id="reserveErrorText">Something went wrong. Please try calling us directly at <%= phone %>.</span>
+            <span id="reserveErrorText">Something went wrong. <%= phone ? 'Please try calling us directly at ' + phone + '.' : 'Please try again in a moment.' %></span>
           </div>
         </form>
       </div>
@@ -375,7 +375,7 @@ const calcPrice = Number(u.internetPrice || u.listedPrice || u.msrp || 0) || 0;
           </div>
           <div id="prequalError" class="ivd-form-msg error">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-            <span>Something went wrong. Please try calling us directly at <%= phone %>.</span>
+            <span>Something went wrong. <%= phone ? 'Please try calling us directly at ' + phone + '.' : 'Please try again in a moment.' %></span>
           </div>
         </form>
       </div>
@@ -447,7 +447,7 @@ const calcPrice = Number(u.internetPrice || u.listedPrice || u.msrp || 0) || 0;
           </div>
           <div id="tradeError" class="ivd-form-msg error">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-            <span>Something went wrong. Please try calling us directly at <%= phone %>.</span>
+            <span>Something went wrong. <%= phone ? 'Please try calling us directly at ' + phone + '.' : 'Please try again in a moment.' %></span>
           </div>
         </form>
       </div>
@@ -490,7 +490,7 @@ const calcPrice = Number(u.internetPrice || u.listedPrice || u.msrp || 0) || 0;
           </div>
           <div id="quoteError" class="ivd-form-msg error">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-            <span>Something went wrong. Please try calling us directly at <%= phone %>.</span>
+            <span>Something went wrong. <%= phone ? 'Please try calling us directly at ' + phone + '.' : 'Please try again in a moment.' %></span>
           </div>
         </form>
       </div>
@@ -546,7 +546,7 @@ const calcPrice = Number(u.internetPrice || u.listedPrice || u.msrp || 0) || 0;
     "priceCurrency": "USD",
     <% if (priceVal(u) > 0) { %>"price": "<%= priceVal(u) %>",<% } %>
     "availability": "https://schema.org/<%= String(u.status || '').toLowerCase() === 'pending' ? 'PreOrder' : 'InStock' %>",
-    "seller": { "@type": "AutoDealer", "name": "{{COMPANY_NAME}}", "telephone": "+1<%= phoneRaw %>" }
+    "seller": { "@type": "AutoDealer", "name": "{{COMPANY_NAME}}"<% if (phoneRaw) { %>, "telephone": "+1<%= phoneRaw %>"<% } %> }
   }
 }
 </script>
@@ -794,13 +794,13 @@ const calcPrice = Number(u.internetPrice || u.listedPrice || u.msrp || 0) || 0;
         }
         successDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else {
-        errorText.textContent = (data && data.error) ? data.error : 'Something went wrong. Please try calling us directly at <%= phone %>.';
+        errorText.textContent = (data && data.error) ? data.error : 'Something went wrong. <%= phone ? 'Please try calling us directly at ' + phone + '.' : 'Please try again in a moment.' %>';
         errorDiv.style.display = 'flex';
         errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     } catch (err) {
       successDiv.style.display = 'none';
-      errorText.textContent = 'Something went wrong. Please try calling us directly at <%= phone %>.';
+      errorText.textContent = 'Something went wrong. <%= phone ? 'Please try calling us directly at ' + phone + '.' : 'Please try again in a moment.' %>';
       errorDiv.style.display = 'flex';
       errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } finally {

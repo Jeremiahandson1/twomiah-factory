@@ -3,6 +3,8 @@
   const page = locals.page || {};
   const animationSpeed = page.heroAnimationSpeed || 10;
   const heroAnimation = page.heroAnimation || 'none';
+  const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+  const phoneRaw = phone.replace(/\D/g, '');
 %>
 
 <div class="custom-page">
@@ -60,7 +62,7 @@
       <p>Contact {{COMPANY_NAME}} today. We'd love to hear from you.</p>
       <div class="cta-buttons">
         <a href="/#contact" class="btn btn-primary btn-lg">Contact Us</a>
-        <a href="tel:{{COMPANY_PHONE_RAW}}" class="btn btn-outline-light btn-lg">Call {{COMPANY_PHONE}}</a>
+        <% if (phoneRaw) { %><a href="tel:<%= phoneRaw %>" class="btn btn-outline-light btn-lg">Call <%= phone %></a><% } %>
       </div>
     </div>
   </section>
@@ -78,8 +80,8 @@
     "publisher": {
       "@type": "LocalBusiness",
       "name": "{{COMPANY_NAME}}",
-      "url": "{{SITE_URL}}",
-      "telephone": "{{COMPANY_PHONE}}"
+      "url": "{{SITE_URL}}"<% if (phoneRaw) { %>,
+      "telephone": <%- _jsonStr(phone) %><% } %>
     }
   }
   </script>

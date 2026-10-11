@@ -87,7 +87,9 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
       <p>Check out our latest products, deals, and more.</p>
       <div class="hero-buttons">
         <a href="/menu" class="btn btn-primary btn-lg">Browse Our Menu</a>
+        <% if (phoneRaw) { %>
         <a href="tel:<%= phoneRaw %>" class="btn btn-outline btn-lg">Call <%= phone %></a>
+        <% } %>
       </div>
     </div>
   </section>

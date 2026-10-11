@@ -1,3 +1,7 @@
+<%
+const _phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+const _phoneRaw = _phone.replace(/\D/g, '');
+%>
 <div class="error-page">
   <!-- 404 Hero -->
   <section class="error-hero">
@@ -69,10 +73,12 @@
   <section class="error-cta">
     <div class="container">
       <h3>Need Help?</h3>
-      <p>If you're looking for something specific, give us a call and we'll point you in the right direction.</p>
+      <p>If you're looking for something specific, <% if (_phoneRaw) { %>give us a call<% } else { %>send us a message<% } %> and we'll point you in the right direction.</p>
       <div class="cta-buttons">
         <a href="/#contact" class="btn btn-primary btn-lg">Contact Us</a>
-        <a href="tel:{{COMPANY_PHONE_RAW}}" class="btn btn-outline-light btn-lg">Call {{COMPANY_PHONE}}</a>
+        <% if (_phoneRaw) { %>
+        <a href="tel:<%= _phoneRaw %>" class="btn btn-outline-light btn-lg">Call <%= _phone %></a>
+        <% } %>
       </div>
     </div>
   </section>

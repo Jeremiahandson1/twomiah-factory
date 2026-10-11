@@ -3,6 +3,7 @@
   const page = locals.page || {};
   const animationSpeed = page.heroAnimationSpeed || 10;
   const heroAnimation = page.heroAnimation || 'none';
+  const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
 %>
 
 <div class="custom-page">
@@ -78,8 +79,8 @@
     "publisher": {
       "@type": "OnlineStore",
       "name": "{{COMPANY_NAME}}",
-      "url": "{{SITE_URL}}",
-      "telephone": "{{COMPANY_PHONE}}"
+      "url": "{{SITE_URL}}"<% if (phone) { %>,
+      "telephone": <%- _jsonStr(phone) %><% } %>
     }
   }
   </script>

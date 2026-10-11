@@ -96,7 +96,7 @@ const phoneRaw = phone.replace(/\D/g, '');
       <p>Contact us today to talk through your family's needs.</p>
       <div class="cta-buttons">
         <a href="/contact" class="btn btn-primary">Schedule a Consultation</a>
-        <a href="tel:<%= phoneRaw %>" class="btn btn-outline">Call <%= phone %></a>
+        <% if (phoneRaw) { %><a href="tel:<%= phoneRaw %>" class="btn btn-outline">Call <%= phone %></a><% } %>
       </div>
     </div>
   </section>

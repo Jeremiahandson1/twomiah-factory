@@ -1,4 +1,6 @@
 <%
+  const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+  const phoneRaw = phone.replace(/\D/g, '');
   // Extract data from locals
   const projects = locals.gallery || locals.projects || [];
   const categories = [...new Set(projects.map(p => p.category))].filter(Boolean);
@@ -132,7 +134,7 @@
         <p>Contact us about our inventory or to schedule service.</p>
         <div class="cta-buttons">
           <a href="/inventory" class="btn btn-primary btn-lg">Browse Inventory</a>
-          <a href="tel:{{COMPANY_PHONE_RAW}}" class="btn btn-outline-light btn-lg">Call {{COMPANY_PHONE}}</a>
+          <% if (phoneRaw) { %><a href="tel:<%= phoneRaw %>" class="btn btn-outline-light btn-lg">Call <%= phone %></a><% } %>
         </div>
       </div>
     </div>

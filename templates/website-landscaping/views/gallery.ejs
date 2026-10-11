@@ -2,6 +2,8 @@
   // Extract data from locals
   const projects = locals.gallery || locals.projects || [];
   const categories = [...new Set(projects.map(p => p.category))].filter(Boolean);
+  const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+  const phoneRaw = phone.replace(/\D/g, '');
   
   // Helper to get cover image
   function getCoverImage(project) {
@@ -134,7 +136,7 @@
         <p>Tell us about your project and we'll be in touch soon.</p>
         <div class="cta-buttons">
           <a href="/#contact" class="btn btn-primary btn-lg">Request an Estimate</a>
-          <a href="tel:{{COMPANY_PHONE_RAW}}" class="btn btn-outline-light btn-lg">Call {{COMPANY_PHONE}}</a>
+          <% if (phoneRaw) { %><a href="tel:<%= phoneRaw %>" class="btn btn-outline-light btn-lg">Call <%= phone %></a><% } %>
         </div>
       </div>
     </div>

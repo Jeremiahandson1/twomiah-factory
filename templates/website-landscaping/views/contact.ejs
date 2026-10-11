@@ -1,6 +1,9 @@
 <%
   // Pre-select service if provided in query string
   if (typeof selectedService === 'undefined') { var selectedService = ''; }
+  const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+  const phoneRaw = phone.replace(/\D/g, '');
+  const email = (typeof settings !== 'undefined' && settings && settings.email) ? settings.email : '{{COMPANY_EMAIL}}';
   // The generator fills empty NEARBY_CITY tokens with the home city, so list each place once.
   const _areas = ['{{CITY}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}', '{{NEARBY_CITY_4}}']
     .map((a) => String(a).trim()).filter((a, i, all) => a && all.findIndex((b) => b.toLowerCase() === a.toLowerCase()) === i);
@@ -123,7 +126,7 @@
             </svg>
             <div>
               <strong>Oops!</strong>
-              <p>Something went wrong. Please try calling us directly at {{COMPANY_PHONE}}.</p>
+              <p>Something went wrong. <% if (phoneRaw) { %>Please try calling us directly at <%= phone %>.<% } else { %>Please try again in a moment.<% } %></p>
             </div>
           </div>
         </div>
@@ -133,7 +136,7 @@
           <div class="contact-info-card">
             <h3>Get in Touch</h3>
             
-            <div class="contact-method">
+            <% if (phoneRaw) { %><div class="contact-method">
               <div class="method-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
@@ -141,12 +144,12 @@
               </div>
               <div>
                 <h4>Phone</h4>
-                <a href="tel:{{COMPANY_PHONE_RAW}}" class="contact-link">{{COMPANY_PHONE}}</a>
+                <a href="tel:<%= phoneRaw %>" class="contact-link"><%= phone %></a>
                 <%/* no default hours: a site states only what its owner supplied */%>
               </div>
-            </div>
+            </div><% } %>
             
-            <div class="contact-method">
+            <% if (email) { %><div class="contact-method">
               <div class="method-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
@@ -155,10 +158,10 @@
               </div>
               <div>
                 <h4>Email</h4>
-                <a href="mailto:{{COMPANY_EMAIL}}" class="contact-link">{{COMPANY_EMAIL}}</a>
+                <a href="mailto:<%= email %>" class="contact-link"><%= email %></a>
                 <p>We'll be in touch soon.</p>
               </div>
-            </div>
+            </div><% } %>
             
             <div class="contact-method">
               <div class="method-icon">
@@ -249,7 +252,7 @@
   </section>
 
   <!-- Call Us (was "Emergency Services": availability is the owner's to state, not the template's) -->
-  <section class="contact-emergency">
+  <% if (phoneRaw) { %><section class="contact-emergency">
     <div class="container">
       <div class="emergency-content">
         <div class="emergency-icon">
@@ -261,10 +264,10 @@
           <h2>Prefer to Talk?</h2>
           <p>Give us a call and tell us what you need.</p>
         </div>
-        <a href="tel:{{COMPANY_PHONE_RAW}}" class="btn btn-primary btn-lg">Call {{COMPANY_PHONE}}</a>
+        <a href="tel:<%= phoneRaw %>" class="btn btn-primary btn-lg">Call <%= phone %></a>
       </div>
     </div>
-  </section>
+  </section><% } %>
 
   <!-- Form Submission Script -->
   <script>
@@ -338,9 +341,9 @@
     "mainEntity": {
       "@type": "HomeAndConstructionBusiness",
       "name": "{{COMPANY_NAME}}",
-      "telephone": "{{COMPANY_PHONE}}",
-      "email": "{{COMPANY_EMAIL}}",
-      "address": {
+<% if (phoneRaw) { %>      "telephone": <%- _jsonStr(phone) %>,
+<% } %><% if (email) { %>      "email": <%- _jsonStr(email) %>,
+<% } %>      "address": {
         "@type": "PostalAddress",
         "addressLocality": "{{CITY}}",
         "addressRegion": "{{STATE}}",

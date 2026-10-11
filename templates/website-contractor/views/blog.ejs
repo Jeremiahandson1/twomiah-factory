@@ -87,7 +87,7 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
       <p>We're happy to help — even if you're not ready for a project yet.</p>
       <div class="hero-buttons">
         <a href="/#contact" class="btn btn-primary btn-lg">Request an Estimate</a>
-        <a href="tel:<%= phoneRaw %>" class="btn btn-outline btn-lg">Call <%= phone %></a>
+        <% if (phoneRaw) { %><a href="tel:<%= phoneRaw %>" class="btn btn-outline btn-lg">Call <%= phone %></a><% } %>
       </div>
     </div>
   </section>

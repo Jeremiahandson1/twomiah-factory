@@ -113,18 +113,11 @@
 
         <!-- Cart Totals -->
         <div class="cart-totals" id="cartTotals" style="display:none;">
-          <div class="total-row">
+          <div class="total-row total-final">
             <span>Subtotal</span>
             <span id="subtotalDisplay">$0.00</span>
           </div>
-          <div class="total-row tax-row">
-            <span>Est. Tax</span>
-            <span id="taxDisplay">$0.00</span>
-          </div>
-          <div class="total-row total-final">
-            <span>Est. Total</span>
-            <span id="totalDisplay">$0.00</span>
-          </div>
+          <p class="tax-note">Tax and any delivery fee are added when you place your order.</p>
           <button class="checkout-btn" id="checkoutBtn" disabled>Checkout</button>
         </div>
       </div>
@@ -190,6 +183,8 @@
         <input type="text" id="custName" class="checkout-input" placeholder="Full name *" required>
         <input type="tel" id="custPhone" class="checkout-input" placeholder="Phone number *" required>
         <input type="email" id="custEmail" class="checkout-input" placeholder="Email (optional)">
+        <label class="checkout-label" for="custDob">Date of birth *</label>
+        <input type="date" id="custDob" class="checkout-input" autocomplete="bday">
       </div>
 
       <!-- Order Notes -->
@@ -203,10 +198,8 @@
         <h3>Order Summary</h3>
         <div class="checkout-items" id="checkoutItems"></div>
         <div class="checkout-totals">
-          <div class="co-total-row"><span>Subtotal</span><span id="coSubtotal">$0.00</span></div>
-          <div class="co-total-row"><span>Excise Tax (15%)</span><span id="coExcise">$0.00</span></div>
-          <div class="co-total-row"><span>Sales Tax (8.75%)</span><span id="coSales">$0.00</span></div>
-          <div class="co-total-row co-final"><span>Total</span><span id="coTotal">$0.00</span></div>
+          <div class="co-total-row co-final"><span>Subtotal</span><span id="coSubtotal">$0.00</span></div>
+          <p class="tax-note">Tax and any delivery fee are added when you place your order. Your confirmation shows the full total.</p>
         </div>
       </div>
 
@@ -498,7 +491,8 @@
   /* Cart Totals */
   .cart-totals { padding: 16px 20px; border-top: 1px solid var(--op-border); }
   .total-row { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; color: var(--op-text-dim); }
-  .total-row.tax-row { font-size: 0.8rem; }
+  .tax-note { font-size: 0.78rem; color: var(--op-text-dim); line-height: 1.4; margin: 0 0 14px; }
+  .checkout-label { display: block; font-size: 0.8rem; color: var(--op-text-dim); margin: 2px 0 6px; }
   .total-final { font-size: 1rem; font-weight: 800; color: var(--op-text); margin-bottom: 16px; padding-top: 8px; border-top: 1px solid var(--op-border); }
   .checkout-btn {
     width: 100%; padding: 14px; border-radius: 10px; border: none;
@@ -686,8 +680,8 @@
 
   const CANNABIS_CATEGORIES = ['flower', 'pre_roll', 'edible', 'concentrate', 'vape', 'tincture'];
   const WEIGHT_LIMIT_OZ = 2.5;
-  const EXCISE_RATE = 0.15;
-  const SALES_TAX_RATE = 0.0875;
+  // No tax rates here. The shop sets its own in its CRM, which works out the tax on every order;
+  // the confirmation shows the total it sends back.
 
   // Products from server
   const RAW_PRODUCTS = <%- JSON.stringify(products || {}) %>;
@@ -820,27 +814,19 @@
     return count;
   }
 
-  function calcTaxes() {
+  function calcSubtotal() {
     var subtotal = 0;
-    var cannabisSubtotal = 0;
     cart.forEach(function(item) {
-      var lineTotal = (item.product.price || 0) * item.quantity;
-      subtotal += lineTotal;
-      if (isCannabis(item.product._categoryKey)) {
-        cannabisSubtotal += lineTotal;
-      }
+      subtotal += (item.product.price || 0) * item.quantity;
     });
-    var excise = cannabisSubtotal * EXCISE_RATE;
-    var salesTax = subtotal * SALES_TAX_RATE;
-    return {
-      subtotal: subtotal,
-      excise: excise,
-      salesTax: salesTax,
-      total: subtotal + excise + salesTax
-    };
+    return subtotal;
   }
 
-  function fmt(n) { return '$' + n.toFixed(2); }
+  function cartHasCannabis() {
+    return cart.some(function(item) { return isCannabis(item.product._categoryKey); });
+  }
+
+  function fmt(n) { return '$' + Number(n || 0).toFixed(2); }
 
   // ══════════════════════════════════════════════
   // FILTERS
@@ -1042,14 +1028,8 @@
     }
 
     // Totals
-    var taxes = calcTaxes();
-    var estTax = taxes.excise + taxes.salesTax;
     var sd = document.getElementById('subtotalDisplay');
-    var td = document.getElementById('taxDisplay');
-    var tld = document.getElementById('totalDisplay');
-    if (sd) sd.textContent = fmt(taxes.subtotal);
-    if (td) td.textContent = fmt(estTax);
-    if (tld) tld.textContent = fmt(taxes.total);
+    if (sd) sd.textContent = fmt(calcSubtotal());
   }
 
   function renderAll() {
@@ -1093,15 +1073,8 @@
     }
 
     // Render totals
-    var taxes = calcTaxes();
     var cs = document.getElementById('coSubtotal');
-    var ce = document.getElementById('coExcise');
-    var csl = document.getElementById('coSales');
-    var ct = document.getElementById('coTotal');
-    if (cs) cs.textContent = fmt(taxes.subtotal);
-    if (ce) ce.textContent = fmt(taxes.excise);
-    if (csl) csl.textContent = fmt(taxes.salesTax);
-    if (ct) ct.textContent = fmt(taxes.total);
+    if (cs) cs.textContent = fmt(calcSubtotal());
 
     // Reset states
     document.getElementById('checkoutError').style.display = 'none';
@@ -1153,47 +1126,51 @@
       errEl.style.display = 'block';
       return;
     }
+    var dob = document.getElementById('custDob').value;
+    if (cartHasCannabis() && !dob) {
+      errEl.textContent = 'Please enter your date of birth. The shop has to check it before it can take a cannabis order.';
+      errEl.style.display = 'block';
+      return;
+    }
 
     errEl.style.display = 'none';
     btn.disabled = true;
     btn.classList.add('loading');
     btn.textContent = 'Placing Order...';
 
-    var taxes = calcTaxes();
+    // The shape the shop's CRM accepts (POST /api/public/menu/order). It prices the order itself,
+    // from its own catalog and tax settings, so no prices or totals are sent from the browser.
+    var notes = document.getElementById('orderNotes').value.trim();
     var orderData = {
       orderType: orderType,
       items: cart.map(function(item) {
-        return {
-          productId: item.product.id,
-          name: item.product.name,
-          price: item.product.price,
-          quantity: item.quantity,
-          category: item.product._categoryKey,
-        };
+        return { productId: String(item.product.id), quantity: item.quantity };
       }),
-      customer: {
-        name: name,
-        phone: phone,
-        email: document.getElementById('custEmail').value.trim() || undefined,
-      },
-      subtotal: taxes.subtotal,
-      exciseTax: taxes.excise,
-      salesTax: taxes.salesTax,
-      total: taxes.total,
-      notes: document.getElementById('orderNotes').value.trim() || undefined,
+      customerName: name,
+      customerPhone: phone,
+      customerEmail: document.getElementById('custEmail').value.trim() || undefined,
+      dateOfBirth: dob || undefined,
     };
 
     if (orderType === 'pickup') {
-      orderData.pickupTime = document.getElementById('pickupTime').value;
+      var pick = document.getElementById('pickupTime');
+      var mins = { '30min': 30, '1hr': 60, '2hr': 120 }[pick.value];
+      if (mins) {
+        orderData.pickupTime = new Date(Date.now() + mins * 60000).toISOString();
+      } else {
+        // "ASAP" and "Later today" are not a time, so they travel as a note.
+        var label = pick.options[pick.selectedIndex].text;
+        notes = notes ? 'Pickup: ' + label + '. ' + notes : 'Pickup: ' + label;
+      }
     } else {
-      orderData.delivery = {
-        address: document.getElementById('deliveryAddress').value.trim(),
-        city: document.getElementById('deliveryCity').value.trim(),
-        state: document.getElementById('deliveryState').value.trim(),
-        zip: document.getElementById('deliveryZip').value.trim(),
-        notes: document.getElementById('deliveryNotes').value.trim() || undefined,
-      };
+      var street = document.getElementById('deliveryAddress').value.trim();
+      var city = document.getElementById('deliveryCity').value.trim();
+      var st = document.getElementById('deliveryState').value.trim();
+      var zip = document.getElementById('deliveryZip').value.trim();
+      orderData.deliveryAddress = [street, city, [st, zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+      orderData.deliveryNotes = document.getElementById('deliveryNotes').value.trim() || undefined;
     }
+    orderData.notes = notes || undefined;
 
     fetch('/api/order', {
       method: 'POST',
@@ -1206,13 +1183,18 @@
     })
     .then(function(data) {
       // Success
-      var orderNum = data.orderNumber || data.id || ('MB-' + Date.now().toString(36).toUpperCase());
-      document.getElementById('successOrderNum').textContent = orderNum;
+      var orderNum = data.orderNumber || data.id || '';
+      document.getElementById('successOrderNum').textContent = orderNum || '---';
 
+      // Every amount here is the one the shop's CRM worked out and returned.
       var detailsHtml = '<strong>Order Type:</strong> ' + (orderType === 'pickup' ? 'Pickup' : 'Delivery') + '<br>';
       detailsHtml += '<strong>Name:</strong> ' + escHtml(name) + '<br>';
       detailsHtml += '<strong>Phone:</strong> ' + escHtml(phone) + '<br>';
-      detailsHtml += '<strong>Total:</strong> ' + fmt(taxes.total);
+      if (data.subtotal != null) detailsHtml += '<strong>Subtotal:</strong> ' + fmt(data.subtotal) + '<br>';
+      if (Number(data.exciseTax) > 0) detailsHtml += '<strong>Excise Tax:</strong> ' + fmt(data.exciseTax) + '<br>';
+      if (Number(data.salesTax) > 0) detailsHtml += '<strong>Sales Tax:</strong> ' + fmt(data.salesTax) + '<br>';
+      if (Number(data.deliveryFee) > 0) detailsHtml += '<strong>Delivery Fee:</strong> ' + fmt(data.deliveryFee) + '<br>';
+      if (data.total != null) detailsHtml += '<strong>Total:</strong> ' + fmt(data.total);
       document.getElementById('successDetails').innerHTML = detailsHtml;
 
       document.getElementById('checkoutBody').style.display = 'none';
