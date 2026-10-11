@@ -6,7 +6,7 @@ import { eq, desc, ilike } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { loyaltyConfig, loyaltyConfigResponse, punchCardProgress } from '../shared/index.ts'
-import { memberHistory, normalizeEmail } from '../services/loyalty.ts'
+import { memberHistory, normalizeEmail, STORE_LOYALTY_DEFAULTS } from '../services/loyalty.ts'
 
 // Admin side of the loyalty programme: the settings, who is on it, and what they can spend on.
 // Earning and spending happen at finalizeOrder (services/loyalty.ts); nothing here moves money.
@@ -24,14 +24,14 @@ admin.use('*', authenticate)
 
 async function cfg() {
   const [row] = await db.select({ loyalty: storeSettings.loyalty }).from(storeSettings).limit(1)
-  return loyaltyConfig({ loyalty: row?.loyalty })
+  return loyaltyConfig({ loyalty: row?.loyalty }, STORE_LOYALTY_DEFAULTS)
 }
 
 // ==================== SETTINGS ====================
 
 admin.get('/config', async (c) => {
   const [row] = await db.select({ loyalty: storeSettings.loyalty }).from(storeSettings).limit(1)
-  return c.json(loyaltyConfigResponse({ loyalty: row?.loyalty }))
+  return c.json(loyaltyConfigResponse({ loyalty: row?.loyalty }, STORE_LOYALTY_DEFAULTS))
 })
 
 const configSchema = z.object({
@@ -61,7 +61,7 @@ admin.put('/config', requirePermission('loyalty:configure'), async (c) => {
   }
 
   await db.update(storeSettings).set({ loyalty: next, updatedAt: new Date() }).where(eq(storeSettings.id, row.id))
-  return c.json(loyaltyConfigResponse({ loyalty: next }))
+  return c.json(loyaltyConfigResponse({ loyalty: next }, STORE_LOYALTY_DEFAULTS))
 })
 
 // ==================== MEMBERS ====================

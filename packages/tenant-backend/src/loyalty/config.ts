@@ -56,7 +56,15 @@ const cleanIds = (v: any): string[] =>
  * engine would actually use. A screen that shows a number the engine ignores is worse than a screen
  * that shows nothing: it is a promise the till does not keep.
  */
-export function loyaltyConfig(settings: any): LoyaltyConfig {
+/**
+ * What a programme reads when the shop has not named its own reward. A service business rewards a visit; a shop
+ * selling goods does not sell a "service" (Store QA T1, L1: 'Default punch card reward name is service-business
+ * wording on a product store'). The vertical passes its own word; everyone else keeps this one.
+ */
+export interface LoyaltyDefaults { rewardName?: string }
+export const DEFAULT_REWARD_NAME = 'Free service'
+
+export function loyaltyConfig(settings: any, defaults: LoyaltyDefaults = {}): LoyaltyConfig {
   let s = settings
   if (typeof s === 'string') { try { s = JSON.parse(s) } catch { s = null } }
   const l = s?.loyalty || {}
@@ -70,15 +78,15 @@ export function loyaltyConfig(settings: any): LoyaltyConfig {
     birthdayBonus: Math.floor(nonNegative(l.birthdayBonus, DEFAULT_BIRTHDAY_BONUS)),
     punchCard: {
       visitsRequired: Math.floor(nonNegative(p.visitsRequired, DEFAULT_PUNCH_VISITS)),
-      rewardName: typeof p.rewardName === 'string' && p.rewardName.trim() ? p.rewardName.trim() : 'Free service',
+      rewardName: typeof p.rewardName === 'string' && p.rewardName.trim() ? p.rewardName.trim() : (defaults.rewardName || DEFAULT_REWARD_NAME),
       qualifyingServiceIds: cleanIds(p.qualifyingServiceIds),
     },
   }
 }
 
 /** The shape a settings screen reads back, so what was saved is what reappears. */
-export function loyaltyConfigResponse(settings: any) {
-  const cfg = loyaltyConfig(settings)
+export function loyaltyConfigResponse(settings: any, defaults: LoyaltyDefaults = {}) {
+  const cfg = loyaltyConfig(settings, defaults)
   return {
     loyaltyEnabled: cfg.enabled,
     loyaltyPointsPerDollar: cfg.pointsPerDollar,

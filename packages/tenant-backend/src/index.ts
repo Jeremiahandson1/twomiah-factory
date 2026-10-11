@@ -238,8 +238,8 @@ export { hasHappened, withinHorizon, horizonMessage, MAX_PLAN_YEARS, FUTURE_SLAC
 // and integer cents. Copying the folder is what let crm-dispensary's forked permission matrix drift
 // until a guard caught a shipped regression, so the second and third verticals share the arithmetic
 // and keep their own tables. Money is in CENTS throughout.
-export { loyaltyConfig, loyaltyConfigResponse, LOYALTY_SETTING_KEYS, DEFAULT_POINTS_PER_DOLLAR, DEFAULT_WELCOME_POINTS, DEFAULT_BIRTHDAY_BONUS, DEFAULT_PUNCH_VISITS } from './loyalty/config'
-export type { LoyaltyConfig, PunchCardConfig } from './loyalty/config'
+export { loyaltyConfig, loyaltyConfigResponse, DEFAULT_REWARD_NAME, LOYALTY_SETTING_KEYS, DEFAULT_POINTS_PER_DOLLAR, DEFAULT_WELCOME_POINTS, DEFAULT_BIRTHDAY_BONUS, DEFAULT_PUNCH_VISITS } from './loyalty/config'
+export type { LoyaltyConfig, PunchCardConfig, LoyaltyDefaults } from './loyalty/config'
 export { pointsForSale, punchCardProgress, visitQualifies, inBirthdayMonth, rewardDiscountCents, canRedeem } from './loyalty/engine'
 export type { Reward, RewardType, BasketLine, PunchCardState, PunchCardProgress, RedeemCheck, RedeemVocabulary } from './loyalty/engine'
 export { redactCompanySettings, isPrivilegedRole, SECRET_SETTING_PATHS, PRIVATE_SETTING_KEYS } from './auth/redactSettings'

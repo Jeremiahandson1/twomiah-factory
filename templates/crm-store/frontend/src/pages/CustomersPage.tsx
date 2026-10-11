@@ -8,13 +8,17 @@ type Customer = { email: string; name: string | null; phone: string | null; orde
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
+  // A failed load used to fall through to 'No customers yet' — a shop told it has no customers because a request failed. (Store QA T1)
+  const [error, setError] = useState('')
 
-  useEffect(() => { api.listCustomers().then(setCustomers).catch(() => {}).finally(() => setLoading(false)) }, [])
+  useEffect(() => { api.listCustomers().then(setCustomers).catch((e: any) => setError(e?.message || 'Could not load customers')).finally(() => setLoading(false)) }, [])
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Customers</h1>
-      {loading ? <PageSpinner /> : customers.length === 0 ? (
+      {loading ? <PageSpinner /> : error ? (
+        <div className="card p-6 text-sm text-red-700">{error} — refresh to try again.</div>
+      ) : customers.length === 0 ? (
         <div className="card p-10 text-center">
           <Users className="h-10 w-10 mx-auto text-gray-300" />
           <p className="mt-3 text-gray-500 dark:text-slate-400">No customers yet. They'll appear here after the first order.</p>

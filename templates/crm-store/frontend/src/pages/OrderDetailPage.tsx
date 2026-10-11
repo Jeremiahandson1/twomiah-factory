@@ -6,7 +6,10 @@ import { useToast } from '../contexts/ToastContext'
 import { money, formatDate, statusColor } from '../lib/format'
 import { usePermissions } from '../shared'
 
+// The SERVER's table (backend routes/orders.ts NEXT_STATUS) — tests/store/qa-t1 holds the two equal. 'pending' was
+// missing here, so an unpaid order offered nothing; marking it paid or cancelling it is the owner's and manager's.
 const NEXT_STATUS: Record<string, string[]> = {
+  pending: ['paid', 'cancelled'],
   paid: ['fulfilled', 'shipped', 'cancelled', 'refunded'],
   fulfilled: ['shipped', 'refunded'],
   shipped: ['delivered', 'refunded'],

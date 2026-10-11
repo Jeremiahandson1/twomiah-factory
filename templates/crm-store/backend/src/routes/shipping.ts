@@ -9,7 +9,7 @@ import { eq } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { encryptJSON } from '../lib/crypto.ts'
 import { getActiveShipping, DEFAULT_PARCEL } from '../shipping/index.ts'
-import { notifyShipped, orderForCaller, isFulfilment, refundRefusal, may } from './orders.ts'
+import { notifyShipped, orderForCaller, isFulfilment, refundRefusal, may, mayMove, moveRefusal } from './orders.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import logger from '../services/logger.ts'
 
@@ -123,6 +123,7 @@ admin.post('/orders/:id/label', requirePermission('shipping:label'), async (c) =
   if (order.labelUrl) return c.json({ error: 'A label has already been bought for this order' }, 400)
   // Marking it shipped is a status change, and orders.ts's rule applies: an order nobody paid for is
   // not shipped from the packing bench.
+  if (body.markShipped && !mayMove(order.status, 'shipped')) return moveRefusal(c, order.status, 'shipped')
   if (body.markShipped && !isFulfilment(order.status, 'shipped') && !may(c, 'orders:refund')) return refundRefusal(c)
 
   try {
@@ -142,7 +143,7 @@ admin.post('/orders/:id/label', requirePermission('shipping:label'), async (c) =
       trackingNumber: label.trackingCode,
       updatedAt: new Date(),
     }
-    if (body.markShipped) { patch.status = 'shipped'; patch.fulfilledAt = new Date() }
+    if (body.markShipped) { patch.status = 'shipped'; if (!order.fulfilledAt) patch.fulfilledAt = new Date() }
 
     const [updated] = await db.update(orders).set(patch).where(eq(orders.id, order.id)).returning()
     if (body.markShipped && order.status !== 'shipped') void notifyShipped(updated)

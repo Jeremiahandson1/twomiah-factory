@@ -28,6 +28,39 @@ export const orderForCaller = (c: any, order: any) => {
 const COUNTED = ['paid', 'fulfilled', 'shipped', 'delivered']
 const FULFILMENT = ['fulfilled', 'shipped', 'delivered']
 export const isFulfilment = (from: string, to: string) => COUNTED.includes(from) && FULFILMENT.includes(to)
+/**
+ * WHERE AN ORDER MAY GO NEXT. (Store QA T1, M1)
+ *
+ *   "A cancelled order moved to paid then shipped (200 each), and a refunded order moved back to paid. Setting the
+ *    cancelled order back to cancelled left fulfilledAt populated."
+ *
+ * The status route checked WHO was asking and never WHERE the order stood, so anything could become anything. That
+ * was not cosmetic: cancelling or refunding a paid order puts its units back on the shelf (below), and nothing
+ * takes them out again — so "reopening" one sold stock the shop had already restored, and a refunded order read as
+ * paid money that had gone back to the customer. Cancelled and refunded are where an order ends; a mistake there
+ * is a new order, not a resurrection. Nothing ships before it is paid.
+ *
+ * This is the table the order screen has always offered (frontend OrderDetailPage NEXT_STATUS) — the server now
+ * holds everyone to it, and tests/store/order-lifecycle.test.ts holds the two tables equal. A same-status save is
+ * not a move and is allowed.
+ */
+export const NEXT_STATUS: Record<string, string[]> = {
+  // an order taken offline is marked paid by the owner or a manager; one never paid for is cancelled
+  pending: ['paid', 'cancelled'],
+  paid: ['fulfilled', 'shipped', 'cancelled', 'refunded'],
+  fulfilled: ['shipped', 'refunded'],
+  shipped: ['delivered', 'refunded'],
+  delivered: ['refunded'],
+}
+export const mayMove = (from: string, to: string) => from === to || (NEXT_STATUS[from] || []).includes(to)
+export const moveRefusal = (c: any, from: string, to: string) => c.json({
+  error: (NEXT_STATUS[from] || []).length
+    ? `An order that is ${from} can be marked ${NEXT_STATUS[from].join(', ')} — not ${to}.`
+    : `An order that is ${from} is closed and cannot be marked ${to}. If it should go ahead, take it as a new order.`,
+  code: 'invalid_transition',
+  allowed: NEXT_STATUS[from] || [],
+}, 409)
+
 export const refundRefusal = (c: any) => c.json({
   error: 'Cancelling, refunding or changing whether an order was paid is for a manager or the owner.',
   required: 'orders:refund',
@@ -67,6 +100,8 @@ admin.get('/stats', async (c) => {
     pendingFulfillment: sql<number>`count(*) filter (where ${orders.status} = 'paid')`,
     atSupplier: sql<number>`count(*) filter (where ${orders.supplierStatus} = 'placed')`,
     revenueCents: sql<number>`coalesce(sum(${orders.totalCents}) filter (where ${orders.status} not in ('pending','cancelled')), 0)`,
+    refundedCount: sql<number>`count(*) filter (where ${orders.status} = 'refunded')`,
+    refundedCents: sql<number>`coalesce(sum(${orders.totalCents}) filter (where ${orders.status} = 'refunded'), 0)`,
   }).from(orders)
   return c.json({ stats: {
     paidCount: Number(row.paidCount),
@@ -75,6 +110,14 @@ admin.get('/stats', async (c) => {
     // The shop's takings as one figure is revenue:read — staff see how many orders are waiting, not
     // what the business has taken. null, not 0: "no revenue" and "not yours to see" are different.
     revenueCents: may(c, 'revenue:read') ? Number(row.revenueCents) : null,
+    /**
+     * What went back. (Store QA T1, L3: "Revenue $25.00 / Orders 1 while the only orders are cancelled and refunded …
+     * the dashboard shows no refund figure beside it.") Revenue keeps counting a refunded sale — the owner's refund
+     * model: the sale happened, the refund is its own event — so the refund has to be on the screen too, or $25.00
+     * reads as money the shop still has. Same seat rule as revenue: null when it is not theirs to see.
+     */
+    refundedCount: Number(row.refundedCount),
+    refundedCents: may(c, 'revenue:read') ? Number(row.refundedCents) : null,
   } })
 })
 
@@ -111,9 +154,14 @@ admin.patch('/:id/status', requirePermission('orders:update'), async (c) => {
   const [prev] = await db.select().from(orders).where(eq(orders.id, c.req.param('id'))).limit(1)
   if (!prev) return c.json({ error: 'Not found' }, 404)
   const next = parsed.data.status
+  if (next === prev.status) return c.json({ order: orderForCaller(c, prev) })
+  if (!mayMove(prev.status, next)) return moveRefusal(c, prev.status, next)
   if (!isFulfilment(prev.status, next) && !may(c, 'orders:refund')) return refundRefusal(c)
   const patch: Record<string, unknown> = { status: next, updatedAt: new Date() }
-  if (next === 'fulfilled' || next === 'shipped') patch.fulfilledAt = new Date()
+  // The FIRST fulfilment is the one recorded: packing and then shipping kept rewriting it.
+  if ((next === 'fulfilled' || next === 'shipped') && !prev.fulfilledAt) patch.fulfilledAt = new Date()
+  // A paid order cancelled before it went out was never fulfilled. (A refund after shipping keeps it: it did ship.)
+  if (next === 'cancelled') patch.fulfilledAt = null
   const [updated] = await db.update(orders).set(patch).where(eq(orders.id, prev.id)).returning()
 
   // Restock when a previously-paid order is cancelled/refunded. Payment
@@ -149,14 +197,30 @@ admin.patch('/:id/fulfillment', requirePermission('orders:update'), async (c) =>
   if (!parsed.success) return c.json({ error: 'Invalid fulfillment' }, 400)
   const [prev] = await db.select().from(orders).where(eq(orders.id, c.req.param('id'))).limit(1)
   if (!prev) return c.json({ error: 'Not found' }, 404)
-  // "Save & mark shipped" is a status change too, and the same rule applies to it.
+  // "Save & mark shipped" is a status change too, and the same rules apply to it.
+  if (parsed.data.markShipped && !mayMove(prev.status, 'shipped')) return moveRefusal(c, prev.status, 'shipped')
   if (parsed.data.markShipped && !isFulfilment(prev.status, 'shipped') && !may(c, 'orders:refund')) return refundRefusal(c)
   const patch: Record<string, unknown> = { ...parsed.data, updatedAt: new Date() }
   delete (patch as any).markShipped
-  if (parsed.data.markShipped) { patch.status = 'shipped'; patch.fulfilledAt = new Date() }
+  if (parsed.data.markShipped) { patch.status = 'shipped'; if (!prev.fulfilledAt) patch.fulfilledAt = new Date() }
   const [updated] = await db.update(orders).set(patch).where(eq(orders.id, prev.id)).returning()
   if (parsed.data.markShipped && prev.status !== 'shipped') void notifyShipped(updated)
   return c.json({ order: orderForCaller(c, updated) })
 })
+
+/**
+ * Rows a back-move left stamped. (Store QA T1, M1: "QA-ROLES-2 now carries a fulfilledAt … that I could not clear.")
+ * Under the table above a pending, paid or cancelled order has never been fulfilled — no move reaches those
+ * statuses from a fulfilled one — so a stamp on one can only be what the old route left. Cleared once, at startup.
+ */
+export async function repairFulfilmentStamps(): Promise<number> {
+  const rows = await db.update(orders).set({ fulfilledAt: null })
+    .where(and(sql`${orders.status} in ('pending','paid','cancelled')`, sql`${orders.fulfilledAt} is not null`))
+    .returning({ id: orders.id })
+  return rows.length
+}
+repairFulfilmentStamps()
+  .then((n) => { if (n) console.log(`[orders] cleared the fulfilment stamp from ${n} order${n === 1 ? '' : 's'} that never went out`) })
+  .catch((err) => console.error('[orders] fulfilment-stamp repair failed:', err?.message || err))
 
 export default admin

@@ -108,18 +108,21 @@ check('orders: the manager refunds it', mgrRefund.status === 200, mgrRefund)
 check('orders: ...and the two mugs go back on the shelf', (await stock()) === before + 2, { before, after: await stock() })
 
 const unpaid = await order('pending')
+// Store QA T1: shipping an unpaid order is not a move ANYONE may make now (409), not just one staff may not (403).
 check('orders: staff cannot ship an order nobody paid for',
-  (await S('PATCH', `/api/admin/orders/${unpaid.id}/status`, { status: 'shipped' })).status === 403)
+  (await S('PATCH', `/api/admin/orders/${unpaid.id}/status`, { status: 'shipped' })).status === 409)
 check('orders: ...nor by "Save & mark shipped"',
-  (await S('PATCH', `/api/admin/orders/${unpaid.id}/fulfillment`, { trackingNumber: 'T1', markShipped: true })).status === 403)
+  (await S('PATCH', `/api/admin/orders/${unpaid.id}/fulfillment`, { trackingNumber: 'T1', markShipped: true })).status === 409)
 check('orders: staff cannot mark it paid', (await S('PATCH', `/api/admin/orders/${unpaid.id}/status`, { status: 'paid' })).status === 403)
 check('orders: staff can still write a note on it', (await S('PATCH', `/api/admin/orders/${unpaid.id}/fulfillment`, { internalNote: 'rang them' })).status === 200)
 check('orders: the owner can mark it paid', (await O('PATCH', `/api/admin/orders/${unpaid.id}/status`, { status: 'paid' })).status === 200)
 const cancelS = await S('PATCH', `/api/admin/orders/${unpaid.id}/status`, { status: 'cancelled' })
 check('orders: staff cannot cancel', cancelS.status === 403, cancelS)
 check('orders: the manager can', (await M('PATCH', `/api/admin/orders/${unpaid.id}/status`, { status: 'cancelled' })).status === 200)
+// A cancelled order is closed for everyone now (Store QA T1) — 409, and the owner cannot revive it either.
 check('orders: staff cannot revive a cancelled order onto the floor',
-  (await S('PATCH', `/api/admin/orders/${unpaid.id}/status`, { status: 'shipped' })).status === 403)
+  (await S('PATCH', `/api/admin/orders/${unpaid.id}/status`, { status: 'shipped' })).status === 409)
+check('orders: ...nor can the owner', (await O('PATCH', `/api/admin/orders/${unpaid.id}/status`, { status: 'paid' })).status === 409)
 
 // What it cost us, and what we took, follow the fleet's margin:read and revenue:read.
 const dropship = await order('paid', { supplierCostCents: 600 })

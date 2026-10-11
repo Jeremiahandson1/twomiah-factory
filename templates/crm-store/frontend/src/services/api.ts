@@ -251,7 +251,7 @@ class ApiClient {
   // ── Orders ──
   async listOrders(status?: string) { return (await this.request<{ orders: Order[] }>(`/api/admin/orders${status ? `?status=${status}` : ''}`)).orders }
   async getOrder(id: string) { return (await this.request<{ order: Order }>(`/api/admin/orders/${id}`)).order }
-  async orderStats() { return (await this.request<{ stats: { paidCount: number; pendingFulfillment: number; revenueCents: number | null; atSupplier: number } }>('/api/admin/orders/stats')).stats }
+  async orderStats() { return (await this.request<{ stats: { paidCount: number; pendingFulfillment: number; revenueCents: number | null; atSupplier: number; refundedCount: number; refundedCents: number | null } }>('/api/admin/orders/stats')).stats }
   async listCustomers() { return (await this.request<{ customers: any[] }>('/api/admin/orders/customers')).customers }
   async setOrderStatus(id: string, status: string) { return (await this.request<{ order: Order }>(`/api/admin/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })).order }
   async setFulfillment(id: string, body: { trackingCarrier?: string; trackingNumber?: string; internalNote?: string; markShipped?: boolean }) { return (await this.request<{ order: Order }>(`/api/admin/orders/${id}/fulfillment`, { method: 'PATCH', body: JSON.stringify(body) })).order }

@@ -26,9 +26,30 @@ export const normalizeEmail = (email: string | null | undefined): string =>
 /** A guest checkout with no address yet is not a member of anything. */
 const isRealEmail = (email: string) => !!email && email.includes('@') && email !== 'pending@checkout'
 
+/** A shop rewards an order with goods, not a "service" — the shared default's word. (Store QA T1, L1) */
+export const STORE_LOYALTY_DEFAULTS = { rewardName: 'Free item' }
+
+/**
+ * …and the stores that already SAVED it. The Loyalty screen sends back the punch card it was shown, so pressing Save
+ * once wrote the service-business default into the shop's own settings, where it reads as the owner's choice. A
+ * stored reward named exactly "Free service" in a shop selling goods is that default, not a decision; it becomes the
+ * store's default. Any other name is the owner's and is left alone. Once, at startup.
+ */
+export async function repairLeakedRewardName(): Promise<boolean> {
+  const [row] = await db.select({ id: storeSettings.id, loyalty: storeSettings.loyalty }).from(storeSettings).limit(1)
+  const l: any = row?.loyalty
+  if (!row || l?.punchCard?.rewardName !== 'Free service') return false
+  await db.update(storeSettings).set({ loyalty: { ...l, punchCard: { ...l.punchCard, rewardName: STORE_LOYALTY_DEFAULTS.rewardName } } })
+    .where(eq(storeSettings.id, row.id))
+  return true
+}
+repairLeakedRewardName()
+  .then((did) => { if (did) console.log('[loyalty] the punch card reward read "Free service" (a service-business default) — now "Free item"') })
+  .catch((err) => console.error('[loyalty] reward-name repair failed:', err?.message || err))
+
 export async function loyaltySettings(): Promise<LoyaltyConfig> {
   const [row] = await db.select({ loyalty: storeSettings.loyalty }).from(storeSettings).limit(1)
-  return loyaltyConfig({ loyalty: row?.loyalty })
+  return loyaltyConfig({ loyalty: row?.loyalty }, STORE_LOYALTY_DEFAULTS)
 }
 
 export async function findMember(email: string) {

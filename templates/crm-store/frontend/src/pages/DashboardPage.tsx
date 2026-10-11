@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { DollarSign, ShoppingBag, Package, AlertCircle, CheckCircle2, ArrowRight , Truck } from 'lucide-react'
+import { DollarSign, ShoppingBag, Package, AlertCircle, CheckCircle2, ArrowRight , Truck, RotateCcw } from 'lucide-react'
 import api, { Order, Product, PaymentStatus } from '../services/api'
 import { money, formatDate, statusColor } from '../lib/format'
 
 export default function DashboardPage() {
   // revenueCents is null for a seat that may not see the shop's takings (revenue:read) — the card goes, rather than reading $0.00.
-  const [stats, setStats] = useState<{ paidCount: number; pendingFulfillment: number; revenueCents: number | null; atSupplier: number }>({ paidCount: 0, pendingFulfillment: 0, revenueCents: null, atSupplier: 0 })
+  const [stats, setStats] = useState<{ paidCount: number; pendingFulfillment: number; revenueCents: number | null; atSupplier: number; refundedCount: number; refundedCents: number | null }>({ paidCount: 0, pendingFulfillment: 0, revenueCents: null, atSupplier: 0, refundedCount: 0, refundedCents: null })
   const [orders, setOrders] = useState<Order[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [payment, setPayment] = useState<PaymentStatus | null>(null)
@@ -43,6 +43,8 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {stats.revenueCents !== null && <StatCard icon={DollarSign} label="Revenue" value={money(stats.revenueCents)} />}
+        {/* Revenue counts a refunded sale (the sale happened); what went back is shown beside it. (Store QA T1, L3) */}
+        {stats.refundedCents !== null && stats.refundedCount > 0 && <StatCard icon={RotateCcw} label={`Refunded (${stats.refundedCount} order${stats.refundedCount === 1 ? '' : 's'})`} value={money(stats.refundedCents)} />}
         <StatCard icon={ShoppingBag} label="Orders" value={String(stats.paidCount)} />
         <StatCard icon={Package} label="To fulfill" value={String(stats.pendingFulfillment)} highlight={stats.pendingFulfillment > 0} />
         {stats.atSupplier > 0 && <StatCard icon={Truck} label="At supplier" value={String(stats.atSupplier)} />}
