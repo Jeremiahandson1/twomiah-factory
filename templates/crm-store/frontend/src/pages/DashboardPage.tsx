@@ -90,13 +90,14 @@ export default function DashboardPage() {
 }
 
 // Tile count → columns, as whole class names (Tailwind only builds the classes it can read). Four sit 2 × 2 until the
-// main column, beside the 16rem sidebar, is wide enough for four in a row (xl); five sit 3 + 2 until five fit.
+// main column, beside the 16rem sidebar, is wide enough for four in a row (xl); five sit 3 + 2 until five fit
+// with their longest label on one line (2xl — measured: "Refunded (12 orders)" wraps at 1280 wide).
 const TILE_COLUMNS: Record<number, string> = {
   1: 'sm:grid-cols-1',
   2: 'sm:grid-cols-2',
   3: 'sm:grid-cols-3',
   4: 'sm:grid-cols-2 xl:grid-cols-4',
-  5: 'sm:grid-cols-3 xl:grid-cols-5',
+  5: 'sm:grid-cols-3 2xl:grid-cols-5',
 }
 
 function StatCard({ icon: Icon, label, value, highlight }: { icon: any; label: string; value: string; highlight?: boolean }) {
