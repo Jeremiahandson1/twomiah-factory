@@ -194,9 +194,19 @@ check('the customer signs it in the portal', signed.status === 200, signed)
   await b.request(`/q/${j.id}`, { method: 'PUT', headers: { 'content-type': 'application/json', 'x-test-user': owner.id }, body: JSON.stringify({ lineItems: [{ description: 'Probe', quantity: 2, unitPrice: 10, unitCost: 4 }] }) })
   const up = sent.find((s) => s.ev === 'updated')
   check('broadcast: …nor does the updated event', !!up && up.data.lineItems.every((l: any) => !('unitCost' in l)), up?.data?.lineItems)
-  let threw = false
-  try { createQuoteRoutes({ db, tables: { quote } } as any) } catch { threw = true }
-  check('a quote module wired without canSee refuses to start', threw)
+  // Everything a working module needs EXCEPT canSee, so the only thing that can refuse is the canSee check.
+  const full: any = {
+    db, tables: { quote, quoteLineItem, contact, project, invoice: (schema as any).invoice, invoiceLineItem: (schema as any).invoiceLineItem, company, job: (schema as any).job },
+    authenticate, requirePermission, emitToCompany: () => {}, EVENTS: {}, loadPdf: async () => async () => Buffer.from(''),
+    canSee: async () => true, options: { hasLineCost: true },
+  }
+  let builtWith = false
+  try { createQuoteRoutes(full); builtWith = true } catch {}
+  check('a fully wired quote module starts', builtWith)
+  const { canSee: _drop, ...noCanSee } = full
+  let refusal = ''
+  try { createQuoteRoutes(noCanSee) } catch (e: any) { refusal = String(e?.message || e) }
+  check('…and the same module without canSee refuses to start, naming it', /canSee/.test(refusal), refusal)
 }
 
 console.log(`\nt68 viewer highs: ${passed} passed, ${failed} failed`)
