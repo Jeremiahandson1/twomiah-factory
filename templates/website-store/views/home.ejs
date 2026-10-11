@@ -4,6 +4,12 @@ const hero = (typeof homepage !== 'undefined' && homepage && homepage.hero) ? ho
 const trustBadges = (typeof homepage !== 'undefined' && homepage && homepage.trustBadges) ? homepage.trustBadges.filter(b => b.enabled) : [];
 const ctaSection = (typeof homepage !== 'undefined' && homepage && homepage.ctaSection) ? homepage.ctaSection : {};
 const businessHours = (typeof homepage !== 'undefined' && homepage && homepage.businessHours) ? homepage.businessHours : {};
+// Hours print only for days the owner gave a real open time: a site states only what its owner supplied.
+const _dayLabels = { monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun' };
+const _openDays = Object.keys(_dayLabels).filter(function (d) {
+  const h = businessHours[d];
+  return h && !h.closed && String(h.open || '').trim() && !/closed/i.test(String(h.open));
+});
 
 // Settings with fallbacks
 const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
@@ -33,10 +39,10 @@ function getImageUrl(p) {
     <% } %>
     <div class="hero-video-content <%= hero.image ? 'hero-content' : '' %>">
       <h1><%= hero.title || '{{COMPANY_NAME}}' %></h1>
-      <h2><%= hero.subtitle || 'Quality products, delivered.' %></h2>
+      <h2><%= hero.subtitle || 'Welcome to our shop.' %></h2>
       <div class="hero-line"></div>
       <p class="hero-tagline"><strong><%= hero.tagline || 'SHOP {{COMPANY_NAME_UPPER}}' %></strong></p>
-      <p class="hero-awards"><%= hero.description || 'Quality products with fast shipping and secure checkout.' %></p>
+      <p class="hero-awards"><%= hero.description || 'Browse the catalog and check out securely.' %></p>
       <div class="hero-buttons">
         <a href="<%= hero.primaryButtonLink || '/shop' %>" class="btn btn-primary btn-lg"><%= hero.primaryButtonText || 'Shop Now' %></a>
         <a href="<%= hero.secondaryButtonLink || '/about' %>" class="btn btn-outline-light btn-lg"><%= hero.secondaryButtonText || 'Learn More' %></a>
@@ -104,22 +110,22 @@ function getImageUrl(p) {
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
           </div>
-          <h3>Fast, Reliable Shipping</h3>
-          <p>Orders ship quickly with tracking, so you always know where your package is. Most items arrive within a few business days.</p>
+          <h3>Browse the Full Catalog</h3>
+          <p>See every product with its options, price, and availability, and add what you like to your cart.</p>
         </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
           </div>
           <h3>Secure Checkout</h3>
-          <p>Payments are processed by trusted, PCI-compliant providers. Your card details never touch our servers — checkout is safe and encrypted.</p>
+          <p>Payments go through the payment provider's own secure checkout page, so your card details are never entered on this site.</p>
         </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
           </div>
-          <h3>Easy Returns</h3>
-          <p>Not quite right? Returns are simple and hassle-free. Reach out and we'll make it right — your satisfaction is what keeps us going.</p>
+          <h3>Real People to Ask</h3>
+          <p>Questions about a product or an order? Send us a message and we'll be in touch soon.</p>
         </div>
       </div>
     </div>
@@ -198,20 +204,16 @@ function getImageUrl(p) {
       <h2>Frequently Asked Questions</h2>
       <div class="home-faq-list">
         <details class="home-faq-item animate-on-scroll">
-          <summary><strong>How long does shipping take?</strong></summary>
-          <p>Most orders ship within 1–2 business days and arrive within a few business days after that. You'll receive tracking as soon as your order is on its way.</p>
-        </details>
-        <details class="home-faq-item animate-on-scroll">
-          <summary><strong>What is your return policy?</strong></summary>
-          <p>If something isn't right, contact us and we'll help with a return or exchange. We want you to love what you ordered from {{COMPANY_NAME}}.</p>
+          <summary><strong>How do shipping and returns work?</strong></summary>
+          <p>Contact us with the product you're looking at and we'll explain shipping and returns for that item.</p>
         </details>
         <details class="home-faq-item animate-on-scroll">
           <summary><strong>Is checkout secure?</strong></summary>
-          <p>Yes. Payments are handled by a trusted, PCI-compliant payment provider over an encrypted connection. Your card details are never stored on our site.</p>
+          <p>Yes. Payments go through the payment provider's own secure checkout page, so your card details are never entered or stored on this site.</p>
         </details>
         <details class="home-faq-item animate-on-scroll">
-          <summary><strong>How do I track my order?</strong></summary>
-          <p>Once your order ships, we'll email you a tracking link so you can follow it to your door. Questions about an order? Just reach out.</p>
+          <summary><strong>I have a question about my order.</strong></summary>
+          <p>Send us a message with your order number and we'll look it up for you.</p>
         </details>
         <details class="home-faq-item animate-on-scroll">
           <summary><strong>How can I get in touch?</strong></summary>
@@ -227,7 +229,7 @@ function getImageUrl(p) {
       <div class="contact-grid">
         <div class="contact-info">
           <h2>Customer Support</h2>
-          <p style="color: var(--gray-600, #4b5563); margin-bottom: 1.5rem;">Questions about a product, an order, or a return? We're here to help.</p>
+          <p style="color: var(--gray-600, #4b5563); margin-bottom: 1.5rem;">Questions about a product, an order, or a return? Send us a message.</p>
           <div class="contact-item">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
             <div><strong>Email</strong><a href="mailto:<%= email %>"><%= email %></a></div>
@@ -238,14 +240,14 @@ function getImageUrl(p) {
             <div><strong>Phone</strong><a href="tel:<%= phoneRaw %>"><%= phone %></a></div>
           </div>
           <% } %>
+          <% if (_openDays.length) { %>
           <div class="contact-item">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
             <div><strong>Support Hours</strong>
-              <span>
-                <% if (businessHours.monday && !businessHours.monday.closed) { %>Mon - Fri: <%= businessHours.monday.open %> - <%= businessHours.monday.close %><% } else { %>Mon - Fri: 9am - 5pm<% } %>
-              </span>
+              <% _openDays.forEach(function (d) { %><span style="display:block"><%= _dayLabels[d] %>: <%= businessHours[d].open %><%= businessHours[d].close ? ' - ' + businessHours[d].close : '' %></span><% }); %>
             </div>
           </div>
+          <% } %>
         </div>
 
         <div class="contact-form-container">
@@ -283,8 +285,7 @@ function getImageUrl(p) {
     "@type": "Store",
     "name": "{{COMPANY_NAME}}",
     "image": "{{SITE_URL}}/logo.jpg",
-    "url": "{{SITE_URL}}",
-    "priceRange": "$$"<% if (_emailOk) { %>,
+    "url": "{{SITE_URL}}"<% if (_emailOk) { %>,
     "email": <%- _jsonStr(email) %><% } %>
   }
   </script>
@@ -295,10 +296,9 @@ function getImageUrl(p) {
     "@context": "https://schema.org",
     "@type": "FAQPage",
     "mainEntity": [
-      { "@type": "Question", "name": "How long does shipping take?", "acceptedAnswer": { "@type": "Answer", "text": "Most orders ship within 1-2 business days and arrive within a few business days after that, with tracking provided." } },
-      { "@type": "Question", "name": "What is your return policy?", "acceptedAnswer": { "@type": "Answer", "text": "If something isn't right, contact us and we'll help with a return or exchange." } },
-      { "@type": "Question", "name": "Is checkout secure?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Payments are handled by a trusted, PCI-compliant provider over an encrypted connection; card details are never stored on our site." } },
-      { "@type": "Question", "name": "How do I track my order?", "acceptedAnswer": { "@type": "Answer", "text": "Once your order ships, we email you a tracking link." } }
+      { "@type": "Question", "name": "How do shipping and returns work?", "acceptedAnswer": { "@type": "Answer", "text": "Contact us with the product you're looking at and we'll explain shipping and returns for that item." } },
+      { "@type": "Question", "name": "Is checkout secure?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Payments go through the payment provider's own secure checkout page, so card details are never entered or stored on this site." } },
+      { "@type": "Question", "name": "I have a question about my order.", "acceptedAnswer": { "@type": "Answer", "text": "Send us a message with your order number and we'll look it up for you." } }
     ]
   }
   </script>

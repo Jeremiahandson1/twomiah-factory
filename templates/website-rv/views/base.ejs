@@ -105,7 +105,7 @@
     "@context": "https://schema.org",
     "@type": "AutoDealer",
     "name": "{{COMPANY_NAME}}",
-    "description": "{{META_DESCRIPTION}} in {{CITY}} and the {{SERVICE_REGION}}",
+    "description": "{{META_DESCRIPTION}}",
     "url": "{{SITE_URL}}",
     "logo": <%- _jsonStr('{{SITE_URL}}' + logoUrl) %>,
     "image": <%- _jsonStr('{{SITE_URL}}' + logoUrl) %>,
@@ -128,9 +128,8 @@
           "name": "{{STATE_FULL}}"
         }
       }
-    ],
-    "priceRange": "$$"
-    <% if (typeof settings !== 'undefined' && settings && settings.socialLinks) { %>
+    ]
+    <% if (typeof settings!== 'undefined' && settings && settings.socialLinks) { %>
     ,"sameAs": [
       <% const socialLinks = []; %>
       <% if (settings.socialLinks.facebook) socialLinks.push(settings.socialLinks.facebook); %>
@@ -587,7 +586,7 @@
               </svg>
               <%= phone %>
             </a>
-            <a href="/contact" class="btn btn-primary btn-sm">Browse Inventory</a>
+            <a href="/inventory" class="btn btn-primary btn-sm">Browse Inventory</a>
           </div>
 
           <button class="nav-toggle" aria-label="Toggle menu">
@@ -652,7 +651,7 @@
         <li><a href="/about">About</a></li>
         <li><a href="/#contact">Contact</a></li>
         <li class="cta-item">
-          <a href="/contact" class="btn btn-primary">Browse Inventory</a>
+          <a href="/inventory" class="btn btn-primary">Browse Inventory</a>
         </li>
       </ul>
     </nav>
@@ -680,7 +679,7 @@
               </div>
               <span>{{COMPANY_NAME_UPPER}}</span>
             </div>
-            <p>Your RV &amp; powersports dealership for the {{CITY}} area. New &amp; used units, certified service, and financing for all credit.</p>
+            <p>Your RV &amp; powersports dealership for the {{SERVICE_REGION}}. New &amp; used units, service, and parts.</p>
             <div class="social-links">
               <% if (typeof settings !== 'undefined' && settings && settings.socialLinks) { %>
                 <% if (settings.socialLinks.facebook) { %>
@@ -758,18 +757,14 @@
               <li><a href="/blog">Blog</a></li>
               <li><a href="/about">About Us</a></li>
               <li><a href="/#contact">Contact</a></li>
-              <li><a href="/contact">Browse Inventory</a></li>
+              <li><a href="/inventory">Browse Inventory</a></li>
             </ul>
           </div>
 
           <div class="footer-col">
             <h3>Areas We Serve</h3>
             <ul>
-              <li><a href="/service-area/{{CITY}}">{{CITY}}</a></li>
-              <li><a href="/service-area/{{NEARBY_CITY_1}}">{{NEARBY_CITY_1}}</a></li>
-              <li><a href="/service-area/{{NEARBY_CITY_2}}">{{NEARBY_CITY_2}}</a></li>
-              <li><a href="/service-area/{{NEARBY_CITY_3}}">{{NEARBY_CITY_3}}</a></li>
-              <li><a href="/service-area/{{NEARBY_CITY_4}}">{{NEARBY_CITY_4}}</a></li>
+              {{SERVICE_AREA_LINKS}}
               <li><a href="/service-areas" style="font-weight:600;">View All Areas &rarr;</a></li>
               
               
@@ -800,10 +795,7 @@
                 <span><%= address %><br/><%= city %>, <%= state %> <%= zip %></span>
               </li>
             </ul>
-            <div class="hours">
-              <strong>Hours:</strong>
-              <span>Mon - Fri: 8am - 5pm</span>
-            </div>
+            <%/* no default hours: a site states only what its owner supplied */%>
           </div>
         </div>
       </div>
@@ -813,7 +805,7 @@
       <div class="container">
         <p>&copy; <%= new Date().getFullYear() %> {{COMPANY_NAME}}. All rights reserved.</p>
         <p class="footer-legal"><a href="/privacy">Privacy Policy</a> &middot; <a href="/terms">Terms of Service</a></p>
-        <p>Serving {{CITY}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_1}}, and the {{SERVICE_REGION}}</p>
+        <p>Serving {{SERVICE_AREAS}}.</p>
       </div>
     </div>
     <% if (typeof settings !== 'undefined' && settings && Array.isArray(settings.photoCredits) && settings.photoCredits.length) { %>

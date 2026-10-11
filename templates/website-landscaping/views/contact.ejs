@@ -1,6 +1,11 @@
 <%
   // Pre-select service if provided in query string
   if (typeof selectedService === 'undefined') { var selectedService = ''; }
+  // The generator fills empty NEARBY_CITY tokens with the home city, so list each place once.
+  const _areas = ['{{CITY}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}', '{{NEARBY_CITY_4}}']
+    .map((a) => String(a).trim()).filter((a, i, all) => a && all.findIndex((b) => b.toLowerCase() === a.toLowerCase()) === i);
+  const _svcOptions = (typeof services !== 'undefined' && Array.isArray(services) ? services : [])
+    .filter((s) => s && s.visible !== false && (s.title || s.name));
 %>
 
 <div class="contact-page">
@@ -10,7 +15,7 @@
     <div class="contact-hero-content">
       <div class="container">
         <h1>Contact {{COMPANY_NAME}}</h1>
-        <p>Ready to get started? Get in touch for a free, no-obligation estimate on your next project.</p>
+        <p>Ready to get started? Tell us what you need and we'll be in touch soon.</p>
       </div>
     </div>
   </section>
@@ -21,7 +26,7 @@
       <div class="contact-layout">
         <!-- Contact Form -->
         <div class="contact-form-wrapper">
-          <h2>Request a Free Estimate</h2>
+          <h2>Request an Estimate</h2>
           
           <form action="/api/admin/leads" method="POST" class="contact-form" id="contactForm">
             <div class="form-row">
@@ -58,10 +63,11 @@
               <select id="service" name="service" required>
                 <option value="">Select a service...</option>
                 <option value="general" <%= selectedService === 'general' ? 'selected' : '' %>>General Inquiry</option>
-                <option value="estimate" <%= selectedService === 'estimate' ? 'selected' : '' %>>Free Estimate</option>
+                <option value="estimate" <%= selectedService === 'estimate' ? 'selected' : '' %>>Estimate</option>
                 <option value="service" <%= selectedService === 'service' ? 'selected' : '' %>>Service Request</option>
-                <option value="gutters" <%= selectedService === 'gutters' ? 'selected' : '' %>>Gutters</option>
-                <option value="decking" <%= selectedService === 'decking' ? 'selected' : '' %>>Decking</option>
+                <% _svcOptions.forEach(function(s) { const _v = s.slug || s.id || (s.title || s.name); %>
+                <option value="<%= _v %>" <%= selectedService === _v ? 'selected' : '' %>><%= s.title || s.name %></option>
+                <% }); %>
                 <option value="other">Other/Multiple Services</option>
               </select>
             </div>
@@ -105,7 +111,7 @@
             </svg>
             <div>
               <strong>Thank you!</strong>
-              <p>We've received your request and will contact you within 24 hours.</p>
+              <p>We've received your request. We'll be in touch soon.</p>
             </div>
           </div>
           
@@ -136,7 +142,7 @@
               <div>
                 <h4>Phone</h4>
                 <a href="tel:{{COMPANY_PHONE_RAW}}" class="contact-link">{{COMPANY_PHONE}}</a>
-                <p class="hours">Mon-Fri: 8am-5pm</p>
+                <%/* no default hours: a site states only what its owner supplied */%>
               </div>
             </div>
             
@@ -149,8 +155,8 @@
               </div>
               <div>
                 <h4>Email</h4>
-                <a href="mailto:info@{{DOMAIN}}" class="contact-link">info@{{DOMAIN}}</a>
-                <p>We respond within 24 hours</p>
+                <a href="mailto:{{COMPANY_EMAIL}}" class="contact-link">{{COMPANY_EMAIL}}</a>
+                <p>We'll be in touch soon.</p>
               </div>
             </div>
             
@@ -173,50 +179,14 @@
           
           <div class="contact-info-card service-area-card">
             <h3>Service Area</h3>
-            <p>We proudly serve:</p>
+            <p>We serve:</p>
             <ul class="service-area-list">
-              <li>{{CITY}}</li>
-              <li>{{NEARBY_CITY_1}}</li>
-              <li>{{NEARBY_CITY_4}}</li>
-              <li>{{NEARBY_CITY_3}}</li>
-              <li>{{NEARBY_CITY_2}}</li>
+              <% _areas.forEach(function(a) { %><li><%= a %></li>
+              <% }); %>
             </ul>
-            <p class="service-area-note">Plus surrounding {{SERVICE_REGION}} communities within 50 miles of {{CITY}}</p>
+            <p class="service-area-note">And communities across the {{SERVICE_REGION}}.</p>
           </div>
-          
-          <div class="contact-info-card credentials-card">
-            <h3>Licensed & Insured</h3>
-            <div class="credentials-list">
-              <div class="credential-item">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                <span>State Licensed</span>
-              </div>
-              <div class="credential-item">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                <span>Fully Insured</span>
-              </div>
-              <div class="credential-item">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                <span>Workers' Comp Coverage</span>
-              </div>
-              <div class="credential-item">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                <span>Liability Insurance</span>
-              </div>
-            </div>
-          </div>
+          <%/* Credentials card removed: licensing/insurance are facts only the owner can supply. */%>
         </aside>
       </div>
     </div>
@@ -234,8 +204,8 @@
               <polyline points="22 4 12 14.01 9 11.01"></polyline>
             </svg>
           </div>
-          <h3>Free Estimates</h3>
-          <p>No-obligation quotes with detailed breakdowns. We'll visit your property and provide accurate pricing.</p>
+          <h3>Clear Estimates</h3>
+          <p>We'll talk through what you need and explain your options before any work begins.</p>
         </div>
         
         <div class="benefit-card">
@@ -245,8 +215,8 @@
               <polyline points="12 6 12 12 16 14"></polyline>
             </svg>
           </div>
-          <h3>Fast Response</h3>
-          <p>We respond to all inquiries within 24 hours, usually much sooner. Emergency repairs prioritized.</p>
+          <h3>Prompt Follow-Up</h3>
+          <p>Send us a message or give us a call, and we'll be in touch soon.</p>
         </div>
         
         <div class="benefit-card">
@@ -258,8 +228,8 @@
               <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
             </svg>
           </div>
-          <h3>Expert Advice</h3>
-          <p>Get honest recommendations from experienced professionals who know your area.</p>
+          <h3>Honest Advice</h3>
+          <p>Straightforward recommendations based on what your property actually needs.</p>
         </div>
         
         <div class="benefit-card">
@@ -278,22 +248,20 @@
     </div>
   </section>
 
-  <!-- Emergency Services -->
+  <!-- Call Us (was "Emergency Services": availability is the owner's to state, not the template's) -->
   <section class="contact-emergency">
     <div class="container">
       <div class="emergency-content">
         <div class="emergency-icon">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
           </svg>
         </div>
         <div>
-          <h2>Need Emergency Repairs?</h2>
-          <p>Need urgent help? We provide emergency service throughout the {{SERVICE_REGION}}.</p>
+          <h2>Prefer to Talk?</h2>
+          <p>Give us a call and tell us what you need.</p>
         </div>
-        <a href="tel:{{COMPANY_PHONE_RAW}}" class="btn btn-primary btn-lg">Call Now: {{COMPANY_PHONE}}</a>
+        <a href="tel:{{COMPANY_PHONE_RAW}}" class="btn btn-primary btn-lg">Call {{COMPANY_PHONE}}</a>
       </div>
     </div>
   </section>
@@ -371,7 +339,7 @@
       "@type": "HomeAndConstructionBusiness",
       "name": "{{COMPANY_NAME}}",
       "telephone": "{{COMPANY_PHONE}}",
-      "email": "info@{{DOMAIN}}",
+      "email": "{{COMPANY_EMAIL}}",
       "address": {
         "@type": "PostalAddress",
         "addressLocality": "{{CITY}}",
@@ -379,48 +347,17 @@
         "addressCountry": "US"
       },
       "areaServed": [
-        {
+        <% _areas.forEach(function(a, i) { %>{
           "@type": "City",
-          "name": "{{CITY}}",
+          "name": <%- JSON.stringify(a) %>,
           "containedInPlace": {
             "@type": "State",
             "name": "{{STATE_FULL}}"
           }
-        },
-        {
-          "@type": "City",
-          "name": "{{NEARBY_CITY_1}}",
-          "containedInPlace": {
-            "@type": "State",
-            "name": "{{STATE_FULL}}"
-          }
-        },
-        {
-          "@type": "City",
-          "name": "{{NEARBY_CITY_4}}",
-          "containedInPlace": {
-            "@type": "State",
-            "name": "{{STATE_FULL}}"
-          }
-        },
-        {
-          "@type": "City",
-          "name": "{{NEARBY_CITY_3}}",
-          "containedInPlace": {
-            "@type": "State",
-            "name": "{{STATE_FULL}}"
-          }
-        }
+        }<%= i < _areas.length - 1 ? ',' : '' %>
+        <% }); %>
       ],
-      "url": "{{SITE_URL}}/contact",
-      "openingHoursSpecification": [
-        {
-          "@type": "OpeningHoursSpecification",
-          "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-          "opens": "08:00",
-          "closes": "17:00"
-        }
-      ]
+      "url": "{{SITE_URL}}/contact"
     }
   }
   </script>

@@ -15,6 +15,29 @@ const state = (typeof settings !== 'undefined' && settings && settings.state) ? 
 const zip = (typeof settings !== 'undefined' && settings && settings.zip) ? settings.zip : '{{ZIP}}';
 const phoneRaw = phone.replace(/\D/g, '');
 
+// Areas: the generator fills empty nearby-city tokens with the home city, so de-duplicate.
+const _areas = serviceAreas
+  .map((a) => String(a).trim()).filter((a, i, all) => a && all.findIndex((b) => b.toLowerCase() === a.toLowerCase()) === i);
+
+// Hours print only for days the owner gave a real open time: a site states only what its owner supplied.
+const _dayNames = { monday: 'Monday', tuesday: 'Tuesday', wednesday: 'Wednesday', thursday: 'Thursday', friday: 'Friday', saturday: 'Saturday', sunday: 'Sunday' };
+const _openDays = Object.keys(_dayNames).filter(function (d) {
+  const h = businessHours[d];
+  return h && !h.closed && String(h.open || '').trim() && !/closed/i.test(String(h.open));
+});
+// "9:00 AM" -> "09:00" for JSON-LD; '' when the text is not a recognisable time.
+function _to24(t) {
+  const m = String(t || '').trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+  if (!m) return '';
+  let h = parseInt(m[1], 10);
+  if (m[3]) { if (/pm/i.test(m[3]) && h < 12) h += 12; if (/am/i.test(m[3]) && h === 12) h = 0; }
+  if (h > 23) return '';
+  return String(h).padStart(2, '0') + ':' + (m[2] || '00');
+}
+const _hoursLd = _openDays
+  .map(function (d) { return { day: _dayNames[d], opens: _to24(businessHours[d].open), closes: _to24(businessHours[d].close) }; })
+  .filter(function (x) { return x.opens && x.closes; });
+
 // Function to get image URL
 function getImageUrl(p) {
   if (!p) return '';
@@ -59,10 +82,10 @@ function getImageUrl(p) {
     <% } %>
     <div class="hero-video-content <%= hero.image ? 'hero-content' : '' %>" data-depth="0.03">
       <h1 class="kinetic-text variable-font-hero"><%= hero.title || '{{COMPANY_NAME}}' %></h1>
-      <h2><%= hero.subtitle || 'Premium Cannabis Dispensary' %></h2>
+      <h2><%= hero.subtitle || 'Cannabis Dispensary' %></h2>
       <div class="hero-line"></div>
-      <p class="hero-tagline"><strong><%= hero.tagline || 'CURATED CANNABIS FOR EVERY LIFESTYLE' %></strong></p>
-      <p class="hero-awards"><%= hero.description || 'Quality products, knowledgeable staff, and a welcoming experience' %></p>
+      <p class="hero-tagline"><strong><%= hero.tagline || 'ADULTS 21+ ONLY' %></strong></p>
+      <p class="hero-awards"><%= hero.description || 'Browse the menu and order online.' %></p>
       <div class="hero-buttons">
         <a href="<%= hero.primaryButtonLink || '/menu' %>" class="btn btn-primary btn-lg magnetic-btn">
           <span class="btn-text"><%= hero.primaryButtonText || 'Browse Menu' %></span>
@@ -85,21 +108,22 @@ function getImageUrl(p) {
   <section class="section-aurora" style="padding:60px 0;">
     <div class="container">
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:32px;text-align:center;" class="stagger-grid">
+        <%/* No product counts, ratings, customer counts or years: a site states only what its owner supplied. */%>
         <div class="glass-card scroll-reveal" style="padding:32px 20px;">
-          <div class="stat-counter" data-target="1000" data-suffix="+">0</div>
-          <div style="font-size:0.9rem;font-weight:600;margin-top:8px;color:#666;">Products Available</div>
+          <div style="font-size:1.6rem;font-weight:800;line-height:1.2;">Menu</div>
+          <div style="font-size:0.9rem;font-weight:600;margin-top:8px;color:#666;">Browse online before you visit</div>
         </div>
         <div class="glass-card scroll-reveal" style="padding:32px 20px;">
-          <div class="stat-counter" data-target="4.9" data-decimals="1" data-suffix="★">0</div>
-          <div style="font-size:0.9rem;font-weight:600;margin-top:8px;color:#666;">Customer Rating</div>
+          <div style="font-size:1.6rem;font-weight:800;line-height:1.2;">Order Ahead</div>
+          <div style="font-size:0.9rem;font-weight:600;margin-top:8px;color:#666;">Place your order online</div>
         </div>
         <div class="glass-card scroll-reveal" style="padding:32px 20px;">
-          <div class="stat-counter" data-target="15000" data-suffix="+">0</div>
-          <div style="font-size:0.9rem;font-weight:600;margin-top:8px;color:#666;">Happy Customers</div>
+          <div style="font-size:1.6rem;font-weight:800;line-height:1.2;">Loyalty</div>
+          <div style="font-size:0.9rem;font-weight:600;margin-top:8px;color:#666;">Check your points online</div>
         </div>
         <div class="glass-card scroll-reveal" style="padding:32px 20px;">
-          <div class="stat-counter" data-target="5" data-suffix=" Years">0</div>
-          <div style="font-size:0.9rem;font-weight:600;margin-top:8px;color:#666;">Serving the Community</div>
+          <div style="font-size:1.6rem;font-weight:800;line-height:1.2;">ID Required</div>
+          <div style="font-size:0.9rem;font-weight:600;margin-top:8px;color:#666;">Adults 21 and older only</div>
         </div>
       </div>
     </div>
@@ -111,41 +135,16 @@ function getImageUrl(p) {
       <div class="hours-grid">
         <div class="hours-info scroll-slide-left">
           <h2>Visit Us</h2>
+          <% if (_openDays.length) { %>
           <div class="hours-table">
-            <% if (businessHours.monday && !businessHours.monday.closed) { %>
+            <% _openDays.forEach(function (d) { %>
               <div class="hours-row">
-                <span>Monday - Friday</span>
-                <span><%= businessHours.monday.open %> - <%= businessHours.monday.close %></span>
+                <span><%= _dayNames[d] %></span>
+                <span><%= businessHours[d].open %><% if (businessHours[d].close) { %> - <%= businessHours[d].close %><% } %></span>
               </div>
-            <% } else { %>
-              <div class="hours-row">
-                <span>Monday - Friday</span>
-                <span>9am - 9pm</span>
-              </div>
-            <% } %>
-            <% if (businessHours.saturday && !businessHours.saturday.closed) { %>
-              <div class="hours-row">
-                <span>Saturday</span>
-                <span><%= businessHours.saturday.open %><% if (businessHours.saturday.close) { %> - <%= businessHours.saturday.close %><% } %></span>
-              </div>
-            <% } else { %>
-              <div class="hours-row">
-                <span>Saturday</span>
-                <span>9am - 10pm</span>
-              </div>
-            <% } %>
-            <% if (businessHours.sunday && !businessHours.sunday.closed) { %>
-              <div class="hours-row">
-                <span>Sunday</span>
-                <span><%= businessHours.sunday.open %><% if (businessHours.sunday.close) { %> - <%= businessHours.sunday.close %><% } %></span>
-              </div>
-            <% } else { %>
-              <div class="hours-row">
-                <span>Sunday</span>
-                <span>10am - 8pm</span>
-              </div>
-            <% } %>
+            <% }); %>
           </div>
+          <% } %>
           <div class="hours-address">
             <p><%= address %></p>
             <p><%= city %>, <%= state %> <%= zip %></p>
@@ -156,29 +155,29 @@ function getImageUrl(p) {
           <div class="feature-badge glass-card hover-glow">
             <span class="feature-icon">&#128666;</span>
             <div>
-              <strong>Pickup &amp; Delivery</strong>
-              <span>Order ahead, skip the wait</span>
+              <strong>Order Online</strong>
+              <span>Order ahead from our menu</span>
             </div>
           </div>
           <div class="feature-badge glass-card hover-glow">
             <span class="feature-icon">&#127807;</span>
             <div>
-              <strong>Lab Tested Products</strong>
-              <span>Every product tested for safety</span>
+              <strong>Browse the Menu</strong>
+              <span>See products by category and strain type</span>
             </div>
           </div>
           <div class="feature-badge glass-card hover-glow">
             <span class="feature-icon">&#11088;</span>
             <div>
               <strong>Loyalty Program</strong>
-              <span>Earn points on every purchase</span>
+              <span>Check your points balance online</span>
             </div>
           </div>
           <div class="feature-badge glass-card hover-glow">
             <span class="feature-icon">&#128101;</span>
             <div>
-              <strong>Expert Budtenders</strong>
-              <span>Personalized recommendations</span>
+              <strong>Questions Welcome</strong>
+              <span>Ask us about any product on the menu</span>
             </div>
           </div>
         </div>
@@ -198,7 +197,7 @@ function getImageUrl(p) {
               <% if (service.image) { %>
                 <img
                   src="<%= getImageUrl(service.image) %>"
-                  alt="<%= service.title %> at {{COMPANY_NAME}}"
+                  alt="<%= service.title || service.name %> at {{COMPANY_NAME}}"
                   loading="lazy"
                   width="800"
                   height="600"
@@ -208,7 +207,7 @@ function getImageUrl(p) {
               <% } %>
             </div>
             <div class="service-content">
-              <h3><%= service.title %></h3>
+              <h3><%= service.title || service.name %></h3>
               <p><%= service.shortDescription || service.tagline || service.description %></p>
               <% if (service.links && service.links.length > 0) { %>
                 <hr>
@@ -232,28 +231,28 @@ function getImageUrl(p) {
   <!-- Why Choose Us Section -->
   <section class="why-choose-section shader-bg divider-wave">
     <div class="container">
-      <h2 class="scroll-reveal">Why {{CITY}} Chooses {{COMPANY_NAME}}</h2>
+      <h2 class="scroll-reveal">Visiting {{COMPANY_NAME}}</h2>
       <div class="why-grid stagger-grid">
         <div class="why-item glass-card hover-glow scroll-reveal">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </div>
-          <h3>Lab-Tested Quality</h3>
-          <p>Every product on our shelves is third-party lab tested for potency, purity, and safety. We only carry brands and cultivators that meet our strict quality standards.</p>
+          <h3>Bring Your ID</h3>
+          <p>You must be 21 or older to purchase cannabis. Bring a valid, unexpired government-issued photo ID.</p>
         </div>
         <div class="why-item glass-card hover-glow scroll-reveal">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           </div>
-          <h3>Knowledgeable Budtenders</h3>
-          <p>Our staff are trained cannabis professionals who can help you find the right product for your needs, whether you are a seasoned consumer or visiting a dispensary for the first time.</p>
+          <h3>Ask Us Anything</h3>
+          <p>Whether you are a seasoned consumer or visiting a dispensary for the first time, ask us about the products on our menu.</p>
         </div>
         <div class="why-item glass-card hover-glow scroll-reveal">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
           </div>
-          <h3>Locally Rooted</h3>
-          <p>We're proud to serve the {{SERVICE_REGION}} community. We support local growers and brands, and give back to the neighborhoods where our customers live.</p>
+          <h3>Find Us</h3>
+          <p>Visit us in <%= city %>, <%= state %>, or browse the menu online and order ahead.</p>
         </div>
       </div>
     </div>
@@ -343,7 +342,7 @@ function getImageUrl(p) {
   >
     <div class="container">
       <%
-        const ctaTitle = ctaSection.title || 'Premium cannabis,\ndelivered your way.';
+        const ctaTitle = ctaSection.title || 'Browse the menu,\norder ahead.';
         const ctaTitleLines = ctaTitle.split('\n');
       %>
       <h2>
@@ -351,7 +350,7 @@ function getImageUrl(p) {
           <%= line %><% if (i === 0 && ctaTitleLines.length > 1) { %><br><% } %>
         <% }); %>
       </h2>
-      <p><%= ctaSection.description || "Order online for fast pickup or delivery. First-time customers get 15% off their first order." %></p>
+      <p><%= ctaSection.description || "Browse our menu and place your order online. Adults 21+ only." %></p>
       <div class="cta-buttons">
         <a href="<%= ctaSection.primaryButtonLink || '/order' %>" class="btn btn-primary btn-lg magnetic-btn">
           <span class="btn-text"><%= ctaSection.primaryButtonText || 'Order Now' %></span>
@@ -364,7 +363,7 @@ function getImageUrl(p) {
   </section>
 
   <!-- FAQ Section -->
-  <section class="home-faq">
+  <section class="home-faq" id="faq">
     <div class="container">
       <h2>Frequently Asked Questions</h2>
       <div class="home-faq-list">
@@ -373,20 +372,20 @@ function getImageUrl(p) {
           <p>You must be 21 or older and present a valid, unexpired government-issued photo ID (driver's license, state ID, or passport). Temporary or expired IDs are not accepted.</p>
         </details>
         <details class="home-faq-item scroll-reveal">
-          <summary><strong>Do you offer delivery?</strong></summary>
-          <p>Yes, we offer delivery within the {{SERVICE_REGION}} area. Place your order online and select the delivery option at checkout. Minimum order amounts may apply.</p>
+          <summary><strong>Can I order ahead?</strong></summary>
+          <p>Yes. Browse our menu, add items to your cart, and place your order online. Contact us with any questions about your order.</p>
         </details>
         <details class="home-faq-item scroll-reveal">
           <summary><strong>How does the loyalty program work?</strong></summary>
-          <p>Sign up for free and earn 1 point per dollar spent. Points can be redeemed for discounts, free products, and exclusive deals. Visit our <a href="/loyalty">loyalty page</a> for full details on tiers and rewards.</p>
+          <p>Ask us about joining. Members can check their points balance on our <a href="/loyalty">loyalty page</a>.</p>
         </details>
         <details class="home-faq-item scroll-reveal">
-          <summary><strong>Can I order online for pickup?</strong></summary>
-          <p>Absolutely! Browse our menu, add items to your cart, and select pickup at checkout. We will have your order ready when you arrive. Most orders are ready in 15-30 minutes.</p>
+          <summary><strong>Is there a limit on how much I can buy?</strong></summary>
+          <p>Purchase limits are set by state law and can differ for medical and adult-use customers. Ask us about the limits that apply to you.</p>
         </details>
         <details class="home-faq-item scroll-reveal">
           <summary><strong>What forms of payment do you accept?</strong></summary>
-          <p>We accept cash and debit cards. An ATM is available on-site. Some products may also be available for purchase via our online ordering system.</p>
+          <p>Payment options vary between dispensaries. Contact us to ask which payment methods we accept.</p>
         </details>
       </div>
     </div>
@@ -427,6 +426,7 @@ function getImageUrl(p) {
               <span><%= address %><br/><%= city %>, <%= state %> <%= zip %></span>
             </div>
           </div>
+          <% if (_openDays.length) { %>
           <div class="contact-item">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10"></circle>
@@ -435,24 +435,15 @@ function getImageUrl(p) {
             <div>
               <strong>Hours</strong>
               <span>
-                <% if (businessHours.monday && !businessHours.monday.closed) { %>
-                  Mon - Fri: <%= businessHours.monday.open %> - <%= businessHours.monday.close %>
-                <% } else { %>
-                  Mon - Fri: 9am - 9pm
-                <% } %>
-                <br/>
-                <% if (businessHours.saturday && !businessHours.saturday.closed) { %>
-                  Sat: <%= businessHours.saturday.open %><% if (businessHours.saturday.close) { %> - <%= businessHours.saturday.close %><% } %>
-                <% } else { %>
-                  Sat: 9am - 10pm
-                <% } %>
+                <% _openDays.forEach(function (d, i) { %><%= _dayNames[d].slice(0, 3) %>: <%= businessHours[d].open %><% if (businessHours[d].close) { %> - <%= businessHours[d].close %><% } %><% if (i < _openDays.length - 1) { %><br/><% } %><% }); %>
               </span>
             </div>
           </div>
+          <% } %>
 
           <div class="service-areas">
             <h3>Serving</h3>
-            <p><%= serviceAreas.join(', ') %>, and surrounding communities.</p>
+            <p><%= _areas.join(', ') %></p>
           </div>
         </div>
 
@@ -526,34 +517,25 @@ function getImageUrl(p) {
       "addressCountry": "US"
     },
     "areaServed": [
-      <% serviceAreas.forEach(function(area, index) { %>
+      <% _areas.forEach(function(area, index) { %>
       {
         "@type": "City",
         "name": <%- _jsonStr(String(area) + ', {{STATE}}') %>
-      }<%= index < serviceAreas.length - 1 ? ',' : '' %>
+      }<%= index < _areas.length - 1 ? ',' : '' %>
       <% }); %>
-    ],
-    "priceRange": "$$",
-    "openingHoursSpecification": [
-      {
-        "@type": "OpeningHoursSpecification",
-        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-        "opens": "09:00",
-        "closes": "21:00"
-      },
-      {
-        "@type": "OpeningHoursSpecification",
-        "dayOfWeek": "Saturday",
-        "opens": "09:00",
-        "closes": "22:00"
-      },
-      {
-        "@type": "OpeningHoursSpecification",
-        "dayOfWeek": "Sunday",
-        "opens": "10:00",
-        "closes": "20:00"
-      }
     ]
+    <% if (_hoursLd.length) { %>
+    ,"openingHoursSpecification": [
+      <% _hoursLd.forEach(function(h, index) { %>
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": <%- _jsonStr(h.day) %>,
+        "opens": <%- _jsonStr(h.opens) %>,
+        "closes": <%- _jsonStr(h.closes) %>
+      }<%= index < _hoursLd.length - 1 ? ',' : '' %>
+      <% }); %>
+    ]
+    <% } %>
     <% if (typeof testimonials !== 'undefined' && testimonials && testimonials.length > 0) { %>
     ,"aggregateRating": {
       "@type": "AggregateRating",
@@ -602,10 +584,10 @@ function getImageUrl(p) {
       },
       {
         "@type": "Question",
-        "name": "Do you offer delivery?",
+        "name": "Can I order ahead?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes, we offer delivery within the {{SERVICE_REGION}} area. Place your order online and select delivery at checkout."
+          "text": "Yes. Browse our menu, add items to your cart, and place your order online."
         }
       },
       {
@@ -613,15 +595,15 @@ function getImageUrl(p) {
         "name": "How does the loyalty program work?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Sign up for free and earn 1 point per dollar spent. Points can be redeemed for discounts, free products, and exclusive deals."
+          "text": "Ask us about joining. Members can check their points balance on our loyalty page."
         }
       },
       {
         "@type": "Question",
-        "name": "Can I order online for pickup?",
+        "name": "Is there a limit on how much I can buy?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Absolutely! Browse our menu, add items to your cart, and select pickup at checkout. Most orders are ready in 15-30 minutes."
+          "text": "Purchase limits are set by state law and can differ for medical and adult-use customers. Ask us about the limits that apply to you."
         }
       },
       {
@@ -629,7 +611,7 @@ function getImageUrl(p) {
         "name": "What forms of payment do you accept?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "We accept cash and debit cards. An ATM is available on-site."
+          "text": "Payment options vary between dispensaries. Contact us to ask which payment methods we accept."
         }
       }
     ]

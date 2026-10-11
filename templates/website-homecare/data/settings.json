@@ -20,7 +20,7 @@
     "googleBusiness": ""
   },
   "defaultMetaTitle": "{{COMPANY_NAME}} - {{CITY}} {{INDUSTRY}}",
-  "defaultMetaDescription": "{{META_DESCRIPTION}}",
+  "defaultMetaDescription": "Compassionate in-home care in {{CITY}} and the {{SERVICE_REGION}}.",
   "analytics": {
     "googleAnalyticsId": "",
     "googleTagManagerId": "",

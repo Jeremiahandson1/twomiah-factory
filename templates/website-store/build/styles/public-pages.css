@@ -446,7 +446,7 @@
 
 .gallery-card-content .project-category {
   font-size: 0.75rem;
-  color: var(--color-accent);
+  color: #ffffff; /* it sits on the brand-filled chip */
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -2588,3 +2588,8 @@
   color: var(--navy, #1e293b);
 }
 .order-confirm__actions { margin-top: 8px; }
+
+/* Contact page call band: room between its line of text and the call button below it */
+.contact-emergency .emergency-content p {
+  margin-bottom: 16px;
+}

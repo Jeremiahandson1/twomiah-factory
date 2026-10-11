@@ -1,6 +1,9 @@
 <%
 const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
 const phoneRaw = phone.replace(/\D/g, '');
+// Empty NEARBY_CITY tokens are filled with the home city, so list each area once.
+const _areaList = (typeof areas !== 'undefined' && Array.isArray(areas) ? areas : [])
+  .filter((a, i, all) => a && a.name && all.findIndex((b) => b.slug === a.slug) === i);
 %>
 
 <div class="service-area-page">
@@ -8,7 +11,7 @@ const phoneRaw = phone.replace(/\D/g, '');
     <div class="service-hero-content">
       <div class="container">
         <h1>Areas We Serve</h1>
-        <p class="hero-tagline">Professional services throughout {{SERVICE_REGION}} and surrounding communities</p>
+        <p class="hero-tagline">Serving {{CITY}} and the {{SERVICE_REGION}}</p>
       </div>
     </div>
   </section>
@@ -16,11 +19,11 @@ const phoneRaw = phone.replace(/\D/g, '');
   <section class="service-content">
     <div class="container">
       <div class="area-services-grid" style="margin-top:2rem;">
-        <% if (typeof areas !== 'undefined' && areas.length > 0) { %>
-          <% areas.forEach(function(area) { %>
+        <% if (_areaList.length > 0) { %>
+          <% _areaList.forEach(function(area) { %>
             <a href="/service-area/<%= area.slug %>" class="area-service-card">
               <h3><%= area.name %>, <%= area.state %></h3>
-              <p><%= area.description ? area.description.substring(0, 120) + '...' : 'Professional services available in ' + area.name %></p>
+              <p><%= area.description ? (area.description.length > 120 ? area.description.substring(0, 120) + '...' : area.description) : 'Services available in ' + area.name %></p>
               <span class="area-service-link">View Services &rarr;</span>
             </a>
           <% }); %>

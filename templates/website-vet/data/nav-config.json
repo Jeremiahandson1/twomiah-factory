@@ -3,28 +3,21 @@
     {
       "id": "about",
       "label": "About",
-      "href": "#about",
-      "visible": true,
-      "children": []
-    },
-    {
-      "id": "team",
-      "label": "Meet Our Vets",
-      "href": "#team",
+      "href": "/#about",
       "visible": true,
       "children": []
     },
     {
       "id": "services",
       "label": "Services",
-      "href": "#services",
+      "href": "/#services",
       "visible": true,
       "children": []
     },
     {
       "id": "contact",
       "label": "Contact",
-      "href": "#contact",
+      "href": "/#contact",
       "visible": true,
       "children": []
     }

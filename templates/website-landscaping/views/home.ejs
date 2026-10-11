@@ -15,6 +15,27 @@ const state = (typeof settings !== 'undefined' && settings && settings.state) ? 
 const zip = (typeof settings !== 'undefined' && settings && settings.zip) ? settings.zip : '{{ZIP}}';
 const phoneRaw = phone.replace(/\D/g, '');
 
+// The generator fills empty NEARBY_CITY tokens with the home city, so list each place once.
+const _areas = serviceAreas.map((a) => String(a).trim())
+  .filter((a, i, all) => a && all.findIndex((b) => b.toLowerCase() === a.toLowerCase()) === i);
+
+// Hours: never print defaults. Only days the owner gave a real opening time for.
+const _dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const _hours = _dayNames.map((d) => ({ day: d, h: businessHours[d] }))
+  .filter((x) => x.h && !x.h.closed && String(x.h.open || '').trim() && !/closed/i.test(String(x.h.open)));
+function _to24(t) {
+  const m = String(t || '').trim().match(/^(\d{1,2})(?::(\d{2}))?\s*([ap])?\.?m?\.?$/i);
+  if (!m) return '';
+  let h = Number(m[1]);
+  const ap = (m[3] || '').toLowerCase();
+  if (ap === 'p' && h < 12) h += 12;
+  if (ap === 'a' && h === 12) h = 0;
+  if (h > 23) return '';
+  return String(h).padStart(2, '0') + ':' + (m[2] || '00');
+}
+const _hoursSpec = _hours.map((x) => ({ day: x.day.charAt(0).toUpperCase() + x.day.slice(1), opens: _to24(x.h.open), closes: _to24(x.h.close) }))
+  .filter((x) => x.opens && x.closes);
+
 // Function to get image URL
 function getImageUrl(p) {
   if (!p) return '';
@@ -46,11 +67,11 @@ function getImageUrl(p) {
       <h1><%= hero.title || '{{COMPANY_NAME}}' %></h1>
       <h2><%= hero.subtitle || 'Professional {{INDUSTRY}} Services' %></h2>
       <div class="hero-line"></div>
-      <p class="hero-tagline"><strong><%= hero.tagline || 'YOUR TRUSTED LOCAL PROFESSIONALS' %></strong></p>
+      <p class="hero-tagline"><strong><%= hero.tagline || 'Serving {{CITY}} and the {{SERVICE_REGION}}' %></strong></p>
       <p class="hero-awards"><%= hero.description || 'Serving the {{SERVICE_REGION}} with Quality Craftsmanship' %></p>
       <div class="hero-buttons">
         <a href="<%= hero.primaryButtonLink || '#contact' %>" class="btn btn-primary btn-lg">
-          <%= hero.primaryButtonText || 'Request Free Estimate' %>
+          <%= hero.primaryButtonText || 'Request an Estimate' %>
         </a>
         <a href="<%= hero.secondaryButtonLink || '/gallery' %>" class="btn btn-outline-light btn-lg">
           <%= hero.secondaryButtonText || 'View Our Work' %>
@@ -100,28 +121,28 @@ function getImageUrl(p) {
   <!-- Why Choose Us Section -->
   <section class="why-choose-section">
     <div class="container">
-      <h2>Why {{CITY}} Homeowners Trust {{COMPANY_NAME}}</h2>
+      <h2>Why Choose {{COMPANY_NAME}}</h2>
       <div class="why-grid">
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </div>
-          <h3>Reliable, Same-Crew Service</h3>
-          <p>The same crew works your property every visit, so they learn its quirks and the result stays consistent. We show up when we say we will and clean up before we leave — your walks, drive, and patio blown off every time.</p>
+          <h3>Care for Your Property</h3>
+          <p>We treat your property with care and clean up before we leave, so your walks, drive, and patio are clear when the work is done.</p>
         </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
           </div>
           <h3>Local to the {{SERVICE_REGION}}</h3>
-          <p>Based in {{CITY}}, our crews serve homeowners and businesses across {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, {{NEARBY_CITY_2}}, and the surrounding communities. As a local, family-owned company, we know the properties and the seasons here.</p>
+          <p>We serve homeowners and businesses in <%= _areas.join(', ') %> and across the {{SERVICE_REGION}}.</p>
         </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </div>
-          <h3>Free Estimates, Honest Pricing</h3>
-          <p>No high-pressure sales. We walk the property, explain your options, and give you a clear written quote with no obligation — so the price you approve is the price you pay.</p>
+          <h3>Clear Communication</h3>
+          <p>No high-pressure sales. We talk through what you want, explain your options, and keep you informed from the first conversation to the finished job.</p>
         </div>
       </div>
     </div>
@@ -244,10 +265,10 @@ function getImageUrl(p) {
           <%= line %><% if (i === 0 && ctaTitleLines.length > 1) { %><br><% } %>
         <% }); %>
       </h2>
-      <p><%= ctaSection.description || "Get a free, no-obligation estimate for lawn care, landscaping, hardscaping, or seasonal service." %></p>
+      <p><%= ctaSection.description || "Tell us what you need for your lawn, landscape, or property and we'll be in touch soon." %></p>
       <div class="cta-buttons">
         <a href="<%= ctaSection.primaryButtonLink || '#contact' %>" class="btn btn-primary btn-lg">
-          <%= ctaSection.primaryButtonText || 'Schedule a Free Estimate' %>
+          <%= ctaSection.primaryButtonText || 'Request an Estimate' %>
         </a>
         <a href="<%= ctaSection.secondaryButtonLink || 'tel:' + phoneRaw %>" class="btn btn-outline btn-lg">
           <%= ctaSection.secondaryButtonText || 'Call ' + phone %>
@@ -292,27 +313,24 @@ function getImageUrl(p) {
   <section class="home-faq">
     <div class="container">
       <h2>Frequently Asked Questions</h2>
+      <%
+        // General questions only: every answer is industry information or how to reach us, never a claim
+        // about the business (credentials, hours, prices, guarantees) that its owner has not supplied.
+        const _faqs = [
+          { q: "What areas do you serve?", a: 'We serve ' + _areas.join(', ') + ' and nearby communities.' },
+          { q: "How often should a lawn be mowed?", a: "During peak growing season most lawns need mowing about once a week, slowing to every 10 to 14 days as growth slows in summer heat or fall. A good rule is never to remove more than a third of the grass blade at one time." },
+          { q: "When is the best time to plant trees and shrubs?", a: "Early fall and spring are usually best. Cooler temperatures and regular rainfall let roots establish before summer heat or winter freeze." },
+          { q: "How much mulch should go in a planting bed?", a: "About 2 to 3 inches is the usual recommendation. Keep mulch pulled a few inches away from tree trunks and plant stems so they do not stay wet and rot." },
+          { q: "How do I request service?", a: "Call us or fill out the form on this page with a few details about your property and what you need, and we will be in touch soon." },
+        ];
+      %>
       <div class="home-faq-list">
+        <% _faqs.forEach(function(f) { %>
         <details class="home-faq-item animate-on-scroll">
-          <summary><strong>Do you offer free estimates?</strong></summary>
-          <p>Yes. We come out, walk the property with you, and provide a clear written quote at no cost and with no obligation. For recurring services like lawn maintenance we can often quote quickly; for hardscaping and installs we always do an on-site walkthrough.</p>
+          <summary><strong><%= f.q %></strong></summary>
+          <p><%= f.a %></p>
         </details>
-        <details class="home-faq-item animate-on-scroll">
-          <summary><strong>Are you licensed and insured?</strong></summary>
-          <p>Yes — we carry full general liability and workers' compensation coverage. Heavy equipment works close to your home, fence, and foundation, and you should never be the one exposed if something goes wrong. We're happy to provide a certificate of insurance.</p>
-        </details>
-        <details class="home-faq-item animate-on-scroll">
-          <summary><strong>What areas do you serve besides {{CITY}}?</strong></summary>
-          <p>We serve homeowners and businesses in {{CITY}}, {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, {{NEARBY_CITY_2}}, and throughout the greater {{SERVICE_REGION}}. Our crew is local, so we're never far away.</p>
-        </details>
-        <details class="home-faq-item animate-on-scroll">
-          <summary><strong>Do you offer recurring service or just one-time jobs?</strong></summary>
-          <p>Both. Most clients set up recurring lawn maintenance on a weekly or bi-weekly schedule, often bundled with seasonal cleanups and snow removal so the whole property is handled year-round. We also do one-time projects like patios, mulch refreshes, tree work, and cleanups.</p>
-        </details>
-        <details class="home-faq-item animate-on-scroll">
-          <summary><strong>Can one company handle my whole property?</strong></summary>
-          <p>That's the idea. Mowing, landscaping, mulch and beds, hardscaping, tree and shrub work, pressure washing, seasonal cleanups, and snow — one crew that knows your property is simpler for you and produces a more consistent result than juggling four contractors.</p>
-        </details>
+        <% }); %>
       </div>
     </div>
   </section>
@@ -352,6 +370,8 @@ function getImageUrl(p) {
               <span><%= address %><br/><%= city %>, <%= state %> <%= zip %></span>
             </div>
           </div>
+          <%/* no default hours: a site states only what its owner supplied */%>
+          <% if (_hours.length > 0) { %>
           <div class="contact-item">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10"></circle>
@@ -360,24 +380,16 @@ function getImageUrl(p) {
             <div>
               <strong>Hours</strong>
               <span>
-                <% if (businessHours.monday && !businessHours.monday.closed) { %>
-                  Mon - Fri: <%= businessHours.monday.open %> - <%= businessHours.monday.close %>
-                <% } else { %>
-                  Mon - Fri: 8am - 5pm
-                <% } %>
-                <br/>
-                <% if (businessHours.saturday && !businessHours.saturday.closed) { %>
-                  Sat: <%= businessHours.saturday.open %><% if (businessHours.saturday.close) { %> - <%= businessHours.saturday.close %><% } %>
-                <% } else { %>
-                  Sat: By Appointment
-                <% } %>
+                <% _hours.forEach(function(x, i) { %><%= x.day.charAt(0).toUpperCase() + x.day.slice(1, 3) %>: <%= x.h.open %><% if (x.h.close) { %> - <%= x.h.close %><% } %><% if (i < _hours.length - 1) { %><br/><% } %>
+                <% }); %>
               </span>
             </div>
           </div>
+          <% } %>
           
           <div class="service-areas">
             <h3>Service Areas</h3>
-            <p><%= serviceAreas.join(', ') %>, and surrounding communities.</p>
+            <p><%= _areas.join(', ') %> and the {{SERVICE_REGION}}.</p>
           </div>
         </div>
 
@@ -466,22 +478,18 @@ function getImageUrl(p) {
       "addressCountry": "US"
     },
     "areaServed": [
-      <% serviceAreas.forEach(function(area, index) { %>
+      <% _areas.forEach(function(area, index) { %>
       {
         "@type": "City",
         "name": <%- _jsonStr(String(area) + ', {{STATE}}') %>
-      }<%= index < serviceAreas.length - 1 ? ',' : '' %>
+      }<%= index < _areas.length - 1 ? ',' : '' %>
       <% }); %>
-    ],
-    "priceRange": "$$",
-    "openingHoursSpecification": [
-      {
-        "@type": "OpeningHoursSpecification",
-        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-        "opens": "08:00",
-        "closes": "17:00"
-      }
     ]
+    <% if (_hoursSpec.length > 0) { %>
+    ,"openingHoursSpecification": [
+      <%- _hoursSpec.map((x) => JSON.stringify({ '@type': 'OpeningHoursSpecification', dayOfWeek: x.day, opens: x.opens, closes: x.closes })).join(', ') %>
+    ]
+    <% } %>
     <% if (typeof services !== 'undefined' && services && services.length > 0) { %>
     ,"hasOfferCatalog": {
       "@type": "OfferCatalog",
@@ -492,7 +500,7 @@ function getImageUrl(p) {
           "@type": "Offer",
           "itemOffered": {
             "@type": "Service",
-            "name": <%- _jsonStr(s.title) %>,
+            "name": <%- _jsonStr(s.title || s.name) %>,
             "description": <%- _jsonStr(_plainDesc(s.description, 280)) %>
           }
         }<%= index < services.length - 1 ? ',' : '' %>
@@ -514,7 +522,7 @@ function getImageUrl(p) {
         "@type": "Review",
         "author": {
           "@type": "Person",
-          "name": <%- _jsonStr(t.author) %>
+          "name": <%- _jsonStr(t.author || t.name) %>
         },
         "reviewRating": {
           "@type": "Rating",
@@ -538,46 +546,7 @@ function getImageUrl(p) {
     "@context": "https://schema.org",
     "@type": "FAQPage",
     "mainEntity": [
-      {
-        "@type": "Question",
-        "name": "Do you offer free estimates?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Yes. We walk the property with you and provide a clear written quote at no cost and with no obligation."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Are you licensed and insured?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Yes — we carry full general liability and workers' compensation coverage and can provide a certificate of insurance on request."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "What areas do you serve besides {{CITY}}?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "We serve homeowners and businesses in {{CITY}}, {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, {{NEARBY_CITY_2}}, and throughout the greater {{SERVICE_REGION}}."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Do you offer recurring service or just one-time jobs?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Both. Most clients set up recurring weekly or bi-weekly lawn maintenance, often bundled with seasonal cleanups and snow removal. We also do one-time projects like patios, mulch, tree work, and cleanups."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Can one company handle my whole property?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Yes — mowing, landscaping, mulch and beds, hardscaping, tree and shrub work, pressure washing, seasonal cleanups, and snow. One crew that knows your property is simpler and more consistent than juggling four contractors."
-        }
-      }
+      <%- _faqs.map((f) => JSON.stringify({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })).join(', ') %>
     ]
   }
   </script>

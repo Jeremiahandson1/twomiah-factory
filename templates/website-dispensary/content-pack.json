@@ -6,7 +6,7 @@
     "guidelines": [
       "Welcoming to first-timers without being condescending",
       "Knowledgeable for experienced users without gatekeeping",
-      "Compliance-forward — always reference state licensing, lab testing, and legal purchase limits",
+      "Compliance-forward — state the legal age (21+) and that purchase limits are set by state law; never claim the business's own licence, lab testing, awards, delivery, hours, prices or deals unless the owner supplied them",
       "Speak like a knowledgeable friend who works at the shop, not a corporate pamphlet or a head shop poster",
       "Use correct cannabis terminology (cultivar, cannabinoid, terpene) but explain it plainly",
       "Never make medical claims — use 'may help with' and 'many customers report'",
@@ -14,40 +14,19 @@
       "Acknowledge that cannabis affects everyone differently"
     ]
   },
-  "trustBadges": [
-    {
-      "label": "State Licensed Dispensary",
-      "icon": "shield-check",
-      "description": "Fully licensed and compliant with all state and local cannabis regulations. We undergo regular inspections and maintain complete seed-to-sale tracking."
-    },
-    {
-      "label": "Lab Tested Products",
-      "icon": "microscope",
-      "description": "Every product on our shelves has been tested by an independent, accredited laboratory for potency, pesticides, heavy metals, and microbials. We only carry what passes."
-    },
-    {
-      "label": "Certified Budtenders",
-      "icon": "user-check",
-      "description": "Our team completes ongoing cannabis education covering terpene science, cannabinoid interactions, dosing guidance, and responsible consumption. We're here to help, not just sell."
-    },
-    {
-      "label": "Safe & Secure Shopping",
-      "icon": "lock",
-      "description": "Our facility features 24/7 security monitoring, controlled entry, and full compliance with all state security requirements. Your safety and privacy are non-negotiable."
-    }
-  ],
+  "trustBadges": [],
   "services": [
     {
       "name": "Flower",
       "slug": "flower",
       "icon": "leaf",
       "headline": "Whole flower cannabis, grown with care and cured for quality.",
-      "description": "Our flower selection spans indica, sativa, and hybrid cultivars sourced from licensed growers who prioritize terpene preservation and clean growing practices. Whether you're looking for a high-myrcene indica for deep relaxation, a limonene-rich sativa for daytime focus, or a balanced hybrid with a complex terpene profile, our budtenders can walk you through what's on the shelf and why it matters.",
+      "description": "Our flower selection spans indica, sativa, and hybrid cultivars. Whether you're looking for a high-myrcene indica for deep relaxation, a limonene-rich sativa for daytime focus, or a balanced hybrid with a complex terpene profile, ask us what's on the shelf and why it matters.",
       "highlights": [
         "Indica, sativa, and hybrid cultivars with full terpene profiles listed",
         "Strains selected for terpene diversity — myrcene, limonene, caryophyllene, pinene, linalool, and more",
-        "Indoor, outdoor, and greenhouse-grown options from licensed cultivators",
-        "THC and CBD percentages lab-verified on every batch",
+        "Indoor, outdoor, and greenhouse-grown options",
+        "THC and CBD percentages listed on the label",
         "Ask about our current harvest dates — freshness matters more than most people think"
       ],
       "customerNote": "New to flower? Start with a gram of something mild (15-18% THC) and ask your budtender about the terpene profile. The nose knows — if a strain smells good to you, that's usually a solid sign."
@@ -57,9 +36,9 @@
       "slug": "edibles",
       "icon": "cookie",
       "headline": "Precisely dosed edibles for predictable, enjoyable experiences.",
-      "description": "Edibles offer a smoke-free way to consume cannabis, but they work differently than inhalation. THC is processed through your liver, producing a longer-lasting and often more intense effect. Our edible selection includes gummies, chocolates, baked goods, beverages, and mints — all lab-tested for accurate dosing so you know exactly what you're getting.",
+      "description": "Edibles offer a smoke-free way to consume cannabis, but they work differently than inhalation. THC is processed through your liver, producing a longer-lasting and often more intense effect. Edibles come as gummies, chocolates, baked goods, beverages, and mints, with the dose per serving printed on the label.",
       "highlights": [
-        "Gummies, chocolates, beverages, mints, and baked goods from trusted brands",
+        "Gummies, chocolates, beverages, mints, and baked goods",
         "Clearly labeled dosing — most products available in 2.5mg, 5mg, and 10mg per serving",
         "THC, CBD, and balanced-ratio options for different needs",
         "Onset time: typically 30-90 minutes, with effects lasting 4-8 hours",
@@ -72,12 +51,12 @@
       "slug": "concentrates",
       "icon": "droplet",
       "headline": "Premium concentrates for experienced consumers who value potency and flavor.",
-      "description": "Concentrates deliver higher cannabinoid concentrations through various extraction methods, each preserving different aspects of the plant. Live rosin is solventless and prized for its full terpene expression. Shatter and wax offer potent, consistent experiences. Vape cartridges provide discreet, convenient consumption with precise temperature control. We carry concentrates across the potency spectrum and our staff can explain the differences between extraction methods.",
+      "description": "Concentrates deliver higher cannabinoid concentrations through various extraction methods, each preserving different aspects of the plant. Live rosin is solventless and prized for its full terpene expression. Shatter and wax offer potent, consistent experiences. Vape cartridges provide discreet, convenient consumption with precise temperature control. Ask us to explain the differences between extraction methods.",
       "highlights": [
-        "Live rosin, live resin, shatter, wax, budder, and crumble from licensed extractors",
-        "510-thread vape cartridges and pod systems from reputable brands",
+        "Live rosin, live resin, shatter, wax, budder, and crumble",
+        "510-thread vape cartridges and pod systems",
         "Solventless and hydrocarbon extraction options — we can explain the difference",
-        "Potency ranges from 50-90%+ THC with full cannabinoid and terpene lab results",
+        "Potency ranges from 50-90%+ THC, listed on the label",
         "Strain-specific and blended terpene profiles available"
       ],
       "customerNote": "Concentrates are not where most people should start. If you're curious, talk to a budtender about low-temp dabbing or a half-gram cartridge. A little goes a long way, and the flavor at lower temperatures is genuinely worth it."
@@ -87,10 +66,10 @@
       "slug": "pre-rolls",
       "icon": "cigarette",
       "headline": "Ready-to-enjoy pre-rolls — quality flower, perfectly rolled, no prep required.",
-      "description": "Our pre-rolls use the same quality flower you'll find on our shelves, milled and rolled for an even burn. We carry singles, multi-packs, and infused options for those looking for elevated potency. Every pre-roll lists the strain, THC percentage, and terpene profile so you always know what you're lighting up.",
+      "description": "Pre-rolls are flower that is milled and rolled for an even burn. They come as singles, multi-packs, and infused options for those looking for elevated potency, and the label lists the strain and THC percentage.",
       "highlights": [
         "Singles (0.5g and 1g) and multi-packs (3-pack, 5-pack) for any occasion",
-        "Strain-specific rolls — same flower, same lab results, just pre-rolled for convenience",
+        "Strain-specific rolls — the same flower, just pre-rolled for convenience",
         "Infused pre-rolls with kief, live resin, or concentrate for higher potency",
         "Filtered and unfiltered options depending on your preference",
         "Perfect for trying a new strain without committing to a full eighth"
@@ -117,9 +96,9 @@
       "slug": "accessories",
       "icon": "package",
       "headline": "Everything you need for proper storage, consumption, and care.",
-      "description": "The right accessories make a real difference in your cannabis experience. Quality storage preserves terpenes and prevents degradation. A good vaporizer offers cleaner inhalation with better flavor than combustion. We carry vetted products from brands we trust — nothing flimsy, nothing sketchy.",
+      "description": "The right accessories make a real difference in your cannabis experience. Quality storage preserves terpenes and prevents degradation. A good vaporizer offers cleaner inhalation with better flavor than combustion. Ask us which accessories suit the way you consume.",
       "highlights": [
-        "Dry herb and concentrate vaporizers from trusted brands",
+        "Dry herb and concentrate vaporizers",
         "Glass pipes, water pipes, and hand pipes in a range of styles and price points",
         "Airtight, UV-blocking storage containers that actually keep flower fresh",
         "Rolling papers, tips, trays, and grinders for the hands-on consumer",
@@ -221,7 +200,7 @@
     },
     {
       "question": "What payment methods do you accept?",
-      "answer": "We accept cash and most debit cards (processed as a cash withdrawal, so a small fee may apply). Due to federal banking regulations, most dispensaries — including ours — cannot accept traditional credit card payments. We have an ATM on-site for your convenience. Some locations also accept cashless payment apps — ask at the counter for current options."
+      "answer": "Because of federal banking rules, many dispensaries cannot take traditional credit cards, and payment options vary from store to store. Contact us to ask which payment methods we accept."
     },
     {
       "question": "Where can I legally consume cannabis after I purchase it?",
@@ -229,51 +208,20 @@
     },
     {
       "question": "What's the difference between medical and recreational cannabis?",
-      "answer": "In states with both programs, the products are often similar, but medical patients may have access to higher potency limits, different product types, tax exemptions, and higher daily purchase allowances. Medical programs require a qualifying condition and a recommendation from a licensed healthcare provider. Recreational (adult-use) programs are open to anyone 21 and older with valid ID. Our budtenders can help you navigate either program and answer questions about what's available to you."
+      "answer": "In states with both programs, the products are often similar, but medical patients may have access to higher potency limits, different product types, tax exemptions, and higher daily purchase allowances. Medical programs require a qualifying condition and a recommendation from a licensed healthcare provider. Recreational (adult-use) programs are open to anyone 21 and older with valid ID. Ask us what's available to you."
     },
     {
       "question": "Can I return cannabis products?",
-      "answer": "Due to state regulations, cannabis products generally cannot be returned or exchanged once they leave the dispensary. This is a safety and compliance requirement — not a policy we can override. However, if you receive a defective product (a broken cartridge, a sealed package that was damaged, etc.), please contact us as soon as possible. We work with our vendors to resolve legitimate product defects. This is another reason we encourage starting with smaller quantities when trying something new."
+      "answer": "Due to state regulations, cannabis products generally cannot be returned or exchanged once they leave the dispensary. This is a safety and compliance requirement — not a policy we can override. If you receive a defective product (a broken cartridge, a sealed package that was damaged, etc.), please contact us as soon as possible. This is another reason we encourage starting with smaller quantities when trying something new."
     },
     {
       "question": "How much cannabis can I buy at one time?",
-      "answer": "Daily purchase limits are set by state law and vary depending on your location and whether you're a medical or recreational customer. Common recreational limits are 1 ounce of flower, 8 grams of concentrate, and 800mg of edibles per transaction — but your state's specific limits may differ. Our point-of-sale system tracks purchases to ensure compliance, and our budtenders can tell you your exact limits before you start shopping. If you're a medical patient, your limits may be higher."
+      "answer": "Daily purchase limits are set by state law and vary depending on your location and whether you're a medical or recreational customer. Common recreational limits are 1 ounce of flower, 8 grams of concentrate, and 800mg of edibles per transaction — but your state's specific limits may differ. Ask us about your exact limits before you start shopping. If you're a medical patient, your limits may be higher."
     },
     {
       "question": "How do I know the products are fresh and safe?",
-      "answer": "Every product we carry comes from licensed producers and has been tested by an independent, state-accredited laboratory. Lab results verify cannabinoid potency and screen for pesticides, heavy metals, residual solvents, and microbial contaminants. We list harvest or production dates on our packaging and rotate inventory to prioritize freshness. If you want to see a product's Certificate of Analysis (COA), just ask — we can pull it up. We don't sell anything we wouldn't use ourselves."
+      "answer": "In regulated markets, cannabis products are generally required to be tested by a state-approved laboratory for potency and contaminants, and many labels list a harvest or production date or link to a Certificate of Analysis (COA). If you have a question about a specific product, ask us."
     }
   ],
-  "testimonialTemplates": [
-    {
-      "scenario": "First-time visitor guided by a budtender",
-      "template": "I had no idea what I was doing when I walked in, and honestly I was a little nervous. {budtender_name} spent a solid 20 minutes with me, asked what I was looking for, explained the differences between a few strains, and helped me pick a low-dose edible and a mild pre-roll. No pressure, no judgment, just real help. I'll be back.",
-      "customerType": "first-timer",
-      "sentiment": "welcoming, educational, pressure-free"
-    },
-    {
-      "scenario": "Chronic pain patient finding relief through cannabis",
-      "template": "After years of managing {condition} with prescriptions that left me foggy and out of it, my doctor suggested I look into cannabis. The team here helped me find a 1:1 CBD:THC tincture that I take in the evening, and a topical balm for flare-ups during the day. It's not a miracle cure, but it's given me more good days than I've had in a long time — and I actually feel like myself.",
-      "customerType": "medical-patient",
-      "sentiment": "genuine relief, pragmatic, not overclaiming"
-    },
-    {
-      "scenario": "Someone transitioning away from alcohol",
-      "template": "I was looking for something to help me unwind at night that wasn't another glass of wine turning into a bottle. A friend recommended I try cannabis, and the staff here didn't make it weird — they just helped me find a low-THC edible (2.5mg) that gives me a calm, relaxed feeling without being wrecked. It's been three months and I genuinely feel better. Sleeping better too.",
-      "customerType": "wellness-seeker",
-      "sentiment": "honest, personal, moderate"
-    },
-    {
-      "scenario": "Experienced consumer discovering new products",
-      "template": "I've been smoking flower for over a decade, so I thought I knew everything I needed to know. Came in looking for my usual and ended up having a great conversation about terpene profiles and live rosin. Walked out with a jar of something I'd never heard of — heavy on the caryophyllene and limonene — and it's become my new favorite. This is what a good dispensary does: makes even regulars learn something new.",
-      "customerType": "experienced-consumer",
-      "sentiment": "knowledgeable, enthusiastic, discovery"
-    },
-    {
-      "scenario": "Caregiver purchasing for a patient",
-      "template": "I buy for my {relation} who has {condition} and can't always make it to the store. The staff here treats me with the same care they'd give the patient directly. They remember what we've tried before, what worked, what didn't, and they always have suggestions when we need to adjust. Having a dispensary that actually tracks our journey and gives thoughtful recommendations means everything when you're caring for someone.",
-      "customerType": "caregiver",
-      "sentiment": "compassionate, trusting, ongoing relationship"
-    }
-  ]
+  "testimonialTemplates": []
 }

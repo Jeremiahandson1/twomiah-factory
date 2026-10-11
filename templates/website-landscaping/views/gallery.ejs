@@ -19,7 +19,7 @@
     <div class="gallery-hero-content">
       <div class="container">
         <h1>Our Work</h1>
-        <p>Browse our portfolio of completed projects throughout the {{SERVICE_REGION}}</p>
+        <p>A look at our work around the {{SERVICE_REGION}}</p>
       </div>
     </div>
   </section>
@@ -27,6 +27,7 @@
   <!-- Filter Bar -->
   <section class="gallery-filters">
     <div class="container">
+      <% if (projects.length > 0) { %>
       <div class="filter-buttons">
         <button class="filter-btn active" data-filter="all">
           All Projects
@@ -40,6 +41,7 @@
       <div class="results-count">
         <span id="results-count"><%= projects.length %></span> project<span id="results-plural"><%= projects.length !== 1 ? 's' : '' %></span>
       </div>
+      <% } %>
     </div>
   </section>
 
@@ -54,8 +56,8 @@
               <circle cx="8.5" cy="8.5" r="1.5"></circle>
               <polyline points="21 15 16 10 5 21"></polyline>
             </svg>
-            <h3>No projects found</h3>
-            <p>Check back soon for new projects</p>
+            <h3>Photos coming soon</h3>
+            <p>In the meantime, get in touch and tell us what you need.</p>
           </div>
         <% } else { %>
           <% projects.forEach(project => { 
@@ -129,9 +131,9 @@
     <div class="container">
       <div class="cta-content">
         <h2>Ready to Start Your Project?</h2>
-        <p>Contact us today for a free estimate on your next project.</p>
+        <p>Tell us about your project and we'll be in touch soon.</p>
         <div class="cta-buttons">
-          <a href="/#contact" class="btn btn-primary btn-lg">Get Free Estimate</a>
+          <a href="/#contact" class="btn btn-primary btn-lg">Request an Estimate</a>
           <a href="tel:{{COMPANY_PHONE_RAW}}" class="btn btn-outline-light btn-lg">Call {{COMPANY_PHONE}}</a>
         </div>
       </div>
@@ -144,15 +146,11 @@
     "@context": "https://schema.org",
     "@type": "ImageGallery",
     "name": "{{COMPANY_NAME}} Project Gallery",
-    "description": "Browse our portfolio of completed projects in {{CITY}} and the {{SERVICE_REGION}}",
+    "description": "Photos of work by {{COMPANY_NAME}} in {{CITY}} and the {{SERVICE_REGION}}",
     "url": "{{SITE_URL}}/gallery",
     "image": [
-      <% projects.slice(0, 10).forEach((project, index) => { 
-        const img = getCoverImage(project);
-        if (img) { %>
-        <%- _jsonStr(img) %><%= index < Math.min(projects.length - 1, 9) && getCoverImage(projects[index + 1]) ? ',' : '' %>
-      <% } %>
-      <% }); %>
+      <% const _imgs = projects.slice(0, 10).map(getCoverImage).filter(Boolean); %>
+      <%- _imgs.map((img) => _jsonStr(img)).join(', ') %>
     ]
   }
   </script>

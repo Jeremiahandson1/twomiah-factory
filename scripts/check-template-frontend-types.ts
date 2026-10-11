@@ -16,7 +16,8 @@
 // TypeScript and a tsconfig were already in the template. The check had simply never been run.
 //
 //   bun scripts/check-template-frontend-types.ts
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
@@ -62,7 +63,18 @@ for (const t of templates) {
     skipped.push(t)
     continue
   }
-  const r = spawnSync(process.execPath, [tsc, '--noEmit', '-p', 'tsconfig.json'], { cwd: dir, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+  // src/shared/index.ts re-exports packages/tenant-ui, so its files are checked too. Their bare
+  // imports (react, lucide-react) would resolve upward from packages/tenant-ui, where CI installs
+  // nothing: 612 "Cannot find module" errors on every run. At generation they are vendored into
+  // src/shared and resolve against this template's node_modules, so point them there. @types first,
+  // or react resolves to its untyped package.
+  const nm = join(dir, 'node_modules')
+  const cfg = join(mkdtempSync(join(tmpdir(), `tfguard-${t}-`)), 'tsconfig.json')
+  writeFileSync(cfg, JSON.stringify({
+    extends: join(dir, 'tsconfig.json'),
+    compilerOptions: { paths: { '*': [`${nm}/@types/*`, `${nm}/*`] } },
+  }))
+  const r = spawnSync(process.execPath, [tsc, '--noEmit', '-p', cfg], { cwd: dir, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
   const out = `${r.stdout || ''}${r.stderr || ''}`
   const errors = out.split('\n').filter((l) => / error TS\d+:/.test(l))
   checked++
@@ -95,20 +107,18 @@ if (skipped.length) {
  *     run — `bun install` succeeds and leaves no compiler. Adding one is a small change; their first
  *     typecheck is not, which is why this guard does not pretend to cover them today.
  *
- *  2. packages/tenant-ui AND packages/tenant-backend have NO tsconfig and no compiler, and they are
- *     vendored into EVERY vertical at generation. That is the larger exposure by far: the blocker
- *     this guard exists for happened in template-local code, but the same mistake in tenant-ui would
- *     reach all thirteen at once. A template's typecheck does not cover it either — `src/shared` is
- *     created at generation time and does not exist in the repo.
+ *  2. packages/tenant-backend has NO tsconfig and no compiler, and it is vendored into EVERY vertical
+ *     at generation. packages/tenant-ui has no tsconfig of its own either, but each checked template's
+ *     src/shared/index.ts is a shim that re-exports packages/tenant-ui/src/index, so every tenant-ui
+ *     file that index reaches is typechecked here, five times over (an undeclared name in AdsPage.tsx
+ *     fails every template). A tenant-ui file the index does not export is still unchecked.
  */
 const NO_COMPILER = ['crm-automotive', 'crm-basic', 'crm-dispensary', 'crm-fieldservice', 'crm-landscaping', 'crm-roof']
   .filter((t) => existsSync(join(ROOT, 'templates', t, 'frontend')))
   .filter((t) => !/"typescript"/.test(readFileSync(join(ROOT, 'templates', t, 'frontend', 'package.json'), 'utf8')))
 if (NO_COMPILER.length) console.log(`note: ${NO_COMPILER.length} template frontend(s) list no typescript dependency, so they cannot be checked: ${NO_COMPILER.join(', ')}`)
-for (const p of ['tenant-ui', 'tenant-backend']) {
-  if (!existsSync(join(ROOT, 'packages', p, 'tsconfig.json'))) {
-    console.log(`note: packages/${p} has no tsconfig and is NEVER typechecked — it is vendored into every vertical`)
-  }
+if (!existsSync(join(ROOT, 'packages', 'tenant-backend', 'tsconfig.json'))) {
+  console.log('note: packages/tenant-backend has no tsconfig and is NEVER typechecked — it is vendored into every vertical')
 }
 
 if (failed) { console.error(`\ntemplate frontend types: ${failed} check(s) FAILED`); process.exit(1) }

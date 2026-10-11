@@ -42,11 +42,11 @@
     <% } %>
     <div class="service-hero-content">
       <div class="container">
-        <a href="/<%= parentService.urlSlug || parentService.id %>" class="back-link">
+        <a href="/services/<%= parentService.slug || parentService.id %>" class="back-link">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="15 18 9 12 15 6"></polyline>
           </svg>
-          Back to <%= parentService.title %>
+          Back to <%= parentService.title || parentService.name %>
         </a>
         <h1><%= pageData.title %></h1>
         <% if (pageData.tagline) { %>
@@ -56,7 +56,7 @@
           <p class="hero-description"><%= pageData.heroDescription %></p>
         <% } %>
         <div class="hero-buttons">
-          <a href="/#contact" class="btn btn-primary btn-lg">Get Free Estimate</a>
+          <a href="/contact" class="btn btn-primary btn-lg">Get in Touch</a>
           <a href="tel:<%= phoneRaw %>" class="btn btn-outline-light btn-lg">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
@@ -75,7 +75,7 @@
         <!-- Main Column -->
         <div class="service-content">
           <div class="content-section">
-            <h2><%= pageData.title %> Services in {{CITY}}</h2>
+            <h2>About <%= pageData.title %></h2>
             <% if (pageData.description || pageData.content) { %>
               <div class="prose"><%- renderContent(pageData.description || pageData.content) %></div>
             <% } %>
@@ -108,7 +108,7 @@
                         <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
                         <line x1="7" y1="7" x2="7.01" y2="7"></line>
                       </svg>
-                      Materials We Use
+                      What We Use
                     </h3>
                     <ul>
                       <% pageData.materials.forEach(material => { %>
@@ -130,7 +130,7 @@
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="20 6 9 17 4 12"></polyline>
                       </svg>
-                      Why Choose Us
+                      Highlights
                     </h3>
                     <ul>
                       <% pageData.features.forEach(feature => { %>
@@ -154,39 +154,17 @@
         <aside class="service-sidebar">
           <div class="cta-card">
             <h3>Ready to Get Started?</h3>
-            <p>Contact us today for a free, no-obligation estimate.</p>
+            <p>Get in touch. We'd love to hear from you.</p>
             <a href="tel:<%= phoneRaw %>" class="phone-link">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
               </svg>
               <%= phone %>
             </a>
-            <a href="/#contact" class="btn btn-primary btn-block">Request Estimate</a>
+            <a href="/contact" class="btn btn-primary btn-block">Contact Us</a>
           </div>
 
-          <div class="trust-card">
-            <div class="trust-item">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-              </svg>
-              <span>Licensed & Insured</span>
-            </div>
-            <div class="trust-item">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="8" r="7"></circle>
-                <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
-              </svg>
-              <span>Quality Guaranteed</span>
-            </div>
-            <div class="trust-item">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-                <path d="M2 17l10 5 10-5"></path>
-                <path d="M2 12l10 5 10-5"></path>
-              </svg>
-              <span>Expert Craftsmen</span>
-            </div>
-          </div>
+          <%/* no trust badges: licensed/insured/guarantee claims are the owner's to make */%>
         </aside>
       </div>
     </div>
@@ -197,8 +175,8 @@
     <section class="service-projects">
       <div class="container">
         <div class="section-header">
-          <h2>Recent <%= parentService.title %> Projects</h2>
-          <a href="/gallery" class="view-all-link">View All Projects →</a>
+          <h2>Recent Work</h2>
+          <a href="/gallery" class="view-all-link">View Gallery →</a>
         </div>
         <div class="projects-grid">
           <% galleryProjects.forEach(project => { %>
@@ -212,7 +190,7 @@
                   </div>
                 <% } %>
                 <div class="project-overlay">
-                  <span>View Project</span>
+                  <span>View</span>
                 </div>
               </div>
               <div class="project-info">
@@ -298,10 +276,10 @@
   <!-- Bottom CTA -->
   <section class="service-cta">
     <div class="container">
-      <h2>Ready to Start Your <%= pageData.title %> Project?</h2>
-      <p>Contact {{COMPANY_NAME}} today for a free estimate. We serve {{CITY}} and the surrounding {{SERVICE_REGION}} area.</p>
+      <h2>Interested in <%= pageData.title %>?</h2>
+      <p>Get in touch with {{COMPANY_NAME}}. We'd love to hear from you.</p>
       <div class="cta-buttons">
-        <a href="/#contact" class="btn btn-primary btn-lg">Get Free Estimate</a>
+        <a href="/contact" class="btn btn-primary btn-lg">Get in Touch</a>
         <a href="tel:<%= phoneRaw %>" class="btn btn-outline-light btn-lg">Call <%= phone %></a>
       </div>
     </div>
@@ -311,10 +289,10 @@
   <% if (otherSubServices.length > 0) { %>
     <section class="other-services sub-services">
       <div class="container">
-        <h3>More <%= parentService.title %> Services</h3>
+        <h3>More <%= parentService.title || parentService.name %></h3>
         <div class="services-links">
           <% otherSubServices.forEach(sub => { %>
-            <a href="/<%= parentService.urlSlug || parentService.id %>/<%= sub.id %>" class="service-link">
+            <a href="/services/<%= parentService.slug || parentService.id %>" class="service-link">
               <%= sub.title %>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="9 18 15 12 9 6"></polyline>
@@ -332,8 +310,8 @@
       <h3>Explore Our Other Services</h3>
       <div class="services-links">
         <% allServices.filter(s => s.id !== parentService.id).forEach(s => { %>
-          <a href="/<%= s.urlSlug || s.id %>" class="service-link">
-            <%= s.title %>
+          <a href="/services/<%= s.slug || s.id %>" class="service-link">
+            <%= s.title || s.name %>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
@@ -350,7 +328,7 @@
     "@type": "Service",
     "serviceType": <%- JSON.stringify(pageData.title || '') %>,
     "provider": {
-      "@type": "HomeAndConstructionBusiness",
+      "@type": "LocalBusiness",
       "name": "{{COMPANY_NAME}}",
       "url": "{{SITE_URL}}",
       "telephone": "+1<%= phoneRaw %>",

@@ -19,8 +19,8 @@
     "yelp": "",
     "googleBusiness": ""
   },
-  "defaultMetaTitle": "{{COMPANY_NAME}} - Veterinary Hospital in {{CITY}}, {{STATE}}",
-  "defaultMetaDescription": "{{META_DESCRIPTION}}",
+  "defaultMetaTitle": "{{COMPANY_NAME}} - Veterinary Care in {{CITY}}, {{STATE}}",
+  "defaultMetaDescription": "Veterinary care for pets in {{CITY}} and the {{SERVICE_REGION}}.",
   "analytics": {
     "googleAnalyticsId": "",
     "googleTagManagerId": "",

@@ -443,7 +443,7 @@
 
 .gallery-card-content .project-category {
   font-size: 0.75rem;
-  color: var(--color-accent);
+  color: #ffffff; /* it sits on the brand-filled chip */
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -622,6 +622,7 @@
 }
 
 .service-hero h1 {
+  color: #ffffff; /* the themes' bare h1 colour is dark; this hero is dark */
   font-size: 3rem;
   font-weight: 800;
   margin: 0 0 16px;
@@ -1179,7 +1180,7 @@
 .other-services h3 {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #64748b;
+  color: #4b5563; /* #64748b missed AA on the themes' warm and grey bands */
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin: 0 0 20px;
@@ -1997,4 +1998,9 @@
   padding: 6px 14px;
   border-radius: 20px;
   white-space: nowrap;
+}
+
+/* Contact page call band: room between its line of text and the call button below it */
+.contact-emergency .emergency-content p {
+  margin-bottom: 16px;
 }

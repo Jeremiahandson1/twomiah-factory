@@ -15,7 +15,7 @@ import type { GenerateConfig } from './generator'
 export const SHOWCASE_INDUSTRIES = ['food', 'hospitality', 'fitness', 'beauty', 'events'] as const
 export const KNOWN_INDUSTRIES = [
   'home_care', 'field_service', 'dispensary', 'landscaping', 'roofing',
-  'general_contractor', 'automotive', 'other', ...SHOWCASE_INDUSTRIES,
+  'general_contractor', 'automotive', 'veterinary', 'other', ...SHOWCASE_INDUSTRIES,
 ] as const
 export type IndustryToken = typeof KNOWN_INDUSTRIES[number]
 
@@ -26,6 +26,10 @@ export function resolveWebsiteTemplate(industry: string): string {
   if (industry === 'dispensary') return 'website-dispensary'
   if (industry === 'landscaping') return 'website-landscaping'
   if ((SHOWCASE_INDUSTRIES as readonly string[]).includes(industry)) return 'website-showcase'
+  // generator.ts routes these by vertical: veterinary → website-vet, automotive (an RV/powersports
+  // dealer) → website-rv. Without them the theme check validated against the contractor template.
+  if (industry === 'veterinary') return 'website-vet'
+  if (industry === 'automotive') return 'website-rv'
   if (industry && industry !== 'other') return 'website-contractor'
   return 'website-general'
 }
@@ -38,6 +42,8 @@ export const THEME_ALLOW: Record<string, string[]> = {
   'website-fieldservice': ['professional-corporate', 'modern-minimal', 'bold-industrial'],
   'website-landscaping': ['professional-corporate', 'modern-minimal', 'bold-industrial'],
   'website-dispensary': ['glassmorphism-dark', 'botanical-organic', 'streetwear-bold'],
+  'website-vet': ['clean-professional', 'warm-community', 'family-modern'],
+  'website-rv': ['professional-corporate', 'modern-minimal', 'bold-industrial'],
   'website-general': ['clean-minimal', 'bold-contrast', 'trade-professional'],
   // Store storefront is cloned from website-general and shares its themes.
   'website-store': ['clean-minimal', 'bold-contrast', 'trade-professional'],
@@ -79,6 +85,8 @@ const RX = (t: string, words: string[]) => words.some(w => new RegExp('\\b' + es
 function classify(businessType: string): { archetype: Decision['archetype']; industry: IndustryToken } {
   const t = (businessType || '').toLowerCase()
   if (RX(t, ['home care', 'homecare', 'senior', 'caregiv', 'in-home', 'assisted living'])) return { archetype: 'care', industry: 'home_care' }
+  // Bare "vet" only as a whole word: a prefix match would take "veteran-owned plumbing".
+  if (/\bvets?\b/.test(t) || RX(t, ['veterinar', 'animal hospital', 'animal clinic', 'pet clinic', 'pet hospital'])) return { archetype: 'care', industry: 'veterinary' }
   if (RX(t, ['hvac', 'plumb', 'electric', 'heating', 'cooling', 'furnace'])) return { archetype: 'utilitarian', industry: 'field_service' }
   if (RX(t, ['dispensary', 'cannabis', 'weed', 'marijuana', 'cbd'])) return { archetype: 'showcase', industry: 'dispensary' }
   if (RX(t, ['landscap', 'lawn', 'snow', 'tree service', 'hardscap'])) return { archetype: 'utilitarian', industry: 'landscaping' }

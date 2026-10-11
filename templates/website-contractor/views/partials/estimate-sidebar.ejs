@@ -18,8 +18,8 @@
   .sidebar-estimate-card .sef-finehint a { color: var(--navy); font-weight: 700; text-decoration: none; }
 </style>
 <div class="sidebar-estimate-card" id="sidebar-estimate">
-  <h3>Get a Free Estimate</h3>
-  <p class="sef-sub">No obligation &mdash; fast response from a local crew.</p>
+  <h3>Request an Estimate</h3>
+  <p class="sef-sub">Tell us how to reach you and we'll be in touch soon.</p>
   <form id="sidebar-estimate-form" method="POST" action="/api/admin/leads">
     <!-- anti-spam honeypot: hidden from people; bots that fill it are rejected server-side -->
     <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;">
@@ -34,9 +34,9 @@
     <input type="hidden" name="source" value="<%= typeof sefSource !== 'undefined' ? sefSource : 'landing' %>">
     <div class="sef-error" id="sef-error"></div>
     <div class="sef-success" id="sef-success">
-      <strong>Thank you!</strong> Your request is in &mdash; we'll call you shortly to schedule your free estimate.
+      <strong>Thank you!</strong> Your request is in &mdash; we'll be in touch soon.
     </div>
-    <button type="submit" class="btn btn-primary sef-submit">Get My Free Estimate</button>
+    <button type="submit" class="btn btn-primary sef-submit">Request My Estimate</button>
     <p class="sef-finehint">Prefer to talk? Call <a href="tel:<%= phoneRaw %>"><%= phone %></a></p>
   </form>
 </div>

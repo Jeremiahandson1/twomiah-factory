@@ -19,7 +19,7 @@
     <div class="gallery-hero-content">
       <div class="container">
         <h1>Our Work</h1>
-        <p>Browse our portfolio of completed projects throughout the {{SERVICE_REGION}}</p>
+        <p>A look at our work throughout the {{SERVICE_REGION}}</p>
       </div>
     </div>
   </section>
@@ -54,8 +54,8 @@
               <circle cx="8.5" cy="8.5" r="1.5"></circle>
               <polyline points="21 15 16 10 5 21"></polyline>
             </svg>
-            <h3>No projects found</h3>
-            <p>Check back soon for new projects</p>
+            <h3>Photos coming soon</h3>
+            <p>Check back soon to see our work.</p>
           </div>
         <% } else { %>
           <% projects.forEach(project => { 
@@ -129,9 +129,9 @@
     <div class="container">
       <div class="cta-content">
         <h2>Ready to Start Your Project?</h2>
-        <p>Contact us today for a free estimate on your next project.</p>
+        <p>Tell us about your project and we'll be in touch soon.</p>
         <div class="cta-buttons">
-          <a href="/#contact" class="btn btn-primary btn-lg">Get Free Estimate</a>
+          <a href="/#contact" class="btn btn-primary btn-lg">Request an Estimate</a>
           <a href="tel:{{COMPANY_PHONE_RAW}}" class="btn btn-outline-light btn-lg">Call {{COMPANY_PHONE}}</a>
         </div>
       </div>
@@ -144,7 +144,7 @@
     "@context": "https://schema.org",
     "@type": "ImageGallery",
     "name": "{{COMPANY_NAME}} Project Gallery",
-    "description": "Browse our portfolio of completed projects in {{CITY}} and the {{SERVICE_REGION}}",
+    "description": "A look at our work in the {{SERVICE_REGION}}",
     "url": "{{SITE_URL}}/gallery",
     "image": [
       <% projects.slice(0, 10).forEach((project, index) => { 

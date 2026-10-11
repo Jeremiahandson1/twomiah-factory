@@ -475,6 +475,25 @@ app.get('/gallery', (c) => {
   })
 })
 
+// A project's own page: gallery cards, featured projects and service pages all link here.
+app.get('/gallery/:id', (c) => {
+  const id = c.req.param('id')
+  const gallery = loadJSON('gallery.json') || []
+  const project = gallery.find((p: any) => p && String(p.id) === id)
+  if (!project) return c.text('Project not found', 404)
+  const others = gallery.filter((p: any) => p && p !== project)
+  const relatedProjects = [
+    ...others.filter((p: any) => project.category && p.category === project.category),
+    ...others.filter((p: any) => !project.category || p.category !== project.category),
+  ].slice(0, 3)
+  return renderPage(c, 'project-detail', {
+    project, relatedProjects,
+    title: (project.title || 'Project') + ' | {{COMPANY_NAME}}',
+    description: String(project.description || '').slice(0, 160),
+    canonicalUrl: BASE_URL + '/gallery/' + encodeURIComponent(String(project.id)),
+  })
+})
+
 app.get('/blog', (c) => {
   const posts = (loadJSON('posts.json') || []).filter((p: any) => p.published !== false)
   return renderPage(c, 'blog', {

@@ -1,42 +1,20 @@
 {
   "hero": {
-    "tagline": "PROFESSIONAL {{INDUSTRY}} SERVICES",
+    "tagline": "",
     "title": "{{COMPANY_NAME}}",
-    "subtitle": "Serving {{SERVICE_REGION}} with Quality You Can Count On",
-    "description": "{{COMPANY_NAME}} delivers professional {{INDUSTRY}} services to clients across {{SERVICE_REGION}}. Contact us today to learn how we can help.",
+    "subtitle": "Right here in {{CITY}}, {{STATE}}.",
+    "description": "We'd love to hear from you. Get in touch to see how we can help.",
     "image": "",
     "animation": "ken-burns",
     "primaryButtonText": "Get in Touch",
     "primaryButtonLink": "#contact",
     "secondaryButtonText": "Our Services",
-    "secondaryButtonLink": "/services"
+    "secondaryButtonLink": "#services"
   },
-  "trustBadges": [
-    {
-      "id": "licensed",
-      "type": "custom",
-      "label": "Licensed & Insured",
-      "icon": "shield",
-      "enabled": true
-    },
-    {
-      "id": "local",
-      "type": "custom",
-      "label": "Locally Owned",
-      "icon": "home",
-      "enabled": true
-    },
-    {
-      "id": "guaranteed",
-      "type": "custom",
-      "label": "Satisfaction Guaranteed",
-      "icon": "check",
-      "enabled": true
-    }
-  ],
+  "trustBadges": [],
   "ctaSection": {
     "title": "Ready to get started?",
-    "description": "Contact us today for a free consultation. We serve {{SERVICE_REGION}} and surrounding areas.",
+    "description": "Get in touch and tell us what you're looking for. We'd love to hear from you.",
     "primaryButtonText": "Contact Us",
     "primaryButtonLink": "#contact",
     "secondaryButtonText": "Call {{COMPANY_PHONE}}",
@@ -51,12 +29,12 @@
     "{{NEARBY_CITY_4}}"
   ],
   "businessHours": {
-    "monday": { "open": "8:00 AM", "close": "5:00 PM", "closed": false },
-    "tuesday": { "open": "8:00 AM", "close": "5:00 PM", "closed": false },
-    "wednesday": { "open": "8:00 AM", "close": "5:00 PM", "closed": false },
-    "thursday": { "open": "8:00 AM", "close": "5:00 PM", "closed": false },
-    "friday": { "open": "8:00 AM", "close": "5:00 PM", "closed": false },
-    "saturday": { "open": "Closed", "close": "Closed", "closed": true },
-    "sunday": { "open": "Closed", "close": "Closed", "closed": true }
+    "monday": { "open": "", "close": "", "closed": true },
+    "tuesday": { "open": "", "close": "", "closed": true },
+    "wednesday": { "open": "", "close": "", "closed": true },
+    "thursday": { "open": "", "close": "", "closed": true },
+    "friday": { "open": "", "close": "", "closed": true },
+    "saturday": { "open": "", "close": "", "closed": true },
+    "sunday": { "open": "", "close": "", "closed": true }
   }
 }

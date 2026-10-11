@@ -10,7 +10,7 @@
     <div class="contact-hero-content">
       <div class="container">
         <h1>Contact {{COMPANY_NAME}}</h1>
-        <p>Ready to ride? Get in touch to browse inventory, request a unit, get pre-qualified, or schedule service.</p>
+        <p>Ready to ride? Get in touch to ask about inventory, request a unit, or schedule service.</p>
       </div>
     </div>
   </section>
@@ -49,7 +49,7 @@
                 <option value="used" <%= selectedService === 'used' ? 'selected' : '' %>>Pre-Owned / Used Units</option>
                 <option value="service" <%= selectedService === 'service' ? 'selected' : '' %>>Service &amp; Repair</option>
                 <option value="parts" <%= selectedService === 'parts' ? 'selected' : '' %>>Parts &amp; Accessories</option>
-                <option value="financing" <%= selectedService === 'financing' ? 'selected' : '' %>>Financing / Pre-Qualification</option>
+                <% if (typeof offersFinancing !== 'undefined' && offersFinancing) { %><option value="financing" <%= selectedService === 'financing' ? 'selected' : '' %>>Financing / Pre-Qualification</option><% } %>
                 <option value="trade-in" <%= selectedService === 'trade-in' ? 'selected' : '' %>>Trade-In Appraisal</option>
                 <option value="other">Other / General Inquiry</option>
               </select>
@@ -99,7 +99,7 @@
             </svg>
             <div>
               <strong>Thank you!</strong>
-              <p>We've received your request and will contact you within 24 hours.</p>
+              <p>We've received your request and we'll be in touch soon.</p>
             </div>
           </div>
           
@@ -130,7 +130,6 @@
               <div>
                 <h4>Phone</h4>
                 <a href="tel:{{COMPANY_PHONE_RAW}}" class="contact-link">{{COMPANY_PHONE}}</a>
-                <p class="hours">Mon-Fri: 9am-7pm · Sat: 9am-5pm</p>
               </div>
             </div>
             
@@ -143,8 +142,7 @@
               </div>
               <div>
                 <h4>Email</h4>
-                <a href="mailto:info@{{DOMAIN}}" class="contact-link">info@{{DOMAIN}}</a>
-                <p>We respond within 24 hours</p>
+                <a href="mailto:{{COMPANY_EMAIL}}" class="contact-link">{{COMPANY_EMAIL}}</a>
               </div>
             </div>
             
@@ -167,50 +165,13 @@
           
           <div class="contact-info-card service-area-card">
             <h3>Service Area</h3>
-            <p>We proudly serve:</p>
+            <p>We serve:</p>
             <ul class="service-area-list">
-              <li>{{CITY}}</li>
-              <li>{{NEARBY_CITY_1}}</li>
-              <li>{{NEARBY_CITY_4}}</li>
-              <li>{{NEARBY_CITY_3}}</li>
-              <li>{{NEARBY_CITY_2}}</li>
+              {{SERVICE_AREA_ITEMS}}
             </ul>
-            <p class="service-area-note">Plus surrounding {{SERVICE_REGION}} communities within 50 miles of {{CITY}}</p>
+            <p class="service-area-note">Plus surrounding {{SERVICE_REGION}} communities.</p>
           </div>
-          
-          <div class="contact-info-card credentials-card">
-            <h3>Why Buy From Us</h3>
-            <div class="credentials-list">
-              <div class="credential-item">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                <span>Factory-Authorized Dealer</span>
-              </div>
-              <div class="credential-item">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                <span>Certified Service Technicians</span>
-              </div>
-              <div class="credential-item">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                <span>Financing for All Credit</span>
-              </div>
-              <div class="credential-item">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                <span>Trade-Ins Always Welcome</span>
-              </div>
-            </div>
-          </div>
+          <%/* no "why buy from us" credentials card (dealer authorisation, certified techs, financing): stated only when the owner supplies them */%>
         </aside>
       </div>
     </div>
@@ -229,7 +190,7 @@
             </svg>
           </div>
           <h3>No-Pressure Quotes</h3>
-          <p>Straight pricing on any unit, with trade-in values and pre-qualification so you know your real numbers.</p>
+          <p>Straight pricing on any unit, with trade-in values so you know your real numbers.</p>
         </div>
         
         <div class="benefit-card">
@@ -239,8 +200,8 @@
               <polyline points="12 6 12 12 16 14"></polyline>
             </svg>
           </div>
-          <h3>Fast Response</h3>
-          <p>We respond to all inquiries within 24 hours, usually much sooner. Service requests scheduled quickly.</p>
+          <h3>Quick Follow-Up</h3>
+          <p>Send us your request and we'll be in touch soon.</p>
         </div>
         
         <div class="benefit-card">
@@ -252,8 +213,8 @@
               <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
             </svg>
           </div>
-          <h3>Expert Advice</h3>
-          <p>Get honest recommendations from a team that rides, camps, and knows every unit on the lot.</p>
+          <h3>Honest Advice</h3>
+          <p>Straight recommendations about which unit fits the way you ride and camp.</p>
         </div>
         
         <div class="benefit-card">
@@ -365,7 +326,7 @@
       "@type": "AutoDealer",
       "name": "{{COMPANY_NAME}}",
       "telephone": "{{COMPANY_PHONE}}",
-      "email": "info@{{DOMAIN}}",
+      "email": "{{COMPANY_EMAIL}}",
       "address": {
         "@type": "PostalAddress",
         "addressLocality": "{{CITY}}",
@@ -373,54 +334,11 @@
         "addressCountry": "US"
       },
       "areaServed": [
-        {
-          "@type": "City",
-          "name": "{{CITY}}",
-          "containedInPlace": {
-            "@type": "State",
-            "name": "{{STATE_FULL}}"
-          }
-        },
-        {
-          "@type": "City",
-          "name": "{{NEARBY_CITY_1}}",
-          "containedInPlace": {
-            "@type": "State",
-            "name": "{{STATE_FULL}}"
-          }
-        },
-        {
-          "@type": "City",
-          "name": "{{NEARBY_CITY_4}}",
-          "containedInPlace": {
-            "@type": "State",
-            "name": "{{STATE_FULL}}"
-          }
-        },
-        {
-          "@type": "City",
-          "name": "{{NEARBY_CITY_3}}",
-          "containedInPlace": {
-            "@type": "State",
-            "name": "{{STATE_FULL}}"
-          }
-        }
+        <%- ['{{CITY}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}', '{{NEARBY_CITY_4}}']
+          .map((a) => String(a).trim()).filter((a, i, all) => a && all.findIndex((b) => b.toLowerCase() === a.toLowerCase()) === i)
+          .map((a) => JSON.stringify({ '@type': 'City', name: a, containedInPlace: { '@type': 'State', name: '{{STATE_FULL}}' } })).join(',\n        ') %>
       ],
-      "url": "{{SITE_URL}}/contact",
-      "openingHoursSpecification": [
-        {
-          "@type": "OpeningHoursSpecification",
-          "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-          "opens": "09:00",
-          "closes": "19:00"
-        },
-        {
-          "@type": "OpeningHoursSpecification",
-          "dayOfWeek": ["Saturday"],
-          "opens": "09:00",
-          "closes": "17:00"
-        }
-      ]
+      "url": "{{SITE_URL}}/contact"
     }
   }
   </script>

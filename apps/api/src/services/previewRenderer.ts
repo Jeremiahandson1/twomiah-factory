@@ -39,12 +39,11 @@ export async function renderHomepagePreview(config: GenerateConfig): Promise<Pre
     if (!fs.existsSync(websiteDir)) {
       throw new Error('Generated output has no website/ directory — cannot render preview')
     }
+    // No placeholder banner: an empty nearby-city slot resolves to the lead's own
+    // city (generator.ts buildTokenMap) and the templates list each city once, so
+    // there are no "Nearby City N" placeholders left to explain.
     const html = await renderWebsiteDir(websiteDir)
-    // When the lead gave no real service areas, the site shows "Nearby City N"
-    // placeholders — flag that in the preview so it reads as intentional.
-    const hasRealCities = !!(config.company?.nearbyCities && config.company.nearbyCities.length)
-    const finalHtml = hasRealCities ? html : injectPlaceholderDisclaimer(html)
-    return { html: finalHtml, slug: result.slug, buildId: result.buildId }
+    return { html, slug: result.slug, buildId: result.buildId }
   } finally {
     // Disposable by design — preview artifacts must never accumulate.
     fs.rmSync(extractDir, { recursive: true, force: true })
@@ -150,21 +149,4 @@ function inlineAssets(html: string, websiteDir: string): string {
   })
 
   return html
-}
-
-/**
- * Prepend a banner to <body> noting the service-area cities are placeholders.
- * Only used when the lead supplied no real "areas you serve" list.
- */
-function injectPlaceholderDisclaimer(html: string): string {
-  const banner =
-    '<div data-preview-disclaimer style="background:#fef3c7;color:#92400e;' +
-    'font:600 13px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;padding:10px 16px;' +
-    'text-align:center;border-bottom:1px solid #f59e0b">' +
-    'Preview note: the service-area cities below (&ldquo;Nearby City 1&rdquo;, etc.) are ' +
-    'placeholders &mdash; your real local cities will appear here once added.' +
-    '</div>'
-  const m = html.match(/<body\b[^>]*>/i)
-  if (!m) return banner + html
-  return html.replace(m[0], m[0] + '\n' + banner)
 }

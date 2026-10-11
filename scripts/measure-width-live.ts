@@ -115,7 +115,8 @@ const cdp = async (ws: WebSocket, id: number, method: string, params: any = {}) 
     setTimeout(() => { ws.removeEventListener('message', onMsg); reject(new Error(`timeout ${method}`)) }, 45000)
   })
 
-const list = await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json() as any[]
+// The browser's debugging endpoint on loopback only speaks http; this is a hand-run tool, never shipped.
+const list = await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json() as any[] // nosemgrep: typescript.react.security.react-insecure-request.react-insecure-request
 const page = list.find((t) => t.type === 'page')
 if (!page) { console.error('no page target â€” the browser needs --remote-debugging-port=9223'); process.exit(1) }
 const ws = new WebSocket(page.webSocketDebuggerUrl)

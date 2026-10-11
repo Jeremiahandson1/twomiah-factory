@@ -86,7 +86,12 @@
     "image": <%- _jsonStr('{{SITE_URL}}' + logoUrl) %>,
 <% if (hasPhone) { %>    "telephone": <%- _jsonStr('+1' + phoneRaw) %>,
 <% } %><% if (_emailOk) { %>    "email": <%- _jsonStr(email) %>,
-<% } %>    "priceRange": "$$"
+<% } %>    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": <%- _jsonStr(city) %>,
+      "addressRegion": <%- _jsonStr(state) %>,
+      "addressCountry": "US"
+    }
     <% if (typeof settings !== 'undefined' && settings && settings.socialLinks) { %>
     ,"sameAs": [
       <% const socialLinks = []; %>
@@ -606,7 +611,7 @@
     <!-- Mobile Nav (slides out) -->
     <nav class="mobile-nav main-nav">
       <ul>
-        <li class="mobile-section-label">Services</li>
+        <li class="mobile-section-label">Browse</li>
         <% serviceItems.forEach(item => { %>
           <li class="<%= item.children && item.children.length > 0 ? 'has-dropdown' : '' %>">
             <a href="<%= item.href %>"><%= item.label %></a>
@@ -653,7 +658,7 @@
               </div>
               <span>{{COMPANY_NAME_UPPER}}</span>
             </div>
-            <p>Quality products with fast shipping and secure checkout. Thanks for shopping with {{COMPANY_NAME}}.</p>
+            <p>Thanks for shopping with {{COMPANY_NAME}}.</p>
             <div class="social-links">
               <% if (typeof settings !== 'undefined' && settings && settings.socialLinks) { %>
                 <% if (settings.socialLinks.facebook) { %>
@@ -722,15 +727,14 @@
             <ul>
               <li><a href="/about">About Us</a></li>
               <li><a href="/blog">Journal</a></li>
-              <li><a href="/#contact">Contact</a></li>
+              <li><a href="/contact">Contact</a></li>
             </ul>
           </div>
 
           <div class="footer-col">
             <h4>Customer Care</h4>
             <ul>
-              <li><a href="/#contact">Shipping &amp; Returns</a></li>
-              <li><a href="/#contact">Order Support</a></li>
+              <li><a href="/contact">Order Support</a></li>
               <li><a href="/cart">Your Cart</a></li>
             </ul>
           </div>
@@ -761,10 +765,7 @@
                 <span><%= address %><br/><%= city %>, <%= state %> <%= zip %></span>
               </li>
             </ul>
-            <div class="hours">
-              <strong>Hours:</strong>
-              <span>Mon - Fri: 8am - 5pm</span>
-            </div>
+            <%/* No default hours in the footer: a site states only what its owner supplied. */%>
           </div>
         </div>
       </div>
@@ -774,7 +775,7 @@
       <div class="container">
         <p>&copy; <%= new Date().getFullYear() %> {{COMPANY_NAME}}. All rights reserved.</p>
         <p class="footer-legal"><a href="/privacy">Privacy Policy</a> &middot; <a href="/terms">Terms of Service</a></p>
-        <p>Serving {{CITY}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_1}}, and the {{SERVICE_REGION}}</p>
+        <p>Based in <%= city %>, <%= state %></p>
       </div>
     </div>
     <% if (typeof settings !== 'undefined' && settings && Array.isArray(settings.photoCredits) && settings.photoCredits.length) { %>

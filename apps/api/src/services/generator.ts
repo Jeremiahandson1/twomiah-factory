@@ -39,26 +39,26 @@ const SHOWCASE_INDUSTRY_DEFAULTS: Record<string, IndustryDefaults> = {
   food: {
     hero: {
       primaryButtonText: "See What's On The Menu",
-      primaryButtonLink: '#offerings',
+      // #services / #contact are the home page's own sections (#offerings and #visit never existed)
+      primaryButtonLink: '#services',
       secondaryButtonText: 'Plan Your Visit',
-      secondaryButtonLink: '#visit',
-      subtitle: 'Locally owned in {{CITY}}. Made fresh, served warm.',
+      secondaryButtonLink: '#contact',
+      subtitle: 'Right here in {{CITY}}, {{STATE}}.',
     },
-    trustBadges: [
-      { id: 'local',  type: 'custom', label: 'Locally Loved',            icon: 'heart',     enabled: true },
-      { id: 'fresh',  type: 'custom', label: 'Made Fresh Daily',         icon: 'sparkles',  enabled: true },
-      { id: 'follow', type: 'custom', label: 'Follow for Daily Updates', icon: 'instagram', enabled: true },
-    ],
+    // No badges: "Locally Loved", "Made Fresh Daily" and "Follow for Daily Updates" were claims
+    // the owner never made. A site states only what its owner supplied.
+    trustBadges: [],
     ctaSection: {
       title: 'Come hungry.',
-      description: "We're right in {{CITY}}. Walk-ins welcome — call ahead for big orders or to confirm today's hours.",
-      primaryButtonText: 'Get Directions',
+      description: "We're right in {{CITY}}. Call ahead to confirm today's hours.",
+      primaryButtonText: 'Find Us',
+      primaryButtonLink: '#contact',
     },
     // NOTE: Hours are intentionally NOT defaulted per industry. There's no sensible
     // food-industry hour default — coffee shops open at 6am, bars open at 4pm,
     // bakeries close at 2pm. Hours are tenant-specific data; the CMS admin panel
     // (settings → business hours) is where the tenant configures them.
-    metaDescription: 'Locally owned in {{CITY}}, {{STATE}}. {{COMPANY_NAME}} — made fresh, served warm.',
+    metaDescription: "{{COMPANY_NAME}} in {{CITY}}, {{STATE}}. See what's on the menu and how to find us.",
   },
   // TODO: flesh out hospitality / fitness / beauty / events when those verticals
   // get their first real prospect. Until then they inherit the neutral showcase template.
@@ -245,6 +245,10 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       else if (industry === 'dispensary') websiteTemplate = 'website-dispensary'
       else if (industry === 'landscaping') websiteTemplate = 'website-landscaping'
       else if (SHOWCASE_INDUSTRIES.has(industry)) websiteTemplate = 'website-showcase'
+      // Salons, restaurants/venues and food trucks get the showcase site too (what
+      // legacyWebsiteTemplateFor says). The signup sends 'salon', 'restaurant' and
+      // 'food_truck', which used to fall through to the roofing contractor site.
+      else if (['salon', 'events', 'showcase', 'foodtruck'].includes(verticalFor(industry))) websiteTemplate = 'website-showcase'
       else if (verticalFor(industry) === 'veterinary') websiteTemplate = 'website-vet'
       else if (verticalFor(industry) === 'rv') websiteTemplate = 'website-rv'
       else if (verticalFor(industry) === 'store') websiteTemplate = 'website-store'
@@ -555,11 +559,10 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{SERVICE_AREAS}}': serviceAreasText,
     '{{SERVICE_AREA_LINKS}}': uniqueAreas.map((a) => `<li><a href="/service-area/${a}">${a}</a></li>`).join('\n'),
     '{{SERVICE_AREA_ITEMS}}': uniqueAreas.map((a) => `<li>${a}</li>`).join('\n'),
-    // Placeholders when no real service areas were provided — paired with a
-    // disclaimer in the preview so a mockup reads as intentional, not broken.
     // Real cities come from the manual intake field (company.nearbyCities).
-    // Fall back to the real city (a live site must never show "Nearby City 1").
-    // The CMS template also dedupes/filters these before rendering the area list.
+    // Fall back to the real city (a live site must never show "Nearby City 1"),
+    // so an empty slot repeats the home city: every template and the CMS
+    // de-duplicate these before listing them.
     '{{NEARBY_CITY_1}}': (c.nearbyCities || [])[0] || c.city || 'our area',
     '{{NEARBY_CITY_2}}': (c.nearbyCities || [])[1] || c.city || 'our area',
     '{{NEARBY_CITY_3}}': (c.nearbyCities || [])[2] || c.city || 'our area',
@@ -579,42 +582,49 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
       ? 'https://' + serviceSlug + '-drive-api.onrender.com'
       : 'https://' + buildCrmApiHost(serviceSlug, industry),
     '{{INDUSTRY}}': industryLabel,
+    // Default copy below states only what the intake says (name, city, industry): no licensing,
+    // 24/7, delivery, financing or warranty claim an owner never made. A site states only what its
+    // owner supplied (the rule composerFacts.ts enforces for premium sites).
     '{{META_DESCRIPTION}}': isStore
-      ? 'Shop ' + (c.name || 'our store') + ' online — quality products with fast, secure checkout.'
+      ? 'Shop ' + (c.name || 'our store') + ' online.'
       : industry === 'home_care'
-      ? 'Professional in-home care services in ' + (c.city || 'your area') + '. Licensed, insured, compassionate caregivers.'
+      ? 'In-home care services in ' + (c.city || 'your area') + '.'
       : industry === 'field_service'
-      ? 'Professional HVAC and plumbing services in ' + (c.city || 'your area') + '. 24/7 emergency service, installations, repairs, and maintenance contracts.'
+      ? 'Heating, cooling and plumbing services in ' + (c.city || 'your area') + '.'
       : industry === 'automotive'
-      ? (c.name || 'Your dealership') + ' in ' + (c.city || 'your area') + '. Browse inventory, schedule service, and get pre-approved online.'
+      ? (c.name || 'Your dealership') + ' in ' + (c.city || 'your area') + '. Browse inventory and get in touch.'
       : industry === 'dispensary'
-      ? (c.name || 'Your dispensary') + ' in ' + (c.city || 'your area') + '. Browse our menu, order online for pickup or delivery, and earn loyalty rewards.'
+      ? (c.name || 'Your dispensary') + ' in ' + (c.city || 'your area') + '. Browse our menu and order online.'
       : 'Professional services in ' + (c.city || 'your area') + '.',
-    '{{HERO_TAGLINE}}': config.content?.heroTagline || c.heroTagline || (industry === 'home_care' ? 'VA APPROVED PROVIDER' : industry === 'field_service' ? 'Your Trusted HVAC & Plumbing Professionals' : industry === 'automotive' ? 'Your Trusted Dealership' : industry === 'dispensary' ? 'Premium Cannabis Products' : 'Trusted ' + industryLabel),
-    '{{HERO_BADGE}}': config.content?.heroTagline || (industry === 'home_care' ? 'Compassionate In-Home Care' : industry === 'dispensary' ? 'Licensed Dispensary' : 'Licensed & Insured'),
-    '{{HERO_TITLE}}': isStore ? (c.name || 'Our Store') : industry === 'home_care' ? 'Compassionate Home Care for Your Loved Ones' : industry === 'dispensary' ? (c.name || 'Your Dispensary') + ' — Premium Cannabis' : (c.name || 'Your Company') + ' — Quality You Can Trust',
+    '{{HERO_TAGLINE}}': config.content?.heroTagline || c.heroTagline || (industry === 'home_care' ? 'In-Home Care' : industry === 'field_service' ? 'Heating, Cooling & Plumbing' : industry === 'dispensary' ? 'Cannabis Dispensary' : industryLabel),
+    '{{HERO_BADGE}}': config.content?.heroTagline || (industry === 'home_care' ? 'Compassionate In-Home Care' : industry === 'dispensary' ? 'Cannabis Dispensary' : industryLabel),
+    '{{HERO_TITLE}}': isStore ? (c.name || 'Our Store') : industry === 'home_care' ? 'Compassionate Home Care for Your Loved Ones' : industry === 'dispensary' ? (c.name || 'Your Dispensary') : (c.name || 'Your Company'),
     '{{HERO_DESCRIPTION}}': isStore
-      ? 'Quality products, fast shipping, and secure checkout.'
+      ? 'Shop online with secure checkout.'
       : industry === 'home_care'
       ? 'Helping families in ' + (c.city || 'your area') + ' with personalized, professional in-home care.'
       : industry === 'dispensary'
-      ? 'Premium flower, edibles, concentrates, and more in ' + (c.city || 'your area') + '. Order online for pickup or delivery.'
-      : 'Serving ' + (c.serviceRegion || c.city || 'the area') + ' with quality workmanship.',
-    '{{TRUST_BADGE_1}}': industry === 'home_care' ? 'Licensed & Insured' : industry === 'dispensary' ? 'State Licensed' : 'Licensed & Insured',
-    '{{TRUST_BADGE_2}}': industry === 'home_care' ? 'Background Checked Caregivers' : industry === 'dispensary' ? 'Lab Tested Products' : 'Free Estimates',
+      ? 'Flower, edibles, concentrates, and more in ' + (c.city || 'your area') + '. Browse the menu and order online.'
+      : 'Serving ' + (c.serviceRegion || c.city || 'the area') + '.',
+    // Trust badges are credentials (licensed, background-checked, lab-tested): only the owner can
+    // supply them, so there is no default.
+    '{{TRUST_BADGE_1}}': '',
+    '{{TRUST_BADGE_2}}': '',
     '{{RENDER_DOMAIN}}': serviceSlug + '-site.onrender.com',
     '{{ABOUT_TEXT}}': config.content?.aboutText || (industry === 'home_care'
       ? (c.name || 'We') + ' provide compassionate in-home care services throughout ' + (c.city || 'the area') + '.'
       : industry === 'field_service'
-      ? (c.name || 'We') + ' provides reliable HVAC and plumbing services throughout ' + (c.serviceRegion || c.city || 'the area') + '. From emergency repairs to planned maintenance, we keep your home comfortable year-round.'
+      ? (c.name || 'We') + ' provides heating, cooling and plumbing services throughout ' + (c.serviceRegion || c.city || 'the area') + ', from repairs to planned maintenance.'
       : industry === 'dispensary'
-      ? (c.name || 'We') + ' is a licensed cannabis dispensary serving ' + (c.city || 'the area') + '. We carry premium flower, edibles, concentrates, vapes, and accessories from top Michigan brands.'
-      : (c.name || 'We') + ' deliver quality workmanship to homeowners throughout ' + (c.serviceRegion || c.city || 'the area') + '.'),
+      ? (c.name || 'We') + ' is a cannabis dispensary serving ' + (c.city || 'the area') + '.'
+      : industry === 'automotive'
+      ? (c.name || 'We') + ' serves customers throughout ' + (c.serviceRegion || c.city || 'the area') + '.'
+      : (c.name || 'We') + ' works with homeowners throughout ' + (c.serviceRegion || c.city || 'the area') + '.'),
     '{{CTA_TEXT}}': config.content?.ctaText || (industry === 'home_care'
       ? 'Ready to discuss care options for your loved one?'
       : industry === 'dispensary'
-      ? 'Browse our menu and order online for pickup or delivery.'
-      : 'Ready to start your project? Get a free estimate today.'),
+      ? 'Browse our menu and order online.'
+      : 'Ready to start your project? Get in touch today.'),
     '{{OWNER_NAME}}': c.ownerName || 'Admin',
     '{{OWNER_FIRST_NAME}}': firstName,
     '{{OWNER_LAST_NAME}}': lastName,

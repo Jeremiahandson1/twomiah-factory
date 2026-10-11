@@ -39,7 +39,7 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
         Home
       </a>
       <h1>Tips & Insights</h1>
-      <p class="hero-tagline">Expert insights and helpful articles from {{COMPANY_NAME}} in {{CITY}}.</p>
+      <p class="hero-tagline">News, tips and updates from {{COMPANY_NAME}} in {{CITY}}.</p>
     </div>
   </section>
 
@@ -49,7 +49,7 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
       <% if (publishedPosts.length === 0) { %>
         <div class="blog-empty">
           <h3>Posts coming soon</h3>
-          <p>Check back for helpful articles from {{SERVICE_REGION}}.</p>
+          <p>Check back soon for news and updates.</p>
         </div>
       <% } else { %>
         <div class="blog-grid">
@@ -83,10 +83,10 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   <!-- CTA -->
   <section class="blog-cta-section">
     <div class="container">
-      <h2>Have a Question About Your Home?</h2>
-      <p>We're happy to help — even if you're not ready for a project yet.</p>
+      <h2>Have a Question?</h2>
+      <p>We're happy to help. Just ask.</p>
       <div class="hero-buttons">
-        <a href="/#contact" class="btn btn-primary btn-lg">Get a Free Estimate</a>
+        <a href="/contact" class="btn btn-primary btn-lg">Get in Touch</a>
         <a href="tel:<%= phoneRaw %>" class="btn btn-outline btn-lg">Call <%= phone %></a>
       </div>
     </div>

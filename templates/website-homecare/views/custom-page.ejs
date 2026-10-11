@@ -57,7 +57,7 @@
   <section class="custom-cta">
     <div class="container">
       <h2>Have Questions?</h2>
-      <p>Contact {{COMPANY_NAME}} today. We're here to help with all your construction needs.</p>
+      <p>Contact {{COMPANY_NAME}} today. We'd love to hear from you.</p>
       <div class="cta-buttons">
         <a href="/#contact" class="btn btn-primary btn-lg">Contact Us</a>
         <a href="tel:{{COMPANY_PHONE_RAW}}" class="btn btn-outline-light btn-lg">Call {{COMPANY_PHONE}}</a>
@@ -76,7 +76,7 @@
     <% } %>
     "url": <%- _jsonStr('{{SITE_URL}}/' + (page.slug || '')) %>,
     "publisher": {
-      "@type": "HomeAndConstructionBusiness",
+      "@type": "LocalBusiness",
       "name": "{{COMPANY_NAME}}",
       "url": "{{SITE_URL}}",
       "telephone": "{{COMPANY_PHONE}}"

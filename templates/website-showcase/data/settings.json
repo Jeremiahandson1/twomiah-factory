@@ -19,7 +19,7 @@
     "yelp": "",
     "googleBusiness": ""
   },
-  "defaultMetaTitle": "{{COMPANY_NAME}} - {{CITY}} {{INDUSTRY}}",
+  "defaultMetaTitle": "{{COMPANY_NAME}} - {{CITY}}, {{STATE}}",
   "defaultMetaDescription": "{{META_DESCRIPTION}}",
   "analytics": {
     "googleAnalyticsId": "",

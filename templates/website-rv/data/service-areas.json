@@ -2,31 +2,31 @@
   {
     "name": "{{CITY}}",
     "state": "{{STATE}}",
-    "description": "{{COMPANY_NAME}} is the trusted RV and powersports dealership in {{CITY}}, {{STATE}}. New and pre-owned RVs, ATVs, UTVs, motorcycles, and boats, plus certified service, parts, and financing all in one place.",
+    "description": "{{COMPANY_NAME}} is an RV and powersports dealership in {{CITY}}, {{STATE}}, with new and pre-owned RVs, ATVs, UTVs, motorcycles, and boats, plus service and parts.",
     "isPrimary": true
   },
   {
     "name": "{{NEARBY_CITY_1}}",
     "state": "{{STATE}}",
-    "description": "Serving {{NEARBY_CITY_1}} riders with new and used RVs and powersports, on-site service and repair, and financing for all credit. Trade-ins always welcome.",
+    "description": "Serving {{NEARBY_CITY_1}} riders with new and used RVs and powersports, service and repair, and trade-ins.",
     "isPrimary": false
   },
   {
     "name": "{{NEARBY_CITY_2}}",
     "state": "{{STATE}}",
-    "description": "{{COMPANY_NAME}} proudly serves {{NEARBY_CITY_2}} with RV and powersports sales, certified service, OEM and aftermarket parts, and a finance team that gets you on the road.",
+    "description": "{{COMPANY_NAME}} serves {{NEARBY_CITY_2}} with RV and powersports sales, service, and OEM and aftermarket parts.",
     "isPrimary": false
   },
   {
     "name": "{{NEARBY_CITY_3}}",
     "state": "{{STATE}}",
-    "description": "Your RV and powersports headquarters near {{NEARBY_CITY_3}}, {{STATE}}. Factory-authorized sales, certified technicians, and financing for every credit situation.",
+    "description": "RV and powersports sales and service near {{NEARBY_CITY_3}}, {{STATE}}.",
     "isPrimary": false
   },
   {
     "name": "{{NEARBY_CITY_4}}",
     "state": "{{STATE}}",
-    "description": "{{COMPANY_NAME}} serves {{NEARBY_CITY_4}} with new and pre-owned RVs, ATVs, UTVs, and boats, plus expert service and trade-in appraisals. Stop by or request a unit today.",
+    "description": "{{COMPANY_NAME}} serves {{NEARBY_CITY_4}} with new and pre-owned RVs, ATVs, UTVs, and boats, plus service and trade-in appraisals. Stop by or request a unit today.",
     "isPrimary": false
   }
 ]

@@ -3,7 +3,11 @@
 const hero = (typeof homepage !== 'undefined' && homepage && homepage.hero) ? homepage.hero : {};
 const trustBadges = (typeof homepage !== 'undefined' && homepage && homepage.trustBadges) ? homepage.trustBadges.filter(b => b.enabled) : [];
 const ctaSection = (typeof homepage !== 'undefined' && homepage && homepage.ctaSection) ? homepage.ctaSection : {};
-const serviceAreas = (typeof homepage !== 'undefined' && homepage && homepage.serviceAreas) ? homepage.serviceAreas : ['{{CITY}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}'];
+// Empty nearby-city slots are filled with the home city, so de-duplicate.
+const serviceAreas = ((typeof homepage !== 'undefined' && homepage && Array.isArray(homepage.serviceAreas) && homepage.serviceAreas.length) ? homepage.serviceAreas : ['{{CITY}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}', '{{NEARBY_CITY_4}}'])
+  .map((a) => String(a || '').trim()).filter((a, i, all) => a && all.findIndex((b) => b.toLowerCase() === a.toLowerCase()) === i);
+// Form choices are the site's own services, not a fixed list.
+const _svcOpts = (typeof services !== 'undefined' && Array.isArray(services) ? services : []).filter((s) => s && s.visible !== false && (s.name || s.title));
 const businessHours = (typeof homepage !== 'undefined' && homepage && homepage.businessHours) ? homepage.businessHours : {};
 
 // Settings with fallbacks
@@ -41,13 +45,13 @@ function getImageUrl(p) {
           <% } else { %>
             <div class="hero-badge-pill">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              AAHA ACCREDITED HOSPITAL
+              COMPASSIONATE VETERINARY CARE
             </div>
           <% } %>
 
           <h1 class="hero-split-headline"><%= hero.title || 'Compassionate Veterinary Care for Your Beloved Pets' %></h1>
 
-          <p class="hero-split-sub"><%= hero.description || 'Caring for dogs, cats, and small animals in {{CITY}} and the {{SERVICE_REGION}} with compassionate, full-service veterinary medicine. Licensed veterinarians and 24/7 emergency care when you need us.' %></p>
+          <p class="hero-split-sub"><%= hero.description || 'Caring for dogs, cats, and small animals in {{CITY}} and the {{SERVICE_REGION}} with compassionate veterinary care.' %></p>
 
           <div class="hero-split-buttons">
             <a href="tel:<%= phoneRaw %>" class="btn btn-warm btn-lg">
@@ -99,10 +103,10 @@ function getImageUrl(p) {
             </div>
           <% }); %>
         <% } else { %>
-          <div class="trust-bar-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span>{{TRUST_BADGE_1}}</span></div>
-          <div class="trust-bar-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span>Licensed Veterinarians</span></div>
-          <div class="trust-bar-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span>{{TRUST_BADGE_2}}</span></div>
-          <div class="trust-bar-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span>Locally Trusted</span></div>
+          <div class="trust-bar-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span>Compassionate Care</span></div>
+          <div class="trust-bar-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span>Gentle Handling</span></div>
+          <div class="trust-bar-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span>Preventive Care</span></div>
+          <div class="trust-bar-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span>Serving <%= city %></span></div>
         <% } %>
       </div>
     </div>
@@ -114,63 +118,15 @@ function getImageUrl(p) {
       <div class="section-eyebrow">About Us</div>
       <h2 class="section-headline-serif">Where Your Pet Is Treated Like Family</h2>
       <div class="about-body">
-        <p><%= settings && settings.aboutParagraph1 || "We are a full-service veterinary hospital serving " + (city || "the area") + " and the surrounding communities. We know your pet is part of your family -- and we treat every dog, cat, and small animal that comes through our doors with the same love and attention we'd give our own." %></p>
-        <p><%= settings && settings.aboutParagraph2 || "From routine wellness exams and vaccinations to advanced surgery, dental care, and 24/7 emergency medicine, our team delivers expert care under one roof. We take the time to listen, explain things clearly, and partner with you to keep your companion happy and healthy for years to come." %></p>
-        <% if (settings && settings.vaApproved !== false) { %>
-        <blockquote class="about-va-quote">
-          As an AAHA-accredited hospital, we're held to the highest standards in veterinary medicine -- from anesthesia safety and pain management to cleanliness and patient care. It's our commitment to giving your pet the very best.
-        </blockquote>
-        <% } %>
+        <p><%= settings && settings.aboutParagraph1 || "We are a veterinary practice serving " + (city || "the area") + " and the surrounding communities. We know your pet is part of your family -- and we treat every pet that comes through our doors with the same love and attention we'd give our own." %></p>
+        <p><%= settings && settings.aboutParagraph2 || "Whether it's a routine checkup or a health concern, we take the time to listen, explain things clearly, and partner with you to keep your companion happy and healthy for years to come." %></p>
+        <%/* No accreditation quote: a site states only what its owner supplied. */%>
       </div>
     </div>
   </section>
 
-  <!--  MEET OUR VETS  -->
-  <section class="vet-team-section" id="team">
-    <div class="container">
-      <div class="section-eyebrow">Meet Our Team</div>
-      <h2 class="section-headline-serif">The Veterinarians Caring for Your Pet</h2>
-      <p class="vet-team-sub">Our experienced, compassionate doctors are dedicated to keeping the pets of <%= city %> healthy, comfortable, and thriving.</p>
-      <div class="vet-team-grid">
-        <div class="vet-team-card">
-          <div class="vet-team-avatar">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          </div>
-          <h3>Dr. Sarah Bennett, DVM</h3>
-          <div class="vet-team-role">Medical Director</div>
-          <p>With over 15 years in small-animal medicine, Dr. Bennett has a special passion for preventive care and senior pet wellness. She believes every visit should leave both pets and their families feeling cared for.</p>
-        </div>
-        <div class="vet-team-card">
-          <div class="vet-team-avatar">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          </div>
-          <h3>Dr. James Carter, DVM</h3>
-          <div class="vet-team-role">Surgery &amp; Dentistry</div>
-          <p>Dr. Carter leads our surgical and dental services, from routine spay/neuter to advanced soft-tissue and orthopedic procedures. He's known for his calm chairside manner and meticulous attention to safety.</p>
-        </div>
-        <div class="vet-team-card">
-          <div class="vet-team-avatar">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          </div>
-          <h3>Dr. Maria Lopez, DVM</h3>
-          <div class="vet-team-role">Internal Medicine</div>
-          <p>Dr. Lopez focuses on diagnostics and the management of chronic conditions like diabetes, kidney disease, and allergies. She loves solving tough cases and giving pets back their quality of life.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-  <style>
-    .vet-team-section { padding: 4rem 0; background: #f9fafb; }
-    .vet-team-sub { text-align: center; max-width: 640px; margin: 0.5rem auto 2.5rem; color: #555; line-height: 1.7; }
-    .vet-team-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; }
-    .vet-team-card { background: #fff; border-radius: 14px; padding: 2rem; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-    .vet-team-avatar { width: 84px; height: 84px; margin: 0 auto 1rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--gold, #009688) 14%, #fff); color: var(--gold, #009688); }
-    .vet-team-card h3 { font-size: 1.15rem; margin: 0 0 0.25rem; color: #1a1a1a; }
-    .vet-team-role { font-size: 0.85rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--gold-ink, #00695c); margin-bottom: 0.85rem; }
-    .vet-team-card p { font-size: 0.95rem; color: #666; line-height: 1.65; }
-    @media (max-width: 900px) { .vet-team-grid { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 600px) { .vet-team-grid { grid-template-columns: 1fr; } }
-  </style>
+  <%/* No "Meet our vets" section: the team it showed was invented. A site states
+       only what its owner supplied, and there is no staff data source yet. */%>
 
   <!--  SERVICES  -->
   <section class="hc-services-section" id="services">
@@ -188,17 +144,21 @@ function getImageUrl(p) {
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                 <% } %>
               </div>
+              <% if (service.slug) { %>
+              <h3><a href="/services/<%= service.slug %>" style="color:inherit;text-decoration:none"><%= service.title || service.name %></a></h3>
+              <% } else { %>
               <h3><%= service.title || service.name %></h3>
+              <% } %>
               <p><%= service.shortDescription || service.tagline || service.description %></p>
             </div>
           <% }); %>
         <% } else { %>
           <div class="hc-service-card"><div class="hc-service-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><h3>Wellness Exams</h3><p>Comprehensive nose-to-tail checkups that catch problems early and keep your pet healthy at every life stage.</p></div>
-          <div class="hc-service-card"><div class="hc-service-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div><h3>Surgery &amp; Procedures</h3><p>From routine spay/neuter to orthopedic and soft-tissue surgery, with advanced anesthesia monitoring and pain management.</p></div>
-          <div class="hc-service-card"><div class="hc-service-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 14s1.5 2 4 2 4-2 4-2"/><circle cx="12" cy="12" r="10"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></div><h3>Dental Care</h3><p>Professional cleanings, digital dental X-rays, and extractions that protect your pet's teeth, gums, and overall health.</p></div>
+          <div class="hc-service-card"><div class="hc-service-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div><h3>Surgery &amp; Procedures</h3><p>Surgical care with attention to your pet's comfort before, during, and after the procedure.</p></div>
+          <div class="hc-service-card"><div class="hc-service-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 14s1.5 2 4 2 4-2 4-2"/><circle cx="12" cy="12" r="10"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></div><h3>Dental Care</h3><p>Dental care that protects your pet's teeth, gums, and overall health.</p></div>
           <div class="hc-service-card"><div class="hc-service-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><h3>Vaccinations &amp; Prevention</h3><p>Tailored vaccine schedules plus flea, tick, and heartworm prevention to shield your pet from preventable disease.</p></div>
-          <div class="hc-service-card"><div class="hc-service-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><h3>24/7 Emergency &amp; Urgent Care</h3><p>Round-the-clock emergency and same-day urgent care when your pet needs help fast--because every minute matters.</p></div>
-          <div class="hc-service-card"><div class="hc-service-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></div><h3>Internal Medicine &amp; Diagnostics</h3><p>Advanced in-house diagnostics and chronic-disease management to find answers and create a clear treatment plan.</p></div>
+          <div class="hc-service-card"><div class="hc-service-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><h3>Sick Visits</h3><p>When your pet isn't feeling well, we'll work with you to find out why and how to help.</p></div>
+          <div class="hc-service-card"><div class="hc-service-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></div><h3>Internal Medicine &amp; Diagnostics</h3><p>Diagnostics and ongoing care for chronic conditions, with a clear treatment plan.</p></div>
         <% } %>
       </div>
     </div>
@@ -298,12 +258,8 @@ function getImageUrl(p) {
               <label>What type of appointment are you looking for?</label>
               <select name="careType">
                 <option value="">Select an option...</option>
-                <option>Wellness Exam</option>
-                <option>Vaccinations &amp; Prevention</option>
-                <option>Dental Care</option>
-                <option>Surgery Consult</option>
+                <% _svcOpts.forEach(function(s) { %><option><%= s.name || s.title %></option><% }); %>
                 <option>Sick Visit</option>
-                <option>Emergency / Urgent Care</option>
                 <option>Other / Not Sure</option>
               </select>
             </div>

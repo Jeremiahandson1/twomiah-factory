@@ -74,7 +74,7 @@
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "HomeAndConstructionBusiness",
+    "@type": "LocalBusiness",
     "name": "{{COMPANY_NAME}}",
     "description": "{{META_DESCRIPTION}} in {{CITY}} and the {{SERVICE_REGION}}",
     "url": "{{SITE_URL}}",
@@ -99,8 +99,7 @@
           "name": "{{STATE_FULL}}"
         }
       }
-    ],
-    "priceRange": "$$"
+    ]
     <% if (typeof settings !== 'undefined' && settings && settings.socialLinks) { %>
     ,"sameAs": [
       <% const socialLinks = []; %>
@@ -554,7 +553,7 @@
           </a>
           
           <nav class="utility-nav">
-            <a href="/gallery">Projects</a>
+            <a href="/gallery">Gallery</a>
             <% if (typeof hasVisualizer !== 'undefined' && hasVisualizer) { %><a href="/visualize">Visualize</a><% } %>
             <% if (typeof hasEstimator !== 'undefined' && hasEstimator) { %><a href="/estimate">Free Estimate</a><% } %>
             <a href="/blog">Blog</a>
@@ -569,7 +568,7 @@
               </svg>
               <%= phone %>
             </a>
-            <a href="#contact" class="btn btn-primary btn-sm">Request Estimate</a>
+            <a href="/contact" class="btn btn-primary btn-sm">Contact Us</a>
           </div>
 
           <button class="nav-toggle" aria-label="Toggle menu">
@@ -629,12 +628,12 @@
         <li class="mobile-section-label">More</li>
         <% if (typeof hasVisualizer !== 'undefined' && hasVisualizer) { %><li><a href="/visualize">Visualize Your Home</a></li><% } %>
         <% if (typeof hasEstimator !== 'undefined' && hasEstimator) { %><li><a href="/estimate">Instant Roof Estimate</a></li><% } %>
-        <li><a href="/gallery">Projects</a></li>
+        <li><a href="/gallery">Gallery</a></li>
         <li><a href="/blog">Blog</a></li>
         <li><a href="/about">About</a></li>
         <li><a href="/#contact">Contact</a></li>
         <li class="cta-item">
-          <a href="#contact" class="btn btn-primary">Request Estimate</a>
+          <a href="/contact" class="btn btn-primary">Contact Us</a>
         </li>
       </ul>
     </nav>
@@ -654,15 +653,13 @@
             <div class="footer-logo">
               <div class="logo-icon">
                 <svg viewBox="0 0 40 40" fill="none">
-                  <path d="M20 4L4 16V36H36V16L20 4Z" stroke="currentColor" strokeWidth="2" fill="none"/>
-                  <path d="M20 4L36 16" stroke="currentColor" strokeWidth="2"/>
-                  <path d="M4 16L20 4" stroke="currentColor" strokeWidth="2"/>
-                  <rect x="15" y="22" width="10" height="14" stroke="currentColor" strokeWidth="2"/>
+                  <circle cx="20" cy="20" r="16" stroke="currentColor" strokeWidth="2" fill="none"/>
+                  <path d="M20 11l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6-4.5-4.2 6.1-.7z" stroke="currentColor" strokeWidth="2" fill="none"/>
                 </svg>
               </div>
               <span>{{COMPANY_NAME_UPPER}}</span>
             </div>
-            <p>Quality services for customers throughout the {{CITY}} area. Licensed, insured, and committed to excellence.</p>
+            <p>{{COMPANY_NAME}} in {{CITY}}, {{STATE}}. We'd love to hear from you.</p>
             <div class="social-links">
               <% if (typeof settings !== 'undefined' && settings && settings.socialLinks) { %>
                 <% if (settings.socialLinks.facebook) { %>
@@ -736,21 +733,17 @@
             <ul>
               <% if (typeof hasVisualizer !== 'undefined' && hasVisualizer) { %><li><a href="/visualize">Visualize Your Home</a></li><% } %>
               <% if (typeof hasEstimator !== 'undefined' && hasEstimator) { %><li><a href="/estimate">Instant Roof Estimate</a></li><% } %>
-              <li><a href="/gallery">Projects</a></li>
+              <li><a href="/gallery">Gallery</a></li>
               <li><a href="/blog">Blog</a></li>
               <li><a href="/about">About Us</a></li>
-              <li><a href="/#contact">Contact</a></li>
-              <li><a href="/#contact">Request Estimate</a></li>
+              <li><a href="/contact">Contact Us</a></li>
             </ul>
           </div>
 
           <div class="footer-col">
             <h4>Areas We Serve</h4>
             <ul>
-              <li><a href="/services">{{CITY}}</a></li>
-              <li><a href="/services">{{NEARBY_CITY_1}}</a></li>
-              <li><a href="/service-area/{{NEARBY_CITY_4}}">{{NEARBY_CITY_4}}</a></li>
-              <li><a href="/service-area/{{NEARBY_CITY_3}}">{{NEARBY_CITY_3}}</a></li>
+              {{SERVICE_AREA_ITEMS}}
               
               
             </ul>
@@ -780,10 +773,7 @@
                 <span><%= address %><br/><%= city %>, <%= state %> <%= zip %></span>
               </li>
             </ul>
-            <div class="hours">
-              <strong>Hours:</strong>
-              <span>Mon - Fri: 8am - 5pm</span>
-            </div>
+            <%/* no default hours: a site states only what its owner supplied */%>
           </div>
         </div>
       </div>
@@ -793,7 +783,7 @@
       <div class="container">
         <p>&copy; <%= new Date().getFullYear() %> {{COMPANY_NAME}}. All rights reserved.</p>
         <p class="footer-legal"><a href="/privacy">Privacy Policy</a> &middot; <a href="/terms">Terms of Service</a></p>
-        <p>Serving {{CITY}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_1}}, and the {{SERVICE_REGION}}</p>
+        <p>Serving {{SERVICE_AREAS}}.</p>
       </div>
     </div>
     <% if (typeof settings !== 'undefined' && settings && Array.isArray(settings.photoCredits) && settings.photoCredits.length) { %>
