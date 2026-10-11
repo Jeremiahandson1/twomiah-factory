@@ -26,6 +26,11 @@
   --gold: {{PRIMARY_COLOR}};
   --gold-light: {{PRIMARY_COLOR}};
   --gold-dark: {{PRIMARY_COLOR}};
+  /* --primary is what the about / services-index page styles paint their hero and
+     buttons with; it was never defined, so those heroes rendered transparent (white
+     text on white). The readable-on-white brand, a step darker so it also clears AA on
+     the themes' grey section grounds (#e1e5ec), as text and under white text. */
+  --primary: color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 85%, #000000);
   --white: #ffffff;
   --off-white: #f8f9fa;
   --gray-100: #f5f5f5;
@@ -1091,7 +1096,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 }
 
 .badge-info .stars {
-  color: var(--gold);
+  color: {{PRIMARY_COLOR_ON_WHITE}};
   font-weight: 600;
   font-size: 1rem;
 }
@@ -1531,11 +1536,15 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
   color: var(--white);
 }
 
+/* The page hero is a navy band: the themes' global h1/p colours (dark) must not
+   reach it. */
 .page-hero h1 {
   margin-bottom: 15px;
+  color: #fff;
 }
 
 .page-hero p {
+  color: #fff;
   opacity: 0.9;
   font-size: 1.1rem;
 }
@@ -1691,7 +1700,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 }
 
 .gallery-cta p {
-  color: var(--gray-600);
+  color: #4b5563;
   margin-bottom: 30px;
 }
 
@@ -1706,20 +1715,29 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
   max-width: 800px;
 }
 
+/* Brand-tinted text on the navy service hero: the raw brand (--gold) disappears
+   for dark brands; the light brand variant, lifted further toward white because
+   this gradient (and the photo some service heroes carry) is lighter than the
+   near-black it is calibrated for. */
 .service-hero .back-link {
   display: inline-block;
-  color: var(--gold);
+  color: color-mix(in srgb, {{PRIMARY_COLOR_ON_DARK}} 40%, #ffffff);
   margin-bottom: 20px;
   font-weight: 600;
 }
 
 .service-hero h1 {
   margin-bottom: 10px;
+  color: #fff;
+}
+
+.service-hero .hero-tagline {
+  color: color-mix(in srgb, {{PRIMARY_COLOR_ON_DARK}} 40%, #ffffff);
 }
 
 .service-hero .tagline {
   font-size: 1.3rem;
-  color: var(--gold);
+  color: color-mix(in srgb, {{PRIMARY_COLOR_ON_DARK}} 40%, #ffffff);
   margin-bottom: 20px;
 }
 
@@ -3287,7 +3305,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 .blog-preview-content .read-more {
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--gold, #c8963e);
+  color: {{PRIMARY_COLOR_ON_WHITE}};
   margin-top: 1rem;
 }
 

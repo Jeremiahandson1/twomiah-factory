@@ -22,14 +22,25 @@ body{font-family:var(--font-body);background:var(--off-white);color:var(--sx-war
 h1,h2,h3,h4,h5,h6{font-family:var(--font-heading);text-transform:uppercase;letter-spacing:.005em;line-height:1.04;color:var(--sx-warm-ink)}
 .hero h1,h1{font-size:clamp(2.6rem,6vw,4.6rem)}
 p{color:#5c4a39;line-height:1.75}
+/* The warm ink above is for the cream grounds. The template's navy grounds (hero, CTA bands,
+   footer, page/service heroes, overlays) set white text on the section and expect headings and
+   paragraphs to inherit it — without this the ink rules above paint them dark-on-navy. :where()
+   keeps this at one class so the base's own coloured headings (e.g. .footer-col h4) still win. */
+:is(.hero-video-content,.top-bar,.ribbon-header,.testimonials-section,.cta-section,.blog-cta-section,.post-hero,.sidebar-cta,.post-bottom-cta,.main-footer,.page-hero,.service-hero,.service-cta,.gallery-hero,.gallery-cta,.cta-card,.custom-hero,.custom-cta,.project-bottom-cta,.fp-overlay,.gallery-card-overlay,.project-overlay,.related-overlay) :where(h1,h2,h3,h4,h5,h6,p:not(.hero-tagline)){color:inherit}
 
 .header,.site-header{background:rgba(251,243,233,.9);backdrop-filter:blur(10px);box-shadow:var(--shadow-sm)}
 
 .btn,.button,a.button,.btn-primary,button[type=submit]{
   border-radius:999px;font-family:var(--font-heading);text-transform:uppercase;letter-spacing:.04em;
-  background:linear-gradient(180deg,var(--color-accent,#ffb12e),var(--color-primary,#ff5a00));
-  color:#1a0d00;border:0;box-shadow:0 8px 22px rgba(255,90,0,.32);transition:transform .15s,box-shadow .15s}
+  /* Brand gradient under white text: both stops are the brand darkened to read 4.5:1 against
+     white ({{PRIMARY_COLOR_ON_WHITE}}), so the label stays readable on bright AND dark brands
+     (the raw accent->primary ramp with dark ink failed on dark brands, white ink on bright ones). */
+  background:linear-gradient(180deg,{{PRIMARY_COLOR_ON_WHITE}},color-mix(in srgb,{{PRIMARY_COLOR_ON_WHITE}} 82%,#000));
+  color:#fff;border:0;box-shadow:0 8px 22px rgba(255,90,0,.32);transition:transform .15s,box-shadow .15s}
 .btn:hover,.button:hover,a.button:hover,.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(255,90,0,.42)}
+/* Outline buttons stay outlines: the fill above is for solid buttons only. */
+.btn-outline{background:transparent;color:color-mix(in srgb,{{PRIMARY_COLOR_ON_WHITE}} 85%,#000);border:2px solid {{PRIMARY_COLOR_ON_WHITE}};box-shadow:none}
+.btn-outline-light{background:transparent;color:#fff;border:2px solid rgba(255,255,255,.7);box-shadow:none}
 
 .hero,.hero-section{background:
   radial-gradient(ellipse at 50% 0%,rgba(255,177,46,.28),transparent 55%),

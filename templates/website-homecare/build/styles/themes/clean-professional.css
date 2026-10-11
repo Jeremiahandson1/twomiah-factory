@@ -22,8 +22,14 @@
   --cp-ice-dark: color-mix(in srgb, {{PRIMARY_COLOR}} 16%, #ffffff);
   --cp-teal: {{PRIMARY_COLOR}};
   --cp-teal-light: color-mix(in srgb, {{PRIMARY_COLOR}} 18%, #ffffff);
-  --cp-teal-dark: color-mix(in srgb, {{PRIMARY_COLOR}} 82%, #000000);
-  --cp-teal-deeper: color-mix(in srgb, {{PRIMARY_COLOR}} 68%, #000000);
+  /* Readable brand variants (WCAG AA): -fill is the ground under white text,
+     -ink is brand-coloured TEXT on white/ice. Raw --cp-teal stays for borders,
+     icons and decoration. -dark/-deeper derive from -fill so the hover grounds,
+     badge text and CTA gradient stay dark enough for any brand colour. */
+  --cp-teal-fill: {{PRIMARY_COLOR_ON_WHITE}};
+  --cp-teal-ink: color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 85%, #000000);
+  --cp-teal-dark: color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 82%, #000000);
+  --cp-teal-deeper: color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 68%, #000000);
   --cp-navy: #1e293b;
   --cp-gray: #64748b;
   --cp-gray-light: #f1f5f9;
@@ -55,7 +61,7 @@ h1, h2, h3, h4, h5, h6 {
 
 p { font-family: 'IBM Plex Sans', sans-serif; }
 
-.gold { color: var(--cp-teal) !important; }
+.gold { color: var(--cp-teal-ink) !important; }
 
 /* ── Header / Navigation ── */
 .main-header {
@@ -81,7 +87,7 @@ p { font-family: 'IBM Plex Sans', sans-serif; }
 }
 
 .main-nav > ul > li:hover > a {
-  color: var(--cp-teal) !important;
+  color: var(--cp-teal-ink) !important;
 }
 
 .nav-phone-link {
@@ -90,13 +96,13 @@ p { font-family: 'IBM Plex Sans', sans-serif; }
   font-weight: 600 !important;
 }
 
-.nav-phone-link:hover { color: var(--cp-teal) !important; }
+.nav-phone-link:hover { color: var(--cp-teal-ink) !important; }
 
 /* Nav CTA */
 .cta-item .btn {
-  background: var(--cp-teal) !important;
+  background: var(--cp-teal-fill) !important;
   color: #fff !important;
-  border-color: var(--cp-teal) !important;
+  border-color: var(--cp-teal-fill) !important;
   border-radius: 6px !important;
   font-family: 'Poppins', sans-serif !important;
   text-transform: none !important;
@@ -124,7 +130,7 @@ p { font-family: 'IBM Plex Sans', sans-serif; }
 
 .dropdown a:hover {
   background: var(--cp-ice) !important;
-  color: var(--cp-teal) !important;
+  color: var(--cp-teal-ink) !important;
 }
 
 /* Mobile nav */
@@ -151,9 +157,9 @@ p { font-family: 'IBM Plex Sans', sans-serif; }
 }
 
 .btn-primary {
-  background: var(--cp-teal) !important;
+  background: var(--cp-teal-fill) !important;
   color: #fff !important;
-  border-color: var(--cp-teal) !important;
+  border-color: var(--cp-teal-fill) !important;
 }
 
 .btn-primary:hover {
@@ -164,9 +170,9 @@ p { font-family: 'IBM Plex Sans', sans-serif; }
 }
 
 .btn-warm {
-  background: var(--cp-teal) !important;
+  background: var(--cp-teal-fill) !important;
   color: #fff !important;
-  border-color: var(--cp-teal) !important;
+  border-color: var(--cp-teal-fill) !important;
   border-radius: 6px !important;
 }
 
@@ -177,14 +183,14 @@ p { font-family: 'IBM Plex Sans', sans-serif; }
 }
 
 .btn-outline-teal {
-  border-color: var(--cp-teal) !important;
-  color: var(--cp-teal) !important;
+  border-color: var(--cp-teal-ink) !important;
+  color: var(--cp-teal-ink) !important;
   border-radius: 6px !important;
   background: transparent !important;
 }
 
 .btn-outline-teal:hover {
-  background: var(--cp-teal) !important;
+  background: var(--cp-teal-fill) !important;
   color: #fff !important;
 }
 
@@ -203,7 +209,7 @@ p { font-family: 'IBM Plex Sans', sans-serif; }
 
 .hero-badge-pill {
   background: var(--cp-teal-light) !important;
-  color: var(--cp-teal-dark) !important;
+  color: var(--cp-teal-ink) !important;
   border-radius: 6px !important;
   font-family: 'Poppins', sans-serif !important;
   font-size: 11px !important;
@@ -221,7 +227,7 @@ p { font-family: 'IBM Plex Sans', sans-serif; }
 }
 
 .hero-split-headline em {
-  color: var(--cp-teal) !important;
+  color: var(--cp-teal-ink) !important;
   font-style: normal !important;
 }
 
@@ -333,8 +339,8 @@ p { font-family: 'IBM Plex Sans', sans-serif; }
 }
 
 .area-pill-active {
-  background: var(--cp-teal) !important;
-  border-color: var(--cp-teal) !important;
+  background: var(--cp-teal-fill) !important;
+  border-color: var(--cp-teal-fill) !important;
   color: #fff !important;
 }
 
@@ -467,11 +473,11 @@ form textarea:focus {
 }
 
 .hc-footer-nav a:hover {
-  color: var(--cp-teal) !important;
+  color: var(--cp-teal-ink) !important;
 }
 
 .hc-footer-highlight {
-  color: var(--cp-teal) !important;
+  color: var(--cp-teal-ink) !important;
 }
 
 .hc-footer-contact span {
@@ -479,7 +485,7 @@ form textarea:focus {
 }
 
 .hc-footer-contact a {
-  color: var(--cp-teal) !important;
+  color: var(--cp-teal-ink) !important;
   font-family: 'IBM Plex Sans', sans-serif !important;
 }
 
@@ -496,7 +502,7 @@ form textarea:focus {
 }
 
 .built-by a:hover {
-  color: var(--cp-teal) !important;
+  color: var(--cp-teal-ink) !important;
 }
 
 /* ── Generic Sections ── */

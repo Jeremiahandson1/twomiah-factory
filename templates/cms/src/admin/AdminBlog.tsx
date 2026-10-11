@@ -3,7 +3,7 @@ import AdminLayout from './AdminLayout';
 import ImagePicker from './ImagePicker';
 import { useToast } from './Toast';
 import {
-  getPosts, getPost, createPost, updatePost, deletePost, getAllPages
+  getPosts, getPost, createPost, updatePost, deletePost, getServicesData
 } from './api';
 
 function AdminBlog() {
@@ -24,11 +24,13 @@ function AdminBlog() {
 
   const loadServiceOptions = async () => {
     try {
-      const pages = await getAllPages();
-      if (Array.isArray(pages)) {
-        const slugs = pages
-          .filter((p: any) => p.type === 'service' || p.parentId === null)
-          .map((p: any) => p.slug || p.id)
+      // The service pages themselves (/services/<slug>), which is what the post
+      // page's Related Services links to. pages.json is an object, not a list.
+      const services = await getServicesData();
+      if (Array.isArray(services)) {
+        const slugs = services
+          .filter((s: any) => s && s.visible !== false)
+          .map((s: any) => s.slug)
           .filter(Boolean);
         if (slugs.length > 0) {
           setServiceOptions(slugs);

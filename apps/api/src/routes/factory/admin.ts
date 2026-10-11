@@ -157,6 +157,13 @@ factory.post('/customers/:id/domain', requireRole('owner', 'admin'), async (c) =
           const wwwResult = await addCustomDomain(primaryServiceId, 'www.' + domain)
           if (!wwwResult.success && !wwwResult.error?.includes('already')) renderErrors.push('Primary service (www): ' + wwwResult.error)
         }
+        // The website builds its canonical URL, sitemap and business markup from
+        // SITE_URL, which deploy left on the onrender.com address.
+        if (serviceIds.site) {
+          const { updateRenderEnvVars } = await import('../../services/deploy')
+          const okSiteEnv = await updateRenderEnvVars(serviceIds.site, [{ key: 'SITE_URL', value: 'https://' + domain }])
+          if (!okSiteEnv) renderErrors.push('Website: domain attached but SITE_URL was not updated — canonical URLs will keep using the onrender.com address')
+        }
         // CRM backend gets app.<domain> — this is what the tenant's team logs into
         const backendServiceId = serviceIds.backend || serviceIds.api
         if (backendServiceId) {

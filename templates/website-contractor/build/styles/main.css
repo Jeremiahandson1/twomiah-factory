@@ -46,6 +46,23 @@
   
   /* Transitions */
   --transition: all 0.3s ease;
+
+  /* Brand-filled controls (buttons, call FAB). The brand colour is any colour a
+     customer picks, so the ink on it is chosen from the fill itself: black on a
+     light brand, white on a dark one (L* 49.5 is where black and white have equal
+     WCAG contrast, so the pick is always >= 4.58:1). Browsers without relative
+     colour syntax get the brand darkened for white ink instead. */
+  --brand-fill: {{PRIMARY_COLOR_ON_WHITE}};
+  --brand-ink: #ffffff;
+  /* Brand as TEXT: on white/near-white grounds, and on near-black grounds. */
+  --brand-text-on-light: color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 85%, #000000);
+  --brand-text-on-dark: {{PRIMARY_COLOR_ON_DARK}};
+}
+@supports (color: lch(from red l c h)) {
+  :root {
+    --brand-fill: {{PRIMARY_COLOR}};
+    --brand-ink: lch(from {{PRIMARY_COLOR}} calc((49.5 - l) * infinity) 0 0);
+  }
 }
 
 /* ========== Reset ========== */
@@ -136,9 +153,9 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 }
 
 .btn-primary {
-  background: var(--gold);
-  color: var(--navy-dark);
-  border-color: var(--gold);
+  background: var(--brand-fill);
+  color: var(--brand-ink);
+  border-color: var(--brand-fill);
 }
 
 .btn-primary:hover {
@@ -511,7 +528,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 .hero-awards {
   font-size: 0.95rem;
-  opacity: 0.9;
+  opacity: 1; /* 0.9 on top of the themes' translucent hero text dropped it below AA */
   margin-bottom: 30px;
 }
 
@@ -1098,7 +1115,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 }
 
 .badge-info .stars {
-  color: var(--gold);
+  color: var(--brand-text-on-light); /* label TEXT on the light badge strip */
   font-weight: 600;
   font-size: 1rem;
 }
@@ -1660,8 +1677,8 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 .project-category {
   display: inline-block;
-  background: var(--gold);
-  color: var(--navy-dark);
+  background: var(--brand-fill);
+  color: var(--brand-ink);
   font-family: var(--font-primary);
   font-size: 10px;
   font-weight: 700;
@@ -1715,7 +1732,8 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 .service-hero .back-link {
   display: inline-block;
-  color: var(--gold);
+  /* brand-tinted but light: the service hero is a brand-coloured scrim */
+  color: color-mix(in srgb, var(--brand-text-on-dark) 50%, #ffffff);
   margin-bottom: 20px;
   font-weight: 600;
 }
@@ -3194,11 +3212,13 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
   left: 0;
   right: 0;
   padding: 1.5rem;
-  background: linear-gradient(transparent, rgba(0,0,0,0.75));
+  /* Scrim under the caption: dark enough that white text reads on any photo. */
+  background: linear-gradient(rgba(0,0,0,0) 0%, rgba(0,0,0,0.6) 35%, rgba(0,0,0,0.85) 100%);
   color: #fff;
 }
 
 .fp-overlay h3 {
+  color: #fff; /* themes colour every h3 dark; this one sits on a photo */
   font-size: 1rem;
   font-weight: 600;
   margin: 0 0 0.25rem;
@@ -3206,7 +3226,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 .fp-overlay span {
   font-size: 0.85rem;
-  opacity: 0.8;
+  opacity: 0.92;
 }
 
 @media (max-width: 768px) {
@@ -3294,7 +3314,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 .blog-preview-content .read-more {
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--gold, #c8963e);
+  color: var(--brand-text-on-light, #8a5a14); /* text on the white blog card */
   margin-top: 1rem;
 }
 
@@ -3399,7 +3419,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
   .mobile-call-fab {
     position: fixed; bottom: 18px; right: 18px; z-index: 1200;
     display: inline-flex; align-items: center; gap: 8px;
-    background: var(--gold); color: var(--navy-dark);
+    background: var(--brand-fill); color: var(--brand-ink);
     font-weight: 700; font-size: 0.95rem; padding: 14px 20px;
     border-radius: 999px; text-decoration: none;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
@@ -3409,14 +3429,14 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 /* Homepage hero Google rating line */
 .hero-google-rating { font-weight: 700; color: #fff; font-size: 1.05rem; margin: 10px 0 0; }
-.hero-google-rating .stars { color: var(--gold); letter-spacing: 2px; margin-right: 8px; }
+.hero-google-rating .stars { color: color-mix(in srgb, var(--brand-text-on-dark) 60%, #ffffff); letter-spacing: 2px; margin-right: 8px; }
 
 /* Floating right-edge quote tab (desktop only) */
 .quote-tab { display: none; }
 @media (min-width: 901px) {
   .quote-tab {
     position: fixed; right: 0; top: 50%; transform: translateY(-50%); z-index: 1200;
-    writing-mode: vertical-rl; background: var(--gold); color: var(--navy-dark);
+    writing-mode: vertical-rl; background: var(--brand-fill); color: var(--brand-ink);
     font-weight: 700; font-size: 0.95rem; letter-spacing: 0.5px;
     padding: 18px 10px; border-radius: 8px 0 0 8px; text-decoration: none;
     box-shadow: -4px 4px 14px rgba(0, 0, 0, 0.18);

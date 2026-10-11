@@ -22,11 +22,23 @@
   --fm-lavender-deeper: color-mix(in srgb, {{PRIMARY_COLOR}} 22%, #ffffff);
   --fm-purple: {{PRIMARY_COLOR}};
   --fm-purple-light: color-mix(in srgb, {{PRIMARY_COLOR}} 12%, #ffffff);
-  --fm-purple-dark: color-mix(in srgb, {{PRIMARY_COLOR}} 82%, #000000);
-  --fm-purple-deeper: color-mix(in srgb, {{PRIMARY_COLOR}} 68%, #000000);
+  /* Readable brand variants (WCAG AA): -fill is the ground under white text,
+     -ink is brand/accent TEXT on white/lavender. Raw --fm-purple/--fm-orange
+     stay for borders, icons and decoration. -dark/-deeper derive from the
+     readable fills so the footer, mobile nav, trust bar and CTA grounds stay
+     dark enough for white text with any brand colour. */
+  --fm-purple-fill: {{PRIMARY_COLOR_ON_WHITE}};
+  --fm-purple-ink: color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 85%, #000000);
+  --fm-purple-dark: color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 82%, #000000);
+  --fm-purple-deeper: color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 68%, #000000);
   --fm-orange: {{ACCENT_COLOR}};
+  --fm-orange-fill: {{ACCENT_COLOR_ON_LIGHT}};
+  --fm-orange-ink: color-mix(in srgb, {{ACCENT_COLOR_ON_LIGHT}} 88%, #000000);
+  /* accent text on the brand-dark footer (not near-black, so ON_DARK alone is
+     not enough): a pale tint of the accent */
+  --fm-orange-on-footer: color-mix(in srgb, {{ACCENT_COLOR_ON_DARK}} 30%, #ffffff);
   --fm-orange-light: color-mix(in srgb, {{ACCENT_COLOR}} 8%, #ffffff);
-  --fm-orange-dark: color-mix(in srgb, {{ACCENT_COLOR}} 85%, #000000);
+  --fm-orange-dark: color-mix(in srgb, {{ACCENT_COLOR_ON_LIGHT}} 85%, #000000);
   --fm-text: #1e1b4b;
   --fm-text-light: #6b6494;
   --fm-pink: {{SECONDARY_COLOR}};
@@ -57,7 +69,7 @@ h1, h2, h3, h4, h5, h6 {
 
 p { font-family: 'Nunito', sans-serif; }
 
-.gold { color: var(--fm-purple) !important; }
+.gold { color: var(--fm-purple-ink) !important; }
 
 /* ── Header / Navigation ── */
 .main-header {
@@ -84,23 +96,23 @@ p { font-family: 'Nunito', sans-serif; }
 }
 
 .main-nav > ul > li:hover > a {
-  color: var(--fm-purple) !important;
+  color: var(--fm-purple-ink) !important;
   transform: translateY(-1px);
 }
 
 .nav-phone-link {
   font-family: 'Nunito', sans-serif !important;
-  color: var(--fm-purple) !important;
+  color: var(--fm-purple-ink) !important;
   font-weight: 700 !important;
 }
 
-.nav-phone-link:hover { color: var(--fm-orange) !important; }
+.nav-phone-link:hover { color: var(--fm-orange-ink) !important; }
 
 /* Nav CTA */
 .cta-item .btn {
-  background: var(--fm-purple) !important;
+  background: var(--fm-purple-fill) !important;
   color: #fff !important;
-  border-color: var(--fm-purple) !important;
+  border-color: var(--fm-purple-fill) !important;
   border-radius: 50px !important;
   font-family: 'Quicksand', sans-serif !important;
   text-transform: none !important;
@@ -129,7 +141,7 @@ p { font-family: 'Nunito', sans-serif; }
 
 .dropdown a:hover {
   background: var(--fm-lavender) !important;
-  color: var(--fm-purple) !important;
+  color: var(--fm-purple-ink) !important;
 }
 
 /* Mobile nav */
@@ -158,9 +170,9 @@ p { font-family: 'Nunito', sans-serif; }
 }
 
 .btn-primary {
-  background: var(--fm-purple) !important;
+  background: var(--fm-purple-fill) !important;
   color: #fff !important;
-  border-color: var(--fm-purple) !important;
+  border-color: var(--fm-purple-fill) !important;
 }
 
 .btn-primary:hover {
@@ -171,9 +183,9 @@ p { font-family: 'Nunito', sans-serif; }
 }
 
 .btn-warm {
-  background: var(--fm-orange) !important;
+  background: var(--fm-orange-fill) !important;
   color: #fff !important;
-  border-color: var(--fm-orange) !important;
+  border-color: var(--fm-orange-fill) !important;
   border-radius: 50px !important;
 }
 
@@ -185,22 +197,22 @@ p { font-family: 'Nunito', sans-serif; }
 }
 
 .btn-outline-teal {
-  border-color: var(--fm-purple) !important;
-  color: var(--fm-purple) !important;
+  border-color: var(--fm-purple-ink) !important;
+  color: var(--fm-purple-ink) !important;
   border-radius: 50px !important;
   background: transparent !important;
 }
 
 .btn-outline-teal:hover {
-  background: var(--fm-purple) !important;
+  background: var(--fm-purple-fill) !important;
   color: #fff !important;
   transform: translateY(-2px) !important;
 }
 
 .btn-secondary {
-  background: var(--fm-orange) !important;
+  background: var(--fm-orange-fill) !important;
   color: #fff !important;
-  border-color: var(--fm-orange) !important;
+  border-color: var(--fm-orange-fill) !important;
 }
 
 /* ── Hero Split ── */
@@ -235,7 +247,7 @@ p { font-family: 'Nunito', sans-serif; }
 }
 
 .hero-badge-pill {
-  background: linear-gradient(135deg, var(--fm-orange) 0%, var(--fm-pink) 100%) !important;
+  background: linear-gradient(135deg, var(--fm-orange-fill) 0%, var(--fm-pink) 100%) !important;
   color: #fff !important;
   border-radius: 50px !important;
   font-family: 'Quicksand', sans-serif !important;
@@ -255,7 +267,7 @@ p { font-family: 'Nunito', sans-serif; }
 }
 
 .hero-split-headline em {
-  color: var(--fm-purple) !important;
+  color: var(--fm-purple-ink) !important;
   font-style: normal !important;
   position: relative;
 }
@@ -298,7 +310,7 @@ p { font-family: 'Nunito', sans-serif; }
 
 /* ── Trust Bar ── */
 .trust-bar {
-  background: linear-gradient(135deg, var(--fm-purple) 0%, var(--fm-purple-dark) 100%) !important;
+  background: linear-gradient(135deg, var(--fm-purple-fill) 0%, var(--fm-purple-dark) 100%) !important;
 }
 
 .trust-bar-item {
@@ -379,7 +391,7 @@ p { font-family: 'Nunito', sans-serif; }
 }
 
 .hc-service-card:hover .hc-service-icon {
-  background: var(--fm-purple) !important;
+  background: var(--fm-purple-fill) !important;
   color: #fff !important;
   transform: scale(1.1) rotate(5deg);
 }
@@ -412,12 +424,12 @@ p { font-family: 'Nunito', sans-serif; }
 .area-pill:hover {
   background: var(--fm-purple-light) !important;
   border-color: var(--fm-purple) !important;
-  color: var(--fm-purple) !important;
+  color: var(--fm-purple-ink) !important;
 }
 
 .area-pill-active {
-  background: var(--fm-purple) !important;
-  border-color: var(--fm-purple) !important;
+  background: var(--fm-purple-fill) !important;
+  border-color: var(--fm-purple-fill) !important;
   color: #fff !important;
 }
 
@@ -450,7 +462,7 @@ p { font-family: 'Nunito', sans-serif; }
 
 /* ── CTA Banner ── */
 .hc-cta-banner {
-  background: linear-gradient(135deg, var(--fm-purple-deeper) 0%, var(--fm-purple) 50%, var(--fm-orange) 100%) !important;
+  background: linear-gradient(135deg, var(--fm-purple-deeper) 0%, var(--fm-purple-ink) 50%, var(--fm-orange-ink) 100%) !important;
 }
 
 .hc-cta-banner h2 {
@@ -534,25 +546,25 @@ form textarea:focus {
 }
 
 .hc-footer-nav a {
-  color: rgba(255, 255, 255, 0.7) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
   font-family: 'Nunito', sans-serif !important;
   transition: color 0.2s !important;
 }
 
 .hc-footer-nav a:hover {
-  color: var(--fm-orange) !important;
+  color: var(--fm-orange-on-footer) !important;
 }
 
 .hc-footer-highlight {
-  color: var(--fm-orange) !important;
+  color: var(--fm-orange-on-footer) !important;
 }
 
 .hc-footer-contact span {
-  color: rgba(255, 255, 255, 0.6) !important;
+  color: rgba(255, 255, 255, 0.8) !important;
 }
 
 .hc-footer-contact a {
-  color: var(--fm-orange) !important;
+  color: var(--fm-orange-on-footer) !important;
   font-family: 'Nunito', sans-serif !important;
 }
 
@@ -561,15 +573,15 @@ form textarea:focus {
 }
 
 .hc-footer-bottom p {
-  color: rgba(255, 255, 255, 0.5) !important;
+  color: rgba(255, 255, 255, 0.8) !important;
 }
 
 .built-by a {
-  color: rgba(255, 255, 255, 0.5) !important;
+  color: rgba(255, 255, 255, 0.8) !important;
 }
 
 .built-by a:hover {
-  color: var(--fm-orange) !important;
+  color: var(--fm-orange-on-footer) !important;
 }
 
 /* ── Generic Sections ── */

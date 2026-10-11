@@ -23,6 +23,8 @@ function renderMarkdown(text) {
     .replace(/^### (.+)$/gm, '<h3>$1</h3>')
     .replace(/^## (.+)$/gm, '<h2>$1</h2>')
     .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    // [text](url) — only web, site-relative, anchor, mail and phone links
+    .replace(/\[([^\]\n]+)\]\(((?:https?:\/\/|\/|#|mailto:|tel:)[^\s)"'<>]*)\)/g, '<a href="$2">$1</a>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/^\- (.+)$/gm, '<li>$1</li>')
@@ -44,12 +46,12 @@ function estimateReadTime(content) {
 
 // Related services from allServices
 const related = (typeof allServices !== 'undefined' && Array.isArray(allServices) && post.relatedServices)
-  ? allServices.filter(s => post.relatedServices.includes(s.slug) || post.relatedServices.includes(s.id))
+  ? allServices.filter(s => s.slug && s.visible !== false && (post.relatedServices.includes(s.slug) || post.relatedServices.includes(s.id)))
   : [];
 
 // Other posts (excluding current)
 const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
-  ? allPosts.filter(p => p.published && p.id !== post.id).slice(0, 3)
+  ? allPosts.filter(p => p.published !== false && p.slug !== post.slug).slice(0, 3)
   : [];
 %>
 
@@ -143,9 +145,8 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
               <ul>
                 <% related.forEach(function(service) { %>
                   <li>
-                    <a href="/<%= service.urlSlug || service.id %>">
-                      <span class="service-icon-small"><%= service.icon || '🔧' %></span>
-                      <span><%= service.title %></span>
+                    <a href="/services/<%= service.slug %>">
+                      <span><%= service.name || service.title %></span>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="9 18 15 12 9 6"></polyline>
                       </svg>
@@ -216,7 +217,7 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   flex-wrap: wrap;
 }
 .post-category {
-  background: var(--accent, #c8963e);
+  background: {{ACCENT_COLOR_ON_LIGHT}};
   color: white;
   padding: 4px 12px;
   border-radius: 20px;
@@ -228,7 +229,10 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   font-size: 0.9rem;
   opacity: 0.75;
 }
+/* Dark bands (post hero, sidebar CTA, bottom CTA): the themes' global heading and
+   paragraph colours are for light grounds, so text here is set white explicitly. */
 .post-hero h1 {
+  color: #fff;
   font-family: 'Bebas Neue', sans-serif;
   font-size: 2.8rem;
   line-height: 1.1;
@@ -260,7 +264,8 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   margin-bottom: 18px;
 }
 .post-content .prose a {
-  color: var(--accent, #c8963e);
+  color: {{ACCENT_COLOR_ON_LIGHT}};
+  color: color-mix(in srgb, {{ACCENT_COLOR_ON_LIGHT}} 80%, #000);
   font-weight: 500;
 }
 .post-content .prose a:hover { text-decoration: underline; }
@@ -311,11 +316,13 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   margin-bottom: 24px;
 }
 .sidebar-cta h3 {
+  color: #fff;
   font-family: 'Bebas Neue', sans-serif;
   font-size: 1.4rem;
   margin-bottom: 6px;
 }
 .sidebar-cta p {
+  color: #fff;
   opacity: 0.8;
   font-size: 0.9rem;
   margin-bottom: 16px;
@@ -324,7 +331,9 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--accent, #c8963e);
+  /* light accent, lifted toward white: the card is lighter than the near-black
+     ACCENT_COLOR_ON_DARK is calibrated against */
+  color: color-mix(in srgb, {{ACCENT_COLOR_ON_DARK}} 60%, #ffffff);
   text-decoration: none;
   font-weight: 600;
   font-size: 1.1rem;
@@ -364,7 +373,7 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   transition: color 0.15s;
 }
 .sidebar-services li:last-child a { border-bottom: none; }
-.sidebar-services li a:hover { color: var(--accent, #c8963e); }
+.sidebar-services li a:hover { color: {{ACCENT_COLOR_ON_LIGHT}}; }
 .sidebar-services li a svg { margin-left: auto; opacity: 0.4; }
 .service-icon-small { font-size: 1.2rem; }
 
@@ -400,7 +409,7 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   box-shadow: 0 6px 20px rgba(0,0,0,0.1);
 }
 .more-post-category {
-  background: var(--accent, #c8963e);
+  background: {{ACCENT_COLOR_ON_LIGHT}};
   color: white;
   padding: 3px 10px;
   border-radius: 12px;
@@ -424,7 +433,7 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   flex: 1;
 }
 .more-post-card .blog-read-more {
-  color: var(--accent, #c8963e);
+  color: {{ACCENT_COLOR_ON_LIGHT}};
   font-weight: 600;
   font-size: 0.85rem;
   margin-top: 14px;
@@ -437,15 +446,23 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   padding: 60px 0;
   text-align: center;
 }
+/* when More Articles renders this becomes an even <section>, which the themes repaint light */
+.blog-post-page section.post-bottom-cta {
+  background: var(--dark-bg, #1a1a2e);
+}
 .post-bottom-cta h2 {
+  color: #fff;
   font-family: 'Bebas Neue', sans-serif;
   font-size: 2.2rem;
   margin-bottom: 10px;
 }
 .post-bottom-cta p {
+  color: #fff;
   opacity: 0.85;
   margin-bottom: 24px;
 }
+.post-bottom-cta .btn-outline { color: #fff; border-color: #fff; background: transparent; }
+.post-bottom-cta .btn-outline:hover { background: rgba(255,255,255,0.12); color: #fff; }
 
 @media (max-width: 900px) {
   .post-layout {

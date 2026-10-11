@@ -22,14 +22,22 @@ body{font-family:var(--font-body);background:#fcfbff;color:var(--sx-ink);line-he
 h1,h2,h3,h4,h5,h6{font-family:var(--font-heading);font-weight:600;letter-spacing:-.01em;line-height:1.12;color:var(--sx-ink)}
 .hero h1,h1{font-size:clamp(2.4rem,5.5vw,4.2rem);font-weight:500}
 p{color:var(--sx-mut);line-height:1.8}
+/* The ink rules above are for the white grounds. The template's navy grounds (hero, CTA bands,
+   footer, page/service heroes, overlays) set white text on the section and expect headings and
+   paragraphs to inherit it. :where() keeps this at one class so the base's own coloured headings win. */
+:is(.hero-video-content,.top-bar,.ribbon-header,.testimonials-section,.cta-section,.blog-cta-section,.post-hero,.sidebar-cta,.post-bottom-cta,.main-footer,.page-hero,.service-hero,.service-cta,.gallery-hero,.gallery-cta,.cta-card,.custom-hero,.custom-cta,.project-bottom-cta,.fp-overlay,.gallery-card-overlay,.project-overlay,.related-overlay) :where(h1,h2,h3,h4,h5,h6,p:not(.hero-tagline)){color:inherit}
 
 .header,.site-header{background:rgba(255,255,255,.88);backdrop-filter:blur(10px);box-shadow:var(--shadow-sm)}
 
 .btn,.button,a.button,.btn-primary,button[type=submit]{
   border-radius:999px;font-family:var(--font-body);font-weight:600;letter-spacing:.01em;
-  background:var(--color-primary,#1c1b22);color:#fff;border:0;box-shadow:var(--shadow-sm);
+  /* brand darkened to read 4.5:1 against white, so the white label works for any brand */
+  background:{{PRIMARY_COLOR_ON_WHITE}};color:#fff;border:0;box-shadow:var(--shadow-sm);
   transition:transform .15s,box-shadow .15s}
 .btn:hover,.button:hover,a.button:hover,.btn-primary:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+/* Outline buttons stay outlines: the fill above is for solid buttons only. */
+.btn-outline{background:transparent;color:{{PRIMARY_COLOR_ON_WHITE}};border:2px solid {{PRIMARY_COLOR_ON_WHITE}};box-shadow:none}
+.btn-outline-light{background:transparent;color:#fff;border:2px solid rgba(255,255,255,.7);box-shadow:none}
 
 .hero,.hero-section{background:
   radial-gradient(ellipse at 70% 10%,rgba(0,0,0,.04),transparent 55%),

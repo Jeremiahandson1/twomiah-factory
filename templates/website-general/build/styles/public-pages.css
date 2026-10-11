@@ -228,12 +228,14 @@
 }
 
 .gallery-hero h1 {
+  color: inherit; /* white from .gallery-hero-content; beats the themes' bare h1 colour */
   font-size: 3rem;
   font-weight: 800;
   margin: 0 0 16px;
 }
 
 .gallery-hero p {
+  color: inherit;
   font-size: 1.2rem;
   opacity: 0.9;
   max-width: 600px;
@@ -291,8 +293,9 @@
 }
 
 .filter-btn.active {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
+  /* white label on the brand: the brand darkened only as far as AA-on-white needs */
+  background: {{PRIMARY_COLOR_ON_WHITE}};
+  border-color: {{PRIMARY_COLOR_ON_WHITE}};
   color: white;
 }
 
@@ -841,12 +844,14 @@
 }
 
 .cta-card h3 {
+  color: inherit; /* white from .cta-card; beats the themes' bare h3 colour (dark on this navy card) */
   font-size: 1.35rem;
   font-weight: 700;
   margin: 0 0 8px;
 }
 
 .cta-card > p {
+  color: inherit;
   opacity: 0.9;
   margin: 0 0 24px;
   line-height: 1.5;
@@ -1112,12 +1117,14 @@
 }
 
 .service-cta h2 {
+  color: inherit; /* white from .service-cta; beats the themes' h2/section h2 colour */
   font-size: 2.25rem;
   font-weight: 700;
   margin: 0 0 12px;
 }
 
 .service-cta > .container > p {
+  color: inherit;
   font-size: 1.15rem;
   opacity: 0.9;
   margin: 0 0 32px;

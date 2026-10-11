@@ -22,7 +22,13 @@
   --wc-cream-dark: #f7efe6;
   --wc-rose: {{PRIMARY_COLOR}};
   --wc-rose-light: color-mix(in srgb, {{PRIMARY_COLOR}} 14%, #ffffff);
-  --wc-rose-dark: color-mix(in srgb, {{PRIMARY_COLOR}} 74%, #000000);
+  /* Readable brand variants (WCAG AA): -fill is the ground under white text,
+     -ink is brand-coloured TEXT on white/cream. Raw --wc-rose stays for
+     borders, icons and decoration only. -dark derives from -fill so hover
+     states stay dark enough for white labels. */
+  --wc-rose-fill: {{PRIMARY_COLOR_ON_WHITE}};
+  --wc-rose-ink: color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 85%, #000000);
+  --wc-rose-dark: color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 74%, #000000);
   --wc-sage: {{SECONDARY_COLOR}};
   --wc-sage-light: color-mix(in srgb, {{SECONDARY_COLOR}} 14%, #ffffff);
   --wc-sage-dark: color-mix(in srgb, {{SECONDARY_COLOR}} 72%, #000000);
@@ -56,7 +62,7 @@ h1, h2, h3, h4, h5, h6 {
 
 p { font-family: 'Lora', Georgia, serif; }
 
-.gold { color: var(--wc-rose) !important; }
+.gold { color: var(--wc-rose-ink) !important; }
 
 /* ── Header / Navigation ── */
 .main-header {
@@ -82,7 +88,7 @@ p { font-family: 'Lora', Georgia, serif; }
 }
 
 .main-nav > ul > li:hover > a {
-  color: var(--wc-rose) !important;
+  color: var(--wc-rose-ink) !important;
 }
 
 .nav-phone-link {
@@ -90,13 +96,13 @@ p { font-family: 'Lora', Georgia, serif; }
   color: var(--wc-sage-dark) !important;
 }
 
-.nav-phone-link:hover { color: var(--wc-rose) !important; }
+.nav-phone-link:hover { color: var(--wc-rose-ink) !important; }
 
 /* Nav CTA */
 .cta-item .btn {
-  background: var(--wc-rose) !important;
+  background: var(--wc-rose-fill) !important;
   color: #fff !important;
-  border-color: var(--wc-rose) !important;
+  border-color: var(--wc-rose-fill) !important;
   border-radius: 50px !important;
   font-family: 'Lora', serif !important;
   text-transform: none !important;
@@ -116,7 +122,7 @@ p { font-family: 'Lora', Georgia, serif; }
 
 .dropdown a:hover {
   background: var(--wc-cream) !important;
-  color: var(--wc-rose) !important;
+  color: var(--wc-rose-ink) !important;
 }
 
 /* Mobile nav */
@@ -143,9 +149,9 @@ p { font-family: 'Lora', Georgia, serif; }
 }
 
 .btn-primary {
-  background: var(--wc-rose) !important;
+  background: var(--wc-rose-fill) !important;
   color: #fff !important;
-  border-color: var(--wc-rose) !important;
+  border-color: var(--wc-rose-fill) !important;
 }
 
 .btn-primary:hover {
@@ -167,13 +173,13 @@ p { font-family: 'Lora', Georgia, serif; }
 }
 
 .btn-outline-teal {
-  border-color: var(--wc-rose) !important;
-  color: var(--wc-rose) !important;
+  border-color: var(--wc-rose-ink) !important;
+  color: var(--wc-rose-ink) !important;
   border-radius: 50px !important;
 }
 
 .btn-outline-teal:hover {
-  background: var(--wc-rose) !important;
+  background: var(--wc-rose-fill) !important;
   color: #fff !important;
 }
 
@@ -206,7 +212,7 @@ p { font-family: 'Lora', Georgia, serif; }
 }
 
 .hero-split-headline em {
-  color: var(--wc-rose) !important;
+  color: var(--wc-rose-ink) !important;
   font-style: italic !important;
 }
 
@@ -230,7 +236,7 @@ p { font-family: 'Lora', Georgia, serif; }
 
 /* ── Trust Bar ── */
 .trust-bar {
-  background: var(--wc-rose) !important;
+  background: var(--wc-rose-fill) !important;
 }
 
 .trust-bar-item {
@@ -424,11 +430,11 @@ form textarea:focus {
 }
 
 .hc-footer-nav a:hover {
-  color: var(--wc-rose) !important;
+  color: var(--wc-rose-ink) !important;
 }
 
 .hc-footer-highlight {
-  color: var(--wc-rose) !important;
+  color: var(--wc-rose-ink) !important;
 }
 
 .hc-footer-contact span {
@@ -436,7 +442,7 @@ form textarea:focus {
 }
 
 .hc-footer-contact a {
-  color: var(--wc-rose) !important;
+  color: var(--wc-rose-ink) !important;
   font-family: 'Lora', serif !important;
 }
 
@@ -454,7 +460,7 @@ form textarea:focus {
 }
 
 .built-by a:hover {
-  color: var(--wc-rose) !important;
+  color: var(--wc-rose-ink) !important;
 }
 
 /* ── Generic Sections ── */

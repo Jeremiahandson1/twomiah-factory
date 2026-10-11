@@ -24,15 +24,22 @@
   --tp-cream: #faf6f1;
   --tp-cream-dark: #f0e9df;
   --tp-parchment: #f5efe6;
-  --tp-brown: {{PRIMARY_COLOR}};
-  --tp-brown-light: color-mix(in srgb, {{PRIMARY_COLOR}} 88%, #ffffff);
-  --tp-brown-dark: color-mix(in srgb, {{PRIMARY_COLOR}} 68%, #000000);
+  /* "Brown" is the brand as heading/link TEXT on cream, and (darkened) the footer/CTA ground under
+     white text. Built from the AA-on-white brand so a light brand (amber) still reads on cream and
+     its dark band still carries white type; a brand that already passes is unchanged. */
+  --tp-brown: {{PRIMARY_COLOR_ON_WHITE}};
+  --tp-brown-light: color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 88%, #ffffff);
+  --tp-brown-dark: color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 68%, #000000);
   --tp-gold: {{ACCENT_COLOR}};
   --tp-gold-light: color-mix(in srgb, {{ACCENT_COLOR}} 82%, #ffffff);
   --tp-gold-pale: color-mix(in srgb, {{ACCENT_COLOR}} 16%, #ffffff);
-  --tp-gold-muted: color-mix(in srgb, {{ACCENT_COLOR}} 82%, #000000);
+  /* Accent as the button FILL under white text (AA-darkened) and as text on the dark footer. */
+  --tp-gold-ink: {{ACCENT_COLOR_ON_LIGHT}};
+  --tp-gold-on-dark: color-mix(in srgb, {{ACCENT_COLOR_ON_DARK}} 50%, #ffffff);
+  --tp-gold-muted: color-mix(in srgb, {{ACCENT_COLOR_ON_LIGHT}} 82%, #000000);
   --tp-text: #3c3632;
-  --tp-text-secondary: #78716c;
+  /* #78716c was 4.46:1 on cream and fell further under the base 0.9 fades; stone-600 holds AA. */
+  --tp-text-secondary: #57534e;
   --tp-divider: #e7e0d6;
 }
 
@@ -177,6 +184,18 @@ header {
   text-shadow: none !important;
 }
 
+/* The home hero tagline is brand-coloured text (public-pages .hero-tagline) on this cream overlay. */
+.hero-video-content .hero-tagline {
+  color: var(--tp-brown);
+}
+
+/* Same treatment the theme gives .hero h1 (this template's hero is .hero-video): the deep brand,
+   since the cream overlay lets the photo through and the plain brand fell to 3.87:1 at 390. */
+.hero-video-content h1,
+.hero-video-content h2 {
+  color: var(--tp-brown-dark);
+}
+
 /* ── Buttons ── */
 .btn,
 .cta-btn,
@@ -190,7 +209,7 @@ button[type="submit"] {
   border: none;
   border-radius: 4px;
   padding: 14px 32px;
-  background: var(--tp-gold) !important;
+  background: var(--tp-gold-ink) !important;
   color: #ffffff !important;
   transition: all 0.25s ease;
   box-shadow: 0 2px 8px color-mix(in srgb, var(--tp-gold) 20%, transparent) !important;
@@ -446,7 +465,7 @@ footer h4 {
   font-family: 'Merriweather', Georgia, serif !important;
   font-size: 0.9rem !important;
   font-weight: 700 !important;
-  color: var(--tp-gold-light) !important;
+  color: var(--tp-gold-on-dark) !important;
   margin-bottom: 16px;
   letter-spacing: 0.01em;
 }
@@ -463,7 +482,7 @@ footer h4 {
 .footer a,
 footer a {
   font-family: 'Source Serif 4', Georgia, serif !important;
-  color: rgba(255, 255, 255, 0.6) !important;
+  color: rgba(255, 255, 255, 0.8) !important;
   font-size: 0.88rem !important;
   transition: color 0.2s ease;
 }
@@ -496,7 +515,7 @@ footer a:hover {
 .about-col p {
   font-family: 'Source Serif 4', Georgia, serif;
   font-size: 0.88rem;
-  color: rgba(255, 255, 255, 0.55) !important;
+  color: rgba(255, 255, 255, 0.8) !important;
   line-height: 1.7;
 }
 
@@ -526,24 +545,28 @@ footer a:hover {
 .footer-bottom p {
   font-family: 'Source Serif 4', Georgia, serif;
   font-size: 0.82rem !important;
-  color: rgba(255, 255, 255, 0.4) !important;
+  color: rgba(255, 255, 255, 0.75) !important;
   text-align: center;
 }
 
-.hours {
+/* Footer-only: the contact page also has a .hours line, on white, where white ink vanished. */
+.footer .hours,
+footer .hours {
   font-family: 'Source Serif 4', Georgia, serif;
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.8);
   margin-top: 12px;
 }
 
-.hours strong {
-  color: rgba(255, 255, 255, 0.7);
+.footer .hours strong,
+footer .hours strong {
+  color: rgba(255, 255, 255, 0.9);
 }
 
-.contact-list li {
+.footer .contact-list li,
+footer .contact-list li {
   font-size: 0.88rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .contact-list svg {
@@ -624,7 +647,14 @@ form textarea:focus {
 
 .cta-section p,
 .cta-banner p {
-  color: rgba(255, 255, 255, 0.7) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* The outline button is brown-on-cream elsewhere; on this dark band it must be light. */
+.cta-section .btn-outline,
+.cta-banner .btn-outline {
+  border-color: rgba(255, 255, 255, 0.85) !important;
+  color: #ffffff !important;
 }
 
 /* ── Gallery ── */

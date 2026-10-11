@@ -162,7 +162,7 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   background: linear-gradient(135deg, var(--dark-bg, #1a1a2e), #2a2a4e);
 }
 .blog-category-badge {
-  background: var(--accent, #c8963e);
+  background: color-mix(in srgb, var(--accent, #c8963e) 70%, #000);
   color: white;
   padding: 6px 16px;
   border-radius: 20px;
@@ -181,7 +181,7 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   display: flex;
   gap: 16px;
   font-size: 0.85rem;
-  color: #888;
+  color: #6b6b6b; /* #888 measured 3.54:1 on the white card */
   margin-bottom: 12px;
 }
 .blog-card-content h2 {
@@ -198,7 +198,7 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   flex: 1;
 }
 .blog-read-more {
-  color: var(--accent, #c8963e);
+  color: color-mix(in srgb, var(--accent, #c8963e) 70%, #000);
   font-weight: 600;
   font-size: 0.9rem;
   margin-top: 16px;
@@ -226,6 +226,7 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   opacity: 0.85;
   margin-bottom: 24px;
 }
+.blog-cta-section .btn-outline { color: #fff; border-color: #fff; background: transparent; }
 
 @media (max-width: 768px) {
   .blog-grid { grid-template-columns: 1fr; }

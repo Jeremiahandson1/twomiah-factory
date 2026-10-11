@@ -106,7 +106,7 @@ const otherAreas = (typeof allAreas !== 'undefined' && allAreas) ? allAreas.filt
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 .area-service-card:hover {
-  border-color: var(--color-primary);
+  border-color: var(--primary);
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 .area-service-card h3 {
@@ -116,13 +116,14 @@ const otherAreas = (typeof allAreas !== 'undefined' && allAreas) ? allAreas.filt
 }
 .area-service-card p {
   font-size: 0.9rem;
-  color: #6b7280;
+  color: #4b5563;
   margin: 0 0 0.75rem;
 }
+/* --primary: the brand darkened to read on white and the themes' grey grounds. */
 .area-service-link {
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--color-primary);
+  color: var(--primary);
 }
 .area-benefits {
   list-style: none;
@@ -137,7 +138,7 @@ const otherAreas = (typeof allAreas !== 'undefined' && allAreas) ? allAreas.filt
   content: '✓';
   position: absolute;
   left: 0;
-  color: var(--color-primary);
+  color: var(--primary);
   font-weight: 700;
 }
 .sidebar-areas-list {
@@ -153,6 +154,6 @@ const otherAreas = (typeof allAreas !== 'undefined' && allAreas) ? allAreas.filt
   text-decoration: none;
 }
 .sidebar-areas-list a:hover {
-  color: var(--color-primary);
+  color: var(--primary);
 }
 </style>

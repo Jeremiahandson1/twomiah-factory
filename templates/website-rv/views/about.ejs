@@ -103,13 +103,17 @@ const phoneRaw = phone.replace(/\D/g, '');
 </div>
 
 <style>
+/* --primary was never defined in this template, so the hero lost its fill (white text
+   on white) and the buttons lost theirs. The brand, darkened enough to carry white
+   text and to read as text on the light sections. */
+.about-page { --primary: var(--brand-text-on-light, {{PRIMARY_COLOR_ON_WHITE}}); }
 .about-page .page-hero {
   background: linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 70%, #000) 100%);
   color: #fff;
   padding: 3rem 0;
 }
-.about-page .page-hero h1 { font-size: 2.5rem; margin: 0.5rem 0; }
-.about-page .page-hero p { font-size: 1.15rem; opacity: 0.9; }
+.about-page .page-hero h1 { font-size: 2.5rem; margin: 0.5rem 0; color: #fff; }
+.about-page .page-hero p { font-size: 1.15rem; opacity: 0.9; color: #fff; }
 .about-page .back-link { color: rgba(255,255,255,0.8); text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.9rem; margin-bottom: 0.5rem; }
 .about-page .back-link:hover { color: #fff; }
 

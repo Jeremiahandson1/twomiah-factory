@@ -23,14 +23,19 @@
   --bo-cream: #fefce8;
   --bo-cream-dark: #fef9c3;
   --bo-ivory: #fffef5;
-  --bo-forest: {{PRIMARY_COLOR}};
-  --bo-forest-dark: color-mix(in srgb, {{PRIMARY_COLOR}} 72%, #000000);
-  --bo-sage: {{SECONDARY_COLOR}};
-  --bo-sage-light: color-mix(in srgb, {{SECONDARY_COLOR}} 62%, #ffffff);
+  /* The palette is a deep "forest" (headings, links, the nav bar and buttons under cream text) and a
+     soft "sage" (footer text on the forest footer, light hover fills). Fed raw brand colours, a bright
+     brand made forest unreadable on cream (1.8:1) and the generator's always-dark secondary made sage
+     dark-on-dark in the footer (1.5:1). Forest is the brand darkened to read on white/cream; sage is a
+     light tint of the secondary - the same roles, now readable for any brand. */
+  --bo-forest: color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 85%, #000000);
+  --bo-forest-dark: color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 62%, #000000);
+  --bo-sage: color-mix(in srgb, {{SECONDARY_COLOR}} 30%, #ffffff);
+  --bo-sage-light: color-mix(in srgb, {{SECONDARY_COLOR}} 14%, #ffffff);
   --bo-sage-dark: color-mix(in srgb, {{SECONDARY_COLOR}} 78%, #000000);
-  --bo-moss: color-mix(in srgb, {{PRIMARY_COLOR}} 55%, {{SECONDARY_COLOR}});
+  --bo-moss: color-mix(in srgb, var(--bo-forest) 70%, {{SECONDARY_COLOR}});
   --bo-bark: {{ACCENT_COLOR}};
-  --bo-bark-light: color-mix(in srgb, {{ACCENT_COLOR}} 78%, #ffffff);
+  --bo-bark-light: {{ACCENT_COLOR_ON_LIGHT}}; /* only used as star/label TEXT on cream; the accent tint measured 2.2:1 */
   --bo-text: #2d3a2e;
   --bo-text-muted: #5c6b5e;
   --bo-border: color-mix(in srgb, {{SECONDARY_COLOR}} 30%, transparent);
@@ -805,3 +810,38 @@ a, button, .btn, .card, .service-card {
     font-size: clamp(2rem, 8vw, 3rem) !important;
   }
 }
+
+/* ── Dark mode ──
+   The base template's dark-mode switch (OS preference or the header toggle) repaints the page through
+   [data-theme="dark"] variables (animations.css). This theme is a cream design with no dark variant,
+   so dark mode painted the cream theme's forest/charcoal text onto near-black (measured ~1.1-1.9:1).
+   Keep the theme's own palette under that switch. */
+[data-theme="dark"] {
+  --dm-bg: var(--bo-cream);
+  --dm-surface: var(--bo-ivory);
+  --dm-surface-2: var(--bo-cream-dark);
+  --dm-text: var(--bo-text);
+  --dm-text-muted: var(--bo-text-muted);
+  --dm-border: var(--bo-border);
+  --black: #000000;
+  color-scheme: light;
+}
+[data-theme="dark"] .main-footer { background: var(--bo-forest-dark) !important; }
+[data-theme="dark"] .footer-bottom { background: rgba(0, 0, 0, 0.15) !important; }
+[data-theme="dark"] .services-bar { background: var(--bo-forest) !important; }
+
+/* ── Text on the template's dark bands ──
+   This theme colours every heading forest and every p/li/span charcoal for its cream grounds. The
+   page heroes, the blog CTA band, the article hero/sidebar/bottom CTA are dark (brand or #1a1a2e)
+   and expect light text (measured 1.0-1.3:1). One class of specificity, so specific rules still win. */
+:is(.page-hero, .post-hero, .blog-cta-section, .post-bottom-cta, .sidebar-cta) :where(h1, h2, h3, h4, p, li, span) { color: var(--bo-cream); }
+/* button labels sit in a span: take the button's colour, not the charcoal span colour */
+.btn .btn-text { color: inherit; }
+/* the about CTA sits on the cream page, not a dark band: the cream outline would vanish */
+.about-cta .btn-outline { color: var(--bo-forest) !important; border-color: var(--bo-forest) !important; }
+/* article links: the template's gold measured 2.6:1 on cream */
+.blog-post-page .post-content .prose a { color: var(--bo-forest); }
+/* The base's WebGL aurora (effects.js) paints an opaque dark-green canvas behind .shader-bg on
+   desktop, under this theme's ivory section and forest headings (measured 2.3:1). This theme's
+   section is ivory by design, so its canvas is not shown. */
+.shader-bg > canvas { display: none; }

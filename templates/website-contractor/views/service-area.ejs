@@ -65,7 +65,7 @@ const otherAreas = (typeof allAreas !== 'undefined' && allAreas) ? allAreas.filt
               <div class="offerings-grid">
                 <% areaServices.forEach(function(svc, index) { %>
                   <div class="offering-card">
-                    <div class="offering-number"><%= String(index + 1).padStart(2, '0') %></div>
+                    <div class="offering-number" aria-hidden="true"><%= String(index + 1).padStart(2, '0') %></div>
                     <h3><a href="/services/<%= svc.slug || svc.id %>" style="color: inherit; text-decoration: none;"><%= svc.title || svc.name %></a></h3>
                     <p><%= svc.shortDescription || svc.tagline || svc.description %></p>
                   </div>
@@ -127,7 +127,7 @@ const otherAreas = (typeof allAreas !== 'undefined' && allAreas) ? allAreas.filt
               <ul style="list-style: none; padding: 0; margin: 0;">
                 <% otherAreas.forEach(function(other) { %>
                   <li style="margin-bottom: 8px;">
-                    <a href="/service-area/<%= other.slug %>" style="color: var(--gold); text-decoration: none; font-weight: 600;"><%= other.name %>, <%= other.state %></a>
+                    <a href="/service-area/<%= other.slug %>" style="color: var(--brand-text-on-light); text-decoration: none; font-weight: 600;"><%= other.name %>, <%= other.state %></a>
                   </li>
                 <% }); %>
               </ul>

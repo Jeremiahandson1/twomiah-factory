@@ -162,7 +162,7 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   background: linear-gradient(135deg, var(--dark-bg, #1a1a2e), #2a2a4e);
 }
 .blog-category-badge {
-  background: var(--accent, #c8963e);
+  background: color-mix(in srgb, var(--accent, #c8963e) 70%, #000);
   color: white;
   padding: 6px 16px;
   border-radius: 20px;
@@ -177,11 +177,13 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   display: flex;
   flex-direction: column;
 }
+/* gold accent (--accent is undefined here, so always #c8963e) darkened 30% where it meets white: 2.6:1 -> 5.0:1 */
+.blog-card-meta span { color: inherit; } /* themes colour every span; this card is always white */
 .blog-card-meta {
   display: flex;
   gap: 16px;
   font-size: 0.85rem;
-  color: #888;
+  color: #6b6b6b; /* #888 was 3.5:1 on the white card */
   margin-bottom: 12px;
 }
 .blog-card-content h2 {
@@ -198,7 +200,7 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
   flex: 1;
 }
 .blog-read-more {
-  color: var(--accent, #c8963e);
+  color: color-mix(in srgb, var(--accent, #c8963e) 70%, #000);
   font-weight: 600;
   font-size: 0.9rem;
   margin-top: 16px;

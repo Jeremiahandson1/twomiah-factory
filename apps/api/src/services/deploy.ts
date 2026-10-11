@@ -2378,6 +2378,14 @@ export async function wireDomainInfrastructure(opts: WireDomainOptions): Promise
     result.steps.push({ step: 'render_custom_apex', status: r1.success || r1.error?.includes('already') ? 'ok' : 'warning', detail: r1.error })
     const r2 = await addCustomDomain(siteSvc, 'www.' + opts.domain)
     result.steps.push({ step: 'render_custom_www', status: r2.success || r2.error?.includes('already') ? 'ok' : 'warning', detail: r2.error })
+    // The site's canonical URL, sitemap, robots and business markup are built
+    // from SITE_URL, which deploy set to the onrender.com address — left there,
+    // every page tells Google the onrender.com copy is the real one. Point it at
+    // the domain (apex; www redirects to it). Takes effect on the next deploy.
+    if (opts.siteServiceId) {
+      const okEnv = await updateRenderEnvVars(opts.siteServiceId, [{ key: 'SITE_URL', value: 'https://' + opts.domain }])
+      result.steps.push({ step: 'render_site_url', status: okEnv ? 'ok' : 'warning', detail: okEnv ? undefined : 'SITE_URL not updated — canonical URLs keep the onrender.com address' })
+    }
   }
   if (opts.backendServiceId) {
     const r3 = await addCustomDomain(opts.backendServiceId, 'app.' + opts.domain)

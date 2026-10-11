@@ -1091,7 +1091,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 }
 
 .badge-info .stars {
-  color: var(--gold);
+  color: {{PRIMARY_COLOR_ON_WHITE}}; /* brand text on the light reviews band */
   font-weight: 600;
   font-size: 1rem;
 }
@@ -1691,7 +1691,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 }
 
 .gallery-cta p {
-  color: var(--gray-600);
+  color: #555555; /* the themes repaint this band light; #666 under the 0.9 fade read 4.43:1 on #fafafa */
   margin-bottom: 30px;
 }
 
@@ -1708,7 +1708,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 .service-hero .back-link {
   display: inline-block;
-  color: var(--gold);
+  color: color-mix(in srgb, {{PRIMARY_COLOR_ON_DARK}} 35%, #ffffff); /* brand-tinted, readable on the navy hero */
   margin-bottom: 20px;
   font-weight: 600;
 }

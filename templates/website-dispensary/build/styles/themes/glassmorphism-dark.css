@@ -25,10 +25,10 @@
   --gd-surface-2: #1a1a1a;
   --gd-border: rgba(255, 255, 255, 0.06);
   --gd-text: #e8e8e8;
-  --gd-text-muted: #888888;
+  --gd-text-muted: #999999; /* #888 measured 4.46:1 on the tinted 'Closed' badge */
   --gd-purple: {{PRIMARY_COLOR}};
   --gd-purple-light: color-mix(in srgb, {{PRIMARY_COLOR}} 55%, #ffffff);
-  --gd-gold: {{ACCENT_COLOR}};
+  --gd-gold: {{ACCENT_COLOR_ON_DARK}}; /* used as TEXT on the dark grounds (stars, labels, taglines); raw accent measured 3.4:1 */
   --gd-gold-light: color-mix(in srgb, {{ACCENT_COLOR}} 70%, #ffffff);
   --gd-glass-bg: rgba(255, 255, 255, 0.04);
   --gd-glass-border: rgba(255, 255, 255, 0.08);
@@ -214,7 +214,7 @@ p, li, span, a {
 }
 
 .hero-tagline {
-  color: var(--gd-gold) !important;
+  color: color-mix(in srgb, {{ACCENT_COLOR_ON_DARK}} 75%, #ffffff) !important; /* raw accent measured 2.5:1 on the hero (the blog hero also dims it to .85) */
   font-family: 'Space Grotesk', sans-serif;
   letter-spacing: 0.1em;
 }
@@ -224,9 +224,11 @@ p, li, span, a {
 }
 
 /* ── Buttons ── */
+/* White label on the brand darkened to read 4.5:1 against white (the brand->tint gradient
+   measured 1.6:1 under white on a bright brand). */
 .btn-primary,
 button[type="submit"] {
-  background: var(--gd-gradient) !important;
+  background: linear-gradient(135deg, {{PRIMARY_COLOR_ON_WHITE}}, color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 82%, #000000)) !important;
   color: #ffffff !important;
   border: none !important;
   border-radius: 12px !important;
@@ -374,7 +376,7 @@ button[type="submit"]:hover::before {
 
 /* ── Age Notice Bar ── */
 .age-notice-bar {
-  background: linear-gradient(90deg, var(--gd-purple), var(--gd-purple-light)) !important;
+  background: linear-gradient(90deg, {{PRIMARY_COLOR_ON_WHITE}}, color-mix(in srgb, {{PRIMARY_COLOR_ON_WHITE}} 80%, #000000)) !important; /* under white text */
   color: #ffffff !important;
   font-family: 'Space Grotesk', sans-serif;
 }
@@ -535,7 +537,7 @@ button[type="submit"]:hover::before {
 }
 
 .cta-section p {
-  color: var(--gd-text-muted) !important;
+  color: #c4c4c4 !important; /* the muted grey measured 3.7:1 over the CTA's green aurora */
 }
 
 /* ── FAQ Section ── */
@@ -841,6 +843,10 @@ a, button, .btn, .card, .service-card, .glass-card {
 
 /* ── Live Status Badge ── */
 .live-status {
-  color: var(--gd-text-muted) !important;
+  color: #ababab !important; /* the muted grey measured 4.15:1 on the red-tinted 'Closed' pill */
   font-family: 'Space Grotesk', sans-serif;
 }
+
+/* the magnetic button wraps its label in a span; the global span colour above (#e8e8e8) must not
+   override the button's white label */
+.btn-primary .btn-text { color: inherit; }
