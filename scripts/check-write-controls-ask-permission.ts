@@ -53,11 +53,8 @@ const EXEMPT: Record<string, string> = {
 const NOT_SWEPT: Record<string, string> = {
   'ads/AdsPage.tsx': 'three permissions, not one — ads:update (experiments, pause, dismiss), ads:settings (connect, mode, profile) and ads:spend (launch, resume, apply a recommendation). Worth doing as one careful pass, because spending money and changing a setting are not the same control',
   'booking/BookingSettingsTab.tsx': 'PUT /api/booking/settings is gated by `configuresBooking`; the screen should ask the same permission that const resolves to',
-  'files/DocumentsPage.tsx': 'documents:create (upload, markup), documents:update (restore a version), documents:delete (remove). Upload is also a drag-and-drop target, not only a button, so the gate has to cover both',
   'marketing/MarketingPage.tsx': 'fourteen controls across campaigns, sequences and templates — marketing:create, marketing:update and the send/schedule pair. The biggest single page left',
   'marketing/MessagesPage.tsx': 'sms:send for Send and Reply (the `textsACustomer` gate); Archive asks contacts:read, which anybody who can open the inbox already holds',
-  'schedule/SchedulePage.tsx': 'jobs:update for dragging a job, and the schedule-events module\'s own create/update/delete for the events',
-  'invoicing/QuoteDetailPage.tsx': 'its one write is a template-owned DELETE /api/quotes; the quote routes are forked per vertical, so the permission has to be read per template',
   'recurring/RecurringForm.tsx': 'invoices:create on the new form and invoices:update on the edit form — the list beside it is done',
   'settings/AccountOffboardPage.tsx': 'account closure. Admin-only by route; the page is reached from Settings, which already gates its tabs',
   'settings/BillingPage.tsx': 'the subscription. Admin-only by route; same note as above',

@@ -41,7 +41,17 @@ const scanRoots = [path.join(ROOT, 'packages/tenant-backend/src')]
 const tplDir = path.join(ROOT, 'templates')
 for (const t of fs.readdirSync(tplDir)) {
   const be = path.join(tplDir, t, 'backend', 'src')
-  if (fs.existsSync(be)) scanRoots.push(be)
+  if (!fs.existsSync(be)) continue
+  // A template that FORKS the matrix never reads BASE_ROLE_PERMISSIONS — its own ROLE_PERMISSIONS is the authority,
+  // and check-forked-permission-matrix.ts holds every resource it gates to THAT list (same fork test as here). Judging
+  // a fork's gates against the shared matrix answers the wrong question: dispensary's analytics:read is granted to
+  // admin and manager in its own matrix and nowhere in the shared one. (T68)
+  const perm = path.join(be, 'middleware', 'permissions.ts')
+  if (fs.existsSync(perm)) {
+    const src = fs.readFileSync(perm, 'utf8')
+    if (!src.includes('createPermissions') && /ROLE_PERMISSIONS/.test(src)) continue
+  }
+  scanRoots.push(be)
 }
 
 const used = new Map<string, string>() // resource -> first file it was seen in (repo-relative)

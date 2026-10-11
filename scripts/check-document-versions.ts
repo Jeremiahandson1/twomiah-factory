@@ -21,7 +21,9 @@ const page = read('packages/tenant-ui/src/files/DocumentsPage.tsx')
 // history. Guard the property, not the paint. (T41)
 if (!/v\.isCurrent \? <span className="[^"]*">current<\/span> : null/.test(page)) fail('the version list must show which entry is the live file')
 if (!/v\.isCurrent \? `\/api\/documents\/\$\{doc\.id\}\/download` : `\/api\/documents\/\$\{doc\.id\}\/versions\/\$\{v\.id\}\/download`/.test(page)) fail('the live entry must download from the document (it has no version row)')
-if (!/\{!v\.isCurrent && <button onClick=\{\(\) => restore\(v\)\}/.test(page)) fail('there must be no Restore button on the file that is already live')
+// Restore is never offered on the live file — and, since T68, only to a seat that may restore (documents:update).
+if (!/\{!v\.isCurrent && mayRestore && <button onClick=\{\(\) => restore\(v\)\}/.test(page)) fail('there must be no Restore button on the file that is already live, nor for a seat that may not restore')
+if (!/const mayRestore = useMayWrite\('documents:update'\)/.test(page)) fail('Restore must ask documents:update — the permission POST /:id/versions/:versionId/restore asks')
 if (!/Current file: <span className="font-normal">v\{currentVersion\} — \{current\.originalName\}/.test(page)) fail('the current file must be shown with its version number')
 if (!/versions\.filter\(v => !v\.isCurrent\)\.length === 0 && <p/.test(page)) fail('"No previous versions" must count only the superseded ones now that the live file is in the list')
 
