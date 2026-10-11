@@ -37,7 +37,7 @@
       <strong>Thank you!</strong> Your request is in &mdash; we'll be in touch soon.
     </div>
     <button type="submit" class="btn btn-primary sef-submit">Request My Estimate</button>
-    <p class="sef-finehint">Prefer to talk? Call <a href="tel:<%= phoneRaw %>"><%= phone %></a></p>
+    <% if (phoneRaw) { %><p class="sef-finehint">Prefer to talk? Call <a href="tel:<%= phoneRaw %>"><%= phone %></a></p><% } %>
   </form>
 </div>
 <script>

@@ -142,15 +142,15 @@
     "url": "{{COMPANY_WEBSITE}}",
     "logo": <%- _jsonStr('{{COMPANY_WEBSITE}}' + logoUrl) %>,
     "image": <%- _jsonStr('{{COMPANY_WEBSITE}}' + logoUrl) %>,
-    "telephone": <%- _jsonStr('+1' + phoneRaw) %>,
-<% if (_emailOk) { %>    "email": <%- _jsonStr(email) %>,
+<% if (phoneRaw) { %>    "telephone": <%- _jsonStr('+1' + phoneRaw) %>,
+<% } %><% if (_emailOk) { %>    "email": <%- _jsonStr(email) %>,
 <% } %>    "address": {
       "@type": "PostalAddress",
-      "streetAddress": <%- _jsonStr(address) %>,
-      "addressLocality": <%- _jsonStr(city) %>,
+<% if (address) { %>      "streetAddress": <%- _jsonStr(address) %>,
+<% } %>      "addressLocality": <%- _jsonStr(city) %>,
       "addressRegion": <%- _jsonStr(state) %>,
-      "postalCode": <%- _jsonStr(zip) %>,
-      "addressCountry": "US"
+<% if (zip) { %>      "postalCode": <%- _jsonStr(zip) %>,
+<% } %>      "addressCountry": "US"
     },
     "areaServed": [
       {
@@ -415,12 +415,12 @@
                   <% } %>
                 </li>
               <% }); %>
-              <li class="nav-phone-item">
+              <% if (phoneRaw) { %><li class="nav-phone-item">
                 <a href="tel:<%= phoneRaw %>" class="nav-phone-link">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.19 14.9 19.79 19.79 0 0 1 1.12 6.24 2 2 0 0 1 3.1 4h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16.92z"/></svg>
                   <%= phone %>
                 </a>
-              </li>
+              </li><% } %>
               <li class="cta-item">
                 <a href="/#contact" class="btn btn-primary">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.19 14.9 19.79 19.79 0 0 1 1.12 6.24 2 2 0 0 1 3.1 4h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16.92z"/></svg>
@@ -460,11 +460,11 @@
             <% } %>
           </li>
         <% }); %>
-        <li>
+        <% if (phoneRaw) { %><li>
           <a href="tel:<%= phoneRaw %>" style="color: var(--gold-on-dark); font-weight:700;">
              <%= phone %>
           </a>
-        </li>
+        </li><% } %>
         <li style="padding-top:12px;">
           <a href="/#contact" class="btn btn-primary" style="display:block;text-align:center;">Request Care</a>
         </li>
@@ -507,7 +507,7 @@
         <!-- City + Phone -->
         <div class="hc-footer-contact">
           <span><%= city %>, <%= typeof stateFull !== 'undefined' && stateFull ? stateFull : state %></span>
-          <a href="tel:<%= phoneRaw %>"><%= phone %></a>
+          <% if (phoneRaw) { %><a href="tel:<%= phoneRaw %>"><%= phone %></a><% } %>
         </div>
 
       </div>

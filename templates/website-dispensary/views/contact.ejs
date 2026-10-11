@@ -2,6 +2,8 @@
   // Pre-select service if provided in query string
   if (typeof selectedService === 'undefined') { var selectedService = ''; }
   const _email = (typeof settings !== 'undefined' && settings && settings.email) ? settings.email : '{{COMPANY_EMAIL}}';
+  const _phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+  const _phoneRaw = _phone.replace(/\D/g, '');
   const _emailOk = typeof _email === 'string' && /^[^\s<>]+@[^\s<>]+\.[^\s<>]+$/.test(_email);
 %>
 
@@ -108,7 +110,7 @@
             </svg>
             <div>
               <strong>Oops!</strong>
-              <p>Something went wrong. Please try calling us directly at {{COMPANY_PHONE}}.</p>
+              <p>Something went wrong. <% if (_phoneRaw) { %>Please try calling us directly at <%= _phone %>.<% } else { %>Please try again in a moment.<% } %></p>
             </div>
           </div>
         </div>
@@ -118,6 +120,7 @@
           <div class="contact-info-card">
             <h3>Get in Touch</h3>
             
+            <% if (_phoneRaw) { %>
             <div class="contact-method">
               <div class="method-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -126,10 +129,12 @@
               </div>
               <div>
                 <h4>Phone</h4>
-                <a href="tel:{{COMPANY_PHONE_RAW}}" class="contact-link">{{COMPANY_PHONE}}</a>
+                <a href="tel:<%= _phoneRaw %>" class="contact-link"><%= _phone %></a>
               </div>
             </div>
+            <% } %>
             
+            <% if (_email) { %>
             <div class="contact-method">
               <div class="method-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -142,6 +147,7 @@
                 <a href="mailto:<%= _email %>" class="contact-link"><%= _email %></a>
               </div>
             </div>
+            <% } %>
             
             <div class="contact-method">
               <div class="method-icon">
@@ -190,7 +196,7 @@
             </svg>
           </div>
           <h3>A Real Reply</h3>
-          <p>Every message comes to us directly, and we'll be in touch soon. You can also give us a call.</p>
+          <p>Every message comes to us directly, and we'll be in touch soon.<% if (_phoneRaw) { %> You can also give us a call.<% } %></p>
         </div>
         
         <div class="benefit-card">
@@ -323,8 +329,8 @@
     "@type": "ContactPage",
     "mainEntity": {
       "@type": "Store",
-      "name": "{{COMPANY_NAME}}",
-      "telephone": "{{COMPANY_PHONE}}",<% if (_emailOk) { %>
+      "name": "{{COMPANY_NAME}}",<% if (_phoneRaw) { %>
+      "telephone": <%- _jsonStr(_phone) %>,<% } %><% if (_emailOk) { %>
       "email": <%- _jsonStr(_email) %>,<% } %>
       "address": {
         "@type": "PostalAddress",

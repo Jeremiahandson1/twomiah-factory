@@ -4,6 +4,8 @@
   const relatedProjects = locals.relatedProjects || [];
   const images = project.images || [];
   const completedYear = project.completedAt ? new Date(project.completedAt).getFullYear() : null;
+  const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+  const phoneRaw = phone.replace(/\D/g, '');
 %>
 
 <div class="project-detail">
@@ -120,12 +122,12 @@
             <a href="/#contact" class="btn btn-primary btn-block">
               Send Us a Message
             </a>
-            <a href="tel:{{COMPANY_PHONE_RAW}}" class="btn btn-outline btn-block">
+            <% if (phoneRaw) { %><a href="tel:<%= phoneRaw %>" class="btn btn-outline btn-block">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
               </svg>
-              {{COMPANY_PHONE}}
-            </a>
+              <%= phone %>
+            </a><% } %>
           </div>
 
           <div class="trust-indicators">
@@ -205,7 +207,7 @@
       <p>Contact {{COMPANY_NAME}} to talk through what you need.</p>
       <div class="cta-buttons">
         <a href="/#contact" class="btn btn-primary btn-lg">Send Us a Message</a>
-        <a href="tel:{{COMPANY_PHONE_RAW}}" class="btn btn-outline-light btn-lg">Call {{COMPANY_PHONE}}</a>
+        <% if (phoneRaw) { %><a href="tel:<%= phoneRaw %>" class="btn btn-outline-light btn-lg">Call <%= phone %></a><% } %>
       </div>
     </div>
   </section>
@@ -337,8 +339,8 @@
     "creator": {
       "@type": "LocalBusiness",
       "name": "{{COMPANY_NAME}}",
-      "url": "{{SITE_URL}}",
-      "telephone": "{{COMPANY_PHONE}}"
+      "url": "{{SITE_URL}}"<% if (phoneRaw) { %>,
+      "telephone": <%- _jsonStr(phone) %><% } %>
     },
     "locationCreated": {
       "@type": "Place",

@@ -96,7 +96,7 @@ const phoneRaw = phone.replace(/\D/g, '');
       <p>Contact us today to schedule your pet's appointment or wellness visit.</p>
       <div class="cta-buttons">
         <a href="/contact" class="btn btn-primary">Schedule an Appointment</a>
-        <a href="tel:<%= phoneRaw %>" class="btn btn-outline">Call <%= phone %></a>
+        <% if (phoneRaw) { %><a href="tel:<%= phoneRaw %>" class="btn btn-outline">Call <%= phone %></a><% } %>
       </div>
     </div>
   </section>

@@ -42,12 +42,12 @@
     <div class="container">
       <div class="estimator-cta">
         <h2>Prefer to talk to someone?</h2>
-        <p>Call us for a free consultation and we'll walk you through everything.</p>
+        <p><%= (typeof settings !== 'undefined' && settings.phone) ? 'Call us' : 'Get in touch' %> for a free consultation and we'll walk you through everything.</p>
         <div class="estimator-cta-buttons">
           <a href="/contact" class="btn btn-primary">Request Free Inspection</a>
-          <a href="tel:<%= (typeof settings !== 'undefined' && settings.phone) ? settings.phone.replace(/[^0-9+]/g, '') : '' %>" class="btn btn-outline">
-            Call <%= (typeof settings !== 'undefined' && settings.phone) ? settings.phone : '' %>
-          </a>
+          <% if (typeof settings !== 'undefined' && settings.phone) { %><a href="tel:<%= settings.phone.replace(/[^0-9+]/g, '') %>" class="btn btn-outline">
+            Call <%= settings.phone %>
+          </a><% } %>
         </div>
       </div>
     </div>

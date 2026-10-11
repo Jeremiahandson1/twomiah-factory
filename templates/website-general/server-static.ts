@@ -557,7 +557,8 @@ const VISION_URL = process.env.VISION_URL || ''
 if (!VISION_URL) {
   app.get('/visualize', (c) => c.redirect('/', 302))
 } else if (fs.existsSync(visualizePage)) {
-  app.get('/visualize', (c) => c.html(fs.readFileSync(visualizePage, 'utf8').split('https://home-visualizer.onrender.com').join(VISION_URL)))
+  // Rendered through EJS so blank phone/address/ZIP are left out (settings are live).
+  app.get('/visualize', (c) => c.html(ejs.render(fs.readFileSync(visualizePage, 'utf8'), { settings: loadJSON('settings.json') || {} }).split('https://home-visualizer.onrender.com').join(VISION_URL)))
 } else {
   app.get('/visualize', (c) => c.redirect(VISION_URL, 302))
   app.get('/visualize/*', (c) => {

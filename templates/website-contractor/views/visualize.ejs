@@ -26,9 +26,9 @@
         <p>Like what you see? Request an estimate and we'll be in touch soon.</p>
         <div class="visualizer-cta-buttons">
           <a href="/contact" class="btn btn-primary">Request Estimate</a>
-          <a href="tel:<%= (typeof settings !== 'undefined' && settings.phone) ? settings.phone.replace(/[^0-9+]/g, '') : '' %>" class="btn btn-outline">
+          <% if (typeof settings !== 'undefined' && settings.phone) { %><a href="tel:<%= (typeof settings !== 'undefined' && settings.phone) ? settings.phone.replace(/[^0-9+]/g, '') : '' %>" class="btn btn-outline">
             Call <%= (typeof settings !== 'undefined' && settings.phone) ? settings.phone : '' %>
-          </a>
+          </a><% } %>
         </div>
       </div>
 

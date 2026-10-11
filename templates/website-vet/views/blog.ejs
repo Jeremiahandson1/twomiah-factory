@@ -87,7 +87,7 @@ const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts))
       <p>We're happy to help — even if you just have a quick question about your pet.</p>
       <div class="hero-buttons">
         <a href="/#contact" class="btn btn-primary btn-lg">Schedule a Visit</a>
-        <a href="tel:<%= phoneRaw %>" class="btn btn-outline btn-lg">Call <%= phone %></a>
+        <% if (phoneRaw) { %><a href="tel:<%= phoneRaw %>" class="btn btn-outline btn-lg">Call <%= phone %></a><% } %>
       </div>
     </div>
   </section>
