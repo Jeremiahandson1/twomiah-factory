@@ -180,7 +180,15 @@ check('the run reports what it did', ran.generated === (await invoicesFor(dueC))
   const after2 = await state(oldRow)
   check('an old row due before its own start is put back on its start date by the processor', before2.next_ms < Date.now() && after2.next_ms === startMs, { before2, after2, startMs })
   check('…and nothing is billed for the schedules above — not started, mid-period, long pause, old row', (await invoicesFor(notYetC)).length + (await invoicesFor(midC)).length + (await invoicesFor(longC)).length + (await invoicesFor(oldC)).length === 0)
-  check('the service\'s own resume follows the same rule', (await service.resumeRecurringInvoice(notYet, co.id))?.nextRunDate?.getTime?.() === startMs)
+  // the exact T43 shape, PAUSED: next run already before a start that is still ahead. Resuming must land on the start,
+  // not a month after the stale date (which would still be months before the contract begins)
+  const t43C = await person('T43 Shape Client'), t43Svc = await person('T43 Shape Service')
+  const t43 = await at(t43C, iso(startMs), iso(Date.now() - 2 * DAY), 'paused')
+  await call('POST', `/api/recurring/${t43}/resume`)
+  check('resuming a paused schedule whose next run is before its start lands ON the start (the route)', (await state(t43)).next_ms === startMs, { s: await state(t43), startMs })
+  const t43b = await at(t43Svc, iso(startMs), iso(Date.now() - 2 * DAY), 'paused')
+  const viaService = await service.resumeRecurringInvoice(t43b, co.id)
+  check('…and through the service\'s own resume, the same rule', viaService?.nextRunDate?.getTime?.() === startMs && (await state(t43b)).next_ms === startMs, { got: viaService?.nextRunDate, startMs })
 }
 
 // ── every template that mounts recurring invoices starts the processor ─────────────────────────────
