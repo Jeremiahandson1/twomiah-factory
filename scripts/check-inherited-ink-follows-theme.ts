@@ -40,18 +40,19 @@ const AUDIT = process.env.ALL === '1'
 //                  prefers-color-scheme: they fire off the visitor's OS with no toggle to stop them.
 //
 // Everything else this guard first reported has been fixed, so the list stays this short. crm-store
-// is NOT here: it has no dark mode at all (see below), which is a different thing from having one
-// that is broken.
+// is NOT here either — and it is no longer skipped: it picked up dark: classes without darkMode, which
+// is the homecare fault above and Store QA T1's blocker (near-white text on white cards). It now says
+// darkMode: 'class' (check-tailwind-dark-mode-is-class.ts) and carries the base rule like the fleet.
 const KNOWN_OPEN = new Set(['crm-homecare'])
 
 /**
  * Does this template actually have a theme to break?
  *
  * Only `darkMode: 'class'` gives a toggle — the shell puts `dark` on <html> and the variants respond.
- * crm-store has no darkMode setting and not one `dark:` class in its source: nothing ever flips, so
- * there is no invisible text to prevent and demanding the base rule there would be cargo cult.
- * Skipping on that fact rather than by name means a template that GAINS a toggle is picked up
- * automatically, instead of sitting silently on an allowlist.
+ * Skipping on that fact rather than by name means a template that gains the setting is picked up
+ * automatically, instead of sitting silently on an allowlist — which is how crm-store came in (T1).
+ * (This note used to say crm-store had not one `dark:` class; it had grown 166 of them with no darkMode,
+ * and they fired off the visitor's OS. A skip justified by a fact needs the fact re-read.)
  */
 const hasThemeToggle = (t: string) => {
   const cfg = join(ROOT, t, 'frontend', 'tailwind.config.js')

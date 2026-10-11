@@ -35,10 +35,17 @@ export function GbpReviewsPage(): React.ReactElement {
   const [replyFor, setReplyFor] = useState<string | null>(null)
   const [replyText, setReplyText] = useState('')
   const [busy, setBusy] = useState(false)
+  /**
+   * The server refused this seat (403). Every /api/gbp route is the owner's and the admins' — integrations:update on
+   * the store, requireAdmin elsewhere — and the status read is one of them. The refusal was read as 'not connected',
+   * so a member of staff who reached this page by its address was offered Connect Google Business. (Store QA T1)
+   */
+  const [refused, setRefused] = useState(false)
 
   const loadStatus = async () => {
     try {
       const r = await fetch('/api/gbp/status', { headers: authHeaders() })
+      if (r.status === 403) { setRefused(true); setLoading(false); return }
       const d = await r.json()
       setStatus(d)
       if (d.connected && d.needsLocation) {
@@ -90,6 +97,12 @@ export function GbpReviewsPage(): React.ReactElement {
   }
 
   if (loading) return <div className="p-6 text-sm text-gray-500 dark:text-slate-400">Loading…</div>
+  if (refused) return (
+    <div className="p-6 max-w-3xl">
+      <h1 className="text-2xl font-bold mb-1">Google Reviews</h1>
+      <p className="text-sm text-gray-600 dark:text-slate-300">The Google Business listing — connecting it and replying to reviews — is managed by the owner or an admin. Ask them if a review needs an answer.</p>
+    </div>
+  )
 
   return (
     <div className="p-6 max-w-3xl">
@@ -100,7 +113,7 @@ export function GbpReviewsPage(): React.ReactElement {
       {!status?.connected && (
         <div className="bg-white border rounded-lg p-6 dark:bg-slate-900">
           <p className="text-sm text-gray-600 mb-4 dark:text-slate-300">Connect the Google account that manages your business listing. You'll approve access on Google's own sign-in page — we never see your password.</p>
-          <button onClick={connect} className="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-semibold">Connect Google Business</button>
+          <button onClick={connect} className="px-5 py-2.5 bg-orange-700 hover:bg-orange-800 text-white rounded-lg text-sm font-semibold">Connect Google Business</button>
         </div>
       )}
 
@@ -146,7 +159,7 @@ export function GbpReviewsPage(): React.ReactElement {
                   <div className="mt-3">
                     <textarea className="w-full border rounded-md p-2 text-sm min-h-[80px]" value={replyText} onChange={e => setReplyText(e.target.value)} placeholder="Thank them, address concerns…" />
                     <div className="flex gap-2 mt-2">
-                      <button disabled={busy || !replyText.trim()} onClick={() => sendReply(r.name)} className="px-4 py-1.5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white rounded-md text-xs font-semibold">{busy ? 'Sending…' : 'Post reply'}</button>
+                      <button disabled={busy || !replyText.trim()} onClick={() => sendReply(r.name)} className="px-4 py-1.5 bg-orange-700 hover:bg-orange-800 disabled:bg-gray-300 text-white rounded-md text-xs font-semibold">{busy ? 'Sending…' : 'Post reply'}</button>
                       <button onClick={() => { setReplyFor(null); setReplyText('') }} className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-md text-xs dark:bg-slate-800 dark:text-slate-100">Cancel</button>
                     </div>
                   </div>

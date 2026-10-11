@@ -91,7 +91,7 @@ export default function PaymentsPage() {
         <div>
           <label className="label">{f.secret}</label>
           <input className="input" type="password" value={form.secretKey} onChange={(e) => setForm({ ...form, secretKey: e.target.value })} placeholder={f.secretPh} />
-          <p className="text-xs text-gray-400 mt-1">Stored encrypted. Never shown again or sent to your storefront.</p>
+          <p className="text-xs text-gray-500 mt-1">Stored encrypted. Never shown again or sent to your storefront.</p>
         </div>
         <div>
           <label className="label">{f.pub}</label>
@@ -111,7 +111,7 @@ export default function PaymentsPage() {
             <div>
               <label className="label">{f.webhook}</label>
               <input className="input" type="password" value={form.webhookSecret} onChange={(e) => setForm({ ...form, webhookSecret: e.target.value })} placeholder={f.webhookPh} />
-              <p className="text-xs text-gray-400 mt-1">Leave blank to let us create the webhook for you.</p>
+              <p className="text-xs text-gray-500 mt-1">Leave blank to let us create the webhook for you.</p>
             </div>
           </div>
         </details>

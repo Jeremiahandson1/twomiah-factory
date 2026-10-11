@@ -6,11 +6,19 @@
   color-scheme: light;
 }
 
-body {
-  margin: 0;
-  background: #f8fafc;
-  color: #0f172a;
-  -webkit-font-smoothing: antialiased;
+/* The fleet's base ink, so text with no colour class of its own follows the theme with everything else. The store
+   has no theme toggle — nothing adds .dark (tailwind.config.js) — so this renders exactly as before (slate-50 ground,
+   slate-900 ink); the dark halves are the pair every dark: class in the pages already assumes. (Store QA T1, B1) */
+@layer base {
+  body {
+    margin: 0;
+    @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+  }
+  input,
+  select,
+  textarea {
+    @apply text-gray-900 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700;
+  }
 }
 
 @layer components {

@@ -68,12 +68,12 @@ export default function ReviewsPage() {
       </div>
 
       {loading ? (
-        <div className="card p-10 text-center text-gray-400">Loading…</div>
+        <div className="card p-10 text-center text-gray-500">Loading…</div>
       ) : rows.length === 0 ? (
         <div className="card p-10 text-center">
           <Star className="h-9 w-9 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 dark:text-slate-400">No {status === 'all' ? '' : status} reviews.</p>
-          <p className="text-sm text-gray-400 mt-1">Customers are asked for one a few days after their order ships.</p>
+          <p className="text-sm text-gray-500 mt-1">Customers are asked for one a few days after their order ships.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -93,7 +93,7 @@ export default function ReviewsPage() {
                   </div>
                   {r.title && <p className="font-medium text-gray-900 mt-1 dark:text-slate-100">{r.title}</p>}
                   {r.body && <p className="text-gray-600 text-sm mt-1 whitespace-pre-wrap dark:text-slate-300">{r.body}</p>}
-                  <p className="text-xs text-gray-400 mt-2">
+                  <p className="text-xs text-gray-500 mt-2">
                     {r.authorName} on {r.productName || 'product'} · {new Date(r.createdAt).toLocaleDateString()}
                   </p>
                 </div>

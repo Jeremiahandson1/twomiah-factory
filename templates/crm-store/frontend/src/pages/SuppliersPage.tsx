@@ -83,7 +83,7 @@ export default function SuppliersPage() {
             <input type="checkbox" checked={!!status?.config?.autoForward} onChange={(e) => toggleAuto(e.target.checked)} />
             Forward paid orders to the supplier automatically
           </label>
-          <p className="text-xs text-gray-400 mt-1">Only orders where every item is linked to a supplier item are forwarded — everything else stays manual.</p>
+          <p className="text-xs text-gray-500 mt-1">Only orders where every item is linked to a supplier item are forwarded — everything else stays manual.</p>
           <button onClick={disconnect} className="btn-danger mt-4 text-xs">Disconnect</button>
         </div>
       ) : (
@@ -120,7 +120,7 @@ export default function SuppliersPage() {
         <div>
           <label className="label">{f.keyLabel}</label>
           <input className="input" type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} placeholder={f.keyPh} />
-          <p className="text-xs text-gray-400 mt-1">Stored encrypted. We&apos;ll set up shipment notifications automatically where the supplier supports it.</p>
+          <p className="text-xs text-gray-500 mt-1">Stored encrypted. We&apos;ll set up shipment notifications automatically where the supplier supports it.</p>
         </div>
         <button onClick={connect} className="btn-primary" disabled={saving || !form.apiKey || (f.needsEmail && !form.accountEmail)}>{saving ? 'Verifying…' : connected ? 'Update connection' : 'Connect'}</button>
       </div>

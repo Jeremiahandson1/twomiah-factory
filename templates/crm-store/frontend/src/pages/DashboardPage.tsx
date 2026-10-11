@@ -3,8 +3,13 @@ import { Link } from 'react-router-dom'
 import { DollarSign, ShoppingBag, Package, AlertCircle, CheckCircle2, ArrowRight , Truck, RotateCcw } from 'lucide-react'
 import api, { Order, Product, PaymentStatus } from '../services/api'
 import { money, formatDate, statusColor } from '../lib/format'
+import { useMayWrite } from '../shared'
 
 export default function DashboardPage() {
+  // Connecting payments is POST /api/admin/payments/connect — payments:update. A seat without it reads the step, it is not sent
+  // to a page where it can change nothing. (Store QA T1 sweep)
+  const mayConnectPayments = useMayWrite('payments:update')
+  const mayAddProducts = useMayWrite('products:create')
   // revenueCents is null for a seat that may not see the shop's takings (revenue:read) — the card goes, rather than reading $0.00.
   const [stats, setStats] = useState<{ paidCount: number; pendingFulfillment: number; revenueCents: number | null; atSupplier: number; refundedCount: number; refundedCents: number | null }>({ paidCount: 0, pendingFulfillment: 0, revenueCents: null, atSupplier: 0, refundedCount: 0, refundedCents: null })
   const [orders, setOrders] = useState<Order[]>([])
@@ -33,9 +38,9 @@ export default function DashboardPage() {
         <div className="card p-5">
           <h2 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Finish setting up your store</h2>
           <ul className="space-y-2 text-sm">
-            <ChecklistItem done={activeProducts > 0} to="/products"
+            <ChecklistItem done={activeProducts > 0} to={mayAddProducts ? '/products' : undefined}
               text={activeProducts > 0 ? `${activeProducts} product(s) live` : 'Add and activate your first product'} />
-            <ChecklistItem done={!!paymentsConnected} to="/payments"
+            <ChecklistItem done={!!paymentsConnected} to={mayConnectPayments ? '/payments' : undefined}
               text={paymentsConnected ? 'Payments connected' : 'Connect your payment account to accept orders'} />
           </ul>
         </div>
@@ -87,13 +92,13 @@ function StatCard({ icon: Icon, label, value, highlight }: { icon: any; label: s
   )
 }
 
-function ChecklistItem({ done, text, to }: { done: boolean; text: string; to: string }) {
+function ChecklistItem({ done, text, to }: { done: boolean; text: string; to?: string }) {
+  const body = <>{done ? <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-300" /> : <AlertCircle className="h-4 w-4 text-yellow-500 dark:text-yellow-300" />}{text}</>
   return (
     <li>
-      <Link to={to} className="flex items-center gap-2 text-gray-700 hover:text-primary-600 dark:text-slate-200">
-        {done ? <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-300" /> : <AlertCircle className="h-4 w-4 text-yellow-500 dark:text-yellow-300" />}
-        {text}
-      </Link>
+      {to
+        ? <Link to={to} className="flex items-center gap-2 text-gray-700 hover:text-primary-600 dark:text-slate-200">{body}</Link>
+        : <span className="flex items-center gap-2 text-gray-700 dark:text-slate-200">{body}</span>}
     </li>
   )
 }

@@ -69,7 +69,7 @@ export default function OnboardingWizard() {
                     : 'bg-gray-200 text-gray-500 dark:text-slate-300 dark:bg-slate-700'}`}>
                   {idx < currentStep ? <Check className="w-4 h-4" /> : idx + 1}
                 </div>
-                <span className={`text-xs hidden sm:block ${idx <= currentStep ? 'text-gray-900 font-medium dark:text-slate-200' : 'text-gray-400'} dark:text-slate-100`}>{label}</span>
+                <span className={`text-xs hidden sm:block ${idx <= currentStep ? 'text-gray-900 font-medium dark:text-slate-200' : 'text-gray-500'} dark:text-slate-100`}>{label}</span>
               </div>
               {idx < STEPS.length - 1 && <div className={`w-6 sm:w-12 h-0.5 ${idx < currentStep ? 'bg-primary-600' : 'bg-gray-200 dark:bg-slate-700 dark:text-slate-100'}`} />}
             </div>
@@ -97,7 +97,7 @@ export default function OnboardingWizard() {
               <PaymentsPage />
               <div className="max-w-2xl mx-auto">
                 <Nav backTo={0} nextLabel="Continue" onNext={() => setCurrentStep(2)} />
-                <p className="text-xs text-gray-400 text-center mt-2">You can finish connecting payments later from the Payments page — but the storefront can't check anyone out until you do.</p>
+                <p className="text-xs text-gray-500 text-center mt-2">You can finish connecting payments later from the Payments page — but the storefront can't check anyone out until you do.</p>
               </div>
             </div>
           )}

@@ -37,7 +37,7 @@ export default function OrdersPage() {
       ) : (
         <div className="card overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-left text-xs uppercase text-gray-400 border-b">
+            <thead className="text-left text-xs uppercase text-gray-500 border-b">
               <tr><th className="px-4 py-3">Order</th><th className="px-4 py-3">Customer</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Total</th></tr>
             </thead>
             <tbody className="divide-y">

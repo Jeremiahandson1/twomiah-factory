@@ -253,10 +253,10 @@ function VariantRow({ v, supplierConnected, supplierRef, supplierName, onSave, o
     <div className="flex items-center gap-2 text-sm">
       <div className="flex-1 min-w-0">
         <div className="font-medium text-gray-900 truncate dark:text-slate-100">{v.name}</div>
-        <div className="text-xs text-gray-400">{v.sku}</div>
+        <div className="text-xs text-gray-500">{v.sku}</div>
       </div>
       <div className="flex items-center gap-1">
-        <span className="text-gray-400">$</span>
+        <span className="text-gray-500">$</span>
         <input className="input w-24 py-1" value={price} onChange={(e) => setPrice(e.target.value)} />
       </div>
       <input className="input w-20 py-1" placeholder="∞" value={inv} onChange={(e) => setInv(e.target.value)} title="Inventory (blank = untracked)" />
@@ -330,7 +330,7 @@ function ImagesSection({ product, onChange }: { product: Product; onChange: () =
       >
         {uploading
           ? <><Loader2 className="h-5 w-5 animate-spin text-primary-500" /><span className="text-sm text-gray-500 dark:text-slate-400">Uploading…</span></>
-          : <><Upload className="h-5 w-5 text-gray-400" /><span className="text-sm text-gray-600 dark:text-slate-300">Drop images here or <span className="font-medium text-primary-600">browse</span></span><span className="text-xs text-gray-400">JPEG, PNG, WebP, GIF or AVIF · up to 8 MB</span></>}
+          : <><Upload className="h-5 w-5 text-gray-500" /><span className="text-sm text-gray-600 dark:text-slate-300">Drop images here or <span className="font-medium text-primary-600">browse</span></span><span className="text-xs text-gray-500">JPEG, PNG, WebP, GIF or AVIF · up to 8 MB</span></>}
       </div>
       <input
         ref={fileInput} type="file" accept="image/*" multiple className="hidden"
