@@ -172,7 +172,8 @@ export default function CheckinPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 border-b overflow-x-auto">
-        {tabs.map(t => (
+        {/* The Check-In tab IS a check-in form (requireRole('budtender')) — not offered below that. (T68) */}
+        {tabs.filter(t => mayWork || t.id !== 'checkin').map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -320,7 +321,7 @@ export default function CheckinPage() {
       )}
 
       {/* Check-In Tab */}
-      {tab === 'checkin' && (
+      {tab === 'checkin' && mayWork && (
         <div className="bg-white rounded-lg shadow-sm p-6 max-w-2xl space-y-6 dark:bg-slate-900">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">New Check-In</h3>
           <div>
