@@ -135,9 +135,9 @@ check('…and no invoice has been raised from it yet', before === 0, { before })
   }
 
   const r = await asOwner('POST', '/api/recurring/process')
-  check('even the OWNER cannot run it by hand with no scheduler configured',
+  check('even the OWNER cannot run it by hand with no cron secret configured',
     r.status === 503 && r.json?.code === 'cron_not_configured', { status: r.status, body: r.text?.slice(0, 200) })
-  check('…and says a schedule runs it, not a person', /scheduler is configured/i.test(String(r.json?.error)), r.json?.error)
+  check('…and says the schedule runs itself, not a person (T69: it now does)', /generated automatically/i.test(String(r.json?.error)), r.json?.error)
   check('…and nothing was billed', (await invoiceCount()) === before, { before, now: await invoiceCount() })
 
   const withSecret = await asCron()

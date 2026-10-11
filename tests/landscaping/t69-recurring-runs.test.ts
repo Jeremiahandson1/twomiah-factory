@@ -155,7 +155,8 @@ for (const t of ['crm-dispensary', 'crm-roof', 'crm-rv', 'crm-salon', 'crm-vet',
 {
   const page = readFileSync(ROOT + 'packages/tenant-ui/src/agreements/AgreementsPage.tsx', 'utf8').replace(/\r\n/g, '\n')
   const modal = page.slice(page.indexOf('function AgreementFormModal('))
-  check('Agreements window: says what THIS agreement bills (its amount and frequency), for a seat that sees money', /agreement && maySeeMoney && \(/.test(modal) && /This agreement bills \$\$\{\(Number\(agreement\.amount\) \|\| 0\)\.toFixed\(2\)\}\/\$\{agreement\.billingFrequency\}/.test(modal))
+  check('Agreements window: says what THIS agreement bills (its amount and frequency), for a seat that sees money', /agreement && maySeeMoney && \(/.test(modal) && /This agreement bills \$\{money\(agreement\.amount\)\}\/\$\{agreement\.billingFrequency\}/.test(modal))
+  check('…in the same money() as the table\'s Price cell, so the two read alike', /\{maySeeMoney && <td[^>]*>\s*\{money\(agreement\.amount\)\}/.test(page) && /^import \{ money \} from '\.\.\/invoicing\/ui'/m.test(page))
   check('…and warns that a different plan re-prices it on save', /form\.planId !== agreement\.planId/.test(modal) && /bills the agreement at the plan’s price/.test(modal))
 }
 

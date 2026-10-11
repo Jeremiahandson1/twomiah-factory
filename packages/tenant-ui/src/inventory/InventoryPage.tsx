@@ -8,6 +8,7 @@ import { LucideIcon } from 'lucide-react';
 import type { InventoryApi, InventoryPageProps } from './types';
 import { useMayWrite } from '../auth/PermissionsContext';
 import { PageError, errorText } from '../ui/PageError'
+import { money } from '../invoicing/ui'
 
 // api is injected once at the page root; child components read it via useInventory().
 const InventoryCtx = createContext<{ api: InventoryApi }>({ api: null as any });
@@ -318,11 +319,11 @@ export default function InventoryPage({ api }: InventoryPageProps) {
                       </td>
                       {showCost && (
                         <td className="px-4 py-3 text-right text-sm text-gray-500 dark:text-slate-400">
-                          ${Number(item.unitCost).toFixed(2)}
+                          {money(item.unitCost)}
                         </td>
                       )}
                       <td className="px-4 py-3 text-right text-sm text-gray-900 dark:text-slate-100">
-                        ${Number(item.unitPrice).toFixed(2)}
+                        {money(item.unitPrice)}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2 justify-end">

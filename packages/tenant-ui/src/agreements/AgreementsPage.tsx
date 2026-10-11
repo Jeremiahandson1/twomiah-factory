@@ -8,6 +8,7 @@ import type { LucideIcon } from 'lucide-react';
 import type { AgreementsApi, AgreementsPageProps } from './types';
 import { useConfirm } from '../ui/ConfirmProvider'
 import { useMayWrite } from '../auth/PermissionsContext'
+import { money } from '../invoicing/ui'
 
 // UTC-safe date formatting (carried from templates' utils/date). Date-only values stored as UTC midnight
 // are parsed at LOCAL midnight so viewers west of UTC don't shift a day back.
@@ -596,7 +597,7 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowPro
         <AutopayToggle agreement={agreement} onChanged={onChanged} />
       </td>
       {maySeeMoney && <td className="px-4 py-3 text-right font-medium">
-        ${(Number(agreement.amount) || 0).toFixed(2)}
+        {money(agreement.amount)}
         <span className="text-xs text-gray-500 ml-1 dark:text-slate-400">/{agreement.billingFrequency}</span>
       </td>}
       <td className="px-4 py-3">
@@ -650,7 +651,7 @@ function PlansTab({ plans, onEdit, onRefresh }: PlansTabProps) {
 
           {maySeeMoney ? (
           <div className="text-3xl font-bold text-gray-900 mb-4 dark:text-slate-100">
-            ${(Number(plan.price) || 0).toFixed(0)}
+            {money(plan.price)}
             <span className="text-base font-normal text-gray-500 dark:text-slate-400">/{plan.billingFrequency}</span>
           </div>
           ) : (
@@ -1064,7 +1065,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                 <option value="">Select plan...</option>
                 {plans.filter((p: Plan) => p.active || p.id === form.planId).map((p: Plan) => (
                   <option key={p.id} value={p.id}>
-                    {p.name}{maySeeMoney && p.price != null ? ` - $${(Number(p.price) || 0).toFixed(0)}` : ''}/{p.billingFrequency}
+                    {p.name}{maySeeMoney && p.price != null ? ` - ${money(p.price)}` : ''}/{p.billingFrequency}
                   </option>
                 ))}
               </select>
@@ -1074,7 +1075,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                 <p className="mt-1 text-xs text-gray-600 dark:text-slate-300">
                   {form.planId && form.planId !== agreement.planId
                     ? 'Saving with this plan bills the agreement at the plan’s price.'
-                    : `This agreement bills $${(Number(agreement.amount) || 0).toFixed(2)}/${agreement.billingFrequency}.`}
+                    : `This agreement bills ${money(agreement.amount)}/${agreement.billingFrequency}.`}
                 </p>
               )}
             </div>

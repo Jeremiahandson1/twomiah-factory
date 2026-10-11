@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react'
+// The shared money format (cents and thousands separators) — this page's own `money` below is the plan-price short form.
+import { money as usd } from '../invoicing/ui'
 
 // Settings → Billing — READ-ONLY. Plans are sold, changed and cancelled by the Twomiah Factory
 // (Stripe lives there). This page shows the subscription the Factory reports for this tenant and
@@ -266,7 +268,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
                 {msg && (
                   <div className="text-right">
                     <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Wallet balance</div>
-                    <div className={'text-2xl font-bold ' + (msg.enabled && msg.walletCents <= 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-slate-100')}>${(msg.walletCents / 100).toFixed(2)}</div>
+                    <div className={'text-2xl font-bold ' + (msg.enabled && msg.walletCents <= 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-slate-100')}>{usd(msg.walletCents / 100)}</div>
                   </div>
                 )}
               </div>

@@ -213,6 +213,35 @@ for (const file of files) {
   }
 }
 
+/**
+ * …and the same figure written as JSX TEXT: a literal `$` then `{x.toFixed(n)}`. (T69 viewer)
+ *
+ * The rule above reads the template-literal spelling, `$${x.toFixed(2)}`. A screen writes the $ as text and
+ * the figure as an expression — `${(Number(agreement.amount) || 0).toFixed(2)}` on a table row — and that
+ * passed, as did `.toFixed(0)` on a plan price, which ROUNDS ($49.50 read "$50"). Use money() from
+ * '../invoicing/ui' (viewer's locale, cents, thousands separators, a minus before the $).
+ *
+ * A `${` inside a template literal is interpolation, not a $ sign: the line's backticks before the match are
+ * counted, and an odd count means we are inside one. Scoped to packages/tenant-ui, which ships to every
+ * vertical; the template frontends have the same spelling on screens of their own (counted, not yet ruled).
+ */
+for (const file of files) {
+  const rel = relative(ROOT, file).replace(/\\/g, '/')
+  if (!/^packages\/tenant-ui\/src\/.*\.tsx$/.test(rel)) continue
+  const lines = readFileSync(file, 'utf8').split(/\r?\n/)
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (/^\s*(?:\/\/|\*|\/\*)/.test(line)) continue
+    for (const m of line.matchAll(/(^|[^$])\$\{[^}]*\.toFixed\(\d\)\}/g)) {
+      const before = line.slice(0, m.index! + m[1].length)
+      if ((before.match(/`/g) || []).length % 2 === 1) continue // interpolation inside a template literal
+      fail(`${rel}:${i + 1} prints money as JSX text with toFixed — no thousands separator, and toFixed(0) rounds the cents away.\n`
+        + `       Use money() from '../invoicing/ui'.\n`
+        + `       ${line.trim().slice(0, 140)}`)
+    }
+  }
+}
+
 // The staleness check now runs above, where the snippets are resolved: an exemption that matches
 // nothing, or matches more than one line, fails there. A stale exemption is how the next one gets
 // added without anybody looking, so that check is the reason this list stays honest — it just no
