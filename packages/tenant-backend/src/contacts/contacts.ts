@@ -149,7 +149,27 @@ export function standardGuards(t: { invoice?: any; quote?: any; job?: any; proje
 export const withoutPortalCredential = (row: any) => {
   if (!row) return row
   const { portalToken, portalTokenExp, ...rest } = row
-  return rest
+  return withoutPaymentInternals(rest)
+}
+
+/**
+ * …and without the payment system's own identifiers. (T69: "contact records show Stripe customer IDs to the
+ * viewer, and one contact also exposes the connected Stripe account ID (acct_…). Staff probably gets them too.")
+ *
+ * payments/stripe.ts keeps the customer it created in customFields — stripeCustomerId, and stripeCustomerAccount,
+ * the connected account (acct_…) that customer lives on — so a saved card is found again next time. They are keys
+ * into the shop's Stripe account, not facts about the customer: no screen reads them, and every contact response
+ * handed them to whoever could open a contact. Stripped for EVERY seat; the payments module reads the row itself.
+ * Nothing that saves a contact accepts customFields, so taking them out of the answer cannot wipe them.
+ * Called through withoutPortalCredential, so every door that strips the credential strips these too.
+ */
+export const PAYMENT_INTERNAL_KEYS = ['stripeCustomerId', 'stripeCustomerAccount'] as const
+export const withoutPaymentInternals = (row: any) => {
+  if (!row || !row.customFields || typeof row.customFields !== 'object') return row
+  const fields: Record<string, unknown> = { ...row.customFields }
+  let changed = false
+  for (const k of PAYMENT_INTERNAL_KEYS) if (k in fields) { delete fields[k]; changed = true }
+  return changed ? { ...row, customFields: fields } : row
 }
 
 export function createContactRoutes(deps: ContactDeps) {

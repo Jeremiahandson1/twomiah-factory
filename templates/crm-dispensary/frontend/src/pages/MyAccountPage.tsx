@@ -60,11 +60,14 @@ export default function MyAccountPage() {
         <TwoFactorCard api={api as any} toast={toast} />
       </section>
 
-      <section aria-labelledby="acct-pin">
-        <h2 id="acct-pin" className="sr-only">Till PIN</h2>
-        {/* PUT /api/auth/pin refuses the viewer seat (pin_not_for_role) — the card was offered to it anyway. (T43 viewer round, T68) */}
-        {user?.role !== 'viewer' && <TillPinCard user={user} toast={toast} />}
-      </section>
+      {/* PUT /api/auth/pin refuses the viewer seat (pin_not_for_role) — the card was offered to it anyway. (T43 viewer round, T68)
+          The whole section goes, heading too: gating only the card left the viewer a "Till PIN" heading over nothing. (T69) */}
+      {user?.role !== 'viewer' && (
+        <section aria-labelledby="acct-pin">
+          <h2 id="acct-pin" className="sr-only">Till PIN</h2>
+          <TillPinCard user={user} toast={toast} />
+        </section>
+      )}
     </div>
   );
 }

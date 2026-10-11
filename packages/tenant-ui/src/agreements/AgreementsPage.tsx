@@ -385,7 +385,8 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
                       onChanged={loadData}
                       key={agreement.id}
                       agreement={agreement}
-                      onView={() => { setSelectedAgreement(agreement); }}
+                      // Opened the selection and never the modal, so the chevron did nothing. (T69)
+                      onView={() => { setSelectedAgreement(agreement); setShowAgreementForm(true); }}
                       onRenew={() => handleRenew(agreement.id)}
                     />
                   ))}
@@ -940,6 +941,11 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
 
 function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementFormModalProps) {
   const { api, recurrence } = useAgreements();
+  // Opening an existing agreement without agreements:update shows it as a record: every field disabled, Close
+  // only — PUT /:id would refuse the save anyway. Prices follow the table: none without invoices:read. (T69)
+  const mayUpdate = useMayWrite('agreements:update');
+  const maySeeMoney = useMayWrite('invoices:read');
+  const readOnly = !!agreement && !mayUpdate;
   const defaultNextDate = new Date();
   defaultNextDate.setDate(defaultNextDate.getDate() + 30);
   const [form, setForm] = useState<{
@@ -1025,9 +1031,10 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
-          <h2 className="text-lg font-bold mb-4">{agreement ? 'Edit Agreement' : 'New Agreement'}</h2>
+          <h2 className="text-lg font-bold mb-4">{readOnly ? 'Agreement' : agreement ? 'Edit Agreement' : 'New Agreement'}</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <fieldset disabled={readOnly} className="space-y-4 disabled:opacity-90">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Customer</label>
               <select
@@ -1037,6 +1044,9 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                 required
               >
                 <option value="">Select customer...</option>
+                {agreement?.contactId && !contacts.some((c: Contact) => c.id === agreement.contactId) && (
+                  <option value={agreement.contactId}>{agreement.contact?.name || 'Current customer'}</option>
+                )}
                 {contacts.map((c: Contact) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
@@ -1052,9 +1062,9 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                 required
               >
                 <option value="">Select plan...</option>
-                {plans.filter((p: Plan) => p.active).map((p: Plan) => (
+                {plans.filter((p: Plan) => p.active || p.id === form.planId).map((p: Plan) => (
                   <option key={p.id} value={p.id}>
-                    {p.name}{p.price != null ? ` - $${(Number(p.price) || 0).toFixed(0)}` : ''}/{p.billingFrequency}
+                    {p.name}{maySeeMoney && p.price != null ? ` - $${(Number(p.price) || 0).toFixed(0)}` : ''}/{p.billingFrequency}
                   </option>
                 ))}
               </select>
@@ -1142,14 +1152,17 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
               )}
             </div>
             )}
+            </fieldset>
 
             <div className="flex gap-3 pt-4">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg">
-                Cancel
+                {readOnly ? 'Close' : 'Cancel'}
               </button>
+              {!readOnly && (
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg">
-                {saving ? 'Saving...' : 'Create Agreement'}
+                {saving ? 'Saving...' : agreement ? 'Save Changes' : 'Create Agreement'}
               </button>
+              )}
             </div>
           </form>
         </div>

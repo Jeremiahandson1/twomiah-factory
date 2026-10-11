@@ -64,6 +64,11 @@ import { companyRowTimeZone, storeDateString, storeDayStart } from '../time/busi
  * later arrives visible — the right default for a contact field — and the two credential keys are
  * named, so removing one is a one-line change in one place. jsonb rather than json because the
  * `-` operator is only defined on jsonb; the serialised result is identical.
+ *
+ * …and the payment ids inside custom_fields, `#- '{custom_fields,stripeCustomerId}'` and its
+ * stripeCustomerAccount partner — the SQL form of withoutPaymentInternals (contacts/contacts.ts). The
+ * whole row carries custom_fields, and payments keep the Stripe customer and its connected account
+ * there. `#-` on a path that is not present is a no-op. (T69)
  */
 const NESTED = ['contact', 'project', 'company']
 
@@ -205,7 +210,7 @@ export function createRecurringService(deps: RecurringServiceDeps) {
 
   async function generateInvoiceFromRecurring(recurringId: string) {
     const [recurring] = rows(await db.execute(sql`
-      SELECT ri.*, to_jsonb(c.*) - 'portal_token' - 'portal_token_exp' as contact, row_to_json(co.*) as company
+      SELECT ri.*, to_jsonb(c.*) - 'portal_token' - 'portal_token_exp' #- '{custom_fields,stripeCustomerId}' #- '{custom_fields,stripeCustomerAccount}' as contact, row_to_json(co.*) as company
       FROM recurring_invoice ri
       LEFT JOIN contact c ON c.id = ri.contact_id
       LEFT JOIN company co ON co.id = ri.company_id
@@ -327,7 +332,7 @@ export function createRecurringService(deps: RecurringServiceDeps) {
     const limitN = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Math.min(200, Math.floor(Number(limit))) : 25
     const offset = (pageN - 1) * limitN
     const data = rows(await db.execute(sql`
-      SELECT ri.*, to_jsonb(c.*) - 'portal_token' - 'portal_token_exp' as contact, row_to_json(p.*) as project
+      SELECT ri.*, to_jsonb(c.*) - 'portal_token' - 'portal_token_exp' #- '{custom_fields,stripeCustomerId}' #- '{custom_fields,stripeCustomerAccount}' as contact, row_to_json(p.*) as project
       FROM recurring_invoice ri
       LEFT JOIN contact c ON c.id = ri.contact_id
       LEFT JOIN project p ON p.id = ri.project_id
@@ -341,7 +346,7 @@ export function createRecurringService(deps: RecurringServiceDeps) {
 
   async function getRecurringInvoice(id: string, companyId: string) {
     const [result] = rows(await db.execute(sql`
-      SELECT ri.*, to_jsonb(c.*) - 'portal_token' - 'portal_token_exp' as contact, row_to_json(p.*) as project
+      SELECT ri.*, to_jsonb(c.*) - 'portal_token' - 'portal_token_exp' #- '{custom_fields,stripeCustomerId}' #- '{custom_fields,stripeCustomerAccount}' as contact, row_to_json(p.*) as project
       FROM recurring_invoice ri
       LEFT JOIN contact c ON c.id = ri.contact_id
       LEFT JOIN project p ON p.id = ri.project_id

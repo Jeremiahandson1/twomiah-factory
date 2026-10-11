@@ -448,6 +448,48 @@ if (!new RegExp(`export const ${HELPER} = `).test(contactsMod)) fail(`${HELPER} 
 if (!/const \{ portalToken, portalTokenExp, \.\.\.rest \} = row/.test(contactsMod)) fail(`${HELPER} must remove BOTH portalToken and portalTokenExp — the expiry on its own tells a holder whether a link is still live`)
 if (!new RegExp(`${HELPER}[,\\s}]`).test(readFileSync(`${ROOT}packages/tenant-backend/src/index.ts`, 'utf8'))) fail(`${HELPER} is not re-exported from packages/tenant-backend/src/index.ts — a template importing from '../shared/index.ts' cannot reach it`)
 
+/**
+ * …AND THE PAYMENT IDS GO WITH IT. (T69)
+ *
+ * "Contact records show Stripe customer IDs to the viewer, and one contact also exposes the connected
+ * Stripe account ID (acct_…)." payments/stripe.ts keeps stripeCustomerId and stripeCustomerAccount in
+ * contact.customFields, so every door that handed the row out handed those out too. The helper now
+ * strips them, which makes three things load-bearing, and each is checked:
+ *
+ *   1  the helper calls withoutPaymentInternals, and that names both keys;
+ *   2  nobody strips the credential BY HAND — a `{ portalToken, portalTokenExp, ...rest } = row` copy
+ *      knows only what it was written to know. Two existed (the shared job detail, dispensary's
+ *      stripPortal), both dropped the token, both kept the Stripe ids, and every rule above called
+ *      them clean because the row they returned was no longer the tainted name;
+ *   3  raw SQL that serialises the contact whole subtracts the two custom_fields paths as well.
+ */
+const helperBody = contactsMod.match(new RegExp(`export const ${HELPER} = [\\s\\S]*?\\n\\}`))?.[0] ?? ''
+if (!/withoutPaymentInternals\(/.test(helperBody)) fail(`${HELPER} no longer calls withoutPaymentInternals — the Stripe customer and connected-account ids in customFields leave with every contact row`)
+const keysDecl = contactsMod.match(/PAYMENT_INTERNAL_KEYS\s*=\s*\[([^\]]*)\]/)?.[1] ?? ''
+for (const k of ['stripeCustomerId', 'stripeCustomerAccount']) if (!keysDecl.includes(`'${k}'`)) fail(`PAYMENT_INTERNAL_KEYS does not name ${k} — payments/stripe.ts writes it into contact.customFields`)
+// Not a contact row: homecare's `clients` table carries a different credential set (ssn_encrypted,
+// portal_password_hash, portal_token) that the contact helper does not know, and homecare is parked —
+// its strip is a decision for the re-base, named here rather than skipped silently.
+const HAND_STRIP_NOT_A_CONTACT: Record<string, string> = {
+  'templates/crm-homecare/backend/src/routes/clients.ts': 'the homecare clients table — SSN + portal password, not contact; homecare parked',
+}
+for (const abs of files) {
+  const rel = abs.slice(ROOT.length).replace(/\\/g, '/')
+  if (PARKED[rel] || HAND_STRIP_NOT_A_CONTACT[rel] || rel === 'packages/tenant-backend/src/contacts/contacts.ts') continue
+  const src = strip(readFileSync(abs, 'utf8').replace(/\r\n/g, '\n'))
+  for (const m of src.matchAll(/\{[^{}=]*\bportalToken\b[^{}=]*\.\.\.\s*\w+\s*\}\s*=/g)) {
+    const lineNo = src.slice(0, m.index ?? 0).split('\n').length
+    fail(`${rel}:~${lineNo} strips the portal credential by hand — \`${m[0].replace(/\s+/g, ' ').slice(0, 90)}\`. ` +
+      `A hand-rolled copy keeps everything else the helper removes (the Stripe ids in customFields, T69). Use ${HELPER}().`)
+  }
+  for (const m of src.matchAll(/(?:row_to_json|to_jsonb)\(\s*(\w+)\s*\.\s*\*\s*\)[^,\n]*?\bas\s+contact\b/gi)) {
+    if (/#-\s*'\{custom_fields,stripeCustomerId\}'/.test(m[0]) && /#-\s*'\{custom_fields,stripeCustomerAccount\}'/.test(m[0])) continue
+    const lineNo = src.slice(0, m.index ?? 0).split('\n').length
+    fail(`${rel}:~${lineNo} serialises the contact whole without removing the payment ids — add ` +
+      `\`#- '{custom_fields,stripeCustomerId}' #- '{custom_fields,stripeCustomerAccount}'\` (the SQL form of withoutPaymentInternals).`)
+  }
+}
+
 if (failed) {
   console.error(`\nportal token: ${failed} problem(s).`)
   process.exit(1)

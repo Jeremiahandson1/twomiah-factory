@@ -17,6 +17,7 @@ import { nextNumber, round2, defaultTaxRateFrom } from '../invoicing/money'
 // Billing a job raises an invoice through the SAME helper every other billing path uses, so numbering,
 // totals and the UTC date normalisation cannot drift from invoices, quotes, agreements or visits. (T41)
 import { insertInvoice } from '../invoicing/invoices'
+import { withoutPortalCredential } from '../contacts/contacts'
 import { companyTimeZone, storeDayRange, jobLocalDay } from '../time/businessDay'
 import { checkFilter } from '../listFilter'
 import { withinHorizon, horizonMessage } from '../dateInput'
@@ -492,7 +493,9 @@ export function createJobRoutes(deps: JobDeps) {
       t.timeEntry ? db.select().from(t.timeEntry).where(eq(t.timeEntry.jobId, found.id)).orderBy(desc(t.timeEntry.date), asc(t.timeEntry.id)).limit(10) : Promise.resolve([]),
       t.equipment && found.equipmentId ? db.select({ id: t.equipment.id, name: t.equipment.name, manufacturer: t.equipment.manufacturer, model: t.equipment.model, serialNumber: t.equipment.serialNumber, location: t.equipment.location }).from(t.equipment).where(and(eq(t.equipment.id, found.equipmentId), eq(t.equipment.companyId, currentUser.companyId))).limit(1) : Promise.resolve([]),
     ])
-    const { portalToken, portalTokenExp, ...safeContact } = (jobContact[0] || {}) as any
+    // The helper, not a hand-rolled destructure: the copy here dropped the token and kept the Stripe ids in
+    // customFields, so every job detail handed them to anyone who could open the job. (T69)
+    const safeContact = withoutPortalCredential(jobContact[0] || {})
     // one assignedTo whichever kind of person is on the job — same shape the list gives (T21 M12)
     const [withAssignee] = await withRelations([found], currentUser.companyId)
     // The same rule as the list. Both reads return the whole job row, so both carried the value. (T41)

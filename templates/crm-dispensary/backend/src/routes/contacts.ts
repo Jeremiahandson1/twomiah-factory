@@ -12,14 +12,16 @@ import { canSeeCustomerIdentity, redactCustomerIdentity, redactCustomerIdentityA
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { stripHtml } from '../utils/sanitize.ts'
-import { isValidPhone } from '../shared/index.ts'
+import { isValidPhone, withoutPortalCredential } from '../shared/index.ts'
 import { underageRefusal } from '../utils/cannabis.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
 
-// The portal token is a bearer credential — never in an API response or a socket broadcast (VET-29).
-const stripPortal = (row: any) => { if (!row) return row; const { portalToken, portalTokenExp, ...rest } = row; return rest }
+// The portal token is a bearer credential — never in an API response or a socket broadcast (VET-29) —
+// and neither are the Stripe ids services/stripe.ts keeps in customFields (T69). One shared helper strips
+// both; this file used to carry its own copy, which knew only the first.
+const stripPortal = withoutPortalCredential
 
 // Free-text fields are stored with markup stripped (QA F-09): a customer named `<script>`
 // was persisted verbatim. React escapes it in the SPA, but receipts, labels, emails and CSV
@@ -127,7 +129,7 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
     db.select({ value: count() }).from(contact).where(where),
   ])
 
-  const safeData = data.map(({ portalToken, portalTokenExp, ...rest }) => rest) // strip portal token (VET-29)
+  const safeData = data.map(stripPortal) // strip portal token (VET-29) and the payment ids (T69)
 
   // …and the regulated identity fields, for a caller who is not allowed to work with them. (T41)
   if (!(await canSeeCustomerIdentity(currentUser))) redactCustomerIdentityAll(safeData as any[])
@@ -218,7 +220,7 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
     db.select().from(loyaltyMember).where(and(eq(loyaltyMember.contactId, id), eq(loyaltyMember.companyId, currentUser.companyId))).limit(1),
   ])
 
-  const { portalToken, portalTokenExp, ...safeContact } = foundContact // (VET-29)
+  const safeContact: any = stripPortal(foundContact) // (VET-29; payment ids T69)
   // Same redaction as the list. The detail is the easier one to forget and the richer one to leak.
   if (!(await canSeeCustomerIdentity(currentUser))) redactCustomerIdentity(safeContact)
 
