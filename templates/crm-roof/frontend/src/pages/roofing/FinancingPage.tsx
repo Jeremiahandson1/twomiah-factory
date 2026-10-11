@@ -64,7 +64,7 @@ export default function FinancingPage() {
                   <td className="px-4 py-3 text-sm font-semibold">{LENDER_LABELS[a.lender] || a.lender}</td>
                   <td className="px-4 py-3 font-mono text-sm">${Number(a.amountRequested).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   <td className="px-4 py-3 font-mono text-sm">{a.amountApproved ? `$${Number(a.amountApproved).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</td>
-                  <td className="px-4 py-3 font-mono text-sm">{a.monthlyPayment ? `$${Number(a.monthlyPayment).toFixed(0)}` : '—'}</td>
+                  <td className="px-4 py-3 font-mono text-sm">{a.monthlyPayment ? `$${Number(a.monthlyPayment).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[a.status]}`}>{a.status}</span></td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">

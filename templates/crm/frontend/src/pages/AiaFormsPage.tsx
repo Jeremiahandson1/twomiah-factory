@@ -119,7 +119,7 @@ export default function AiaFormsPage() {
                           <td className="p-1"><input type="number" step="0.01" value={li.workPreviouslyCompleted} onChange={(e) => updateLine(i, 'workPreviouslyCompleted', e.target.value)} className="w-24 border rounded px-1 py-0.5" /></td>
                           <td className="p-1"><input type="number" step="0.01" value={li.workThisPeriod} onChange={(e) => updateLine(i, 'workThisPeriod', e.target.value)} className="w-24 border rounded px-1 py-0.5" /></td>
                           <td className="p-1"><input type="number" step="0.01" value={li.materialsStored} onChange={(e) => updateLine(i, 'materialsStored', e.target.value)} className="w-24 border rounded px-1 py-0.5" /></td>
-                          <td className="p-1 text-right font-mono">${Number(li.totalCompletedAndStored).toFixed(0)}</td>
+                          <td className="p-1 text-right font-mono">${Number(li.totalCompletedAndStored).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                           <td className="p-1 text-right">{Number(li.percentComplete).toFixed(0)}%</td>
                         </tr>
                       ))}
