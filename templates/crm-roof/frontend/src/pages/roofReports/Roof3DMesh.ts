@@ -13,7 +13,7 @@ interface SegmentData {
   pitchDegrees: number
   azimuthDegrees: number
   area: number
-  polygon: Array<{ lat: number; lng: number }>
+  polygon?: Array<{ lat: number; lng: number }> // a face without one is skipped below (fewer than 3 points)
 }
 
 interface DsmGrid {

@@ -264,6 +264,19 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'portal:share',
     // The business's takings as one figure. (T62; note on admin)
     'revenue:read',
+    /**
+     * Voiding an invoice is its own verb. (Owner's decision, 2026-10-10: managers and up.)
+     *
+     *   "Vet: staff can now void an unpaid invoice. The Void button is back on the invoice page and the
+     *    void went through when tested. Is that intended?"
+     *
+     * It was not. Void asked invoices:update, and the vet grants its staff invoices:update so they can
+     * bill a visit — so the person at the desk could also cancel what a client owes. Editing a bill and
+     * writing it off are different decisions, split the way bills:pay and orders:refund already are.
+     * Admin holds it through invoices:*, owner through '*'; manager is granted it here, so every
+     * vertical voids exactly as before except the vet's staff, the only lower seat with invoices:update.
+     */
+    'invoices:void',
     // The shop's manager runs it: refunds and cancellations, discount codes, the carrier account,
     // deleting from the catalogue and moderating reviews. Not payments, settings or logins — the same
     // line payments:* and settings:* already draw. (crm-store; note on admin)

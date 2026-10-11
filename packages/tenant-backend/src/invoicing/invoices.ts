@@ -920,14 +920,16 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
   // An issued invoice is never deleted: voiding keeps the number and the audit trail and takes it out
   // of outstanding balances. Money that was collected and not refunded blocks a void. Row-locked so a
   // payment landing at the same instant cannot leave a void invoice holding money.
-  app.post('/:id/void', requirePermission('invoices:update'), async (c) => {
+  // invoices:void, not invoices:update: writing off what a client owes is not editing their bill (owner, 2026-10-10;
+  // the note is in auth/permissions.ts).
+  app.post('/:id/void', requirePermission('invoices:void'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
     const body = (await c.req.json().catch(() => null)) ?? ({} as any)
     /**
      * "Refund them first" — said to a manager who cannot refund. (Vet T42, still open in T60)
      *
-     * Void asks invoices:update, which a manager holds; refund asks payments:delete, which a manager
+     * Void asks invoices:void, which a manager holds; refund asks payments:delete, which a manager
      * does not. So the one person most likely to hit this refusal was told to do the thing they are
      * not allowed to do. The next step now depends on who is asking. Asked BEFORE the transaction:
      * the permission lookup reads `db`, and a helper querying the outer db inside db.transaction

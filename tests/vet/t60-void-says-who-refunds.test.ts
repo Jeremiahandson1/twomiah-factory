@@ -1,6 +1,6 @@
 // T60 (open since T42) — "Vet: 'Refund them first' is shown to a manager who isn't allowed to refund."
 //
-// Void asks invoices:update, which a manager holds. Refund asks payments:delete, which a manager does
+// Void asks invoices:void, which a manager holds. Refund asks payments:delete, which a manager does
 // not. So voiding an invoice that still holds money told the one role most likely to try it to do the
 // thing it may not do. The refusal now names the next step for the person asking — through the same
 // canSee the company routes use, so an owner's per-user grant counts too.

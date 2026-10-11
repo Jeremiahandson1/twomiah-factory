@@ -17,7 +17,7 @@ const BENEFITS = [
 ];
 
 export default function VisualizerTrialPage() {
-  const { company } = useAuth();
+  const { company, user } = useAuth();
   const [starting, setStarting] = useState(false);
   const [started, setStarted] = useState(false);
   const [error, setError] = useState('');
@@ -53,7 +53,7 @@ export default function VisualizerTrialPage() {
           Our team will activate your 30-day free trial within 24 hours.
         </p>
         <p className="text-gray-500 dark:text-slate-400 text-sm">
-          You'll receive an email at <strong>{company?.email}</strong> when it's ready.
+          You'll receive an email at <strong>{user?.email}</strong> when it's ready.
         </p>
       </div>
     );

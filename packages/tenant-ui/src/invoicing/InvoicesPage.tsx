@@ -28,6 +28,8 @@ const balanceOf = (r: Row) => {
 export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProps) {
   const mayCreate = useMayWrite('invoices:create')
   const mayUpdate = useMayWrite('invoices:update')
+  // POST /:id/void asks invoices:void, not invoices:update (owner, 2026-10-10 — see InvoiceDetailPage mayVoid).
+  const mayVoid = useMayWrite('invoices:void')
   const mayDelete = useMayWrite('invoices:delete')
   /**
    * Each one is the permission the ROUTE behind it asks for, read off invoices.ts — not a plausible
@@ -205,7 +207,7 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
         { label: 'Send', icon: Send, onClick: handleSend, show: r => mayUpdate && !['void', 'refunded'].includes(r.status) },
         { label: 'Record Payment', icon: DollarSign, onClick: openPayment, show: r => mayTakeMoney && !['void', 'refunded'].includes(r.status) && balanceOf(r) > 0.005 },
         { label: 'Refund', icon: RotateCcw, onClick: openRefund, show: r => mayRefund && r.status !== 'void' && netPaid(r) > 0.005 },
-        { label: 'Void', icon: Ban, onClick: r => setVoidTarget(r), show: r => mayUpdate && r.status !== 'void' && netPaid(r) <= 0.005 },
+        { label: 'Void', icon: Ban, onClick: r => setVoidTarget(r), show: r => mayVoid && r.status !== 'void' && netPaid(r) <= 0.005 },
         { label: 'Delete', icon: Trash2, onClick: r => setDeleteTarget(r), className: 'text-red-600', show: r => mayDelete && Number(r.amountPaid || 0) <= 0 && r.status !== 'paid' },
       ]} />
 

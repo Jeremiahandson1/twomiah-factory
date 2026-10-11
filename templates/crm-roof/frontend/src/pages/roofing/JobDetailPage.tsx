@@ -60,6 +60,11 @@ export default function JobDetailPage() {
   const mayWorkJob = useMayWrite('jobs:update');
   // Asked only of a seat the server answers — staff were refused these in the background on every load. (T64)
   const maySeeRoster = useKnownPermission('team:read'); // null until known — waits for a real yes (T64)
+  // The claim's money (deductible, RCV, ACV, approved scope) and the job's quotes and invoices are invoices:read on
+  // the server (routes/jobs.ts JOB_REVENUE, maySeeJobMoney), which a crew seat does not hold. The page printed "—"
+  // and "No quotes" / "No invoices" for what was withheld, which reads as "never entered". Left out instead, the
+  // way Approved Scope already was. Shown while the answer is unknown, so an owner never sees them flicker away.
+  const maySeeJobMoney = useKnownPermission('invoices:read') !== false;
   // Ordering a measurement is a different module with its own route and its own verb.
   const mayOrderMeasurement = useMayWrite('measurements:create');
   const { id } = useParams<{ id: string }>();
@@ -512,6 +517,7 @@ export default function JobDetailPage() {
                       {job.dateOfLoss ? formatDate(job.dateOfLoss) : '—'}
                     </p>
                   </div>
+                  {maySeeJobMoney && (<>
                   <div>
                     <p className="text-gray-500 dark:text-slate-400">Deductible</p>
                     <p className="font-medium text-gray-900 dark:text-slate-100">
@@ -530,6 +536,7 @@ export default function JobDetailPage() {
                       {job.acv != null ? `$${Number(job.acv).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
                     </p>
                   </div>
+                  </>)}
                 </div>
                 {job.approvedScope !== undefined && (
                   <div className="mt-4">
@@ -863,7 +870,8 @@ export default function JobDetailPage() {
               </div>
             </div>
 
-            {/* Quotes */}
+            {/* Quotes — withheld from a seat without invoices:read (see maySeeJobMoney) */}
+            {maySeeJobMoney && (
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
               <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                 <FileText className="w-4 h-4 text-gray-400" /> Quotes
@@ -897,8 +905,10 @@ export default function JobDetailPage() {
                 </div>
               )}
             </div>
+            )}
 
-            {/* Invoice */}
+            {/* Invoice — withheld from a seat without invoices:read (see maySeeJobMoney) */}
+            {maySeeJobMoney && (
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
               <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                 <Receipt className="w-4 h-4 text-gray-400" /> Invoice
@@ -935,6 +945,7 @@ export default function JobDetailPage() {
                 </div>
               )}
             </div>
+            )}
           </div>
         </div>
       </div>

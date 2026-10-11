@@ -18,12 +18,14 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
    *   "Viewer shown many write controls including Record Payment, Void, Send…"     — Field service
    *   "…viewer Send and Record Payment."                                           — Events
    *
-   * All four write routes behind them — POST /:id/send, /:id/payments, /:id/void and PUT /:id —
-   * ask `invoices:update`. Owner, admin and manager hold it; `viewer` holds `invoices:read`, which
+   * Three of the write routes behind them — POST /:id/send, /:id/payments and PUT /:id — ask
+   * `invoices:update`; POST /:id/void asks `invoices:void` (owner, 2026-10-10 — see mayVoid). Owner, admin and manager hold it; `viewer` holds `invoices:read`, which
    * is the seat that was being offered all of them, and `field` holds neither on most verticals.
    * The invoice, its lines, its balance and its PDF stay available to anyone who may read it.
    */
   const mayBill = useMayWrite('invoices:update')
+  // Writing a bill off is not editing it: the vet's staff bill visits (invoices:update) and do not void them.
+  const mayVoid = useMayWrite('invoices:void')
   const mayRefund = useMayWrite('payments:delete')
   const maySyncQuickBooks = useMayWrite('settings:update')
   const mayDeleteInvoice = useMayWrite('invoices:delete')
@@ -129,7 +131,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
             */}
           {!closed && balance > 0.005 && mayRefund && <Button variant="secondary" onClick={() => { setCreditForm({ amount: '', reason: '' }); setCreditOpen(true) }}><Tag className="w-4 h-4" /> Apply credit</Button>}
           {invoice.status !== 'void' && netPaid > 0.005 && mayRefund && <Button variant="warn" onClick={() => { setRefund({ amount: netPaid.toFixed(2), method: '', reference: '', notes: '' }); setRefundOpen(true) }}><RotateCcw className="w-4 h-4" /> Refund</Button>}
-          {invoice.status !== 'void' && netPaid <= 0.005 && mayBill && <Button variant="secondary" onClick={() => setVoidOpen(true)}><Ban className="w-4 h-4" /> Void</Button>}
+          {invoice.status !== 'void' && netPaid <= 0.005 && mayVoid && <Button variant="secondary" onClick={() => setVoidOpen(true)}><Ban className="w-4 h-4" /> Void</Button>}
           <Button variant="secondary" onClick={handlePdf}><Download className="w-4 h-4" /> PDF</Button>
           {cfg.quickbooks && (cfg.hasFeature ? cfg.hasFeature('quickbooks') : true) && maySyncQuickBooks && <Button variant="secondary" onClick={handleQuickBooks} disabled={busy}><RefreshCw className="w-4 h-4" /> {invoice.syncedAt ? 'Re-sync QuickBooks' : 'Sync to QuickBooks'}</Button>}
           {!closed && mayBill && <NavLink to={`/crm/invoices?edit=${id}`} className="px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"><Edit className="w-4 h-4" /> Edit</NavLink>}

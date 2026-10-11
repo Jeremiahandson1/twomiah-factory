@@ -10,7 +10,7 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 // Generous enough to survive a Render cold start, short enough to not hang.
 const DEFAULT_TIMEOUT_MS = 45000;
 function makeTransientError(message) {
-  const err = new Error(message);
+  const err: Error & { status?: number; isTransient?: boolean } = new Error(message);
   err.status = 0;
   err.isTransient = true;
   return err;
@@ -29,6 +29,10 @@ async function fetchWithTimeout(url, init, timeoutMs = DEFAULT_TIMEOUT_MS) {
 }
 
 class ApiClient {
+  // Declared for the type checker only; both were always assigned at runtime (constructor / refreshAccessToken).
+  baseUrl: string;
+  refreshPromise: Promise<'ok' | 'revoked' | 'retry'> | null;
+
   constructor() {
     this.baseUrl = API_URL;
   }
@@ -52,7 +56,7 @@ class ApiClient {
     dropTokens();
   }
 
-  async request(endpoint, options = {}) {
+  async request(endpoint, options: RequestInit & { headers?: Record<string, string> } = {}) {
     const url = `${this.baseUrl}${endpoint}`;
     const headers = {
       ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
@@ -95,7 +99,7 @@ class ApiClient {
     const data = await response.json().catch(() => null);
     
     if (!response.ok) {
-      const error = new Error(data?.error || 'Request failed');
+      const error: Error & { status?: number; data?: unknown } = new Error(data?.error || 'Request failed');
       error.status = response.status;
       error.data = data;
       throw error;

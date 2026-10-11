@@ -77,6 +77,9 @@ export default function JobsPage() {
   // The rep list is GET /api/users — users:read or team:read. Crew hold neither, so for them it was a refused request and
   // an empty "All Reps" picker. Asked only of a seat it answers; the picker only when it has names. (T63)
   const maySeeRoster = useKnownPermission('team:read'); // null until known — waits for a real yes (T64)
+  // Revenue is invoices:read on the server (routes/jobs.ts JOB_REVENUE); a crew seat got a column of "—" that read as
+  // "never priced". The column goes for a seat that is refused it; it stays while the answer is unknown.
+  const maySeeMoney = useKnownPermission('invoices:read') !== false;
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
@@ -242,15 +245,15 @@ export default function JobsPage() {
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Status</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Crew</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Squares</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Revenue</th>
+                  {maySeeMoney && <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Revenue</th>}
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Created</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={9} className="text-center py-12 text-gray-500 dark:text-slate-400">Loading...</td></tr>
+                  <tr><td colSpan={maySeeMoney ? 9 : 8} className="text-center py-12 text-gray-500 dark:text-slate-400">Loading...</td></tr>
                 ) : jobs.length === 0 ? (
-                  <tr><td colSpan={9} className="text-center py-12 text-gray-500 dark:text-slate-400">No jobs found</td></tr>
+                  <tr><td colSpan={maySeeMoney ? 9 : 8} className="text-center py-12 text-gray-500 dark:text-slate-400">No jobs found</td></tr>
                 ) : jobs.map((job) => (
                   <tr
                     key={job.id}
@@ -274,11 +277,13 @@ export default function JobsPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{crewMap[job.assignedCrewId] || '—'}</td>
                     <td className="px-4 py-3 text-right text-gray-600 dark:text-slate-400">{job.totalSquares || '—'}</td>
+                    {maySeeMoney && (
                     <td className="px-4 py-3 text-right text-gray-900 font-medium dark:text-slate-100">
                       {job.finalRevenue != null || job.estimatedRevenue != null || job.rcv != null
                         ? `$${Number(job.finalRevenue ?? job.estimatedRevenue ?? job.rcv ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
                         : '—'}
                     </td>
+                    )}
                     <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">
                       {job.createdAt ? formatDate(job.createdAt) : '—'}
                     </td>
