@@ -30,6 +30,17 @@ export default function DashboardPage() {
 
   if (loading) return <PageSpinner />
 
+  // Which tiles show depends on the seat (revenue:read) and the data (a refund, an order at the supplier): two to five.
+  // The columns follow the count, so a row never leaves one tile on its own. (Store QA T2, N1)
+  const tiles = [
+    stats.revenueCents !== null && <StatCard key="revenue" icon={DollarSign} label="Revenue" value={money(stats.revenueCents)} />,
+    // Revenue counts a refunded sale (the sale happened); what went back is shown beside it. (Store QA T1, L3)
+    stats.refundedCents !== null && stats.refundedCount > 0 && <StatCard key="refunded" icon={RotateCcw} label={`Refunded (${stats.refundedCount} order${stats.refundedCount === 1 ? '' : 's'})`} value={money(stats.refundedCents)} />,
+    <StatCard key="orders" icon={ShoppingBag} label="Orders" value={String(stats.paidCount)} />,
+    <StatCard key="fulfill" icon={Package} label="To fulfill" value={String(stats.pendingFulfillment)} highlight={stats.pendingFulfillment > 0} />,
+    stats.atSupplier > 0 && <StatCard key="supplier" icon={Truck} label="At supplier" value={String(stats.atSupplier)} />,
+  ].filter(Boolean)
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Dashboard</h1>
@@ -46,13 +57,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {stats.revenueCents !== null && <StatCard icon={DollarSign} label="Revenue" value={money(stats.revenueCents)} />}
-        {/* Revenue counts a refunded sale (the sale happened); what went back is shown beside it. (Store QA T1, L3) */}
-        {stats.refundedCents !== null && stats.refundedCount > 0 && <StatCard icon={RotateCcw} label={`Refunded (${stats.refundedCount} order${stats.refundedCount === 1 ? '' : 's'})`} value={money(stats.refundedCents)} />}
-        <StatCard icon={ShoppingBag} label="Orders" value={String(stats.paidCount)} />
-        <StatCard icon={Package} label="To fulfill" value={String(stats.pendingFulfillment)} highlight={stats.pendingFulfillment > 0} />
-        {stats.atSupplier > 0 && <StatCard icon={Truck} label="At supplier" value={String(stats.atSupplier)} />}
+      <div className={`grid grid-cols-1 ${TILE_COLUMNS[tiles.length] || TILE_COLUMNS[5]} gap-4`}>
+        {tiles}
       </div>
 
       <div className="card">
@@ -81,6 +87,16 @@ export default function DashboardPage() {
       </div>
     </div>
   )
+}
+
+// Tile count → columns, as whole class names (Tailwind only builds the classes it can read). Four sit 2 × 2 until the
+// main column, beside the 16rem sidebar, is wide enough for four in a row (xl); five sit 3 + 2 until five fit.
+const TILE_COLUMNS: Record<number, string> = {
+  1: 'sm:grid-cols-1',
+  2: 'sm:grid-cols-2',
+  3: 'sm:grid-cols-3',
+  4: 'sm:grid-cols-2 xl:grid-cols-4',
+  5: 'sm:grid-cols-3 xl:grid-cols-5',
 }
 
 function StatCard({ icon: Icon, label, value, highlight }: { icon: any; label: string; value: string; highlight?: boolean }) {

@@ -181,5 +181,22 @@ for (const [from, to] of [['cancelled', 'paid'], ['cancelled', 'shipped'], ['ref
   check('L1: the service CRMs keep "Free service" as their default', loyaltyConfig({}).punchCard.rewardName === 'Free service')
 }
 
+// ── T2 N1: the dashboard tiles never leave one on its own row ──────────────────────────────────────
+// Two to five tiles show (revenue:read, a refund, an order at the supplier). For every count, at every breakpoint the
+// grid names, the last row holds more than one tile — or the grid is one column wide. Read from the page's own table.
+{
+  const page = (await import('node:fs')).readFileSync(ROOT + 'templates/crm-store/frontend/src/pages/DashboardPage.tsx', 'utf8').replace(/\r\n/g, '\n')
+  const table = page.match(/const TILE_COLUMNS: Record<number, string> = \{([\s\S]*?)\n\}/)?.[1] || ''
+  const cols = new Map([...table.matchAll(/(\d): '([^']*)'/g)].map((m) => [Number(m[1]), m[2]]))
+  check('N1: the grid takes its columns from the tile table', /className=\{`grid grid-cols-1 \$\{TILE_COLUMNS\[tiles\.length\] \|\| TILE_COLUMNS\[5\]\} gap-4`\}/.test(page) && cols.size === 5, [...cols])
+  for (const n of [2, 3, 4, 5]) {
+    const perBreakpoint = [...(cols.get(n) || '').matchAll(/(?:^|\s)(\w+):grid-cols-(\d)/g)].map((m) => [m[1], Number(m[2])] as const)
+    const lone = perBreakpoint.filter(([, c]) => c > 1 && n % c === 1)
+    check(`N1: ${n} tiles — no breakpoint leaves one tile alone on the last row (${cols.get(n)})`, perBreakpoint.length > 0 && lone.length === 0, lone)
+  }
+  const tiles = page.match(/const tiles = \[([\s\S]*?)\]\.filter\(Boolean\)/)?.[1] || ''
+  check('N1: the five tiles are the table\'s five — every one in the list the grid counts', (tiles.match(/<StatCard key="/g) || []).length === 5 && !/<StatCard/.test(page.slice(page.indexOf('{tiles}'), page.indexOf('function StatCard('))), tiles.slice(0, 200))
+}
+
 console.log(`\nstore QA T1: ${passed} passed, ${failed} failed`)
 if (failed) process.exit(1)
