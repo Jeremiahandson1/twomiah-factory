@@ -30,6 +30,15 @@ const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, 
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 
+// theme.ts imports useIsDark (shell/hooks.ts → react) for its own hook. This guard reads only the
+// palettes and contrastRatio, and CI installs no react for packages/tenant-ui, so the import died
+// resolving 'react' before a single colour was checked. Stand in the two names hooks.ts takes.
+Bun.plugin({
+  name: 'react-not-needed-for-palette',
+  setup(build) {
+    build.module('react', () => ({ exports: { useState: () => [undefined, () => {}], useEffect: () => {} }, loader: 'object' }))
+  },
+})
 const { LIGHT, DARK, contrastRatio } = await import(`${ROOT}packages/tenant-ui/src/leads/theme.ts`)
 
 const AA = 4.5
