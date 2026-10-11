@@ -284,8 +284,11 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       const websiteFeatures = config.features?.website?.length ? config.features.website : ALL_WEBSITE_FEATURES
       stripWebsiteFeatures(path.join(workDir, 'website'), websiteFeatures)
       await writeBrandingAssets(path.join(workDir, 'website'), config.branding, config.company?.name)
+      // Read before injectWizardContent: seeding a template's sample services fills content.services.
+      const ownerServices = !!(config.content?.services?.length || config.content?.customServices?.length || config.content?.aiGenerated?.services?.length)
       injectWizardContent(path.join(workDir, 'website'), config)
       syncNavToServices(path.join(workDir, 'website'))
+      fillMetaDescription(path.join(workDir, 'website'), config, ownerServices)
       fillWebsiteImages(path.join(workDir, 'website'), config)
       seedHelpArticles(path.join(workDir, 'website'))
       processEnvTemplate(path.join(workDir, 'website'), tokens)
@@ -1478,6 +1481,50 @@ function injectWizardContent(websiteDir: string, config: GenerateConfig) {
 // template entry (and each dropdown link) only when it points at a service the site has, add any
 // service the menu does not reach, and fold the overflow under "More Services". Items that are
 // not service pages (/gallery, /blog, /inventory, /#about…) are left exactly as they were.
+// The homepage meta description an industry default leaves is one short line ("Professional
+// services in Eau Claire."), well under what search results show. Lengthen it from what the owner
+// gave: their own description, then the services the site has. An AI-written description is left
+// alone, and nothing is added that would push it past 160 characters.
+function fillMetaDescription(websiteDir: string, config: GenerateConfig, ownerServices: boolean) {
+  if (config.content?.aiGenerated?.settings?.defaultMetaDescription) return
+  const settingsFile = path.join(websiteDir, 'data', 'settings.json')
+  if (!fs.existsSync(settingsFile)) return
+  try {
+    const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'))
+    const sentence = (s: any) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t && !/[.!?]$/.test(t) ? t + '.' : t }
+    let desc = sentence(settings.defaultMetaDescription)
+    if (desc.length >= 120) return
+    // The catch-all default names no trade; say the one the owner signed up under. (Changed here,
+    // not in {{META_DESCRIPTION}}, which the CRMs' index.html also uses.)
+    const c = config.company || ({} as GenerateConfig['company'])
+    const industry = c.industry || ''
+    const label = industry === 'rv' ? 'RV & Powersports Dealership' : INDUSTRY_LABELS[industry]
+    if (label && c.name && desc === 'Professional services in ' + (c.city || 'your area') + '.') {
+      desc = c.name + ' — ' + label + ' in ' + [c.city, c.state].filter(Boolean).join(', ') + '.'
+      if (!c.city) desc = c.name + ' — ' + label + '.'
+    }
+    const add = (part: string) => { if (part && !desc.toLowerCase().includes(part.toLowerCase()) && (desc ? desc.length + 1 : 0) + part.length <= 160) desc = desc ? desc + ' ' + part : part }
+    add(sentence(c.description))
+    // Only services the owner chose (or the AI wrote for them) — not a template's sample list.
+    const servicesFile = path.join(websiteDir, 'data', 'services.json')
+    const services: any[] = ownerServices && fs.existsSync(servicesFile) ? JSON.parse(fs.readFileSync(servicesFile, 'utf8')) : []
+    const names = (Array.isArray(services) ? services : [])
+      .filter((s: any) => s && s.visible !== false)
+      .map((s: any) => String(s.name || s.title || '').trim()).filter(Boolean)
+    for (let n = Math.min(4, names.length); n > 0 && desc.length < 120; n--) {
+      const before = desc
+      add('Services: ' + names.slice(0, n).join(', ') + '.')
+      if (desc !== before) break
+    }
+    if (desc && desc !== settings.defaultMetaDescription) {
+      settings.defaultMetaDescription = desc
+      fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2))
+    }
+  } catch (e: any) {
+    console.warn('[Factory] fillMetaDescription failed:', e.message)
+  }
+}
+
 function syncNavToServices(websiteDir: string) {
   const navFile = path.join(websiteDir, 'data', 'nav-config.json')
   const servicesFile = path.join(websiteDir, 'data', 'services.json')

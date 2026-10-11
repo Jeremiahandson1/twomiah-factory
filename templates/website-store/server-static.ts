@@ -450,8 +450,8 @@ app.get('/', async (c) => {
   const products = (featured.length ? featured : allProducts).slice(0, 8)
   return renderPage(c, 'home', {
     homepage, services, testimonials, products,
-    title: settings.seoTitle || settings.companyName || '{{COMPANY_NAME}}',
-    description: settings.seoDescription || 'Shop {{COMPANY_NAME}}',
+    title: settings.seoTitle || settings.defaultMetaTitle || settings.companyName || '{{COMPANY_NAME}}',
+    description: settings.seoDescription || settings.defaultMetaDescription || 'Shop {{COMPANY_NAME}} online.',
     canonicalUrl: BASE_URL + '/',
   })
 })
@@ -475,7 +475,7 @@ app.get('/terms', (c) => renderPage(c, 'terms', {
 app.get('/about', (c) => {
   return renderPage(c, 'about', {
     title: 'About Us | {{COMPANY_NAME}}',
-    description: 'Learn about {{COMPANY_NAME}} in {{CITY}}, {{STATE}}.',
+    description: 'Learn about {{COMPANY_NAME}} in {{CITY}}, {{STATE}}: who we are, what we sell and how to reach us.',
     canonicalUrl: BASE_URL + '/about',
   })
 })
@@ -485,7 +485,7 @@ app.get('/contact', (c) => {
   return renderPage(c, 'contact', {
     services, selectedService: c.req.query('service') || '',
     title: 'Contact Us | {{COMPANY_NAME}}',
-    description: 'Get in touch with {{COMPANY_NAME}}.',
+    description: 'Contact {{COMPANY_NAME}} in {{CITY}}, {{STATE}} with questions about products or an order. Send a message and we will get back to you.',
     canonicalUrl: BASE_URL + '/contact',
   })
 })
@@ -495,7 +495,7 @@ app.get('/gallery', (c) => {
   return renderPage(c, 'gallery', {
     gallery,
     title: 'Gallery | {{COMPANY_NAME}}',
-    description: 'Photos from {{COMPANY_NAME}}.',
+    description: 'Photos from {{COMPANY_NAME}} in {{CITY}}, {{STATE}}. Browse our products and shop.',
     canonicalUrl: BASE_URL + '/gallery',
   })
 })
@@ -524,7 +524,7 @@ app.get('/blog', (c) => {
   return renderPage(c, 'blog', {
     posts,
     title: 'Blog | {{COMPANY_NAME}}',
-    description: 'News, tips, and updates.',
+    description: 'News, tips and updates from {{COMPANY_NAME}} in {{CITY}}, {{STATE}}.',
     canonicalUrl: BASE_URL + '/blog',
   })
 })
