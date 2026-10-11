@@ -1241,6 +1241,15 @@ function seedServicesIfEmpty(websiteDir: string, wizardContent: any) {
 function fillWebsiteImages(websiteDir: string, config: GenerateConfig) {
   const dataDir = path.join(websiteDir, 'data')
   const industry = config.company?.industry || ''
+  // Start each business at its own place in the industry's photo set (stable per business name),
+  // so two roofers don't open with the identical hero. Service and gallery photos follow on from
+  // it. Keyed on the name, not tenant_slug: the slug may only move Render hosts.
+  let offset = 0
+  for (const ch of slugify(config.company?.name || '')) offset = (offset * 31 + ch.charCodeAt(0)) >>> 0
+  const pick = (i: number) => getServiceImage(industry, offset + i)
+  // The owner's own hero photo (writeBrandingAssets) always wins over stock.
+  const imagesDir = path.join(websiteDir, 'build', 'images')
+  const ownHero = fs.existsSync(imagesDir) ? fs.readdirSync(imagesDir).find((f) => /^hero-own\.[a-z]+$/.test(f)) : undefined
 
   // Copy the self-hosted service-image library into this site so images are served
   // from the tenant's OWN domain (no external Unsplash/CDN dependency — the customer
@@ -1263,7 +1272,7 @@ function fillWebsiteImages(websiteDir: string, config: GenerateConfig) {
   try {
     const heroJpgPath = path.join(websiteDir, 'build', 'images', 'hero.jpg')
     if (fs.existsSync(heroJpgPath)) {
-      const libUrl = getServiceImage(industry, 0)
+      const libUrl = pick(0)
       if (libUrl) {
         const srcPhoto = path.join(TEMPLATES_ROOT, '_shared', 'service-images', path.basename(libUrl))
         if (fs.existsSync(srcPhoto)) fs.copyFileSync(srcPhoto, heroJpgPath)
@@ -1278,13 +1287,17 @@ function fillWebsiteImages(websiteDir: string, config: GenerateConfig) {
   if (fs.existsSync(homepageFile)) {
     try {
       const hp = JSON.parse(fs.readFileSync(homepageFile, 'utf8'))
-      if (hp.hero && !hp.hero.image) {
+      if (ownHero && hp.hero?.image !== '/images/' + ownHero) {
+        // AI homepage content merged after the upload can replace the hero; put the owner's back.
+        hp.hero = { ...(hp.hero || {}), image: '/images/' + ownHero }
+        fs.writeFileSync(homepageFile, JSON.stringify(hp, null, 2))
+      } else if (hp.hero && !hp.hero.image) {
         // The hero.jpg the templates ship is a PLACEHOLDER gradient with baked-in
         // sample text ("Quality Craftsmanship" / "Compassionate Home Care" /
         // "Replace with your photo via Admin") — it must never reach a live site.
         // Prefer a real industry photo from the in-house library (copied in
         // above); hero.jpg is only the last resort when the library has nothing.
-        hp.hero.image = getServiceImage(industry, 0) || '/images/hero.jpg'
+        hp.hero.image = pick(0) || '/images/hero.jpg'
         fs.writeFileSync(homepageFile, JSON.stringify(hp, null, 2))
       }
     } catch { /* leave homepage as-is on parse error */ }
@@ -1300,7 +1313,7 @@ function fillWebsiteImages(websiteDir: string, config: GenerateConfig) {
         gallery.forEach((p: any, i: number) => {
           const hasImg = p.featured_image || (Array.isArray(p.images) && p.images.length > 0)
           if (!hasImg) {
-            const url = getServiceImage(industry, i)
+            const url = pick(1 + i)
             if (url) { p.featured_image = url; p.images = [{ url, thumbnail: url }]; changed = true }
           }
         })
@@ -1317,7 +1330,7 @@ function fillWebsiteImages(websiteDir: string, config: GenerateConfig) {
       if (Array.isArray(services)) {
         let changed = false
         services.forEach((s: any, i: number) => {
-          const url = getServiceImage(industry, i)
+          const url = pick(1 + i)
           if (url && !s.image) { s.image = url; changed = true }
           // Service-page hero background — empty heroImage falls back to a flat
           // color block; give it a real photo (with the template's dark overlay).
@@ -1754,15 +1767,28 @@ async function writeBrandingAssets(targetDir: string, branding: GenerateConfig['
   }
 
   if (branding.heroPhoto?.startsWith('data:')) {
+    // Written as hero-own.*, not hero.jpg: fillWebsiteImages overwrites hero.jpg with the stock
+    // industry photo, which used to replace an owner's uploaded JPG with stock. A phone photo is
+    // 3-8 MB; resize it for the hero (LCP) and keep the original only if sharp can't read it.
     const ext = getExtFromDataUrl(branding.heroPhoto) || 'jpg'
-    const heroPath = path.join(imagesDir, 'hero.' + ext)
-    writeDataUrl(branding.heroPhoto, heroPath)
+    const rawPath = path.join(imagesDir, 'hero-own-original.' + ext)
+    writeDataUrl(branding.heroPhoto, rawPath)
+    let heroFile = 'hero-own.' + ext
+    try {
+      const sharp = (await import('sharp')).default
+      await sharp(rawPath).rotate().resize({ width: 1920, withoutEnlargement: true }).jpeg({ quality: 82, mozjpeg: true }).toFile(path.join(imagesDir, 'hero-own.jpg'))
+      heroFile = 'hero-own.jpg'
+      fs.rmSync(rawPath, { force: true })
+    } catch (err: any) {
+      console.warn('[Generator] Hero photo resize skipped:', err?.message)
+      fs.renameSync(rawPath, path.join(imagesDir, heroFile))
+    }
     const homepageFile = path.join(targetDir, 'data', 'homepage.json')
     if (fs.existsSync(homepageFile)) {
       try {
         const hp = JSON.parse(fs.readFileSync(homepageFile, 'utf8'))
         if (!hp.hero) hp.hero = {}
-        hp.hero.image = '/images/hero.' + ext
+        hp.hero.image = '/images/' + heroFile
         fs.writeFileSync(homepageFile, JSON.stringify(hp, null, 2))
       } catch (_e) { /* ignore */ }
     }
