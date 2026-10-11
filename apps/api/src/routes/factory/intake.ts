@@ -199,6 +199,22 @@ function generateDomainVariants(input: string): string[] {
   return Array.from(out).slice(0, 18)
 }
 
+// Images a public signup may send in body.branding, as data URLs (the generator writes them into
+// the site and CRM). Raster only — an SVG served from the tenant's own domain can run script —
+// and size-capped; the signup pages downscale before sending. Anything else is dropped, not
+// rejected, so a bad file never costs the customer their signup.
+const SIGNUP_IMAGE_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/
+function signupImages(b: any): { logo?: string; favicon?: string; heroPhoto?: string } {
+  const ok = (v: any, maxChars: number) => typeof v === 'string' && v.length <= maxChars && SIGNUP_IMAGE_RE.test(v) ? v : undefined
+  if (!b || typeof b !== 'object') return {}
+  const out: { logo?: string; favicon?: string; heroPhoto?: string } = {}
+  const logo = ok(b.logo, 1_500_000), favicon = ok(b.favicon, 300_000), heroPhoto = ok(b.heroPhoto, 4_000_000)
+  if (logo) out.logo = logo
+  if (favicon) out.favicon = favicon
+  if (heroPhoto) out.heroPhoto = heroPhoto
+  return out
+}
+
 factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
   try {
     const parsed = await parseJsonBody(c)
@@ -357,6 +373,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       branding: {
         primaryColor: body.primary_color || '#FF3D00',
         websiteTheme: body.website_theme || undefined,
+        ...signupImages(body.branding),
       },
       features: {
         crm: body.features || [],
