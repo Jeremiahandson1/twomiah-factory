@@ -89,16 +89,18 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
           {cfg.quoteCustomerMessage && quote.customerMessage && <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6"><h2 className="font-semibold mb-2 text-gray-900 dark:text-white">Customer Message</h2><p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-slate-300">{quote.customerMessage}</p></div>}
           {quote.notes && <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6"><h2 className="font-semibold mb-2 text-gray-900 dark:text-white">{cfg.quoteCustomerMessage ? 'Internal Notes' : 'Notes'}</h2><p className="text-sm whitespace-pre-wrap text-gray-700 dark:text-slate-300">{quote.notes}</p></div>}
 
-          {quote.signature && (
+          {/* The image, IP, browser, consent and fingerprint reach only a seat that may update the quote (T68 —
+              invoicing/signingEvidence.ts); everyone who can open it still sees that it was signed, by whom and when. */}
+          {(quote.signature || quote.signedAt) && (
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6">
               <h2 className="font-semibold mb-3 text-gray-900 dark:text-white">Signed Acceptance</h2>
               <div className="border border-green-200 dark:border-green-800 rounded-lg bg-green-50 dark:bg-green-900/20 p-4">
-                <img src={quote.signature} alt="Customer signature" className="max-h-24 bg-white dark:bg-slate-900 rounded" />
-                <div className="mt-3 grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm text-gray-700 dark:text-slate-200">
+                {quote.signature && <img src={quote.signature} alt="Customer signature" className="max-h-24 bg-white dark:bg-slate-900 rounded" />}
+                <div className={`${quote.signature ? 'mt-3 ' : ''}grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm text-gray-700 dark:text-slate-200`}>
                   <div><span className="text-gray-500 dark:text-slate-400">Signed by</span><p className="font-medium">{quote.signedBy || '-'}</p></div>
                   <div><span className="text-gray-500 dark:text-slate-400">Signed at</span><p className="font-medium">{dateTime(quote.signedAt)}</p></div>
-                  <div><span className="text-gray-500 dark:text-slate-400">IP address</span><p className="font-mono text-xs">{quote.signedIp || '-'}</p></div>
-                  <div><span className="text-gray-500 dark:text-slate-400">Consent</span><p className="font-medium">{quote.consentAt ? 'Agreed to sign electronically' : '-'}</p></div>
+                  {quote.signature && <div><span className="text-gray-500 dark:text-slate-400">IP address</span><p className="font-mono text-xs">{quote.signedIp || '-'}</p></div>}
+                  {quote.signature && <div><span className="text-gray-500 dark:text-slate-400">Consent</span><p className="font-medium">{quote.consentAt ? 'Agreed to sign electronically' : '-'}</p></div>}
                 </div>
                 {quote.signatureHash && <p className="mt-3 text-xs text-gray-500 dark:text-slate-400 break-all"><span className="text-gray-500 dark:text-slate-400">Document fingerprint (SHA-256): </span><span className="font-mono">{quote.signatureHash}</span></p>}
                 {quote.signedUserAgent && <p className="mt-1 text-xs text-gray-500 dark:text-slate-400 break-all">{quote.signedUserAgent}</p>}

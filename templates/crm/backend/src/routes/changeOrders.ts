@@ -4,8 +4,8 @@ import { db } from '../../db/index.ts'
 import { changeOrder, changeOrderLineItem, project, user } from '../../db/schema.ts'
 import { eq, and, count, desc, asc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
-import { createActorName } from '../shared/index.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
+import { createActorName, withoutSigningEvidence } from '../shared/index.ts'
 // One numbering rule for every document in the product — locked, and only ever forwards.
 import { nextNumber } from '../shared/invoicing/money.ts'
 // Approving a change order moves the contract value. This module wrote no audit row of any kind. (T58)
@@ -120,6 +120,24 @@ const signatureSummary = (co: any) => {
   return out
 }
 
+/**
+ * …AND THE REST OF THE EVIDENCE IS FOR THE SEAT THAT ADMINISTERS THE AGREEMENT. (T43 viewer round, T68)
+ *
+ *   "Contractor: the viewer gets customers' signing evidence. The change order detail … return[s] the signature
+ *    image, the signer's IP, their browser string and the signature hash; the change order list includes the
+ *    hash. The brief limits that to seats that can update change orders."
+ *
+ * The note above kept the detail read "unchanged and still carrying everything", and the viewer holds
+ * change-orders:read — so it received the customer's handwriting, address and browser. The project view has
+ * drawn this line since T42 (projects.ts, maySignOffChangeOrders); the change-order routes now draw the same
+ * one, with the same list the quote module uses (shared signingEvidence.ts). A reader without
+ * change-orders:update keeps that it was signed, by whom and when.
+ */
+const maySignOff = async (c: any): Promise<boolean> => {
+  const u = c.get('user') as any
+  try { return hasPermission(u?.role, 'change-orders:update', await getExtraPermissions(u?.userId)) } catch { return false }
+}
+
 app.get('/', async (c) => {
   const currentUser = c.get('user') as any
   const status = c.req.query('status')
@@ -157,8 +175,9 @@ app.get('/', async (c) => {
   const lineItemMap: Record<string, (typeof changeOrderLineItem.$inferSelect)[]> = {}
   lineItems.forEach(li => { (lineItemMap[li.changeOrderId] ||= []).push(li) })
 
+  const signsOff = await maySignOff(c)
   const dataWithRelations = data.map(co => ({
-    ...signatureSummary(co),
+    ...(signsOff ? signatureSummary(co) : withoutSigningEvidence(signatureSummary(co))),
     project: projectMap[co.projectId] || null,
     lineItems: lineItemMap[co.id] || [],
   }))
@@ -178,7 +197,8 @@ app.get('/:id', async (c) => {
     db.select().from(changeOrderLineItem).where(eq(changeOrderLineItem.changeOrderId, id)).orderBy(asc(changeOrderLineItem.sortOrder)),
   ])
 
-  return c.json({ ...foundCo, project: coProject[0] || null, lineItems })
+  const shown = (await maySignOff(c)) ? foundCo : withoutSigningEvidence(foundCo)
+  return c.json({ ...shown, project: coProject[0] || null, lineItems })
 })
 
 /**

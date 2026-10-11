@@ -65,6 +65,7 @@ app.route('/api/jobs', createJobRoutes({
 }) as any)
 app.route('/api/quotes', createQuoteRoutes({
   db,
+  canSee: async (role: string, permission: string, userId?: string) => hasPermission(role, permission, await getExtraPermissions(userId)),
   tables: { quote: quoteT, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, equipment, site },
   authenticate,
   requirePermission,

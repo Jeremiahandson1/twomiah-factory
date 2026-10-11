@@ -12,6 +12,7 @@ import { checkFilter } from '../listFilter'
 // on the way out with the same helper the contact routes use — one definition, so a column added to
 // the credential set is removed everywhere at once. (T43)
 import { withoutPortalCredential } from '../contacts/contacts'
+import { withoutSigningEvidence } from './signingEvidence'
 
 
 export interface QuoteTables {
@@ -95,6 +96,13 @@ export interface QuoteDeps {
    */
   audit?: { log: (entry: any) => any; ACTIONS?: Record<string, string>; ENTITIES?: Record<string, string> }
   options?: QuoteOptions
+  /**
+   * May this person do X? The role's list plus the grants the owner made them — the contract the invoice and
+   * inventory modules take. REQUIRED (T68): it decides who reads a line's cost (margin:read) and a customer's
+   * signing evidence (quotes:update), and a quote module without it would hand both to every seat that can
+   * open a quote. createQuoteRoutes refuses to start without it rather than default either way.
+   */
+  canSee: (role: string, permission: string, userId?: string) => Promise<boolean> | boolean
 }
 
 const lineItemSchema = z.object({
@@ -152,6 +160,36 @@ const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLine
 
 export function createQuoteRoutes(deps: QuoteDeps) {
   const { db, tables: t, authenticate, requirePermission, emitToCompany, EVENTS, loadPdf } = deps
+  if (typeof deps.canSee !== 'function') throw new Error('createQuoteRoutes: canSee is required — it decides who reads line cost and signing evidence')
+
+  /**
+   * WHAT A QUOTE TELLS WHOM. (T43 viewer round, T68)
+   *
+   *   "Field service: the viewer can read cost. /api/quotes returns each line's unitCost (e.g. $45.00, $8.75)."
+   *   "Contractor: the viewer gets customers' signing evidence … quote detail … returns the signature image,
+   *    the signer's IP, their browser string and the signature hash."
+   *
+   * A line's unitPrice is what the customer pays; its unitCost is what the business pays — margin:read, the
+   * rule the inventory and pricebook modules already apply. The signature image, IP, browser and fingerprint
+   * are evidence about a person, for the seat that administers the quote (quotes:update) — see
+   * signingEvidence.ts. A LIST never carries the image, IP or browser string, for anyone: that is evidence for
+   * the one document it proves, not fifty rows of it (the change-order list's rule since T41).
+   */
+  const may = async (c: any, permission: string) => {
+    const u = c.get('user') as any
+    try { return !!(await deps.canSee(u?.role, permission, u?.userId)) } catch { return false }
+  }
+  const withoutLineCost = (lines: any[] | undefined) => (lines || []).map(({ unitCost, ...li }: any) => li)
+  /** One quote, shaped for this caller. A list row drops the evidence for everyone except the tamper hash. */
+  const forCaller = (q: any, seesCost: boolean, seesEvidence: boolean, list = false) => {
+    if (!q) return q
+    let out: any = seesEvidence ? { ...q } : withoutSigningEvidence(q)
+    if (list) { delete out.signature; delete out.signedIp; delete out.signedUserAgent }
+    if (!seesCost && Array.isArray(out.lineItems)) out = { ...out, lineItems: withoutLineCost(out.lineItems) }
+    return out
+  }
+  /** What goes to every open screen in the company: no cost, no evidence — whoever is watching. */
+  const forBroadcast = (q: any) => forCaller(q, false, false, true)
 
   /**
    * One audit row per quote event, carrying the quote's NUMBER. (T58k)
@@ -242,7 +280,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     ])
     const contactMap = Object.fromEntries(contacts.map((ct: any) => [ct.id, ct]))
     const lineItemMap: Record<string, any[]> = {}; lineItems.forEach((li: any) => { (lineItemMap[li.quoteId] ||= []).push(li) })
-    const rows = data.map((q: any) => ({ ...q, contact: q.contactId ? contactMap[q.contactId] || null : null, lineItems: lineItemMap[q.id] || [] }))
+    const [seesCost, seesEvidence] = await Promise.all([may(c, 'margin:read'), may(c, 'quotes:update')])
+    const rows = data.map((q: any) => forCaller({ ...q, contact: q.contactId ? contactMap[q.contactId] || null : null, lineItems: lineItemMap[q.id] || [] }, seesCost, seesEvidence, true))
     return c.json({ data: rows, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
   })
 
@@ -279,7 +318,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const out: any = { ...found, contact: withoutPortalCredential(ct[0]) || null, project: pr[0] || null, lineItems }
     if (extra.has('equipmentId')) out.equipment = eq_[0] || null
     if (extra.has('siteId')) out.site = st[0] || null
-    return c.json(out)
+    return c.json(forCaller(out, await may(c, 'margin:read'), await may(c, 'quotes:update')))
   })
 
   // ---------------------------------------------------------------- create
@@ -319,9 +358,9 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       const items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, created.id, !!o.hasLineCost)).returning() : []
       return { ...created, lineItems: items }
     })
-    emitToCompany(cid, EVENTS.QUOTE_CREATED, result)
+    emitToCompany(cid, EVENTS.QUOTE_CREATED, forBroadcast(result))
     logQuote(c, deps.audit?.ACTIONS?.CREATE ?? 'create', result, { total: result.total, lineItems: result.lineItems?.length ?? 0 })
-    return c.json(result, 201)
+    return c.json(forCaller(result, await may(c, 'margin:read'), true), 201)
   })
 
   // ---------------------------------------------------------------- update
@@ -332,6 +371,20 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const data = quoteSchema.partial().parse(await c.req.json()) as any
     const existing = await findOwn(cid, id)
     if (!existing) return c.json({ error: 'Quote not found' }, 404)
+    // A seat that is not shown a line's cost sends its lines back without one, and the lines are replaced
+    // wholesale — so saving would wipe every cost on the quote. Each line keeps the cost of the stored line it
+    // came from (same catalogue item, else same description). Only reachable by a seat granted quotes:update
+    // without margin:read; owner, admin and manager hold both. (T68)
+    const seesCost = await may(c, 'margin:read')
+    if (o.hasLineCost && !seesCost && Array.isArray(data.lineItems)) {
+      const stored = await lineRows(id)
+      const left = [...stored]
+      for (const li of data.lineItems) {
+        const i = left.findIndex((s: any) => (li.pricebookItemId && s.pricebookItemId === li.pricebookItemId) || (!li.pricebookItemId && s.description === li.description))
+        if (i >= 0) { const s = left.splice(i, 1)[0]; li.unitCost = s.unitCost === null || s.unitCost === undefined ? undefined : Number(s.unitCost) }
+        else li.unitCost = undefined
+      }
+    }
     // Once a customer has approved (or declined) a quote it is a record, not a draft. Signed acceptances must not be mutable.
     if (!EDITABLE.includes(existing.status)) return c.json({ error: 'Only draft or sent quotes can be edited' }, 400)
     if (data.contactId && !(await ownContact(cid, data.contactId))) return c.json({ error: 'That client does not exist.' }, 404)
@@ -365,8 +418,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       } else items = await tx.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, id)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
       return { ...updated, lineItems: items }
     })
-    emitToCompany(cid, EVENTS.QUOTE_UPDATED, result)
-    return c.json(result)
+    emitToCompany(cid, EVENTS.QUOTE_UPDATED, forBroadcast(result))
+    return c.json(forCaller(result, seesCost, true))
   })
 
   // ---------------------------------------------------------------- delete

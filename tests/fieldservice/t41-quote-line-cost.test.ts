@@ -27,7 +27,7 @@ import {
   company as companyT, job, equipment, site,
 } from './db/schema.ts'
 import { authenticate } from './src/middleware/auth.ts'
-import { requirePermission } from './src/middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from './src/middleware/permissions.ts'
 
 let failed = 0, passed = 0
 const check = (name: string, ok: boolean, detail?: unknown) => {
@@ -40,6 +40,7 @@ await setupSchema()
 const app = new Hono()
 app.route('/api/quotes', createQuoteRoutes({
   db,
+  canSee: async (role: string, permission: string, userId?: string) => hasPermission(role, permission, await getExtraPermissions(userId)),
   tables: { quote: quoteT, quoteLineItem, contact, project, invoice, invoiceLineItem, company: companyT, job, equipment, site },
   authenticate,
   requirePermission,

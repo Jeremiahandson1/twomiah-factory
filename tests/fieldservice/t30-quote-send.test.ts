@@ -20,7 +20,7 @@ import { errorHandler } from './src/utils/errors.ts'
 import { createQuoteRoutes } from './src/shared/index.ts'
 import { quote as quoteT, quoteLineItem, contact as contactT, project, invoice, invoiceLineItem, company as companyT, job, equipment, site } from './db/schema.ts'
 import { authenticate } from './src/middleware/auth.ts'
-import { requirePermission } from './src/middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from './src/middleware/permissions.ts'
 
 let failed = 0, passed = 0
 const check = (name: string, ok: boolean, detail?: unknown) => { if (ok) { passed++; console.log(`  ok   ${name}`) } else { failed++; console.log(`  FAIL ${name}`, detail === undefined ? '' : JSON.stringify(detail)?.slice(0, 300)) } }
@@ -33,6 +33,7 @@ let failNext = false
 const app = new Hono()
 app.route('/api/quotes', createQuoteRoutes({
   db,
+  canSee: async (role: string, permission: string, userId?: string) => hasPermission(role, permission, await getExtraPermissions(userId)),
   tables: { quote: quoteT, quoteLineItem, contact: contactT, project, invoice, invoiceLineItem, company: companyT, job, equipment, site },
   authenticate,
   requirePermission,

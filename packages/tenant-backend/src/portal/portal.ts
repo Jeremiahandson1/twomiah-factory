@@ -125,6 +125,27 @@ export const PORTAL_INVOICE_HIDDEN = ['draft', 'void']
 const QUOTE_RESPONDABLE = ['sent', 'viewed']
 const MAX_SIGNATURE_BYTES = 500_000
 
+/**
+ * WHAT A CUSTOMER IS SHOWN OF THEIR OWN QUOTE AND PROJECT — named, not "everything but". (T68)
+ *
+ * Found beside the T43 viewer report ("/api/quotes returns each line's unitCost"): the portal's quote read sent
+ * every column of every line, so the CUSTOMER received what each line costs the business. It also sent the quote's
+ * `notes` — the field service screens label that "Internal Notes" — and the project read sent the budget, the
+ * estimated and actual value and the project's notes. The portal screens read none of them.
+ *
+ * An allow-list rather than deleting the known columns, the lesson of T37 N9: a column added later stays out of the
+ * customer's hands until somebody decides it belongs there. Each list is what PortalQuotes / PortalProjects read,
+ * plus the dates and ids the portal already has.
+ */
+const PORTAL_QUOTE_FIELDS = ['id', 'number', 'name', 'status', 'issueDate', 'expiryDate', 'subtotal', 'taxRate', 'taxAmount', 'discount', 'total', 'terms', 'customerMessage', 'sentAt', 'viewedAt', 'approvedAt', 'declinedAt', 'signature', 'signedAt', 'signedBy', 'createdAt', 'updatedAt', 'projectId'] as const
+const PORTAL_QUOTE_LINE_FIELDS = ['id', 'description', 'quantity', 'unitPrice', 'total', 'sortOrder'] as const
+const PORTAL_PROJECT_FIELDS = ['id', 'number', 'name', 'description', 'status', 'type', 'address', 'city', 'state', 'zip', 'startDate', 'endDate', 'progress', 'createdAt', 'updatedAt'] as const
+const pick = (row: Record<string, any>, keys: readonly string[]): Record<string, any> => {
+  const out: Record<string, any> = {}
+  for (const k of keys) if (k in row) out[k] = row[k]
+  return out
+}
+
 export function createPortalRoutes(deps: PortalDeps) {
   const { db, tables: t, authenticate, requirePermission, sendEmail, loadInvoicePdf, loadQuotePdf, selections, fileService, emitToCompany, EVENTS } = deps
   const o = deps.options || {}
@@ -533,7 +554,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       const jobs = t.job
         ? await db.select({ id: t.job.id, number: t.job.number, title: t.job.title, status: t.job.status, scheduledDate: t.job.scheduledDate }).from(t.job).where(eq(t.job.projectId, projectId)).orderBy(desc(t.job.scheduledDate), asc(t.job.id)).limit(10)
         : []
-      return c.json({ ...found, jobs })
+      return c.json({ ...pick(found, PORTAL_PROJECT_FIELDS), jobs })
     })
   }
 
@@ -563,7 +584,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       await db.update(t.quote).set({ status: 'viewed', updatedAt: new Date() }).where(eq(t.quote.id, quoteId))
       found.status = 'viewed'
     }
-    return c.json({ ...found, lineItems, project: projectInfo, company: { name: company.name, email: company.email, phone: company.phone } })
+    return c.json({ ...pick(found, PORTAL_QUOTE_FIELDS), lineItems: lineItems.map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)), project: projectInfo, company: { name: company.name, email: company.email, phone: company.phone } })
   })
 
   // E-signature evidence: WHO signed, WHAT they saw, and that they agreed to sign electronically (ESIGN/UETA).

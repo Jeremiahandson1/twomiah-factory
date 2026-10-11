@@ -4,7 +4,7 @@ import { createQuoteRoutes, companyTimeZone } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, equipment, site } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import { sendSMS } from '../services/sms.ts'
 import emailService from '../services/email.ts'
@@ -13,6 +13,9 @@ import audit from '../services/audit.ts'
 
 export default createQuoteRoutes({
   db,
+  // Who reads a line's cost (margin:read) and a customer's signing evidence (quotes:update) — required. (T68)
+  canSee: async (role: string, permission: string, userId?: string) =>
+    hasPermission(role, permission, await getExtraPermissions(userId)),
   tables: { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, equipment, site },
   authenticate,
   // Quote events are named by their NUMBER rather than left to the request floor, which cannot know it. (T58k)
