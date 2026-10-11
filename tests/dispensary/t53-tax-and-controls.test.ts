@@ -188,7 +188,9 @@ const round2 = (n: number) => Math.round(n * 100) / 100
     // control ungated. Guard #172 was defeated by exactly this earlier today; a check that can be
     // satisfied — or broken — by a comment is not checking the code.
     const src = raw.replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
-    check(`${file}: the page knows who is signed in`, /const \{ isManager \}/.test(src), null)
+    // isManager among whatever else the page reads (T68 added isAtLeast beside it on AIBudtenderPage) — the property,
+    // not the exact destructure.
+    check(`${file}: the page knows who is signed in`, /const \{[^}]*\bisManager\b[^}]*\} = useAuth\(\)/.test(src), null)
     // The control has to sit INSIDE a manager gate — not merely somewhere in a file that also
     // mentions isManager, which is the mistake a "does the file say isManager" check would make.
     const at = src.indexOf(label)
