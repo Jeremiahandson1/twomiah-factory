@@ -3,48 +3,48 @@
     "tagline": "COMPASSIONATE IN-HOME CARE",
     "title": "{{CITY}} Home Care Services",
     "subtitle": "Trusted Care for Your Loved Ones",
-    "description": "{{COMPANY_NAME}} provides professional, compassionate in-home care services across {{SERVICE_REGION}}. We help seniors and those with disabilities live safely and independently at home.",
+    "description": "{{COMPANY_NAME}} provides compassionate in-home care across the {{SERVICE_REGION}}. We help seniors and those with disabilities live safely and independently at home.",
     "image": "/images/hero.jpg",
     "animation": "ken-burns",
-    "primaryButtonText": "Request a Free Assessment",
+    "primaryButtonText": "Request a Consultation",
     "primaryButtonLink": "#contact",
     "secondaryButtonText": "Learn About Our Services",
-    "secondaryButtonLink": "/services"
+    "secondaryButtonLink": "/#services"
   },
   "trustBadges": [
     {
       "id": "licensed",
       "type": "custom",
-      "label": "Licensed & Insured",
-      "icon": "shield",
+      "label": "Compassionate Care",
+      "icon": "check",
       "enabled": true
     },
     {
       "id": "background",
       "type": "custom",
-      "label": "Background Checked Caregivers",
-      "icon": "check",
+      "label": "Care at Home",
+      "icon": "home",
       "enabled": true
     },
     {
       "id": "available",
       "type": "custom",
-      "label": "24/7 Care Available",
-      "icon": "clock",
+      "label": "Dignity & Respect",
+      "icon": "check",
       "enabled": true
     },
     {
       "id": "local",
       "type": "custom",
-      "label": "Locally Owned & Operated",
+      "label": "Serving {{CITY}}",
       "icon": "home",
       "enabled": true
     }
   ],
   "ctaSection": {
     "title": "Ready to get your loved one the care they deserve?",
-    "description": "Our care coordinators are standing by to answer your questions and schedule a free in-home assessment.",
-    "primaryButtonText": "Request Free Assessment",
+    "description": "We're happy to answer your questions and talk through your options.",
+    "primaryButtonText": "Contact Us",
     "primaryButtonLink": "#contact",
     "secondaryButtonText": "Call {{COMPANY_PHONE}}",
     "secondaryButtonLink": "tel:{{COMPANY_PHONE_RAW}}",
@@ -59,38 +59,38 @@
   ],
   "businessHours": {
     "monday": {
-      "open": "8:00 AM",
-      "close": "5:00 PM",
-      "closed": false
+      "open": "",
+      "close": "",
+      "closed": true
     },
     "tuesday": {
-      "open": "8:00 AM",
-      "close": "5:00 PM",
-      "closed": false
+      "open": "",
+      "close": "",
+      "closed": true
     },
     "wednesday": {
-      "open": "8:00 AM",
-      "close": "5:00 PM",
-      "closed": false
+      "open": "",
+      "close": "",
+      "closed": true
     },
     "thursday": {
-      "open": "8:00 AM",
-      "close": "5:00 PM",
-      "closed": false
+      "open": "",
+      "close": "",
+      "closed": true
     },
     "friday": {
-      "open": "8:00 AM",
-      "close": "5:00 PM",
-      "closed": false
+      "open": "",
+      "close": "",
+      "closed": true
     },
     "saturday": {
-      "open": "By Appointment",
-      "close": "By Appointment",
-      "closed": false
+      "open": "",
+      "close": "",
+      "closed": true
     },
     "sunday": {
-      "open": "Closed",
-      "close": "Closed",
+      "open": "",
+      "close": "",
       "closed": true
     }
   },
@@ -100,23 +100,23 @@
     "points": [
       {
         "icon": "heart",
-        "title": "Compassionate Caregivers",
-        "description": "Every caregiver is carefully screened, trained, and selected for their genuine passion for helping others."
-      },
-      {
-        "icon": "shield",
-        "title": "Fully Licensed & Insured",
-        "description": "We are fully licensed by the state and carry comprehensive liability insurance for your peace of mind."
+        "title": "Compassionate Care",
+        "description": "We bring patience, kindness, and respect to every visit."
       },
       {
         "icon": "users",
         "title": "Personalized Care Plans",
-        "description": "No two clients are alike. We create a custom care plan that fits your loved one's unique needs and preferences."
+        "description": "No two clients are alike. We create a care plan that fits your loved one's needs and preferences."
+      },
+      {
+        "icon": "shield",
+        "title": "Family Communication",
+        "description": "We keep you informed and involved in your loved one's care."
       },
       {
         "icon": "phone",
-        "title": "Always Reachable",
-        "description": "Our care coordinators are available around the clock. You'll always have someone to call."
+        "title": "Questions Welcome",
+        "description": "Call or send us a message and we'll get back to you soon."
       }
     ]
   }

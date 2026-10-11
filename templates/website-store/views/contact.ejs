@@ -1,6 +1,8 @@
 <%
   // Pre-select service if provided in query string
   if (typeof selectedService === 'undefined') { var selectedService = ''; }
+  const _email = (typeof settings !== 'undefined' && settings && settings.email) ? settings.email : '{{COMPANY_EMAIL}}';
+  const _emailOk = typeof _email === 'string' && /^[^\s<>]+@[^\s<>]+\.[^\s<>]+$/.test(_email);
 %>
 
 <div class="contact-page">
@@ -10,7 +12,7 @@
     <div class="contact-hero-content">
       <div class="container">
         <h1>Contact {{COMPANY_NAME}}</h1>
-        <p>Questions about an order, a product, or shipping? Send us a note — we reply within one business day.</p>
+        <p>Questions about an order, a product, or shipping? Send us a note and we'll be in touch soon.</p>
       </div>
     </div>
   </section>
@@ -76,7 +78,7 @@
             </svg>
             <div>
               <strong>Thank you!</strong>
-              <p>We've received your request and will contact you within 24 hours.</p>
+              <p>We've received your message and will be in touch soon.</p>
             </div>
           </div>
           
@@ -107,7 +109,6 @@
               <div>
                 <h4>Phone</h4>
                 <a href="tel:{{COMPANY_PHONE_RAW}}" class="contact-link">{{COMPANY_PHONE}}</a>
-                <p class="hours">Mon-Fri: 8am-5pm</p>
               </div>
             </div>
             
@@ -120,8 +121,7 @@
               </div>
               <div>
                 <h4>Email</h4>
-                <a href="mailto:info@{{DOMAIN}}" class="contact-link">info@{{DOMAIN}}</a>
-                <p>We respond within 24 hours</p>
+                <a href="mailto:<%= _email %>" class="contact-link"><%= _email %></a>
               </div>
             </div>
             
@@ -135,59 +135,13 @@
               <div>
                 <h4>Address</h4>
                 <address>
-                  {{CITY}}, {{STATE_FULL}}<br>
-                  Serving the {{SERVICE_REGION}}
+                  {{CITY}}, {{STATE_FULL}}
                 </address>
               </div>
             </div>
           </div>
-          
-          <div class="contact-info-card service-area-card">
-            <h3>Service Area</h3>
-            <p>We proudly serve:</p>
-            <ul class="service-area-list">
-              <li>{{CITY}}</li>
-              <li>{{NEARBY_CITY_1}}</li>
-              <li>{{NEARBY_CITY_4}}</li>
-              <li>{{NEARBY_CITY_3}}</li>
-              <li>{{NEARBY_CITY_2}}</li>
-            </ul>
-            <p class="service-area-note">Plus surrounding {{SERVICE_REGION}} communities within 50 miles of {{CITY}}</p>
-          </div>
-          
-          <div class="contact-info-card credentials-card">
-            <h3>Licensed & Insured</h3>
-            <div class="credentials-list">
-              <div class="credential-item">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                <span>State Licensed</span>
-              </div>
-              <div class="credential-item">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                <span>Fully Insured</span>
-              </div>
-              <div class="credential-item">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                <span>Workers' Comp Coverage</span>
-              </div>
-              <div class="credential-item">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                <span>Liability Insurance</span>
-              </div>
-            </div>
-          </div>
+
+          <%/* No service-area list or licence/insurance card: a site states only what its owner supplied. */%>
         </aside>
       </div>
     </div>
@@ -205,8 +159,8 @@
               <polyline points="22 4 12 14.01 9 11.01"></polyline>
             </svg>
           </div>
-          <h3>Easy Returns</h3>
-          <p>Not right? Send it back within 30 days in original condition and we'll exchange it or refund you.</p>
+          <h3>Returns &amp; Exchanges</h3>
+          <p>Something not right with an order? Tell us what happened and we'll talk through the options with you.</p>
         </div>
         
         <div class="benefit-card">
@@ -216,8 +170,8 @@
               <polyline points="12 6 12 12 16 14"></polyline>
             </svg>
           </div>
-          <h3>Fast Response</h3>
-          <p>We answer every message within one business day, usually much sooner.</p>
+          <h3>A Real Reply</h3>
+          <p>Every message comes to us directly, and we'll be in touch soon.</p>
         </div>
         
         <div class="benefit-card">
@@ -242,8 +196,8 @@
               <line x1="3" y1="10" x2="21" y2="10"></line>
             </svg>
           </div>
-          <h3>Order Tracking</h3>
-          <p>Every order ships with a tracking number emailed to you the moment it leaves the warehouse.</p>
+          <h3>Order Questions</h3>
+          <p>Asking about an order? Include your order number and we can look it up for you.</p>
         </div>
       </div>
     </div>
@@ -341,57 +295,15 @@
     "mainEntity": {
       "@type": "OnlineStore",
       "name": "{{COMPANY_NAME}}",
-      "telephone": "{{COMPANY_PHONE}}",
-      "email": "info@{{DOMAIN}}",
+      "telephone": "{{COMPANY_PHONE}}",<% if (_emailOk) { %>
+      "email": <%- _jsonStr(_email) %>,<% } %>
       "address": {
         "@type": "PostalAddress",
         "addressLocality": "{{CITY}}",
         "addressRegion": "{{STATE}}",
         "addressCountry": "US"
       },
-      "areaServed": [
-        {
-          "@type": "City",
-          "name": "{{CITY}}",
-          "containedInPlace": {
-            "@type": "State",
-            "name": "{{STATE_FULL}}"
-          }
-        },
-        {
-          "@type": "City",
-          "name": "{{NEARBY_CITY_1}}",
-          "containedInPlace": {
-            "@type": "State",
-            "name": "{{STATE_FULL}}"
-          }
-        },
-        {
-          "@type": "City",
-          "name": "{{NEARBY_CITY_4}}",
-          "containedInPlace": {
-            "@type": "State",
-            "name": "{{STATE_FULL}}"
-          }
-        },
-        {
-          "@type": "City",
-          "name": "{{NEARBY_CITY_3}}",
-          "containedInPlace": {
-            "@type": "State",
-            "name": "{{STATE_FULL}}"
-          }
-        }
-      ],
-      "url": "{{SITE_URL}}/contact",
-      "openingHoursSpecification": [
-        {
-          "@type": "OpeningHoursSpecification",
-          "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-          "opens": "08:00",
-          "closes": "17:00"
-        }
-      ]
+      "url": "{{SITE_URL}}/contact"
     }
   }
   </script>

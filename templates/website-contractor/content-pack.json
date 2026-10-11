@@ -1,30 +1,30 @@
 {
   "vertical": "contractor",
-  "tone": "Confident, direct, and no-nonsense. We talk like contractors who've been doing this for twenty years because we have. No jargon for the sake of jargon, no promises we can't keep. We show up on time, do it right, and clean up after ourselves.",
+  "tone": "Confident, direct, and no-nonsense. Plain talk, no jargon for the sake of jargon, and no promises we can't keep. State only facts the owner supplied: no years in business, licences, certifications, warranties, response times, financing or prices unless provided.",
   "trustBadges": [
     {
-      "id": "licensed-insured",
-      "label": "Licensed & Insured",
-      "sublabel": "Full liability coverage on every project",
-      "icon": "shield-check"
-    },
-    {
-      "id": "bbb-accredited",
-      "label": "BBB Accredited",
-      "sublabel": "A+ rating with the Better Business Bureau",
-      "icon": "badge"
-    },
-    {
-      "id": "warranty-backed",
-      "label": "Warranty Backed",
-      "sublabel": "Manufacturer-backed warranties on materials and labor",
-      "icon": "certificate"
-    },
-    {
-      "id": "locally-owned",
-      "label": "Locally Owned",
-      "sublabel": "Serving our neighbors since day one",
+      "id": "local",
+      "label": "Based in {{CITY}}",
+      "sublabel": "Serving the surrounding communities",
       "icon": "map-pin"
+    },
+    {
+      "id": "clear-estimates",
+      "label": "Clear Estimates",
+      "sublabel": "Written scope before work begins",
+      "icon": "check"
+    },
+    {
+      "id": "workmanship",
+      "label": "Careful Workmanship",
+      "sublabel": "Done right the first time",
+      "icon": "hammer"
+    },
+    {
+      "id": "straight-answers",
+      "label": "Straight Answers",
+      "sublabel": "Honest recommendations, no pressure",
+      "icon": "users"
     }
   ],
   "services": [
@@ -32,15 +32,15 @@
       "id": "roofing",
       "name": "Roofing",
       "slug": "roofing",
-      "shortDescription": "Complete roof replacement and repair from a crew that's been up on ladders longer than most companies have been in business.",
-      "description": "Your roof is the first line of defense between your family and everything the sky throws at you. When shingles start curling, flashing pulls away, or you notice stains spreading across your ceiling, the clock is ticking. Water damage doesn't wait, and neither should you.\n\nWe handle everything from emergency leak repairs to full tear-offs and replacements. Our crews work with asphalt shingles, architectural shingles, metal roofing, and flat roof systems. Every project starts with a thorough inspection -- we'll get up there, document what we find, and walk you through your options with real numbers, not a sales pitch.\n\nWe coordinate directly with material suppliers to make sure your new roof carries a full manufacturer warranty. Our installation meets or exceeds local building code, and we handle the permit process so you don't have to. When we leave, your yard looks like we were never there -- except for the new roof overhead.",
+      "shortDescription": "Complete roof replacement and repair, done carefully and explained in plain terms.",
+      "description": "Your roof is the first line of defense between your family and everything the sky throws at you. When shingles start curling, flashing pulls away, or you notice stains spreading across your ceiling, the clock is ticking. Water damage doesn't wait, and neither should you.\n\nWe handle everything from leak repairs to full tear-offs and replacements. Our crews work with asphalt shingles, architectural shingles, metal roofing, and flat roof systems. Every project starts with a thorough inspection -- we'll get up there, document what we find, and walk you through your options with real numbers, not a sales pitch.\n\nWe install to local building code and walk you through what your project needs. When we leave, your yard looks like we were never there -- except for the new roof overhead.",
       "features": [
         "Full tear-off and replacement with code-compliant underlayment and ice & water shield",
-        "Architectural and 3-tab asphalt shingle installation with 25-50 year warranty options",
+        "Architectural and 3-tab asphalt shingle installation",
         "Standing seam and corrugated metal roofing for durability and energy efficiency",
         "Ridge vent and soffit ventilation upgrades to prevent premature shingle failure",
-        "Emergency tarp service and temporary leak repair within 24 hours",
-        "Drone-assisted roof inspections with photo documentation for insurance claims"
+        "Temporary leak protection while repairs are planned",
+        "Roof inspections with photo documentation"
       ],
       "faq": [
         {
@@ -52,12 +52,12 @@
           "answer": "If your roof is under 15 years old and the damage is limited to a small area, repair usually makes sense. Once you're past 20 years on asphalt shingles or you're seeing widespread granule loss, curling, or multiple leaks, replacement is the better investment. We'll be straight with you about which option actually saves you money long-term."
         },
         {
-          "question": "Do you work with insurance companies on storm damage claims?",
-          "answer": "Yes. We document all storm damage with photos, provide detailed scope-of-work estimates in a format insurance adjusters recognize, and we'll meet your adjuster on-site if needed. We don't inflate claims and we don't ask you to sign anything shady. Our job is to get your roof fixed and make the process as painless as possible."
+          "question": "What should I do after storm damage to my roof?",
+          "answer": "Get the damage looked at promptly, before water gets in and makes it worse. We'll document what we find with photos and walk you through your repair options."
         }
       ],
       "seoTitle": "{{SERVICE}} in {{CITY}}, {{STATE}} | {{COMPANY}}",
-      "seoDescription": "Professional roofing services in {{CITY}}, {{STATE}}. From repairs to full replacements, {{COMPANY}} delivers quality workmanship backed by manufacturer warranties. Free estimates."
+      "seoDescription": "Professional roofing services in {{CITY}}, {{STATE}}. From repairs to full replacements, {{COMPANY}} delivers quality workmanship."
     },
     {
       "id": "siding",
@@ -88,14 +88,14 @@
         }
       ],
       "seoTitle": "{{SERVICE}} in {{CITY}}, {{STATE}} | {{COMPANY}}",
-      "seoDescription": "Siding installation and replacement in {{CITY}}, {{STATE}}. {{COMPANY}} works with vinyl, fiber cement, and engineered wood to protect and transform your home. Free estimates."
+      "seoDescription": "Siding installation and replacement in {{CITY}}, {{STATE}}. {{COMPANY}} works with vinyl, fiber cement, and engineered wood to protect and transform your home."
     },
     {
       "id": "windows-doors",
       "name": "Windows & Doors",
       "slug": "windows-doors",
       "shortDescription": "Energy-efficient windows and doors installed by people who understand that a quarter-inch gap can cost you hundreds a year in heating.",
-      "description": "Old windows and doors are one of the biggest energy drains in any home. Single-pane glass, deteriorating seals, and warped frames let conditioned air pour out and outside air rush in. You feel it as drafts in winter and hot spots in summer, and you see it on every utility bill.\n\nWe install double- and triple-pane windows from manufacturers like Andersen, Pella, and Marvin, as well as high-quality builder-grade lines that deliver real performance without the premium price tag. Every window gets properly shimmed, insulated, and sealed -- not just caulked around the outside and called done. For doors, we handle entry doors, patio doors, sliding glass doors, and storm doors, with proper threshold adjustment and weatherstripping.\n\nCorrect installation matters more than the window itself. A $600 window installed poorly will underperform a $300 window installed right. Our crews are trained in manufacturer-specified installation methods, which is what keeps your warranty valid and your home comfortable.",
+      "description": "Old windows and doors are one of the biggest energy drains in any home. Single-pane glass, deteriorating seals, and warped frames let conditioned air pour out and outside air rush in. You feel it as drafts in winter and hot spots in summer, and you see it on every utility bill.\n\nWe install double- and triple-pane windows across a range of price points, from premium lines to quality builder-grade options that deliver real performance. Every window gets properly shimmed, insulated, and sealed -- not just caulked around the outside and called done. For doors, we handle entry doors, patio doors, sliding glass doors, and storm doors, with proper threshold adjustment and weatherstripping.\n\nCorrect installation matters more than the window itself. A well-made window installed poorly will underperform a modest window installed right, so we follow the manufacturer's installation instructions on every unit.",
       "features": [
         "Double- and triple-pane Low-E glass windows with argon or krypton gas fill",
         "Full-frame and insert replacement options depending on existing frame condition",
@@ -119,7 +119,7 @@
         }
       ],
       "seoTitle": "{{SERVICE}} in {{CITY}}, {{STATE}} | {{COMPANY}}",
-      "seoDescription": "Window and door replacement in {{CITY}}, {{STATE}}. {{COMPANY}} installs energy-efficient windows and doors with proper sealing and manufacturer-backed warranties. Free estimates."
+      "seoDescription": "Window and door replacement in {{CITY}}, {{STATE}}. {{COMPANY}} installs energy-efficient windows and doors with proper sealing."
     },
     {
       "id": "gutters-downspouts",
@@ -128,7 +128,7 @@
       "shortDescription": "Seamless gutters and downspouts that move water away from your foundation instead of pouring it straight down your walls.",
       "description": "Gutters are one of the most underappreciated systems on your house. When they work, you never think about them. When they fail -- clogged, sagging, or pulling away from the fascia -- the water damage that follows can cost thousands. Foundation erosion, basement flooding, rotted fascia boards, and landscape washout all trace back to gutters that aren't doing their job.\n\nWe install seamless aluminum gutters custom-formed on-site to the exact measurements of your home. No seams means fewer leak points. We hang gutters with hidden bracket systems that won't sag under the weight of water, ice, or debris. Downspouts are routed to move water at least 4-6 feet away from your foundation, and we can tie into underground drain lines if your grading requires it.\n\nWe also install gutter guards for homeowners who are tired of climbing ladders every fall. Not all gutter guards are created equal -- we'll recommend the style that works best for the type of tree cover around your property.",
       "features": [
-        "Seamless aluminum gutters formed on-site in 20+ color options",
+        "Seamless aluminum gutters in a range of colors",
         "5-inch standard and 6-inch oversized gutter profiles for heavy rainfall areas",
         "Hidden hanger bracket installation rated for ice and debris loads",
         "Gutter guard and leaf screen installation to reduce maintenance",
@@ -138,7 +138,7 @@
       "faq": [
         {
           "question": "Are seamless gutters worth the extra cost over sectional?",
-          "answer": "Absolutely. Sectional gutters have a joint every 10 feet, and every joint is a potential leak point. Over time, the sealant at those joints breaks down and you end up with water running down your fascia and walls. Seamless gutters eliminate that problem entirely. The cost difference is usually modest -- often less than $200 for an average home."
+          "answer": "Absolutely. Sectional gutters have a joint every 10 feet, and every joint is a potential leak point. Over time, the sealant at those joints breaks down and you end up with water running down your fascia and walls. Seamless gutters eliminate that problem entirely. The cost difference is usually modest for an average home."
         },
         {
           "question": "Do gutter guards actually work?",
@@ -150,7 +150,7 @@
         }
       ],
       "seoTitle": "{{SERVICE}} in {{CITY}}, {{STATE}} | {{COMPANY}}",
-      "seoDescription": "Seamless gutter installation and downspout services in {{CITY}}, {{STATE}}. {{COMPANY}} protects your home's foundation with custom-fit gutter systems. Free estimates."
+      "seoDescription": "Seamless gutter installation and downspout services in {{CITY}}, {{STATE}}. {{COMPANY}} protects your home's foundation with custom-fit gutter systems."
     },
     {
       "id": "insulation",
@@ -181,7 +181,7 @@
         }
       ],
       "seoTitle": "{{SERVICE}} in {{CITY}}, {{STATE}} | {{COMPANY}}",
-      "seoDescription": "Insulation installation and upgrades in {{CITY}}, {{STATE}}. {{COMPANY}} improves your home's energy efficiency with blown-in, spray foam, and batt insulation. Free energy assessments."
+      "seoDescription": "Insulation installation and upgrades in {{CITY}}, {{STATE}}. {{COMPANY}} improves your home's energy efficiency with blown-in, spray foam, and batt insulation."
     },
     {
       "id": "kitchen-remodeling",
@@ -200,7 +200,7 @@
       "faq": [
         {
           "question": "How much does a kitchen remodel actually cost?",
-          "answer": "A mid-range kitchen remodel on an average-sized kitchen runs $25,000-$50,000. A high-end remodel with custom cabinets, stone countertops, and layout changes can run $60,000-$100,000+. The biggest cost drivers are cabinets (about 30-35% of the budget), countertops, and any structural or plumbing changes. We'll give you a detailed line-item estimate so you know exactly where the money goes."
+          "answer": "It depends on the size of the kitchen, the finishes you choose, and whether the layout changes. The biggest cost drivers are cabinets (about 30-35% of the budget), countertops, and any structural or plumbing changes. We'll give you a detailed line-item estimate so you know exactly where the money goes."
         },
         {
           "question": "How long will my kitchen be torn up?",
@@ -212,14 +212,14 @@
         }
       ],
       "seoTitle": "{{SERVICE}} in {{CITY}}, {{STATE}} | {{COMPANY}}",
-      "seoDescription": "Kitchen remodeling in {{CITY}}, {{STATE}}. {{COMPANY}} handles design, demolition, and every trade in between. Quality craftsmanship, transparent pricing, and on-time delivery."
+      "seoDescription": "Kitchen remodeling in {{CITY}}, {{STATE}}. {{COMPANY}} handles design, demolition, and every trade in between. Quality craftsmanship and clear communication."
     },
     {
       "id": "bathroom-remodeling",
       "name": "Bathroom Remodeling",
       "slug": "bathroom-remodeling",
       "shortDescription": "Bathroom renovations done right -- proper waterproofing, real tile work, and finishes that hold up to daily use.",
-      "description": "Bathrooms are small rooms with big consequences when something goes wrong. Moisture, plumbing, and daily wear demand materials and installation methods that can handle the abuse. A bathroom that looks great but wasn't waterproofed properly will cost you far more in the long run than doing it right the first time.\n\nWe remodel everything from half baths and hall bathrooms to full primary suite renovations. Our scope covers demolition, plumbing rough-in, electrical, cement board and waterproofing membrane installation, tile work, vanity and countertop installation, shower glass, mirrors, fixtures, and ventilation. If your bathroom has an aging tub-shower combo and you want a walk-in tile shower, we handle the conversion including the drain relocation and proper slope for water management.\n\nEvery shower and tub surround we build uses cement backer board and a waterproofing membrane system -- not moisture-resistant drywall, which is the bare minimum that code allows and fails regularly. We build bathrooms that stay dry behind the walls for decades, not just until the warranty expires.",
+      "description": "Bathrooms are small rooms with big consequences when something goes wrong. Moisture, plumbing, and daily wear demand materials and installation methods that can handle the abuse. A bathroom that looks great but wasn't waterproofed properly will cost you far more in the long run than doing it right the first time.\n\nWe remodel everything from half baths and hall bathrooms to full primary suite renovations. Our scope covers demolition, plumbing rough-in, electrical, cement board and waterproofing membrane installation, tile work, vanity and countertop installation, shower glass, mirrors, fixtures, and ventilation. If your bathroom has an aging tub-shower combo and you want a walk-in tile shower, we handle the conversion including the drain relocation and proper slope for water management.\n\nEvery shower and tub surround we build uses cement backer board and a waterproofing membrane system -- not moisture-resistant drywall, which is the bare minimum that code allows and fails regularly. We build bathrooms to stay dry behind the walls for the long haul.",
       "features": [
         "Tub-to-shower conversions with linear drain and curbless entry options",
         "Porcelain, ceramic, and natural stone tile installation with Schluter waterproofing systems",
@@ -239,7 +239,7 @@
         },
         {
           "question": "Can I use my bathroom during the remodel?",
-          "answer": "Not the one we're working on. We remove the toilet and disconnect the water supply during construction. If you have a second bathroom, you'll use that. If it's your only bathroom, we'll discuss scheduling and do everything we can to minimize the time your toilet and shower are out of commission. We've done single-bathroom homes before and we make it work."
+          "answer": "Not the one we're working on. We remove the toilet and disconnect the water supply during construction. If you have a second bathroom, you'll use that. If it's your only bathroom, we'll discuss scheduling and do everything we can to minimize the time your toilet and shower are out of commission. We'll plan the work to keep that time as short as we can."
         }
       ],
       "seoTitle": "{{SERVICE}} in {{CITY}}, {{STATE}} | {{COMPANY}}",
@@ -249,7 +249,7 @@
       "id": "additions-new-construction",
       "name": "Additions & New Construction",
       "slug": "additions-new-construction",
-      "shortDescription": "Room additions and new builds managed by a team that's done this enough times to know where the problems hide.",
+      "shortDescription": "Room additions and new builds, planned carefully from foundation to finish.",
       "description": "Adding square footage to your home -- whether it's a bedroom addition, a sunroom, a garage, or a full second story -- is one of the most significant investments you'll make. It's also one of the most complex, because you're tying new construction into an existing structure with its own quirks, settling, and history. Getting the transition right is what separates a good addition from one that always looks like it was bolted on.\n\nWe manage the entire process: architectural drawings and engineering, permits, foundation work, framing, roofing tie-in, siding matching, and all interior finishes including HVAC extension, electrical, plumbing, drywall, flooring, and trim. We work with structural engineers to make sure load paths are correct and the existing foundation can support what we're building. No guesswork.\n\nFor new construction projects, we bring the same attention to detail and project management discipline. We work from your architect's plans or help you develop a scope and connect you with a designer. Either way, you get a single point of contact who owns the schedule, manages the subs, and keeps you informed without drowning you in decisions that don't matter.",
       "features": [
         "Room additions including bedroom, family room, sunroom, and garage construction",
@@ -262,11 +262,11 @@
       "faq": [
         {
           "question": "How much does a home addition cost per square foot?",
-          "answer": "Additions typically run $150-$350 per square foot depending on the complexity, finishes, and foundation type. A simple sunroom on a slab is at the low end. A second-story addition with a full bathroom is at the high end. We'll give you a realistic budget range early so you can decide on scope before we start drawing plans."
+          "answer": "Cost per square foot depends on the complexity, finishes, and foundation type. A simple sunroom on a slab is at the low end. A second-story addition with a full bathroom is at the high end. We'll give you a realistic budget range early so you can decide on scope before we start drawing plans."
         },
         {
           "question": "Do I need an architect for a home addition?",
-          "answer": "For most additions, yes. Your local building department will require stamped drawings for permit approval, and a structural engineer needs to verify that the existing structure can support the new load. We work with local architects and engineers regularly and can manage that relationship for you if you don't already have someone."
+          "answer": "For most additions, yes. Your local building department will require stamped drawings for permit approval, and a structural engineer needs to verify that the existing structure can support the new load. We can help coordinate with an architect and engineer if you don't already have someone."
         },
         {
           "question": "How long does a home addition take to build?",
@@ -280,32 +280,28 @@
       "id": "storm-damage-restoration",
       "name": "Storm Damage Restoration",
       "slug": "storm-damage-restoration",
-      "shortDescription": "When a storm hits, we're the call you make to get your home sealed up fast and restored right.",
-      "description": "Storms don't schedule themselves around your calendar. When high winds, hail, or fallen trees damage your roof, siding, windows, or gutters, you need a contractor who can respond quickly, secure the damage to prevent it from getting worse, and then do the permanent repair work to put things back together properly.\n\nWe provide 24-hour emergency tarping and board-up services to protect your home from further damage while we develop a full repair scope. Our team documents all damage with photos, measurements, and detailed descriptions that align with what your insurance company needs to process your claim. We've worked with every major insurer and understand the claims process inside and out.\n\nOnce your claim is approved, we handle the full restoration -- not just patching the visible damage, but inspecting and addressing anything the storm compromised underneath. Hail damage to shingles often isn't visible from the ground but dramatically shortens the life of your roof. Wind-driven rain can penetrate behind siding and soak wall cavities. We find it all, document it, and fix it so your home is restored to its pre-storm condition.",
+      "shortDescription": "Repair and restoration after wind, hail, and fallen-tree damage to your roof, siding, windows, and gutters.",
+      "description": "When high winds, hail, or fallen trees damage your roof, siding, windows, or gutters, the damage needs to be secured to prevent it from getting worse, and then repaired properly.\n\nWe document the damage with photos, measurements, and detailed descriptions, and walk you through a full repair scope.\n\nWe handle the full restoration -- not just patching the visible damage, but inspecting and addressing anything the storm compromised underneath. Hail damage to shingles often isn't visible from the ground but dramatically shortens the life of your roof. Wind-driven rain can penetrate behind siding and soak wall cavities. We find it all, document it, and fix it so your home is restored to its pre-storm condition.",
       "features": [
-        "24-hour emergency response with tarping and board-up to prevent secondary damage",
-        "Comprehensive damage assessment with photo documentation for insurance claims",
-        "Direct coordination with insurance adjusters including on-site meetings",
+        "Temporary protection to prevent secondary damage",
+        "Comprehensive damage assessment with photo documentation",
+        "A clear repair scope before work begins",
         "Full roof, siding, gutter, and window restoration to pre-storm condition",
-        "Hail damage inspection with manufacturer-guided impact testing on shingles",
+        "Hail damage inspection on shingles, siding, and gutters",
         "Tree and debris removal from structures with safe extraction and disposal"
       ],
       "faq": [
         {
-          "question": "Should I file an insurance claim for storm damage?",
-          "answer": "If the damage is significant -- missing shingles, dented siding, broken windows, or structural impact from a fallen tree -- yes. Your homeowner's policy is designed for exactly this. We'll do a free inspection and give you an honest assessment of whether the damage warrants a claim before you call your agent. Small damage below your deductible isn't worth filing."
+          "question": "What should I do right after a storm damages my home?",
+          "answer": "Stay safe first. Then get the damage looked at promptly, before water gets in and makes it worse. Take photos of what you can see from the ground, and call us to talk through next steps."
         },
         {
-          "question": "How fast can you get here after a storm?",
-          "answer": "For emergency situations where your home is exposed to the elements, we dispatch a crew within 24 hours for tarping and temporary protection. Full repair timelines depend on the scope and material availability, but we prioritize storm damage customers to prevent secondary water damage. After major storms, demand is high -- calling early gets you in the queue faster."
-        },
-        {
-          "question": "What if my insurance company undervalues the damage?",
-          "answer": "It happens more than it should. We provide a detailed, line-item estimate using Xactimate, which is the same software most insurance companies use. If there's a gap between our scope and theirs, we'll work with your adjuster to supplement the claim with additional documentation. We don't ask you to pay the difference out of pocket for covered damage."
+          "question": "Is hail damage always visible from the ground?",
+          "answer": "No. Hail can bruise shingles and dent gutters in ways you won't see from the yard, and that damage shortens a roof's life. A close inspection is the only way to know for sure."
         }
       ],
       "seoTitle": "{{SERVICE}} in {{CITY}}, {{STATE}} | {{COMPANY}}",
-      "seoDescription": "Storm damage restoration in {{CITY}}, {{STATE}}. {{COMPANY}} provides emergency response, insurance claim support, and full repairs for wind, hail, and tree damage. Available 24/7."
+      "seoDescription": "Storm damage restoration in {{CITY}}, {{STATE}}. {{COMPANY}} repairs wind, hail, and tree damage to roofs, siding, windows, and gutters."
     }
   ],
   "blogTopics": [
@@ -445,68 +441,25 @@
   ],
   "faq": [
     {
-      "question": "Are you licensed and insured?",
-      "answer": "Yes. We carry a full general contractor's license, general liability insurance, and workers' compensation coverage for every crew member on every job site. We're happy to provide certificates of insurance to you or your HOA on request. Our license number is listed in every contract we sign."
-    },
-    {
-      "question": "How do I get a free estimate?",
-      "answer": "Call us or fill out the form on our website. We'll schedule a time to come look at your project in person -- we don't give ballpark numbers over the phone because they're almost always wrong. Most estimates take 30-60 minutes on site, and we'll follow up with a written, itemized proposal within a few business days."
+      "question": "How do I get an estimate?",
+      "answer": "Call us or fill out the form on our website. We'll talk through your project and set up a time to look at it in person, then follow up with a written, itemized proposal."
     },
     {
       "question": "What areas do you serve?",
-      "answer": "We serve {{CITY}} and the surrounding communities within approximately 30 miles. For larger projects, we're willing to travel further. If you're not sure whether your location is in our service area, just ask -- we'll let you know right away rather than waste your time."
+      "answer": "We serve {{CITY}} and the surrounding communities. If you're not sure whether your location is in our service area, just ask -- we'll let you know right away."
     },
     {
-      "question": "How far out are you booked?",
-      "answer": "Our schedule varies by season. Spring and summer are our busiest months, and we're typically booked 4-8 weeks out during peak season. Fall and winter tend to have more availability and are great times for interior work like kitchens, bathrooms, and insulation. The sooner you reach out, the sooner we can get you on the calendar."
-    },
-    {
-      "question": "What payment methods do you accept?",
-      "answer": "We accept checks, credit cards, ACH transfers, and financing through third-party lenders on qualifying projects. Our standard payment structure is a deposit at contract signing (never more than 30% of the total), progress payments at defined milestones, and a final payment upon completion and your sign-off. We never ask for full payment up front."
+      "question": "When is the best time to schedule a project?",
+      "answer": "Exterior work like roofing and siding is weather-dependent, so spring and summer fill up first. Fall and winter can be good times for interior work like kitchens, bathrooms, and insulation. The sooner you reach out, the sooner we can plan your project."
     },
     {
       "question": "Do you pull permits for the work?",
-      "answer": "Yes, when permits are required. We handle the entire permit process including application, fee payment, and scheduling inspections with the building department. Permit requirements vary by municipality and project scope. Some work like roofing and window replacement requires permits in most areas; we'll let you know exactly what's needed for your project."
+      "answer": "When permits are required, yes. Permit requirements vary by municipality and project scope; we'll let you know what's needed for your project."
     },
     {
       "question": "What happens if you find unexpected damage during the project?",
       "answer": "We stop, document what we found, and discuss it with you before we proceed. We don't make decisions about your home without your approval. If the repair is within a reasonable range, we'll give you a change order with a firm price. If it's significant, we'll present options so you can decide how to handle it. No surprises on the invoice."
-    },
-    {
-      "question": "Do you offer warranties on your work?",
-      "answer": "Yes. We provide a workmanship warranty on all labor, and the materials we install carry their own manufacturer warranties -- which are only valid when the product is installed according to manufacturer specifications by a certified contractor. We'll give you all warranty documentation at project completion and explain exactly what's covered and for how long."
     }
   ],
-  "testimonialTemplates": [
-    {
-      "namePattern": "Mike R.",
-      "service": "Roofing",
-      "quote": "Had a leak that two other companies couldn't figure out. These guys found it in twenty minutes, showed me exactly what was wrong, and had the whole roof replaced in two days. No games, no pressure, just solid work. My only regret is not calling them first.",
-      "rating": 5
-    },
-    {
-      "namePattern": "Sarah K.",
-      "service": "Kitchen Remodeling",
-      "quote": "Our kitchen remodel took six weeks and they were honest about the timeline from day one. The crew showed up early every morning, cleaned up every evening, and the foreman kept us in the loop on everything. The kitchen turned out better than we expected and we actually came in under the original estimate.",
-      "rating": 5
-    },
-    {
-      "namePattern": "Tom D.",
-      "service": "Siding",
-      "quote": "We got three bids for our siding replacement and these guys weren't the cheapest, but they were the only ones who caught the rot behind the old siding during the estimate. Glad we went with them. The house looks brand new and we know what's behind the walls is solid.",
-      "rating": 5
-    },
-    {
-      "namePattern": "Jennifer M.",
-      "service": "Storm Damage Restoration",
-      "quote": "A tree came through our roof during a storm and we were panicking. They had a crew out the same day to tarp it and walked us through the entire insurance process. Took a lot of the stress out of a really bad situation. The repair work was top notch.",
-      "rating": 5
-    },
-    {
-      "namePattern": "Dave L.",
-      "service": "Bathroom Remodeling",
-      "quote": "Good work but the project ran about a week longer than originally estimated because of a tile backorder. They communicated well about the delay and the finished product is great. Would've been five stars if the timeline had held, but I'd still hire them again.",
-      "rating": 4
-    }
-  ]
+  "testimonialTemplates": []
 }

@@ -232,7 +232,7 @@ ${JSON.stringify((pack.faq || []).slice(0, 6), null, 2)}
 THIS IS AN ONLINE STORE (e-commerce), NOT a service business. Adapt everything:
 - Hero: a real point of view about WHO this store is for and why it's different — not "quality products, delivered". primaryButtonText "Shop Now", primaryButtonLink "/shop"; secondaryButtonText "Our Story", secondaryButtonLink "/about". Never "Get a quote" or "#contact".
 - "services" are PRODUCT CATEGORIES the store sells (derive from the product list) — named as things a shopper browses ("Feeders", "Hummingbird feeders", "Life-list journals"), each with a shopper-facing description of what's in it and who it's for. They are NOT services performed.
-- trustBadges: fast shipping, easy 30-day returns, secure checkout, curated selection — never "licensed & insured" or "free estimates".
+- trustBadges: only what the details below support (e.g. "secure checkout", the store's real niche) — never shipping speeds or return windows the owner did not give, and never "licensed & insured" or "free estimates".
 - ctaSection: drive to the shop ("Start your collection", "Shop the starter kit"), primaryButtonLink "/shop".
 - aboutSection: the brand story — why this store exists and who it serves.
 - Blog posts: buying guides / how-tos for the niche (e.g. "Your first 10 backyard birds", "Seed vs suet").
@@ -253,6 +253,7 @@ ${input.phone ? '- Phone: ' + input.phone : ''}
 ${input.email ? '- Email: ' + input.email : ''}
 ${packContext}
 RULES:
+- State only facts given in BUSINESS DETAILS above. Never invent credentials (licensed, insured, bonded, certified, accredited), free estimates or consultations, financing, warranties or guarantees, 24/7 / emergency / same-day service, response times, years in business, customer counts, prices, hours, shipping or return terms, staff names, reviews or awards. Leave a badge or sentence out rather than invent it.
 - Write compelling, natural copy — not generic filler
 - Include "${input.location.city}" and "${region}" naturally for local SEO
 - Use "${input.businessName}" where appropriate

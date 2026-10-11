@@ -169,7 +169,7 @@ const calcPrice = Number(u.internetPrice || u.listedPrice || u.msrp || 0) || 0;
     <!-- Reserve This Unit -->
     <section class="ivd-section" id="reserve">
       <h2>Reserve This Unit</h2>
-      <p class="ivd-reserve-copy">Put a refundable deposit down to hold this unit while you finalize the details. Send your info below and we'll get your reservation started.</p>
+      <p class="ivd-reserve-copy">Want us to hold this unit while you finalize the details? Send your info below and we'll be in touch soon about reserving it.</p>
       <div class="ivd-quote">
         <form id="reserveForm" action="/reserve/<%= u.stockNumber || u.id %>" method="POST">
           <div class="form-row">
@@ -311,12 +311,15 @@ const calcPrice = Number(u.internetPrice || u.listedPrice || u.msrp || 0) || 0;
           <span class="ivd-calc-amount" id="calc-payment">$0</span>
           <span class="ivd-calc-per">/mo</span>
         </div>
-        <p class="ivd-calc-disclaimer">Estimate only — not a financing offer. Taxes, title, and fees not included.</p>
+        <p class="ivd-calc-disclaimer">Estimate only, not an offer of credit. Taxes, title, and fees not included.</p>
+        <% if (typeof offersFinancing !== 'undefined' && offersFinancing) { %>
         <a href="#prequal" class="btn btn-primary btn-lg" id="calc-prequal-btn">Get Pre-Qualified</a>
+        <% } %>
       </div>
     </section>
 
-    <!-- Get Pre-Qualified -->
+    <%/* Get Pre-Qualified: only when the owner offers financing (a financing service in services.json) */%>
+    <% if (typeof offersFinancing !== 'undefined' && offersFinancing) { %>
     <section class="ivd-section" id="prequal">
       <h2>Get Pre-Qualified</h2>
       <div class="ivd-quote">
@@ -364,11 +367,11 @@ const calcPrice = Number(u.internetPrice || u.listedPrice || u.msrp || 0) || 0;
           <input type="hidden" name="leadType" value="financing">
           <input type="hidden" name="source" value="inventory-detail">
           <button type="submit" class="btn btn-primary btn-lg btn-block">Get Pre-Qualified</button>
-          <p class="ivd-calc-disclaimer">This sends a request for our finance team to contact you. It is NOT a credit application and does not affect your credit.</p>
+          <p class="ivd-calc-disclaimer">This sends a request for us to contact you. It is NOT a credit application and does not affect your credit.</p>
 
           <div id="prequalSuccess" class="ivd-form-msg success">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-            <span><strong>Thank you!</strong> Our finance team will reach out within 24 hours.</span>
+            <span><strong>Thank you!</strong> We'll be in touch soon.</span>
           </div>
           <div id="prequalError" class="ivd-form-msg error">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
@@ -377,6 +380,8 @@ const calcPrice = Number(u.internetPrice || u.listedPrice || u.msrp || 0) || 0;
         </form>
       </div>
     </section>
+
+    <% } %>
 
     <!-- Value My Trade -->
     <section class="ivd-section" id="value-trade">
@@ -438,7 +443,7 @@ const calcPrice = Number(u.internetPrice || u.listedPrice || u.msrp || 0) || 0;
 
           <div id="tradeSuccess" class="ivd-form-msg success">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-            <span><strong>Thank you!</strong> We'll review your trade and follow up with a value within 24 hours.</span>
+            <span><strong>Thank you!</strong> We'll review your trade and be in touch soon.</span>
           </div>
           <div id="tradeError" class="ivd-form-msg error">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
@@ -481,7 +486,7 @@ const calcPrice = Number(u.internetPrice || u.listedPrice || u.msrp || 0) || 0;
 
           <div id="quoteSuccess" class="ivd-form-msg success">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-            <span><strong>Thank you!</strong> We've received your request and will contact you within 24 hours.</span>
+            <span><strong>Thank you!</strong> We've received your request and we'll be in touch soon.</span>
           </div>
           <div id="quoteError" class="ivd-form-msg error">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>

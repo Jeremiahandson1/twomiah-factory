@@ -496,7 +496,7 @@ app.get('/', (c) => {
   return renderPage(c, 'home', {
     homepage, services, testimonials,
     title: settings.seoTitle || settings.companyName || '{{COMPANY_NAME}}',
-    description: settings.seoDescription || 'Premium cannabis dispensary',
+    description: settings.seoDescription || 'Cannabis dispensary in {{CITY}}, {{STATE}}.',
     canonicalUrl: BASE_URL + '/',
   })
 })
@@ -516,7 +516,7 @@ app.get('/order', async (c) => {
   return renderPage(c, 'order', {
     products,
     title: 'Order Online | {{COMPANY_NAME}}',
-    description: 'Order cannabis online for pickup or delivery. Browse our full menu and place your order.',
+    description: 'Browse our menu and place your order online.',
     canonicalUrl: BASE_URL + '/order',
   })
 })
@@ -543,7 +543,7 @@ app.post('/api/order', async (c) => {
 app.get('/loyalty', (c) => {
   return renderPage(c, 'loyalty', {
     title: 'Loyalty Program | {{COMPANY_NAME}}',
-    description: 'Earn points on every purchase and redeem for discounts. Join our loyalty program today.',
+    description: 'Check your loyalty points with {{COMPANY_NAME}}.',
     canonicalUrl: BASE_URL + '/loyalty',
   })
 })

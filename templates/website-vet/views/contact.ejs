@@ -1,6 +1,13 @@
 <%
   // Pre-select service if provided in query string
   if (typeof selectedService === 'undefined') { var selectedService = ''; }
+  const _email = (typeof settings !== 'undefined' && settings && settings.email) ? settings.email : '{{COMPANY_EMAIL}}';
+  const _emailOk = typeof _email === 'string' && /^[^ <>]+@[^ <>]+[.][^ <>]+$/.test(_email);
+  // Empty nearby-city slots are filled with the home city, so de-duplicate.
+  const _areas = ['{{CITY}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}', '{{NEARBY_CITY_4}}']
+    .map((a) => String(a).trim()).filter((a, i, all) => a && all.findIndex((b) => b.toLowerCase() === a.toLowerCase()) === i);
+  // The appointment types are the site's own services, not a fixed list.
+  const _svcOpts = (typeof services !== 'undefined' && Array.isArray(services) ? services : []).filter((s) => s && s.visible !== false && (s.name || s.title));
 %>
 
 <div class="contact-page">
@@ -10,7 +17,7 @@
     <div class="contact-hero-content">
       <div class="container">
         <h1>Request an Appointment</h1>
-        <p>Tell us about your pet and what you need. Our team will follow up within 24 hours to confirm your visit.</p>
+        <p>Tell us about your pet and what you need, and we'll be in touch soon.</p>
       </div>
     </div>
   </section>
@@ -63,12 +70,10 @@
               <label for="service">Appointment Type *</label>
               <select id="service" name="service" required>
                 <option value="">Select an appointment type...</option>
-                <option value="wellness" <%= selectedService === 'wellness-exams' ? 'selected' : '' %>>Wellness Exam</option>
-                <option value="dental" <%= selectedService === 'dental-care' ? 'selected' : '' %>>Dental Care</option>
-                <option value="surgery-consult" <%= selectedService === 'surgery' ? 'selected' : '' %>>Surgery Consult</option>
-                <option value="vaccines" <%= selectedService === 'vaccinations' ? 'selected' : '' %>>Vaccines &amp; Prevention</option>
-                <option value="sick-visit" <%= selectedService === 'internal-medicine' ? 'selected' : '' %>>Sick Visit</option>
-                <option value="emergency" <%= selectedService === 'emergency-care' ? 'selected' : '' %>>Emergency / Urgent Care</option>
+                <% _svcOpts.forEach(function(s) { const _v = s.slug || s.id || s.name; %>
+                <option value="<%= _v %>" <%= selectedService && selectedService === _v ? 'selected' : '' %>><%= s.name || s.title %></option>
+                <% }); %>
+                <option value="sick-visit">Sick Visit</option>
                 <option value="not-sure">I'm not sure yet — need guidance</option>
               </select>
             </div>
@@ -101,7 +106,7 @@
             </svg>
             <div>
               <strong>Thank you!</strong>
-              <p>We've received your request and will contact you within 24 hours.</p>
+              <p>We've received your request and will be in touch soon.</p>
             </div>
           </div>
           
@@ -132,7 +137,6 @@
               <div>
                 <h4>Phone</h4>
                 <a href="tel:{{COMPANY_PHONE_RAW}}" class="contact-link">{{COMPANY_PHONE}}</a>
-                <p class="hours">Mon-Fri: 8am-6pm &bull; Sat: 9am-4pm</p>
               </div>
             </div>
             
@@ -145,8 +149,7 @@
               </div>
               <div>
                 <h4>Email</h4>
-                <a href="mailto:info@{{DOMAIN}}" class="contact-link">info@{{DOMAIN}}</a>
-                <p>We respond within 24 hours</p>
+                <a href="mailto:<%= _email %>" class="contact-link"><%= _email %></a>
               </div>
             </div>
             
@@ -169,51 +172,13 @@
           
           <div class="contact-info-card service-area-card">
             <h3>Service Area</h3>
-            <p>We proudly serve:</p>
+            <p>We serve:</p>
             <ul class="service-area-list">
-              <li>{{CITY}}</li>
-              <li>{{NEARBY_CITY_1}}</li>
-              <li>{{NEARBY_CITY_4}}</li>
-              <li>{{NEARBY_CITY_3}}</li>
-              <li>{{NEARBY_CITY_2}}</li>
-              
+              <% _areas.forEach(function(a) { %><li><%= a %></li><% }); %>
             </ul>
-            <p class="service-area-note">Plus surrounding {{SERVICE_REGION}} communities within 50 miles of {{CITY}}</p>
+            <p class="service-area-note">And communities across the {{SERVICE_REGION}}</p>
           </div>
-          
-          <div class="contact-info-card credentials-card">
-            <h3>Why Pet Parents Trust Us</h3>
-            <div class="credentials-list">
-              <div class="credential-item">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                <span>AAHA Accredited Hospital</span>
-              </div>
-              <div class="credential-item">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                <span>Licensed Veterinarians</span>
-              </div>
-              <div class="credential-item">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                <span>24/7 Emergency Care</span>
-              </div>
-              <div class="credential-item">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                <span>Compassionate, Gentle Handling</span>
-              </div>
-            </div>
-          </div>
+          <%/* No credentials card: a site states only what its owner supplied. */%>
         </aside>
       </div>
     </div>
@@ -231,8 +196,8 @@
               <polyline points="22 4 12 14.01 9 11.01"></polyline>
             </svg>
           </div>
-          <h3>Caring, Expert Team</h3>
-          <p>Licensed veterinarians and gentle staff who treat your pet with the patience and compassion they deserve.</p>
+          <h3>Gentle Handling</h3>
+          <p>We treat your pet with the patience and compassion they deserve.</p>
         </div>
         
         <div class="benefit-card">
@@ -242,8 +207,8 @@
               <polyline points="12 6 12 12 16 14"></polyline>
             </svg>
           </div>
-          <h3>Fast Response</h3>
-          <p>We respond to all appointment requests within 24 hours, usually much sooner. Emergencies are always prioritized.</p>
+          <h3>We'll Be in Touch</h3>
+          <p>Send your request and we'll get back to you soon to set up a time.</p>
         </div>
         
         <div class="benefit-card">
@@ -256,7 +221,7 @@
             </svg>
           </div>
           <h3>Honest Guidance</h3>
-          <p>Get clear, honest recommendations from veterinarians who explain your pet's care in plain language.</p>
+          <p>Get clear, honest recommendations, with your pet's care explained in plain language.</p>
         </div>
         
         <div class="benefit-card">
@@ -269,7 +234,7 @@
             </svg>
           </div>
           <h3>Flexible Scheduling</h3>
-          <p>We offer convenient appointment times, same-day sick visits, and Saturday hours to fit your busy life.</p>
+          <p>We'll work with you to find an appointment time that fits your schedule.</p>
         </div>
       </div>
     </div>
@@ -287,8 +252,8 @@
           </svg>
         </div>
         <div>
-          <h2>Pet Emergency?</h2>
-          <p>If your pet needs urgent help, don't wait. We provide 24/7 emergency veterinary care throughout the {{SERVICE_REGION}}.</p>
+          <h2>Worried About Your Pet?</h2>
+          <p>Give us a call and tell us what's going on.</p>
         </div>
         <a href="tel:{{COMPANY_PHONE_RAW}}" class="btn btn-primary btn-lg">Call Now: {{COMPANY_PHONE}}</a>
       </div>
@@ -368,62 +333,15 @@
       "@type": "VeterinaryCare",
       "name": "{{COMPANY_NAME}}",
       "telephone": "{{COMPANY_PHONE}}",
-      "email": "info@{{DOMAIN}}",
-      "address": {
+<% if (_emailOk) { %>      "email": <%- _jsonStr(_email) %>,
+<% } %>      "address": {
         "@type": "PostalAddress",
         "addressLocality": "{{CITY}}",
         "addressRegion": "{{STATE}}",
         "addressCountry": "US"
       },
-      "areaServed": [
-        {
-          "@type": "City",
-          "name": "{{CITY}}",
-          "containedInPlace": {
-            "@type": "State",
-            "name": "{{STATE_FULL}}"
-          }
-        },
-        {
-          "@type": "City",
-          "name": "{{NEARBY_CITY_1}}",
-          "containedInPlace": {
-            "@type": "State",
-            "name": "{{STATE_FULL}}"
-          }
-        },
-        {
-          "@type": "City",
-          "name": "{{NEARBY_CITY_4}}",
-          "containedInPlace": {
-            "@type": "State",
-            "name": "{{STATE_FULL}}"
-          }
-        },
-        {
-          "@type": "City",
-          "name": "{{NEARBY_CITY_3}}",
-          "containedInPlace": {
-            "@type": "State",
-            "name": "{{STATE_FULL}}"
-          }
-        }
-      ],
-      "url": "{{SITE_URL}}/contact",
-      "openingHoursSpecification": [
-        {
-          "@type": "OpeningHoursSpecification",
-          "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-          "opens": "08:00",
-          "closes": "18:00"
-        },
-        {
-          "@type": "OpeningHoursSpecification",
-          "dayOfWeek": ["Saturday"],
-          "opens": "09:00",
-          "closes": "16:00"
-        }
-      ]
+      "areaServed": [<% _areas.forEach(function(a, i) { %>{"@type":"City","name":<%- _jsonStr(a) %>}<%- i < _areas.length - 1 ? ',' : '' %><% }); %>],
+      "url": "{{SITE_URL}}/contact"
     }
   }
   </script>

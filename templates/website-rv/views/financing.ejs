@@ -33,7 +33,7 @@ const phoneRaw = phone.replace(/\D/g, '');
         Home
       </a>
       <h1>Financing</h1>
-      <p>Estimate your monthly payment and get pre-qualified — financing available for all credit at {{COMPANY_NAME}}.</p>
+      <p>Estimate your monthly payment and ask about financing at {{COMPANY_NAME}}.</p>
     </div>
   </section>
 
@@ -80,7 +80,7 @@ const phoneRaw = phone.replace(/\D/g, '');
           <span class="fin-calc-amount" id="calc-payment">$0</span>
           <span class="fin-calc-per">/mo</span>
         </div>
-        <p class="fin-disclaimer">Estimate only — not a financing offer. Taxes, title, and fees not included.</p>
+        <p class="fin-disclaimer">Estimate only, not an offer of credit. Taxes, title, and fees not included.</p>
         <a href="#prequal" class="btn btn-primary btn-lg" id="calc-prequal-btn">Get Pre-Qualified</a>
       </div>
     </section>
@@ -130,11 +130,11 @@ const phoneRaw = phone.replace(/\D/g, '');
           <input type="hidden" name="leadType" value="financing">
           <input type="hidden" name="source" value="financing">
           <button type="submit" class="btn btn-primary btn-lg btn-block">Get Pre-Qualified</button>
-          <p class="fin-disclaimer">This sends a request for our finance team to contact you. It is NOT a credit application and does not affect your credit.</p>
+          <p class="fin-disclaimer">This sends a request for us to contact you. It is NOT a credit application and does not affect your credit.</p>
 
           <div id="prequalSuccess" class="fin-form-msg success">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-            <span><strong>Thank you!</strong> Our finance team will reach out within 24 hours.</span>
+            <span><strong>Thank you!</strong> We'll be in touch soon.</span>
           </div>
           <div id="prequalError" class="fin-form-msg error">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>

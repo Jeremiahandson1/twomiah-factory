@@ -1,6 +1,7 @@
 <%
 const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
 const phoneRaw = phone.replace(/\D/g, '');
+const hasPhone = phone.indexOf('{{') === -1 && phoneRaw.replace(/^1/, '').length >= 10 && phoneRaw.replace(/^1/, '') !== '5550000000';
 %>
 
 <div class="about-page">
@@ -14,7 +15,7 @@ const phoneRaw = phone.replace(/\D/g, '');
         Home
       </a>
       <h1>About {{COMPANY_NAME}}</h1>
-      <p>Quality products, fair prices, and service you can count on.</p>
+      <p>Get to know the shop behind the products.</p>
     </div>
   </section>
 
@@ -24,8 +25,8 @@ const phoneRaw = phone.replace(/\D/g, '');
       <div class="about-grid">
         <div class="about-content">
           <h2>Our Story</h2>
-          <p>{{COMPANY_NAME}} was founded with a simple mission: offer products we believe in, at prices that are fair, backed by service that treats every customer like a neighbor. Based in {{CITY}}, {{STATE}}, we've built our reputation one order at a time.</p>
-          <p>Every item in our shop is chosen with care. From the moment you browse to the moment your order arrives, we sweat the details — clear product info, honest pricing, careful packing, and real people to talk to if anything isn't right.</p>
+          <p>{{COMPANY_NAME}} is a shop based in {{CITY}}, {{STATE}}. We offer products we believe in and want shopping here to be simple, from browsing the catalog to checking out.</p>
+          <p>Have a question about a product or an order? Send us a message and a real person will get back to you.</p>
         </div>
         <div class="about-image">
           <div class="about-placeholder">
@@ -42,7 +43,7 @@ const phoneRaw = phone.replace(/\D/g, '');
   <!-- Values -->
   <section class="about-values">
     <div class="container">
-      <h2>What Sets Us Apart</h2>
+      <h2>Shopping With Us</h2>
       <div class="values-grid">
         <div class="value-card">
           <div class="value-icon">
@@ -51,7 +52,7 @@ const phoneRaw = phone.replace(/\D/g, '');
             </svg>
           </div>
           <h3>Secure Checkout</h3>
-          <p>Every order is processed over an encrypted, trusted payment rail. Your details stay safe.</p>
+          <p>Payments go through the payment provider's own secure checkout page, so your card details are never entered on this site.</p>
         </div>
         <div class="value-card">
           <div class="value-icon">
@@ -60,8 +61,8 @@ const phoneRaw = phone.replace(/\D/g, '');
               <polyline points="22 4 12 14.01 9 11.01"></polyline>
             </svg>
           </div>
-          <h3>Quality Guaranteed</h3>
-          <p>We stand behind everything we sell. If your order isn't right, we'll make it right.</p>
+          <h3>Clear Product Info</h3>
+          <p>Each product page shows its options, price, and availability before you add it to your cart.</p>
         </div>
         <div class="value-card">
           <div class="value-icon">
@@ -70,8 +71,8 @@ const phoneRaw = phone.replace(/\D/g, '');
               <polyline points="12 6 12 12 16 14"></polyline>
             </svg>
           </div>
-          <h3>Fast, Careful Shipping</h3>
-          <p>Orders go out quickly and packed properly. Clear tracking, honest pricing, no surprises.</p>
+          <h3>Simple Checkout</h3>
+          <p>Add what you like to your cart, review it, and check out in a few steps.</p>
         </div>
         <div class="value-card">
           <div class="value-icon">
@@ -82,8 +83,8 @@ const phoneRaw = phone.replace(/\D/g, '');
               <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
             </svg>
           </div>
-          <h3>Independently Owned</h3>
-          <p>A real small business, not a faceless marketplace. When you shop here, you support real people.</p>
+          <h3>Real People to Ask</h3>
+          <p>Not sure which product fits? Ask us and we'll help you choose.</p>
         </div>
       </div>
     </div>
@@ -96,7 +97,7 @@ const phoneRaw = phone.replace(/\D/g, '');
       <p>Browse the shop, or reach out — we're happy to help you find the right product.</p>
       <div class="cta-buttons">
         <a href="/shop" class="btn btn-primary">Shop Now</a>
-        <a href="tel:<%= phoneRaw %>" class="btn btn-outline">Call <%= phone %></a>
+        <% if (hasPhone) { %><a href="tel:<%= phoneRaw %>" class="btn btn-outline">Call <%= phone %></a><% } else { %><a href="/contact" class="btn btn-outline">Contact Us</a><% } %>
       </div>
     </div>
   </section>

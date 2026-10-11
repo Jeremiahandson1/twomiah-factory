@@ -1,9 +1,9 @@
 {
   "hero": {
     "tagline": "{{HERO_TAGLINE}}",
-    "title": "{{CITY}}'s Trusted HVAC & Plumbing Experts",
-    "subtitle": "Fast Service. Flat-Rate Pricing. Done Right.",
-    "description": "{{COMPANY_NAME}} has been serving {{SERVICE_REGION}} with professional HVAC and plumbing services. Licensed, insured, and available 24/7 for emergencies.",
+    "title": "HVAC & Plumbing Service in {{CITY}}",
+    "subtitle": "Heating, Cooling & Plumbing",
+    "description": "{{COMPANY_NAME}} provides HVAC and plumbing service for homes in {{CITY}} and the {{SERVICE_REGION}}.",
     "image": "/images/hero.jpg",
     "animation": "ken-burns",
     "primaryButtonText": "Schedule Service",
@@ -11,50 +11,17 @@
     "secondaryButtonText": "See Our Work",
     "secondaryButtonLink": "/gallery"
   },
-  "trustBadges": [
-    {
-      "id": "epa",
-      "type": "custom",
-      "label": "EPA Certified",
-      "sublabel": "Refrigerant handling certified",
-      "icon": "shield",
-      "enabled": true
-    },
-    {
-      "id": "nate",
-      "type": "custom",
-      "label": "NATE Certified",
-      "sublabel": "Industry-leading technician certification",
-      "icon": "check",
-      "enabled": true
-    },
-    {
-      "id": "bbb",
-      "type": "bbb",
-      "label": "BBB A+ Rated",
-      "sublabel": "Accredited since day one",
-      "icon": "star",
-      "enabled": true
-    },
-    {
-      "id": "emergency",
-      "type": "custom",
-      "label": "24/7 Emergency",
-      "sublabel": "Always available when you need us",
-      "icon": "clock",
-      "enabled": true
-    }
-  ],
+  "trustBadges": [],
   "ctaSection": {
-    "title": "Stay comfortable year-round.\nCall the team your neighbors trust.",
-    "description": "Whether it's AC, heating, plumbing, or maintenance — we're here for {{SERVICE_REGION}} homeowners with fast, flat-rate service.",
+    "title": "Stay comfortable year-round.\nTell us what you need.",
+    "description": "Whether it's AC, heating, plumbing, or maintenance, we're here to help {{SERVICE_REGION}} homeowners.",
     "primaryButtonText": "Schedule Service",
     "primaryButtonLink": "#contact",
     "secondaryButtonText": "Call {{COMPANY_PHONE}}",
     "secondaryButtonLink": "tel:{{COMPANY_PHONE_RAW}}",
     "backgroundImage": "",
     "headline": "{{CTA_TEXT}}",
-    "subtext": "Call {{COMPANY_PHONE}} or fill out the form — we respond same day."
+    "subtext": "Call {{COMPANY_PHONE}} or fill out the form and we'll be in touch soon."
   },
   "serviceAreas": [
     "{{CITY}}",
@@ -65,38 +32,38 @@
   ],
   "businessHours": {
     "monday": {
-      "open": "7:00 AM",
-      "close": "6:00 PM",
-      "closed": false
+      "open": "",
+      "close": "",
+      "closed": true
     },
     "tuesday": {
-      "open": "7:00 AM",
-      "close": "6:00 PM",
-      "closed": false
+      "open": "",
+      "close": "",
+      "closed": true
     },
     "wednesday": {
-      "open": "7:00 AM",
-      "close": "6:00 PM",
-      "closed": false
+      "open": "",
+      "close": "",
+      "closed": true
     },
     "thursday": {
-      "open": "7:00 AM",
-      "close": "6:00 PM",
-      "closed": false
+      "open": "",
+      "close": "",
+      "closed": true
     },
     "friday": {
-      "open": "7:00 AM",
-      "close": "6:00 PM",
-      "closed": false
+      "open": "",
+      "close": "",
+      "closed": true
     },
     "saturday": {
-      "open": "8:00 AM",
-      "close": "4:00 PM",
-      "closed": false
+      "open": "",
+      "close": "",
+      "closed": true
     },
     "sunday": {
-      "open": "Closed",
-      "close": "Closed",
+      "open": "",
+      "close": "",
       "closed": true
     }
   },

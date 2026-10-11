@@ -1,6 +1,11 @@
 <%
 // Extract service data with fallbacks
 const description = service.fullDescription || service.description || '';
+// Owner-entered services may carry only a name.
+const svcTitle = service.title || service.name || '';
+// Areas for the schema, de-duplicated (empty nearby-city tokens fall back to the home city).
+const _areas = ['{{CITY}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}', '{{NEARBY_CITY_4}}']
+  .map((a) => String(a).trim()).filter((a, i, all) => a && all.findIndex((b) => b.toLowerCase() === a.toLowerCase()) === i);
 const heroImage = service.heroImage || '';
 const heroAnimation = service.heroAnimation || 'none';
 const heroAnimationSpeed = service.heroAnimationSpeed || 10;
@@ -45,7 +50,7 @@ const otherServices = (typeof services !== 'undefined' && services)
 
 <div class="service-page">
   <%
-    const heroAria = `${service.title} services in {{CITY}}, {{STATE}} by {{COMPANY_NAME}}`;
+    const heroAria = `${svcTitle} services in {{CITY}}, {{STATE}} by {{COMPANY_NAME}}`;
   %>
   <!-- Landing: hero copy + main content share ONE sticky lead-form rail. -->
   <section class="service-lead" aria-label="<%= heroAria %>" style="--hero-speed: <%= heroAnimationSpeed %>s">
@@ -72,7 +77,7 @@ const otherServices = (typeof services !== 'undefined' && services)
             </svg>
             All Services
           </a>
-          <h1>{{CITY}}'s Trusted <%= service.title %> Contractor</h1>
+          <h1><%= svcTitle %> in {{CITY}}, {{STATE}}</h1>
           <% if (service.tagline) { %>
             <p class="hero-tagline"><%= service.tagline %></p>
           <% } %>
@@ -80,9 +85,9 @@ const otherServices = (typeof services !== 'undefined' && services)
             <p class="hero-description"><%= service.heroDescription %></p>
           <% } %>
           <div class="hero-buttons">
-            <a href="#hero-estimate" class="btn btn-primary btn-lg">Get Free Estimate</a>
+            <a href="#hero-estimate" class="btn btn-primary btn-lg">Request an Estimate</a>
             <a href="tel:<%= phoneRaw %>" class="btn btn-outline-light btn-lg">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svgwidth="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
               </svg>
               <%= phone %>
@@ -93,7 +98,7 @@ const otherServices = (typeof services !== 'undefined' && services)
         <!-- Main Content -->
         <div class="sl-body">
           <div class="content-section">
-            <h2>Expert <%= service.title %> Services</h2>
+            <h2><%= svcTitle %> Services</h2>
             <% if (description) { %>
               <% if (description.includes('<')) { %>
                 <div class="prose"><%- description %></div>
@@ -110,7 +115,7 @@ const otherServices = (typeof services !== 'undefined' && services)
           <!-- Services Offered / Offerings -->
           <% if (service.offerings && service.offerings.length > 0) { %>
             <div class="offerings-section">
-              <h2>Our <%= service.title %> Services</h2>
+              <h2>Our <%= svcTitle %> Services</h2>
               <div class="offerings-grid">
                 <% service.offerings.forEach(function(offering, index) { %>
                   <div class="offering-card">
@@ -154,7 +159,7 @@ const otherServices = (typeof services !== 'undefined' && services)
                         <circle cx="12" cy="8" r="7"></circle>
                         <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
                       </svg>
-                      Why Choose Us
+                      What We Offer
                     </h3>
                     <ul>
                       <% service.features.forEach(function(feature) { %>
@@ -177,8 +182,8 @@ const otherServices = (typeof services !== 'undefined' && services)
         <!-- Sticky lead-form rail -->
         <aside class="sl-rail">
           <div class="hero-estimate-card" id="hero-estimate">
-            <h2>Get Your Free <%= service.title %> Estimate</h2>
-            <p class="hero-form-sub">No obligation &mdash; fast response from a local crew.</p>
+            <h2>Request a <%= svcTitle %> Estimate</h2>
+            <p class="hero-form-sub">Tell us how to reach you and we'll be in touch soon.</p>
             <form id="hero-estimate-form" method="POST" action="/api/admin/leads">
               <!-- anti-spam honeypot: hidden from people; bots that fill it are rejected server-side -->
               <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;">
@@ -195,14 +200,14 @@ const otherServices = (typeof services !== 'undefined' && services)
                   <input id="hef-phone" name="phone" type="tel" autocomplete="tel" required>
                 </div>
               </div>
-              <input type="hidden" name="service" value="<%= service.title %>">
+              <input type="hidden" name="service" value="<%= svcTitle %>">
               <input type="hidden" name="source" value="<%= service.urlSlug || service.slug || service.id %>">
               <div id="hef-error" class="hef-error"></div>
-              <button type="submit" class="btn btn-primary btn-lg hef-submit">Get My Free Estimate</button>
+              <button type="submit" class="btn btn-primary btn-lg hef-submit">Request My Estimate</button>
               <p class="hef-finehint">Prefer to talk? Call <a href="tel:<%= phoneRaw %>"><%= phone %></a></p>
             </form>
             <div id="hef-success" class="hef-success">
-              <strong>Thank you!</strong> Your request is in &mdash; we'll call you shortly to schedule your free estimate. Prefer not to wait? Call <a href="tel:<%= phoneRaw %>"><%= phone %></a>.
+              <strong>Thank you!</strong> Your request is in &mdash; we'll be in touch soon. Prefer not to wait? Call<a href="tel:<%= phoneRaw %>"><%= phone %></a>.
             </div>
           </div>
 
@@ -211,14 +216,14 @@ const otherServices = (typeof services !== 'undefined' && services)
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
               </svg>
-              <span>Licensed &amp; Insured</span>
+              <span>Based in {{CITY}}</span>
             </div>
             <div class="trust-item">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="8" r="7"></circle>
                 <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
               </svg>
-              <span>Quality Guaranteed</span>
+              <span>Clear Communication</span>
             </div>
             <div class="trust-item">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -226,7 +231,7 @@ const otherServices = (typeof services !== 'undefined' && services)
                 <path d="M2 17l10 5 10-5"></path>
                 <path d="M2 12l10 5 10-5"></path>
               </svg>
-              <span>Expert Craftsmen</span>
+              <span>Careful Workmanship</span>
             </div>
           </div>
         </aside>
@@ -240,7 +245,7 @@ const otherServices = (typeof services !== 'undefined' && services)
     <section class="service-projects">
       <div class="container">
         <div class="section-header">
-          <h2>Recent <%= service.title %> Projects</h2>
+          <h2>Recent <%= svcTitle %> Projects</h2>
           <a href="/gallery" class="view-all-link">View All Projects &rarr;</a>
         </div>
         <div class="projects-grid">
@@ -308,10 +313,10 @@ const otherServices = (typeof services !== 'undefined' && services)
   <!-- Bottom CTA -->
   <section class="service-cta">
     <div class="container">
-      <h2>Ready to Start Your <%= service.title %> Project?</h2>
-      <p>Contact {{COMPANY_NAME}} today for a free estimate. We serve {{CITY}} and the surrounding {{SERVICE_REGION}}.</p>
+      <h2>Ready to Start Your <%= svcTitle %> Project?</h2>
+      <p>Tell {{COMPANY_NAME}} about your project and we'll be in touch soon. We serve the {{SERVICE_REGION}}.</p>
       <div class="cta-buttons">
-        <a href="#hero-estimate" class="btn btn-primary btn-lg">Get Free Estimate</a>
+        <a href="#hero-estimate" class="btn btn-primary btn-lg">Request an Estimate</a>
         <a href="tel:<%= phoneRaw %>" class="btn btn-outline-light btn-lg">Call <%= phone %></a>
       </div>
     </div>
@@ -325,7 +330,7 @@ const otherServices = (typeof services !== 'undefined' && services)
         <div class="services-links">
           <% otherServices.forEach(function(s) { %>
             <a href="/services/<%= s.urlSlug || s.slug || s.id %>" class="service-link">
-              <%= s.title %>
+              <%= s.title || s.name %>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
@@ -341,7 +346,7 @@ const otherServices = (typeof services !== 'undefined' && services)
   {
     "@context": "https://schema.org",
     "@type": "Service",
-    "name": <%- JSON.stringify(service.title + ' - {{COMPANY_NAME}}') %>,
+    "name": <%- JSON.stringify(svcTitle + ' - {{COMPANY_NAME}}') %>,
     "description": <%- JSON.stringify(service.heroDescription || service.tagline || '') %>,
     "provider": {
       "@type": "HomeAndConstructionBusiness",
@@ -350,13 +355,9 @@ const otherServices = (typeof services !== 'undefined' && services)
       "areaServed": { "@type": "City", "name": "{{CITY}}, {{STATE}}" }
     },
     "areaServed": [
-      { "@type": "City", "name": "{{CITY}}, {{STATE}}" },
-      { "@type": "City", "name": "{{NEARBY_CITY_1}}, {{STATE}}" },
-      { "@type": "City", "name": "{{NEARBY_CITY_2}}, {{STATE}}" },
-      { "@type": "City", "name": "{{NEARBY_CITY_3}}, {{STATE}}" },
-      { "@type": "City", "name": "{{NEARBY_CITY_4}}, {{STATE}}" }
+      <%- _areas.map((a) => JSON.stringify({ '@type': 'City', name: a + ', {{STATE}}' })).join(',\n      ') %>
     ],
-    "serviceType": <%- JSON.stringify(service.title) %>
+    "serviceType": <%- JSON.stringify(svcTitle) %>
   }
   </script>
 </div>

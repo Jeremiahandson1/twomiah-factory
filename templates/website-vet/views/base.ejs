@@ -138,7 +138,7 @@
     "@context": "https://schema.org",
     "@type": "VeterinaryCare",
     "name": "{{COMPANY_NAME}}",
-    "description": "Full-service veterinary hospital in {{CITY}} and the {{SERVICE_REGION}} — wellness, surgery, dental, vaccinations, and 24/7 emergency care for pets",
+    "description": "Veterinary care for pets in {{CITY}} and the surrounding area",
     "url": "{{COMPANY_WEBSITE}}",
     "logo": <%- _jsonStr('{{COMPANY_WEBSITE}}' + logoUrl) %>,
     "image": <%- _jsonStr('{{COMPANY_WEBSITE}}' + logoUrl) %>,
@@ -161,8 +161,7 @@
           "name": "{{STATE_FULL}}"
         }
       }
-    ],
-    "priceRange": "$$"
+    ]
     <% if (typeof settings !== 'undefined' && settings && settings.socialLinks) { %>
     ,"sameAs": [
       <% const socialLinks = []; %>
@@ -401,14 +400,16 @@
               <%
                 const allNavItems = typeof menuItems !== 'undefined' ? menuItems : [];
                 const visibleItems = allNavItems.filter(item => item.visible !== false);
+                // A bare "#about" only works on the home page; point it at the home page's section.
+                var _navHref = (h) => (typeof h === 'string' && h.charAt(0) === '#') ? '/' + h : h;
               %>
               <% visibleItems.forEach(item => { %>
                 <li class="<%= item.children && item.children.length > 0 ? 'has-dropdown' : '' %>">
-                  <a href="<%= item.href %>"><%= item.label %></a>
+                  <a href="<%= _navHref(item.href) %>"><%= item.label %></a>
                   <% if (item.children && item.children.length > 0) { %>
                     <div class="dropdown">
                       <% item.children.forEach(child => { %>
-                        <a href="<%= child.href %>"><%= child.label %></a>
+                        <a href="<%= _navHref(child.href) %>"><%= child.label %></a>
                       <% }); %>
                     </div>
                   <% } %>
@@ -449,11 +450,11 @@
         %>
         <% visibleItemsMobile.forEach(item => { %>
           <li>
-            <a href="<%= item.href %>"><%= item.label %></a>
+            <a href="<%= _navHref(item.href) %>"><%= item.label %></a>
             <% if (item.children && item.children.length > 0) { %>
               <div class="dropdown">
                 <% item.children.forEach(child => { %>
-                  <a href="<%= child.href %>"><%= child.label %></a>
+                  <a href="<%= _navHref(child.href) %>"><%= child.label %></a>
                 <% }); %>
               </div>
             <% } %>
@@ -492,17 +493,15 @@
 
         <!-- Nav Links -->
         <nav class="hc-footer-nav">
-          <a href="#about">About</a>
-          <a href="#team">Meet Our Vets</a>
-          <a href="#services">Services</a>
-          <a href="#areas">Service Areas</a>
+          <a href="/#about">About</a>
+          <a href="/#services">Services</a>
+          <a href="/#areas">Service Areas</a>
           <a href="/#contact">Contact</a>
           <% if (typeof menuItems !== 'undefined') { %>
             <% menuItems.filter(i => i.visible && ['careers','blog','team'].includes(i.id)).forEach(function(item) { %>
-              <a href="<%= item.href %>" class="<%= item.id === 'join' ? 'hc-footer-highlight' : '' %>"><%= item.label %></a>
+              <a href="<%= _navHref(item.href) %>" class="<%= item.id === 'join' ? 'hc-footer-highlight' : '' %>"><%= item.label %></a>
             <% }); %>
           <% } %>
-          <a href="/#contact" class="hc-footer-highlight">Join Our Team</a>
         </nav>
 
         <!-- City + Phone -->

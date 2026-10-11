@@ -3,8 +3,25 @@
 const hero = (typeof homepage !== 'undefined' && homepage && homepage.hero) ? homepage.hero : {};
 const trustBadges = (typeof homepage !== 'undefined' && homepage && homepage.trustBadges) ? homepage.trustBadges.filter(b => b.enabled) : [];
 const ctaSection = (typeof homepage !== 'undefined' && homepage && homepage.ctaSection) ? homepage.ctaSection : {};
-const serviceAreas = (typeof homepage !== 'undefined' && homepage && homepage.serviceAreas) ? homepage.serviceAreas : [...new Set(['{{CITY}}', '{{NEARBY_CITY_4}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}'].map(s => s.trim()).filter(Boolean))];
+// The generator fills empty nearby-city tokens with the home city, so de-duplicate
+// (case-insensitively) before printing the list anywhere.
+const _rawAreas = (typeof homepage !== 'undefined' && homepage && Array.isArray(homepage.serviceAreas) && homepage.serviceAreas.length) ? homepage.serviceAreas : ['{{CITY}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}', '{{NEARBY_CITY_4}}'];
+const serviceAreas = _rawAreas.map((a) => String(a || '').trim()).filter((a, i, all) => a && all.findIndex((b) => b.toLowerCase() === a.toLowerCase()) === i);
 const businessHours = (typeof homepage !== 'undefined' && homepage && homepage.businessHours) ? homepage.businessHours : {};
+// Hours print only for days the owner gave a real opening time (no default hours).
+const _dayNames = { monday: 'Monday', tuesday: 'Tuesday', wednesday: 'Wednesday', thursday: 'Thursday', friday: 'Friday', saturday: 'Saturday', sunday: 'Sunday' };
+const openDays = Object.keys(_dayNames).filter((d) => {
+  const h = businessHours[d];
+  return h && !h.closed && String(h.open || '').trim() && !/closed/i.test(String(h.open));
+});
+const _to24 = (t) => {
+  const m = String(t || '').trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+  if (!m) return '';
+  let hh = parseInt(m[1], 10);
+  if (m[3] && m[3].toLowerCase() === 'pm' && hh < 12) hh += 12;
+  if (m[3] && m[3].toLowerCase() === 'am' && hh === 12) hh = 0;
+  return String(hh).padStart(2, '0') + ':' + (m[2] || '00');
+};
 
 // Settings with fallbacks
 const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
@@ -48,10 +65,9 @@ function getImageUrl(p) {
       <div class="hero-line"></div>
       <p class="hero-tagline"><strong><%= hero.tagline || 'YOUR TRUSTED LOCAL PROFESSIONALS' %></strong></p>
       <p class="hero-awards"><%= hero.description || 'Serving the {{SERVICE_REGION}} with Quality Craftsmanship' %></p>
-      <p class="hero-google-rating"><span class="stars">★★★★★</span>Rated 5.0 on Google</p>
       <div class="hero-buttons">
         <a href="<%= hero.primaryButtonLink || '#contact' %>" class="btn btn-primary btn-lg">
-          <%= hero.primaryButtonText || 'Request Free Estimate' %>
+          <%= hero.primaryButtonText || 'Request an Estimate' %>
         </a>
         <a href="<%= hero.secondaryButtonLink || '/gallery' %>" class="btn btn-outline-light btn-lg">
           <%= hero.secondaryButtonText || 'View Our Work' %>
@@ -101,28 +117,28 @@ function getImageUrl(p) {
   <!-- Why Choose Us Section -->
   <section class="why-choose-section">
     <div class="container">
-      <h2>Why {{CITY}} Homeowners Trust {{COMPANY_NAME}}</h2>
+      <h2>Why Choose {{COMPANY_NAME}}</h2>
       <div class="why-grid">
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
           </div>
-          <h3>Industry Certified</h3>
-          <p>We've earned top certifications in our industry, giving you access to premium materials, extended warranties, and a commitment to quality backed by the leading names in {{INDUSTRY}}.</p>
+          <h3>Careful Workmanship</h3>
+          <p>We take the time to do the job right, with materials suited to your home, your budget, and the way you live.</p>
         </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
           </div>
           <h3>Local to the {{SERVICE_REGION}}</h3>
-          <p>Based in {{CITY}}, we serve homeowners across {{SERVICE_AREAS}}. As a local company, we're already here — not driving in from out of town.</p>
+          <p>Based in {{CITY}}, we serve homeowners across {{SERVICE_AREAS}}, so we're close by when you need us.</p>
         </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </div>
-          <h3>Transparent Pricing, No Surprises</h3>
-          <p>Every project starts with a detailed free estimate. We walk you through material options, labor costs, and timelines before any work begins. Our customers consistently mention our honest communication in their reviews.</p>
+          <h3>Clear Communication</h3>
+          <p>We walk you through material options, costs, and timelines before any work begins, and keep you informed until the job is done.</p>
         </div>
       </div>
     </div>
@@ -335,10 +351,10 @@ function getImageUrl(p) {
           <%= line %><% if (i === 0 && ctaTitleLines.length > 1) { %><br><% } %>
         <% }); %>
       </h2>
-      <p><%= ctaSection.description || "Find out how we can improve your home's efficiency and curb appeal." %></p>
+      <p><%= ctaSection.description || "Tell us about your project and we'll be in touch soon." %></p>
       <div class="cta-buttons">
         <a href="<%= ctaSection.primaryButtonLink || '#contact' %>" class="btn btn-primary btn-lg">
-          <%= ctaSection.primaryButtonText || 'Schedule a Free Estimate' %>
+          <%= ctaSection.primaryButtonText || 'Request an Estimate' %>
         </a>
         <a href="<%= ctaSection.secondaryButtonLink || 'tel:' + phoneRaw %>" class="btn btn-outline btn-lg">
           <%= ctaSection.secondaryButtonText || 'Call ' + phone %>
@@ -389,20 +405,20 @@ function getImageUrl(p) {
           <p>Project timelines vary depending on scope and complexity. We provide detailed timelines during your estimate and communicate clearly throughout the process to minimize delays.</p>
         </details>
         <details class="home-faq-item animate-on-scroll">
-          <summary><strong>Do you offer financing for home improvements?</strong></summary>
-          <p>Yes, we offer flexible financing options to help {{SERVICE_REGION}} homeowners afford the upgrades they need. Ask about our current promotions during your free estimate.</p>
+          <summary><strong>How do I get started?</strong></summary>
+          <p>Call us or send a request through the form below. We'll talk through what you need and set up a time to look at your project.</p>
         </details>
         <details class="home-faq-item animate-on-scroll">
           <summary><strong>What areas do you serve besides {{CITY}}?</strong></summary>
-          <p>We serve homeowners in {{SERVICE_AREAS}}. Our crew is local, so we're never far away.</p>
+          <p>We serve homeowners in {{SERVICE_AREAS}}.</p>
         </details>
         <details class="home-faq-item animate-on-scroll">
           <summary><strong>What makes {{COMPANY_NAME}} different?</strong></summary>
-          <p>We combine industry expertise with a commitment to quality materials, transparent pricing, and exceptional customer service. Our certifications and warranties give you peace of mind on every project.</p>
+          <p>We focus on clear communication, careful workmanship, and honest recommendations, so you know what to expect at every step of your project.</p>
         </details>
         <details class="home-faq-item animate-on-scroll">
-          <summary><strong>Do you handle insurance claims for storm damage?</strong></summary>
-          <p>Absolutely. We work directly with your insurance company throughout the claims process. Our team documents the damage, provides detailed estimates, and coordinates with adjusters so you can focus on getting your home back to normal.</p>
+          <summary><strong>What should I have ready before we talk?</strong></summary>
+          <p>A short description of the work, a few photos if you have them, and a rough idea of your timeline. That's enough for us to point you in the right direction.</p>
         </details>
       </div>
     </div>
@@ -443,6 +459,7 @@ function getImageUrl(p) {
               <span><%= address %><br/><%= city %>, <%= state %> <%= zip %></span>
             </div>
           </div>
+          <% if (openDays.length > 0) { %>
           <div class="contact-item">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10"></circle>
@@ -451,24 +468,15 @@ function getImageUrl(p) {
             <div>
               <strong>Hours</strong>
               <span>
-                <% if (businessHours.monday && !businessHours.monday.closed) { %>
-                  Mon - Fri: <%= businessHours.monday.open %> - <%= businessHours.monday.close %>
-                <% } else { %>
-                  Mon - Fri: 8am - 5pm
-                <% } %>
-                <br/>
-                <% if (businessHours.saturday && !businessHours.saturday.closed) { %>
-                  Sat: <%= businessHours.saturday.open %><% if (businessHours.saturday.close) { %> - <%= businessHours.saturday.close %><% } %>
-                <% } else { %>
-                  Sat: By Appointment
-                <% } %>
+                <% openDays.forEach(function(d, i) { %><%= _dayNames[d].slice(0, 3) %>: <%= businessHours[d].open %><% if (businessHours[d].close) { %> - <%= businessHours[d].close %><% } %><% if (i < openDays.length - 1) { %><br/><% } %><% }); %>
               </span>
             </div>
           </div>
+          <% } %>
           
           <div class="service-areas">
             <h3>Service Areas</h3>
-            <p><%= serviceAreas.join(', ') %>, and surrounding communities.</p>
+            <p><%= serviceAreas.join(', ') %><%= serviceAreas.length > 1 ? ',' : '' %> and surrounding communities.</p>
           </div>
         </div>
 
@@ -517,7 +525,7 @@ function getImageUrl(p) {
               <textarea id="message" name="message" rows="4" placeholder="Tell us about your project..."></textarea>
             </div>
             <div id="form-error" style="display: none; color: #dc2626; background: #fef2f2; padding: 12px 16px; border-radius: 8px; margin-bottom: 8px; font-size: 0.95rem;"></div>
-            <div id="form-success" style="display: none; color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 16px; border-radius: 8px; font-size: 0.98rem;"><strong>Thank you!</strong> Your request is in &mdash; we'll be in touch shortly to schedule your free estimate.</div>
+            <div id="form-success" style="display: none; color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 16px; border-radius: 8px; font-size: 0.98rem;"><strong>Thank you!</strong> Your request is in &mdash; we'll be in touch soon.</div>
             <div class="form-group checkbox-group sms-consent">
               <label>
                 <input type="checkbox" name="sms_consent" value="yes">
@@ -576,16 +584,21 @@ function getImageUrl(p) {
         "name": <%- _jsonStr(String(area) + ', {{STATE}}') %>
       }<%= index < serviceAreas.length - 1 ? ',' : '' %>
       <% }); %>
-    ],
-    "priceRange": "$$",
-    "openingHoursSpecification": [
+    ]
+    <%/* opening hours only from days the owner filled in; no priceRange (never supplied) */%>
+    <% const _ldHours = openDays.filter((d) => _to24(businessHours[d].open) && _to24(businessHours[d].close)); %>
+    <% if (_ldHours.length > 0) { %>
+    ,"openingHoursSpecification": [
+      <% _ldHours.forEach(function(d, i) { %>
       {
         "@type": "OpeningHoursSpecification",
-        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-        "opens": "08:00",
-        "closes": "17:00"
-      }
+        "dayOfWeek": <%- _jsonStr(_dayNames[d]) %>,
+        "opens": <%- _jsonStr(_to24(businessHours[d].open)) %>,
+        "closes": <%- _jsonStr(_to24(businessHours[d].close)) %>
+      }<%= i < _ldHours.length - 1 ? ',' : '' %>
+      <% }); %>
     ]
+    <% } %>
     <% if (typeof services !== 'undefined' && services && services.length > 0) { %>
     ,"hasOfferCatalog": {
       "@type": "OfferCatalog",
@@ -596,7 +609,7 @@ function getImageUrl(p) {
           "@type": "Offer",
           "itemOffered": {
             "@type": "Service",
-            "name": <%- _jsonStr(s.title) %>,
+            "name": <%- _jsonStr(s.title || s.name) %>,
             "description": <%- _jsonStr(_plainDesc(s.description, 280)) %>
           }
         }<%= index < services.length - 1 ? ',' : '' %>
@@ -618,7 +631,7 @@ function getImageUrl(p) {
         "@type": "Review",
         "author": {
           "@type": "Person",
-          "name": <%- _jsonStr(t.author) %>
+          "name": <%- _jsonStr(t.author || t.name) %>
         },
         "reviewRating": {
           "@type": "Rating",
@@ -652,10 +665,10 @@ function getImageUrl(p) {
       },
       {
         "@type": "Question",
-        "name": "Do you offer financing for home improvements?",
+        "name": "How do I get started?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes, we offer flexible financing options to help {{SERVICE_REGION}} homeowners afford the upgrades they need."
+          "text": "Call us or send a request through the form on our website. We'll talk through what you need and set up a time to look at your project."
         }
       },
       {
@@ -671,15 +684,15 @@ function getImageUrl(p) {
         "name": "What makes {{COMPANY_NAME}} different?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "We combine industry expertise with quality materials, transparent pricing, and exceptional customer service. Our certifications and warranties give you confidence on every project."
+          "text": "We focus on clear communication, careful workmanship, and honest recommendations, so you know what to expect at every step of your project."
         }
       },
       {
         "@type": "Question",
-        "name": "Do you handle insurance claims for storm damage?",
+        "name": "What should I have ready before we talk?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "We work directly with your insurance company throughout the claims process, documenting damage, providing estimates, and coordinating with adjusters."
+          "text": "A short description of the work, a few photos if you have them, and a rough idea of your timeline."
         }
       }
     ]

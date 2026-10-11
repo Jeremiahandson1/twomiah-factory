@@ -433,10 +433,10 @@ app.get('/services/:slug', (c) => {
     const name = slug.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
     service = {
       id: slug, slug, name, title: name,
-      shortDescription: `Professional ${name.toLowerCase()} services for your home.`,
-      description: `{{COMPANY_NAME}} provides expert ${name.toLowerCase()} services throughout {{SERVICE_REGION}}. Contact us today for a free estimate.`,
-      icon: 'wrench', image: '',
-      features: ['Free estimates', 'Licensed and insured', 'Quality workmanship guarantee', 'Experienced professionals'],
+      shortDescription: '',
+      description: `Ask {{COMPANY_NAME}} about ${name.toLowerCase()} in {{CITY}}, {{STATE}}.`,
+      icon: 'star', image: '',
+      features: [], // no stock claims (free estimates, licensed, guarantees): owner-supplied facts only
       links: [], offerings: [], faqs: [],
       seoTitle: `${name} | {{COMPANY_NAME}}`,
       seoDescription: `Professional ${name.toLowerCase()} services in {{CITY}}, {{STATE}} by {{COMPANY_NAME}}.`,
@@ -466,7 +466,7 @@ app.get('/terms', (c) => renderPage(c, 'terms', {
 app.get('/about', (c) => {
   return renderPage(c, 'about', {
     title: 'About Us | {{COMPANY_NAME}}',
-    description: 'Learn about {{COMPANY_NAME}} — serving {{SERVICE_REGION}} with quality craftsmanship.',
+    description: 'Learn about {{COMPANY_NAME}} in {{CITY}}, {{STATE}}.',
     canonicalUrl: BASE_URL + '/about',
   })
 })
@@ -476,7 +476,7 @@ app.get('/contact', (c) => {
   return renderPage(c, 'contact', {
     services, selectedService: c.req.query('service') || '',
     title: 'Contact Us | {{COMPANY_NAME}}',
-    description: 'Get in touch for a free estimate.',
+    description: 'Get in touch with {{COMPANY_NAME}}.',
     canonicalUrl: BASE_URL + '/contact',
   })
 })
@@ -486,8 +486,27 @@ app.get('/gallery', (c) => {
   return renderPage(c, 'gallery', {
     gallery,
     title: 'Gallery | {{COMPANY_NAME}}',
-    description: 'See our completed projects.',
+    description: 'Photos from {{COMPANY_NAME}}.',
     canonicalUrl: BASE_URL + '/gallery',
+  })
+})
+
+// A project's own page: gallery cards, featured projects and service pages all link here.
+app.get('/gallery/:id', (c) => {
+  const id = c.req.param('id')
+  const gallery = loadJSON('gallery.json') || []
+  const project = gallery.find((p: any) => p && String(p.id) === id)
+  if (!project) return c.text('Project not found', 404)
+  const others = gallery.filter((p: any) => p && p !== project)
+  const relatedProjects = [
+    ...others.filter((p: any) => project.category && p.category === project.category),
+    ...others.filter((p: any) => !project.category || p.category !== project.category),
+  ].slice(0, 3)
+  return renderPage(c, 'project-detail', {
+    project, relatedProjects,
+    title: (project.title || 'Project') + ' | {{COMPANY_NAME}}',
+    description: String(project.description || '').slice(0, 160),
+    canonicalUrl: BASE_URL + '/gallery/' + encodeURIComponent(String(project.id)),
   })
 })
 

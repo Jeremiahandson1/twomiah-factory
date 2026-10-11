@@ -15,10 +15,16 @@ function getImageUrl(p) {
   return '/uploads/' + p;
 }
 
-// Get other services (excluding current one)
-const otherServices = (typeof allServices !== 'undefined' && allServices) 
-  ? allServices.filter(s => s.id !== service.id) 
-  : [];
+// services.json rows carry "name"; older rows used "title".
+const _svcName = service.title || service.name || '';
+
+// Get other services (excluding current one). The /services/:slug route passes "services".
+const _allSvc = (typeof allServices !== 'undefined' && allServices) || (typeof services !== 'undefined' && services) || [];
+const otherServices = _allSvc.filter(s => s && s.id !== service.id && s.visible !== false && (s.slug || s.id));
+
+// Empty nearby-city slots are filled with the home city, so de-duplicate.
+const _areas = ['{{CITY}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}', '{{NEARBY_CITY_4}}']
+  .map((a) => String(a).trim()).filter((a, i, all) => a && all.findIndex((b) => b.toLowerCase() === a.toLowerCase()) === i);
 %>
 
 <div class="service-page">
@@ -42,7 +48,7 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
           </svg>
           All Services
         </a>
-        <h1><%= service.title %></h1>
+        <h1><%= _svcName %></h1>
         <% if (service.tagline) { %>
           <p class="hero-tagline"><%= service.tagline %></p>
         <% } %>
@@ -69,8 +75,8 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
         <!-- Main Column -->
         <div class="service-content">
           <div class="content-section">
-            <h2>Expert <%= service.title %> Services</h2>
             <% if (description) { %>
+            <h2>About <%= _svcName %></h2>
               <% if (description.includes('<')) { %>
                 <!-- HTML content -->
                 <div class="prose"><%- description %></div>
@@ -88,7 +94,7 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
           <!-- Services Offered / Offerings -->
           <% if (service.offerings && service.offerings.length > 0) { %>
             <div class="offerings-section">
-              <h2>Our <%= service.title %> Services</h2>
+              <h2>What <%= _svcName %> Includes</h2>
               <div class="offerings-grid">
                 <% service.offerings.forEach(function(offering, index) { %>
                   <div class="offering-card">
@@ -132,7 +138,7 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
                         <circle cx="12" cy="8" r="7"></circle>
                         <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
                       </svg>
-                      Why Choose Us
+                      What's Included
                     </h3>
                     <ul>
                       <% service.features.forEach(function(feature) { %>
@@ -171,14 +177,14 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
               </svg>
-              <span>Licensed & Insured</span>
+              <span>Compassionate Care</span>
             </div>
             <div class="trust-item">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="8" r="7"></circle>
                 <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
               </svg>
-              <span>Quality Guaranteed</span>
+              <span>Dignity &amp; Respect</span>
             </div>
             <div class="trust-item">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -186,7 +192,7 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
                 <path d="M2 17l10 5 10-5"></path>
                 <path d="M2 12l10 5 10-5"></path>
               </svg>
-              <span>Expert Craftsmen</span>
+              <span>Personalized Care</span>
             </div>
           </div>
         </aside>
@@ -280,8 +286,8 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
   <!-- Bottom CTA -->
   <section class="service-cta">
     <div class="container">
-      <h2>Let's Talk About <%= service.title %></h2>
-      <p>Contact {{COMPANY_NAME}} today to schedule a free in-home assessment. We serve {{CITY}} and the surrounding {{SERVICE_REGION}}.</p>
+      <h2>Let's Talk About <%= _svcName %></h2>
+      <p>Contact {{COMPANY_NAME}} today to talk through your family's needs. We serve {{CITY}} and the surrounding {{SERVICE_REGION}}.</p>
       <div class="cta-buttons">
         <a href="/#contact" class="btn btn-primary btn-lg">Send Us a Message</a>
         <a href="tel:<%= phoneRaw %>" class="btn btn-outline-light btn-lg">Call <%= phone %></a>
@@ -296,8 +302,8 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
         <h3>Explore Our Other Services</h3>
         <div class="services-links">
           <% otherServices.forEach(function(s) { %>
-            <a href="/<%= s.urlSlug || s.id %>" class="service-link">
-              <%= s.title %>
+            <a href="/services/<%= s.slug || s.id %>" class="service-link">
+              <%= s.title || s.name %>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
@@ -313,23 +319,17 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
   {
     "@context": "https://schema.org",
     "@type": "Service",
-    "name": <%- JSON.stringify(service.title + ' - {{COMPANY_NAME}}') %>,
-    "description": <%- JSON.stringify(service.heroDescription || service.tagline || '') %>,
+    "name": <%- JSON.stringify(_svcName + ' - {{COMPANY_NAME}}') %>,
+    "description": <%- JSON.stringify(service.heroDescription || service.tagline || service.shortDescription || '') %>,
     "provider": {
-      "@type": "HomeAndConstructionBusiness",
+      "@type": "LocalBusiness",
       "name": "{{COMPANY_NAME}}",
       "url": "{{SITE_URL}}",
       "telephone": "+1<%= phoneRaw %>",
       "areaServed": { "@type": "City", "name": "{{CITY}}, {{STATE}}" }
     },
-    "areaServed": [
-      { "@type": "City", "name": "{{CITY}}, {{STATE}}" },
-      { "@type": "City", "name": "{{NEARBY_CITY_4}}, {{STATE}}" },
-      { "@type": "City", "name": "{{NEARBY_CITY_1}}, {{STATE}}" },
-      { "@type": "City", "name": "{{NEARBY_CITY_2}}, {{STATE}}" },
-      { "@type": "City", "name": "{{NEARBY_CITY_3}}, {{STATE}}" }
-    ],
-    "serviceType": <%- JSON.stringify(service.title) %>
+    "areaServed": [<% _areas.forEach(function(a, i) { %>{ "@type": "City", "name": <%- JSON.stringify(a + ', {{STATE}}') %> }<%- i < _areas.length - 1 ? ',' : '' %><% }); %>],
+    "serviceType": <%- JSON.stringify(_svcName) %>
   }
   </script>
 </div>

@@ -4,16 +4,15 @@
     "name": "Lawn Mowing & Maintenance",
     "title": "Lawn Mowing & Maintenance",
     "slug": "lawn-mowing-maintenance",
-    "shortDescription": "Weekly mowing, trimming, and edging — a sharp lawn without you ever touching a mower.",
-    "description": "{{COMPANY_NAME}} keeps lawns across {{SERVICE_REGION}} looking their best on a schedule that fits your property. We mow at the right height for the season, trim and edge every visit, and blow off your walks, drive, and patio before we leave. Same crew every week, weekly or bi-weekly, with easy seasonal start and stop.",
+    "shortDescription": "Mowing, trimming, and edging on a schedule that fits your property.",
+    "description": "{{COMPANY_NAME}} keeps lawns across {{SERVICE_REGION}} looking their best on a schedule that fits your property. We mow at the right height for the season, trim and edge every visit, and blow off your walks, drive, and patio before we leave. Weekly or bi-weekly schedules.",
     "icon": "🌱",
     "image": "",
     "features": [
       "Weekly or bi-weekly recurring service",
       "Mowing height adjusted by grass type and season",
       "Trimming and crisp edging every visit",
-      "Full blow-off — we leave it clean",
-      "Same crew each visit"
+      "Full blow-off — we leave it clean"
     ],
     "links": [
       { "label": "Weekly Mowing", "href": "/services/lawn-mowing-maintenance" },
@@ -21,7 +20,7 @@
       { "label": "Commercial Grounds", "href": "/services/lawn-mowing-maintenance" }
     ],
     "seoTitle": "Lawn Mowing & Maintenance in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
-    "seoDescription": "Reliable weekly lawn mowing, trimming, and edging in {{CITY}}, {{STATE}}. Same crew every visit. Free quote from {{COMPANY_NAME}}.",
+    "seoDescription": "Lawn mowing, trimming, and edging in {{CITY}}, {{STATE}} from {{COMPANY_NAME}}.",
     "visible": true,
     "order": 1
   },
@@ -47,7 +46,7 @@
       { "label": "Sod Installation", "href": "/services/landscape-design-installation" }
     ],
     "seoTitle": "Landscape Design & Installation in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
-    "seoDescription": "Professional landscape design and installation in {{CITY}}, {{STATE}} — beds, plantings, grading, and full makeovers. Free consultation from {{COMPANY_NAME}}.",
+    "seoDescription": "Professional landscape design and installation in {{CITY}}, {{STATE}} — beds, plantings, grading, and full makeovers. From {{COMPANY_NAME}}.",
     "visible": true,
     "order": 2
   },
@@ -73,7 +72,7 @@
       { "label": "Fire Pits", "href": "/services/hardscaping-paver-patios" }
     ],
     "seoTitle": "Paver Patios & Retaining Walls in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
-    "seoDescription": "Custom paver patios, walkways, retaining walls, and fire pits in {{CITY}}, {{STATE}}. Built to last. Free estimate from {{COMPANY_NAME}}.",
+    "seoDescription": "Custom paver patios, walkways, retaining walls, and fire pits in {{CITY}}, {{STATE}}. From {{COMPANY_NAME}}.",
     "visible": true,
     "order": 3
   },
@@ -99,7 +98,7 @@
       { "label": "Planting", "href": "/services/mulching-planting-bed-care" }
     ],
     "seoTitle": "Mulching, Planting & Bed Edging in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
-    "seoDescription": "Mulch installation, clean bed edging, and seasonal planting in {{CITY}}, {{STATE}}. Free quote from {{COMPANY_NAME}}.",
+    "seoDescription": "Mulch installation, clean bed edging, and seasonal planting in {{CITY}}, {{STATE}} from {{COMPANY_NAME}}.",
     "visible": true,
     "order": 4
   },
@@ -125,7 +124,7 @@
       { "label": "Stump Grinding", "href": "/services/tree-shrub-stump-service" }
     ],
     "seoTitle": "Tree Trimming, Pruning & Stump Grinding in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
-    "seoDescription": "Expert tree and shrub pruning, hedge trimming, and stump grinding in {{CITY}}, {{STATE}}. Safe work, full cleanup. {{COMPANY_NAME}}.",
+    "seoDescription": "Tree and shrub pruning, hedge trimming, and stump grinding in {{CITY}}, {{STATE}}. Safe work, full cleanup. {{COMPANY_NAME}}.",
     "visible": true,
     "order": 5
   },
@@ -187,15 +186,13 @@
     "title": "Snow & Ice Removal",
     "slug": "snow-ice-removal",
     "shortDescription": "Plowed, shoveled, and salted before you back out of the garage.",
-    "description": "{{COMPANY_NAME}} runs snow and ice removal as a managed service for {{SERVICE_REGION}} homes and businesses — forecast-monitored, trigger-depth deployment, drives, walks, lots, and entrances, with salt and ice melt. Flexible per-push, per-event, per-season, or per-inch billing.",
+    "description": "{{COMPANY_NAME}} provides snow and ice removal for {{SERVICE_REGION}} homes and businesses: drives, walks, lots, and entrances, with salt and ice melt.",
     "icon": "❄️",
     "image": "",
     "features": [
       "Residential and commercial snow removal",
-      "Forecast-monitored, trigger-depth deployment",
       "Driveways, walks, lots, and entrances",
-      "Salt and ice-melt application",
-      "Per-push, per-event, per-season, or per-inch billing"
+      "Salt and ice-melt application"
     ],
     "links": [
       { "label": "Residential Snow", "href": "/services/snow-ice-removal" },
@@ -203,7 +200,7 @@
       { "label": "Salting & Ice Control", "href": "/services/snow-ice-removal" }
     ],
     "seoTitle": "Snow & Ice Removal in {{CITY}}, {{STATE}} | Residential & Commercial | {{COMPANY_NAME}}",
-    "seoDescription": "Reliable snow plowing, shoveling, and salting in {{CITY}}, {{STATE}} for homes and businesses. Flexible contracts. Reserve with {{COMPANY_NAME}}.",
+    "seoDescription": "Snow plowing, shoveling, and salting in {{CITY}}, {{STATE}} for homes and businesses. Contact {{COMPANY_NAME}}.",
     "visible": true,
     "order": 8
   }

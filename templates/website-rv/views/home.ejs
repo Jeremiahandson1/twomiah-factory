@@ -3,8 +3,27 @@
 const hero = (typeof homepage !== 'undefined' && homepage && homepage.hero) ? homepage.hero : {};
 const trustBadges = (typeof homepage !== 'undefined' && homepage && homepage.trustBadges) ? homepage.trustBadges.filter(b => b.enabled) : [];
 const ctaSection = (typeof homepage !== 'undefined' && homepage && homepage.ctaSection) ? homepage.ctaSection : {};
-const serviceAreas = (typeof homepage !== 'undefined' && homepage && homepage.serviceAreas) ? homepage.serviceAreas : ['{{CITY}}', '{{NEARBY_CITY_4}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}'];
+// The generator fills empty nearby-city tokens with the home city, so de-duplicate
+// (case-insensitively) before printing the list anywhere.
+const _rawAreas = (typeof homepage !== 'undefined' && homepage && Array.isArray(homepage.serviceAreas) && homepage.serviceAreas.length) ? homepage.serviceAreas : ['{{CITY}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}', '{{NEARBY_CITY_4}}'];
+const serviceAreas = _rawAreas.map((a) => String(a || '').trim()).filter((a, i, all) => a && all.findIndex((b) => b.toLowerCase() === a.toLowerCase()) === i);
+const otherAreas = serviceAreas.filter((a) => a.toLowerCase() !== '{{CITY}}'.toLowerCase());
 const businessHours = (typeof homepage !== 'undefined' && homepage && homepage.businessHours) ? homepage.businessHours : {};
+// Hours print only for days the owner gave a real opening time (no default hours).
+const _dayNames = { monday: 'Monday', tuesday: 'Tuesday', wednesday: 'Wednesday', thursday: 'Thursday', friday: 'Friday', saturday: 'Saturday', sunday: 'Sunday' };
+const openDays = Object.keys(_dayNames).filter((d) => {
+  const h = businessHours[d];
+  return h && !h.closed && String(h.open || '').trim() && !/closed/i.test(String(h.open));
+});
+const _to24 = (t) => {
+  const m = String(t || '').trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+  if (!m) return '';
+  let hh = parseInt(m[1], 10);
+  if (m[3] && m[3].toLowerCase() === 'pm' && hh < 12) hh += 12;
+  if (m[3] && m[3].toLowerCase() === 'am' && hh === 12) hh = 0;
+  return String(hh).padStart(2, '0') + ':' + (m[2] || '00');
+};
+const _financing = typeof offersFinancing !== 'undefined' && offersFinancing;
 
 // Settings with fallbacks
 const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
@@ -49,11 +68,11 @@ function getImageUrl(p) {
       <p class="hero-tagline"><strong><%= hero.tagline || 'YOUR ADVENTURE STARTS HERE' %></strong></p>
       <p class="hero-awards"><%= hero.description || 'Serving the {{SERVICE_REGION}} with new & used RVs, ATVs, UTVs, and boats' %></p>
       <div class="hero-buttons">
-        <a href="<%= hero.primaryButtonLink || '/contact' %>" class="btn btn-primary btn-lg">
+        <a href="<%= hero.primaryButtonLink || '/inventory' %>" class="btn btn-primary btn-lg">
           <%= hero.primaryButtonText || 'Browse Inventory' %>
         </a>
-        <a href="<%= hero.secondaryButtonLink || '/services/financing' %>" class="btn btn-outline-light btn-lg">
-          <%= hero.secondaryButtonText || 'Get Pre-Qualified' %>
+        <a href="<%= hero.secondaryButtonLink || '/contact' %>" class="btn btn-outline-light btn-lg">
+          <%= hero.secondaryButtonText || 'Contact Us' %>
         </a>
       </div>
     </div>
@@ -100,28 +119,28 @@ function getImageUrl(p) {
   <!-- Why Choose Us Section -->
   <section class="why-choose-section">
     <div class="container">
-      <h2>Why {{CITY}} Riders Trust {{COMPANY_NAME}}</h2>
+      <h2>Why Choose {{COMPANY_NAME}}</h2>
       <div class="why-grid">
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
           </div>
-          <h3>Huge Selection, On-Site Service</h3>
-          <p>New and pre-owned RVs, ATVs, UTVs, motorcycles, and boats, plus a factory-certified service department under the same roof. Buy it, gear it up, and keep it running all in one place.</p>
+          <h3>Sales, Service &amp; Parts</h3>
+          <p>New and pre-owned RVs, ATVs, UTVs, motorcycles, and boats, plus service and parts. Buy it, gear it up, and keep it running.</p>
         </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
           </div>
           <h3>Local to the {{SERVICE_REGION}}</h3>
-          <p>Based in {{CITY}}, we serve riders across {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, {{NEARBY_CITY_2}}, and the surrounding communities. We're your neighbors, not an out-of-town dealer.</p>
+          <p>Based in {{CITY}}, we serve riders across <%= otherAreas.length ? otherAreas.join(', ') + ', and ' : '' %>the surrounding communities.</p>
         </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </div>
-          <h3>Financing for All Credit, Trade-Ins Welcome</h3>
-          <p>Get pre-qualified before you shop and trade in your current unit toward your next one. We're upfront about the numbers, so there are no surprises on the paperwork.</p>
+          <h3>Straight Answers, No Pressure</h3>
+          <p>Tell us how you ride and camp, and we'll help you find a unit that fits. Ask about trading in your current unit toward your next one.</p>
         </div>
       </div>
     </div>
@@ -285,9 +304,9 @@ function getImageUrl(p) {
           <%= line %><% if (i === 0 && ctaTitleLines.length > 1) { %><br><% } %>
         <% }); %>
       </h2>
-      <p><%= ctaSection.description || "Browse in-stock RVs and powersports or get pre-qualified today." %></p>
+      <p><%= ctaSection.description || "Browse in-stock RVs and powersports or get in touch today." %></p>
       <div class="cta-buttons">
-        <a href="<%= ctaSection.primaryButtonLink || '/contact' %>" class="btn btn-primary btn-lg">
+        <a href="<%= ctaSection.primaryButtonLink || '/inventory' %>" class="btn btn-primary btn-lg">
           <%= ctaSection.primaryButtonText || 'Browse Inventory' %>
         </a>
         <a href="<%= ctaSection.secondaryButtonLink || 'tel:' + phoneRaw %>" class="btn btn-outline btn-lg">
@@ -336,23 +355,30 @@ function getImageUrl(p) {
       <div class="home-faq-list">
         <details class="home-faq-item animate-on-scroll">
           <summary><strong>Can I trade in my current RV or powersports unit?</strong></summary>
-          <p>Absolutely. We accept trade-ins on any make or model. Bring your unit by for a fair, no-pressure appraisal and apply that value toward your next RV, ATV, UTV, motorcycle, or boat.</p>
+          <p>Yes. Bring your unit by for a no-pressure appraisal and apply that value toward your next RV, ATV, UTV, motorcycle, or boat.</p>
         </details>
+        <% if (_financing) { %>
         <details class="home-faq-item animate-on-scroll">
-          <summary><strong>Do you offer financing, and what about my credit?</strong></summary>
-          <p>Yes. We work with a network of lenders to find competitive financing for every credit situation. Get pre-qualified before you shop so you know your real budget — it only takes a few minutes.</p>
+          <summary><strong>Do you offer financing?</strong></summary>
+          <p>Yes. Ask us about financing options when you call or visit, or use our <a href="/services/financing">payment calculator</a> to estimate a monthly payment.</p>
         </details>
+        <% } else { %>
+        <details class="home-faq-item animate-on-scroll">
+          <summary><strong>How do I find out what's in stock?</strong></summary>
+          <p>Browse our <a href="/inventory">inventory</a> online, or give us a call and tell us what you're looking for.</p>
+        </details>
+        <% } %>
         <details class="home-faq-item animate-on-scroll">
           <summary><strong>What areas do you serve besides {{CITY}}?</strong></summary>
-          <p>We serve riders in {{CITY}}, {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, {{NEARBY_CITY_2}}, and throughout the greater {{SERVICE_REGION}}. We're local, so we're never far away.</p>
+          <p>We serve riders in <%= serviceAreas.join(', ') %><%= serviceAreas.length > 1 ? ',' : '' %> and throughout the greater {{SERVICE_REGION}}.</p>
         </details>
         <details class="home-faq-item animate-on-scroll">
           <summary><strong>What makes {{COMPANY_NAME}} different?</strong></summary>
-          <p>We pair a huge selection of new and pre-owned units with a factory-certified service department, financing for all credit, and a no-pressure team. Buy it, gear it up, and keep it running all in one place.</p>
+          <p>We pair new and pre-owned units with service, parts, and a no-pressure team. Buy it, gear it up, and keep it running.</p>
         </details>
         <details class="home-faq-item animate-on-scroll">
-          <summary><strong>Do you service units I didn't buy from you?</strong></summary>
-          <p>Yes. Our certified technicians service RVs, ATVs, UTVs, motorcycles, and boats regardless of where you bought them — including warranty work, repairs, winterization, and recalls.</p>
+          <summary><strong>How do I schedule service?</strong></summary>
+          <p>Call us or send a request through the form below with your unit's year, make, and model, and we'll be in touch soon to set up a time.</p>
         </details>
       </div>
     </div>
@@ -393,6 +419,7 @@ function getImageUrl(p) {
               <span><%= address %><br/><%= city %>, <%= state %> <%= zip %></span>
             </div>
           </div>
+          <% if (openDays.length > 0) { %>
           <div class="contact-item">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10"></circle>
@@ -401,24 +428,15 @@ function getImageUrl(p) {
             <div>
               <strong>Hours</strong>
               <span>
-                <% if (businessHours.monday && !businessHours.monday.closed) { %>
-                  Mon - Fri: <%= businessHours.monday.open %> - <%= businessHours.monday.close %>
-                <% } else { %>
-                  Mon - Fri: 8am - 5pm
-                <% } %>
-                <br/>
-                <% if (businessHours.saturday && !businessHours.saturday.closed) { %>
-                  Sat: <%= businessHours.saturday.open %><% if (businessHours.saturday.close) { %> - <%= businessHours.saturday.close %><% } %>
-                <% } else { %>
-                  Sat: By Appointment
-                <% } %>
+                <% openDays.forEach(function(d, i) { %><%= _dayNames[d].slice(0, 3) %>: <%= businessHours[d].open %><% if (businessHours[d].close) { %> - <%= businessHours[d].close %><% } %><% if (i < openDays.length - 1) { %><br/><% } %><% }); %>
               </span>
             </div>
           </div>
-          
+          <% } %>
+
           <div class="service-areas">
             <h3>Service Areas</h3>
-            <p><%= serviceAreas.join(', ') %>, and surrounding communities.</p>
+            <p><%= serviceAreas.join(', ') %><%= serviceAreas.length > 1 ? ',' : '' %> and surrounding communities.</p>
           </div>
         </div>
 
@@ -521,23 +539,22 @@ function getImageUrl(p) {
         "name": <%- _jsonStr(String(area) + ', {{STATE}}') %>
       }<%= index < serviceAreas.length - 1 ? ',' : '' %>
       <% }); %>
-    ],
-    "priceRange": "$$",
-    "openingHoursSpecification": [
-      {
-        "@type": "OpeningHoursSpecification",
-        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-        "opens": "09:00",
-        "closes": "19:00"
-      },
-      {
-        "@type": "OpeningHoursSpecification",
-        "dayOfWeek": ["Saturday"],
-        "opens": "09:00",
-        "closes": "17:00"
-      }
     ]
-    <% if (typeof services !== 'undefined' && services && services.length > 0) { %>
+    <%/* opening hours only from days the owner filled in; no priceRange (never supplied) */%>
+    <% const _ldHours = openDays.filter((d) => _to24(businessHours[d].open) && _to24(businessHours[d].close)); %>
+    <% if (_ldHours.length > 0) { %>
+    ,"openingHoursSpecification": [
+      <% _ldHours.forEach(function(d, i) { %>
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": <%- _jsonStr(_dayNames[d]) %>,
+        "opens": <%- _jsonStr(_to24(businessHours[d].open)) %>,
+        "closes": <%- _jsonStr(_to24(businessHours[d].close)) %>
+      }<%= i < _ldHours.length - 1 ? ',' : '' %>
+      <% }); %>
+    ]
+    <% } %>
+<% if (typeof services !== 'undefined' && services && services.length > 0) { %>
     ,"hasOfferCatalog": {
       "@type": "OfferCatalog",
       "name": "RV & Powersports Departments",
@@ -547,7 +564,7 @@ function getImageUrl(p) {
           "@type": "Offer",
           "itemOffered": {
             "@type": "Service",
-            "name": <%- _jsonStr(s.title) %>,
+            "name": <%- _jsonStr(s.title || s.name) %>,
             "description": <%- _jsonStr(_plainDesc(s.description, 280)) %>
           }
         }<%= index < services.length - 1 ? ',' : '' %>
@@ -569,7 +586,7 @@ function getImageUrl(p) {
         "@type": "Review",
         "author": {
           "@type": "Person",
-          "name": <%- _jsonStr(t.author) %>
+          "name": <%- _jsonStr(t.author || t.name) %>
         },
         "reviewRating": {
           "@type": "Rating",
@@ -598,23 +615,34 @@ function getImageUrl(p) {
         "name": "Can I trade in my current RV or powersports unit?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Absolutely. We accept trade-ins on any make or model. Bring your unit by for a fair, no-pressure appraisal and apply that value toward your next RV, ATV, UTV, motorcycle, or boat."
+          "text": "Yes. Bring your unit by for a no-pressure appraisal and apply that value toward your next RV, ATV, UTV, motorcycle, or boat."
         }
       },
+      <% if (_financing) { %>
       {
         "@type": "Question",
-        "name": "Do you offer financing, and what about my credit?",
+        "name": "Do you offer financing?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes. We work with a network of lenders to find competitive financing for every credit situation. Get pre-qualified before you shop so you know your real budget."
+          "text": "Yes. Ask us about financing options when you call or visit."
         }
       },
+      <% } else { %>
+      {
+        "@type": "Question",
+        "name": "How do I find out what's in stock?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Browse our inventory online, or give us a call and tell us what you're looking for."
+        }
+      },
+      <% } %>
       {
         "@type": "Question",
         "name": "What areas do you serve besides {{CITY}}?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "We serve riders in {{CITY}}, {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, {{NEARBY_CITY_2}}, and throughout the greater {{SERVICE_REGION}}."
+          "text": <%- _jsonStr('We serve riders in ' + serviceAreas.join(', ') + (serviceAreas.length > 1 ? ',' : '') + ' and throughout the greater {{SERVICE_REGION}}.') %>
         }
       },
       {
@@ -622,15 +650,15 @@ function getImageUrl(p) {
         "name": "What makes {{COMPANY_NAME}} different?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "We pair a huge selection of new and pre-owned units with a factory-certified service department, financing for all credit, and a no-pressure team — all in one place."
+          "text": "We pair new and pre-owned units with service, parts, and a no-pressure team."
         }
       },
       {
         "@type": "Question",
-        "name": "Do you service units I didn't buy from you?",
+        "name": "How do I schedule service?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes. Our certified technicians service RVs, ATVs, UTVs, motorcycles, and boats regardless of where you bought them, including warranty work, repairs, winterization, and recalls."
+          "text": "Call us or send a request through the form on our website with your unit's year, make, and model, and we'll be in touch soon to set up a time."
         }
       }
     ]

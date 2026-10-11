@@ -1,42 +1,42 @@
 {
   "hero": {
     "tagline": "COMPASSIONATE VETERINARY CARE",
-    "title": "{{CITY}}'s Trusted Veterinary Hospital",
-    "subtitle": "Expert Care for Your Beloved Pets",
-    "description": "{{COMPANY_NAME}} provides compassionate, full-service veterinary care for dogs, cats, and small animals across {{SERVICE_REGION}}. From wellness exams to surgery and 24/7 emergency care, our team treats every pet like family.",
+    "title": "Veterinary Care in {{CITY}}",
+    "subtitle": "Compassionate Care for Your Pets",
+    "description": "{{COMPANY_NAME}} provides compassionate veterinary care for pets and their families across the {{SERVICE_REGION}}. We treat every pet like family.",
     "image": "/images/hero.jpg",
     "animation": "ken-burns",
     "primaryButtonText": "Schedule a Wellness Visit",
     "primaryButtonLink": "#contact",
-    "secondaryButtonText": "Meet Our Vets",
-    "secondaryButtonLink": "#team"
+    "secondaryButtonText": "Our Services",
+    "secondaryButtonLink": "/#services"
   },
   "trustBadges": [
     {
-      "id": "aaha",
+      "id": "compassionate",
       "type": "custom",
-      "label": "AAHA Accredited",
-      "icon": "shield",
-      "enabled": true
-    },
-    {
-      "id": "licensed",
-      "type": "custom",
-      "label": "Licensed Veterinarians",
+      "label": "Compassionate Care",
       "icon": "check",
       "enabled": true
     },
     {
-      "id": "emergency",
+      "id": "gentle",
       "type": "custom",
-      "label": "24/7 Emergency Care",
-      "icon": "clock",
+      "label": "Gentle Handling",
+      "icon": "check",
+      "enabled": true
+    },
+    {
+      "id": "preventive",
+      "type": "custom",
+      "label": "Preventive Care",
+      "icon": "check",
       "enabled": true
     },
     {
       "id": "local",
       "type": "custom",
-      "label": "Locally Trusted",
+      "label": "Serving {{CITY}}",
       "icon": "home",
       "enabled": true
     }
@@ -59,38 +59,38 @@
   ],
   "businessHours": {
     "monday": {
-      "open": "8:00 AM",
-      "close": "6:00 PM",
-      "closed": false
+      "open": "",
+      "close": "",
+      "closed": true
     },
     "tuesday": {
-      "open": "8:00 AM",
-      "close": "6:00 PM",
-      "closed": false
+      "open": "",
+      "close": "",
+      "closed": true
     },
     "wednesday": {
-      "open": "8:00 AM",
-      "close": "6:00 PM",
-      "closed": false
+      "open": "",
+      "close": "",
+      "closed": true
     },
     "thursday": {
-      "open": "8:00 AM",
-      "close": "6:00 PM",
-      "closed": false
+      "open": "",
+      "close": "",
+      "closed": true
     },
     "friday": {
-      "open": "8:00 AM",
-      "close": "6:00 PM",
-      "closed": false
+      "open": "",
+      "close": "",
+      "closed": true
     },
     "saturday": {
-      "open": "9:00 AM",
-      "close": "4:00 PM",
-      "closed": false
+      "open": "",
+      "close": "",
+      "closed": true
     },
     "sunday": {
-      "open": "Closed",
-      "close": "Closed",
+      "open": "",
+      "close": "",
       "closed": true
     }
   },
@@ -101,22 +101,22 @@
       {
         "icon": "heart",
         "title": "Compassionate Care",
-        "description": "We treat every pet with the gentleness, patience, and respect we'd want for our own animals — and we keep you informed every step of the way."
+        "description": "We treat every pet with gentleness, patience, and respect, and we keep you informed every step of the way."
       },
       {
         "icon": "shield",
-        "title": "AAHA Accredited Standards",
-        "description": "Our hospital meets the highest standards in veterinary medicine, from anesthesia safety and pain management to cleanliness and recordkeeping."
+        "title": "Preventive Focus",
+        "description": "Regular checkups help catch problems early, when they're easier to treat."
       },
       {
         "icon": "users",
-        "title": "Expert Specialists",
-        "description": "Our veterinarians bring deep experience in surgery, dentistry, and internal medicine — advanced care for your pet, all under one roof."
+        "title": "Clear Communication",
+        "description": "We explain what we find and talk through your pet's options with you."
       },
       {
-        "icon": "clock",
-        "title": "24/7 Emergency & Same-Day Care",
-        "description": "When your pet needs help fast, we're here around the clock — with same-day sick visits and round-the-clock emergency support."
+        "icon": "phone",
+        "title": "Easy to Reach",
+        "description": "Call or send us a message and we'll get back to you soon."
       }
     ]
   }

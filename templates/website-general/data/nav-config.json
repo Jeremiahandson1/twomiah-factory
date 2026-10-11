@@ -3,7 +3,7 @@
     {
       "id": "services",
       "label": "Services",
-      "href": "/services",
+      "href": "/#services",
       "visible": true,
       "children": []
     },

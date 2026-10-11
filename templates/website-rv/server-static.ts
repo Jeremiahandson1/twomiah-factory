@@ -180,7 +180,11 @@ type SeoEntry = { path: string; title: string; summary?: string; group: string }
 
 async function seoEntries(): Promise<SeoEntry[]> {
   const out: SeoEntry[] = []
-  for (const [p, view, label] of SEO_PAGES) if (servesPage(p, view)) out.push({ path: p, title: label, group: 'Pages' })
+  for (const [p, view, label] of SEO_PAGES) {
+    // The financing page answers only when the owner lists a financing service.
+    if (p === '/services/financing' && !offersFinancing()) continue
+    if (servesPage(p, view)) out.push({ path: p, title: label, group: 'Pages' })
+  }
   if (servesPage('/services/:slug', 'service')) {
     for (const s of loadJSON('services.json') || []) if (s && s.slug && s.visible !== false) out.push({ path: '/services/' + s.slug, title: s.name || s.slug, summary: s.shortDescription, group: 'Services' })
   }
@@ -451,11 +455,19 @@ async function runMigrations() {
   }
 }
 
+// Financing is a claim only the owner can make: the financing page, the pre-qualification
+// forms and every "financing" mention render only when services.json lists a visible
+// financing service (an owner-entered "Financing" service slugs to 'financing').
+function offersFinancing(): boolean {
+  const services = loadJSON('services.json') || []
+  return Array.isArray(services) && services.some((s: any) => s && s.visible !== false && String(s.slug || s.id || '') === 'financing')
+}
+
 function renderPage(c: any, pageView: string, locals: Record<string, any> = {}, statusCode = 200) {
   const settings = loadJSON('settings.json') || {}
   const navConfig = loadJSON('nav-config.json') || {}
   const menuItems = Array.isArray(navConfig.items) ? navConfig.items : Array.isArray(navConfig) ? navConfig : []
-  const shared = { assetV: ASSET_VERSION, settings, menuItems, BASE_URL, hasVisualizer, hasEstimator, _jsonStr, _plainDesc, bgWithWebp, ...locals }
+  const shared = { assetV: ASSET_VERSION, settings, menuItems, BASE_URL, hasVisualizer, hasEstimator, offersFinancing: offersFinancing(), _jsonStr, _plainDesc, bgWithWebp, ...locals }
   const pageFile = path.join(__dirname, 'views', pageView + '.ejs')
 
   return new Promise<Response>((resolve) => {
@@ -504,9 +516,10 @@ app.get('/', (c) => {
 
 // Dedicated financing page (calculator + pre-qual) — must precede /services/:slug
 app.get('/services/financing', (c) => {
+  if (!offersFinancing()) return c.text('Page not found', 404)
   return renderPage(c, 'financing', {
     title: 'Financing | {{COMPANY_NAME}}',
-    description: 'Estimate your monthly payment and get pre-qualified for RV & powersports financing at {{COMPANY_NAME}}.',
+    description: 'Estimate your monthly payment and ask about RV & powersports financing at {{COMPANY_NAME}}.',
     canonicalUrl: BASE_URL + '/services/financing',
   })
 })
@@ -521,9 +534,10 @@ app.get('/services/:slug', (c) => {
     service = {
       id: slug, slug, name, title: name,
       shortDescription: `Professional ${name.toLowerCase()} services for your home.`,
-      description: `{{COMPANY_NAME}} provides expert ${name.toLowerCase()} services throughout {{SERVICE_REGION}}. Contact us today for a free estimate.`,
+      description: `{{COMPANY_NAME}} provides ${name.toLowerCase()} services throughout {{SERVICE_REGION}}. Get in touch and we'll be happy to help.`,
       icon: 'wrench', image: '',
-      features: ['Free estimates', 'Licensed and insured', 'Quality workmanship guarantee', 'Experienced professionals'],
+      // No credential/guarantee bullets: a site states only what its owner supplied.
+      features: [],
       links: [], offerings: [], faqs: [],
       seoTitle: `${name} | {{COMPANY_NAME}}`,
       seoDescription: `Professional ${name.toLowerCase()} services in {{CITY}}, {{STATE}} by {{COMPANY_NAME}}.`,
@@ -751,7 +765,12 @@ function slugify(name: string): string {
 
 function loadAreas() {
   const areas = loadJSON('service-areas.json') || []
-  return areas.map((a: any) => ({ ...a, slug: a.slug || slugify(a.name) }))
+  // Empty nearby-city tokens are filled with the home city, so drop repeat slugs
+  // (the first, primary entry wins) instead of listing one city several times.
+  const seen = new Set<string>()
+  return areas
+    .map((a: any) => ({ ...a, slug: a.slug || slugify(a.name || '') }))
+    .filter((a: any) => a.slug && !seen.has(a.slug) && (seen.add(a.slug), true))
 }
 
 app.get('/service-areas', (c) => {
@@ -794,7 +813,7 @@ app.get('/terms', (c) => renderPage(c, 'terms', {
 app.get('/about', (c) => {
   return renderPage(c, 'about', {
     title: 'About Us | {{COMPANY_NAME}}',
-    description: 'Learn about {{COMPANY_NAME}} — {{SERVICE_REGION}}\'s RV & powersports dealership for sales, service, parts and financing.',
+    description: 'Learn about {{COMPANY_NAME}}, an RV & powersports dealership serving the {{SERVICE_REGION}}.',
     canonicalUrl: BASE_URL + '/about',
   })
 })
@@ -804,7 +823,7 @@ app.get('/contact', (c) => {
   return renderPage(c, 'contact', {
     services, selectedService: c.req.query('service') || '',
     title: 'Contact Us | {{COMPANY_NAME}}',
-    description: 'Get in touch for a free estimate.',
+    description: 'Get in touch with {{COMPANY_NAME}}.',
     canonicalUrl: BASE_URL + '/contact',
   })
 })
@@ -814,8 +833,27 @@ app.get('/gallery', (c) => {
   return renderPage(c, 'gallery', {
     gallery,
     title: 'Gallery | {{COMPANY_NAME}}',
-    description: 'See our completed projects.',
+    description: 'Photos from {{COMPANY_NAME}}.',
     canonicalUrl: BASE_URL + '/gallery',
+  })
+})
+
+// A project's own page: gallery cards, featured projects and service pages all link here.
+app.get('/gallery/:id', (c) => {
+  const id = c.req.param('id')
+  const gallery = loadJSON('gallery.json') || []
+  const project = gallery.find((p: any) => p && String(p.id) === id)
+  if (!project) return c.text('Project not found', 404)
+  const others = gallery.filter((p: any) => p && p !== project)
+  const relatedProjects = [
+    ...others.filter((p: any) => project.category && p.category === project.category),
+    ...others.filter((p: any) => !project.category || p.category !== project.category),
+  ].slice(0, 3)
+  return renderPage(c, 'project-detail', {
+    project, relatedProjects,
+    title: (project.title || 'Project') + ' | {{COMPANY_NAME}}',
+    description: String(project.description || '').slice(0, 160),
+    canonicalUrl: BASE_URL + '/gallery/' + encodeURIComponent(String(project.id)),
   })
 })
 

@@ -2024,3 +2024,8 @@
 .blog-cta-section .btn-outline:hover, .post-bottom-cta .btn-outline:hover {
   background: rgba(255, 255, 255, 0.12) !important;
 }
+
+/* Contact page call band: room between its line of text and the call button below it */
+.contact-emergency .emergency-content p {
+  margin-bottom: 16px;
+}

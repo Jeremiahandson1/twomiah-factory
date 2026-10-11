@@ -60,7 +60,7 @@
     },
     {
       "id": "maintenance",
-      "label": "Maintenance Plans",
+      "label": "Maintenance",
       "href": "/services/maintenance",
       "visible": true,
       "children": []

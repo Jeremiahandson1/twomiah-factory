@@ -1653,8 +1653,9 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 .project-category {
   display: inline-block;
-  background: var(--gold);
-  color: var(--navy-dark);
+  /* the brand darkened to clear AA on white, so white text on it clears AA too */
+  background: {{PRIMARY_COLOR_ON_WHITE}};
+  color: #ffffff;
   font-family: var(--font-primary);
   font-size: 10px;
   font-weight: 700;

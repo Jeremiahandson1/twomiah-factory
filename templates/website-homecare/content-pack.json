@@ -4,28 +4,28 @@
 
   "trustBadges": [
     {
-      "id": "licensed_bonded",
-      "label": "Licensed & Bonded Caregivers",
-      "icon": "shield-check",
-      "description": "Every caregiver on our team is fully licensed, insured, and bonded. You can feel confident knowing that the person entering your loved one's home has met rigorous professional standards."
+      "id": "compassionate_care",
+      "label": "Compassionate Care",
+      "icon": "heart",
+      "description": "We bring patience, kindness, and respect to every visit."
     },
     {
-      "id": "background_checked",
-      "label": "Background Checked Staff",
+      "id": "personalized_plans",
+      "label": "Personalized Care Plans",
       "icon": "user-check",
-      "description": "We run comprehensive national and state-level background checks, driving record reviews, and professional reference verifications on every caregiver before they ever meet your family."
+      "description": "Care is built around your loved one's routine, preferences, and needs."
     },
     {
-      "id": "va_approved",
-      "label": "VA Approved Provider",
-      "icon": "flag",
-      "description": "We are a proud VA-approved provider. Veterans and their surviving spouses may qualify for the Aid and Attendance benefit to help cover the cost of home care. We can help you navigate the process."
+      "id": "family_communication",
+      "label": "Family Communication",
+      "icon": "users",
+      "description": "We keep families informed and involved in their loved one's care."
     },
     {
-      "id": "hipaa_compliant",
-      "label": "HIPAA Compliant",
-      "icon": "lock",
-      "description": "Your family's health information is protected with the same level of security you'd expect from a hospital. All records, visit notes, and communications are encrypted and HIPAA compliant."
+      "id": "care_at_home",
+      "label": "Care at Home",
+      "icon": "home",
+      "description": "Support that helps people stay comfortable in the home they love."
     }
   ],
 
@@ -34,7 +34,7 @@
       "id": "personal_care",
       "name": "Personal Care",
       "shortDescription": "Dignified help with daily routines so your loved one can feel comfortable, clean, and confident at home.",
-      "longDescription": "There comes a time when everyday tasks — getting out of bed, taking a shower, getting dressed — become harder than they used to be. Our personal care services are designed to preserve your loved one's dignity while making sure they're safe, comfortable, and well cared for every single day.\n\nWe help with morning routines — getting dressed, preparing breakfast, taking medications on schedule. We assist with bathing and grooming so your mom or dad feels fresh and cared for, not rushed or embarrassed. We provide gentle toileting assistance and incontinence care with the kind of patience and discretion that protects their self-respect.\n\nFor those with limited mobility, our caregivers help with safe transfers from bed to wheelchair, walking assistance, and fall prevention — so your loved one can move through their own home with confidence.",
+      "longDescription": "There comes a time when everyday tasks — getting out of bed, taking a shower, getting dressed — become harder than they used to be. Our personal care services are designed to preserve your loved one's dignity while making sure they're safe, comfortable, and well cared for every single day.\n\nWe help with morning routines — getting dressed, preparing breakfast, taking medications on schedule. We assist with bathing and grooming so your mom or dad feels fresh and cared for, not rushed or embarrassed. We provide gentle toileting assistance and incontinence care with the kind of patience and discretion that protects their self-respect.\n\nFor those with limited mobility, caregivers can help with safe transfers from bed to wheelchair, walking assistance, and fall prevention — so your loved one can move through their own home with confidence.",
       "activities": [
         "Bathing, showering, and sponge bath assistance",
         "Help with dressing and choosing weather-appropriate clothing",
@@ -46,23 +46,19 @@
         "Morning and evening routine support"
       ],
       "features": [
-        "Customized care plans reviewed and updated monthly",
-        "Consistent caregiver matching — your loved one sees the same friendly face",
-        "Family communication app with daily visit notes and photos",
-        "Flexible scheduling from a few hours a week to 24/7 live-in care"
+        "Care plans built around your loved one's routine and preferences",
+        "A familiar caregiver whenever possible",
+        "Regular communication with family",
+        "Scheduling that fits your family's needs"
       ],
       "faq": [
         {
           "question": "Will my parent have the same caregiver every day?",
-          "answer": "We prioritize consistent caregiver matching because we know how important familiarity and trust are, especially for personal care. Your loved one will be matched with a primary caregiver, and we introduce any backup caregivers in advance so there are never strangers showing up unannounced."
+          "answer": "Familiarity and trust matter, especially for personal care. Ask us how caregivers are scheduled and introduced, and we'll talk through what to expect."
         },
         {
           "question": "My father is very private and resistant to help with bathing. How do you handle that?",
-          "answer": "This is one of the most common concerns we hear, and our caregivers are trained specifically for it. We take it slow, respect boundaries, and let your father set the pace. Many of our clients who were initially resistant end up looking forward to their caregiver's visits. We can also match male clients with male caregivers if that makes them more comfortable."
-        },
-        {
-          "question": "Can your caregivers help with insulin injections or catheter care?",
-          "answer": "Tasks like insulin injections and catheter care fall under skilled nursing and require a licensed nurse. We offer skilled nursing services and can coordinate a care plan that includes both a personal care aide for daily routines and a nurse for medical tasks — all from the same team, so nothing falls through the cracks."
+          "answer": "This is a very common concern. The approach that tends to work is going slowly, respecting boundaries, and letting your father set the pace. We'll talk with you about his preferences before care begins."
         }
       ]
     },
@@ -70,7 +66,7 @@
       "id": "companion_care",
       "name": "Companion Care",
       "shortDescription": "Meaningful companionship, light housekeeping, and errand help — because no one should spend their days alone.",
-      "longDescription": "Loneliness is one of the biggest health risks for older adults — studies show it can be as harmful as smoking 15 cigarettes a day. Companion care is about so much more than just having someone in the house. It's about genuine human connection.\n\nOur caregivers become a trusted part of your loved one's week. They'll share a cup of coffee and conversation in the morning. They'll play cards, work on puzzles, tend the garden together, or simply sit and watch a favorite show. They'll drive to doctor's appointments, pick up prescriptions, and help with grocery shopping so your parent stays connected to the world outside their front door.\n\nThey also handle the light housekeeping tasks that have become difficult — laundry, dishes, vacuuming, changing bed linens, and preparing nutritious meals your loved one actually enjoys eating.",
+      "longDescription": "Loneliness is one of the biggest health risks for older adults — studies show it can be as harmful as smoking 15 cigarettes a day. Companion care is about so much more than just having someone in the house. It's about genuine human connection.\n\nA companion caregiver can become a trusted part of your loved one's week. They'll share a cup of coffee and conversation in the morning. They'll play cards, work on puzzles, tend the garden together, or simply sit and watch a favorite show. They'll drive to doctor's appointments, pick up prescriptions, and help with grocery shopping so your parent stays connected to the world outside their front door.\n\nThey also handle the light housekeeping tasks that have become difficult — laundry, dishes, vacuuming, changing bed linens, and preparing nutritious meals your loved one actually enjoys eating.",
       "activities": [
         "Conversation, companionship, and emotional support",
         "Card games, puzzles, reading aloud, and hobbies",
@@ -82,23 +78,23 @@
         "Sorting mail, helping with phone calls, and staying organized"
       ],
       "features": [
-        "Caregivers matched based on personality and shared interests",
-        "Flexible visit lengths — from 2-hour check-ins to full-day companionship",
-        "Activity logs shared with family after every visit",
-        "Coordination with family calendar for appointments and events"
+        "Caregivers matched with your loved one's personality and interests",
+        "Visit lengths that fit your family's needs",
+        "Updates shared with family",
+        "Coordination with the family calendar for appointments and events"
       ],
       "faq": [
         {
           "question": "My mom insists she doesn't need help. How do we introduce a companion caregiver?",
-          "answer": "This is incredibly common, and we've helped hundreds of families navigate it. Many families find it helpful to introduce the caregiver as a 'helper' rather than a 'caregiver' — someone who's there to help around the house or drive to appointments. We start with short, low-key visits focused on tasks your mom values, like help with groceries or a ride to her hair appointment. The companionship develops naturally from there."
+          "answer": "This is incredibly common. Many families find it helpful to introduce the caregiver as a 'helper' rather than a 'caregiver' — someone who's there to help around the house or drive to appointments. Starting with short, low-key visits focused on tasks your mom values, like help with groceries or a ride to her hair appointment, lets the companionship develop naturally."
         },
         {
           "question": "Can the caregiver drive my parent to medical appointments?",
-          "answer": "Absolutely. Transportation is one of the most requested parts of companion care. Our caregivers will drive your parent to and from appointments, wait with them, take notes during the visit if you'd like, and report back to the family. No more worrying about whether your parent made it to the doctor safely or understood the instructions."
+          "answer": "Transportation is often part of companion care. Ask us about rides to and from appointments, and we'll talk through how it works for your family."
         },
         {
           "question": "What if my parent and the caregiver don't click?",
-          "answer": "Chemistry matters, and we take it seriously. If the match isn't right, just let us know and we'll introduce a new caregiver — no questions asked, no awkwardness. We'd rather get the match right than force a relationship that isn't working. We'll often suggest a short 'meet and greet' visit before starting a regular schedule."
+          "answer": "Chemistry matters. If the match isn't right, let us know and we'll talk with you about next steps. A short 'meet and greet' visit before starting a regular schedule can help."
         }
       ]
     },
@@ -106,42 +102,33 @@
       "id": "respite_care",
       "name": "Respite Care",
       "shortDescription": "A well-deserved break for family caregivers — because you can't pour from an empty cup.",
-      "longDescription": "If you've been caring for your parent, spouse, or loved one yourself, we want you to know something: what you're doing is extraordinary. And it's also exhausting. Caregiver burnout is real — the sleepless nights, the constant worry, the guilt of wanting just a few hours to yourself.\n\nRespite care gives you permission to take a break. Whether you need a few hours to run errands, a weekend to recharge, or a full week for a family vacation, our caregivers step in seamlessly so your loved one's routine stays exactly the same.\n\nWe'll learn your loved one's preferences, medications, daily schedule, and the little things that matter — how they take their coffee, what time they like to eat, which TV shows they watch before bed. When you come back, you'll feel rested. Your loved one will feel comfortable. And the care never skips a beat.",
+      "longDescription": "If you've been caring for your parent, spouse, or loved one yourself, we want you to know something: what you're doing is extraordinary. And it's also exhausting. Caregiver burnout is real — the sleepless nights, the constant worry, the guilt of wanting just a few hours to yourself.\n\nRespite care gives you permission to take a break. Whether you need a few hours to run errands or time to recharge, respite care helps keep your loved one's routine steady while you're away.\n\nWe'll learn your loved one's preferences, medications, daily schedule, and the little things that matter — how they take their coffee, what time they like to eat, which TV shows they watch before bed. When you come back, you'll feel rested, and your loved one will have been comfortable.",
       "activities": [
         "Full continuation of your loved one's daily routine",
         "Medication management and health monitoring",
         "Meal preparation following established preferences and dietary needs",
         "Companionship and engagement during your absence",
         "Coordination with family on schedule and preferences",
-        "Overnight care and supervision when needed",
         "Detailed notes and updates sent to you during your time away"
       ],
       "features": [
-        "Pre-visit consultation to learn routines, preferences, and medical needs",
-        "Gradual caregiver introduction before you leave",
-        "Real-time updates via our family app so you can relax knowing everything is fine",
-        "Available for a few hours, overnight, weekends, or extended periods"
+        "A conversation beforehand to learn routines, preferences, and needs",
+        "An introduction to the caregiver before you leave",
+        "Updates while you're away",
+        "Scheduling that fits your family's needs"
       ],
       "faq": [
         {
           "question": "I feel guilty taking time away. Is respite care really okay?",
-          "answer": "Not only is it okay — it's essential. Research consistently shows that family caregivers who take regular breaks provide better care when they return. You're not abandoning your loved one; you're making sure you have the energy to keep showing up for them. Every caregiver we work with will tell you: the families who use respite care are the ones who sustain caregiving for the long haul without burning out."
-        },
-        {
-          "question": "How much notice do you need to arrange respite care?",
-          "answer": "For planned breaks, we recommend at least a week's notice so we can do a thorough intake and introduce the caregiver ahead of time. For urgent situations — you're getting sick, a family emergency comes up — we can often arrange coverage within 24 to 48 hours. We maintain a roster of experienced caregivers specifically for situations like this."
-        },
-        {
-          "question": "What happens if our regular caregiver is sick or can't make it?",
-          "answer": "We always have a backup plan. Every client has at least one secondary caregiver who is familiar with the care plan and has met the client. If your primary caregiver calls in sick, the backup steps in — someone your loved one already knows. We'll always notify you of any caregiver change before the visit, never after."
+          "answer": "Not only is it okay — it's important. Family caregivers who take regular breaks are better able to keep caring for their loved one over the long haul. You're not abandoning your loved one; you're making sure you have the energy to keep showing up for them."
         }
       ]
     },
     {
       "id": "memory_care",
       "name": "Memory Care",
-      "shortDescription": "Specialized support for families living with Alzheimer's and dementia — safety, structure, and moments of joy.",
-      "longDescription": "A dementia diagnosis changes everything for a family. The person you love is still there, but the disease creates challenges that can feel overwhelming — confusion, wandering, agitation, sundowning, forgetting to eat or take medications. You're grieving a loss that hasn't fully happened yet, and every day brings something new.\n\nOur memory care team is specially trained in Alzheimer's and dementia care. We don't just watch over your loved one — we engage with them. We use structured routines to reduce confusion and anxiety. We redirect challenging behaviors with patience and skill. We find the moments of connection that are still possible — a familiar song, a photo album, a walk in the garden — and we create space for those moments to happen.\n\nSafety is always our first priority. Our caregivers are trained in wandering prevention, fall reduction, and emergency response. We secure the environment, monitor exits, and provide the constant, calm presence that helps your loved one feel safe even when the world feels confusing.",
+      "shortDescription": "Support for families living with Alzheimer's and dementia — safety, structure, and moments of joy.",
+      "longDescription": "A dementia diagnosis changes everything for a family. The person you love is still there, but the disease creates challenges that can feel overwhelming — confusion, wandering, agitation, sundowning, forgetting to eat or take medications. You're grieving a loss that hasn't fully happened yet, and every day brings something new.\n\nMemory care at home is about more than watching over your loved one — it's about engaging with them. We use structured routines to reduce confusion and anxiety. We redirect challenging behaviors with patience and skill. We find the moments of connection that are still possible — a familiar song, a photo album, a walk in the garden — and we create space for those moments to happen.\n\nSafety comes first: a calm, consistent presence and a home set up to reduce risks help your loved one feel safe even when the world feels confusing.",
       "activities": [
         "Structured daily routines to reduce anxiety and confusion",
         "Cognitive stimulation through music, photos, and familiar activities",
@@ -153,95 +140,45 @@
         "Gentle physical activity to maintain mobility and reduce restlessness"
       ],
       "features": [
-        "Caregivers certified in Alzheimer's and dementia care techniques",
-        "GPS-enabled safety monitoring available for wandering risk",
-        "Care plans adapted as the disease progresses — reviewed biweekly",
-        "Family support resources and connections to local Alzheimer's Association chapters"
+        "Structured routines that reduce confusion",
+        "Familiar activities, music, and photos",
+        "Care plans adjusted as needs change",
+        "Family support and connections to local Alzheimer's resources"
       ],
       "faq": [
         {
-          "question": "How do you handle wandering behavior?",
-          "answer": "Wandering is one of the most dangerous aspects of dementia, and we take it very seriously. Our caregivers are trained in wandering prevention techniques, including environmental cues, door alarms, and redirection strategies. We assess the home for elopement risks during our initial visit and recommend safety modifications. For high-risk clients, we can coordinate GPS monitoring devices that alert both our team and your family if your loved one leaves a safe zone."
+          "question": "How is wandering handled?",
+          "answer": "Wandering is one of the most serious risks of dementia. Environmental cues, door alarms, and calm redirection are common approaches, and a look at the home for risks is a good first step. We'll talk through your loved one's situation with you."
         },
         {
-          "question": "My mom gets very agitated and sometimes aggressive in the late afternoon. Can your caregivers handle that?",
-          "answer": "What you're describing is called sundowning, and it's very common in mid-to-late stage dementia. Our memory care caregivers are specifically trained to manage sundowning episodes with calm redirection, soothing activities, and environmental adjustments like lowering lights and reducing noise. We'll build a late-afternoon routine designed to minimize triggers. We never use restraint or confrontation — patience and understanding are always our approach."
-        },
-        {
-          "question": "How do you adjust care as the dementia progresses?",
-          "answer": "Dementia care is never static, and we don't treat it that way. We review memory care plans every two weeks and adjust as your loved one's needs change. As the disease progresses, we increase hours, add safety measures, and adapt activities to match their current abilities. We also prepare families for what to expect at each stage so transitions feel less sudden and less scary."
-        }
-      ]
-    },
-    {
-      "id": "skilled_nursing",
-      "name": "Skilled Nursing",
-      "shortDescription": "Licensed nurses providing medical care at home — from medication management to wound care to chronic disease support.",
-      "longDescription": "Some health needs go beyond what a personal care aide can provide. When your loved one requires hands-on medical care — managing complex medications, caring for surgical wounds, monitoring chronic conditions like diabetes or heart failure — our licensed nurses bring clinical expertise directly to their home.\n\nOur skilled nursing team includes Registered Nurses (RNs) and Licensed Practical Nurses (LPNs) who work alongside your loved one's physician to carry out care plans with precision and compassion. This isn't hospital care transplanted into a living room — it's thoughtful, personalized medical attention delivered in the comfort and privacy of home.\n\nWe handle medication management for clients taking multiple prescriptions, including organizing pill boxes, administering injections, and monitoring for side effects or drug interactions. We provide wound care for post-surgical incisions, pressure ulcers, and diabetic wounds. We track vital signs, manage feeding tubes and catheters, and coordinate directly with your loved one's doctors so everyone stays on the same page.",
-      "activities": [
-        "Medication management, administration, and interaction monitoring",
-        "Insulin injections and blood sugar monitoring",
-        "Wound care — surgical sites, pressure ulcers, diabetic wounds",
-        "Vital sign monitoring — blood pressure, heart rate, oxygen levels",
-        "Catheter and feeding tube care",
-        "Chronic disease management — diabetes, COPD, heart failure, Parkinson's",
-        "Pain assessment and management coordination",
-        "Direct communication with physicians and specialists"
-      ],
-      "features": [
-        "Care delivered by Registered Nurses (RNs) and Licensed Practical Nurses (LPNs)",
-        "Physician-directed care plans with regular progress reporting",
-        "Telehealth coordination for remote physician consultations",
-        "24/7 on-call nurse available for urgent medical questions"
-      ],
-      "faq": [
-        {
-          "question": "Is skilled nursing covered by Medicare or insurance?",
-          "answer": "In many cases, yes. Medicare covers skilled nursing at home when it's deemed medically necessary and ordered by a physician, typically after a hospitalization or for ongoing medical needs. Many private insurance plans and Medicare Advantage plans also cover home-based skilled nursing. We'll help you verify your benefits and navigate the paperwork — our care coordinators deal with insurance companies every day so you don't have to."
-        },
-        {
-          "question": "How do your nurses communicate with my parent's doctor?",
-          "answer": "Closely and consistently. Our nurses document every visit in detail and share clinical updates with the prescribing physician on a regular schedule — or immediately if something changes. We flag medication concerns, wound healing progress, vital sign trends, and any new symptoms. Many physicians appreciate working with us because it gives them a much clearer picture of what's happening between office visits."
-        },
-        {
-          "question": "Can you manage care for someone with multiple chronic conditions?",
-          "answer": "This is actually one of the most important things we do. Managing one condition is complex; managing three or four at the same time — diabetes plus heart failure plus COPD, for example — requires careful coordination. Our nurses understand how these conditions interact, how medications for one can affect another, and what warning signs to watch for. We create a unified care plan that treats the whole person, not just individual diagnoses."
+          "question": "My mom gets very agitated in the late afternoon. What helps?",
+          "answer": "What you're describing is often called sundowning, and it's common in mid-to-late stage dementia. Calm redirection, soothing activities, and adjustments like softer lighting and less noise can help, along with a predictable late-afternoon routine."
         }
       ]
     },
     {
       "id": "post_hospital_care",
       "name": "Post-Hospital Care",
-      "shortDescription": "Recovery support after a hospital stay — reducing readmission risk and helping your loved one heal safely at home.",
-      "longDescription": "The first few weeks after a hospital discharge are the most vulnerable time for older adults. Nearly one in five Medicare patients is readmitted within 30 days, often because of medication confusion, missed follow-up appointments, falls at home, or complications that went unnoticed. That doesn't have to happen to your loved one.\n\nOur post-hospital care program is designed specifically to bridge the gap between hospital and full recovery. We start before discharge whenever possible — meeting with the hospital care team, reviewing the discharge plan, and making sure your home is ready and safe for recovery.\n\nOnce your loved one is home, our caregivers and nurses provide the consistent support that makes recovery possible: making sure medications are taken correctly, watching for warning signs of complications, helping with mobility and physical therapy exercises, preparing meals that support healing, and driving to every follow-up appointment. We are the safety net that catches the things that would otherwise fall through the cracks.",
+      "shortDescription": "Support after a hospital stay, helping your loved one recover safely at home.",
+      "longDescription": "The first few weeks after a hospital discharge can be a vulnerable time for older adults. Medication confusion, missed follow-up appointments, and falls at home are common setbacks.\n\nSupport at home during recovery helps with the everyday things that matter: medication reminders, watching for changes to report to the care team, help moving around safely, meals that support healing, and rides to follow-up appointments.",
       "activities": [
-        "Hospital discharge coordination and home safety preparation",
-        "Medication reconciliation — ensuring new prescriptions are filled and understood",
-        "Wound care and surgical site monitoring",
+        "Home safety preparation before your loved one returns",
+        "Medication reminders",
         "Fall prevention and safe mobility assistance",
         "Physical therapy exercise reminders and encouragement",
         "Nutritious meal preparation supporting recovery",
-        "Transportation to follow-up appointments and rehab sessions",
-        "Daily health monitoring and complication watch"
+        "Transportation to follow-up appointments"
       ],
       "features": [
-        "Pre-discharge planning with hospital case managers",
-        "48-hour post-discharge check-in call to family",
-        "30-day structured recovery program with milestone tracking",
-        "Direct coordination with surgeons, primary care physicians, and rehab therapists"
+        "A plan built around the discharge instructions",
+        "Regular updates to family",
+        "Help getting to follow-up appointments",
+        "Support that changes as your loved one recovers"
       ],
       "faq": [
         {
-          "question": "My parent is being discharged tomorrow and we're not prepared. Can you help that quickly?",
-          "answer": "Yes — this is exactly the situation we're built for. Call us the moment you know the discharge date, even if it's tomorrow. We maintain caregivers who are ready for rapid-start cases. We'll get the discharge summary from the hospital, set up a care plan, and have a caregiver at your loved one's home when they arrive. It won't be perfect on day one, but it will be safe, and we'll refine the plan over the first few days."
-        },
-        {
-          "question": "How do you prevent hospital readmission?",
-          "answer": "Most readmissions happen for preventable reasons: medications taken incorrectly, warning signs missed, follow-up appointments skipped, or falls at home. Our post-hospital program directly targets each of these risks. We reconcile all medications on day one, monitor for red-flag symptoms specific to your loved one's condition, make sure every follow-up appointment happens, and assess the home for fall hazards. Our clients experience significantly lower readmission rates than the national average."
-        },
-        {
-          "question": "How long does post-hospital care typically last?",
-          "answer": "Most post-hospital care plans run 2 to 6 weeks, depending on the surgery or condition. A hip replacement might need 4 to 6 weeks of support; recovery from pneumonia might need 2 to 3 weeks. We reassess weekly and adjust hours as your loved one regains independence. Some families discover during this period that ongoing care would be beneficial, and we can easily transition to a long-term plan if that's the right fit."
+          "question": "How long does post-hospital support usually last?",
+          "answer": "It depends on the surgery or condition. Some people need a few weeks of help; others need longer. Support can be adjusted as your loved one regains independence."
         }
       ]
     }
@@ -299,7 +236,7 @@
         },
         {
           "section": "What to do next",
-          "content": "Start with a conversation, not a confrontation. Schedule a home care assessment — most agencies offer free consultations. Involve siblings and family early. A professional assessment can identify needs you might have missed and give you a clear plan of action."
+          "content": "Start with a conversation, not a confrontation. Involve siblings and family early. A care assessment can identify needs you might have missed and give you a clear plan of action."
         }
       ]
     },
@@ -365,7 +302,7 @@
         },
         {
           "section": "Veterans benefits — Aid and Attendance",
-          "content": "The VA's Aid and Attendance pension can provide over $2,000/month for qualifying veterans and surviving spouses. Explain basic eligibility, how to apply, and the typical timeline. Note that a VA-approved provider (like us) can help navigate this process."
+          "content": "The VA's Aid and Attendance pension can help qualifying veterans and surviving spouses pay for care. Explain basic eligibility, how to apply, and the typical timeline, and point readers to the VA for current amounts."
         },
         {
           "section": "Medicaid and state programs",
@@ -377,7 +314,7 @@
         },
         {
           "section": "How to make it work financially",
-          "content": "Start with fewer hours and increase as needed. Combine professional care with family caregiving. Explore all funding sources — most families use a combination. Free care assessment can help identify exactly how many hours are truly needed."
+          "content": "Start with fewer hours and increase as needed. Combine professional care with family caregiving. Explore all funding sources — most families use a combination. An assessment can help identify how many hours are truly needed."
         }
       ]
     },
@@ -468,83 +405,25 @@
   "faq": [
     {
       "question": "How much does home care cost?",
-      "answer": "Home care costs vary based on the level of care needed, the number of hours per week, and your location. Non-medical companion and personal care typically ranges from $25 to $35 per hour, while skilled nursing is higher. We provide a free, no-obligation care assessment where we'll discuss your loved one's needs and give you a clear, honest estimate. There are never hidden fees or surprise charges. Many families are pleasantly surprised to find that home care — especially at 15-25 hours per week — is significantly more affordable than assisted living or nursing home care."
+      "answer": "Home care costs vary with the level of care, the number of hours per week, and your location. Contact us to talk through your loved one's needs and what care could cost."
     },
     {
       "question": "Does insurance or Medicaid pay for home care?",
-      "answer": "It depends on the type of care and your coverage. Medicare covers skilled nursing and therapy services at home when ordered by a physician. Long-term care insurance policies typically cover both medical and non-medical home care. Medicaid waiver programs in many states cover personal care and companion services for eligible individuals. Veterans and surviving spouses may qualify for the VA Aid and Attendance benefit, which can cover a significant portion of home care costs. During your free assessment, our care coordinator will review your specific situation and help identify every funding source available to you."
+      "answer": "It depends on the type of care and your coverage. Long-term care insurance, Medicaid waiver programs in many states, and the VA Aid and Attendance benefit can help some families pay for care. Check with your provider or your local Area Agency on Aging about what may apply to you."
     },
     {
-      "question": "How do you select and screen your caregivers?",
-      "answer": "We hold our caregivers to the highest standards because we know you're trusting them with someone you love. Every caregiver undergoes a multi-step screening process: comprehensive national and state background checks, driving record review, professional reference verification, skills assessment, and a personal interview with our care team. We verify all licenses and certifications. Beyond screening, we look for caregivers who have genuine compassion and patience — qualities that can't be faked. Only about one in eight applicants makes it through our hiring process."
+      "question": "How are caregivers matched with clients?",
+      "answer": "The relationship between your loved one and their caregiver matters. We'll ask about your loved one's personality, preferences, daily routine, and care needs, and what matters to your family."
     },
     {
-      "question": "How do you match caregivers with clients?",
-      "answer": "We take matching seriously because the relationship between your loved one and their caregiver is everything. During the initial assessment, we learn about your loved one's personality, preferences, daily routine, and care needs. We also ask what matters to your family — gender preference, language, shared interests, cultural considerations, even personality type. Then we select a caregiver who fits. We arrange a meet-and-greet before care begins, and if the match isn't right, we'll introduce a new caregiver immediately — no awkwardness, no delay."
+      "question": "Can we change our care schedule?",
+      "answer": "Needs change over time. Talk with us about adjusting hours or days as your loved one's needs change."
     },
     {
-      "question": "What happens in an emergency?",
-      "answer": "Every caregiver is trained in emergency response and CPR/First Aid. In a medical emergency, the caregiver will call 911 immediately, then notify our office and your family. We maintain a 24/7 on-call line staffed by care coordinators — not an answering service — so there is always a real person available to make decisions and coordinate care. Your loved one's emergency contacts, physician information, and medical history are accessible to our team at all times. We also establish emergency protocols during the initial care plan that are specific to your loved one's conditions and risks."
-    },
-    {
-      "question": "Can we change our care schedule or cancel visits?",
-      "answer": "Absolutely. We understand that needs change — some weeks your parent needs more help, other weeks less. You can adjust hours, add or reduce days, and change service types with reasonable notice. We ask for 24-hour notice for schedule changes when possible so we can coordinate our caregiver team effectively. There are no long-term contracts or cancellation penalties. Our goal is to provide the right amount of care at the right time, not to lock you into a rigid plan."
-    },
-    {
-      "question": "How do you supervise caregivers and ensure quality?",
-      "answer": "Trust but verify — that's our approach. Every visit is documented in our care management system, including arrival and departure times, tasks completed, and notes about your loved one's condition and mood. Our care supervisors conduct regular unannounced check-ins — both in-person and by phone — to observe the caregiver in action and speak with your loved one. Families have access to our communication app where they can see visit summaries, caregiver notes, and photos in real time. We also conduct formal quality reviews every 90 days and actively solicit feedback from both clients and families."
-    },
-    {
-      "question": "How quickly can care begin?",
-      "answer": "In most situations, we can begin care within 24 to 72 hours of your initial call. For urgent situations — such as a same-day hospital discharge or a sudden family emergency — we can often arrange care within 24 hours. The process starts with a free in-home assessment where we meet your loved one, understand their needs, evaluate the home environment, and develop a care plan. We then match a caregiver and schedule a meet-and-greet. For planned care, we recommend starting the process 1-2 weeks in advance so we can ensure the best possible caregiver match."
+      "question": "How do we get started?",
+      "answer": "Call or send us a message. We'll talk through your loved one's needs and the kinds of care that could help."
     }
   ],
 
-  "testimonialTemplates": [
-    {
-      "id": "daughter_personal_care",
-      "scenario": "Adult daughter arranging personal care for her aging mother",
-      "relationship": "Daughter",
-      "careType": "Personal Care",
-      "template": "I spent months trying to help Mom on my own — driving over every morning before work to help her get dressed, rushing back at lunch to check on her. I was exhausted and she could tell. When we finally called {{company_name}}, I felt guilty, like I was giving up. But her caregiver, {{caregiver_name}}, changed everything. Mom actually enjoys her mornings now. She gets up, gets ready at her own pace with someone patient and kind helping her, and by the time I call to check in, she's already had breakfast and is working on her crossword. The guilt is gone. I'm her daughter again, not her caregiver — and our relationship is better for it.",
-      "emotionalCore": "Relief from guilt, restored parent-child relationship, mother thriving",
-      "callToAction": "I wish we had called six months sooner."
-    },
-    {
-      "id": "husband_respite",
-      "scenario": "Husband receiving respite care support while caring for his wife",
-      "relationship": "Husband",
-      "careType": "Respite Care",
-      "template": "I've been taking care of my wife, {{care_recipient_name}}, since her stroke three years ago. I don't mind — she'd do the same for me — but I hadn't slept through the night in over a year. Our kids kept telling me I needed a break, but I couldn't imagine leaving her with a stranger. {{company_name}} introduced us to {{caregiver_name}} gradually — first just a few hours while I was home, then a full afternoon. Last month, I took an entire weekend to visit our grandkids. {{caregiver_name}} sent me photos and updates the whole time. {{care_recipient_name}} was comfortable and happy. I came back feeling like a new person. I'm a better caregiver to my wife because I finally take care of myself too.",
-      "emotionalCore": "Spousal devotion honored, permission to rest, renewed strength",
-      "callToAction": "Taking a break doesn't mean you love them less. It means you love them enough to keep going."
-    },
-    {
-      "id": "family_post_hospital",
-      "scenario": "Family managing care after father's hip replacement surgery",
-      "relationship": "Son",
-      "careType": "Post-Hospital Care",
-      "template": "When Dad broke his hip, the hospital wanted to discharge him after three days. My sister and I were panicking — we both work full time, Dad lives alone, and the discharge instructions were a mile long. {{company_name}} stepped in before he even left the hospital. They coordinated with his surgeon, set up his apartment for safe recovery, and had a caregiver waiting when the ambulance brought him home. For the next four weeks, they managed his medications, drove him to physical therapy, made sure he was eating well, and watched for complications. Dad is fully recovered now, back to walking his dog every morning. His surgeon said his recovery was one of the smoothest he's seen for a patient his age.",
-      "emotionalCore": "Crisis management, coordinated medical recovery, family peace of mind",
-      "callToAction": "They turned a terrifying situation into a smooth recovery."
-    },
-    {
-      "id": "daughter_memory_care",
-      "scenario": "Daughter navigating memory care for father with Alzheimer's",
-      "relationship": "Daughter",
-      "careType": "Memory Care",
-      "template": "My dad was diagnosed with Alzheimer's two years ago. For a long time, we managed — Mom handled most of it, and I helped on weekends. But then Dad started wandering. He left the house at 3 AM twice in one week. Mom was terrified and barely sleeping. We weren't ready for a memory care facility — Dad still has so many good moments, and being in his own home keeps him calmer. {{company_name}}'s memory care team evaluated our home, installed door sensors, and matched us with {{caregiver_name}}, who has years of dementia care experience. Dad responds to her beautifully. She knows how to redirect him when he gets agitated, she plays his favorite Frank Sinatra records, and she keeps him on a routine that reduces his confusion. Mom sleeps through the night again. Dad is safe. We get to keep him home, which is all any of us wanted.",
-      "emotionalCore": "Keeping a parent home safely, managing the grief of dementia, restoring family stability",
-      "callToAction": "They gave us a way to keep Dad home and keep him safe."
-    },
-    {
-      "id": "siblings_companion_care",
-      "scenario": "Siblings arranging companion care for recently widowed mother",
-      "relationship": "Son and Daughter",
-      "careType": "Companion Care",
-      "template": "After our father passed away, Mom fell apart. They'd been married 52 years and she had never lived alone. She stopped cooking, stopped going to church, stopped answering the phone. We live three hours away and we were worried sick. A friend recommended {{company_name}}, and honestly, we were skeptical — how could a stranger help with loneliness? But {{caregiver_name}} proved us wrong. She and Mom bonded over cooking — now they make dinner together twice a week. She drives Mom to church on Sundays and they go to the farmer's market on Wednesdays. Mom has someone to talk to, someone who checks that she's eating and taking her medications, someone who genuinely cares. She told me last week, '{{caregiver_name}} isn't a caregiver — she's my friend.' That's when we knew we'd made the right call.",
-      "emotionalCore": "Overcoming grief-driven isolation, genuine companionship, long-distance family relief",
-      "callToAction": "Mom has a reason to get up in the morning again."
-    }
-  ]
+  "testimonialTemplates": []
 }

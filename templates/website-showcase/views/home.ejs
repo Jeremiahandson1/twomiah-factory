@@ -3,8 +3,25 @@
 const hero = (typeof homepage !== 'undefined' && homepage && homepage.hero) ? homepage.hero : {};
 const trustBadges = (typeof homepage !== 'undefined' && homepage && homepage.trustBadges) ? homepage.trustBadges.filter(b => b.enabled) : [];
 const ctaSection = (typeof homepage !== 'undefined' && homepage && homepage.ctaSection) ? homepage.ctaSection : {};
-const serviceAreas = (typeof homepage !== 'undefined' && homepage && homepage.serviceAreas) ? homepage.serviceAreas : ['{{CITY}}', '{{NEARBY_CITY_4}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}'];
+// The generator fills empty nearby-city tokens with the home city, so de-duplicate
+// (case-insensitively) before printing the list anywhere.
+const _rawAreas = (typeof homepage !== 'undefined' && homepage && Array.isArray(homepage.serviceAreas) && homepage.serviceAreas.length) ? homepage.serviceAreas : ['{{CITY}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}', '{{NEARBY_CITY_4}}'];
+const serviceAreas = _rawAreas.map((a) => String(a || '').trim()).filter((a, i, all) => a && all.findIndex((b) => b.toLowerCase() === a.toLowerCase()) === i);
 const businessHours = (typeof homepage !== 'undefined' && homepage && homepage.businessHours) ? homepage.businessHours : {};
+// Hours print only for days the owner gave a real opening time (no default hours).
+const _dayNames = { monday: 'Monday', tuesday: 'Tuesday', wednesday: 'Wednesday', thursday: 'Thursday', friday: 'Friday', saturday: 'Saturday', sunday: 'Sunday' };
+const openDays = Object.keys(_dayNames).filter((d) => {
+  const h = businessHours[d];
+  return h && !h.closed && String(h.open || '').trim() && !/closed/i.test(String(h.open));
+});
+const _to24 = (t) => {
+  const m = String(t || '').trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+  if (!m) return '';
+  let hh = parseInt(m[1], 10);
+  if (m[3] && m[3].toLowerCase() === 'pm' && hh < 12) hh += 12;
+  if (m[3] && m[3].toLowerCase() === 'am' && hh === 12) hh = 0;
+  return String(hh).padStart(2, '0') + ':' + (m[2] || '00');
+};
 
 // Settings with fallbacks
 const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
@@ -22,6 +39,17 @@ function getImageUrl(p) {
   if (p.startsWith('/')) return p;
   return '/uploads/' + p;
 }
+
+const _hasServices = typeof services !== 'undefined' && Array.isArray(services) && services.length > 0;
+const _svcNames = _hasServices ? services.filter((s) => s && s.visible !== false).map((s) => String(s.title || s.name || '').trim()).filter(Boolean) : [];
+const _emailOk = typeof email === 'string' && /^[^\s<>]+@[^\s<>]+\.[^\s<>]+$/.test(email);
+// One FAQ list, rendered on the page AND in the FAQPage JSON-LD so the two can never disagree.
+// Neutral questions only: a site states only what its owner supplied.
+const _faqs = [
+  { q: 'Where are you located?', a: "We're in " + city + ', ' + state + '. You will find our address, phone number and a map in the contact section of this page.' },
+  { q: 'What do you offer?', a: _svcNames.length ? "Take a look at Our Services above, or get in touch and ask. We're happy to help." : "Get in touch and tell us what you're looking for. We're happy to help." },
+  { q: 'How do I get in touch?', a: 'Call us at ' + phone + (_emailOk ? ', email ' + email : '') + ", or send us a message with the form on this page. We'll be in touch soon." },
+];
 %>
 
 <div class="home-page">
@@ -44,16 +72,16 @@ function getImageUrl(p) {
     <% } %>
     <div class="hero-video-content <%= hero.image ? 'hero-content' : '' %>">
       <h1><%= hero.title || '{{COMPANY_NAME}}' %></h1>
-      <h2><%= hero.subtitle || 'Professional {{INDUSTRY}} Services' %></h2>
+      <h2><%= hero.subtitle || 'Right here in {{CITY}}, {{STATE}}.' %></h2>
       <div class="hero-line"></div>
-      <p class="hero-tagline"><strong><%= hero.tagline || 'YOUR TRUSTED LOCAL PROFESSIONALS' %></strong></p>
-      <p class="hero-awards"><%= hero.description || 'Serving the {{SERVICE_REGION}} with Quality Craftsmanship' %></p>
+      <% if (hero.tagline) { %><p class="hero-tagline"><strong><%= hero.tagline %></strong></p><% } %>
+      <% if (hero.description) { %><p class="hero-awards"><%= hero.description %></p><% } %>
       <div class="hero-buttons">
         <a href="<%= hero.primaryButtonLink || '#contact' %>" class="btn btn-primary btn-lg">
-          <%= hero.primaryButtonText || 'Request Free Estimate' %>
+          <%= hero.primaryButtonText || 'Get in Touch' %>
         </a>
-        <a href="<%= hero.secondaryButtonLink || '/gallery' %>" class="btn btn-outline-light btn-lg">
-          <%= hero.secondaryButtonText || 'View Our Work' %>
+        <a href="<%= hero.secondaryButtonLink || '#services' %>" class="btn btn-outline-light btn-lg">
+          <%= hero.secondaryButtonText || 'Our Services' %>
         </a>
       </div>
     </div>
@@ -64,20 +92,20 @@ function getImageUrl(p) {
     <div class="container">
       <h2>Our Services</h2>
       <div class="services-grid">
-        <% if (typeof services !== 'undefined' && services && services.length > 0) { %>
+        <% if (_hasServices) { %>
           <% services.forEach(function(service) { %>
             <div class="service-card animate-on-scroll">
               <div class="service-image">
                 <% if (service.image) { %>
                   <img 
                     src="<%= getImageUrl(service.image) %>" 
-                    alt="<%= service.title || service.name %> services in {{CITY}}, {{STATE}} - {{COMPANY_NAME}}"
+                    alt="<%= service.title || service.name %> - {{COMPANY_NAME}}, {{CITY}}, {{STATE}}"
                     loading="lazy"
                     width="800"
                     height="600"
                   >
                 <% } else { %>
-                  <span class="service-icon"><%= service.icon || '🔧' %></span>
+                  <span class="service-icon"><%= service.icon || '★' %></span>
                 <% } %>
               </div>
               <div class="service-content">
@@ -96,34 +124,37 @@ function getImageUrl(p) {
           <% }); %>
         <% } %>
       </div>
+      <% if (!_hasServices) { %>
+        <p class="services-empty" style="text-align: center;">Tell us what you're looking for and we'll be glad to help. <a href="#contact">Get in touch</a>.</p>
+      <% } %>
     </div>
   </section>
 
-  <!-- Why Choose Us Section -->
+  <!-- Getting Started Section (neutral: no certifications, warranties or pricing promises) -->
   <section class="why-choose-section">
     <div class="container">
-      <h2>Why {{CITY}} Homeowners Trust {{COMPANY_NAME}}</h2>
+      <h2>Getting Started with {{COMPANY_NAME}}</h2>
       <div class="why-grid">
-        <div class="why-item animate-on-scroll">
-          <div class="why-icon">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-          </div>
-          <h3>Industry Certified</h3>
-          <p>We've earned top certifications in our industry, giving you access to premium materials, extended warranties, and a commitment to quality backed by the leading names in {{INDUSTRY}}.</p>
-        </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
           </div>
-          <h3>Local to the {{SERVICE_REGION}}</h3>
-          <p>Based in {{CITY}}, we serve homeowners across {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, {{NEARBY_CITY_2}}, and the surrounding communities. As a local company, we're already here — not driving in from out of town.</p>
+          <h3>Right Here in {{CITY}}</h3>
+          <p>We're based in {{CITY}}, {{STATE}}, and we'd love to hear from you.</p>
         </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           </div>
-          <h3>Transparent Pricing, No Surprises</h3>
-          <p>Every project starts with a detailed free estimate. We walk you through material options, labor costs, and timelines before any work begins. Our customers consistently mention our honest communication in their reviews.</p>
+          <h3>Easy to Reach</h3>
+          <p>Call, email, or use the form below. Tell us what you're looking for and we'll be in touch soon.</p>
+        </div>
+        <div class="why-item animate-on-scroll">
+          <div class="why-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <h3>Questions Welcome</h3>
+          <p>Not sure what you need yet? Just ask. We're happy to talk it through.</p>
         </div>
       </div>
     </div>
@@ -176,13 +207,13 @@ function getImageUrl(p) {
   <% if (typeof featuredProjects !== 'undefined' && featuredProjects && featuredProjects.length > 0) { %>
     <section class="featured-projects-section">
       <div class="container">
-        <h2>Recent Projects in the {{SERVICE_REGION}}</h2>
+        <h2>Recent Work</h2>
         <div class="fp-grid">
           <% featuredProjects.slice(0, 6).forEach(function(project) { %>
             <a href="/gallery/<%= project.id %>" class="fp-card animate-on-scroll">
               <img 
                 src="<%= project.featured_image || (project.images && project.images[0] ? (project.images[0].thumbnail || project.images[0].url) : '/images/project-placeholder.jpg') %>" 
-                alt="<%= project.title %> - <%= project.category || 'Construction' %> project in <%= project.location || '{{CITY}}' %>, {{STATE}}"
+                alt="<%= project.title %><%= project.category ? ' - ' + project.category : '' %> - {{COMPANY_NAME}}, {{CITY}}, {{STATE}}"
                 loading="lazy"
                 width="400"
                 height="300"
@@ -195,7 +226,7 @@ function getImageUrl(p) {
           <% }); %>
         </div>
         <div style="text-align: center; margin-top: 2rem;">
-          <a href="/gallery" class="btn btn-outline">View All Projects</a>
+          <a href="/gallery" class="btn btn-outline">View Gallery</a>
         </div>
       </div>
     </section>
@@ -287,7 +318,7 @@ function getImageUrl(p) {
   >
     <div class="container">
       <%
-        const ctaTitle = ctaSection.title || 'Increase your comfort.\nDecrease your energy bills.';
+        const ctaTitle = ctaSection.title || "We'd love to hear from you.";
         const ctaTitleLines = ctaTitle.split('\n');
       %>
       <h2>
@@ -295,10 +326,10 @@ function getImageUrl(p) {
           <%= line %><% if (i === 0 && ctaTitleLines.length > 1) { %><br><% } %>
         <% }); %>
       </h2>
-      <p><%= ctaSection.description || "Find out how we can improve your home's efficiency and curb appeal." %></p>
+      <p><%= ctaSection.description || "Get in touch and tell us what you're looking for." %></p>
       <div class="cta-buttons">
         <a href="<%= ctaSection.primaryButtonLink || '#contact' %>" class="btn btn-primary btn-lg">
-          <%= ctaSection.primaryButtonText || 'Schedule a Free Estimate' %>
+          <%= ctaSection.primaryButtonText || 'Get in Touch' %>
         </a>
         <a href="<%= ctaSection.secondaryButtonLink || 'tel:' + phoneRaw %>" class="btn btn-outline btn-lg">
           <%= ctaSection.secondaryButtonText || 'Call ' + phone %>
@@ -344,26 +375,12 @@ function getImageUrl(p) {
     <div class="container">
       <h2>Frequently Asked Questions</h2>
       <div class="home-faq-list">
+        <% _faqs.forEach(function(f) { %>
         <details class="home-faq-item animate-on-scroll">
-          <summary><strong>How long does a typical project take in {{CITY}}?</strong></summary>
-          <p>Project timelines vary depending on scope and complexity. We provide detailed timelines during your estimate and communicate clearly throughout the process to minimize delays.</p>
+          <summary><strong><%= f.q %></strong></summary>
+          <p><%= f.a %></p>
         </details>
-        <details class="home-faq-item animate-on-scroll">
-          <summary><strong>Do you offer financing for home improvements?</strong></summary>
-          <p>Yes, we offer flexible financing options to help {{SERVICE_REGION}} homeowners afford the upgrades they need. Ask about our current promotions during your free estimate.</p>
-        </details>
-        <details class="home-faq-item animate-on-scroll">
-          <summary><strong>What areas do you serve besides {{CITY}}?</strong></summary>
-          <p>We serve homeowners in {{CITY}}, {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, {{NEARBY_CITY_2}}, and throughout the greater {{SERVICE_REGION}}. Our crew is local, so we're never far away.</p>
-        </details>
-        <details class="home-faq-item animate-on-scroll">
-          <summary><strong>What makes {{COMPANY_NAME}} different?</strong></summary>
-          <p>We combine industry expertise with a commitment to quality materials, transparent pricing, and exceptional customer service. Our certifications and warranties give you peace of mind on every project.</p>
-        </details>
-        <details class="home-faq-item animate-on-scroll">
-          <summary><strong>Do you handle insurance claims for storm damage?</strong></summary>
-          <p>Absolutely. We work directly with your insurance company throughout the claims process. Our team documents the damage, provides detailed estimates, and coordinates with adjusters so you can focus on getting your home back to normal.</p>
-        </details>
+        <% }); %>
       </div>
     </div>
   </section>
@@ -403,6 +420,7 @@ function getImageUrl(p) {
               <span><%= address %><br/><%= city %>, <%= state %> <%= zip %></span>
             </div>
           </div>
+          <% if (openDays.length > 0) { %>
           <div class="contact-item">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10"></circle>
@@ -411,29 +429,20 @@ function getImageUrl(p) {
             <div>
               <strong>Hours</strong>
               <span>
-                <% if (businessHours.monday && !businessHours.monday.closed) { %>
-                  Mon - Fri: <%= businessHours.monday.open %> - <%= businessHours.monday.close %>
-                <% } else { %>
-                  Mon - Fri: 8am - 5pm
-                <% } %>
-                <br/>
-                <% if (businessHours.saturday && !businessHours.saturday.closed) { %>
-                  Sat: <%= businessHours.saturday.open %><% if (businessHours.saturday.close) { %> - <%= businessHours.saturday.close %><% } %>
-                <% } else { %>
-                  Sat: By Appointment
-                <% } %>
+                <% openDays.forEach(function(d, i) { %><%= _dayNames[d].slice(0, 3) %>: <%= businessHours[d].open %><% if (businessHours[d].close) { %> - <%= businessHours[d].close %><% } %><% if (i < openDays.length - 1) { %><br/><% } %><% }); %>
               </span>
             </div>
           </div>
+          <% } %>
           
           <div class="service-areas">
-            <h3>Service Areas</h3>
-            <p><%= serviceAreas.join(', ') %>, and surrounding communities.</p>
+            <h3>Areas We Serve</h3>
+            <p><%= serviceAreas.join(', ') %><%= serviceAreas.length > 1 ? ',' : '' %> and surrounding communities.</p>
           </div>
         </div>
 
         <div class="contact-form-container">
-          <h2>Request an Estimate</h2>
+          <h2>Send Us a Message</h2>
           <form id="contact-form" method="POST" action="/api/admin/leads">
             <div class="form-row">
               <div class="form-group">
@@ -455,22 +464,22 @@ function getImageUrl(p) {
                 <input type="text" id="address-field" name="address">
               </div>
             </div>
+            <% if (_hasServices) { %>
             <div class="form-group">
-              <label>Services Needed</label>
+              <label>What are you interested in?</label>
               <div class="checkbox-grid">
-                <% if (typeof services !== 'undefined' && services && services.length > 0) { %>
                   <% services.slice(0, 6).forEach(function(service) { %>
                     <label class="checkbox-item">
                       <input type="checkbox" name="services[]" value="<%= service.title || service.name %>">
                       <span><%= service.title || service.name %></span>
                     </label>
                   <% }); %>
-                <% } %>
               </div>
             </div>
+            <% } %>
             <div class="form-group">
-              <label for="message">Project Details</label>
-              <textarea id="message" name="message" rows="4" placeholder="Tell us about your project..."></textarea>
+              <label for="message">Message</label>
+              <textarea id="message" name="message" rows="4" placeholder="Tell us what you're looking for..."></textarea>
             </div>
             <div id="form-error" style="display: none; color: #dc2626; background: #fef2f2; padding: 12px 16px; border-radius: 8px; margin-bottom: 8px; font-size: 0.95rem;"></div>
             <div class="form-group checkbox-group sms-consent">
@@ -480,7 +489,7 @@ function getImageUrl(p) {
               </label>
             </div>
             <button type="submit" class="btn btn-primary btn-lg full-width">
-              Submit Request
+              Send Message
             </button>
           </form>
         </div>
@@ -498,14 +507,11 @@ function getImageUrl(p) {
     ></iframe>
   </section>
 
-  <%
-    const _emailOk = typeof email === 'string' && /^[^\s<>]+@[^\s<>]+\.[^\s<>]+$/.test(email);
-  %>
   <!-- Enhanced LocalBusiness Schema with Reviews -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "HomeAndConstructionBusiness",
+    "@type": "LocalBusiness",
     "name": "{{COMPANY_NAME}}",
     "image": "{{SITE_URL}}/logo.jpg",
     "url": "{{SITE_URL}}",
@@ -526,27 +532,32 @@ function getImageUrl(p) {
         "name": <%- _jsonStr(String(area) + ', {{STATE}}') %>
       }<%= index < serviceAreas.length - 1 ? ',' : '' %>
       <% }); %>
-    ],
-    "priceRange": "$$",
-    "openingHoursSpecification": [
+    ]
+    <%/* opening hours only from days the owner filled in; no priceRange (never supplied) */%>
+    <% const _ldHours = openDays.filter((d) => _to24(businessHours[d].open) && _to24(businessHours[d].close)); %>
+    <% if (_ldHours.length > 0) { %>
+    ,"openingHoursSpecification": [
+      <% _ldHours.forEach(function(d, i) { %>
       {
         "@type": "OpeningHoursSpecification",
-        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-        "opens": "08:00",
-        "closes": "17:00"
-      }
+        "dayOfWeek": <%- _jsonStr(_dayNames[d]) %>,
+        "opens": <%- _jsonStr(_to24(businessHours[d].open)) %>,
+        "closes": <%- _jsonStr(_to24(businessHours[d].close)) %>
+      }<%= i < _ldHours.length - 1 ? ',' : '' %>
+      <% }); %>
     ]
-    <% if (typeof services !== 'undefined' && services && services.length > 0) { %>
+    <% } %>
+    <% if (_hasServices) { %>
     ,"hasOfferCatalog": {
       "@type": "OfferCatalog",
-      "name": "Construction Services",
+      "name": "Services",
       "itemListElement": [
         <% services.forEach(function(s, index) { %>
         {
           "@type": "Offer",
           "itemOffered": {
             "@type": "Service",
-            "name": <%- _jsonStr(s.title) %>,
+            "name": <%- _jsonStr(s.title || s.name) %>,
             "description": <%- _jsonStr(_plainDesc(s.description, 280)) %>
           }
         }<%= index < services.length - 1 ? ',' : '' %>
@@ -592,46 +603,16 @@ function getImageUrl(p) {
     "@context": "https://schema.org",
     "@type": "FAQPage",
     "mainEntity": [
+      <% _faqs.forEach(function(f, i) { %>
       {
         "@type": "Question",
-        "name": "How long does a typical project take in {{CITY}}?",
+        "name": <%- _jsonStr(f.q) %>,
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Project timelines vary depending on scope and complexity. We provide detailed timelines during your estimate and communicate clearly throughout."
+          "text": <%- _jsonStr(f.a) %>
         }
-      },
-      {
-        "@type": "Question",
-        "name": "Do you offer financing for home improvements?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Yes, we offer flexible financing options to help {{SERVICE_REGION}} homeowners afford the upgrades they need."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "What areas do you serve besides {{CITY}}?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "We serve homeowners in {{CITY}}, {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, {{NEARBY_CITY_2}}, and throughout the greater {{SERVICE_REGION}}."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "What makes {{COMPANY_NAME}} different?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "We combine industry expertise with quality materials, transparent pricing, and exceptional customer service. Our certifications and warranties give you confidence on every project."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Do you handle insurance claims for storm damage?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "We work directly with your insurance company throughout the claims process, documenting damage, providing estimates, and coordinating with adjusters."
-        }
-      }
+      }<%= i < _faqs.length - 1 ? ',' : '' %>
+      <% }); %>
     ]
   }
   </script>

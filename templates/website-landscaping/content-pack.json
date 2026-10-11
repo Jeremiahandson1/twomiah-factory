@@ -1,46 +1,19 @@
 {
   "vertical": "landscaping",
-  "tone": "Down-to-earth, dependable, and proud of the work. These are owner-operated outdoor crews that homeowners trust with the thing they look at every single day — their yard. The voice is honest, hands-on, and neighborly. No corporate fluff. Think: the guy who shows up when he says he will, treats your lawn like it's his own, cleans up before he leaves, and stands behind the work. 'We don't cut corners — we cut grass.'",
-  "trustBadges": [
-    {
-      "id": "family-owned",
-      "label": "Family-Owned & Operated",
-      "description": "You deal with the owner, not a call center. The same crew that quotes your job is the crew that does it — and they take pride in their name being on the truck.",
-      "icon": "users"
-    },
-    {
-      "id": "fully-insured",
-      "label": "Licensed & Fully Insured",
-      "description": "Heavy equipment around your home, fence, and foundation means liability matters. We carry full general liability and workers' comp coverage so you're never exposed if something goes wrong.",
-      "icon": "shield-check"
-    },
-    {
-      "id": "free-estimates",
-      "label": "Free On-Site Estimates",
-      "description": "We come out, walk the property, and give you a clear written quote with no obligation. No high-pressure sales — just an honest price for honest work.",
-      "icon": "clipboard"
-    },
-    {
-      "id": "satisfaction-guarantee",
-      "label": "Satisfaction Guaranteed",
-      "description": "If something isn't right — a missed strip, an edge we didn't catch, cleanup we didn't finish — we come back and make it right. No charge, no runaround.",
-      "icon": "thumbs-up"
-    }
-  ],
+  "tone": "Down-to-earth, dependable, and proud of the work. The voice is honest, hands-on, and neighborly, with no corporate fluff. State only facts the owner has supplied: no family-owned, insured, free-estimate, guarantee, availability, or pricing claims about the business.",
+  "trustBadges": [],
   "services": [
     {
       "id": "lawn-maintenance",
       "name": "Lawn Mowing & Maintenance",
       "slug": "lawn-mowing-maintenance",
-      "shortDescription": "A clean, sharp lawn every week — without you ever touching a mower.",
-      "description": "A well-kept lawn is the first thing anyone sees, and keeping it that way through a full growing season is more than just running a mower over it. We handle the whole job on a schedule that fits your property: mowing at the correct height for your grass type and the season, clean trimming around beds, trees, fences, and foundations, edging hard surfaces for that crisp finished line, and blowing every clipping off your walks, driveway, and patio before we leave.\n\nMowing height matters more than most people realize. Cutting too short stresses the turf, invites weeds, and dries out the soil; we adjust deck height as conditions change through spring, summer heat, and fall. We also sharpen blades regularly — a dull blade tears grass instead of cutting it, which leaves a brown, ragged tip and an open door for disease.\n\nWeekly and bi-weekly schedules are available, and we keep the same crew on your property so they learn its quirks — the soft spot by the downspout, the sprinkler heads to avoid, the gate that sticks. You get a consistent, professional cut and a yard that's done right every visit, not just the first one.",
+      "shortDescription": "Mowing, trimming, and edging on a schedule that fits your property.",
+      "description": "A well-kept lawn is the first thing anyone sees, and keeping it that way through a full growing season is more than just running a mower over it. We handle the whole job on a schedule that fits your property: mowing at the correct height for your grass type and the season, clean trimming around beds, trees, fences, and foundations, edging hard surfaces for that crisp finished line, and blowing every clipping off your walks, driveway, and patio before we leave.\n\nMowing height matters more than most people realize. Cutting too short stresses the turf, invites weeds, and dries out the soil; we adjust deck height as conditions change through spring, summer heat, and fall. Sharp blades matter too: a dull blade tears grass instead of cutting it, which leaves a brown, ragged tip and an open door for disease.\n\nWeekly and bi-weekly schedules are common, and regular visits mean the property's quirks get known and handled: the soft spot by the downspout, the sprinkler heads to avoid, the gate that sticks.",
       "features": [
         "Weekly or bi-weekly recurring service on a set schedule",
         "Mowing height adjusted by grass type and season",
         "Trimming and crisp edging on every visit",
-        "Full blow-off of walks, drives, and patios — we leave it clean",
-        "Same crew each visit, so your property is never a guessing game",
-        "Easy seasonal start/stop and skip-week handling"
+        "Full blow-off of walks, drives, and patios — we leave it clean"
       ],
       "faq": [
         {
@@ -53,11 +26,11 @@
         },
         {
           "question": "What happens if it rains on my scheduled day?",
-          "answer": "We don't mow a saturated lawn — it rips up the turf and leaves ruts. We'll push your visit to the next available dry day, usually within 24 to 48 hours, and let you know. You're never charged for a visit we didn't make."
+          "answer": "Mowing a saturated lawn rips up the turf and leaves ruts, so a rained-out visit moves to the next dry day."
         }
       ],
-      "seoTitle": "Lawn Mowing & Maintenance in {{city}} | Weekly Service | {{company}}",
-      "seoDescription": "Reliable weekly lawn mowing, trimming, and edging in {{city}}. Same crew every visit, clean finish, flexible scheduling. Get a free quote from {{company}}."
+      "seoTitle": "Lawn Mowing & Maintenance in {{city}} | {{company}}",
+      "seoDescription": "Lawn mowing, trimming, and edging in {{city}} from {{company}}."
     },
     {
       "id": "landscape-design-install",
@@ -88,7 +61,7 @@
         }
       ],
       "seoTitle": "Landscape Design & Installation in {{city}} | {{company}}",
-      "seoDescription": "Professional landscape design and installation in {{city}} — beds, plantings, grading, and full yard makeovers. Free design consultation from {{company}}."
+      "seoDescription": "Landscape design and installation in {{city}}: beds, plantings, grading, and full yard makeovers from {{company}}."
     },
     {
       "id": "hardscaping",
@@ -119,7 +92,7 @@
         }
       ],
       "seoTitle": "Paver Patios & Retaining Walls in {{city}} | Hardscaping | {{company}}",
-      "seoDescription": "Custom paver patios, walkways, retaining walls, and fire pits in {{city}}. Engineered base built to last. Free hardscape estimate from {{company}}."
+      "seoDescription": "Paver patios, walkways, retaining walls, and fire pits in {{city}}, built on a proper base. From {{company}}."
     },
     {
       "id": "mulch-planting",
@@ -150,7 +123,7 @@
         }
       ],
       "seoTitle": "Mulching, Planting & Bed Edging in {{city}} | {{company}}",
-      "seoDescription": "Mulch installation, clean bed edging, and seasonal planting in {{city}}. Sharp beds with less weeding. Free quote from {{company}}."
+      "seoDescription": "Mulch installation, clean bed edging, and seasonal planting in {{city}} from {{company}}."
     },
     {
       "id": "tree-shrub-care",
@@ -181,7 +154,7 @@
         }
       ],
       "seoTitle": "Tree Trimming, Pruning & Stump Grinding in {{city}} | {{company}}",
-      "seoDescription": "Expert tree and shrub pruning, hedge trimming, and stump grinding in {{city}}. Safe work, full cleanup. Free estimate from {{company}}."
+      "seoDescription": "Tree and shrub pruning, hedge trimming, and stump grinding in {{city}}, with full cleanup. From {{company}}."
     },
     {
       "id": "pressure-washing",
@@ -249,32 +222,29 @@
       "id": "snow-removal",
       "name": "Snow & Ice Removal",
       "slug": "snow-ice-removal",
-      "shortDescription": "Plowed, shoveled, and salted before you back out of the garage.",
-      "description": "When the snow flies, you want to know it's handled without having to call anyone or stand in the driveway with a shovel before work. We run snow and ice removal as a managed service for both residential and commercial properties: we watch the forecast, we deploy on a defined trigger depth, and we clear your property on a route built to get everyone done fast.\n\nResidential service covers driveways, walks, and steps — plowed or shoveled and treated so you and your visitors aren't walking on a sheet of ice. Commercial service covers lots, drive lanes, sidewalks, and entrances, with the documentation and reliability that property managers and businesses need to stay open and stay liable-safe.\n\nWe offer flexible billing that fits how you actually use it — per-push, per-event, per-season contract, or per-inch — so you're not overpaying in a light winter or exposed in a brutal one. Salt and ice-melt application is available as part of the service or on call. You'll know your property is on the route before the first flake.",
+      "shortDescription": "Plowing, shoveling, and salting for drives, walks, and lots.",
+      "description": "When the snow flies, you want it handled without standing in the driveway with a shovel before work. Snow and ice removal covers both residential and commercial properties, usually deployed at a defined trigger depth.\n\nResidential service covers driveways, walks, and steps — plowed or shoveled and treated so you and your visitors aren't walking on a sheet of ice. Commercial service covers lots, drive lanes, sidewalks, and entrances, with the documentation and reliability that property managers and businesses need to stay open and stay liable-safe.\n\nCommon billing models include per-push, per-event, per-season contract, or per-inch; the right one depends on your property and how much budget certainty you want. Salt and ice-melt application keeps cleared surfaces from refreezing.",
       "features": [
         "Residential and commercial snow removal",
-        "Forecast-monitored, trigger-depth deployment",
         "Driveways, walks, lots, and entrances",
-        "Salt and ice-melt application",
-        "Flexible billing: per-push, per-event, per-season, or per-inch",
-        "Priority routing so you're cleared before you need to leave"
+        "Salt and ice-melt application"
       ],
       "faq": [
         {
           "question": "At what snow depth do you come out?",
-          "answer": "We deploy on a defined trigger depth — commonly two inches for residential and often lower for commercial lots where liability and access matter more. We set the trigger with you when you sign up, and during big storms we'll make multiple passes rather than waiting for it all to fall."
+          "answer": "Service usually starts at a defined trigger depth, commonly two inches for residential and often lower for commercial lots where liability and access matter more. During big storms, multiple passes beat waiting for it all to fall."
         },
         {
           "question": "What's the difference between per-push and seasonal billing?",
-          "answer": "Per-push bills each time we clear the property, so a light winter costs less. A seasonal contract is a flat price for the whole winter regardless of snowfall — predictable budgeting and you're covered no matter how bad it gets. We'll help you pick based on your property and risk tolerance."
+          "answer": "Per-push bills each time the property is cleared, so a light winter costs less. A seasonal contract is a flat price for the whole winter regardless of snowfall: predictable budgeting, covered no matter how bad it gets."
         },
         {
           "question": "Do you handle salting and ice control too?",
-          "answer": "Yes. Plowing clears the snow but doesn't address the ice layer underneath or refreeze afterward. We apply salt or ice melt to drives, walks, and entrances as part of the service or as a separate call, which matters most for commercial properties managing slip liability."
+          "answer": "Plowing clears the snow but does not address the ice layer underneath or refreeze afterward. Salt or ice melt on drives, walks, and entrances matters most for commercial properties managing slip liability."
         }
       ],
       "seoTitle": "Snow & Ice Removal in {{city}} | Residential & Commercial | {{company}}",
-      "seoDescription": "Reliable snow plowing, shoveling, and salting in {{city}} for homes and businesses. Flexible per-push or seasonal contracts. Reserve your spot with {{company}}."
+      "seoDescription": "Snow plowing, shoveling, and salting in {{city}} for homes and businesses. Contact {{company}}."
     }
   ],
   "blogTopics": [
@@ -361,73 +331,17 @@
   ],
   "faq": [
     {
-      "question": "Do you offer free estimates?",
-      "answer": "Yes. We come out, walk the property with you, and provide a clear written quote at no cost and with no obligation. For recurring services like lawn maintenance we can often quote from the property details and a quick look; for hardscaping and installs we always do an on-site walkthrough."
-    },
-    {
-      "question": "Are you licensed and insured?",
-      "answer": "Yes — we carry full general liability and workers' compensation coverage. That matters more than people realize: heavy equipment works close to your home, fence, vehicles, and foundation, and you should never be the one exposed if something goes wrong. We're happy to provide a certificate of insurance."
-    },
-    {
-      "question": "Do you offer recurring service or just one-time jobs?",
-      "answer": "Both. Most clients set up recurring lawn maintenance on a weekly or bi-weekly schedule, often bundled with seasonal cleanups and snow removal so the whole property is handled year-round. We also do one-time projects like patios, mulch refreshes, tree work, and cleanups."
-    },
-    {
       "question": "What areas do you serve?",
-      "answer": "We serve {{city}} and the surrounding communities. If you're not sure whether you're in our service area, just ask when you request a quote — we'll tell you straight rather than overpromise and miss visits."
+      "answer": "We serve {{city}} and the surrounding communities. If you're not sure whether you're in our service area, just ask when you request a quote."
     },
     {
-      "question": "How and when do I pay?",
-      "answer": "For recurring maintenance we bill on a regular cycle — monthly is most common — and offer simple online payment. Project work like hardscaping is typically a deposit to schedule with the balance on completion. We go over the terms before any work starts so there are no surprises."
+      "question": "Should I set up recurring service or book one-time jobs?",
+      "answer": "Recurring mowing and maintenance keeps a lawn consistent through the season, while projects like patios, mulch refreshes, and cleanups are usually one-time jobs. Many properties use a mix of both."
     },
     {
-      "question": "What if I'm not happy with the work?",
-      "answer": "We come back and make it right — a missed strip, an edge we didn't catch, cleanup we didn't finish. We'd rather fix it than lose a customer over something small. Tell us and we'll handle it, no charge and no runaround."
-    },
-    {
-      "question": "Do you do both residential and commercial properties?",
-      "answer": "Yes. We maintain residential yards as well as commercial properties — office and retail grounds, HOA common areas, and commercial snow and ice management with the reliability and documentation those accounts need."
-    },
-    {
-      "question": "Can you handle my whole property in one company?",
-      "answer": "That's the idea. Mowing, landscaping, mulch and beds, hardscaping, tree and shrub work, pressure washing, seasonal cleanups, and snow — having one crew that knows your property handle all of it is simpler for you and produces a more consistent result than juggling four contractors."
+      "question": "How often should mulch be replaced?",
+      "answer": "Most beds benefit from a fresh top-up once a year, typically in spring. Mulch breaks down and feeds the soil over time, but it also fades and thins, so an annual refresh keeps both the look and the weed suppression working."
     }
   ],
-  "testimonialTemplates": [
-    {
-      "id": "weekly-maintenance",
-      "scenario": "Long-term recurring lawn maintenance client",
-      "template": "We've used {{company}} for our weekly lawn service for three seasons now and the yard has never looked better. Same crew every week, they know our property, and it's always edged, trimmed, and blown off clean before they leave. I haven't touched my mower since I called them and I don't miss it one bit.",
-      "rating": 5,
-      "service": "lawn-maintenance"
-    },
-    {
-      "id": "patio-build",
-      "scenario": "Paver patio and fire pit installation",
-      "template": "We got three quotes for a paver patio and {{company}} was the only one who actually explained the base prep instead of just talking about pavers. You can tell the difference — two winters in and it's still dead flat, no shifting, no separating. The fire pit has become the spot everyone ends up. Worth every penny.",
-      "rating": 5,
-      "service": "hardscaping"
-    },
-    {
-      "id": "full-property-makeover",
-      "scenario": "Landscape redesign and installation on an older home",
-      "template": "Our beds hadn't been touched in fifteen years. {{company}} redesigned the whole front of the house — new plantings, fresh edging, clean mulch — and the difference is unreal. They walked us through caring for everything the first season and it all took beautifully. Neighbors keep asking who did it.",
-      "rating": 5,
-      "service": "landscape-design-install"
-    },
-    {
-      "id": "snow-reliability",
-      "scenario": "Reliable residential snow removal through a hard winter",
-      "template": "Last winter was brutal and {{company}} never missed. Driveway and walks cleared and salted before I left for work every single storm — I never had to call, it was just done. After years of unreliable plow guys, having it actually handled is worth the seasonal contract by itself.",
-      "rating": 5,
-      "service": "snow-removal"
-    },
-    {
-      "id": "pressure-washing",
-      "scenario": "House soft wash and driveway cleaning",
-      "template": "The north side of our house was green and the driveway looked like it hadn't been cleaned in a decade. {{company}} soft washed the siding instead of blasting it and did the driveway with a surface cleaner — it looks like a different house. A year later the siding is still clean, not like the last company where it came right back.",
-      "rating": 5,
-      "service": "pressure-washing"
-    }
-  ]
+  "testimonialTemplates": []
 }

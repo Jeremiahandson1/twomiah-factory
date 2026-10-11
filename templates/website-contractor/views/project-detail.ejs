@@ -104,19 +104,21 @@
           <% } %>
 
           <!-- Project Description -->
+          <% if (project.description) { %>
           <div class="project-description">
             <h2>About This Project</h2>
-            <p><%= project.description || 'Professional workmanship and quality materials deliver lasting results for this project.' %></p>
+            <p><%= project.description %></p>
           </div>
+          <% } %>
         </div>
 
         <!-- Right Column - CTA Sidebar -->
         <aside class="project-sidebar">
           <div class="cta-card">
             <h3>Want Similar Results?</h3>
-            <p>Get a free, no-obligation estimate for your project.</p>
+            <p>Tell us about your project and we'll be in touch soon.</p>
             <a href="/#contact" class="btn btn-primary btn-block">
-              Get Free Estimate
+              Request an Estimate
             </a>
             <a href="tel:{{COMPANY_PHONE_RAW}}" class="btn btn-outline btn-block">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -126,31 +128,7 @@
             </a>
           </div>
 
-          <div class="trust-indicators">
-            <div class="trust-item">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                <polyline points="9 12 11 14 15 10"></polyline>
-              </svg>
-              <span>Licensed & Insured</span>
-            </div>
-            <div class="trust-item">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="8" r="7"></circle>
-                <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
-              </svg>
-              <span>Quality Guaranteed</span>
-            </div>
-            <div class="trust-item">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                <line x1="16" y1="2" x2="16" y2="6"></line>
-                <line x1="8" y1="2" x2="8" y2="6"></line>
-                <line x1="3" y1="10" x2="21" y2="10"></line>
-              </svg>
-              <span>Free Estimates</span>
-            </div>
-          </div>
+          <%/* no trust badges (licensed, guaranteed, free estimates): stated only when the owner supplies them */%>
         </aside>
       </div>
     </div>
@@ -200,9 +178,9 @@
   <section class="project-bottom-cta">
     <div class="container">
       <h2>Ready to Start Your Project?</h2>
-      <p>Contact {{COMPANY_NAME}} for a free estimate on your next project.</p>
+      <p>Tell {{COMPANY_NAME}} about your project and we'll be in touch soon.</p>
       <div class="cta-buttons">
-        <a href="/#contact" class="btn btn-primary btn-lg">Get Free Estimate</a>
+        <a href="/#contact" class="btn btn-primary btn-lg">Request an Estimate</a>
         <a href="tel:{{COMPANY_PHONE_RAW}}" class="btn btn-outline-light btn-lg">Call {{COMPANY_PHONE}}</a>
       </div>
     </div>
