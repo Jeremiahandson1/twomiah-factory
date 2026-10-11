@@ -100,9 +100,10 @@ for (const [from, to] of [['cancelled', 'paid'], ['cancelled', 'shipped'], ['ref
   const o = await order('paid')
   await O('PATCH', `/api/admin/orders/${o.id}/status`, { status: 'fulfilled' })
   const packed = (await row(o.id)).fulfilledAt
-  await new Promise((r) => setTimeout(r, 20))
+  await new Promise((r) => setTimeout(r, 60))
   await O('PATCH', `/api/admin/orders/${o.id}/status`, { status: 'shipped' })
-  check('M1: shipping after packing keeps the first fulfilment time', String((await row(o.id)).fulfilledAt) === String(packed), { packed, now: (await row(o.id)).fulfilledAt })
+  // by the millisecond: String(Date) drops them, and a stamp rewritten 60ms later read as unchanged
+  check('M1: shipping after packing keeps the first fulfilment time', !!packed && new Date((await row(o.id)).fulfilledAt as any).getTime() === new Date(packed as any).getTime(), { packed, now: (await row(o.id)).fulfilledAt })
   await O('PATCH', `/api/admin/orders/${o.id}/status`, { status: 'refunded' })
   check('M1: a refund after it shipped keeps the stamp — it did go out', !!(await row(o.id)).fulfilledAt)
   const c2 = await order('paid', { fulfilledAt: new Date() })
