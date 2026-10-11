@@ -74,6 +74,23 @@ check('a canvasser still sees only their own (T63 unchanged)', r2list.status ===
 const r2read = await R2('GET', `/api/canvassing/sessions/${s1.json?.id}`)
 check('…and cannot read another rep\'s session by id', r2read.status === 404, { status: r2read.status })
 
+// canvassing:read is READ. A canvasser the owner also lets see the team (Settings › Users) holds the write verbs
+// too — so this is the seat that proves the read grant opens GETs only, not someone else's session.
+const lead = await (async () => (await db.insert(user).values({ email: `lead@hip-t68.local`, passwordHash: 'x', firstName: 'lead', lastName: 'U', role: 'field', companyId: co.id, isActive: true, extraPermissions: ['canvassing:read'] } as any).returning())[0])()
+const L = as(lead)
+const lread = await L('GET', `/api/canvassing/sessions/${s1.json?.id}`)
+check('a canvasser granted canvassing:read reads another rep\'s session', lread.status === 200, { status: lread.status })
+for (const [m, path, body] of [
+  ['PUT', `/api/canvassing/sessions/${s1.json?.id}`, { name: 'renamed by the team lead' }],
+  ['POST', `/api/canvassing/sessions/${s1.json?.id}/stops`, { outcome: 'no_answer', address: '11 Oak St' }],
+  ['POST', `/api/canvassing/sessions/${s1.json?.id}/end`, {}],
+] as const) {
+  const r = await L(m, path, body)
+  check(`…but cannot ${m} ${path.replace(String(s1.json?.id), ':rep1')} — reading the team is not writing to it`, r.status === 404 || r.status === 403, { status: r.status })
+}
+const [still] = await db.select().from(canvassingSession).where(eq(canvassingSession.id, s1.json?.id))
+check('…and rep 1\'s session is untouched by them', still?.name === 'Rep 1 — Oak St' && still?.status === 'active', { name: still?.name, status: still?.status })
+
 // ── cost: what the company PAID follows margin:read ───────────────────────────────────────────────
 const [home] = await db.insert(contact).values({ companyId: co.id, firstName: 'Ida', lastName: 'Marsh', email: 'ida-t68@test.local' } as any).returning()
 const [mr] = await db.insert(measurementReport).values({ companyId: co.id, address: '12 Birch Rd', city: 'Akron', state: 'OH', zip: '44301', provider: 'google_solar', status: 'complete', cost: '11.83', totalSquares: '28', totalArea: '2800' } as any).returning()
