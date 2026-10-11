@@ -101,8 +101,10 @@ async function renderWebsiteDir(websiteDir: string): Promise<string> {
     homepage: loadJSON('homepage.json', {}),
     services: loadJSON('services.json', []),
     testimonials: loadJSON('testimonials.json', []),
-    title: settings.seoTitle || settings.companyName || settings.title || 'Website Preview',
-    description: settings.seoDescription || 'Professional services',
+    // Same order as the templates' server-static.ts home route — the generator
+    // writes defaultMetaTitle/defaultMetaDescription, never seoTitle/seoDescription.
+    title: settings.seoTitle || settings.defaultMetaTitle || settings.companyName || settings.title || 'Website Preview',
+    description: settings.seoDescription || settings.defaultMetaDescription || 'Professional services',
     canonicalUrl: '',
   }
 
@@ -115,7 +117,52 @@ async function renderWebsiteDir(websiteDir: string): Promise<string> {
   const safety = '<style>.animate-on-scroll{opacity:1 !important;transform:none !important}</style>'
   const withSafety = html.includes('</head>') ? html.replace('</head>', safety + '</head>') : safety + html
 
-  return inlineAssets(withSafety, websiteDir)
+  return inlineImages(inlineAssets(withSafety, websiteDir), websiteDir)
+}
+
+/**
+ * Embed the build's own images (/images/*, /uploads/*) as data: URIs. The
+ * preview is shown in an iframe srcdoc on twomiah.com and as a stored page on
+ * the API host — neither serves this build's files, so root-relative image
+ * paths 404 there and the preview shows no hero, photos or logo. Rasters are
+ * downscaled to roughly their displayed size (CSS url() backgrounds are heroes,
+ * <img> are cards) so the page stays small enough to cache and store. Anything
+ * that can't be read or decoded keeps its original path.
+ */
+async function inlineImages(html: string, websiteDir: string): Promise<string> {
+  const roots = [path.join(websiteDir, 'build'), path.join(websiteDir, 'public')]
+  const RE = /(src=["']|url\(\s*['"]?)(\/(?:images|uploads)\/[^"')\s?#]+)/g
+  const widthFor = (prefix: string) => (prefix.startsWith('url') ? 1280 : 640)
+
+  const done = new Map<string, string | null>()
+  for (const m of html.matchAll(RE)) {
+    const key = widthFor(m[1]) + m[2]
+    if (!done.has(key)) done.set(key, await imageDataUri(m[2], widthFor(m[1]), roots))
+  }
+  return html.replace(RE, (all, prefix: string, urlPath: string) => {
+    const uri = done.get(widthFor(prefix) + urlPath)
+    return uri ? prefix + uri : all
+  })
+}
+
+async function imageDataUri(urlPath: string, width: number, roots: string[]): Promise<string | null> {
+  let rel: string
+  try { rel = decodeURIComponent(urlPath).replace(/^\//, '') } catch { return null }
+  for (const root of roots) {
+    const file = path.resolve(root, rel)
+    if (!file.startsWith(root + path.sep) || !fs.existsSync(file)) continue // path-traversal guard
+    const ext = path.extname(file).toLowerCase()
+    try {
+      if (ext === '.svg') return 'data:image/svg+xml;base64,' + fs.readFileSync(file).toString('base64')
+      if (!/^\.(jpe?g|png|webp|gif|avif)$/.test(ext)) return null
+      const sharp = (await import('sharp')).default
+      const buf = await sharp(file).rotate().resize({ width, withoutEnlargement: true }).webp({ quality: 68 }).toBuffer()
+      return 'data:image/webp;base64,' + buf.toString('base64')
+    } catch {
+      return null
+    }
+  }
+  return null
 }
 
 /**
