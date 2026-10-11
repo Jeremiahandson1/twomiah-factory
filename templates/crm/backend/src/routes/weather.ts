@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { authenticate } from '../middleware/auth.ts';
+import { requirePermission } from '../middleware/permissions.ts';
 import weather from '../services/weather.ts';
 
 const app = new Hono();
@@ -97,7 +98,8 @@ app.get('/project/:projectId', async (c) => {
 });
 
 // Auto-populate weather for daily log
-app.post('/daily-log/:dailyLogId/populate', async (c) => {
+// Writing the weather onto a daily log is an edit to that log — daily-logs:update. It asked only for a login. (T68)
+app.post('/daily-log/:dailyLogId/populate', requirePermission('daily-logs:update'), async (c) => {
   const data = await weather.populateDailyLogWeather(c.req.param('dailyLogId'));
 
   if (!data) {

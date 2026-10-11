@@ -7,6 +7,7 @@
 
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import financing from '../services/financing.ts'
 
 const app = new Hono()
@@ -59,7 +60,9 @@ app.get('/options/:provider', async (c) => {
 })
 
 // Create a financing application
-app.post('/apply', async (c) => {
+// A financing application sends a customer's name, contact details and an amount to a lender, for money owed on a
+// quote or invoice — invoices:create, the seat that bills. It asked only for a login. (T68)
+app.post('/apply', requirePermission('invoices:create'), async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json()
   const { provider, contactId, amount, contactName, contactEmail, contactPhone, purpose, invoiceId } = body

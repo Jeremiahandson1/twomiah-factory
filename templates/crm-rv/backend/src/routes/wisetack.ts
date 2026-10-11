@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { authenticate } from '../middleware/auth.ts';
-import { requireRole } from '../middleware/permissions.ts';
+import { requireRole, requirePermission } from '../middleware/permissions.ts';
 import wisetack from '../services/wisetack.ts';
 import audit from '../services/audit.ts';
 
@@ -102,7 +102,9 @@ app.post('/disconnect', requireRole('admin', 'owner'), async (c) => {
 });
 
 // Create loan application
-app.post('/applications', async (c) => {
+// A financing application sends a customer's name, contact details and an amount to a lender, for money owed on a
+// quote or invoice — invoices:create, the seat that bills. It asked only for a login. (T68)
+app.post('/applications', requirePermission('invoices:create'), async (c) => {
   const user = c.get('user') as any;
   const { quoteId, invoiceId, contactId, amount, customerInfo } = await c.req.json();
 

@@ -2400,6 +2400,17 @@ jobs:
       - name: "Store routes ask a permission, no rank gates"
         run: bun run scripts/check-store-routes-ask-permission.ts
 
+  copied-write-routes-ask-permission:
+    name: "a write route every CRM carries as a copy asks a permission in every copy"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Lender applications and the daily-log weather ask a permission in all eight CRMs"
+        run: bun run scripts/check-copied-write-routes-ask-permission.ts
+
   read-routes-authorise:
     name: "a money read authorises too, not just the write beside it"
     runs-on: ubuntu-latest
