@@ -109,6 +109,11 @@ export const getAllPages = async () => {
   return apiRequest('/admin/pages');
 };
 
+// The site's services (data/services.json), in display order
+export const getServicesData = async () => {
+  return apiRequest('/admin/services-data');
+};
+
 export const duplicatePage = async (pageId, newPageId) => {
   return apiRequest(`/admin/pages/${encodeURIComponent(pageId)}/duplicate`, {
     method: 'POST',

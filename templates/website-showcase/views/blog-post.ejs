@@ -23,6 +23,8 @@ function renderMarkdown(text) {
     .replace(/^### (.+)$/gm, '<h3>$1</h3>')
     .replace(/^## (.+)$/gm, '<h2>$1</h2>')
     .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    // [text](url) — only web, site-relative, anchor, mail and phone links
+    .replace(/\[([^\]\n]+)\]\(((?:https?:\/\/|\/|#|mailto:|tel:)[^\s)"'<>]*)\)/g, '<a href="$2">$1</a>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/^\- (.+)$/gm, '<li>$1</li>')
@@ -44,12 +46,12 @@ function estimateReadTime(content) {
 
 // Related services from allServices
 const related = (typeof allServices !== 'undefined' && Array.isArray(allServices) && post.relatedServices)
-  ? allServices.filter(s => post.relatedServices.includes(s.slug) || post.relatedServices.includes(s.id))
+  ? allServices.filter(s => s.slug && s.visible !== false && (post.relatedServices.includes(s.slug) || post.relatedServices.includes(s.id)))
   : [];
 
 // Other posts (excluding current)
 const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
-  ? allPosts.filter(p => p.published && p.id !== post.id).slice(0, 3)
+  ? allPosts.filter(p => p.published !== false && p.slug !== post.slug).slice(0, 3)
   : [];
 %>
 
@@ -143,9 +145,8 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
               <ul>
                 <% related.forEach(function(service) { %>
                   <li>
-                    <a href="/<%= service.urlSlug || service.id %>">
-                      <span class="service-icon-small"><%= service.icon || '🔧' %></span>
-                      <span><%= service.title %></span>
+                    <a href="/services/<%= service.slug %>">
+                      <span><%= service.name || service.title %></span>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="9 18 15 12 9 6"></polyline>
                       </svg>

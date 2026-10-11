@@ -19,7 +19,7 @@
     <div class="gallery-hero-content">
       <div class="container">
         <h1>Our Work</h1>
-        <p>Browse our portfolio of completed projects throughout the {{SERVICE_REGION}}</p>
+        <p>Photos from {{COMPANY_NAME}} around the {{SERVICE_REGION}}</p>
       </div>
     </div>
   </section>
@@ -29,7 +29,7 @@
     <div class="container">
       <div class="filter-buttons">
         <button class="filter-btn active" data-filter="all">
-          All Projects
+          All Photos
         </button>
         <% categories.forEach(cat => { %>
           <button class="filter-btn" data-filter="<%= cat %>">
@@ -38,7 +38,7 @@
         <% }); %>
       </div>
       <div class="results-count">
-        <span id="results-count"><%= projects.length %></span> project<span id="results-plural"><%= projects.length !== 1 ? 's' : '' %></span>
+        <span id="results-count"><%= projects.length %></span> album<span id="results-plural"><%= projects.length !== 1 ? 's' : '' %></span>
       </div>
     </div>
   </section>
@@ -54,8 +54,8 @@
               <circle cx="8.5" cy="8.5" r="1.5"></circle>
               <polyline points="21 15 16 10 5 21"></polyline>
             </svg>
-            <h3>No projects found</h3>
-            <p>Check back soon for new projects</p>
+            <h3>No photos yet</h3>
+            <p>Check back soon for new photos</p>
           </div>
         <% } else { %>
           <% projects.forEach(project => { 
@@ -76,11 +76,11 @@
                   >
                 <% } else { %>
                   <div class="gallery-card-placeholder">
-                    <span><%= project.category || 'Project' %></span>
+                    <span><%= project.category || 'Photos' %></span>
                   </div>
                 <% } %>
                 <div class="gallery-card-overlay">
-                  <span class="view-btn">View Project</span>
+                  <span class="view-btn">View Photos</span>
                 </div>
                 <% if (imageCount > 1) { %>
                   <span class="photo-count">
@@ -118,7 +118,7 @@
           <circle cx="8.5" cy="8.5" r="1.5"></circle>
           <polyline points="21 15 16 10 5 21"></polyline>
         </svg>
-        <h3>No projects found</h3>
+        <h3>No photos yet</h3>
         <p>Try selecting a different category</p>
       </div>
     </div>
@@ -128,10 +128,10 @@
   <section class="gallery-cta">
     <div class="container">
       <div class="cta-content">
-        <h2>Ready to Start Your Project?</h2>
-        <p>Contact us today for a free estimate on your next project.</p>
+        <h2>Like What You See?</h2>
+        <p>Browse the shop, or get in touch with any questions.</p>
         <div class="cta-buttons">
-          <a href="/#contact" class="btn btn-primary btn-lg">Get Free Estimate</a>
+          <a href="/shop" class="btn btn-primary btn-lg">Shop Now</a>
           <a href="tel:{{COMPANY_PHONE_RAW}}" class="btn btn-outline-light btn-lg">Call {{COMPANY_PHONE}}</a>
         </div>
       </div>
@@ -143,8 +143,8 @@
   {
     "@context": "https://schema.org",
     "@type": "ImageGallery",
-    "name": "{{COMPANY_NAME}} Project Gallery",
-    "description": "Browse our portfolio of completed projects in {{CITY}} and the {{SERVICE_REGION}}",
+    "name": "{{COMPANY_NAME}} Photo Gallery",
+    "description": "Photos from {{COMPANY_NAME}} in {{CITY}} and the {{SERVICE_REGION}}",
     "url": "{{SITE_URL}}/gallery",
     "image": [
       <% projects.slice(0, 10).forEach((project, index) => { 

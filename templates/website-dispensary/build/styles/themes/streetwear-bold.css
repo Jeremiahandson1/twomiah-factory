@@ -912,6 +912,7 @@ a, button, .btn, .card, .service-card {
 /* ── Live Status ── */
 .live-status {
   color: {{PRIMARY_COLOR_ON_DARK}} !important;
+  color: color-mix(in srgb, {{PRIMARY_COLOR_ON_DARK}} 75%, #fff) !important;
   font-family: 'Barlow', sans-serif;
   font-weight: 700;
   text-transform: uppercase;

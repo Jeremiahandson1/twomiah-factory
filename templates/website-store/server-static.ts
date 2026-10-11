@@ -513,10 +513,10 @@ app.get('/blog', (c) => {
 app.get('/blog/:slug', (c) => {
   const slug = c.req.param('slug')
   const posts = loadJSON('posts.json') || []
-  const post = posts.find((p: any) => p.slug === slug)
+  const post = posts.find((p: any) => p.slug === slug && p.published !== false)
   if (!post) return c.text('Post not found', 404)
   return renderPage(c, 'blog-post', {
-    post, posts,
+    post, posts, allPosts: posts, // no allServices: a store redirects /services to /shop
     title: post.seoTitle || post.title + ' | {{COMPANY_NAME}}',
     description: post.seoDescription || post.excerpt || '',
     canonicalUrl: BASE_URL + '/blog/' + post.slug,
