@@ -139,6 +139,50 @@ check('the run reports what it did', ran.generated === (await invoicesFor(dueC))
   if (conflict) check('…a 409 names what happened', conflict.json?.code === 'period_already_generated', conflict.json)
 }
 
+// ── resume picks up where the schedule is, not "due now" — and nothing bills before its start ─────────
+// The live T43 probe: created 5 Oct to start 1 June 2027, paused and resumed 9 Oct; the resume route wrote
+// next_run_date = now, so the schedule sat "due 9 Oct 2026" and the processor billed it before it began.
+{
+  const at = async (who: any, start: string, next: string, status = 'active') => {
+    const r = await call('POST', '/api/recurring', { contactId: who.id, frequency: 'monthly', startDate: start, lineItems: [{ description: 'Mowing', quantity: 1, rate: 10 }] })
+    if (r.status !== 201 && r.status !== 200) throw new Error('could not create a schedule: ' + r.text.slice(0, 200))
+    await db.execute(sql`UPDATE recurring_invoice SET next_run_date = ${next}::timestamp, status = ${status} WHERE id = ${r.json?.id}`)
+    return r.json?.id as string
+  }
+  const startAhead = new Date(Date.now() + 200 * DAY), startMs = Date.UTC(startAhead.getUTCFullYear(), startAhead.getUTCMonth(), startAhead.getUTCDate())
+
+  // a schedule not yet started, paused and resumed
+  const notYetC = await person('Not Yet Client')
+  const notYet = await at(notYetC, iso(startMs), iso(startMs))
+  await call('POST', `/api/recurring/${notYet}/pause`)
+  const resumed = await call('POST', `/api/recurring/${notYet}/resume`)
+  check('resuming a schedule that has not started keeps it on its start date — not "due now"', resumed.status === 200 && (await state(notYet)).next_ms === startMs, { status: resumed.status, s: await state(notYet), startMs })
+
+  // paused mid-period: the next period has not come yet, so resuming changes nothing
+  const midC = await person('Mid Client')
+  const midNext = Date.now() + 10 * DAY
+  const mid = await at(midC, '2026-01-09', iso(midNext), 'paused')
+  await call('POST', `/api/recurring/${mid}/resume`)
+  check('resuming mid-period leaves the next period where it was — the month is not billed twice', Math.abs((await state(mid)).next_ms - midNext) < 1000, await state(mid))
+
+  // paused across two periods: those are skipped (a pause bills nothing), the next one is in the future
+  const longC = await person('Long Pause Client')
+  const long = await at(longC, '2026-01-09', iso(Date.now() - 70 * DAY), 'paused')
+  await call('POST', `/api/recurring/${long}/resume`)
+  const ls = await state(long)
+  check('resuming after a long pause moves on to the next period to come — the paused ones are not owed', ls.next_ms > Date.now() && ls.next_ms < Date.now() + 32 * DAY, ls)
+
+  // the old rows that the previous resume wrote: next run BEFORE the start, start still ahead
+  const oldC = await person('Old Row Client')
+  const oldRow = await at(oldC, iso(startMs), iso(Date.now() - 2 * DAY))
+  const before2 = await state(oldRow)
+  await service.processDueRecurring()
+  const after2 = await state(oldRow)
+  check('an old row due before its own start is put back on its start date by the processor', before2.next_ms < Date.now() && after2.next_ms === startMs, { before2, after2, startMs })
+  check('…and nothing is billed for the schedules above — not started, mid-period, long pause, old row', (await invoicesFor(notYetC)).length + (await invoicesFor(midC)).length + (await invoicesFor(longC)).length + (await invoicesFor(oldC)).length === 0)
+  check('the service\'s own resume follows the same rule', (await service.resumeRecurringInvoice(notYet, co.id))?.nextRunDate?.getTime?.() === startMs)
+}
+
 // ── every template that mounts recurring invoices starts the processor ─────────────────────────────
 for (const t of ['crm', 'crm-basic', 'crm-fieldservice', 'crm-landscaping']) {
   const idx = readFileSync(`${ROOT}templates/${t}/backend/src/index.ts`, 'utf8')

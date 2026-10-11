@@ -141,6 +141,26 @@ const anchorDayOf = (startDate: Date | string | null | undefined): number | unde
   return Number.isNaN(d.getTime()) ? undefined : d.getDate()
 }
 
+/**
+ * WHERE A RESUMED SCHEDULE PICKS UP. One rule, for the route and the service. (T69 viewer)
+ *
+ * The resume route set next_run_date to NOW. A schedule paused and resumed was due that instant — whether its
+ * period had already been billed, and whether it had started at all: Landscaping's T43 probe starts 1 June 2027,
+ * was paused and resumed on 9 Oct 2026, and sat due "9 Oct" from then on. Harmless while nothing ran schedules;
+ * a bill before the first day of the contract once the processor did.
+ *
+ * Now: never before the start date; periods that fell while paused are skipped (a pause bills nothing); and a
+ * period not yet reached stays where it was — resuming mid-month does not bill the month a second time.
+ */
+export function nextRunAfterResume(r: { nextRunDate: Date | string; startDate: Date | string | null | undefined; frequency: string }, now = new Date()): Date {
+  let next = new Date(r.nextRunDate)
+  const start = r.startDate ? new Date(r.startDate) : null
+  if (start && !Number.isNaN(start.getTime()) && start > next) next = start
+  const anchor = anchorDayOf(r.startDate)
+  while (next < now) next = calculateNextDate(next, r.frequency, anchor)
+  return next
+}
+
 function calculateDueDate(invoiceDate: Date, terms: string): Date {
   const date = new Date(invoiceDate)
   const days = parseInt(terms) || 30
@@ -327,6 +347,14 @@ export function createRecurringService(deps: RecurringServiceDeps) {
 
   async function processRecurringInvoices() {
     const now = new Date()
+    // A schedule's first period is its start date, so a next run BEFORE the start is never right — it is what the
+    // old resume route wrote (next_run_date = now on a schedule not yet started). Put those back on their start
+    // before choosing what is due, or they would bill before the contract begins and, once it does, bill every
+    // "missed" period in between. (T69 viewer: the T43 probe, start 1 June 2027, due "9 Oct 2026")
+    await db.execute(sql`
+      UPDATE recurring_invoice SET next_run_date = start_date
+      WHERE status = 'active' AND start_date IS NOT NULL AND next_run_date < start_date
+    `)
     const dueRecurring = rows(await db.execute(sql`
       SELECT * FROM recurring_invoice WHERE status = 'active' AND next_run_date <= ${now}
     `))
@@ -472,12 +500,8 @@ export function createRecurringService(deps: RecurringServiceDeps) {
   async function resumeRecurringInvoice(id: string, companyId: string) {
     const [existing] = rows(await db.execute(sql`SELECT * FROM recurring_invoice WHERE id = ${id} AND company_id = ${companyId}`))
     if (!existing) return null
-    let nextRunDate = new Date(existing.next_run_date)
-    const now = new Date()
-    // Same anchor on resume: walking a paused schedule forward a month at a time must not strand it
-    // on a clamped day either.
-    const anchor = anchorDayOf(existing.start_date)
-    while (nextRunDate < now) nextRunDate = calculateNextDate(nextRunDate, existing.frequency, anchor)
+    // The same rule as the route (nextRunAfterResume): the start date's anchor, never before the start.
+    const nextRunDate = nextRunAfterResume({ nextRunDate: existing.next_run_date, startDate: existing.start_date, frequency: existing.frequency })
     await db.execute(sql`UPDATE recurring_invoice SET status = 'active', next_run_date = ${nextRunDate} WHERE id = ${id}`)
     return { ...camelRow(existing, NESTED), status: 'active', nextRunDate }
   }
@@ -627,7 +651,8 @@ export function createRecurringRoutes(deps: RecurringRoutesDeps) {
       return c.json(updated)
     }
   app.post('/:id/pause', requirePermission('invoices:update'), statusChange('paused'))
-  app.post('/:id/resume', requirePermission('invoices:update'), statusChange('active', () => ({ nextRunDate: new Date() })))
+  // Not "due now": where the schedule picks up (nextRunAfterResume — never before its start, a pause bills nothing).
+  app.post('/:id/resume', requirePermission('invoices:update'), statusChange('active', (r) => ({ nextRunDate: nextRunAfterResume(r) })))
   app.post('/:id/cancel', requirePermission('invoices:update'), statusChange('cancelled'))
 
   app.post('/:id/generate', requirePermission('invoices:create'), async (c: any) => {
