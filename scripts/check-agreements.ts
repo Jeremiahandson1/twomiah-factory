@@ -35,7 +35,8 @@ if ((s.match(/if \(err instanceof AgreementError\) return c\.json\(\{ error: err
 if (!/case 'semi-annual':/.test(s) || !/monthlyRecurring \+= price \/ billingIntervalMonths\(a\.billingFrequency\)/.test(s)) fail('semi-annual must bill every 6 months and count as price/6 per month')
 
 const page = read('packages/tenant-ui/src/agreements/AgreementsPage.tsx')
-if (/agreement\.price\b/.test(page) || !/Number\(agreement\.amount\)/.test(page)) fail('the Agreements page must show agreement.amount')
+// the row prints the agreement's own amount, through the shared money() (T69: was Number(…).toFixed(2), no grouping)
+if (/agreement\.price\b/.test(page) || !/\{money\(agreement\.amount\)\}/.test(page)) fail('the Agreements page must show agreement.amount')
 // the edit form starts from the saved renewalType (the API has no autoRenew) — otherwise editing a manual agreement
 // silently switched it to auto-renew; "expiring" warnings are for manual renewal only
 if (/autoRenew: agreement\?\.autoRenew \?\? true/.test(page) || !/autoRenew: agreement\?\.renewalType \? agreement\.renewalType === 'auto' : true/.test(page)) fail('the Agreements form must start auto-renew from renewalType')
