@@ -171,10 +171,11 @@ export default function ProductDetailPage() {
               <Trash2 className="w-4 h-4" /> Delete
             </button>
           )}
-          <Button onClick={handleSave} disabled={saving}>
+          {/* PUT /api/products/:id is requireRole('manager'); everyone else reads the product. (T43 viewer round, T68) */}
+          {isManager && <Button onClick={handleSave} disabled={saving}>
             <Save className="w-4 h-4 mr-2 inline" />
             {saving ? 'Saving...' : 'Save Changes'}
-          </Button>
+          </Button>}
         </div>
       </div>
 
@@ -189,16 +190,17 @@ export default function ProductDetailPage() {
               <Package className="w-16 h-16 text-gray-300" />
             )}
           </div>
-          <label className="block">
+          {isManager && <label className="block">
             <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
             <span className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-lg cursor-pointer text-sm font-medium text-gray-700 transition-colors dark:bg-slate-800 dark:text-slate-200">
               <Upload className="w-4 h-4" /> Upload Image
             </span>
-          </label>
+          </label>}
         </div>
 
         {/* Details */}
-        <div className="lg:col-span-2 min-w-0 space-y-6">
+        {/* Read-only below manager: the fields read as a record, not as a form whose Save would be refused. */}
+        <fieldset disabled={!isManager} className="lg:col-span-2 min-w-0 space-y-6">
           {/* Basic Info */}
           <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
             <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Basic Information</h2>
@@ -376,7 +378,7 @@ export default function ProductDetailPage() {
               </div>
             </div>
           </div>
-        </div>
+        </fieldset>
       </div>
 
       <ConfirmModal

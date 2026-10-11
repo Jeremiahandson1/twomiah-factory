@@ -16,7 +16,10 @@ const personalities = [
 const channels = ['pos_kiosk', 'website_chat', 'sms', 'whatsapp'];
 
 export default function AIBudtenderPage() {
-  const { isManager } = useAuth();
+  const { isManager, isAtLeast } = useAuth();
+  // Sessions and Analytics read manager-only routes; the Live Demo opens a session (requireRole('budtender'));
+  // the configuration saves as a manager. (T43 viewer round, T68)
+  const mayDemo = isAtLeast('budtender');
   const toast = useToast();
   const [tab, setTab] = useState('config');
 
@@ -173,7 +176,7 @@ export default function AIBudtenderPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 border-b overflow-x-auto">
-        {tabs.map(t => (
+        {tabs.filter(t => (t.id === 'sessions' || t.id === 'analytics' ? isManager : t.id === 'demo' ? mayDemo : true)).map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -191,7 +194,7 @@ export default function AIBudtenderPage() {
 
       {/* Config Tab */}
       {tab === 'config' && (
-        <div className="bg-white rounded-lg shadow-sm p-6 max-w-2xl space-y-6 dark:bg-slate-900">
+        <fieldset disabled={!isManager} className="bg-white rounded-lg shadow-sm p-6 max-w-2xl space-y-6 dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">AI Budtender Settings</h3>
             <label className="flex items-center gap-2 cursor-pointer">
@@ -284,7 +287,7 @@ export default function AIBudtenderPage() {
               {savingConfig ? 'Saving...' : 'Save Configuration'}
             </Button>
           )}
-        </div>
+        </fieldset>
       )}
 
       {/* Sessions Tab */}

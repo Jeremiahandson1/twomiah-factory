@@ -25,9 +25,20 @@ app.use('*', authenticate)
 const seesTeam = async (u: any): Promise<boolean> => {
   try { return hasPermission(u?.role, 'canvassing:manage', await getExtraPermissions(u?.userId)) } catch { return false }
 }
+/**
+ * …and READING the team's canvassing is canvassing:read as well. (Owner's decision, 2026-10-11: the viewer sees the
+ * team's sessions, read-only.) The viewer's dashboard was empty because the rule above let only canvassing:manage
+ * see past its own sessions, and a viewer starts none. canvassing:read opens the GETs only — every write still
+ * needs canvassing:manage or the session being the caller's own, and the viewer holds no canvassing write at all.
+ */
+const readsTeam = async (u: any): Promise<boolean> => {
+  if (await seesTeam(u)) return true
+  try { return hasPermission(u?.role, 'canvassing:read', await getExtraPermissions(u?.userId)) } catch { return false }
+}
 const ownSessionOnly = async (c: any, next: any) => {
   const u = c.get('user') as any
   if (await seesTeam(u)) return next()
+  if (c.req.method === 'GET' && await readsTeam(u)) return next()
   const id = c.req.param('id') ?? c.req.param('sessionId')
   const [s] = await db.select({ userId: canvassingSession.userId }).from(canvassingSession)
     .where(and(eq(canvassingSession.id, id), eq(canvassingSession.companyId, u.companyId))).limit(1)
@@ -46,7 +57,7 @@ app.use('/sessions/:id/*', ownSessionOnly)
 app.get('/sessions', async (c) => {
   const { companyId, userId } = c.get('user')
   // ?mine=1 for anyone; a seat without the team view gets only its own whatever it asks. (T63)
-  const mine = c.req.query('mine') === '1' || !(await seesTeam(c.get('user')))
+  const mine = c.req.query('mine') === '1' || !(await readsTeam(c.get('user')))
   const sessions = await db.select().from(canvassingSession)
     .where(mine ? and(eq(canvassingSession.companyId, companyId), eq(canvassingSession.userId, userId)) : eq(canvassingSession.companyId, companyId))
     .orderBy(desc(canvassingSession.createdAt))

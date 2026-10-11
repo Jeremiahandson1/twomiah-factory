@@ -136,6 +136,12 @@ app.get('/:id', authenticate, requireRoofReports, async (c) => {
 
   if (!report) return c.json({ error: 'Report not found' }, 404)
 
+  // amountCharged is what the company PAID for the report — margin:read, the rule routes/measurements.ts strips a
+  // measurement's cost on. The list never carried it; this read handed it to every seat. (T43 viewer round, T68)
+  if (!hasPermission(user?.role, 'margin:read', await getExtraPermissions(user?.userId))) {
+    const { amountCharged: _paid, ...rest } = report as any
+    return c.json(rest)
+  }
   return c.json(report)
 })
 

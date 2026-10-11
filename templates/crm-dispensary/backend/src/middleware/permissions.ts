@@ -38,7 +38,9 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   viewer: [
     'contacts:read', 'products:read', 'orders:read', 'loyalty:read',
-    'delivery:read', 'cash:read', 'analytics:read', // no audit:read: owners and admins only (2026-10-09)
+    // no analytics:read: the analytics routes are manager-and-up and always were — the grant was listed in /me
+    // and honoured nowhere. (T43 viewer round, T68) No audit:read: owners and admins only (2026-10-09).
+    'delivery:read', 'cash:read',
     'team:read', 'documents:read', 'company:read', 'dashboard:read',
     'inventory:read', 'leads:read', 'support:read',
   ],

@@ -7,6 +7,7 @@ import { Button, ConfirmModal, DataTable, Field, Modal, PageHeader, instantDay, 
 import type { Pagination } from '../invoicing/ui'
 import type { DocumentRow, DocumentsPageProps, FilesApi, FilesToast } from './types'
 import { resolveDocumentsConfig } from './types'
+import { useMayWrite } from '../auth/PermissionsContext'
 
 // ---------------------------------------------------------------- authenticated file access
 const token = () => { try { return localStorage.getItem('accessToken') || localStorage.getItem('token') || '' } catch { return '' } }
@@ -117,6 +118,13 @@ const iconFor = (mime?: string | null) => (mime?.startsWith('image/') ? ImageIco
 
 export function DocumentsPage({ api, toast, config }: DocumentsPageProps) {
   const cfg = resolveDocumentsConfig(config)
+  /**
+   * Uploading, a new version and markup are documents:create; restoring a version is documents:update; Delete is
+   * documents:delete — read off files/documents.ts. Reading, previewing, downloading and the version list stay
+   * open to everyone who opens the page. The read-only seat was offered Upload and Delete. (T43 viewer round, T68)
+   */
+  const mayCreate = useMayWrite('documents:create')
+  const mayDelete = useMayWrite('documents:delete')
   const showProjects = cfg.projects && (!config?.hasFeature || config.hasFeature('projects'))
   const fileInput = useRef<HTMLInputElement>(null)
   const [rows, setRows] = useState<DocumentRow[]>([])
@@ -216,7 +224,7 @@ export function DocumentsPage({ api, toast, config }: DocumentsPageProps) {
 
   return (
     <div>
-      <PageHeader title="Documents" action={<Button onClick={() => fileInput.current?.click()}><Upload className="w-4 h-4" /> Upload</Button>} />
+      <PageHeader title="Documents" action={mayCreate ? <Button onClick={() => fileInput.current?.click()}><Upload className="w-4 h-4" /> Upload</Button> : undefined} />
       <input ref={fileInput} type="file" multiple onChange={onPick} className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" data-testid="document-file-input" />
 
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-4 mb-6">
@@ -237,15 +245,15 @@ export function DocumentsPage({ api, toast, config }: DocumentsPageProps) {
           <FolderOpen className="w-10 h-10 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-700 dark:text-slate-200 font-medium">No documents yet</p>
           <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 mb-4">Upload contracts, photos, receipts — anything you want kept with the customer's record.</p>
-          <Button onClick={() => fileInput.current?.click()}><Upload className="w-4 h-4" /> Upload a document</Button>
+          {mayCreate && <Button onClick={() => fileInput.current?.click()}><Upload className="w-4 h-4" /> Upload a document</Button>}
         </div>
       ) : (
         <DataTable<DocumentRow> data={rows} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} emptyMessage="No documents match these filters." actions={[
           { label: 'Preview', icon: Eye, onClick: d => setPreview(d), show: previewable },
           { label: 'Download', icon: Download, onClick: download },
           ...(cfg.versions ? [{ label: 'Versions', icon: History, onClick: (d: DocumentRow) => setHistory(d) }] : []),
-          ...(cfg.markup ? [{ label: 'Markup', icon: PenTool, onClick: (d: DocumentRow) => setMarkup(d), show: (d: DocumentRow) => !!d.mimeType?.startsWith('image/') }] : []),
-          { label: 'Delete', icon: Trash2, className: 'text-red-600 dark:text-red-300', onClick: d => setToDelete(d) },
+          ...(cfg.markup ? [{ label: 'Markup', icon: PenTool, onClick: (d: DocumentRow) => setMarkup(d), show: (d: DocumentRow) => mayCreate && !!d.mimeType?.startsWith('image/') }] : []),
+          { label: 'Delete', icon: Trash2, className: 'text-red-600 dark:text-red-300', onClick: d => setToDelete(d), show: () => mayDelete },
         ]} />
       )}
 
@@ -287,6 +295,9 @@ export function DocumentsPage({ api, toast, config }: DocumentsPageProps) {
 
 // ---------------------------------------------------------------- version history
 function HistoryModal({ api, toast, doc, onClose, onChanged }: { api: FilesApi; toast: FilesToast; doc: DocumentRow; onClose: () => void; onChanged: () => void }) {
+  // POST /:id/versions is documents:create; restore is documents:update. The list and downloads stay open. (T68)
+  const mayUpload = useMayWrite('documents:create')
+  const mayRestore = useMayWrite('documents:update')
   const [versions, setVersions] = useState<any[]>([])
   const [currentVersion, setCurrentVersion] = useState(1)
   const [current, setCurrent] = useState<DocumentRow>(doc)
@@ -315,14 +326,14 @@ function HistoryModal({ api, toast, doc, onClose, onChanged }: { api: FilesApi; 
   return (
     <Modal isOpen onClose={onClose} title={`Versions — ${doc.name}`}>
       <div className="space-y-4">
-        <div className="rounded-lg border border-gray-200 dark:border-slate-700 p-3">
+        {mayUpload && <div className="rounded-lg border border-gray-200 dark:border-slate-700 p-3">
           <p className="text-sm font-medium mb-2">Current file: <span className="font-normal">v{currentVersion} — {current.originalName}</span></p>
           <div className="flex gap-2 items-center flex-wrap">
             <input value={note} onChange={e => setNote(e.target.value)} placeholder="What changed? (optional)" className={`${inputCls} flex-1 min-w-[12rem]`} />
             <input ref={fileRef} type="file" className="hidden" onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadVersion(f) }} />
             <Button onClick={() => fileRef.current?.click()} disabled={busy}><UploadCloud className="w-4 h-4" />{busy ? 'Uploading…' : 'Upload new version'}</Button>
           </div>
-        </div>
+        </div>}
         {loading ? <p className="text-center text-gray-500 dark:text-slate-400 py-6">Loading…</p> : (
           <div className="space-y-2">
             {/* The live file is the first entry (T21 M3: the list stopped at the file that had just been replaced).
@@ -332,7 +343,7 @@ function HistoryModal({ api, toast, doc, onClose, onChanged }: { api: FilesApi; 
                 <div className="min-w-0"><p className="text-sm font-medium truncate">v{v.versionNumber} — {v.originalName}{v.isCurrent ? <span className="ml-2 text-xs font-normal text-green-700 dark:text-green-300">current</span> : null}</p><p className="text-xs text-gray-500 dark:text-slate-400">{new Date(v.createdAt).toLocaleString()}{v.note ? ` — ${v.note}` : ''}</p></div>
                 <div className="flex gap-1 shrink-0">
                   <button onClick={() => downloadAuthed(api, v.isCurrent ? `/api/documents/${doc.id}/download` : `/api/documents/${doc.id}/versions/${v.id}/download`, v.originalName || 'download').catch(e => toast.error(errMsg(e, 'Download failed')))} className="p-2 rounded text-gray-500 hover:text-gray-900 dark:hover:text-slate-100 dark:text-slate-100" title="Download"><Download className="w-4 h-4" /></button>
-                  {!v.isCurrent && <button onClick={() => restore(v)} className="p-2 rounded text-gray-500 hover:text-gray-900 dark:hover:text-slate-100 dark:text-slate-100" title="Restore this version"><RotateCcw className="w-4 h-4" /></button>}
+                  {!v.isCurrent && mayRestore && <button onClick={() => restore(v)} className="p-2 rounded text-gray-500 hover:text-gray-900 dark:hover:text-slate-100 dark:text-slate-100" title="Restore this version"><RotateCcw className="w-4 h-4" /></button>}
                 </div>
               </div>
             ))}

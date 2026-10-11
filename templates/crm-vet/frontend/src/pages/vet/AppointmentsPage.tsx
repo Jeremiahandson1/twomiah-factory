@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Loader2, X, CalendarDays, Clock, User, Phone, CheckCircle2, DoorOpen } from 'lucide-react';
 import api from '../../services/api';
+import { useMayWrite } from '../../shared';
 import OwnerPicker, { ContactLite } from '../../components/vet/OwnerPicker';
 import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
 import { APPOINTMENT_TYPES, appointmentTypeLabel } from '../../lib/appointmentTypes';
@@ -67,6 +68,9 @@ function providerName(a: Appointment): string {
 }
 
 export default function AppointmentsPage() {
+  // Booking is contacts:create; check-in, start, complete, no-show and cancel are contacts:update (appointments.ts). (T43 viewer round, T68)
+  const mayBook = useMayWrite('contacts:create');
+  const mayWork = useMayWrite('contacts:update');
   const [day, setDay] = useState<string>(todayStr());
   const [appts, setAppts] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -116,9 +120,9 @@ export default function AppointmentsPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Appointments</h1>
           <p className="text-gray-500 dark:text-slate-400">Daily schedule</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">
+        {mayBook && <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">
           <Plus className="w-4 h-4" /> New Appointment
-        </button>
+        </button>}
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
@@ -160,21 +164,21 @@ export default function AppointmentsPage() {
               <span className={`text-xs px-2 py-1 rounded-full capitalize ${STATUS_COLORS[a.status || ''] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                 {(a.status || 'scheduled').replace('_', ' ')}
               </span>
-              {NOT_CHECKED_IN.has(a.status || 'scheduled') && (
+              {mayWork && NOT_CHECKED_IN.has(a.status || 'scheduled') && (
                 <button onClick={() => checkIn(a)} className="flex items-center gap-1 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm">
                   <CheckCircle2 className="w-4 h-4" /> Check In
                 </button>
               )}
-              {a.status === 'checked_in' && (
+              {mayWork && a.status === 'checked_in' && (
                 <button onClick={() => setStatus(a, 'in_progress')} className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">Start</button>
               )}
-              {a.status === 'in_progress' && (
+              {mayWork && a.status === 'in_progress' && (
                 <button onClick={() => setStatus(a, 'completed')} className="px-3 py-1.5 bg-green-700 text-white rounded-lg hover:bg-green-800 text-sm">Complete</button>
               )}
-              {['scheduled', 'confirmed', 'checked_in'].includes(a.status || 'scheduled') && (
+              {mayWork && ['scheduled', 'confirmed', 'checked_in'].includes(a.status || 'scheduled') && (
                 <button onClick={() => setStatus(a, 'no_show')} className="px-3 py-1.5 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 text-sm dark:text-amber-300">No-Show</button>
               )}
-              {!['completed', 'cancelled', 'no_show'].includes(a.status || 'scheduled') && (
+              {mayWork && !['completed', 'cancelled', 'no_show'].includes(a.status || 'scheduled') && (
                 <button onClick={() => setStatus(a, 'cancelled')} className="px-3 py-1.5 border border-red-200 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 text-sm">Cancel</button>
               )}
             </div>

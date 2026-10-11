@@ -7,7 +7,7 @@ import {
 import api from '../../services/api';
 import ServiceRecordEditorModal, { ServiceRecord } from '../../components/salon/ServiceRecordEditorModal';
 import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
-import { money } from '../../shared';
+import { money, useMayWrite } from '../../shared';
 import { stylistNameOf as stylistName } from '../../lib/staff';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -133,6 +133,12 @@ function isPast(dateStr?: string | null): boolean {
 type Tab = 'formula' | 'appointments' | 'memberships';
 
 export default function ClientDetailPage() {
+  // Edit Profile and Keep on card are contacts:update (clients.ts); Remove a formula is contacts:delete; a service
+  // record is schedule:create to add and schedule:update to edit (serviceRecords.ts). (T43 viewer round, T68)
+  const mayEditClient = useMayWrite('contacts:update');
+  const mayForget = useMayWrite('contacts:delete');
+  const mayRecord = useMayWrite('schedule:create');
+  const mayEditRecord = useMayWrite('schedule:update');
   const { id } = useParams<{ id: string }>();
   const [detail, setDetail] = useState<Detail>({});
   const [loading, setLoading] = useState<boolean>(true);
@@ -239,9 +245,9 @@ export default function ClientDetailPage() {
               </p>
             </div>
           </div>
-          <button onClick={() => setShowProfile(true)} className="flex items-center gap-2 px-3 py-1.5 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">
+          {mayEditClient && <button onClick={() => setShowProfile(true)} className="flex items-center gap-2 px-3 py-1.5 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">
             <Edit2 className="w-4 h-4" /> Edit Profile
-          </button>
+          </button>}
         </div>
 
         {profile.allergies && (
@@ -379,11 +385,11 @@ export default function ClientDetailPage() {
                         <p className="font-medium text-gray-900 dark:text-slate-100">{f.label || 'Formula'}</p>
                         {f.lastUsedAt && <p className="text-xs text-gray-500 dark:text-slate-400">Last used {fmtDate(f.lastUsedAt)}</p>}
                       </div>
-                      <button
+                      {mayForget && <button
                         onClick={() => forget(f.id)}
                         disabled={busyFormula === f.id}
                         className="text-sm text-gray-500 hover:text-red-700 dark:text-slate-400 dark:hover:text-red-300 disabled:opacity-50"
-                      >Remove</button>
+                      >Remove</button>}
                     </div>
                     {formulaSteps(f.formula).length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">
@@ -407,11 +413,11 @@ export default function ClientDetailPage() {
             )}
           </div>
 
-          <div className="flex justify-end">
+          {mayRecord && <div className="flex justify-end">
             <button onClick={() => { setEditRecord(null); setShowRecord(true); }} className="flex items-center gap-2 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm">
               <Plus className="w-4 h-4" /> New Service Record
             </button>
-          </div>
+          </div>}
           {records.length === 0 ? (
             <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">No services recorded yet</div>
           ) : (
@@ -427,7 +433,7 @@ export default function ClientDetailPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{money(r.priceCharged)}</span>
-                      {(formulaSteps(r.formula).length > 0 || r.developerVolume || r.notes) && (
+                      {mayEditClient && (formulaSteps(r.formula).length > 0 || r.developerVolume || r.notes) && (
                         <button
                           onClick={() => keepOnCard(r)}
                           disabled={busyFormula === r.id}
@@ -435,7 +441,7 @@ export default function ClientDetailPage() {
                           title="Put this formula on the client's card, where it survives whatever happens to the booking"
                         >{busyFormula === r.id ? 'Keeping…' : 'Keep on card'}</button>
                       )}
-                      <button onClick={() => { setEditRecord(r); setShowRecord(true); }} className="text-sm text-teal-700 hover:text-teal-800 dark:text-teal-300 dark:hover:text-teal-200">Edit</button>
+                      {mayEditRecord && <button onClick={() => { setEditRecord(r); setShowRecord(true); }} className="text-sm text-teal-700 hover:text-teal-800 dark:text-teal-300 dark:hover:text-teal-200">Edit</button>}
                     </div>
                   </div>
 

@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Calendar, Plus } from 'lucide-react'
 import { Button, Modal, ConfirmModal, Field, inputCls, errMsg } from '../invoicing/ui'
 import { resolveScheduleConfig } from './types'
+import { useMayWrite } from '../auth/PermissionsContext'
 import { localDayKey } from '../time/day'
 import type { SchedulePageProps, ScheduleJob, ScheduleBooking, ScheduleEvent } from './types'
 
@@ -23,6 +24,17 @@ const jobCls = (status: string) => status === 'completed' ? 'bg-green-50 border-
 
 export function SchedulePage({ api, toast, config }: SchedulePageProps) {
   const cfg = resolveScheduleConfig(config)
+  /**
+   * Each write asks the permission its route asks (T43 viewer round: RV Schedule offered "New Appointment" and "+ Add"
+   * on every day to the read-only seat). Dropping a job on another day is PUT /api/jobs/:id — jobs:update — so the
+   * drag goes with it; a seat without it clicks through to the job instead. Booking is schedule:create; opening an
+   * appointment edits or cancels it — schedule:update. (T68)
+   */
+  // every hook unconditionally — the feature flags behind cfg.dragDrop arrive after the first render
+  const mayMoveJobs = useMayWrite('jobs:update')
+  const mayBook = useMayWrite('schedule:create')
+  const mayEditEvent = useMayWrite('schedule:update')
+  const dragDrop = cfg.dragDrop && mayMoveJobs
   const navigate = useNavigate()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [jobs, setJobs] = useState<ScheduleJob[]>([])
@@ -113,10 +125,10 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
       <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Schedule</h1>
-          {cfg.dragDrop && <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">Drag a {cfg.jobLabel.toLowerCase()} to another day to reschedule it.</p>}
+          {dragDrop && <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">Drag a {cfg.jobLabel.toLowerCase()} to another day to reschedule it.</p>}
         </div>
         <div className="flex items-center gap-3">
-          {cfg.events && <Button onClick={() => setNewFor(new Date())}><Plus className="w-4 h-4 inline mr-1" />New Appointment</Button>}
+          {cfg.events && mayBook && <Button onClick={() => setNewFor(new Date())}><Plus className="w-4 h-4 inline mr-1" />New Appointment</Button>}
           <button type="button" onClick={() => shift(-7)} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg" aria-label="Previous week"><ChevronLeft className="w-5 h-5" /></button>
           <span className="font-medium text-gray-900 dark:text-slate-100">{start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {days[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
           <button type="button" onClick={() => shift(7)} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg" aria-label="Next week"><ChevronRight className="w-5 h-5" /></button>
@@ -140,9 +152,9 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
               <div
                 key={key}
                 data-day={key}
-                onDragOver={cfg.dragDrop ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverKey(key) } : undefined}
-                onDragLeave={cfg.dragDrop ? () => { if (dragOverKey === key) setDragOverKey(null) } : undefined}
-                onDrop={cfg.dragDrop ? (e) => { e.preventDefault(); drop(day) } : undefined}
+                onDragOver={dragDrop ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverKey(key) } : undefined}
+                onDragLeave={dragDrop ? () => { if (dragOverKey === key) setDragOverKey(null) } : undefined}
+                onDrop={dragDrop ? (e) => { e.preventDefault(); drop(day) } : undefined}
                 className={`bg-white dark:bg-slate-900 rounded-lg shadow-sm overflow-hidden transition ${isToday(day) ? 'ring-2 ring-orange-500' : ''} ${dragOverKey === key ? 'ring-2 ring-blue-400 bg-blue-50/40' : ''}`}
               >
                 <div className={`px-3 py-2 text-center border-b dark:border-slate-800 ${isToday(day) ? 'bg-orange-500 text-white' : 'bg-gray-50 dark:bg-slate-800/60 text-gray-900 dark:text-slate-100'}`}>
@@ -154,12 +166,12 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
                     <div
                       key={job.id}
                       data-job-id={job.id}
-                      draggable={cfg.dragDrop}
-                      onDragStart={cfg.dragDrop ? (e) => { setDragJob(job); try { e.dataTransfer.setData('text/plain', job.id) } catch { /* older engines */ } e.dataTransfer.effectAllowed = 'move' } : undefined}
-                      onDragEnd={cfg.dragDrop ? () => { setDragJob(null); setDragOverKey(null) } : undefined}
+                      draggable={dragDrop}
+                      onDragStart={dragDrop ? (e) => { setDragJob(job); try { e.dataTransfer.setData('text/plain', job.id) } catch { /* older engines */ } e.dataTransfer.effectAllowed = 'move' } : undefined}
+                      onDragEnd={dragDrop ? () => { setDragJob(null); setDragOverKey(null) } : undefined}
                       onClick={() => navigate(`/crm/jobs/${job.id}`)}
-                      title={cfg.dragDrop ? 'Drag to reschedule · click to open' : 'Click to open'}
-                      className={`p-2 rounded text-xs text-gray-900 dark:text-slate-100 ${cfg.dragDrop ? 'cursor-move' : 'cursor-pointer'} hover:shadow-sm ${jobCls(job.status)}`}
+                      title={dragDrop ? 'Drag to reschedule · click to open' : 'Click to open'}
+                      className={`p-2 rounded text-xs text-gray-900 dark:text-slate-100 ${dragDrop ? 'cursor-move' : 'cursor-pointer'} hover:shadow-sm ${jobCls(job.status)}`}
                     >
                       <p className="font-medium truncate">{job.title}</p>
                       {(job.scheduledTime || job.contact?.name) && <p className="text-gray-500 dark:text-slate-400 truncate">{[job.scheduledTime, job.contact?.name].filter(Boolean).join(' · ')}</p>}
@@ -187,7 +199,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
                     </div>
                   ))}
                   {eventsFor(day).map((e) => (
-                    <div key={e.id} onClick={() => setEditEvent(e)} title="Click to edit or cancel" className={`p-2 rounded text-xs cursor-pointer hover:shadow-sm ${e.status === 'cancelled' ? /* No opacity. The strikethrough already says "cancelled", so the dimming was doing redundant work
+                    <div key={e.id} onClick={mayEditEvent ? () => setEditEvent(e) : undefined} title={mayEditEvent ? 'Click to edit or cancel' : undefined} className={`p-2 rounded text-xs ${mayEditEvent ? 'cursor-pointer hover:shadow-sm' : ''} ${e.status === 'cancelled' ? /* No opacity. The strikethrough already says "cancelled", so the dimming was doing redundant work
    and cost the label its readability: gray-500 on gray-50 at 60% renders 2.28:1, against 4.63:1 at
    full strength. State on text is carried by a token and a non-colour signal, never by opacity —
    opacity multiplies against whatever surface it lands on, which is exactly how a correct-looking
@@ -198,9 +210,9 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
                     </div>
                   ))}
                   {cfg.events ? (
-                    <button type="button" onClick={() => setNewFor(day)} className="w-full text-xs text-gray-500 dark:text-slate-400 hover:text-orange-500 dark:hover:text-orange-200 py-1">+ Add</button>
+                    mayBook && <button type="button" onClick={() => setNewFor(day)} className="w-full text-xs text-gray-500 dark:text-slate-400 hover:text-orange-500 dark:hover:text-orange-200 py-1">+ Add</button>
                   ) : (
-                    cfg.dragDrop && jobsFor(day).length === 0 && bookingsFor(day).length === 0 && <p className="text-[11px] text-gray-300 dark:text-slate-400 text-center pt-4 select-none">Drop a {cfg.jobLabel.toLowerCase()} here</p>
+                    dragDrop && jobsFor(day).length === 0 && bookingsFor(day).length === 0 && <p className="text-[11px] text-gray-300 dark:text-slate-400 text-center pt-4 select-none">Drop a {cfg.jobLabel.toLowerCase()} here</p>
                   )}
                 </div>
               </div>

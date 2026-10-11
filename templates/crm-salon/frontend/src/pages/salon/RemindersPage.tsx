@@ -4,6 +4,7 @@ import {
   Loader2, BellRing, RotateCcw, UserX, Cake, Send, X, CheckCircle2, AlertCircle,
 } from 'lucide-react';
 import api from '../../services/api';
+import { useMayWrite } from '../../shared';
 import { useToast } from '../../contexts/ToastContext';
 
 /**
@@ -91,6 +92,9 @@ const DEFAULT_MESSAGE: Record<Tab, string> = {
 };
 
 export default function RemindersPage() {
+  // Sending is POST /api/reminders/send (contacts:update). The checkboxes exist only to choose whom to text, so they
+  // go with the button: the read-only seat reads the lists. (T43 viewer round, T68)
+  const maySend = useMayWrite('contacts:update');
   const [tab, setTab] = useState<Tab>('due');
 
   const [windowDays, setWindowDays] = useState<number>(14);
@@ -292,13 +296,13 @@ export default function RemindersPage() {
             </>
           )}
         </div>
-        <button
+        {maySend && <button
           onClick={() => setShowSend(true)}
           disabled={selected.size === 0}
           className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50"
         >
           <Send className="w-4 h-4" /> Send Text{selected.size > 0 ? ` (${selected.size})` : ''}
-        </button>
+        </button>}
       </div>
 
       {loading ? (
@@ -313,7 +317,7 @@ export default function RemindersPage() {
             <thead className="bg-gray-50 text-gray-500 text-left dark:bg-slate-900 dark:text-slate-400">
               <tr>
                 <th className="px-4 py-3 w-10">
-                  <input type="checkbox" checked={allSelected} onChange={toggleAll} className="w-4 h-4" />
+                  {maySend && <input type="checkbox" checked={allSelected} onChange={toggleAll} className="w-4 h-4" />}
                 </th>
                 <th className="px-4 py-3 font-medium">Client</th>
                 <th className="px-4 py-3 font-medium">Contact</th>
@@ -345,7 +349,7 @@ export default function RemindersPage() {
               {tab === 'due' && dueRows.map((r) => (
                 <tr key={r.recordId} className={r.overdue ? 'bg-red-50 dark:bg-red-950/40' : ''}>
                   <td className="px-4 py-3">
-                    <input type="checkbox" checked={!!r.contactId && selected.has(r.contactId)} onChange={() => toggle(r.contactId)} disabled={!r.contactId} className="w-4 h-4" />
+                    {maySend && <input type="checkbox" checked={!!r.contactId && selected.has(r.contactId)} onChange={() => toggle(r.contactId)} disabled={!r.contactId} className="w-4 h-4" />}
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                     {r.contactId ? <Link to={`/crm/clients/${r.contactId}`} className="hover:text-teal-700 dark:hover:text-teal-300">{r.clientName || '—'}</Link> : (r.clientName || '—')}
@@ -376,7 +380,7 @@ export default function RemindersPage() {
               {tab === 'lapsed' && lapsedRows.map((r, i) => (
                 <tr key={r.contactId || i}>
                   <td className="px-4 py-3">
-                    <input type="checkbox" checked={!!r.contactId && selected.has(r.contactId)} onChange={() => toggle(r.contactId)} disabled={!r.contactId} className="w-4 h-4" />
+                    {maySend && <input type="checkbox" checked={!!r.contactId && selected.has(r.contactId)} onChange={() => toggle(r.contactId)} disabled={!r.contactId} className="w-4 h-4" />}
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                     {r.contactId ? <Link to={`/crm/clients/${r.contactId}`} className="hover:text-teal-700 dark:hover:text-teal-300">{r.clientName || '—'}</Link> : (r.clientName || '—')}
@@ -391,7 +395,7 @@ export default function RemindersPage() {
               {tab === 'birthdays' && bdayRows.map((r, i) => (
                 <tr key={r.contactId || i}>
                   <td className="px-4 py-3">
-                    <input type="checkbox" checked={!!r.contactId && selected.has(r.contactId)} onChange={() => toggle(r.contactId)} disabled={!r.contactId} className="w-4 h-4" />
+                    {maySend && <input type="checkbox" checked={!!r.contactId && selected.has(r.contactId)} onChange={() => toggle(r.contactId)} disabled={!r.contactId} className="w-4 h-4" />}
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                     {r.contactId ? <Link to={`/crm/clients/${r.contactId}`} className="hover:text-teal-700 dark:hover:text-teal-300">{r.clientName || '—'}</Link> : (r.clientName || '—')}

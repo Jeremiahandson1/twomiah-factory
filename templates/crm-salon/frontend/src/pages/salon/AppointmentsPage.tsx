@@ -8,7 +8,7 @@ import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
 import { todayStr } from '../../utils/date';
 import { stylistNameOf as stylistName } from '../../lib/staff';
 import { useToast } from '../../contexts/ToastContext';
-import { useConfirm } from '../../shared';
+import { useConfirm, useMayWrite } from '../../shared';
 
 /**
  * The book — single-day list over /api/appointments?from=&to=.
@@ -109,6 +109,10 @@ function fmtTime(s?: string): string {
 // stylistName lives in lib/staff.ts — one definition, and it knows about roster stylists. (T28 M6)
 
 export default function AppointmentsPage() {
+  // Booking and logging a service are schedule:create; everything that moves an appointment is schedule:update. The
+  // read-only seat was offered New Appointment and every row's buttons. (T43 viewer round, T68)
+  const mayBook = useMayWrite('schedule:create');
+  const mayMove = useMayWrite('schedule:update');
   const confirm = useConfirm();
   const toast = useToast();
   const [day, setDay] = useState<string>(todayStr());
@@ -192,9 +196,9 @@ export default function AppointmentsPage() {
               rendering "Chairs on Invalid Date" over the previous day's rows. (T20 M5) */}
           <p className="text-gray-500 dark:text-slate-400">{dayHeading(day, todayStr()) ?? shownHeading}</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">
+        {mayBook && <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">
           <Plus className="w-4 h-4" /> New Appointment
-        </button>
+        </button>}
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
@@ -245,27 +249,27 @@ export default function AppointmentsPage() {
               <span className={`text-xs px-2 py-1 rounded-full capitalize ${STATUS_COLORS[a.status || ''] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
                 {(a.status || 'scheduled').replace('_', ' ')}
               </span>
-              {NOT_CHECKED_IN.has(a.status || 'scheduled') && (
+              {mayMove && NOT_CHECKED_IN.has(a.status || 'scheduled') && (
                 <button onClick={() => checkIn(a)} className="flex items-center gap-1 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm">
                   <CheckCircle2 className="w-4 h-4" /> Check In
                 </button>
               )}
-              {!CLOSED.has(a.status || 'scheduled') && a.contactId && (
+              {mayBook && !CLOSED.has(a.status || 'scheduled') && a.contactId && (
                 <button onClick={() => setClosing(a)} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-sm">
                   <Scissors className="w-4 h-4" /> Log Service
                 </button>
               )}
-              {!CLOSED.has(a.status || 'scheduled') && (
+              {mayMove && !CLOSED.has(a.status || 'scheduled') && (
                 <button onClick={() => setResched(a)} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-sm" title="Move to another day or time">
                   <CalendarClock className="w-4 h-4" /> Reschedule
                 </button>
               )}
-              {CLOSED.has(a.status || 'scheduled') && a.status !== 'completed' && (
+              {mayMove && CLOSED.has(a.status || 'scheduled') && a.status !== 'completed' && (
                 <button onClick={() => setStatus(a, 'scheduled')} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-sm" title="Undo the cancellation / no-show">
                   <RotateCcw className="w-4 h-4" /> Reopen
                 </button>
               )}
-              {!CLOSED.has(a.status || 'scheduled') && (
+              {mayMove && !CLOSED.has(a.status || 'scheduled') && (
                 <>
                   <button onClick={() => setStatus(a, 'completed')} className="px-3 py-1.5 border border-green-200 dark:border-green-700 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30 text-sm">Complete</button>
                   <button onClick={() => setStatus(a, 'no_show')} className="px-3 py-1.5 border border-amber-300 dark:border-amber-600 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/30 text-sm">No-Show</button>

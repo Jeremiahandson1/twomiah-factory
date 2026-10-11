@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
+import { useMayWrite } from '../../shared';
 
 export interface SiteOption { id: string; name: string; address?: string | null; contactName?: string | null }
 
@@ -25,6 +26,9 @@ export function SitePicker({ id, value, sites, onChange, onAdded, allowAdd = tru
   id: string; value: string; sites: SiteOption[]; onChange: (siteId: string) => void; onAdded?: () => void; allowAdd?: boolean;
 }) {
   const toast = useToast();
+  // "+ Add property" is POST /api/sites — contacts:create. In the picker, so every page that uses it holds the
+  // rule (Area Pricing, Snow Billing). (T43 viewer round, T68)
+  const mayAddSite = useMayWrite('contacts:create');
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [contacts, setContacts] = useState<Array<{ id: string; name: string }>>([]);
@@ -53,7 +57,7 @@ export function SitePicker({ id, value, sites, onChange, onAdded, allowAdd = tru
           <option value="">{sites.length ? 'Select a property…' : 'No properties yet — add one'}</option>
           {sites.map((s) => <option key={s.id} value={s.id}>{s.name}{s.address ? ` — ${s.address}` : ''}</option>)}
         </select>
-        {allowAdd && !adding && (
+        {allowAdd && mayAddSite && !adding && (
           <button type="button" onClick={openAdd} className="shrink-0 text-xs border rounded px-2 py-1.5 flex items-center gap-1 hover:bg-gray-50 dark:hover:bg-slate-800">
             <Plus className="w-3 h-3" /> Add
           </button>

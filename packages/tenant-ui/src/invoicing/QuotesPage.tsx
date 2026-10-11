@@ -17,8 +17,21 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const defaultTaxRate = Number(settings?.defaultTaxRate) || 0
-  /** What the company PAYS is not for whoever can raise a quote. Same permission the Pricebook screen asks. (T41) */
-  const maySeeCost = useMayWrite('pricebook:update')
+  /**
+   * What the company PAYS is margin:read — the permission the server strips unitCost on (T68; it asked
+   * pricebook:update here before, which every seat holding it also holds margin:read beside).
+   */
+  const maySeeCost = useMayWrite('margin:read')
+  /**
+   * Every action below writes, and each asks the route's own permission. (T43 viewer round: "Contractor: the
+   * Quotes page offers Edit, Send, Approve and Delete"; "Field service: New Quote, Convert to Invoice".) The
+   * read-only seat opens this page to read quotes, and was offered all of them.
+   */
+  const mayCreate = useMayWrite('quotes:create')
+  const mayUpdate = useMayWrite('quotes:update')
+  const mayDelete = useMayWrite('quotes:delete')
+  const mayInvoice = useMayWrite('invoices:create')
+  const mayJob = useMayWrite('jobs:create')
   const statuses = ['draft', 'sent', 'approved', cfg.quoteDecline ? 'declined' : 'rejected', 'expired']
   const emptyForm = (): QuoteForm => ({ name: '', contactId: '', projectId: '', siteId: '', equipmentId: '', expiryDate: '', taxRate: defaultTaxRate, discount: 0, notes: '', customerMessage: '', terms: '', lineItems: [blankLine()] })
 
@@ -95,7 +108,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
 
   useEffect(() => {
     const editId = searchParams.get('edit')
-    if (!editId) return
+    if (!editId || !mayUpdate) return
     let cancelled = false
     api.get(`/api/quotes/${editId}`).then((item: any) => { if (cancelled || !item) return; openEdit(item); searchParams.delete('edit'); setSearchParams(searchParams, { replace: true }) }).catch(() => {})
     return () => { cancelled = true }
@@ -145,7 +158,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
 
   return (
     <div>
-      <PageHeader title="Quotes" action={<Button onClick={openCreate}><Plus className="w-4 h-4" /> New Quote</Button>} />
+      <PageHeader title="Quotes" action={mayCreate ? <Button onClick={openCreate}><Plus className="w-4 h-4" /> New Quote</Button> : undefined} />
       <div className="mb-4 flex flex-wrap gap-3">
         <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }} className={selectCls}>
           <option value="">All statuses</option>
@@ -154,13 +167,13 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
         <div className="relative"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} placeholder="Search number or name" className={`${inputCls} pl-9 w-64`} /></div>
       </div>
       <DataTable<Row> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={row => navigate(`/crm/quotes/${row.id}`)} emptyMessage="No quotes yet." actions={[
-        { label: 'Edit', icon: Edit, onClick: openEdit, show: r => EDITABLE.includes(r.status) },
-        { label: 'Send', icon: Send, onClick: r => act(`/api/quotes/${r.id}/send`, 'Quote sent'), show: r => EDITABLE.includes(r.status) },
-        { label: 'Mark approved', icon: Check, onClick: r => act(`/api/quotes/${r.id}/approve`, 'Quote approved'), show: r => EDITABLE.includes(r.status) },
-        { label: cfg.quoteDecline ? 'Mark declined' : 'Mark rejected', icon: X, onClick: r => act(`/api/quotes/${r.id}/${cfg.quoteDecline ? 'decline' : 'reject'}`, cfg.quoteDecline ? 'Quote declined' : 'Quote rejected'), show: r => EDITABLE.includes(r.status) },
-        { label: 'Convert to Invoice', icon: FileText, onClick: async r => { const inv = await act(`/api/quotes/${r.id}/convert-to-invoice`, 'Invoice created'); if (inv?.id) navigate(`/crm/invoices/${inv.id}`) }, show: r => r.status === 'approved' },
-        ...(cfg.jobs ? [{ label: 'Convert to Job', icon: Briefcase, onClick: async (r: Row) => { const job = await act(`/api/quotes/${r.id}/convert-to-job`, 'Job created from quote'); if (job?.id) navigate(cfg.jobPath(job.id)) }, show: (r: Row) => r.status === 'approved' && !r.convertedToJobId }] : []),
-        { label: 'Delete', icon: Trash2, onClick: r => setDeleteTarget(r), className: 'text-red-600', show: r => r.status === 'draft' },
+        { label: 'Edit', icon: Edit, onClick: openEdit, show: r => mayUpdate && EDITABLE.includes(r.status) },
+        { label: 'Send', icon: Send, onClick: r => act(`/api/quotes/${r.id}/send`, 'Quote sent'), show: r => mayUpdate && EDITABLE.includes(r.status) },
+        { label: 'Mark approved', icon: Check, onClick: r => act(`/api/quotes/${r.id}/approve`, 'Quote approved'), show: r => mayUpdate && EDITABLE.includes(r.status) },
+        { label: cfg.quoteDecline ? 'Mark declined' : 'Mark rejected', icon: X, onClick: r => act(`/api/quotes/${r.id}/${cfg.quoteDecline ? 'decline' : 'reject'}`, cfg.quoteDecline ? 'Quote declined' : 'Quote rejected'), show: r => mayUpdate && EDITABLE.includes(r.status) },
+        { label: 'Convert to Invoice', icon: FileText, onClick: async r => { const inv = await act(`/api/quotes/${r.id}/convert-to-invoice`, 'Invoice created'); if (inv?.id) navigate(`/crm/invoices/${inv.id}`) }, show: r => mayInvoice && r.status === 'approved' },
+        ...(cfg.jobs ? [{ label: 'Convert to Job', icon: Briefcase, onClick: async (r: Row) => { const job = await act(`/api/quotes/${r.id}/convert-to-job`, 'Job created from quote'); if (job?.id) navigate(cfg.jobPath(job.id)) }, show: (r: Row) => mayJob && r.status === 'approved' && !r.convertedToJobId }] : []),
+        { label: 'Delete', icon: Trash2, onClick: r => setDeleteTarget(r), className: 'text-red-600', show: r => mayDelete && r.status === 'draft' },
       ]} />
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Edit ${editing.number}` : 'New Quote'} size="xl">

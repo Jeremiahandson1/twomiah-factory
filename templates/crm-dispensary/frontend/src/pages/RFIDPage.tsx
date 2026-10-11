@@ -52,6 +52,10 @@ export default function RFIDPage() {
    */
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('tags');
+  // Scan and Inventory Count post scans — POST /scan and /scan/bulk are requireRole('budtender'). Tags and Scan
+  // History stay open. In THIS component, where the tab bar renders — see the note above. (T43 viewer round, T68)
+  const { isAtLeast } = useAuth();
+  const shownTabs = tabs.filter((t) => isAtLeast('budtender') || (t.id !== 'scan' && t.id !== 'inventory-count'));
 
   return (
     <div>
@@ -59,7 +63,7 @@ export default function RFIDPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 overflow-x-auto pb-1">
-        {tabs.map((tab) => (
+        {shownTabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}

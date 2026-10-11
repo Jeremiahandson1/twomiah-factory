@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Loader2, X, UtensilsCrossed, Edit2, Trash2, Users, ChevronDown, ChevronRight } from 'lucide-react';
 import api from '../../services/api';
+import { useMayWrite } from '../../shared';
 import FormError, { errorText } from '../../components/ui/FormError';
 
 /**
@@ -33,6 +34,10 @@ function money(v: number | string | undefined | null): string {
 }
 
 export default function MenusPage() {
+  // POST /api/menu-packages asks contacts:create; PUT and DELETE (Retire) ask contacts:update. The read-only seat was offered
+  // New, Edit and Retire. (T43 viewer round, T68)
+  const mayCreate = useMayWrite('contacts:create');
+  const mayUpdate = useMayWrite('contacts:update');
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showForm, setShowForm] = useState<boolean>(false);
@@ -89,9 +94,9 @@ export default function MenusPage() {
           </h1>
           <p className="text-gray-500 dark:text-slate-400">Packages priced per head, with their courses and minimums</p>
         </div>
-        <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
+        {mayCreate && <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
           <Plus className="w-4 h-4" /> New Package
-        </button>
+        </button>}
       </div>
 
       <FormError message={pageErr} onDismiss={() => setPageErr('')} />
@@ -138,10 +143,10 @@ export default function MenusPage() {
                             <Users className="w-3 h-3" /> min {p.minGuests}
                           </span>
                         ) : null}
-                        <div className="flex items-center gap-2">
+                        {mayUpdate && <div className="flex items-center gap-2">
                           <button onClick={() => { setEditing(p); setShowForm(true); }} className="p-1 text-gray-400 hover:text-gray-600" title="Edit"><Edit2 className="w-4 h-4" /></button>
                           {p.active && <button onClick={() => retire(p)} className="p-1 text-gray-400 hover:text-red-600" title="Retire"><Trash2 className="w-4 h-4" /></button>}
-                        </div>
+                        </div>}
                       </div>
                       {open && courses.length > 0 && (
                         <div className="border-t px-4 py-3 space-y-3">

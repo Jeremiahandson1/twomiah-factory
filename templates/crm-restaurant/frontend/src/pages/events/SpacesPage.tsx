@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Loader2, X, DoorOpen, Edit2, Trash2, Users, Wallet } from 'lucide-react';
 import api from '../../services/api';
+import { useMayWrite } from '../../shared';
 import FormError, { errorText } from '../../components/ui/FormError';
 
 /**
@@ -29,6 +30,10 @@ function money(v: number | string | undefined | null): string {
 }
 
 export default function SpacesPage() {
+  // POST /api/event-spaces asks contacts:create; PUT and DELETE (Retire) ask contacts:update. The read-only seat was offered
+  // New, Edit and Retire. (T43 viewer round, T68)
+  const mayCreate = useMayWrite('contacts:create');
+  const mayUpdate = useMayWrite('contacts:update');
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showForm, setShowForm] = useState<boolean>(false);
@@ -72,9 +77,9 @@ export default function SpacesPage() {
           </h1>
           <p className="text-gray-500 dark:text-slate-400">What you can sell, who it holds, what it has to spend</p>
         </div>
-        <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
+        {mayCreate && <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
           <Plus className="w-4 h-4" /> New Space
-        </button>
+        </button>}
       </div>
 
       <FormError message={pageErr} onDismiss={() => setPageErr('')} />
@@ -128,12 +133,12 @@ export default function SpacesPage() {
                 </div>
               )}
 
-              <div className="mt-auto pt-4 flex items-center justify-end gap-2 border-t mt-4">
+              {mayUpdate && <div className="mt-auto pt-4 flex items-center justify-end gap-2 border-t mt-4">
                 <button onClick={() => { setEditing(s); setShowForm(true); }} className="p-1 text-gray-400 hover:text-gray-600" title="Edit"><Edit2 className="w-4 h-4" /></button>
                 {s.active && (
                   <button onClick={() => retire(s)} className="p-1 text-gray-400 hover:text-red-600" title="Retire"><Trash2 className="w-4 h-4" /></button>
                 )}
-              </div>
+              </div>}
             </div>
           ))}
         </div>

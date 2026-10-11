@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Search, Loader2, PawPrint, AlertTriangle, X } from 'lucide-react';
 import api from '../../services/api';
+import { useMayWrite } from '../../shared';
 import OwnerPicker, { ContactLite } from '../../components/vet/OwnerPicker';
 
 /**
@@ -44,6 +45,8 @@ export function ageFromDob(dob?: string): string {
 }
 
 export default function PatientsPage() {
+  // POST /api/patients asks contacts:create. (T43 viewer round, T68)
+  const mayAdd = useMayWrite('contacts:create');
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
@@ -74,12 +77,12 @@ export default function PatientsPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Patients</h1>
           <p className="text-gray-500 dark:text-slate-400">Pets under your care</p>
         </div>
-        <button
+        {mayAdd && <button
           onClick={() => setShowForm(true)}
           className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800"
         >
           <Plus className="w-4 h-4" /> New Patient
-        </button>
+        </button>}
       </div>
 
       <div className="relative max-w-md">

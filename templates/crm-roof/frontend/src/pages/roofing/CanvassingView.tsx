@@ -497,7 +497,8 @@ export default function CanvassingView() {
         </div>
 
         <div className="p-4 space-y-4">
-          <button
+          {/* POST /sessions asks canvassing:create — the read-only seat was offered it. (T43 viewer round, T68) */}
+          {mayCanvass && <button
             onClick={() => {
               setNewName(`Canvassing — ${formatDate()}`)
               setShowStartModal(true)
@@ -505,7 +506,7 @@ export default function CanvassingView() {
             className="w-full py-4 bg-blue-600 text-white rounded-2xl font-semibold text-lg flex items-center justify-center gap-2 active:bg-blue-700"
           >
             <Plus size={24} /> Start New Session
-          </button>
+          </button>}
 
           {sessions.length > 0 && (
             <div>

@@ -48,7 +48,12 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
    *
    * Generate Invoice Now raises an invoice (POST /:id/generate → `invoices:create`); Pause, Resume
    * and Cancel move the schedule (→ `invoices:update`). A seat holding neither still reads the
-   * schedule and opens View Details, which is how anybody knows what is due and when.
+   * schedule on this list, which is how anybody knows what is due and when.
+   *
+   * There is no recurring DETAIL page: the routes are /crm/recurring, /new and /:id/edit. "View Details" and the
+   * name both linked /recurring/:id — no /crm, no such route — so every seat landed on Not Found, and for a
+   * read-only seat that was the only thing in the ⋮ ("Recurring has an empty ⋮ menu", T43 viewer round). A
+   * seat that may change the schedule now gets Edit; everyone else reads the row as it stands. (T68)
    */
   const mayRaise = useMayWrite('invoices:create');
   const mayManage = useMayWrite('invoices:update');
@@ -113,7 +118,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
   const handleGenerateNow = async (id: string) => {
     try {
       const invoice = await api.post(`/api/recurring/${id}/generate`);
-      navigate(`/invoices/${invoice.id}`);
+      navigate(`/crm/invoices/${invoice.id}`);
     } catch (error: unknown) {
       alert('Failed to generate invoice');
     }
@@ -135,13 +140,13 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Recurring Invoices</h1>
           <p className="text-gray-500 dark:text-slate-400">Automated billing schedules</p>
         </div>
-        <Link
+        {mayRaise && <Link
           to="/crm/recurring/new"
           className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
         >
           <Plus className="w-4 h-4" />
           New Recurring
-        </Link>
+        </Link>}
       </div>
 
       {/* Stats */}
@@ -216,12 +221,12 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
         <div className="bg-white rounded-xl border p-12 text-center dark:bg-slate-900">
           <RefreshCw className="w-12 h-12 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500 mb-4 dark:text-slate-400">No recurring invoices</p>
-          <Link
+          {mayRaise && <Link
             to="/crm/recurring/new"
             className="text-orange-600 hover:underline dark:text-orange-300"
           >
             Create your first recurring invoice
-          </Link>
+          </Link>}
         </div>
       ) : (
         <div className="bg-white rounded-xl border divide-y dark:bg-slate-900">
@@ -233,9 +238,11 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
                     <RefreshCw className={`w-5 h-5 ${item.status === 'active' ? 'text-green-700 dark:text-green-300' : 'text-gray-400'}`} />
                   </div>
                   <div>
-                    <Link to={`/recurring/${item.id}`} className="font-medium text-gray-900 hover:text-orange-600 dark:hover:text-orange-200 dark:text-slate-100">
-                      {(item.contact as Record<string, unknown>)?.name as string || 'Unknown Contact'}
-                    </Link>
+                    {mayManage
+                      ? <Link to={`/crm/recurring/${item.id}/edit`} className="font-medium text-gray-900 hover:text-orange-600 dark:hover:text-orange-200 dark:text-slate-100">
+                          {(item.contact as Record<string, unknown>)?.name as string || 'Unknown Contact'}
+                        </Link>
+                      : <span className="font-medium text-gray-900 dark:text-slate-100">{(item.contact as Record<string, unknown>)?.name as string || 'Unknown Contact'}</span>}
                     <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-slate-400">
                       <span>{FREQUENCIES[item.frequency as string] || item.frequency as string}</span>
                       <span>•</span>
@@ -265,17 +272,19 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
                   </span>
 
                   {/* Actions */}
-                  <div className="relative group">
-                    <button aria-label="More actions" className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
+                  {(mayManage || (mayRaise && item.status === 'active')) && <div className="relative group">
+                    {/* focus opens it too: a touch screen has no hover, so the menu never opened on a phone */}
+                    <button aria-label="More actions" aria-haspopup="menu" className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
                       <MoreVertical className="w-4 h-4 text-gray-400" />
                     </button>
-                    <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border py-1 hidden group-hover:block z-10 dark:bg-slate-900">
-                      <Link
-                        to={`/recurring/${item.id}`}
+                    <div role="menu" className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border py-1 hidden group-hover:block group-focus-within:block z-10 dark:bg-slate-900">
+                      {mayManage && <Link
+                        role="menuitem"
+                        to={`/crm/recurring/${item.id}/edit`}
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-200"
                       >
-                        View Details
-                      </Link>
+                        Edit
+                      </Link>}
                       {mayRaise && item.status === 'active' && (
                         <button
                           onClick={() => handleGenerateNow(item.id as string)}
@@ -311,7 +320,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
                         </button>
                       )}
                     </div>
-                  </div>
+                  </div>}
                 </div>
               </div>
             </div>

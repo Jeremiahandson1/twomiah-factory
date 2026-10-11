@@ -103,7 +103,8 @@ const ALL_NAV_ITEMS = [
 
   // Phase 2 features
   { to: '/crm/checkin', icon: UserCheck, label: 'Check-In', features: ['checkin', 'queue_management'] },
-  { to: '/crm/id-scanner', icon: ScanLine, label: 'ID Scanner', features: ['id_verification'] },
+  // Every route behind it is budtender (scan) or manager (history, flagged). (T43 viewer round, T68)
+  { to: '/crm/id-scanner', icon: ScanLine, label: 'ID Scanner', features: ['id_verification'], minRole: 'budtender' },
   { to: '/crm/biotrack', icon: Database, label: 'BioTrack', features: ['biotrack'] , minRole: 'manager'},
   { to: '/crm/pay-by-bank', icon: Wallet, label: 'Pay by Bank', features: ['pay_by_bank'] },
   { to: '/crm/ai-budtender', icon: MessageCircle, label: 'AI Budtender', features: ['ai_budtender'] },

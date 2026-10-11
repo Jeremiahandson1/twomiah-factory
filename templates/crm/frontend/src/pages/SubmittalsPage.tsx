@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { formatDate } from '../utils/date';
 import { FileText, Plus, Check, X, RotateCcw, Loader2 } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Submittal {
   id: string;
@@ -41,6 +42,8 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default function SubmittalsPage() {
+  // POST / asks submittals:create; submit, approve, revise and reject ask submittals:update. (T43 viewer round, T68)
+  const { can } = useAuth();
   const [submittals, setSubmittals] = useState<Submittal[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -99,7 +102,7 @@ export default function SubmittalsPage() {
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100"><FileText className="w-6 h-6 text-orange-500 dark:text-orange-300" />Submittals</h1>
           <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Shop drawings, product data, samples, mockups</p>
         </div>
-        <button onClick={() => setShowCreate(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"><Plus className="w-4 h-4" />New Submittal</button>
+        {can('submittals:create') && <button onClick={() => setShowCreate(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"><Plus className="w-4 h-4" />New Submittal</button>}
       </div>
 
       <div className="bg-white rounded-lg border overflow-x-auto dark:bg-slate-900">
@@ -130,8 +133,8 @@ export default function SubmittalsPage() {
                 <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{s.dueDate ? formatDate(s.dueDate) : '—'}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
-                    {s.status === 'draft' && <button onClick={() => runAction(s.id, 'submit')} className="text-blue-600 hover:bg-blue-50 p-1 rounded dark:text-blue-300" title="Submit for review"><Plus className="w-4 h-4 rotate-45" /></button>}
-                    {s.status === 'submitted' && (<>
+                    {can('submittals:update') && s.status === 'draft' && <button onClick={() => runAction(s.id, 'submit')} className="text-blue-600 hover:bg-blue-50 p-1 rounded dark:text-blue-300" title="Submit for review"><Plus className="w-4 h-4 rotate-45" /></button>}
+                    {can('submittals:update') && s.status === 'submitted' && (<>
                       <button onClick={() => runAction(s.id, 'approve')} className="text-green-700 hover:bg-green-50 p-1 rounded dark:text-green-300" title="Approve"><Check className="w-4 h-4" /></button>
                       <button onClick={() => runAction(s.id, 'revise')} className="text-yellow-700 hover:bg-yellow-50 p-1 rounded dark:text-yellow-300" title="Revise and resubmit"><RotateCcw className="w-4 h-4" /></button>
                       <button onClick={() => runAction(s.id, 'reject')} className="text-red-600 hover:bg-red-50 p-1 rounded dark:text-red-400" title="Reject"><X className="w-4 h-4" /></button>

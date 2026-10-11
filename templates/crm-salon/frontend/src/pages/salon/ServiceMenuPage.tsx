@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Loader2, X, Scissors, Edit2, Trash2, Clock, RotateCcw, AlertTriangle } from 'lucide-react';
 import api from '../../services/api';
+import { useMayWrite } from '../../shared';
 import { money as fmtMoney } from '../../shared';
 import { useConfirm } from '../../shared';
 import { useToast } from '../../contexts/ToastContext';
@@ -48,6 +49,9 @@ function money(v: number | string | undefined | null): string {
 }
 
 export default function ServiceMenuPage() {
+  // POST asks pricebook:create; PUT and DELETE (Retire) ask pricebook:update (serviceMenu.ts). (T43 viewer round, T68)
+  const mayCreate = useMayWrite('pricebook:create');
+  const mayUpdate = useMayWrite('pricebook:update');
   const toast = useToast();
   const confirm = useConfirm();
   const [services, setServices] = useState<Service[]>([]);
@@ -105,9 +109,9 @@ export default function ServiceMenuPage() {
           </h1>
           <p className="text-gray-500 dark:text-slate-400">What you offer, how long it takes, when they're due back</p>
         </div>
-        <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">
+        {mayCreate && <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">
           <Plus className="w-4 h-4" /> New Service
-        </button>
+        </button>}
       </div>
 
       {loading ? (
@@ -161,12 +165,12 @@ export default function ServiceMenuPage() {
                       )}
                     </div>
 
-                    <div className="mt-auto pt-4 flex items-center justify-end gap-2 border-t mt-4">
+                    {mayUpdate && <div className="mt-auto pt-4 flex items-center justify-end gap-2 border-t mt-4">
                       <button onClick={() => { setEditing(s); setShowForm(true); }} className="p-1 text-gray-400 hover:text-gray-600" title="Edit"><Edit2 className="w-4 h-4" /></button>
                       {s.active && (
                         <button onClick={() => retire(s)} className="p-1 text-gray-400 hover:text-red-600" title="Retire"><Trash2 className="w-4 h-4" /></button>
                       )}
-                    </div>
+                    </div>}
                   </div>
                 ))}
               </div>

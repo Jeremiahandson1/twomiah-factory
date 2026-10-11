@@ -54,5 +54,8 @@ export const {
    */
   extraRolePermissions: {
     field: ['canvassing:create', 'canvassing:update'],
+    // The read-only seat sees the team's canvassing — sessions, doors, the map — and writes none of it. Owner's
+    // decision, 2026-10-11; the rule is readsTeam in routes/canvassing.ts.
+    viewer: ['canvassing:read'],
   },
 })

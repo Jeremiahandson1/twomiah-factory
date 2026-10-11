@@ -328,11 +328,22 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
   const mayClaim = useMayWrite('expenses:create')
   const maySettle = useMayWrite('expenses:update')
   const mayRemove = useMayWrite('expenses:delete')
+  /**
+   * Below manager the list is the person's OWN claims — the server's rule (expenses.ts, Salon RR6 E7), and for the
+   * read-only seat the owner's decision that it reads revenue, not cost. "No expenses yet." told that seat the
+   * business had spent nothing. (T43 viewer round: "Salon: Expenses says 'No expenses yet' because the viewer only
+   * sees their own.") The empty list now says which list it is. (T68)
+   */
+  const emptyMessage = manager
+    ? 'No expenses yet.'
+    : mayClaim
+      ? 'You have not entered any expenses yet. Only the expenses you enter are listed here.'
+      : 'Only the expenses a person enters are listed for them, and this seat does not enter any. Owners, admins and managers see the business’s expenses.'
 
   return (
     <div data-testid="expenses-page-shared">
       <PageHeader title="Expenses" action={mayClaim ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add Expense</Button> : undefined} />
-      <DataTable<Expense> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} emptyMessage="No expenses yet."
+      <DataTable<Expense> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} emptyMessage={emptyMessage}
         actions={[
           // Approve really is FIRST now — it is the step reimbursing depends on, so it is what a
           // manager opening this menu is usually after. It sat below Edit while the comment said

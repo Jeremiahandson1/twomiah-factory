@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Search, Loader2, User, AlertTriangle, X } from 'lucide-react';
 import api from '../../services/api';
+import { useMayWrite } from '../../shared';
 import { useToast } from '../../contexts/ToastContext';
 
 /**
@@ -29,6 +30,8 @@ interface Client {
 }
 
 export default function ClientsPage() {
+  // A new client is POST /api/contacts (contacts:create). (T43 viewer round, T68)
+  const mayAdd = useMayWrite('contacts:create');
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
@@ -65,12 +68,12 @@ export default function ClientsPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Clients</h1>
           <p className="text-gray-500 dark:text-slate-400">Everyone who sits in your chairs</p>
         </div>
-        <button
+        {mayAdd && <button
           onClick={() => setShowForm(true)}
           className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800"
         >
           <Plus className="w-4 h-4" /> New Client
-        </button>
+        </button>}
       </div>
 
       <div className="relative max-w-md">

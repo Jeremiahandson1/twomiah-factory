@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Edit, Trash2, Search } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
 
@@ -38,13 +39,16 @@ const initialForm: ProjectForm = { name: '', description: '', status: 'planning'
 
 export default function ProjectsPage() {
   const toast = useToast();
+  // Every write on this page asks projects:create|update|delete on the server (routes/projects.ts); the
+  // read-only seat was offered all of them. Same `can` the Change Orders and Bids pages ask. (T43 viewer round, T68)
+  const { can } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   // Detail pages link here as /crm/projects?edit=<id>. Open that record's edit
   // modal (fetched by id), then clear the param.
   useEffect(() => {
     const editId = searchParams.get('edit');
-    if (!editId) return;
+    if (!editId || !can('projects:update')) return;
     let cancelled = false;
     api.projects.get(editId).then((item: unknown) => {
       if (cancelled || !item) return;
@@ -118,7 +122,7 @@ export default function ProjectsPage() {
 
   return (
     <div>
-      <PageHeader title="Projects" action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>Add Project</Button>} />
+      <PageHeader title="Projects" action={can('projects:create') ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>Add Project</Button> : undefined} />
       <div className="mb-4 flex gap-4">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -131,7 +135,7 @@ export default function ProjectsPage() {
       </div>
       <DataTable data={data} emptyMessage="No projects yet. Create one to group the jobs, change orders and RFIs for a piece of work." columns={columns} loading={loading} pagination={pagination} onPageChange={setPage}
         onRowClick={(row: Record<string, unknown>) => navigate(`/crm/projects/${row.id}`)}
-        actions={[{ label: 'Edit', icon: Edit, onClick: openEdit }, { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' }]} />
+        actions={[{ label: 'Edit', icon: Edit, onClick: openEdit, show: () => can('projects:update') }, { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600', show: () => can('projects:delete') }]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Project' : 'New Project'} size="lg">
         <div className="grid md:grid-cols-2 gap-4">
           <div className="md:col-span-2"><label className="block text-sm font-medium mb-1">Name *</label><input value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>

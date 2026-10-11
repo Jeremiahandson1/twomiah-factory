@@ -31,8 +31,9 @@ export default function MeasurementsPage() {
   const mayOrderMeasurement = useMayWrite('measurements:create');
   const mayCorrectMeasurement = useMayWrite('measurements:update');
   const mayBuyCredits = useMayWrite('measurements:purchase');
-  // What a report cost is money (invoices:read); the server leaves it off for staff, so the column goes. (T62)
-  const maySeeCost = useMayWrite('invoices:read');
+  // What a report cost is what the company PAYS — margin:read, the rule the server strips it on (routes/measurements.ts).
+  // It was invoices:read, which the viewer holds for revenue. (T62; T68)
+  const maySeeCost = useMayWrite('margin:read');
   const { token } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();

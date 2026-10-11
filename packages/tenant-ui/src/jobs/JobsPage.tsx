@@ -23,7 +23,11 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
   const cfg = resolveJobsConfig(config)
   // A technician's job is to work the calls, not to raise or assign them: `field` holds jobs:read and
   // jobs:update, and since the T30 blocker fix the API enforces that. The button stayed on the page.
-  const mayCreate = cfg.can('jobs:create')
+  // useMayWrite, not cfg.can: `can` defaults to allow on the wrappers that never pass it. (T68)
+  const mayCreate = useMayWrite('jobs:create')
+  // Edit is PUT /:id, Start and Complete are POST /:id/start|complete — all jobs:update. The read-only seat was
+  // offered all three in every row's menu. (T43 viewer round)
+  const mayUpdate = useMayWrite('jobs:update')
   const maySeeRoster = cfg.can('team:read')
   // DELETE /api/jobs/:id asks jobs:delete; the row's Delete was offered to everyone. useMayWrite, not cfg.can —
   // most wrappers never set `can` on JobsConfig, so a cfg.can gate would never close. (T62)
@@ -157,12 +161,12 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     if (contactId && contacts.length === 0) return // wait for the picker so the address can be applied
     let cancelled = false
     const next = new URLSearchParams(searchParams); next.delete('edit'); next.delete('contactId'); next.delete('new')
-    if (editId) {
+    if (editId && mayUpdate) {
       api.get(`/api/jobs/${editId}`).then((row: JobRow) => { if (!cancelled && row) { openEdit(row); setSearchParams(next, { replace: true }) } }).catch(() => {})
-    } else if (contactId) { openCreate(contactId, projectFilter || undefined); setSearchParams(next, { replace: true }) }
+    } else if (contactId && mayCreate) { openCreate(contactId, projectFilter || undefined); setSearchParams(next, { replace: true }) }
     else if (wantsNew && mayCreate) { openCreate(undefined, projectFilter || undefined); setSearchParams(next, { replace: true }) }
     return () => { cancelled = true }
-  }, [searchParams, contacts.length, projectFilter, mayCreate]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchParams, contacts.length, projectFilter, mayCreate, mayUpdate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = async () => {
     if (!form.title.trim()) { toast.error('Title is required'); return }
@@ -201,9 +205,9 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     { key: 'assignedTo', label: 'Assigned To', render: (v: unknown) => { const a = v as any; return a ? (a.name || `${a.firstName || ''} ${a.lastName || ''}`.trim() || '-') : '-' } },
   ]
   const actions = [
-    { label: 'Edit', icon: Edit, onClick: openEdit },
-    { label: 'Start', icon: Play, show: (r: JobRow) => r.status !== 'in_progress' && r.status !== 'completed' && r.status !== 'cancelled', onClick: start },
-    { label: 'Complete', icon: CheckCircle, show: (r: JobRow) => r.status !== 'completed' && r.status !== 'cancelled', onClick: complete },
+    { label: 'Edit', icon: Edit, show: () => mayUpdate, onClick: openEdit },
+    { label: 'Start', icon: Play, show: (r: JobRow) => mayUpdate && r.status !== 'in_progress' && r.status !== 'completed' && r.status !== 'cancelled', onClick: start },
+    { label: 'Complete', icon: CheckCircle, show: (r: JobRow) => mayUpdate && r.status !== 'completed' && r.status !== 'cancelled', onClick: complete },
     { label: 'Delete', icon: Trash2, className: 'text-red-600', show: () => mayDelete, onClick: (r: JobRow) => { setToDelete(r); setDeleteOpen(true) } },
   ]
   const set = (k: keyof JobForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm({ ...form, [k]: e.target.value })

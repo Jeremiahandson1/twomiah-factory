@@ -24,6 +24,8 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
   const mayInvoice = useMayWrite('invoices:create')
   /** DELETE /api/jobs/:id asks jobs:delete — staff hold update, not delete, and were offered it. (T62) */
   const mayDelete = useMayWrite('jobs:delete')
+  /** Start, Complete, Edit and removing a photo are jobs:update on the server. (T43 viewer round, T68) */
+  const mayUpdate = useMayWrite('jobs:update')
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -104,8 +106,8 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {open && job.status !== 'in_progress' && <Button onClick={() => act('start', `${cfg.labels.singular} started`)} className="bg-blue-500 hover:bg-blue-600"><Play className="w-4 h-4 inline mr-2" />Start</Button>}
-          {open && job.status === 'in_progress' && <Button variant="success" onClick={() => act('complete', `${cfg.labels.singular} completed`)}><CheckCircle className="w-4 h-4 inline mr-2" />Complete</Button>}
+          {open && mayUpdate && job.status !== 'in_progress' && <Button onClick={() => act('start', `${cfg.labels.singular} started`)} className="bg-blue-500 hover:bg-blue-600"><Play className="w-4 h-4 inline mr-2" />Start</Button>}
+          {open && mayUpdate && job.status === 'in_progress' && <Button variant="success" onClick={() => act('complete', `${cfg.labels.singular} completed`)}><CheckCircle className="w-4 h-4 inline mr-2" />Complete</Button>}
           {/*
             Invoicing the job. Gated on the vertical having the path AND the person holding
             invoices:create — the permission the server asks — so the button is not offered to
@@ -120,7 +122,7 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
               <FileText className="w-4 h-4 inline mr-2" />{billing ? 'Raising…' : 'Invoice'}
             </Button>
           )}
-          <NavLink to={`/crm/jobs?edit=${id}`} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2"><Edit className="w-4 h-4" />Edit</NavLink>
+          {mayUpdate && <NavLink to={`/crm/jobs?edit=${id}`} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2"><Edit className="w-4 h-4" />Edit</NavLink>}
           {mayDelete && <Button variant="danger" onClick={() => setDeleteOpen(true)}><Trash2 className="w-4 h-4 inline mr-2" />Delete</Button>}
         </div>
       </div>
@@ -189,7 +191,7 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
         <div className="fixed inset-0 bg-black/90 z-50 flex flex-col" role="dialog" aria-modal="true" aria-label="Photo">
           <div className="flex items-center justify-between p-4">
             <button type="button" onClick={() => setFullscreen(null)} className="p-2 text-white hover:text-gray-300" aria-label="Close"><X className="w-6 h-6" /></button>
-            <button type="button" onClick={() => deletePhoto(fullscreen.id)} className="p-2 text-red-400 hover:text-red-300" aria-label="Delete photo"><Trash2 className="w-5 h-5" /></button>
+            {mayUpdate && <button type="button" onClick={() => deletePhoto(fullscreen.id)} className="p-2 text-red-400 hover:text-red-300" aria-label="Delete photo"><Trash2 className="w-5 h-5" /></button>}
           </div>
           <div className="flex-1 flex items-center justify-center p-4"><img src={fullscreen.url} alt={fullscreen.caption || ''} className="max-w-full max-h-full object-contain" /></div>
           {fullscreen.caption && <p className="text-white text-center p-4 text-sm">{fullscreen.caption}</p>}

@@ -3,6 +3,7 @@ import { formatDate } from '../utils/date';
 import { Plus, Edit, Trash2, Check, X as XIcon, RotateCcw } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
 
@@ -31,6 +32,9 @@ const inspectionTypes = ['Foundation', 'Framing', 'Electrical', 'Plumbing', 'HVA
 
 export default function InspectionsPage() {
   const toast = useToast();
+  // Every write on this page asks inspections:create|update|delete on the server (routes/inspections.ts); the
+  // read-only seat was offered all of them. Same `can` the Change Orders and Bids pages ask. (T43 viewer round, T68)
+  const { can } = useAuth();
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [projects, setProjects] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,14 +120,14 @@ export default function InspectionsPage() {
 
   return (
     <div>
-      <PageHeader title="Inspections" action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>Schedule Inspection</Button>} />
+      <PageHeader title="Inspections" action={can('inspections:create') ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>Schedule Inspection</Button> : undefined} />
       <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[
         // A result is recorded once, so Pass and Fail are offered only while there is no result.
-        { label: 'Edit', icon: Edit, onClick: openEdit, show: (r: Record<string, unknown>) => AWAITING.includes(r.status as string) },
-        { label: 'Pass', icon: Check, onClick: handlePass, show: (r: Record<string, unknown>) => AWAITING.includes(r.status as string) },
-        { label: 'Fail', icon: XIcon, onClick: (r: Record<string, unknown>) => { setDeficiencies(''); setFailing(r); }, show: (r: Record<string, unknown>) => AWAITING.includes(r.status as string) },
-        { label: 'Book re-inspection', icon: RotateCcw, onClick: (r: Record<string, unknown>) => { setReinspectDate(''); setReinspecting(r); }, show: (r: Record<string, unknown>) => r.status === 'failed' },
-        { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },
+        { label: 'Edit', icon: Edit, onClick: openEdit, show: (r: Record<string, unknown>) => can('inspections:update') && AWAITING.includes(r.status as string) },
+        { label: 'Pass', icon: Check, onClick: handlePass, show: (r: Record<string, unknown>) => can('inspections:update') && AWAITING.includes(r.status as string) },
+        { label: 'Fail', icon: XIcon, onClick: (r: Record<string, unknown>) => { setDeficiencies(''); setFailing(r); }, show: (r: Record<string, unknown>) => can('inspections:update') && AWAITING.includes(r.status as string) },
+        { label: 'Book re-inspection', icon: RotateCcw, onClick: (r: Record<string, unknown>) => { setReinspectDate(''); setReinspecting(r); }, show: (r: Record<string, unknown>) => can('inspections:create') && r.status === 'failed' },
+        { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600', show: () => can('inspections:delete') },
       ]} />
       <Modal isOpen={!!failing} onClose={() => setFailing(null)} title={`Fail ${(failing?.number as string) || 'inspection'}`} size="md">
         <div className="space-y-4">

@@ -42,6 +42,8 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
    */
   const mayConvert = useMayWrite('contacts:create')
   const mayTriage = useMayWrite('contacts:update')
+  // Setting up a lead source is POST /api/leads/sources — leads:create. The empty inbox sent every seat there. (T68)
+  const maySetUpSources = useMayWrite('leads:create')
   const offered: LeadPlatform[] = config?.platforms || TRADES_LEAD_PLATFORMS
   // The website form and call tracking post here on every vertical, so the inbox can always name them —
   // see BUILT_IN_LEAD_PLATFORMS. A vertical's own entry for the same id wins.
@@ -186,7 +188,7 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
           <div style={{ padding: 40, textAlign: 'center', color: c.faint }}>
             <Inbox size={48} style={{ marginBottom: 12, opacity: 0.3 }} />
             <div style={{ fontSize: 16, fontWeight: 600 }}>{error ? 'Leads could not be loaded' : (statusFilter || sourceFilter || search) ? 'No leads match these filters' : 'No leads yet'}</div>
-            {!error && !(statusFilter || sourceFilter || search) && (
+            {!error && !(statusFilter || sourceFilter || search) && maySetUpSources && (
               <div style={{ fontSize: 13, marginTop: 4 }}>
                 <Link to="/crm/lead-sources" style={{ color: c.link, display: 'inline-flex', alignItems: 'center', gap: 4 }}>Set up your lead sources <ExternalLink size={12} /></Link> to start receiving leads
               </div>

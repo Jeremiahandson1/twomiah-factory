@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
 
@@ -39,7 +40,11 @@ const tabs = [
 /* ─── Main Page ─── */
 
 export default function QRScannerPage() {
-  const [activeTab, setActiveTab] = useState('scanner');
+  // Scanning and generating codes are POST routes at requireRole('budtender'); the scan analytics stay open. (T43 viewer round, T68)
+  const { isAtLeast } = useAuth();
+  const mayScan = isAtLeast('budtender');
+  const shownTabs = tabs.filter((t) => mayScan || t.id === 'analytics');
+  const [activeTab, setActiveTab] = useState(mayScan ? 'scanner' : 'analytics');
 
   return (
     <div>
@@ -47,7 +52,7 @@ export default function QRScannerPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 overflow-x-auto pb-1">
-        {tabs.map((tab) => (
+        {shownTabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
@@ -63,8 +68,8 @@ export default function QRScannerPage() {
         ))}
       </div>
 
-      {activeTab === 'scanner' && <ScannerTab />}
-      {activeTab === 'generator' && <GeneratorTab />}
+      {activeTab === 'scanner' && mayScan && <ScannerTab />}
+      {activeTab === 'generator' && mayScan && <GeneratorTab />}
       {activeTab === 'analytics' && <AnalyticsTab />}
     </div>
   );

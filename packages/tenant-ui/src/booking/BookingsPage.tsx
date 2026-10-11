@@ -205,8 +205,8 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
             <DataTable<BookingRow> data={rows} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} emptyMessage="No bookings match this filter." actions={[
               { label: 'Confirm', icon: CheckCircle2, onClick: r => setStatus(r, 'confirmed', 'Booking confirmed'), show: r => worksDiary && r.status === 'pending' },
               { label: 'Mark completed', icon: Check, onClick: r => setStatus(r, 'completed', 'Marked completed'), show: r => worksDiary && r.status === 'confirmed' },
-              { label: 'No-show', icon: UserX, onClick: r => setStatus(r, 'no_show', 'Marked as a no-show'), show: r => worksDiary && r.status === 'confirmed' || r.status === 'pending' },
-              { label: 'Cancel booking', icon: XCircle, className: 'text-red-600 dark:text-red-300', onClick: r => setCancelRow(r), show: r => worksDiary && r.status === 'pending' || r.status === 'confirmed' },
+              { label: 'No-show', icon: UserX, onClick: r => setStatus(r, 'no_show', 'Marked as a no-show'), show: r => worksDiary && (r.status === 'confirmed' || r.status === 'pending') },
+              { label: 'Cancel booking', icon: XCircle, className: 'text-red-600 dark:text-red-300', onClick: r => setCancelRow(r), show: r => worksDiary && (r.status === 'pending' || r.status === 'confirmed') },
             ]} />
           )}
         </>

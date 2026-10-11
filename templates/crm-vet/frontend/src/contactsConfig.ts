@@ -16,7 +16,8 @@ export const CONTACTS: ContactsConfig = {
   sections: { patients: true, projects: false, quotes: false, portal: true },
   quickActions: [
     { label: 'Patients', to: '/crm/patients', icon: 'patients' },
-    { label: 'Book Appointment', to: '/crm/appointments', icon: 'appointment' },
+    // BOOK is a write: POST /api/appointments asks contacts:create. A plain link asks nothing, so it is named. (T68)
+    { label: 'Book Appointment', to: '/crm/appointments', icon: 'appointment', permission: 'contacts:create' },
     { label: 'Create Invoice', to: '/crm/invoices?contactId=:id', icon: 'invoice' },
   ],
 }

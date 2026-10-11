@@ -324,12 +324,12 @@ export default function CustomersPage() {
       <PageHeader
         title="Customers"
         subtitle={stats ? `${stats.total || 0} total customers` : ''}
-        action={
+        action={can('contacts:create') ? (
           <Button onClick={openCreateModal}>
             <Plus className="w-4 h-4 mr-2 inline" />
             Add Customer
           </Button>
-        }
+        ) : undefined}
       />
 
       {/* Stats */}

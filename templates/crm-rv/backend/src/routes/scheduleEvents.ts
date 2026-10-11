@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { scheduleEvent, user } from '../../db/schema.ts'
 import { eq, and, gte, lte, asc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 // Calendar appointments (test drives, service drop-offs, deliveries, follow-ups).
 // The scheduleEvent table existed but had no route, so the Schedule page had
@@ -52,8 +53,17 @@ const eventSchema = z.object({
   userId: z.string().optional(),
 })
 
+/**
+ * WRITES ASK A PERMISSION. (T43 viewer round, T68)
+ *
+ * Found sweeping the viewer's screens: Schedule offered "New Appointment" and "+ Add" on every day — and unlike the
+ * rest of the round, the server agreed. All three writes below were behind `authenticate` alone, so the read-only
+ * seat could book, move and cancel the dealership's appointments. Booking is schedule:create; rescheduling and
+ * cancelling (a soft cancel — an update) are schedule:update. Owner, admin and manager hold schedule:*; RV's floor
+ * seat is granted both in middleware/permissions.ts, because booking a test drive is its job.
+ */
 // POST / — create an appointment
-app.post('/', async (c) => {
+app.post('/', requirePermission('schedule:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = eventSchema.parse(await c.req.json())
 
@@ -76,8 +86,9 @@ app.post('/', async (c) => {
   return c.json(row, 201)
 })
 
-// PATCH /:id — update / reschedule
-app.patch('/:id', async (c) => {
+// PATCH /:id — update / reschedule. PUT too: the shared Schedule screen's api client sends PUT (it has no patch()),
+// so "Save" on an edited appointment answered 404 for every seat — the same allowance the booking routes make. (T68)
+const updateEvent = async (c: any) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const body = await c.req.json()
@@ -99,11 +110,13 @@ app.patch('/:id', async (c) => {
     .returning()
   if (!row) return c.json({ error: 'Appointment not found' }, 404)
   return c.json(row)
-})
+}
+app.patch('/:id', requirePermission('schedule:update'), updateEvent)
+app.put('/:id', requirePermission('schedule:update'), updateEvent)
 
 // DELETE /:id — "Cancel appointment". Soft-cancel (status='cancelled'), never a hard delete: the
 // appointment stays on the calendar greyed out and in history. Idempotent on an already-cancelled row.
-app.delete('/:id', async (c) => {
+app.delete('/:id', requirePermission('schedule:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const [row] = await db.update(scheduleEvent)

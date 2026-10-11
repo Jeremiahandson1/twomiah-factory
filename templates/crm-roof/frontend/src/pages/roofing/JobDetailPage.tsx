@@ -763,7 +763,9 @@ export default function JobDetailPage() {
                   </div>
                 ))}
               </div>
-              <div className="flex gap-2">
+              {/* The box goes with its button: POST /:id/notes is jobs:update. Only the button was gated, so the
+                  read-only seat could type a note — and press Enter — that could never be saved. (T43 viewer round, T68) */}
+              {mayWorkJob && <div className="flex gap-2">
                 <input
                   type="text"
                   value={noteText}
@@ -772,14 +774,14 @@ export default function JobDetailPage() {
                   placeholder="Add a note..."
                   className="flex-1 text-sm border rounded-lg px-3 py-2"
                 />
-                {mayWorkJob && (<button
+                <button
                   onClick={addNote}
                   disabled={savingNote || !noteText.trim()}
                   className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
                   {savingNote ? '...' : 'Add'}
-                </button>)}
-              </div>
+                </button>
+              </div>}
             </div>
 
             {/* Timeline */}

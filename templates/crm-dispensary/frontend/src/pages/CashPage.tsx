@@ -8,7 +8,9 @@ import { Button } from '../components/ui/DataTable';
 import { ConfirmModal } from '../components/ui/Modal';
 
 export default function CashPage() {
-  const { user, isManager, company } = useAuth();
+  const { user, isManager, company, isAtLeast } = useAuth();
+  // Opening and closing the drawer are requireRole('budtender'); everyone may read the session. (T43 viewer round, T68)
+  const mayTill = isAtLeast('budtender');
   // Drawers belong to the shop's day, not the viewer's. A drawer opened at 00:18 in Ohio was
   // listed under the previous day for anyone looking from further west, which is a reconciliation
   // that will never close. (T46 N16)
@@ -150,7 +152,7 @@ export default function CashPage() {
             </div>
 
             {/* Close Drawer */}
-            <div className="border-t pt-6">
+            {mayTill && <div className="border-t pt-6">
               <h3 className="font-medium text-gray-900 mb-3 dark:text-slate-100">Close Drawer</h3>
               <div className="grid md:grid-cols-2 gap-4 max-w-xl">
                 <div>
@@ -216,7 +218,7 @@ export default function CashPage() {
                   <Lock className="w-4 h-4" /> Close Drawer
                 </button>
               </div>
-            </div>
+            </div>}
           </div>
         ) : (
           <div>
@@ -229,7 +231,7 @@ export default function CashPage() {
                 <p className="text-sm text-gray-500 dark:text-slate-400">Open the cash drawer to start a new session</p>
               </div>
             </div>
-            <div className="max-w-xs">
+            {mayTill && <div className="max-w-xs">
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Opening Amount ($)</label>
               <input
                 type="number"
@@ -243,7 +245,7 @@ export default function CashPage() {
                 <Unlock className="w-4 h-4 mr-2 inline" />
                 {opening ? 'Opening...' : 'Open Drawer'}
               </Button>
-            </div>
+            </div>}
           </div>
         )}
       </div>

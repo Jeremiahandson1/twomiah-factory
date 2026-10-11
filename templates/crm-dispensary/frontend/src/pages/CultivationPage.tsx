@@ -207,6 +207,8 @@ function PlantsTab() {
     { key: 'plantType', label: 'Type', render: (val: string) => <span className="capitalize text-gray-600 dark:text-slate-400">{val}</span> },
     {
       key: 'phase', label: 'Phase', render: (val: string, row: any) => (
+        // PUT /plants/:id/phase is requireRole('manager'): below manager the phase is a label, not a picker. (T43 viewer round, T68)
+        !isManager ? <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${phaseColors[val] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'}`}>{phases.find(p => p.value === val)?.label || val}</span> :
         <select
           value={val}
           onChange={(e) => { e.stopPropagation(); handlePhaseChange(row.id, e.target.value); }}
@@ -246,7 +248,7 @@ function PlantsTab() {
         )}
       </div>
 
-      <DataTable data={plants} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[{ label: 'Delete', icon: Trash2, onClick: (row: any) => handleDelete(row.id), className: 'text-red-600' }]} emptyMessage="No plants found" />
+      <DataTable data={plants} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[{ label: 'Delete', icon: Trash2, onClick: (row: any) => handleDelete(row.id), className: 'text-red-600', show: () => isManager }]} emptyMessage="No plants found" />
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Add Plant" size="lg">
         <div className="grid md:grid-cols-2 gap-4">
@@ -294,6 +296,8 @@ function PlantsTab() {
 
 /* ─── Rooms Tab ─── */
 function RoomsTab() {
+  // POST/PUT /rooms are requireRole('manager'). (T43 viewer round, T68)
+  const { isManager } = useAuth();
   const toast = useToast();
   const [rooms, setRooms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -379,7 +383,7 @@ function RoomsTab() {
   return (
     <>
       <div className="flex justify-end mb-4">
-        <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add Room</Button>
+        {isManager && <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add Room</Button>}
       </div>
 
       {rooms.length === 0 ? (
@@ -392,8 +396,8 @@ function RoomsTab() {
             return (
               <div
                 key={room.id}
-                className="bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-shadow cursor-pointer dark:bg-slate-900"
-                onClick={() => openEdit(room)}
+                className={`bg-white rounded-lg shadow-sm p-5 transition-shadow dark:bg-slate-900 ${isManager ? 'hover:shadow-md cursor-pointer' : ''}`}
+                onClick={isManager ? () => openEdit(room) : undefined}
               >
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-gray-900 dark:text-slate-100">{room.name}</h3>
@@ -476,6 +480,8 @@ function RoomsTab() {
 
 /* ─── Harvests Tab ─── */
 function HarvestsTab() {
+  // POST /harvests is requireRole('manager'). (T43 viewer round, T68)
+  const { isManager } = useAuth();
   const toast = useToast();
   const [harvests, setHarvests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -547,9 +553,9 @@ function HarvestsTab() {
   return (
     <>
       <div className="flex justify-end mb-4">
-        <Button onClick={() => { setFormData({ name: '', strainName: '', plantCount: '', wetWeight: '', dryWeight: '', notes: '' }); setModalOpen(true); }}>
+        {isManager && <Button onClick={() => { setFormData({ name: '', strainName: '', plantCount: '', wetWeight: '', dryWeight: '', notes: '' }); setModalOpen(true); }}>
           <Plus className="w-4 h-4 mr-2 inline" />Create Harvest
-        </Button>
+        </Button>}
       </div>
 
       <DataTable data={harvests} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} emptyMessage="No harvests yet" />

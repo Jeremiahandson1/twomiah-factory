@@ -469,9 +469,10 @@ function InventoryTab() {
   ];
 
   const actions = [
-    { label: 'Edit', icon: Edit, onClick: openEdit },
-    { label: 'Adjust Stock', icon: ArrowDownUp, onClick: openStockAdjust },
-    { label: 'Delete', icon: Trash2, onClick: handleDelete, className: 'text-red-600' },
+    // PUT, adjust-stock and DELETE are requireRole('manager'). (T43 viewer round, T68)
+    { label: 'Edit', icon: Edit, onClick: openEdit, show: () => isManager },
+    { label: 'Adjust Stock', icon: ArrowDownUp, onClick: openStockAdjust, show: () => isManager },
+    { label: 'Delete', icon: Trash2, onClick: handleDelete, className: 'text-red-600', show: () => isManager },
   ];
 
   return (
@@ -726,6 +727,8 @@ function InventoryTab() {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 function ApplicationsTab() {
+  // POST /applications is requireRole('manager'); the history below stays open. (T43 viewer round, T68)
+  const { isManager } = useAuth();
   const toast = useToast();
 
   // Log application form
@@ -913,7 +916,7 @@ function ApplicationsTab() {
   return (
     <div className="space-y-6">
       {/* Log Application Form */}
-      <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+      {isManager && <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
         <h3 className="text-lg font-semibold text-gray-900 mb-4 dark:text-slate-100">Log Application</h3>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Input Search */}
@@ -1104,7 +1107,7 @@ function ApplicationsTab() {
             </Button>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Application History */}
       <div>
@@ -1155,6 +1158,8 @@ function ApplicationsTab() {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 function PoliciesTab() {
+  // POST/PUT /policies and POST /policies/check are requireRole('manager'). (T43 viewer round, T68)
+  const { isManager } = useAuth();
   const toast = useToast();
   const [policies, setPolicies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1301,14 +1306,14 @@ function PoliciesTab() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-4">
-        <div className="flex gap-2">
+        {isManager && <div className="flex gap-2">
           <Button onClick={openCreate}>
             <Plus className="w-4 h-4 mr-2 inline" />Create Policy
           </Button>
           <Button variant="secondary" onClick={() => { setCheckModal(true); setCheckResult(null); setCheckInputSearch(''); setCheckInputId(''); }}>
             <Shield className="w-4 h-4 mr-2 inline" />Check Input
           </Button>
-        </div>
+        </div>}
       </div>
 
       {/* Policy Cards */}
@@ -1348,7 +1353,7 @@ function PoliciesTab() {
                 </span>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => openEdit(policy)} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 font-medium dark:text-orange-300">Edit</button>
+                {isManager && <button onClick={() => openEdit(policy)} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 font-medium dark:text-orange-300">Edit</button>}
               </div>
             </div>
           ))}

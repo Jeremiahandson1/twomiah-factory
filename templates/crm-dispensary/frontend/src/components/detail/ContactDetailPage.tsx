@@ -17,7 +17,7 @@ import { Modal, ConfirmModal } from '../ui/Modal';
 export default function ContactDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, can } = useAuth();
+  const { user, can, isAtLeast } = useAuth();
   const toast = useToast();
   const [contact, setContact] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -396,13 +396,14 @@ export default function ContactDetailPage() {
           <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
             <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Quick Actions</h2>
             <div className="space-y-2">
-              <Link
+              {/* POST /api/orders is requireRole('budtender'). (T43 viewer round, T68) */}
+              {isAtLeast('budtender') && <Link
                 to={`/crm/orders/new?customerId=${id}`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
                 <ShoppingCart className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Create Order
-              </Link>
+              </Link>}
               {/* Adjusting a balance is loyalty:adjust — a budtender got "manager role required"
                   from a button sitting in their own Quick Actions. (T56 L11) */}
               {can('loyalty:adjust') && (

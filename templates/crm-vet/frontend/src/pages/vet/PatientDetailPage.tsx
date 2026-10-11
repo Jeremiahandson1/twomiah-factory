@@ -170,6 +170,11 @@ export default function PatientDetailPage() {
   // DELETE /api/patients/:id asks contacts:delete now, not contacts:update — a receptionist holds
   // the latter by grant and could put an animal's record out of existence. (T41)
   const mayDeletePatient = useMayWrite('contacts:delete');
+  // Everything else on the chart: a new visit, vaccine, Rx or lab is contacts:create; editing the patient or a visit
+  // is contacts:update; billing a visit is invoices:create. The read-only seat was offered all of them. (T43 viewer round, T68)
+  const mayChart = useMayWrite('contacts:create');
+  const mayEditChart = useMayWrite('contacts:update');
+  const mayBill = useMayWrite('invoices:create');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [detail, setDetail] = useState<Detail>({});
@@ -389,9 +394,9 @@ export default function PatientDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowEdit(true)} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">
+            {mayEditChart && <button onClick={() => setShowEdit(true)} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">
               <Edit className="w-4 h-4" /> Edit
-            </button>
+            </button>}
             {mayDeletePatient && (
               <button onClick={() => setDeleteOpen(true)} className="flex items-center gap-1 px-3 py-1.5 border border-red-200 text-red-700 dark:text-red-400 rounded-lg text-sm hover:bg-red-50 dark:hover:bg-red-500/10">
                 <Trash2 className="w-4 h-4" /> Delete
@@ -470,11 +475,11 @@ export default function PatientDetailPage() {
       {/* Visits */}
       {tab === 'visits' && (
         <div className="space-y-3">
-          <div className="flex justify-end">
+          {mayChart && <div className="flex justify-end">
             <button onClick={() => { setEditVisit(null); setShowVisit(true); }} className="flex items-center gap-2 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm">
               <Plus className="w-4 h-4" /> New Visit
             </button>
-          </div>
+          </div>}
           {/* A cap nobody is told about is the fault. Say it on the chart. (T58) */}
           {visitsTruncated && (
             <p className="text-sm text-amber-700 dark:text-amber-400">
@@ -502,7 +507,7 @@ export default function PatientDetailPage() {
                       <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{money(v.total)}</span>
                       {(v as Record<string, unknown>).invoiceId ? (
                         <Link to={`/crm/invoices/${(v as Record<string, unknown>).invoiceId as string}`} className="text-sm text-green-700 hover:text-green-800 dark:hover:text-green-300 dark:text-green-300">Billed →</Link>
-                      ) : Number(v.total) > 0 ? (
+                      ) : Number(v.total) > 0 && mayBill ? (
                         <button
                           onClick={() => billVisit(v.id)}
                           disabled={billingVisitId === v.id}
@@ -511,7 +516,7 @@ export default function PatientDetailPage() {
                           {billingVisitId === v.id ? 'Billing…' : 'Bill this visit'}
                         </button>
                       ) : null}
-                      <button onClick={() => { setEditVisit(v); setShowVisit(true); }} className="text-sm text-teal-700 hover:text-teal-800 dark:hover:text-teal-300 dark:text-teal-300">Edit</button>
+                      {mayEditChart && <button onClick={() => { setEditVisit(v); setShowVisit(true); }} className="text-sm text-teal-700 hover:text-teal-800 dark:hover:text-teal-300 dark:text-teal-300">Edit</button>}
                     </div>
                   </div>
                   {(v.assessment || v.plan) && (
@@ -538,11 +543,11 @@ export default function PatientDetailPage() {
       {/* Vaccinations */}
       {tab === 'vaccinations' && (
         <div className="space-y-3">
-          <div className="flex justify-end">
+          {mayChart && <div className="flex justify-end">
             <button onClick={() => setShowVaccine(true)} className="flex items-center gap-2 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm">
               <Plus className="w-4 h-4" /> Add Vaccine
             </button>
-          </div>
+          </div>}
           {vaccinations.length === 0 ? (
             <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">No vaccinations recorded</div>
           ) : (
@@ -594,11 +599,11 @@ export default function PatientDetailPage() {
       {/* Prescriptions */}
       {tab === 'prescriptions' && (
         <div className="space-y-3">
-          <div className="flex justify-end">
+          {mayChart && <div className="flex justify-end">
             <button onClick={() => setShowRx(true)} className="flex items-center gap-2 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm">
               <Plus className="w-4 h-4" /> Add Rx
             </button>
-          </div>
+          </div>}
           {prescriptions.length === 0 ? (
             <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">No prescriptions recorded</div>
           ) : (
@@ -627,11 +632,11 @@ export default function PatientDetailPage() {
       {/* Lab Results */}
       {tab === 'labs' && (
         <div className="space-y-3">
-          <div className="flex justify-end">
+          {mayChart && <div className="flex justify-end">
             <button onClick={() => setShowLab(true)} className="flex items-center gap-2 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm">
               <Plus className="w-4 h-4" /> Add Lab
             </button>
-          </div>
+          </div>}
           {labResults.length === 0 ? (
             <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">No lab results recorded</div>
           ) : (

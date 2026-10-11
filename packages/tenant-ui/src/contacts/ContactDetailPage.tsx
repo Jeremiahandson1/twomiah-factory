@@ -98,6 +98,8 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
   // Both Add Equipment links open the equipment page, whose Add is POST /api/equipment (equipment:create). Crew
   // were sent to a page offering them nothing to add. (T67)
   const mayAddEquipment = cfg.can('equipment:create')
+  // Add Patient opens the patients page to create one — POST /api/patients asks contacts:create (vet). (T43 viewer round, T68)
+  const mayAddPatient = cfg.can('contacts:create')
   // Managing a customer's portal — switching it on, reissuing the link, emailing it, reading it out —
   // is one permission, and it is not the one that opens this page. The server withholds the link from
   // a seat without it (GET …/link, portal:share — owners, admins and managers); this is the same answer on
@@ -332,7 +334,8 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {contact.type === 'lead' && <Button variant="success" onClick={handleConvert}>Convert to {cfg.convertLabel}</Button>}
+          {/* POST /:id/convert asks contacts:update — the list's Convert already asked it (mayEdit); the header did not. (T68) */}
+          {contact.type === 'lead' && mayEdit && <Button variant="success" onClick={handleConvert}>Convert to {cfg.convertLabel}</Button>}
           {/*
             `returnTo` so closing or saving the dialog brings you back HERE. (T51 follow-up)
 
@@ -417,7 +420,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                 <h2 className={h2}>Patients</h2>
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-gray-500 dark:text-slate-400">{contact.patients?.length || 0}</span>
-                  <NavLink to="/crm/patients" className="px-3 py-1.5 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 flex items-center gap-1"><Plus className="w-3 h-3" />Add Patient</NavLink>
+                  {mayAddPatient && <NavLink to="/crm/patients" className="px-3 py-1.5 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 flex items-center gap-1"><Plus className="w-3 h-3" />Add Patient</NavLink>}
                 </div>
               </div>
               {contact.patients && contact.patients.length > 0 ? (

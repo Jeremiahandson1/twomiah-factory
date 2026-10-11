@@ -354,8 +354,9 @@ app.get('/:id', async (c) => {
     // the customer's portal credential never travels with their record (T42)
     contact: jobContact[0] ? withoutPortalCredential(jobContact[0]) : null,
     crew: jobCrew[0] || null,
-    // what the report cost is money (invoices:read), the same rule as /api/measurements (T62)
-    measurementReport: measurement[0] ? (maySeeJobMoney ? measurement[0] : (({ cost, ...rest }: any) => rest)(measurement[0])) : null,
+    // what the report cost is what the company PAYS — margin:read, the same rule as /api/measurements (T62; it was
+    // invoices:read, which the viewer holds for revenue — T68)
+    measurementReport: measurement[0] ? (maySeeJobCost ? measurement[0] : (({ cost, ...rest }: any) => rest)(measurement[0])) : null,
     photos,
     notes,
     quotes: maySeeJobMoney ? jobQuotes : [],

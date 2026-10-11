@@ -5,13 +5,15 @@ import { sql, eq } from 'drizzle-orm'
 import { settledSale, taxCollected, netExprBare, refundedExprBare, taxNetExprBare, aovExprBare, aovSettledExprBare } from '../utils/revenue.ts'
 import { storeDayRange, storeDateString, zoneFor, storeRange } from '../utils/isoTime.ts'
 import { authenticate } from '../middleware/auth.ts'
-import { requireRole } from '../middleware/permissions.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
 
-// All analytics endpoints require manager+
-app.use('*', requireRole('manager'))
+// All analytics endpoints ask analytics:read — owner ('*'), admin (analytics:*) and manager hold it, the same three
+// seats requireRole('manager') let in. It asked the RANK, so the permission the matrix grants was decoration, and
+// the viewer's /me listed analytics:read for routes that refused it. (T43 viewer round, T68)
+app.use('*', requirePermission('analytics:read'))
 
 // `tzFor` and `storeRange` used to be defined right here, privately. They were the only correct
 // implementation of the store's day in the whole product, and because they were private, twelve

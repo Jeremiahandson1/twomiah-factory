@@ -12,12 +12,17 @@ const app = new Hono()
 
 /**
  * WHAT A REPORT COST IS THE BOOKS. (T62: "Roofing measurement reports show the cost per report" to staff.)
- * A crew reads the squares, the pitch and the area; the price the company paid per report is money, and money is
- * invoices:read. `cost` comes off every report a read returns, and `pricePerReport` off the credits read.
+ * A crew reads the squares, the pitch and the area; the price the company paid per report is money.
+ * `cost` comes off every report a read returns, and `pricePerReport` off the credits read.
+ *
+ * …and it is what the company PAYS, so it is margin:read, not invoices:read. (T43 viewer round: "Measurement report
+ * cost is shown to the viewer.") The viewer holds invoices:read — it reads REVENUE, by the owner's decision — and
+ * the owner decided in the same breath that it does not read cost. Owner, admin and manager hold margin:read, so
+ * nothing changes for them or for the crew; only the read-only seat stops seeing what a report cost. (T68)
  */
 const maySeeMoney = async (c: any): Promise<boolean> => {
   const u = c.get('user') as any
-  try { return hasPermission(u?.role, 'invoices:read', await getExtraPermissions(u?.userId)) } catch { return false }
+  try { return hasPermission(u?.role, 'margin:read', await getExtraPermissions(u?.userId)) } catch { return false }
 }
 const withoutCost = <T extends Record<string, any>>(r: T): T => { const { cost, ...rest } = r as any; return rest as T }
 

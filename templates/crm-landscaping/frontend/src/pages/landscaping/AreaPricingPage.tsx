@@ -117,8 +117,9 @@ export default function AreaPricingPage() {
         </div>}
       </section>
 
-      {/* Site measurements */}
-      <section className="bg-white border rounded-lg p-5 dark:bg-slate-900">
+      {/* Site measurements — a form with nothing else on it, so it goes with its Save (contacts:update). The boxes
+          could be typed into by a seat whose Save was hidden. (T43 viewer round, T68) */}
+      {maySaveMeasurements && <section className="bg-white border rounded-lg p-5 dark:bg-slate-900">
         <h2 className="font-semibold mb-3">Set Property Measurements</h2>
         <div className="grid grid-cols-2 md:grid-cols-6 gap-2 items-end">
           <div className="col-span-2">
@@ -129,8 +130,8 @@ export default function AreaPricingPage() {
             <input key={f} className="border rounded px-2 py-1.5 text-sm" type="number" placeholder={f.replace('Sqft', '') + ' sq ft'} value={measure[f]} onChange={e => setMeasure({ ...measure, [f]: e.target.value })} />
           ))}
         </div>
-        {maySaveMeasurements && <button onClick={saveMeasurements} className="mt-3 bg-gray-800 text-white rounded px-4 py-1.5 text-sm">Save Measurements</button>}
-      </section>
+        <button onClick={saveMeasurements} className="mt-3 bg-gray-800 text-white rounded px-4 py-1.5 text-sm">Save Measurements</button>
+      </section>}
 
       {/* Quote calculator */}
       <section className="bg-white border rounded-lg p-5 dark:bg-slate-900">

@@ -17,7 +17,9 @@ const queueStatuses: Record<string, string> = {
 const sources = ['walk_in', 'online', 'phone', 'qr_code'];
 
 export default function CheckinPage() {
-  const { isManager } = useAuth();
+  const { isManager, isAtLeast } = useAuth();
+  // Checking a customer in and moving them through the queue are requireRole('budtender'). (T43 viewer round, T68)
+  const mayWork = isAtLeast('budtender');
   const toast = useToast();
   const [tab, setTab] = useState('queue');
   const [queue, setQueue] = useState<any[]>([]);
@@ -130,10 +132,10 @@ export default function CheckinPage() {
           >
             <RefreshCw className="w-5 h-5" />
           </button>
-          <Button onClick={() => { setCheckinForm({ name: '', phone: '', isMedical: false, notes: '', source: 'walk_in' }); setCheckinModal(true); }}>
+          {mayWork && <Button onClick={() => { setCheckinForm({ name: '', phone: '', isMedical: false, notes: '', source: 'walk_in' }); setCheckinModal(true); }}>
             <Plus className="w-4 h-4 mr-2 inline" />
             Check In Customer
-          </Button>
+          </Button>}
         </div>
       </div>
 
@@ -231,7 +233,7 @@ export default function CheckinPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex gap-2 ml-4">
+                      {mayWork && <div className="flex gap-2 ml-4">
                         {entry.status === 'waiting' && (
                           <button
                             onClick={() => updateStatus(entry.id, 'called')}
@@ -264,7 +266,7 @@ export default function CheckinPage() {
                             No-Show
                           </button>
                         )}
-                      </div>
+                      </div>}
                     </div>
                   </div>
                 ))}

@@ -62,7 +62,8 @@ export default function MyAccountPage() {
 
       <section aria-labelledby="acct-pin">
         <h2 id="acct-pin" className="sr-only">Till PIN</h2>
-        <TillPinCard user={user} toast={toast} />
+        {/* PUT /api/auth/pin refuses the viewer seat (pin_not_for_role) — the card was offered to it anyway. (T43 viewer round, T68) */}
+        {user?.role !== 'viewer' && <TillPinCard user={user} toast={toast} />}
       </section>
     </div>
   );

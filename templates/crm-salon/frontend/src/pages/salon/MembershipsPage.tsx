@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Loader2, X, CreditCard, Edit2, Trash2, Check, Users, UserPlus } from 'lucide-react';
 import api from '../../services/api';
+import { useMayWrite } from '../../shared';
 import ClientPicker from '../../components/salon/ClientPicker';
 import { todayStr } from '../../utils/date';
 import { money as fmtMoney } from '../../shared';
@@ -64,6 +65,12 @@ function cycleLabel(c?: string): string {
 }
 
 export default function MembershipsPage() {
+  // Plans: POST pricebook:create, PUT/DELETE pricebook:update. Enrolments: POST contacts:create, cancel (PUT) and
+  // "Use a credit" contacts:update (memberships.ts). (T43 viewer round, T68)
+  const mayCreatePlan = useMayWrite('pricebook:create');
+  const mayEditPlan = useMayWrite('pricebook:update');
+  const mayEnroll = useMayWrite('contacts:create');
+  const mayWorkEnrollment = useMayWrite('contacts:update');
   const confirm = useConfirm();
   const toast = useToast();
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -132,17 +139,17 @@ export default function MembershipsPage() {
           <p className="text-gray-500 dark:text-slate-400">Recurring plans and prepaid packages</p>
         </div>
         <div className="flex gap-2">
-          <button
+          {mayEnroll && <button
             onClick={() => setEnrolling(true)}
             disabled={activePlans.length === 0}
             className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50"
             title={activePlans.length === 0 ? 'Create a plan first' : undefined}
           >
             <UserPlus className="w-4 h-4" /> Enroll Client
-          </button>
-          <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">
+          </button>}
+          {mayCreatePlan && <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">
             <Plus className="w-4 h-4" /> New Plan
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -180,12 +187,12 @@ export default function MembershipsPage() {
                     <span className="text-xs text-gray-500 dark:text-slate-400">
                       {enrollments.filter((e) => e.planId === p.id && e.status === 'active').length} member(s)
                     </span>
-                    <div className="flex items-center gap-2">
+                    {mayEditPlan && <div className="flex items-center gap-2">
                       <button onClick={() => { setEditing(p); setShowForm(true); }} className="p-1 text-gray-400 hover:text-gray-600" title="Edit"><Edit2 className="w-4 h-4" /></button>
                       {p.active && (
                         <button onClick={() => retire(p)} className="p-1 text-gray-400 hover:text-red-600" title="Retire"><Trash2 className="w-4 h-4" /></button>
                       )}
-                    </div>
+                    </div>}
                   </div>
                 </div>
               ))}
@@ -230,10 +237,10 @@ export default function MembershipsPage() {
                           <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${e.status === 'active' && e.creditsRemaining === 0 ? 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40' : 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400'}`}>{e.status === 'active' && e.creditsRemaining === 0 ? 'used up' : (e.status || 'active')}</span>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {e.status === 'active' && e.creditsRemaining !== null && e.creditsRemaining !== undefined && e.creditsRemaining > 0 && (
+                          {mayWorkEnrollment && e.status === 'active' && e.creditsRemaining !== null && e.creditsRemaining !== undefined && e.creditsRemaining > 0 && (
                             <button onClick={() => redeem(e)} className="text-xs text-teal-700 hover:text-teal-800 dark:text-teal-300 dark:hover:text-teal-200">Use a credit</button>
                           )}
-                          {e.status === 'active' && (
+                          {mayWorkEnrollment && e.status === 'active' && (
                             <button onClick={() => cancelEnrollment(e)} className="ml-3 text-xs text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400">Cancel</button>
                           )}
                         </td>

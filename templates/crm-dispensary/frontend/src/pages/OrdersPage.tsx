@@ -42,7 +42,9 @@ const statusColors: Record<string, string> = {
 };
 
 export default function OrdersPage() {
-  const { company } = useAuth();
+  const { company, isAtLeast } = useAuth();
+  // POST /api/orders is requireRole('budtender'). (T43 viewer round, T68)
+  const maySell = isAtLeast('budtender');
   // The shop's clock, so the list agrees with the receipt. (T45 M24)
   const storeTz = (company as any)?.timeZone as string | undefined;
   const toast = useToast();
@@ -170,14 +172,14 @@ export default function OrdersPage() {
       <PageHeader
         title="Orders"
         subtitle="Order history and management"
-        action={
+        action={maySell ? (
           <button
             onClick={() => navigate('/crm/orders/new')}
             className="px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 font-medium flex items-center gap-2"
           >
             <ShoppingCart className="w-4 h-4" /> New Sale
           </button>
-        }
+        ) : undefined}
       />
 
       {/* Status Tabs */}

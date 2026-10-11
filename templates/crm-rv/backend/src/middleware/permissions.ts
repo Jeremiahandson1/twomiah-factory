@@ -12,4 +12,9 @@ export const {
 } = createPermissions({
   db,
   tables: { user },
+  // The floor books test drives, drop-offs and deliveries (routes/scheduleEvents.ts). Those routes asked nothing
+  // until T68; granting the floor seat what they now ask keeps its scheduling exactly as it was.
+  extraRolePermissions: {
+    field: ['schedule:create', 'schedule:update'],
+  },
 })

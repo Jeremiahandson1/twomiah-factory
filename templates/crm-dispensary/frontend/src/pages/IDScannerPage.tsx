@@ -24,9 +24,12 @@ const verificationColors: Record<string, string> = {
 };
 
 export default function IDScannerPage() {
-  const { isManager } = useAuth();
+  const { isManager, isAtLeast } = useAuth();
   const toast = useToast();
-  const [tab, setTab] = useState('scan');
+  // POST /scan is requireRole('budtender'); Scan History and Flagged read manager-only routes. The sidebar
+  // entry is budtender-and-up (AppLayout); the tabs say the same. (T43 viewer round, T68)
+  const mayScan = isAtLeast('budtender');
+  const [tab, setTab] = useState(mayScan ? 'scan' : 'none');
 
   // Scan
   const [scanMethod, setScanMethod] = useState('barcode');
@@ -183,7 +186,7 @@ export default function IDScannerPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 border-b overflow-x-auto">
-        {tabs.map(t => (
+        {tabs.filter(t => (t.id === 'scan' ? mayScan : isManager)).map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}

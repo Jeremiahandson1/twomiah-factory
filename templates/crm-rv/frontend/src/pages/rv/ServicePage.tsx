@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Loader2, X, Wrench } from 'lucide-react';
 import api from '../../services/api';
-import { PageError, errorText } from '../../shared';
+import { PageError, errorText, useMayWrite } from '../../shared';
 
 /**
  * Service Department — repair orders backed by /api/repair-orders.
@@ -50,6 +50,10 @@ function unitDesc(row: RoRow): string {
 }
 
 export default function ServicePage() {
+  // POST /api/repair-orders asks contacts:create; changing an RO's status is PUT — contacts:update. The read-only seat
+  // was offered New Repair Order and a status picker on every row. (T43 viewer round, T68)
+  const mayOpenRo = useMayWrite('contacts:create');
+  const mayMoveRo = useMayWrite('contacts:update');
   const [rows, setRows] = useState<RoRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -95,9 +99,9 @@ export default function ServicePage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Service</h1>
           <p className="text-gray-500 dark:text-slate-400">Repair orders & shop status</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">
+        {mayOpenRo && <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">
           <Plus className="w-4 h-4" /> New Repair Order
-        </button>
+        </button>}
       </div>
 
       <PageError message={pageErr} onDismiss={() => setPageErr('')} />
@@ -146,13 +150,15 @@ export default function ServicePage() {
                         : '—'}
                   </td>
                   <td className="px-4 py-3">
-                    <select
+                    {!mayMoveRo
+                      ? <span className={`text-xs px-2 py-1 rounded-full ${STATUS_COLORS[row.ro.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'}`}>{STATUSES.find((s) => s.value === row.ro.status)?.label || row.ro.status}</span>
+                      : <select
                       value={row.ro.status}
                       onChange={(e) => changeStatus(row.ro.id, e.target.value)}
                       className={`text-xs px-2 py-1 rounded-full border-0 ${STATUS_COLORS[row.ro.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}
                     >
                       {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                    </select>
+                    </select>}
                   </td>
                 </tr>
               ))}

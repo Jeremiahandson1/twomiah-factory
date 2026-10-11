@@ -227,10 +227,11 @@ export default function ManufacturingPage() {
 
   const actions = [
     { label: 'View Details', icon: FlaskConical, onClick: openDetail },
-    { label: 'Start Job', icon: Play, onClick: handleStartJob },
-    { label: 'Complete', icon: CheckCircle, onClick: openCompleteModal },
-    { label: 'Mark Failed', icon: XCircle, onClick: handleFail, className: 'text-red-600' },
-    { label: 'Delete', icon: Trash2, onClick: handleDelete, className: 'text-red-600' },
+    // start / complete / fail / delete are all requireRole('manager'). (T43 viewer round, T68)
+    { label: 'Start Job', icon: Play, onClick: handleStartJob, show: () => isManager },
+    { label: 'Complete', icon: CheckCircle, onClick: openCompleteModal, show: () => isManager },
+    { label: 'Mark Failed', icon: XCircle, onClick: handleFail, className: 'text-red-600', show: () => isManager },
+    { label: 'Delete', icon: Trash2, onClick: handleDelete, className: 'text-red-600', show: () => isManager },
   ];
 
   return (

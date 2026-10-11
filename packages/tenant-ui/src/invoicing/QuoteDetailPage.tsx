@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Edit, Trash2, Send, Check, X, FileText, Download, Briefcase, Wrench, MapPinned } from 'lucide-react'
 import type { InvoicingPageProps } from './types'
 import { resolveConfig } from './types'
+import { useMayWrite } from '../auth/PermissionsContext'
 import { Button, ConfirmModal, NavLink, StatusBadge, dateOnly, dateTime, downloadFile, errMsg, expiryLabel, isPastDay, money } from './ui'
 
 type Q = Record<string, any>
@@ -17,6 +18,11 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
   const [error, setError] = useState('')
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  // Each button asks the permission its route asks — see QuotesPage. (T43 viewer round, T68)
+  const mayUpdate = useMayWrite('quotes:update')
+  const mayDelete = useMayWrite('quotes:delete')
+  const mayInvoice = useMayWrite('invoices:create')
+  const mayJob = useMayWrite('jobs:create')
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -47,14 +53,14 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {editable && <Button variant="secondary" onClick={() => act(`/api/quotes/${id}/send`, 'Quote sent')} disabled={busy}><Send className="w-4 h-4" /> {quote.sentAt ? 'Send again' : 'Send'}</Button>}
-          {editable && <Button variant="success" onClick={() => act(`/api/quotes/${id}/approve`, 'Quote approved')} disabled={busy}><Check className="w-4 h-4" /> Mark approved</Button>}
-          {editable && <Button variant="secondary" onClick={() => act(`/api/quotes/${id}/${cfg.quoteDecline ? 'decline' : 'reject'}`, cfg.quoteDecline ? 'Quote declined' : 'Quote rejected')} disabled={busy}><X className="w-4 h-4" /> {cfg.quoteDecline ? 'Mark declined' : 'Mark rejected'}</Button>}
-          {quote.status === 'approved' && cfg.jobs && !quote.convertedToJobId && <Button variant="success" onClick={async () => { const job = await act(`/api/quotes/${id}/convert-to-job`, 'Job created from quote'); if (job?.id) navigate(cfg.jobPath(job.id)) }} disabled={busy}><Briefcase className="w-4 h-4" /> Convert to Job</Button>}
-          {quote.status === 'approved' && <Button onClick={async () => { const inv = await act(`/api/quotes/${id}/convert-to-invoice`, 'Invoice created'); if (inv?.id) navigate(`/crm/invoices/${inv.id}`) }} disabled={busy}><FileText className="w-4 h-4" /> Create Invoice</Button>}
+          {editable && mayUpdate && <Button variant="secondary" onClick={() => act(`/api/quotes/${id}/send`, 'Quote sent')} disabled={busy}><Send className="w-4 h-4" /> {quote.sentAt ? 'Send again' : 'Send'}</Button>}
+          {editable && mayUpdate && <Button variant="success" onClick={() => act(`/api/quotes/${id}/approve`, 'Quote approved')} disabled={busy}><Check className="w-4 h-4" /> Mark approved</Button>}
+          {editable && mayUpdate && <Button variant="secondary" onClick={() => act(`/api/quotes/${id}/${cfg.quoteDecline ? 'decline' : 'reject'}`, cfg.quoteDecline ? 'Quote declined' : 'Quote rejected')} disabled={busy}><X className="w-4 h-4" /> {cfg.quoteDecline ? 'Mark declined' : 'Mark rejected'}</Button>}
+          {quote.status === 'approved' && cfg.jobs && mayJob && !quote.convertedToJobId && <Button variant="success" onClick={async () => { const job = await act(`/api/quotes/${id}/convert-to-job`, 'Job created from quote'); if (job?.id) navigate(cfg.jobPath(job.id)) }} disabled={busy}><Briefcase className="w-4 h-4" /> Convert to Job</Button>}
+          {quote.status === 'approved' && mayInvoice && <Button onClick={async () => { const inv = await act(`/api/quotes/${id}/convert-to-invoice`, 'Invoice created'); if (inv?.id) navigate(`/crm/invoices/${inv.id}`) }} disabled={busy}><FileText className="w-4 h-4" /> Create Invoice</Button>}
           <Button variant="secondary" onClick={handlePdf}><Download className="w-4 h-4" /> PDF</Button>
-          {editable && <NavLink to={`/crm/quotes?edit=${id}`} className={secondary}><Edit className="w-4 h-4" /> Edit</NavLink>}
-          {quote.status === 'draft' && <Button variant="danger" onClick={() => setDeleteOpen(true)} aria-label="Delete quote"><Trash2 className="w-4 h-4" /></Button>}
+          {editable && mayUpdate && <NavLink to={`/crm/quotes?edit=${id}`} className={secondary}><Edit className="w-4 h-4" /> Edit</NavLink>}
+          {quote.status === 'draft' && mayDelete && <Button variant="danger" onClick={() => setDeleteOpen(true)} aria-label="Delete quote"><Trash2 className="w-4 h-4" /></Button>}
         </div>
       </div>
 

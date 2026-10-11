@@ -4,6 +4,7 @@ import { formatDate } from '../utils/date';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { DataTable, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
 
@@ -29,6 +30,9 @@ interface PaginationData {
 
 export default function DailyLogsPage() {
   const toast = useToast();
+  // Every write on this page asks daily-logs:create|update|delete on the server (routes/dailyLogs.ts); the
+  // read-only seat was offered all of them. Same `can` the Change Orders and Bids pages ask. (T43 viewer round, T68)
+  const { can } = useAuth();
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [projects, setProjects] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,7 +100,7 @@ export default function DailyLogsPage() {
   /** `&new=true` opens the form with that project already chosen; the parameter is then dropped so
    *  the browser's Back button does not reopen the dialog. (T51) */
   useEffect(() => {
-    if (searchParams.get('new') !== 'true') return;
+    if (searchParams.get('new') !== 'true' || !can('daily-logs:create')) return;
     openCreate(projectFilter);
     const next = new URLSearchParams(searchParams); next.delete('new');
     setSearchParams(next, { replace: true });
@@ -116,7 +120,7 @@ export default function DailyLogsPage() {
     <div>
       {/* () => openCreate(), not openCreate — the handler now takes a projectId, and passing the
           click event straight in would put a React SyntheticEvent in the form's project field. */}
-      <PageHeader title="Daily Logs" action={<Button onClick={() => openCreate()}><Plus className="w-4 h-4 mr-2 inline"/>New Log</Button>} />
+      <PageHeader title="Daily Logs" action={can('daily-logs:create') ? <Button onClick={() => openCreate()}><Plus className="w-4 h-4 mr-2 inline"/>New Log</Button> : undefined} />
       {/* A filter that is applied and not shown is indistinguishable from a project with no diary. */}
       {projectFilter && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-orange-50 px-3 py-2 text-sm text-orange-900 dark:bg-orange-950 dark:text-orange-100">
@@ -129,7 +133,7 @@ export default function DailyLogsPage() {
           </Link>
         </div>
       )}
-      <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[{ label: 'Edit', icon: Edit, onClick: openEdit }, { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' }]} />
+      <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[{ label: 'Edit', icon: Edit, onClick: openEdit, show: () => can('daily-logs:update') }, { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600', show: () => can('daily-logs:delete') }]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Log' : 'New Daily Log'} size="lg">
         <div className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">

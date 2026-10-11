@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 // The day on the wall behind the dispatcher, not the day in UTC. (Evergreen BUG-28)
-import { todayKey, dayKeyPlus, useKnownPermission } from '../../shared';
+import { todayKey, dayKeyPlus, useKnownPermission, useMayWrite } from '../../shared';
 import { useToast } from '../../contexts/ToastContext';
 
 const SERVICE_TYPES = ['install', 'repair', 'maintenance', 'emergency'] as const;
@@ -330,6 +330,10 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }) {
 }
 
 function DispatchCard({ job, techs, onAssign, onStatusChange }) {
+  // Assigning, starting and completing are all PUT /api/jobs/:id — jobs:update. The picker was shown to anyone who
+  // could read the team, which a read-only seat can: "Dispatch assign dropdowns and the job Start/Edit buttons".
+  // (T43 viewer round, T68)
+  const mayUpdate = useMayWrite('jobs:update');
   const [assigning, setAssigning] = useState(false);
 
   const priority = job.priority || 'normal';
@@ -416,7 +420,7 @@ function DispatchCard({ job, techs, onAssign, onStatusChange }) {
       )}
 
       {/* Actions */}
-      <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-700 space-y-2">
+      {mayUpdate && <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-700 space-y-2">
         {/* Assign Dropdown */}
         {/* No list to pick from (this seat may not read the team) → no picker, rather than an empty one. (T62) */}
         {job.status !== 'completed' && techs.length > 0 && (
@@ -457,7 +461,7 @@ function DispatchCard({ job, techs, onAssign, onStatusChange }) {
             </button>
           )}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
