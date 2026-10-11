@@ -86,7 +86,7 @@ export function PortalModal({ title, subtitle, onClose, children }: { title: str
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div role="dialog" aria-modal="true" className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
+        <div role="dialog" aria-modal="true" aria-label={title} className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-semibold text-gray-900 mb-1 dark:text-slate-100">{title}</h2>
           {subtitle && <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">{subtitle}</p>}
           {children}

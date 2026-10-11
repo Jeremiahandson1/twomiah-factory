@@ -24,6 +24,7 @@ import { syncFeatures } from './startup/featureSync.ts'
 import { startReviewProcessor } from './services/reviews.ts'
 import { startMarketingProcessor } from './services/marketing.ts'
 import { startAgreementBillingProcessor } from './services/agreements.ts'
+import recurringService from './services/recurring.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -641,6 +642,8 @@ refreshSubscriptionFromFactory(subscriptionDeps).catch(console.error)
 startReviewProcessor()
 startMarketingProcessor()
 startAgreementBillingProcessor()
+// Recurring invoices bill themselves when due (shared recurring.ts — nothing else runs them). (T69)
+recurringService.startRecurringProcessor()
 
 const shutdown = async (signal: string) => {
   logger.info(`${signal} received, shutting down gracefully`)

@@ -96,7 +96,7 @@ export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div role="dialog" aria-modal="true" className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
+        <div role="dialog" aria-modal="true" aria-label={title} className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <h2 className="text-xl font-bold text-gray-900 mb-4 dark:text-slate-100">{title}</h2>
           <div className="mb-4">
             <label htmlFor="sig-name" className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Full Name <span className="text-red-500 dark:text-red-400">*</span></label>

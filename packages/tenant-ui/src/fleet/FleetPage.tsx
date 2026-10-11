@@ -627,11 +627,11 @@ function VehicleFormModal({ vehicle, onSave, onClose }: VehicleFormModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="fleet-dialog-1-title">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
-          <h2 className="text-lg font-bold mb-4">{vehicle ? 'Edit Vehicle' : 'Add Vehicle'}</h2>
+          <h2 id="fleet-dialog-1-title" className="text-lg font-bold mb-4">{vehicle ? 'Edit Vehicle' : 'Add Vehicle'}</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
@@ -723,11 +723,11 @@ function FuelEntryModal({ vehicle, onSave, onClose }: FuelEntryModalProps) {
     : '0.00';
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="fleet-dialog-2-title">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
-          <h2 className="text-lg font-bold mb-4">Add Fuel Entry - {vehicle.name}</h2>
+          <h2 id="fleet-dialog-2-title" className="text-lg font-bold mb-4">Add Fuel Entry - {vehicle.name}</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date</label>
@@ -801,11 +801,11 @@ function MaintenanceModal({ vehicle, onSave, onClose }: MaintenanceModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="fleet-dialog-3-title">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
-          <h2 className="text-lg font-bold mb-4">Add Service - {vehicle.name}</h2>
+          <h2 id="fleet-dialog-3-title" className="text-lg font-bold mb-4">Add Service - {vehicle.name}</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>

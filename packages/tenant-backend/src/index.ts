@@ -203,7 +203,7 @@ export type { AgreementsService, AgreementsServiceDeps, AgreementsRoutesDeps, Ag
 
 // Recurring invoices — templates that generate invoices on a schedule (crm, crm-fieldservice, crm-landscaping).
 // Parameterized raw SQL (recurring_invoice tables aren't in schema.ts); emailService injected via deps.
-export { createRecurringService, createRecurringRoutes, FREQUENCIES, calculateNextDate } from './recurring/recurring'
+export { createRecurringService, createRecurringRoutes, FREQUENCIES, calculateNextDate, RecurringPeriodTaken } from './recurring/recurring'
 export type { RecurringService, RecurringServiceDeps, RecurringRoutesDeps, RecurringTables, RecurringEmail, RecurringAudit } from './recurring/recurring'
 
 // Fleet / vehicle tracking — vehicles, maintenance, fuel, stats (crm, crm-fieldservice, crm-landscaping).

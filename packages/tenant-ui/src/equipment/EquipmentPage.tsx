@@ -643,11 +643,11 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="equipment-dialog-1-title">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto dark:bg-slate-900">
-          <h2 className="text-lg font-bold mb-4">
+          <h2 id="equipment-dialog-1-title" className="text-lg font-bold mb-4">
             {equipment ? 'Edit Equipment' : 'Add Equipment'}
           </h2>
 
@@ -984,13 +984,13 @@ function ServiceHistoryModal({ equipment, api, config, onClose, onRefresh }: Ser
   );
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="equipment-dialog-2-title">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-lg font-bold">Service History</h2>
+              <h2 id="equipment-dialog-2-title" className="text-lg font-bold">Service History</h2>
               <p className="text-gray-500 dark:text-slate-400">
                 {equipment.name}
                 {config.linkedJobs ? `${equipment.manufacturer ? ` — ${equipment.manufacturer}` : ''}${equipment.model ? ` ${equipment.model}` : ''}` : ''}

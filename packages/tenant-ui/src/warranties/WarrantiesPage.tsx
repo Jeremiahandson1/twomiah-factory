@@ -564,11 +564,11 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="warranty-dialog-1-title">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
-          <h2 className="text-lg font-bold mb-4">New Warranty Claim</h2>
+          <h2 id="warranty-dialog-1-title" className="text-lg font-bold mb-4">New Warranty Claim</h2>
 
           {/* Beside the form that failed, and it stays until the next attempt — a pop-up over a
               modal is dismissed before anyone can act on what it said. (T58i) */}

@@ -448,11 +448,11 @@ function TaskFormModal({ task, onSave, onClose, api }: TaskFormModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="task-dialog-1-title">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
-          <h2 className="text-xl font-bold text-gray-900 mb-6 dark:text-slate-100">
+          <h2 id="task-dialog-1-title" className="text-xl font-bold text-gray-900 mb-6 dark:text-slate-100">
             {task ? 'Edit Task' : 'New Task'}
           </h2>
 

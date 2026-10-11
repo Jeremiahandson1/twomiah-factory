@@ -2,6 +2,7 @@ import './config/publicUrl.ts'
 import { Hono } from 'hono'
 import { startMarketingProcessor } from './services/marketing.ts'
 import { startAgreementBillingProcessor } from './services/agreements.ts'
+import recurringService from './services/recurring.ts'
 import type { Context, Next } from 'hono'
 import { cors } from 'hono/cors'
 import { secureHeaders } from 'hono/secure-headers'
@@ -574,6 +575,8 @@ initializeSocket(server as any)
 
 startMarketingProcessor()
 startAgreementBillingProcessor()
+// Recurring invoices bill themselves when due (shared recurring.ts — nothing else runs them). (T69)
+recurringService.startRecurringProcessor()
 syncFeatures().catch(console.error)
 startReviewProcessor()
 // Pull the current subscription from the Factory at boot so the mirror is right even if a push was missed.

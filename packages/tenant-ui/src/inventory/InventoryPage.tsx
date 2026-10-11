@@ -639,11 +639,11 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="inventory-dialog-1-title">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
-          <h2 className="text-lg font-bold mb-4">{item ? 'Edit Item' : 'Add Item'}</h2>
+          <h2 id="inventory-dialog-1-title" className="text-lg font-bold mb-4">{item ? 'Edit Item' : 'Add Item'}</h2>
 
           <div className="mb-4"><PageError message={error} onDismiss={() => setError(null)} /></div>
 
@@ -766,11 +766,11 @@ function LocationFormModal({ onSave, onClose }: LocationFormModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="inventory-dialog-2-title">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
-          <h2 className="text-lg font-bold mb-4">Add Location</h2>
+          <h2 id="inventory-dialog-2-title" className="text-lg font-bold mb-4">Add Location</h2>
 
           <div className="mb-4"><PageError message={error} onDismiss={() => setError(null)} /></div>
 
@@ -844,11 +844,11 @@ function TransferModal({ items, locations, onSave, onClose }: TransferModalProps
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="inventory-dialog-3-title">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
-          <h2 className="text-lg font-bold mb-4">Transfer Stock</h2>
+          <h2 id="inventory-dialog-3-title" className="text-lg font-bold mb-4">Transfer Stock</h2>
 
           <div className="mb-4"><PageError message={error} onDismiss={() => setError(null)} /></div>
 
@@ -957,11 +957,11 @@ function AdjustStockModal({ item, locations, onSave, onClose }: AdjustStockModal
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="inventory-dialog-4-title">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
-          <h2 className="text-lg font-bold mb-4">Adjust Stock - {item.name}</h2>
+          <h2 id="inventory-dialog-4-title" className="text-lg font-bold mb-4">Adjust Stock - {item.name}</h2>
 
           <div className="mb-4"><PageError message={error} onDismiss={() => setError(null)} /></div>
 

@@ -148,6 +148,12 @@ function calculateDueDate(invoiceDate: Date, terms: string): Date {
   return date
 }
 
+/** This period has already been billed by another caller, or the schedule stopped — nothing was written. */
+export class RecurringPeriodTaken extends Error {
+  code = 'period_already_generated'
+  constructor() { super('This period has already been invoiced, or the schedule is no longer active.') }
+}
+
 export function createRecurringService(deps: RecurringServiceDeps) {
   const { db, tables, emailService } = deps
   const { invoice, invoiceLineItem } = tables
@@ -247,7 +253,28 @@ export function createRecurringService(deps: RecurringServiceDeps) {
      * a lock released before the insert would let two of them pick the same number. The line items
      * come with it: an invoice that commits without its lines is a £0 invoice sent to a customer.
      */
+    const nextRunDate = calculateNextDate(recurring.next_run_date, recurring.frequency, anchorDayOf(recurring.start_date))
+    let newStatus = recurring.status
+    if (recurring.end_date && nextRunDate > new Date(recurring.end_date)) newStatus = 'completed'
+
+    /**
+     * ONE INVOICE PER PERIOD, however many callers arrive at once. (T69 viewer: a schedule due 9 Oct never ran)
+     *
+     * The schedule was read above without a lock, the invoice inserted, and only then was next_run_date
+     * moved on — so two runs of the same period (the scheduler on two instances during a deploy, the
+     * scheduler and "Generate now", a double click) both read the old date and both billed it. Now the
+     * row is locked inside the transaction that writes the invoice, the period is claimed there, and a
+     * caller that finds the date already moved, or the schedule no longer active, writes nothing.
+     */
     const newInvoice = await db.transaction(async (tx: any) => {
+      const [locked] = rows(await tx.execute(sql`SELECT status, next_run_date FROM recurring_invoice WHERE id = ${recurringId} FOR UPDATE`))
+      if (!locked || locked.status !== 'active' || new Date(locked.next_run_date).getTime() !== new Date(recurring.next_run_date).getTime()) {
+        throw new RecurringPeriodTaken()
+      }
+      await tx.execute(sql`
+        UPDATE recurring_invoice SET next_run_date = ${nextRunDate}, last_run_date = ${invoiceDate}, invoice_count = invoice_count + 1, status = ${newStatus}
+        WHERE id = ${recurringId}
+      `)
       const number = await generateInvoiceNumber(tx, recurring.company_id)
       const [created] = await tx.insert(invoice).values({
         companyId: recurring.company_id,
@@ -278,14 +305,6 @@ export function createRecurringService(deps: RecurringServiceDeps) {
       }
       return created
     })
-
-    const nextRunDate = calculateNextDate(recurring.next_run_date, recurring.frequency, anchorDayOf(recurring.start_date))
-    let newStatus = recurring.status
-    if (recurring.end_date && nextRunDate > new Date(recurring.end_date)) newStatus = 'completed'
-    await db.execute(sql`
-      UPDATE recurring_invoice SET next_run_date = ${nextRunDate}, last_run_date = ${invoiceDate}, invoice_count = invoice_count + 1, status = ${newStatus}
-      WHERE id = ${recurringId}
-    `)
 
     if (recurring.auto_send && recurring.contact?.email) {
       await db.update(invoice).set({ status: 'sent', sentAt: new Date() }).where(eq(invoice.id, newInvoice.id))
@@ -321,6 +340,43 @@ export function createRecurringService(deps: RecurringServiceDeps) {
       }
     }
     return { processed: results.length, successful: results.filter((r) => r.success).length, results }
+  }
+
+  /**
+   * THE SCHEDULE RUNS ITSELF. (T69 viewer: "a recurring invoice still shows its next run date as Oct 9")
+   *
+   * Nothing ever called processRecurringInvoices — no cron, no internal caller, no worker — so a
+   * schedule produced an invoice only when someone pressed "Generate now". Every template that mounts
+   * recurring invoices starts this at boot, the way agreements start startBillingProcessor.
+   *
+   * One pass bills each due schedule ONE period and moves it on, so a schedule several periods behind
+   * (a server that was down, a schedule resumed late) is caught up by repeating the pass until nothing
+   * more is due — each missed period is a bill the customer owes. Capped, so one schedule that keeps
+   * failing cannot spin; the next run carries on. Two instances at once are safe: the period is
+   * claimed under a row lock (RecurringPeriodTaken), so the loser writes nothing.
+   */
+  function startRecurringProcessor({ intervalMs = 6 * 60 * 60 * 1000, firstRunMs = 120_000 } = {}) {
+    console.log('[Recurring] Starting recurring invoice processor (every 6h)')
+    let last: Promise<{ generated: number; failed: number }> = Promise.resolve({ generated: 0, failed: 0 })
+    const run = () => (last = (async () => {
+      let generated = 0, failed = 0
+      try {
+        for (let pass = 0; pass < 60; pass++) {
+          const r = await processRecurringInvoices()
+          generated += r.successful
+          failed = r.processed - r.successful
+          if (!r.successful) break
+        }
+        if (generated || failed) console.log('[Recurring]', generated, 'invoice(s) generated,', failed, 'schedule(s) failed')
+      } catch (err: any) {
+        console.error('[Recurring] Processor error:', err?.message || err)
+      }
+      return { generated, failed }
+    })())
+    const interval = setInterval(run, intervalMs)
+    const first = setTimeout(run, firstRunMs)
+    // stop() for a test or a shutdown; lastRun() resolves with the most recent run's counts.
+    return { stop: () => { clearInterval(interval); clearTimeout(first) }, lastRun: () => last }
   }
 
   async function getRecurringInvoices(companyId: string, { status, contactId, page = 1, limit = 25 }: { status?: string; contactId?: string; page?: number; limit?: number }) {
@@ -501,6 +557,7 @@ export function createRecurringService(deps: RecurringServiceDeps) {
     generateInvoice: generateInvoiceFromRecurring,
     deleteRecurring: deleteRecurringInvoice,
     processDueRecurring: processRecurringInvoices,
+    startRecurringProcessor,
     updateRecurringInvoice,
     pauseRecurringInvoice,
     resumeRecurringInvoice,
@@ -590,7 +647,14 @@ export function createRecurringRoutes(deps: RecurringRoutesDeps) {
      * unexpected shape turns a successful charge into an error, which is how this became a billing bug
      * rather than a cosmetic one.
      */
-    const result = await service.generateInvoice(id) as any
+    let result: any
+    try {
+      result = await service.generateInvoice(id)
+    } catch (err: any) {
+      // Another caller billed this period first (a double click, the scheduler): nothing was written, so say so.
+      if (err instanceof RecurringPeriodTaken) return c.json({ error: err.message, code: err.code }, 409)
+      throw err
+    }
     const invoice = result?.invoice ?? result
     if (!invoice?.id) {
       return c.json({ error: 'The invoice could not be generated.', code: 'generate_failed' }, 500)
@@ -653,6 +717,7 @@ export function createRecurringRoutes(deps: RecurringRoutesDeps) {
      * CRON_SECRET is not written into a tenant's environment by the deploy pipeline, the generator
      * or render.yaml, so in practice the condition was always false and the check never ran at all.
      * Requiring it means: no secret configured → nobody can trigger a company-wide billing run.
+     * (Since T69 the schedule runs itself — startRecurringProcessor, in-process, not through this route.)
      * Nothing calls this endpoint today — no internal caller, no Render cron, no template scheduler
      * — so closing it costs nothing and removes the last way to reach it by hand.
      *
@@ -664,7 +729,7 @@ export function createRecurringRoutes(deps: RecurringRoutesDeps) {
     const configured = process.env.CRON_SECRET
     if (!configured) {
       return c.json({
-        error: 'Recurring invoices are run on a schedule, not from here. No scheduler is configured for this tenant.',
+        error: 'Recurring invoices are generated automatically, every six hours. A company-wide run cannot be started from here.',
         code: 'cron_not_configured',
       }, 503)
     }

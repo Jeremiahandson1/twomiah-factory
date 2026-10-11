@@ -200,7 +200,7 @@ function NewMessageModal({ api, toast, contactsPath, onClose, onSent }: { api: M
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div role="dialog" aria-label="New Message" className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
+        <div role="dialog" aria-modal="true" aria-label="New Message" className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-slate-100">New Message</h2>
           <div className="space-y-4">
             {error && <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{error}</div>}

@@ -817,11 +817,11 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="agreement-dialog-1-title">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
-          <h2 className="text-lg font-bold mb-4">{plan ? 'Edit Plan' : 'Create Plan'}</h2>
+          <h2 id="agreement-dialog-1-title" className="text-lg font-bold mb-4">{plan ? 'Edit Plan' : 'Create Plan'}</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -1027,11 +1027,11 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
     : null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="agreement-dialog-2-title">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
-          <h2 className="text-lg font-bold mb-4">{readOnly ? 'Agreement' : agreement ? 'Edit Agreement' : 'New Agreement'}</h2>
+          <h2 id="agreement-dialog-2-title" className="text-lg font-bold mb-4">{readOnly ? 'Agreement' : agreement ? 'Edit Agreement' : 'New Agreement'}</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <fieldset disabled={readOnly} className="space-y-4 disabled:opacity-90">
@@ -1068,6 +1068,15 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                   </option>
                 ))}
               </select>
+              {/* The plan's price is its list price; an agreement bills its own amount (the table's Price column), which
+                  can differ. A different plan on save re-prices it from that plan (agreements.ts planChanged). (T69 viewer) */}
+              {agreement && maySeeMoney && (
+                <p className="mt-1 text-xs text-gray-600 dark:text-slate-300">
+                  {form.planId && form.planId !== agreement.planId
+                    ? 'Saving with this plan bills the agreement at the plan’s price.'
+                    : `This agreement bills $${(Number(agreement.amount) || 0).toFixed(2)}/${agreement.billingFrequency}.`}
+                </p>
+              )}
             </div>
 
             <div>

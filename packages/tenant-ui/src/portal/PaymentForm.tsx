@@ -112,7 +112,7 @@ export function PortalPaymentModal({ isOpen, onClose, invoiceId, amount, portalT
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div role="dialog" aria-modal="true" className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
+        <div role="dialog" aria-modal="true" aria-label="Make Payment" className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-xl font-bold text-gray-900 mb-6 dark:text-slate-100">Make Payment</h2>
           <PortalPaymentForm invoiceId={invoiceId} amount={amount} portalToken={portalToken} primaryColor={primaryColor} onSuccess={() => { onSuccess?.(); setTimeout(onClose, 2000) }} onCancel={onClose} />
         </div>
