@@ -123,8 +123,9 @@ export async function updateComment(commentId: string, companyId: string, userId
     throw notFound('Comment not found or not authorized');
   }
 
+  // No edited_at column exists on comment (schema.ts) — every edit 500'd naming it; updated_at marks the edit.
   const result = await db.execute(sql`
-    UPDATE comment SET content = ${content}, edited_at = NOW(), updated_at = NOW()
+    UPDATE comment SET content = ${content}, updated_at = NOW()
     WHERE id = ${commentId}
     RETURNING *
   `);
@@ -175,9 +176,10 @@ export async function toggleReaction(commentId: string, userId: string, reaction
     await db.execute(sql`DELETE FROM comment_reaction WHERE id = ${rows[0].id}`);
     return { added: false };
   } else {
+    // comment_reaction has no created_at column (schema.ts): naming it 500'd every reaction.
     await db.execute(sql`
-      INSERT INTO comment_reaction (id, comment_id, user_id, reaction, created_at)
-      VALUES (gen_random_uuid(), ${commentId}, ${userId}, ${reaction}, NOW())
+      INSERT INTO comment_reaction (id, comment_id, user_id, reaction)
+      VALUES (gen_random_uuid(), ${commentId}, ${userId}, ${reaction})
     `);
     return { added: true };
   }
@@ -360,9 +362,22 @@ export function formatActivityMessage(activity: {
   return messages[action] || `${userName} performed ${action}`;
 }
 
+/**
+ * Which record a comment is on — for the routes that name only the comment (edit, delete, react), so they can ask
+ * that record's permission. Company-scoped: another company's comment id answers null.
+ */
+export async function getCommentEntity(commentId: string, companyId: string): Promise<{ entityType: string; entityId: string } | null> {
+  const result = await db.execute(sql`
+    SELECT entity_type, entity_id FROM comment WHERE id = ${commentId} AND company_id = ${companyId} LIMIT 1
+  `);
+  const row = ((result as any).rows || result)[0];
+  return row ? { entityType: row.entity_type, entityId: row.entity_id } : null;
+}
+
 export default {
   addComment,
   getComments,
+  getCommentEntity,
   updateComment,
   deleteComment,
   toggleReaction,
