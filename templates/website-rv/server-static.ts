@@ -508,8 +508,8 @@ app.get('/', (c) => {
   return renderPage(c, 'home', {
     homepage, services, testimonials, featuredProjects, recentPosts, menuItems,
     heroPreloadUrl: resolveHeroPreload(homepage?.hero?.image || ''),
-    title: settings.seoTitle || settings.companyName || '{{COMPANY_NAME}}',
-    description: settings.seoDescription || (homepage && homepage.hero && homepage.hero.description) || (homepage && homepage.seoDescription) || settings.companyName || '{{COMPANY_NAME}}',
+    title: settings.seoTitle || settings.defaultMetaTitle || settings.companyName || '{{COMPANY_NAME}}',
+    description: settings.seoDescription || settings.defaultMetaDescription || (homepage && homepage.hero && homepage.hero.description) || (homepage && homepage.seoDescription) || settings.companyName || '{{COMPANY_NAME}}',
     canonicalUrl: BASE_URL + '/',
   })
 })
@@ -823,7 +823,7 @@ app.get('/contact', (c) => {
   return renderPage(c, 'contact', {
     services, selectedService: c.req.query('service') || '',
     title: 'Contact Us | {{COMPANY_NAME}}',
-    description: 'Get in touch with {{COMPANY_NAME}}.',
+    description: 'Contact {{COMPANY_NAME}} in {{CITY}}, {{STATE}} about inventory, service or parts. Send a message and we will get back to you.',
     canonicalUrl: BASE_URL + '/contact',
   })
 })
@@ -833,7 +833,7 @@ app.get('/gallery', (c) => {
   return renderPage(c, 'gallery', {
     gallery,
     title: 'Gallery | {{COMPANY_NAME}}',
-    description: 'Photos from {{COMPANY_NAME}}.',
+    description: 'Photos from {{COMPANY_NAME}}, an RV & powersports dealership in {{CITY}}, {{STATE}}.',
     canonicalUrl: BASE_URL + '/gallery',
   })
 })
@@ -862,7 +862,7 @@ app.get('/blog', (c) => {
   return renderPage(c, 'blog', {
     posts,
     title: 'Blog | {{COMPANY_NAME}}',
-    description: 'News, tips, and project updates.',
+    description: 'News, tips and updates from {{COMPANY_NAME}} in {{CITY}}, {{STATE}}.',
     canonicalUrl: BASE_URL + '/blog',
   })
 })

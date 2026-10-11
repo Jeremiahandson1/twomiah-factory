@@ -387,8 +387,8 @@ app.get('/', (c) => {
   const menuItems = (navConfig.items || []).filter((i: any) => i.visible !== false)
   return renderPage(c, 'home', {
     homepage, services, testimonials, featuredProjects, recentPosts, menuItems,
-    title: settings.seoTitle || settings.companyName || '{{COMPANY_NAME}}',
-    description: settings.seoDescription || 'Professional lawn care, landscaping, and seasonal services',
+    title: settings.seoTitle || settings.defaultMetaTitle || settings.companyName || '{{COMPANY_NAME}}',
+    description: settings.seoDescription || settings.defaultMetaDescription || 'Lawn care and landscaping in {{CITY}}, {{STATE}}.',
     canonicalUrl: BASE_URL + '/',
   })
 })
@@ -478,7 +478,7 @@ app.get('/terms', (c) => renderPage(c, 'terms', {
 app.get('/about', (c) => {
   return renderPage(c, 'about', {
     title: 'About Us | {{COMPANY_NAME}}',
-    description: 'Learn about {{COMPANY_NAME}} — serving {{SERVICE_REGION}} with professional service.',
+    description: 'Learn about {{COMPANY_NAME}} in {{CITY}}, {{STATE}}: who we are, the area we serve and how to reach us.',
     canonicalUrl: BASE_URL + '/about',
   })
 })
@@ -488,7 +488,7 @@ app.get('/contact', (c) => {
   return renderPage(c, 'contact', {
     services, selectedService: c.req.query('service') || '',
     title: 'Contact Us | {{COMPANY_NAME}}',
-    description: 'Get in touch with {{COMPANY_NAME}}.',
+    description: 'Contact {{COMPANY_NAME}} in {{CITY}}, {{STATE}}. Send a message with your questions and we will get back to you.',
     canonicalUrl: BASE_URL + '/contact',
   })
 })
@@ -498,7 +498,7 @@ app.get('/gallery', (c) => {
   return renderPage(c, 'gallery', {
     gallery,
     title: 'Gallery | {{COMPANY_NAME}}',
-    description: 'Photos from {{COMPANY_NAME}}.',
+    description: 'Photos from {{COMPANY_NAME}} in {{CITY}}, {{STATE}}. Browse recent work and see what we do.',
     canonicalUrl: BASE_URL + '/gallery',
   })
 })
@@ -527,7 +527,7 @@ app.get('/blog', (c) => {
   return renderPage(c, 'blog', {
     posts,
     title: 'Blog | {{COMPANY_NAME}}',
-    description: 'News, tips, and project updates.',
+    description: 'News, tips and project updates from {{COMPANY_NAME}} in {{CITY}}, {{STATE}}.',
     canonicalUrl: BASE_URL + '/blog',
   })
 })

@@ -495,8 +495,8 @@ app.get('/', (c) => {
   const settings = loadJSON('settings.json') || {}
   return renderPage(c, 'home', {
     homepage, services, testimonials,
-    title: settings.seoTitle || settings.companyName || '{{COMPANY_NAME}}',
-    description: settings.seoDescription || 'Cannabis dispensary in {{CITY}}, {{STATE}}.',
+    title: settings.seoTitle || settings.defaultMetaTitle || settings.companyName || '{{COMPANY_NAME}}',
+    description: settings.seoDescription || settings.defaultMetaDescription || 'Cannabis dispensary in {{CITY}}, {{STATE}}.',
     canonicalUrl: BASE_URL + '/',
   })
 })
@@ -582,7 +582,7 @@ app.get('/terms', (c) => renderPage(c, 'terms', {
 app.get('/about', (c) => {
   return renderPage(c, 'about', {
     title: 'About Us | {{COMPANY_NAME}}',
-    description: 'Learn about {{COMPANY_NAME}} — serving {{SERVICE_REGION}}.',
+    description: 'Learn about {{COMPANY_NAME}}, a cannabis dispensary in {{CITY}}, {{STATE}}: who we are and how to find us.',
     canonicalUrl: BASE_URL + '/about',
   })
 })
@@ -592,7 +592,7 @@ app.get('/contact', (c) => {
   return renderPage(c, 'contact', {
     services, selectedService: c.req.query('service') || '',
     title: 'Contact Us | {{COMPANY_NAME}}',
-    description: 'Get in touch with our dispensary. Questions about products, hours, or placing an order.',
+    description: 'Contact {{COMPANY_NAME}} in {{CITY}}, {{STATE}} with questions about products, hours or placing an order.',
     canonicalUrl: BASE_URL + '/contact',
   })
 })
@@ -602,7 +602,7 @@ app.get('/blog', (c) => {
   return renderPage(c, 'blog', {
     posts,
     title: 'Blog | {{COMPANY_NAME}}',
-    description: 'News, tips, and updates.',
+    description: 'News, product notes and updates from {{COMPANY_NAME}} in {{CITY}}, {{STATE}}.',
     canonicalUrl: BASE_URL + '/blog',
   })
 })
