@@ -77,6 +77,16 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
   const categories = deps.options?.categories || DEFAULT_EXPENSE_CATEGORIES
   const maxLimit = deps.options?.maxLimit || 200
   const app = new Hono()
+
+  // An expense whose approval an edit ended kept its approver and approval time (T67 — fixed in PUT /:id).
+  // Fixing the write leaves the rows already written that way, so they are repaired here, once, at startup:
+  // nothing else ever writes approved = false beside an approver, so no real approval can match.
+  db.update(t.expense).set({ approvedById: null, approvedAt: null })
+    .where(and(eq(t.expense.approved, false), sql`(${t.expense.approvedById} IS NOT NULL OR ${t.expense.approvedAt} IS NOT NULL)`))
+    .returning({ id: t.expense.id })
+    .then((rows: any[]) => { if (rows.length) console.log(`[expenses] cleared the approver from ${rows.length} expense${rows.length === 1 ? '' : 's'} no longer approved`) })
+    .catch((err: any) => console.error('[expenses] approver repair failed:', err?.message || err))
+
   app.use('*', authenticate)
 
   const schema = z.object({
@@ -465,8 +475,12 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     if (data.taxAmount !== undefined) updates.taxAmount = String(data.taxAmount)
     if (data.date !== undefined) updates.date = data.date ? new Date(data.date) : existing.date
 
+    // Ending an approval ends all of it. Only the tick was cleared, so the row went on naming who approved it
+    // and when — "approved by Morgan Manager at 03:27" on an expense reading not approved. The time entry has
+    // cleared its approvedAt since E2; the expense never did. (T67; the rows already left that way are repaired
+    // at startup, below the route.)
     const approvalCleared = existing.approved && moneyChanged
-    if (approvalCleared) updates.approved = false
+    if (approvalCleared) { updates.approved = false; updates.approvedById = null; updates.approvedAt = null }
 
     const [row] = await db.update(t.expense).set(updates).where(and(eq(t.expense.id, id), eq(t.expense.companyId, currentUser.companyId))).returning()
     if (approvalCleared) {

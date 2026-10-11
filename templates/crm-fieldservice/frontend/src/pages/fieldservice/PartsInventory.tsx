@@ -31,6 +31,10 @@ export default function PartsInventory() {
   // Add is POST /api/inventory/items (inventory:create), Edit is PUT (inventory:update) — technicians hold neither. (T63)
   const mayAdd = useMayWrite('inventory:create');
   const mayEdit = useMayWrite('inventory:update');
+  // What the company paid for a part is margin:read — the server strips unitCost for a seat without it (the
+  // inventory module's canSee), so the tile summed to $0.00 and the column printed $0.00 per part. Left out instead,
+  // the way Agreements leaves out its price. (T67)
+  const maySeeCost = useMayWrite('margin:read');
 
   useEffect(() => {
     loadParts();
@@ -85,16 +89,16 @@ export default function PartsInventory() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className={`grid grid-cols-2 ${maySeeCost ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
         <StatCard icon={Package} label="Total Parts" value={parts.length} />
         <StatCard icon={Warehouse} label="Categories" value={CATEGORIES.length} />
         <StatCard icon={AlertTriangle} label="Low Stock" value={lowStockCount} color="red" />
-        <StatCard
+        {maySeeCost && <StatCard
           icon={DollarSign}
           label="Total Value"
           value={`$${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           color="green"
-        />
+        />}
       </div>
 
       {/* Filters — wrap at phone width: the longer category names pushed this row 13px past a 390px screen. (T64) */}
@@ -145,7 +149,7 @@ export default function PartsInventory() {
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Category</th>
                 <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Qty on Hand</th>
                 <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Min Stock</th>
-                <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Unit Cost</th>
+                {maySeeCost && <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Unit Cost</th>}
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Location</th>
                 <th className="px-4 py-3"></th>
               </tr>
@@ -192,9 +196,9 @@ export default function PartsInventory() {
                     <td className="px-4 py-3 text-right text-sm text-gray-500 dark:text-slate-400">
                       {minStock || '-'}
                     </td>
-                    <td className="px-4 py-3 text-right text-sm text-gray-900 dark:text-white">
+                    {maySeeCost && <td className="px-4 py-3 text-right text-sm text-gray-900 dark:text-white">
                       ${Number(part.unitCost || 0).toFixed(2)}
-                    </td>
+                    </td>}
                     <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                       {part.location || part.locationName || '-'}
                     </td>

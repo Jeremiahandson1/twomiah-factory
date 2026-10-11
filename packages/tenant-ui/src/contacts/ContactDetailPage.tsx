@@ -95,6 +95,9 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
   // mayEdit. Both were offered to technicians and refused. (T63)
   const mayAddSite = cfg.can('contacts:create')
   const mayDelete = cfg.can('contacts:delete')
+  // Both Add Equipment links open the equipment page, whose Add is POST /api/equipment (equipment:create). Crew
+  // were sent to a page offering them nothing to add. (T67)
+  const mayAddEquipment = cfg.can('equipment:create')
   // Managing a customer's portal — switching it on, reissuing the link, emailing it, reading it out —
   // is one permission, and it is not the one that opens this page. The server withholds the link from
   // a seat without it (GET …/link, portal:share — owners, admins and managers); this is the same answer on
@@ -493,7 +496,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                 <h2 className={h2}>Equipment</h2>
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-gray-500 dark:text-slate-400">{contact.equipment?.length || 0}</span>
-                  <NavLink to={`/crm/equipment?contactId=${id}`} className="px-3 py-1.5 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 flex items-center gap-1"><Plus className="w-3 h-3" />Add Equipment</NavLink>
+                  {mayAddEquipment && <NavLink to={`/crm/equipment?contactId=${id}`} className="px-3 py-1.5 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 flex items-center gap-1"><Plus className="w-3 h-3" />Add Equipment</NavLink>}
                 </div>
               </div>
               {contact.equipment && contact.equipment.length > 0 ? (
@@ -741,7 +744,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                   ))}
                 </div>
               ) : <p className="text-sm text-gray-500 dark:text-slate-400">No equipment at this location</p>}
-              <NavLink to={`/crm/equipment?contactId=${id}&siteId=${siteDetail.id}`} className="mt-2 inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300"><Plus className="w-3 h-3" /> Add Equipment to This Location</NavLink>
+              {mayAddEquipment && <NavLink to={`/crm/equipment?contactId=${id}&siteId=${siteDetail.id}`} className="mt-2 inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300"><Plus className="w-3 h-3" /> Add Equipment to This Location</NavLink>}
             </div>
             <div>
               <h3 className="text-sm font-semibold text-gray-900 mb-2 dark:text-slate-100">Service History ({siteDetail.jobs?.length || 0})</h3>
