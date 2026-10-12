@@ -26,6 +26,9 @@ const canShip = (from: string) => from === 'shipped' || (NEXT_STATUS[from] || []
 // The server's hasParcel (backend routes/orders.ts): tracking belongs to an order going out or gone out — never to one
 // pending, cancelled, or refunded before it left.
 const hasParcel = (o: Order) => COUNTED.includes(o.status) || (o.status === 'refunded' && !!o.fulfilledAt)
+// What the button does, in its own words: from a paid order, refunding and cancelling send money back.
+const statusAction = (from: string, to: string) =>
+  COUNTED.includes(from) && to === 'refunded' ? 'Refund' : COUNTED.includes(from) && to === 'cancelled' ? 'Cancel and refund' : `Mark ${to}`
 const moveNeeds = (from: string, to: string) => (COUNTED.includes(from) && FULFILMENT.includes(to)) ? 'orders:update' : 'orders:refund'
 /** Offer the control unless the permission list has arrived and says no. */
 function useMay() {
@@ -51,10 +54,25 @@ export default function OrderDetailPage() {
 
   // Someone else moved this order while it was open (409 order_changed): nothing of ours was applied, so show the
   // order as it now stands rather than the buttons for a status it has left.
-  const failed = (e: any) => { toast(e?.message || 'Failed', 'error'); if (e?.code === 'order_changed' || e?.code === 'no_parcel') load() }
+  const failed = (e: any) => { toast(e?.message || 'Failed', 'error'); if (e?.code === 'order_changed' || e?.code === 'no_parcel' || e?.code === 'refund_failed') load() }
   const setStatus = async (status: string) => {
-    try { const o = await api.setOrderStatus(id!, status); setOrder((prev) => prev ? { ...prev, ...o } : prev); toast(`Marked ${status}`) }
-    catch (e: any) { failed(e) }
+    // Refunding — or cancelling — a paid order sends the shopper's money back through the provider (Stripe), so it is
+    // asked once, with the amount, the way any refund screen asks. (Owner's decision, 10/12)
+    const paid = !!order && COUNTED.includes(order.status) && (status === 'refunded' || status === 'cancelled')
+    if (paid && order) {
+      const amount = money(order.totalCents, order.currency)
+      const ask = order.providerPaymentId
+        ? `${status === 'refunded' ? 'Refund' : 'Cancel this order and refund'} ${amount} to the customer's card? The stock goes back on the shelf.`
+        : `${status === 'refunded' ? 'Mark this order refunded' : 'Cancel this order'}? There is no card payment on record, so no money is sent back from here. The stock goes back on the shelf.`
+      if (!confirm(ask)) return
+    }
+    try {
+      const { order: o, refund } = await api.setOrderStatus(id!, status)
+      setOrder((prev) => prev ? { ...prev, ...o } : prev)
+      if (refund?.kind === 'refunded') toast(refund.alreadyRefunded ? `Marked ${status} — the payment had already been refunded` : `${status === 'refunded' ? 'Refunded' : 'Cancelled and refunded'} ${money(refund.amountCents ?? o.totalCents, o.currency)} to the customer's card`)
+      else if (refund) toast(`Marked ${status}. ${refund.note}`, 'error')
+      else toast(`Marked ${status}`)
+    } catch (e: any) { failed(e) }
   }
   const saveFulfillment = async (markShipped: boolean) => {
     try {
@@ -91,7 +109,7 @@ export default function OrderDetailPage() {
       {(NEXT_STATUS[order.status] || []).some((s) => may(moveNeeds(order.status, s))) && (
         <div className="card p-4 flex flex-wrap gap-2">
           {NEXT_STATUS[order.status].filter((s) => may(moveNeeds(order.status, s))).map((s) => (
-            <button key={s} onClick={() => setStatus(s)} className="btn-secondary text-xs capitalize">Mark {s}</button>
+            <button key={s} onClick={() => setStatus(s)} className="btn-secondary text-xs capitalize">{statusAction(order.status, s)}</button>
           ))}
         </div>
       )}

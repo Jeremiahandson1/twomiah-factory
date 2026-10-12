@@ -78,8 +78,13 @@ export type Order = {
   subtotalCents: number; shippingCents: number; taxCents: number; discountCents: number; totalCents: number
   currency: string; trackingCarrier: string | null; trackingNumber: string | null
   internalNote: string | null; createdAt: string; fulfilledAt?: string | null; items?: OrderItem[]
+  providerPaymentId?: string | null
   labelUrl?: string | null; labelCostCents?: number | null; labelPurchasedAt?: string | null
 }
+export type MoneyBack =
+  | { kind: 'refunded'; refundId: string | null; status: string; amountCents: number | null; alreadyRefunded?: boolean }
+  | { kind: 'manual'; note: string }
+  | { kind: 'none_on_file'; note: string }
 export type OrderItem = {
   id: string; productName: string; variantName: string; sku: string; imageUrl: string | null
   unitPriceCents: number; quantity: number; lineTotalCents: number
@@ -267,7 +272,8 @@ class ApiClient {
   async getOrder(id: string) { return (await this.request<{ order: Order }>(`/api/admin/orders/${id}`)).order }
   async orderStats() { return (await this.request<{ stats: { paidCount: number; pendingFulfillment: number; revenueCents: number | null; atSupplier: number; refundedCount: number; refundedCents: number | null } }>('/api/admin/orders/stats')).stats }
   async listCustomers() { return (await this.request<{ customers: any[] }>('/api/admin/orders/customers')).customers }
-  async setOrderStatus(id: string, status: string) { return (await this.request<{ order: Order }>(`/api/admin/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })).order }
+  // A refund or a cancel of a paid order also says what happened to the shopper's money (routes/orders.ts MoneyBack).
+  async setOrderStatus(id: string, status: string) { return this.request<{ order: Order; refund?: MoneyBack }>(`/api/admin/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }) }
   async setFulfillment(id: string, body: { trackingCarrier?: string; trackingNumber?: string; internalNote?: string; markShipped?: boolean }) { return (await this.request<{ order: Order }>(`/api/admin/orders/${id}/fulfillment`, { method: 'PATCH', body: JSON.stringify(body) })).order }
 
   // ── Settings ──

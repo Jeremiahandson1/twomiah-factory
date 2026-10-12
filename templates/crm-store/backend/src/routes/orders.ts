@@ -6,6 +6,7 @@ import { eq, and, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission, hasPermission } from '../middleware/permissions.ts'
 import { sendOrderShipped } from '../services/email.ts'
+import { getActiveProvider } from '../payments/index.ts'
 import audit from '../services/audit.ts'
 import { formatCents } from '../lib/money.ts'
 
@@ -94,16 +95,54 @@ export const noParcelRefusal = (c: any, status: string) => c.json({
 }, 409)
 
 /**
+ * WHAT HAPPENED TO THE SHOPPER'S MONEY when a paid order was refunded or cancelled. (Owner's decision, 10/12)
+ *
+ * 'Mark refunded' only ever changed the order's status: the order said refunded and the shopper's money stayed
+ * taken. Shopify's Refund sends the money back through the payment provider, and so does this now — for a provider
+ * whose refund is built and tested (Stripe). For any other, the owner is told plainly that this only RECORDS it:
+ *   refunded      the provider sent it back (or it already had — refunded from the provider's own dashboard)
+ *   manual        paid through a provider whose refund is not built here, or not the one connected now — refund there
+ *   none_on_file  no card payment on record (an order marked paid by hand) — return it the way it was paid
+ *   failed        the provider refused; the caller puts the order back and restocks nothing
+ */
+export type MoneyBack =
+  | { kind: 'not_paid' }
+  | { kind: 'refunded'; refundId: string | null; status: string; amountCents: number | null; alreadyRefunded?: boolean }
+  | { kind: 'manual'; note: string }
+  | { kind: 'none_on_file'; note: string }
+  | { kind: 'failed'; reason: string }
+
+const PROVIDER_LABEL: Record<string, string> = { stripe: 'Stripe', square: 'Square', paypal: 'PayPal' }
+
+export async function returnPayment(order: typeof orders.$inferSelect): Promise<MoneyBack> {
+  if (!order.providerPaymentId) {
+    return { kind: 'none_on_file', note: 'No card payment is on record for this order, so no money was sent back here. Return it the way it was paid.' }
+  }
+  const label = PROVIDER_LABEL[order.provider] || order.provider
+  const provider = await getActiveProvider().catch(() => null)
+  if (!provider || provider.name !== order.provider || !provider.refund) {
+    return { kind: 'manual', note: `This order was paid through ${label}. Refund it in your ${label} dashboard — here it is only recorded as refunded.` }
+  }
+  try {
+    const r = await provider.refund({ providerPaymentId: order.providerPaymentId, idempotencyKey: `order-refund-${order.id}` })
+    return { kind: 'refunded', ...r }
+  } catch (e: any) {
+    return { kind: 'failed', reason: `${label} said: ${String(e?.message || 'no reason given').slice(0, 300)}` }
+  }
+}
+
+/**
  * A status change in the audit log, with what it was worth: a refund or a cancel is money going back and stock coming
  * back, so the row says how much of each. (Store T3: refunds are a manager's power; the owner can see who used it.)
  */
-async function logStatusChange(c: any, prev: typeof orders.$inferSelect, updated: typeof orders.$inferSelect, restocked: number) {
+async function logStatusChange(c: any, prev: typeof orders.$inferSelect, updated: typeof orders.$inferSelect, restocked: number, back: MoneyBack = { kind: 'not_paid' }) {
   const money = formatCents(updated.totalCents, updated.currency)
-  const what = updated.status === 'refunded' ? `Refunded — ${money}` : updated.status === 'cancelled' ? `Cancelled — ${money}` : `Marked ${updated.status}`
+  const sent = back.kind === 'refunded' ? (back.alreadyRefunded ? ', already refunded at the provider' : ', sent back to the card') : back.kind === 'manual' || back.kind === 'none_on_file' ? ', recorded only — no money sent back here' : ''
+  const what = updated.status === 'refunded' ? `Refunded — ${money}${sent}` : updated.status === 'cancelled' ? `Cancelled — ${money}${sent}` : `Marked ${updated.status}`
   await audit.log({
     action: 'status_change', entity: 'order', entityId: updated.id, entityName: updated.orderNumber,
     changes: { status: { old: prev.status, new: updated.status } },
-    metadata: { description: restocked ? `${what}, ${restocked} unit${restocked === 1 ? '' : 's'} back in stock` : what, totalCents: updated.totalCents, restocked },
+    metadata: { description: restocked ? `${what}, ${restocked} unit${restocked === 1 ? '' : 's'} back in stock` : what, totalCents: updated.totalCents, restocked, ...(back.kind === 'refunded' ? { refundId: back.refundId, refundStatus: back.status } : back.kind === 'not_paid' ? {} : { moneyBack: back.kind }) },
     req: c,
   })
 }
@@ -216,6 +255,22 @@ admin.patch('/:id/status', requirePermission('orders:update'), async (c) => {
     return changedUnderYou(c, now, next)
   }
 
+  // The money goes back BEFORE the stock does, and only from the request that won the status change above — so two
+  // presses, or a refund racing 'mark shipped', can never send money back for an order that did not move. If the
+  // provider refuses, the order is put back exactly as it was and nothing is restocked. (See returnPayment.)
+  let money: MoneyBack = { kind: 'not_paid' }
+  if ((next === 'cancelled' || next === 'refunded') && COUNTED.includes(prev.status)) {
+    money = await returnPayment(prev)
+    if (money.kind === 'failed') {
+      await db.update(orders).set({ status: prev.status, fulfilledAt: prev.fulfilledAt, updatedAt: new Date() })
+        .where(and(eq(orders.id, prev.id), eq(orders.status, next)))
+      return c.json({
+        error: `The payment could not be refunded, so the order is still ${prev.status} and nothing was restocked. ${money.reason}`,
+        code: 'refund_failed',
+      }, 502)
+    }
+  }
+
   // Restock when a previously-paid order is cancelled/refunded. Payment
   // (finalizeOrder) decremented inventoryQty for tracked variants, so reversing
   // to cancelled/refunded must add the units back — exactly once, and only from a
@@ -235,9 +290,9 @@ admin.patch('/:id/status', requirePermission('orders:update'), async (c) => {
     }
   }
 
-  await logStatusChange(c, prev, updated, restocked)
+  await logStatusChange(c, prev, updated, restocked, money)
   if (next === 'shipped' && prev.status !== 'shipped') void notifyShipped(updated)
-  return c.json({ order: orderForCaller(c, updated) })
+  return c.json({ order: orderForCaller(c, updated), ...(money.kind === 'not_paid' ? {} : { refund: money }) })
 })
 
 const fulfillSchema = z.object({

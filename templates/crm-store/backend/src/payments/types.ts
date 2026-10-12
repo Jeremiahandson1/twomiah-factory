@@ -70,6 +70,25 @@ export type ProviderCredentials = {
   mode: 'test' | 'live'
 }
 
+/**
+ * Money sent back to the shopper for a whole order. (Owner's decision, 10/12: 'Mark refunded' only changed the order's
+ * status — the shopper's money stayed taken. As Shopify does it, Refund now returns it through the provider.)
+ */
+export type RefundInput = {
+  // The provider's id for the captured payment — Stripe's payment_intent — as finalizeOrder recorded it.
+  providerPaymentId: string
+  // One key per order: a second press, a retry after a timeout, or two people at once all get the SAME refund back.
+  idempotencyKey: string
+}
+export type RefundResult = {
+  refundId: string | null
+  // The provider's word: 'succeeded', or 'pending' while a card network settles it.
+  status: string
+  amountCents: number | null
+  // The payment was already refunded at the provider (from its own dashboard, say): nothing more was sent.
+  alreadyRefunded?: boolean
+}
+
 export interface PaymentProvider {
   readonly name: 'stripe' | 'square' | 'paypal'
   createCheckout(input: CreateCheckoutInput): Promise<CreateCheckoutResult>
@@ -77,4 +96,7 @@ export interface PaymentProvider {
   // Fetch a session's final state directly from the provider — used by the
   // success page to finalize an order even if the webhook never arrived.
   retrieveSession(sessionId: string): Promise<WebhookResult>
+  // Return a whole order's payment. Absent on a provider whose refunds have not been built and tested yet (Square,
+  // PayPal): the order is then only RECORDED as refunded, and the owner is told to refund in that dashboard.
+  refund?(input: RefundInput): Promise<RefundResult>
 }

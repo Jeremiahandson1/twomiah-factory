@@ -1,0 +1,168 @@
+// crm-store — a refund returns the money. (Owner's decision, 10/12)
+//
+// "Mark refunded" only changed the order's status: the order read refunded and the shopper's money stayed taken. As
+// Shopify does it, refunding — or cancelling — a paid order now sends the payment back through Stripe, and only then
+// restocks. Asserted through the real status route, the real permissions module and the real Stripe adapter; Stripe's
+// HTTP API is answered here (the adapter runs over fetch), so each call it makes is seen exactly as Stripe would.
+process.env.PAYMENT_ENC_KEY ||= 'refunds-test-key'
+import { Hono } from 'hono'
+import { eq } from 'drizzle-orm'
+import { setupSchema } from './setup.ts'
+import { db } from './db/index.ts'
+import { storeSettings, users, orders, orderItems, products, productVariants, paymentConfig } from './db/schema.ts'
+
+let failed = 0, passed = 0
+const check = (name: string, ok: boolean, detail?: unknown) => {
+  if (ok) { passed++; console.log(`  ok   ${name}`) }
+  else { failed++; console.log(`  FAIL ${name}`, detail === undefined ? '' : JSON.stringify(detail)?.slice(0, 300)) }
+}
+
+await setupSchema()
+const { encryptJSON } = await import('./src/lib/crypto.ts')
+await db.insert(storeSettings).values({ companyName: 'Refund Store', currency: 'usd' } as any)
+await db.insert(paymentConfig).values({ provider: 'stripe', mode: 'test', connected: true, credentialsEnc: encryptJSON({ secretKey: 'sk_test_refunds' }) } as any)
+const mk = async (role: string, name: string) => (await db.insert(users).values({ email: `${name}@refund.test`, passwordHash: 'x', name, role } as any).returning())[0]
+const owner = await mk('owner', 'owner'), managerA = await mk('manager', 'manager-a'), managerB = await mk('manager', 'manager-b'), staff = await mk('staff', 'staff')
+const [product] = await db.insert(products).values({ slug: 'mug', name: 'Mug', status: 'active' } as any).returning()
+const [variant] = await db.insert(productVariants).values({ productId: product.id, sku: 'MUG-1', name: 'Default', priceCents: 2500, inventoryQty: 10 } as any).returning()
+const stock = async () => (await db.select().from(productVariants).where(eq(productVariants.id, variant.id)))[0].inventoryQty
+const setStock = (n: number) => db.update(productVariants).set({ inventoryQty: n }).where(eq(productVariants.id, variant.id))
+let n = 0
+const mkOrder = async (status: string, extra: Record<string, unknown> = {}) => {
+  n++
+  const [o] = await db.insert(orders).values({
+    orderNumber: `ORD-R${n}`, provider: 'stripe', providerSessionId: `cs_test_${n}`, providerPaymentId: `pi_test_${n}`, status,
+    customerEmail: `shopper${n}@example.com`, subtotalCents: 5000, shippingCents: 0, taxCents: 0, totalCents: 5000, currency: 'usd', ...extra,
+  } as any).returning()
+  await db.insert(orderItems).values({ orderId: o.id, variantId: variant.id, productName: 'Mug', variantName: 'Default', sku: 'MUG-1', unitPriceCents: 2500, quantity: 2, lineTotalCents: 5000 } as any)
+  return o
+}
+const orderNow = async (id: string) => (await db.select().from(orders).where(eq(orders.id, id)))[0]
+
+// ── Stripe, answered here ───────────────────────────────────────────────────────────────────────────
+type Call = { paymentIntent: string | null; key: string | null; auth: string | null }
+const calls: Call[] = []
+const refundsByKey = new Map<string, string>()
+let mode: 'ok' | 'card_declined' | 'already' | 'pending' = 'ok'
+const realFetch = globalThis.fetch
+globalThis.fetch = (async (input: any, init?: any) => {
+  const url = String(input?.url ?? input)
+  if (!url.startsWith('https://api.stripe.com/')) return realFetch(input, init)
+  const headers = new Headers(init?.headers || {})
+  const body = new URLSearchParams(typeof init?.body === 'string' ? init.body : '')
+  const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json', 'request-id': 'req_test' } })
+  if (url.endsWith('/v1/refunds') && (init?.method || 'GET').toUpperCase() === 'POST') {
+    const key = headers.get('idempotency-key')
+    calls.push({ paymentIntent: body.get('payment_intent'), key, auth: headers.get('authorization') })
+    await new Promise((r) => setTimeout(r, 30))   // Stripe takes a moment — long enough for a second press to overlap
+    if (mode === 'card_declined') return json({ error: { type: 'invalid_request_error', code: 'charge_disputed', message: 'This charge has been disputed and cannot be refunded.' } }, 400)
+    if (mode === 'already') return json({ error: { type: 'invalid_request_error', code: 'charge_already_refunded', message: 'Charge ch_x has already been refunded.' } }, 400)
+    // Idempotency, as Stripe keeps it: the same key returns the same refund.
+    const id = (key && refundsByKey.get(key)) || `re_test_${refundsByKey.size + 1}`
+    if (key) refundsByKey.set(key, id)
+    return json({ id, object: 'refund', amount: 5000, currency: 'usd', status: mode === 'pending' ? 'pending' : 'succeeded', payment_intent: body.get('payment_intent') })
+  }
+  return json({ error: { message: 'not answered here' } }, 404)
+}) as any
+
+const app = new Hono()
+app.route('/api/admin/orders', (await import('./src/routes/orders.ts')).default)
+const as = (who: any) => async (status: string, id: string) => {
+  const res = await app.request(`/api/admin/orders/${id}/status`, { method: 'PATCH', headers: { 'content-type': 'application/json', 'x-test-user': who.id }, body: JSON.stringify({ status }) })
+  const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+  return { status: res.status, json: j }
+}
+const O = as(owner), MA = as(managerA), MB = as(managerB), S = as(staff)
+
+// 1. A refund sends the money back, then restocks.
+{
+  await setStock(10); const o = await mkOrder('paid'); const c0 = calls.length
+  const r = await MA('refunded', o.id)
+  const now = await orderNow(o.id)
+  check(`refund: the manager's refund is sent to Stripe for the order's payment (${r.status})`, r.status === 200 && calls.length === c0 + 1 && calls[c0].paymentIntent === 'pi_test_1' && calls[c0].auth === 'Bearer sk_test_refunds', calls.slice(c0))
+  check('refund: …with one idempotency key per order, so a repeat can never refund twice', calls[c0].key === `order-refund-${o.id}`, calls[c0])
+  check(`refund: the order is refunded and the 2 units are back (10 → ${await stock()})`, now.status === 'refunded' && (await stock()) === 12)
+  check('refund: the reply says the money went back, with Stripe\'s refund id', r.json?.refund?.kind === 'refunded' && r.json.refund.refundId === 're_test_1' && r.json.refund.status === 'succeeded' && r.json.refund.amountCents === 5000, r.json?.refund)
+}
+// 2. Cancelling a paid order refunds it too.
+{
+  await setStock(10); const o = await mkOrder('paid'); const c0 = calls.length
+  const r = await O('cancelled', o.id)
+  check(`cancel: cancelling a paid order refunds it at Stripe and restocks (${r.status}, stock ${await stock()})`, r.status === 200 && calls.length === c0 + 1 && (await orderNow(o.id)).status === 'cancelled' && (await stock()) === 12 && r.json?.refund?.kind === 'refunded', r.json)
+}
+// 3. Stripe refuses: the order is put back exactly as it was, nothing restocked.
+{
+  await setStock(10); const o = await mkOrder('shipped', { fulfilledAt: new Date('2026-10-01T10:00:00Z') })
+  mode = 'card_declined'
+  const r = await MA('refunded', o.id)
+  mode = 'ok'
+  const now = await orderNow(o.id)
+  check(`refused: Stripe's refusal is a 502 refund_failed naming Stripe's reason (${r.status})`, r.status === 502 && r.json?.code === 'refund_failed' && /Stripe said: This charge has been disputed/.test(r.json?.error) && /still shipped and nothing was restocked/.test(r.json?.error), r.json)
+  check('refused: …the order is still shipped, its fulfilment date untouched, stock untouched', now.status === 'shipped' && +new Date(now.fulfilledAt!) === +new Date('2026-10-01T10:00:00Z') && (await stock()) === 10, { status: now.status, fulfilledAt: now.fulfilledAt })
+  const again = await MA('refunded', o.id)
+  check('refused: …and pressing Refund again, once Stripe accepts, goes through', again.status === 200 && (await orderNow(o.id)).status === 'refunded' && (await stock()) === 12, again.json)
+}
+// 4. Two managers press Refund at once: one refund at Stripe, one restock.
+{
+  await setStock(10); const o = await mkOrder('paid'); const c0 = calls.length; const keysBefore = refundsByKey.size
+  const rs = await Promise.all([MA('refunded', o.id), MB('refunded', o.id)])
+  const codes = rs.map((r) => r.status).sort().join(',')
+  check(`twice at once: one refund goes through, the other is told someone got there first (${codes})`, codes === '200,409' && rs.some((r) => r.json?.code === 'order_changed'), rs.map((r) => r.json))
+  check(`twice at once: Stripe was asked once and made one refund (${calls.length - c0} call(s), ${refundsByKey.size - keysBefore} refund)`, calls.length - c0 === 1 && refundsByKey.size - keysBefore === 1)
+  check(`twice at once: the units went back once (10 → ${await stock()})`, (await stock()) === 12)
+}
+// 5. A refund racing "mark shipped": whoever moves the order first wins; money goes back only if the refund won.
+{
+  await setStock(10); const o = await mkOrder('paid'); const c0 = calls.length
+  const rs = await Promise.all([MA('refunded', o.id), S('shipped', o.id)])
+  const now = await orderNow(o.id)
+  const refundWon = rs[0].status === 200
+  check(`refund vs ship: exactly one applies (${rs.map((r) => r.status).join(',')}, order ${now.status})`, rs.map((r) => r.status).sort().join(',') === '200,409')
+  check('refund vs ship: Stripe is asked only if the refund won — never for an order that shipped', refundWon ? (calls.length === c0 + 1 && now.status === 'refunded') : (calls.length === c0 && now.status === 'shipped'), { refundWon, calls: calls.length - c0 })
+}
+// 6. Already refunded in Stripe's own dashboard: recorded here, no error, said so.
+{
+  await setStock(10); const o = await mkOrder('paid')
+  mode = 'already'
+  const r = await MA('refunded', o.id)
+  mode = 'ok'
+  check('already refunded at Stripe: the order is marked refunded and restocked, and the reply says it had been refunded already', r.status === 200 && (await orderNow(o.id)).status === 'refunded' && (await stock()) === 12 && r.json?.refund?.kind === 'refunded' && r.json.refund.alreadyRefunded === true, r.json)
+}
+// 7. A card refund Stripe is still settling counts as sent.
+{
+  const o = await mkOrder('paid'); mode = 'pending'
+  const r = await MA('refunded', o.id); mode = 'ok'
+  check('pending at Stripe: accepted as sent, status passed through', r.status === 200 && r.json?.refund?.status === 'pending')
+}
+// 8. No card payment on record (an order marked paid by hand): recorded, nothing sent, said so.
+{
+  await setStock(10); const o = await mkOrder('paid', { providerPaymentId: null }); const c0 = calls.length
+  const r = await MA('refunded', o.id)
+  check('no card payment: recorded refunded, restocked, Stripe not asked, and told to return it the way it was paid', r.status === 200 && calls.length === c0 && (await stock()) === 12 && r.json?.refund?.kind === 'none_on_file' && /Return it the way it was paid/.test(r.json.refund.note), r.json)
+}
+// 9. Paid through a provider whose refund is not built (or not the one connected now): recorded, told where to refund.
+{
+  const o = await mkOrder('paid', { provider: 'paypal', providerPaymentId: 'CAP-1' }); const c0 = calls.length
+  const r = await MA('refunded', o.id)
+  check('paid through PayPal: recorded only, Stripe not asked, told to refund in the PayPal dashboard', r.status === 200 && calls.length === c0 && r.json?.refund?.kind === 'manual' && /Refund it in your PayPal dashboard/.test(r.json.refund.note), r.json)
+}
+// 10. An unpaid order cancels with no money involved; staff still cannot refund.
+{
+  const o = await mkOrder('pending'); const c0 = calls.length
+  const r = await MA('cancelled', o.id)
+  check('pending: cancelling an unpaid order asks Stripe nothing and reports no refund', r.status === 200 && calls.length === c0 && r.json?.refund === undefined)
+  const p = await mkOrder('paid'); const c1 = calls.length
+  const s = await S('refunded', p.id)
+  check('staff: a refund is refused before anything reaches Stripe', s.status === 403 && calls.length === c1 && (await orderNow(p.id)).status === 'paid')
+}
+// 11. The screen asks, with the amount, and names the buttons for what they do.
+{
+  const src = (require('node:fs') as typeof import('node:fs')).readFileSync((process.env.FACTORY_ROOT || '').replace(/\/?$/, '/') + 'templates/crm-store/frontend/src/pages/OrderDetailPage.tsx', 'utf8').replace(/\r\n/g, '\n')
+  check('screen: Refund and "Cancel and refund" are named for what they do on a paid order', /COUNTED\.includes\(from\) && to === 'refunded' \? 'Refund' : COUNTED\.includes\(from\) && to === 'cancelled' \? 'Cancel and refund'/.test(src))
+  check('screen: it asks first, with the amount, before money moves', /if \(!confirm\(ask\)\) return/.test(src) && /to the customer's card\? The stock goes back on the shelf\./.test(src))
+  check('screen: it says what happened to the money, and reloads after a refused refund', /Cancelled and refunded/.test(src) && /refund\.note/.test(src) && /e\?\.code === 'refund_failed'\) load\(\)/.test(src))
+}
+
+globalThis.fetch = realFetch
+console.log(`\nrefunds through stripe: ${passed} passed, ${failed} failed`)
+process.exit(failed ? 1 : 0)

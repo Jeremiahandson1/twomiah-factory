@@ -124,7 +124,7 @@ const mkOrder = async (status: string) => {
   const row = added[0]
   check(`refund: one row for the request (the floor stood aside — ${added.length})`, r.status === 200 && added.length === 1, added)
   check('refund: status_change on the order, by number, by the manager', row?.action === 'status_change' && row?.entity === 'order' && row?.entityId === o.id && row?.entityName === 'ORD-L1' && row?.userId === manager.id, row)
-  check(`refund: says what it was worth and what came back ("${(row?.metadata as any)?.description}")`, (row?.metadata as any)?.description === 'Refunded — $30.00, 2 units back in stock' && (row?.changes as any)?.status?.old === 'paid' && (row?.changes as any)?.status?.new === 'refunded' && Object.keys(row?.changes as any).length === 1, row?.changes)
+  check(`refund: says what it was worth and what came back ("${(row?.metadata as any)?.description}")`, (row?.metadata as any)?.description === 'Refunded — $30.00, recorded only — no money sent back here, 2 units back in stock' && (row?.changes as any)?.status?.old === 'paid' && (row?.changes as any)?.status?.new === 'refunded' && Object.keys(row?.changes as any).length === 1, row?.changes)
   const refused = await S('PATCH', `/api/admin/orders/${(await mkOrder('paid')).id}/status`, { status: 'cancelled' })
   check('refund: staff\'s refused cancel leaves no row', refused.status === 403 && (await rows()).length === before + 1, refused.json)
   const t = await S('PATCH', `/api/admin/orders/${o.id}/fulfillment`, { internalNote: 'customer kept the box' })

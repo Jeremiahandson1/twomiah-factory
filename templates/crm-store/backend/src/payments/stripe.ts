@@ -1,7 +1,7 @@
 import Stripe from 'stripe'
 import type {
   PaymentProvider, ProviderCredentials, CreateCheckoutInput,
-  CreateCheckoutResult, WebhookVerifyInput, WebhookResult,
+  CreateCheckoutResult, WebhookVerifyInput, WebhookResult, RefundInput, RefundResult,
 } from './types.ts'
 import type { Address } from '../../db/schema.ts'
 
@@ -15,7 +15,8 @@ export class StripeProvider implements PaymentProvider {
   private webhookSecret?: string
 
   constructor(creds: ProviderCredentials) {
-    this.stripe = new Stripe(creds.secretKey)
+    // Over fetch — the transport Stripe recommends off plain Node, and the one a test can answer without the network.
+    this.stripe = new Stripe(creds.secretKey, { httpClient: Stripe.createFetchHttpClient() })
     this.webhookSecret = creds.webhookSecret
   }
 
@@ -107,6 +108,23 @@ export class StripeProvider implements PaymentProvider {
   async retrieveSession(sessionId: string): Promise<WebhookResult> {
     const session = await this.stripe.checkout.sessions.retrieve(sessionId)
     return parseSession(session)
+  }
+
+  // The whole payment back to the card it came from. The idempotency key makes a repeat — a second press, a retry after
+  // a timeout — return the SAME refund rather than a second one. A payment refunded already (from Stripe's own
+  // dashboard) is reported as such, not as a failure: the money is back either way.
+  async refund({ providerPaymentId, idempotencyKey }: RefundInput): Promise<RefundResult> {
+    try {
+      const r = await this.stripe.refunds.create(
+        { payment_intent: providerPaymentId, reason: 'requested_by_customer' },
+        { idempotencyKey },
+      )
+      if (r.status === 'failed' || r.status === 'canceled') throw new Error(`Stripe did not complete the refund (${r.status}${r.failure_reason ? ': ' + r.failure_reason : ''})`)
+      return { refundId: r.id, status: r.status ?? 'pending', amountCents: r.amount ?? null }
+    } catch (e: any) {
+      if (e?.code === 'charge_already_refunded') return { refundId: null, status: 'succeeded', amountCents: null, alreadyRefunded: true }
+      throw e
+    }
   }
 }
 
