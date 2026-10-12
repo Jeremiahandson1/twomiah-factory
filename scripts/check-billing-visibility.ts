@@ -55,6 +55,13 @@ if (!/return c\.json\(await forReader\(currentUser, sanitizeCompany\(result\)\)\
   || !/if \(!hasPermission\(u\?\.role, 'company:update', extra\)\) return redactCompanyCommercial\(safe\)/.test(roofReader)
   || !/if \(!hasPermission\(u\?\.role, 'billing:manage', extra\)\) \{ const \{ integrations: _connected, \.\.\.rest \} = safe; return rest \}/.test(roofReader)) fail("crm-roof GET /api/company must answer through forReader: commercial terms asked with 'company:update', the integrations bag with 'billing:manage'")
 if (/return c\.json\(sanitizeCompany\(result\)\)/.test(roof)) fail('crm-roof: a reply hands the company row back without forReader')
+// The integrations status says connected and chargesEnabled — never the account id, for any seat. (10/12)
+for (const f of ['packages/tenant-backend/src/integrations/integrations.ts', 'templates/crm-dispensary/backend/src/routes/integrations.ts']) {
+  const s = read(f)
+  const status = s.match(/stripeStatus = \{[^}]*\}|let stripeStatus: any = \{[^}]*\}/g) || []
+  if (!status.length) fail(`${f}: no stripeStatus found — this check is not reaching the integrations status`)
+  if (status.some((x) => /accountId/.test(x))) fail(`${f}: the integrations status sends the Stripe account id — no screen shows it, and it is the owner's`)
+}
 if (!/else if \(!hasPermission\(String\(role \?\? ''\), 'billing:manage'\)\) delete clone\.integrations/.test(read('templates/crm-dispensary/backend/src/routes/company.ts'))) fail('crm-dispensary: an admin must not be sent the integrations bag (billing:manage)')
 const disp = read('templates/crm-dispensary/backend/src/routes/company.ts')
 if (!/clone\.settings = redactCompanySettings\(clone\.settings, \{ privileged: isPrivilegedRole\(role\) \}\)/.test(disp)) fail('crm-dispensary GET /api/company must keep redacting settings by role')
