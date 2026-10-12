@@ -176,11 +176,11 @@ export default function SettingsPage() {
       <div className="card p-5 space-y-4">
         <h2 className="font-semibold text-gray-900 dark:text-slate-100">Store</h2>
         {!maySaveSettings && <p className="text-xs text-gray-500 dark:text-slate-400">The store's name, currency and tax are set by the owner.</p>}
-        <div><label className="label">Store name</label><input className="input" value={form.companyName} onChange={(e) => set('companyName', e.target.value)} /></div>
-        <div><label className="label">Support email</label><input className="input" type="email" value={form.supportEmail} onChange={(e) => set('supportEmail', e.target.value)} /></div>
+        <div><label className="label">Store name</label><input disabled={!maySaveSettings} className="input" value={form.companyName} onChange={(e) => set('companyName', e.target.value)} /></div>
+        <div><label className="label">Support email</label><input disabled={!maySaveSettings} className="input" type="email" value={form.supportEmail} onChange={(e) => set('supportEmail', e.target.value)} /></div>
         <div className="grid grid-cols-2 gap-4">
-          <div><label className="label">Currency</label><input className="input" value={form.currency} onChange={(e) => set('currency', e.target.value.toLowerCase())} maxLength={3} /></div>
-          <div><label className="label">Tax rate (%)</label><input className="input" type="number" step="0.01" value={form.taxRatePct} onChange={(e) => set('taxRatePct', e.target.value)} /></div>
+          <div><label className="label">Currency</label><input disabled={!maySaveSettings} className="input" value={form.currency} onChange={(e) => set('currency', e.target.value.toLowerCase())} maxLength={3} /></div>
+          <div><label className="label">Tax rate (%)</label><input disabled={!maySaveSettings} className="input" type="number" step="0.01" value={form.taxRatePct} onChange={(e) => set('taxRatePct', e.target.value)} /></div>
         </div>
       </div>
       </fieldset>
@@ -190,8 +190,8 @@ export default function SettingsPage() {
         <h2 className="font-semibold text-gray-900 dark:text-slate-100">Shipping</h2>
         {!mayShipping && <p className="text-xs text-gray-500 dark:text-slate-400">Shipping rates are set by a manager or the owner.</p>}
         <div className="grid grid-cols-2 gap-4">
-          <div><label className="label">Flat shipping ($)</label><input className="input" value={form.flatShipping} onChange={(e) => set('flatShipping', e.target.value)} /></div>
-          <div><label className="label">Free shipping over ($)</label><input className="input" value={form.freeShippingThreshold} onChange={(e) => set('freeShippingThreshold', e.target.value)} placeholder="Blank = never" /></div>
+          <div><label className="label">Flat shipping ($)</label><input disabled={!mayShipping} className="input" value={form.flatShipping} onChange={(e) => set('flatShipping', e.target.value)} /></div>
+          <div><label className="label">Free shipping over ($)</label><input disabled={!mayShipping} className="input" value={form.freeShippingThreshold} onChange={(e) => set('freeShippingThreshold', e.target.value)} placeholder="Blank = never" /></div>
         </div>
         <p className="text-xs text-gray-500">Flat rate + tax above apply when no region zone/rate matches below.</p>
       </div>
@@ -199,17 +199,17 @@ export default function SettingsPage() {
       <div className="card p-5 space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-gray-900 dark:text-slate-100">Shipping zones <span className="text-gray-500 font-normal">(by region)</span></h2>
-          <button onClick={addZone} className="btn-secondary text-sm">+ Add zone</button>
+          <button disabled={!mayShipping} onClick={addZone} className="btn-secondary text-sm">+ Add zone</button>
         </div>
         {(form.zones || []).length === 0 && <p className="text-sm text-gray-500">No zones — the flat rate applies everywhere.</p>}
         {(form.zones || []).map((z: any, i: number) => (
           <div key={i} className="grid grid-cols-12 gap-2 items-end border-t pt-3">
-            <div className="col-span-3"><label className="label text-xs">Name</label><input className="input" value={z.name} onChange={(e) => setZone(i, 'name', e.target.value)} placeholder="Domestic" /></div>
-            <div className="col-span-2"><label className="label text-xs">Countries</label><input className="input" value={z.countries} onChange={(e) => setZone(i, 'countries', e.target.value)} placeholder="US" /></div>
-            <div className="col-span-3"><label className="label text-xs">States (blank = all)</label><input className="input" value={z.states} onChange={(e) => setZone(i, 'states', e.target.value)} placeholder="CA, NY" /></div>
-            <div className="col-span-1"><label className="label text-xs">Rate $</label><input className="input" value={z.rate} onChange={(e) => setZone(i, 'rate', e.target.value)} placeholder="7.00" /></div>
-            <div className="col-span-2"><label className="label text-xs">Free over $</label><input className="input" value={z.free} onChange={(e) => setZone(i, 'free', e.target.value)} placeholder="—" /></div>
-            <div className="col-span-1"><button onClick={() => delZone(i)} className="text-red-600 text-sm pb-2 dark:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed">✕</button></div>
+            <div className="col-span-3"><label className="label text-xs">Name</label><input disabled={!mayShipping} className="input" value={z.name} onChange={(e) => setZone(i, 'name', e.target.value)} placeholder="Domestic" /></div>
+            <div className="col-span-2"><label className="label text-xs">Countries</label><input disabled={!mayShipping} className="input" value={z.countries} onChange={(e) => setZone(i, 'countries', e.target.value)} placeholder="US" /></div>
+            <div className="col-span-3"><label className="label text-xs">States (blank = all)</label><input disabled={!mayShipping} className="input" value={z.states} onChange={(e) => setZone(i, 'states', e.target.value)} placeholder="CA, NY" /></div>
+            <div className="col-span-1"><label className="label text-xs">Rate $</label><input disabled={!mayShipping} className="input" value={z.rate} onChange={(e) => setZone(i, 'rate', e.target.value)} placeholder="7.00" /></div>
+            <div className="col-span-2"><label className="label text-xs">Free over $</label><input disabled={!mayShipping} className="input" value={z.free} onChange={(e) => setZone(i, 'free', e.target.value)} placeholder="—" /></div>
+            <div className="col-span-1"><button disabled={!mayShipping} onClick={() => delZone(i)} className="text-red-600 text-sm pb-2 dark:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed">✕</button></div>
           </div>
         ))}
       </div>
@@ -219,15 +219,15 @@ export default function SettingsPage() {
       <div className="card p-5 space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-gray-900 dark:text-slate-100">Tax rates <span className="text-gray-500 font-normal">(by region)</span></h2>
-          <button onClick={addTax} className="btn-secondary text-sm">+ Add rate</button>
+          <button disabled={!maySaveSettings} onClick={addTax} className="btn-secondary text-sm">+ Add rate</button>
         </div>
         {(form.taxes || []).length === 0 && <p className="text-sm text-gray-500">No region rates — the flat tax rate applies.</p>}
         {(form.taxes || []).map((t: any, i: number) => (
           <div key={i} className="grid grid-cols-12 gap-2 items-end border-t pt-3">
-            <div className="col-span-4"><label className="label text-xs">Country</label><input className="input" value={t.country} onChange={(e) => setTax(i, 'country', e.target.value)} placeholder="US" /></div>
-            <div className="col-span-4"><label className="label text-xs">State (blank = all)</label><input className="input" value={t.state} onChange={(e) => setTax(i, 'state', e.target.value)} placeholder="CA" /></div>
-            <div className="col-span-3"><label className="label text-xs">Rate %</label><input className="input" value={t.rate} onChange={(e) => setTax(i, 'rate', e.target.value)} placeholder="7.25" /></div>
-            <div className="col-span-1"><button onClick={() => delTax(i)} className="text-red-600 text-sm pb-2 dark:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed">✕</button></div>
+            <div className="col-span-4"><label className="label text-xs">Country</label><input disabled={!maySaveSettings} className="input" value={t.country} onChange={(e) => setTax(i, 'country', e.target.value)} placeholder="US" /></div>
+            <div className="col-span-4"><label className="label text-xs">State (blank = all)</label><input disabled={!maySaveSettings} className="input" value={t.state} onChange={(e) => setTax(i, 'state', e.target.value)} placeholder="CA" /></div>
+            <div className="col-span-3"><label className="label text-xs">Rate %</label><input disabled={!maySaveSettings} className="input" value={t.rate} onChange={(e) => setTax(i, 'rate', e.target.value)} placeholder="7.25" /></div>
+            <div className="col-span-1"><button disabled={!maySaveSettings} onClick={() => delTax(i)} className="text-red-600 text-sm pb-2 dark:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed">✕</button></div>
           </div>
         ))}
       </div>

@@ -80,6 +80,11 @@ check('rule: shipping fields ask shipping:configure, everything else settings:up
   const mixed = await M('PATCH', '/api/admin/settings', { flatShippingCents: 650, companyName: 'Mine Now' })
   const after = await settingsNow()
   check('shipping: a save mixing a shipping field with an owner\'s one is refused whole — the shipping field is not saved either', mixed.status === 403 && after.flatShippingCents === 600 && after.companyName === 'Ledger Store', { mixed: mixed.json, after: { flat: after.flatShippingCents, name: after.companyName } })
+  // Who may set a field is asked before whether the value is valid (T3 retest: a bad tax value got 400, a good one 403).
+  const badTax = await M('PATCH', '/api/admin/settings', { taxRateBps: 'lots', currency: 'dollars' })
+  check(`shipping: an owner's field is refused for who is asking, whatever value was sent (403, not 400 — ${badTax.status})`, badTax.status === 403 && badTax.json?.code === 'settings_field_refused' && JSON.stringify(badTax.json?.fields) === '["taxRateBps","currency"]', badTax.json)
+  const badShip = await M('PATCH', '/api/admin/settings', { flatShippingCents: -5 })
+  check(`shipping: …while a bad value in a field the manager may set is still 400 (${badShip.status})`, badShip.status === 400 && (await settingsNow()).flatShippingCents === 600, badShip.json)
   const st = await S('PATCH', '/api/admin/settings', { flatShippingCents: 1 })
   check(`shipping: staff change no rates (${st.status})`, st.status === 403 && (await settingsNow()).flatShippingCents === 600, st.json)
   const own = await O('PATCH', '/api/admin/settings', { taxRateBps: 550, flatShippingCents: 500 })
@@ -242,6 +247,15 @@ check('floor: …and records no request body', added.every((r) => !JSON.stringif
   check('screen: Settings puts the shipping rates and zones under shipping:configure, and nothing else', shipStart > 0 && /useMayWrite\('shipping:configure'\)/.test(settings) && /form\.flatShipping/.test(shipBlock) && /form\.freeShippingThreshold/.test(shipBlock) && /addZone/.test(shipBlock) && !/taxRatePct|addTax|companyName|currency/.test(shipBlock))
   check('screen: …store, currency and tax stay under settings:update', (settings.match(/<fieldset disabled=\{!maySaveSettings\}/g) || []).length === 2 && /form\.taxRatePct/.test(settings.slice(0, shipStart)) && /addTax/.test(settings.slice(shipEnd)))
   check('screen: one Save, shown to a seat that may change any of it', /\{\(maySaveSettings \|\| mayShipping\) && \(/.test(settings))
+  // Each control carries its own disabled as well as its fieldset's: a fieldset disables its children in the browser
+  // but leaves each one's `.disabled` false, which is what the T3 retest's script read ("still editable inputs").
+  const sections = [...settings.matchAll(/<fieldset disabled=\{(![a-zA-Z]+)\}[^>]*>([\s\S]*?)<\/fieldset>/g)]
+  const loose = sections.flatMap(([, cond, body]) => [
+    ...[...body.matchAll(/<input(?![^>]*disabled=\{[^}]*\})[^>]*>/g)].map((m) => m[0].slice(0, 60)),
+    ...[...body.matchAll(/<input disabled=\{([^}]*)\}/g)].filter((m) => m[1] !== cond).map((m) => `wrong flag: ${m[1]}`),
+    ...[...body.matchAll(/<button(?![^>]*disabled=\{[^}]*\})[^>]*>/g)].map((m) => m[0].slice(0, 60)),
+  ])
+  check(`screen: every field and button in a locked section is disabled itself, by its section's own rule (${sections.length} sections)`, sections.length === 3 && loose.length === 0, loose)
 }
 
 console.log(`\naudit and shipping rates: ${passed} passed, ${failed} failed`)

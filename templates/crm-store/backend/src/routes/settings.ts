@@ -54,16 +54,20 @@ const SHIPPING_FIELDS = ['flatShippingCents', 'freeShippingThresholdCents', 'shi
 export const permissionForField = (key: string) => (SHIPPING_FIELDS as readonly string[]).includes(key) ? 'shipping:configure' : 'settings:update'
 
 admin.patch('/', requireAnyPermission(['settings:update', 'shipping:configure']), async (c) => {
-  const parsed = settingsSchema.safeParse(await c.req.json().catch(() => null))
-  if (!parsed.success) return c.json({ error: 'Invalid settings', details: parsed.error.flatten() }, 400)
+  const raw = await c.req.json().catch(() => null)
   const user = c.get('user') as any
-  const refused = Object.keys(parsed.data).filter((k) => !hasPermission(user?.role, permissionForField(k)))
+  // Who may set a field is decided before whether its value is valid (Store QA T3 retest: a manager's bad tax value got
+  // 400 "invalid", a good one 403) — a field that is not yours is refused the same way whatever you sent for it.
+  const sent = raw && typeof raw === 'object' && !Array.isArray(raw) ? Object.keys(raw).filter((k) => k in settingsSchema.shape) : []
+  const refused = sent.filter((k) => !hasPermission(user?.role, permissionForField(k)))
   if (refused.length) {
     return c.json({
       error: `Only the store owner can change ${refused.length === 1 ? 'this setting' : 'these settings'}: ${refused.join(', ')}. Nothing was saved.`,
       code: 'settings_field_refused', fields: refused,
     }, 403)
   }
+  const parsed = settingsSchema.safeParse(raw)
+  if (!parsed.success) return c.json({ error: 'Invalid settings', details: parsed.error.flatten() }, 400)
   const [existing] = await db.select().from(storeSettings).limit(1)
   if (!existing) {
     const [created] = await db.insert(storeSettings)
