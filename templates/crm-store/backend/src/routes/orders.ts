@@ -61,6 +61,21 @@ export const moveRefusal = (c: any, from: string, to: string) => c.json({
   allowed: NEXT_STATUS[from] || [],
 }, 409)
 
+/**
+ * TWO PEOPLE ON ONE ORDER. Every status change reads the order, decides the move is allowed, then writes it. Two at
+ * once both read "paid": two refunds each put the units back on the shelf (10 in stock, 3 sold, refunded twice → 13),
+ * and a cancel racing "mark shipped" restocked an order that then read shipped. So the write names the status it was
+ * decided from — `WHERE status = <what was read>` — and only the one that still finds it there moves the order, puts
+ * stock back or emails the customer. The other is told who got there first, and nothing of theirs is applied.
+ */
+export const changedUnderYou = (c: any, now: { status: string } | undefined, wanted: string) => c.json({
+  error: now
+    ? `Someone else just marked this order ${now.status}, so it was not marked ${wanted}. Reload the order to see it as it stands.`
+    : 'This order no longer exists.',
+  code: 'order_changed',
+  status: now?.status ?? null,
+}, 409)
+
 export const refundRefusal = (c: any) => c.json({
   error: 'Cancelling, refunding or changing whether an order was paid is for a manager or the owner.',
   required: 'orders:refund',
@@ -162,7 +177,12 @@ admin.patch('/:id/status', requirePermission('orders:update'), async (c) => {
   if ((next === 'fulfilled' || next === 'shipped') && !prev.fulfilledAt) patch.fulfilledAt = new Date()
   // A paid order cancelled before it went out was never fulfilled. (A refund after shipping keeps it: it did ship.)
   if (next === 'cancelled') patch.fulfilledAt = null
-  const [updated] = await db.update(orders).set(patch).where(eq(orders.id, prev.id)).returning()
+  // Only from the status this was decided on (changedUnderYou above): a second person's change in between wins.
+  const [updated] = await db.update(orders).set(patch).where(and(eq(orders.id, prev.id), eq(orders.status, prev.status))).returning()
+  if (!updated) {
+    const [now] = await db.select({ status: orders.status }).from(orders).where(eq(orders.id, prev.id)).limit(1)
+    return changedUnderYou(c, now, next)
+  }
 
   // Restock when a previously-paid order is cancelled/refunded. Payment
   // (finalizeOrder) decremented inventoryQty for tracked variants, so reversing
@@ -203,7 +223,13 @@ admin.patch('/:id/fulfillment', requirePermission('orders:update'), async (c) =>
   const patch: Record<string, unknown> = { ...parsed.data, updatedAt: new Date() }
   delete (patch as any).markShipped
   if (parsed.data.markShipped) { patch.status = 'shipped'; if (!prev.fulfilledAt) patch.fulfilledAt = new Date() }
-  const [updated] = await db.update(orders).set(patch).where(eq(orders.id, prev.id)).returning()
+  // Marking it shipped was decided from the status read above; a cancel or refund landing since keeps the order.
+  const [updated] = await db.update(orders).set(patch)
+    .where(parsed.data.markShipped ? and(eq(orders.id, prev.id), eq(orders.status, prev.status)) : eq(orders.id, prev.id)).returning()
+  if (!updated) {
+    const [now] = await db.select({ status: orders.status }).from(orders).where(eq(orders.id, prev.id)).limit(1)
+    return changedUnderYou(c, now, 'shipped')
+  }
   if (parsed.data.markShipped && prev.status !== 'shipped') void notifyShipped(updated)
   return c.json({ order: orderForCaller(c, updated) })
 })

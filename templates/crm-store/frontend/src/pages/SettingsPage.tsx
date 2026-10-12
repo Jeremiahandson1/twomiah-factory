@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AtSign, Globe, Inbox } from 'lucide-react'
 import api, { StoreSettings, StoreUser, type AssignableRole } from '../services/api'
@@ -14,6 +14,42 @@ const ROLE_OPTIONS: { value: AssignableRole; label: string; hint: string }[] = [
   { value: 'manager', label: 'Manager', hint: 'Everything staff do, plus refunds and cancellations, discount codes, shipping set-up, deleting products and the loyalty programme.' },
 ]
 
+/** The form as the settings fill it. */
+const formOf = (s: StoreSettings | null) => ({
+  companyName: s?.companyName || '',
+  supportEmail: s?.supportEmail || '',
+  currency: s?.currency || 'usd',
+  flatShipping: centsToDollars(s?.flatShippingCents),
+  freeShippingThreshold: s?.freeShippingThresholdCents != null ? centsToDollars(s.freeShippingThresholdCents) : '',
+  taxRatePct: s ? (s.taxRateBps / 100).toString() : '0',
+  storefrontOrigin: s?.storefrontOrigin || '',
+  zones: (s?.shippingZones || []).map((z) => ({ name: z.name, countries: (z.countries || []).join(', '), states: (z.states || []).join(', '), rate: centsToDollars(z.rateCents), free: z.freeThresholdCents != null ? centsToDollars(z.freeThresholdCents) : '' })),
+  taxes: (s?.taxRates || []).map((t) => ({ country: t.country, state: t.state, rate: (t.rateBps / 100).toString() })),
+})
+
+/** The settings as the server takes them, from the form. */
+const payloadOf = (form: any) => ({
+  companyName: form.companyName,
+  supportEmail: form.supportEmail || null,
+  currency: form.currency,
+  flatShippingCents: dollarsToCents(form.flatShipping),
+  freeShippingThresholdCents: form.freeShippingThreshold === '' ? null : dollarsToCents(form.freeShippingThreshold),
+  taxRateBps: Math.round(parseFloat(form.taxRatePct || '0') * 100),
+  storefrontOrigin: form.storefrontOrigin || null,
+  shippingZones: (form.zones || []).filter((z: any) => z.name.trim()).map((z: any) => ({
+    name: z.name.trim(),
+    countries: z.countries.split(',').map((s: string) => s.trim().toUpperCase()).filter(Boolean),
+    states: z.states.split(',').map((s: string) => s.trim().toUpperCase()).filter(Boolean),
+    rateCents: dollarsToCents(z.rate || '0'),
+    freeThresholdCents: z.free === '' ? null : dollarsToCents(z.free),
+  })),
+  taxRates: (form.taxes || []).filter((t: any) => t.country.trim() || t.state.trim()).map((t: any) => ({
+    country: t.country.trim().toUpperCase(),
+    state: t.state.trim().toUpperCase(),
+    rateBps: Math.round(parseFloat(t.rate || '0') * 100),
+  })),
+})
+
 export default function SettingsPage() {
   const navigate = useNavigate()
   const { toast } = useToast()
@@ -21,6 +57,9 @@ export default function SettingsPage() {
   const [form, setForm] = useState<any>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  // What the form was filled from. A save sends only what this person changed from it: the whole form went every
+  // time, so a manager fixing the tax rate while the owner set up a shipping zone put the zones back as they were.
+  const loaded = useRef<Record<string, unknown> | null>(null)
 
   // Password change
   const [pw, setPw] = useState({ current: '', next: '' })
@@ -84,17 +123,8 @@ export default function SettingsPage() {
   useEffect(() => {
     api.getSettings().then((s) => {
       setSettings(s)
-      setForm({
-        companyName: s?.companyName || '',
-        supportEmail: s?.supportEmail || '',
-        currency: s?.currency || 'usd',
-        flatShipping: centsToDollars(s?.flatShippingCents),
-        freeShippingThreshold: s?.freeShippingThresholdCents != null ? centsToDollars(s.freeShippingThresholdCents) : '',
-        taxRatePct: s ? (s.taxRateBps / 100).toString() : '0',
-        storefrontOrigin: s?.storefrontOrigin || '',
-        zones: (s?.shippingZones || []).map((z) => ({ name: z.name, countries: (z.countries || []).join(', '), states: (z.states || []).join(', '), rate: centsToDollars(z.rateCents), free: z.freeThresholdCents != null ? centsToDollars(z.freeThresholdCents) : '' })),
-        taxes: (s?.taxRates || []).map((t) => ({ country: t.country, state: t.state, rate: (t.rateBps / 100).toString() })),
-      })
+      setForm(formOf(s))
+      loaded.current = s ? payloadOf(formOf(s)) : null
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
@@ -110,27 +140,12 @@ export default function SettingsPage() {
   const save = async () => {
     setSaving(true)
     try {
-      const updated = await api.updateSettings({
-        companyName: form.companyName,
-        supportEmail: form.supportEmail || null,
-        currency: form.currency,
-        flatShippingCents: dollarsToCents(form.flatShipping),
-        freeShippingThresholdCents: form.freeShippingThreshold === '' ? null : dollarsToCents(form.freeShippingThreshold),
-        taxRateBps: Math.round(parseFloat(form.taxRatePct || '0') * 100),
-        storefrontOrigin: form.storefrontOrigin || null,
-        shippingZones: (form.zones || []).filter((z: any) => z.name.trim()).map((z: any) => ({
-          name: z.name.trim(),
-          countries: z.countries.split(',').map((s: string) => s.trim().toUpperCase()).filter(Boolean),
-          states: z.states.split(',').map((s: string) => s.trim().toUpperCase()).filter(Boolean),
-          rateCents: dollarsToCents(z.rate || '0'),
-          freeThresholdCents: z.free === '' ? null : dollarsToCents(z.free),
-        })),
-        taxRates: (form.taxes || []).filter((t: any) => t.country.trim() || t.state.trim()).map((t: any) => ({
-          country: t.country.trim().toUpperCase(),
-          state: t.state.trim().toUpperCase(),
-          rateBps: Math.round(parseFloat(t.rate || '0') * 100),
-        })),
-      })
+      // Only the settings this person changed (see `loaded`); the whole form when there was nothing to load.
+      const body = payloadOf(form)
+      const from = loaded.current
+      const changed = from ? Object.fromEntries(Object.entries(body).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(from[k]))) : body
+      const updated = await api.updateSettings(changed)
+      loaded.current = { ...(from || {}), ...changed }
       setSettings(updated)
       toast('Settings saved')
     } catch (e: any) { toast(e?.message || 'Save failed', 'error') } finally { setSaving(false) }

@@ -46,16 +46,27 @@ export default function OrderDetailPage() {
 
   useEffect(() => { load() }, [id])
 
+  // Someone else moved this order while it was open (409 order_changed): nothing of ours was applied, so show the
+  // order as it now stands rather than the buttons for a status it has left.
+  const failed = (e: any) => { toast(e?.message || 'Failed', 'error'); if (e?.code === 'order_changed') load() }
   const setStatus = async (status: string) => {
     try { const o = await api.setOrderStatus(id!, status); setOrder((prev) => prev ? { ...prev, ...o } : prev); toast(`Marked ${status}`) }
-    catch (e: any) { toast(e?.message || 'Failed', 'error') }
+    catch (e: any) { failed(e) }
   }
   const saveFulfillment = async (markShipped: boolean) => {
     try {
-      const o = await api.setFulfillment(id!, { trackingCarrier: carrier, trackingNumber: tracking, internalNote: note, markShipped })
+      // Only the boxes this person changed: one adding the tracking number while another wrote the note used to send
+      // both, and the second save blanked the first one's.
+      const body: { trackingCarrier?: string; trackingNumber?: string; internalNote?: string; markShipped?: boolean } = { markShipped }
+      if (carrier !== (order?.trackingCarrier || '')) body.trackingCarrier = carrier
+      if (tracking !== (order?.trackingNumber || '')) body.trackingNumber = tracking
+      if (note !== (order?.internalNote || '')) body.internalNote = note
+      const o = await api.setFulfillment(id!, body)
       setOrder((prev) => prev ? { ...prev, ...o } : prev)
+      // The boxes now show the order as saved — the other person's fields included — so they are the next baseline.
+      setCarrier(o.trackingCarrier || ''); setTracking(o.trackingNumber || ''); setNote(o.internalNote || '')
       toast(markShipped ? 'Marked shipped' : 'Saved')
-    } catch (e: any) { toast(e?.message || 'Failed', 'error') }
+    } catch (e: any) { failed(e) }
   }
 
   if (loading) return <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-primary-500" /></div>
@@ -203,11 +214,16 @@ function LabelPanel({ orderId, order, onBought }: { orderId: string; order: Orde
     setBusy(true)
     try {
       const res = await api.buyLabel(orderId, { rateId, markShipped: true })
-      toast('Label bought — customer emailed')
+      // A note means the label was bought but the order was not marked shipped (someone cancelled or refunded it).
+      if (res.note) toast(res.note, 'error')
+      else toast('Label bought — customer emailed')
       window.open(res.label.labelUrl, '_blank')
       onBought()
-    } catch (err) {
+    } catch (err: any) {
       toast(err instanceof Error ? err.message : 'Could not buy label', 'error')
+      // Refused because of where the order stands — a label already bought or being bought from another screen, or
+      // the order moved: show it as it is now.
+      if (err?.status >= 400 && err?.status < 500) onBought()
     } finally {
       setBusy(false)
     }

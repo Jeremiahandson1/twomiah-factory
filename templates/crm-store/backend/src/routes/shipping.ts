@@ -5,7 +5,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { orders, shippingConfig, storeSettings } from '../../db/schema.ts'
-import { eq } from 'drizzle-orm'
+import { eq, and, or, isNull, lt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { encryptJSON } from '../lib/crypto.ts'
 import { getActiveShipping, DEFAULT_PARCEL } from '../shipping/index.ts'
@@ -108,6 +108,9 @@ admin.get('/orders/:id/rates', requirePermission('shipping:label'), async (c) =>
   }
 })
 
+/** How long a label purchase may be under way before another press is let through (see the claim below). */
+const LABEL_CLAIM_MINUTES = 5
+
 const buySchema = z.object({ rateId: z.string().optional(), markShipped: z.boolean().default(true) })
 
 admin.post('/orders/:id/label', requirePermission('shipping:label'), async (c) => {
@@ -126,6 +129,19 @@ admin.post('/orders/:id/label', requirePermission('shipping:label'), async (c) =
   if (body.markShipped && !mayMove(order.status, 'shipped')) return moveRefusal(c, order.status, 'shipped')
   if (body.markShipped && !isFulfilment(order.status, 'shipped') && !may(c, 'orders:refund')) return refundRefusal(c)
 
+  /**
+   * ONE LABEL PER ORDER, EVEN FROM TWO SCREENS. The check above reads labelUrl, and the label is bought seconds later:
+   * two people pressing Buy on the same order both found none and both were charged by the carrier. So the order is
+   * CLAIMED first — label_purchased_at stamped only where no label exists and no purchase is under way — and only the
+   * request that claims it calls the carrier. A claim left by a purchase that died half-way (the process restarted)
+   * lapses after LABEL_CLAIM_MINUTES, so the order is never stuck without a way to buy one.
+   */
+  const [claimed] = await db.update(orders).set({ labelPurchasedAt: new Date() })
+    .where(and(eq(orders.id, order.id), isNull(orders.labelUrl),
+      or(isNull(orders.labelPurchasedAt), lt(orders.labelPurchasedAt, new Date(Date.now() - LABEL_CLAIM_MINUTES * 60_000)))))
+    .returning({ id: orders.id })
+  if (!claimed) return c.json({ error: 'A label is already being bought for this order — reload it in a moment.', code: 'label_in_progress' }, 409)
+
   try {
     const label = await active.provider.buyLabel({
       from: active.fromAddress,
@@ -143,13 +159,23 @@ admin.post('/orders/:id/label', requirePermission('shipping:label'), async (c) =
       trackingNumber: label.trackingCode,
       updatedAt: new Date(),
     }
-    if (body.markShipped) { patch.status = 'shipped'; if (!order.fulfilledAt) patch.fulfilledAt = new Date() }
+    // The label is bought and paid for, so it is always recorded. The order moves to shipped only from the status the
+    // move was decided on: one cancelled or refunded while the carrier answered keeps its status (and its label, which
+    // the shop can void with the carrier).
+    const [recorded] = await db.update(orders).set(patch).where(eq(orders.id, order.id)).returning()
+    let updated = recorded
+    let shipped = false
+    if (body.markShipped && order.status !== 'shipped') {
+      const move: Record<string, unknown> = { status: 'shipped', updatedAt: new Date() }
+      if (!order.fulfilledAt) move.fulfilledAt = new Date()
+      const [moved] = await db.update(orders).set(move).where(and(eq(orders.id, order.id), eq(orders.status, order.status))).returning()
+      if (moved) { updated = moved; shipped = true; void notifyShipped(moved) }
+    }
 
-    const [updated] = await db.update(orders).set(patch).where(eq(orders.id, order.id)).returning()
-    if (body.markShipped && order.status !== 'shipped') void notifyShipped(updated)
-
-    return c.json({ label, order: orderForCaller(c, updated) })
+    return c.json({ label, order: orderForCaller(c, updated), ...(body.markShipped && order.status !== 'shipped' && !shipped ? { note: `The label was bought, but the order is now ${updated.status}, so it was not marked shipped.` } : {}) })
   } catch (err: any) {
+    // Nothing was bought: release the claim so the next press can try again.
+    await db.update(orders).set({ labelPurchasedAt: null }).where(and(eq(orders.id, order.id), isNull(orders.labelUrl))).catch(() => {})
     logger.error('label purchase failed', { orderId: order.id, error: err?.message })
     return c.json({ error: err?.message || 'Could not buy that label' }, 502)
   }

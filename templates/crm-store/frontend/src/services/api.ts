@@ -187,7 +187,14 @@ class ApiClient {
       throw new Error('Session expired')
     }
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error((data as any)?.error || `Request failed (${res.status})`)
+    if (!res.ok) {
+      // The status and the server's code travel with the message, so a screen can tell "someone else changed this"
+      // (409 order_changed / inventory_changed) from a plain failure and reload what it shows.
+      const err = new Error((data as any)?.error || `Request failed (${res.status})`) as Error & { status?: number; code?: string }
+      err.status = res.status
+      err.code = (data as any)?.code
+      throw err
+    }
     return data as T
   }
 
@@ -338,7 +345,7 @@ class ApiClient {
   async disconnectShipping() { return this.request<{ ok: boolean }>('/api/admin/shipping/config', { method: 'DELETE' }) }
   async orderRates(orderId: string) { return (await this.request<{ data: RateQuote[] }>(`/api/admin/shipping/orders/${orderId}/rates`)).data }
   async buyLabel(orderId: string, body: { rateId?: string; markShipped?: boolean }) {
-    return this.request<{ label: BoughtLabel; order: Order }>(`/api/admin/shipping/orders/${orderId}/label`, { method: 'POST', body: JSON.stringify(body) })
+    return this.request<{ label: BoughtLabel; order: Order; note?: string }>(`/api/admin/shipping/orders/${orderId}/label`, { method: 'POST', body: JSON.stringify(body) })
   }
 }
 

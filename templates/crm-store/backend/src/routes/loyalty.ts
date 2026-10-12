@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { loyaltyMembers, loyaltyRewards, storeSettings } from '../../db/schema.ts'
-import { eq, desc, ilike } from 'drizzle-orm'
+import { eq, desc, ilike, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { loyaltyConfig, loyaltyConfigResponse, punchCardProgress } from '../shared/index.ts'
@@ -46,21 +46,29 @@ const configSchema = z.object({
 
 admin.put('/config', requirePermission('loyalty:configure'), async (c) => {
   const d = configSchema.parse(await c.req.json())
-  const [row] = await db.select().from(storeSettings).limit(1)
-  if (!row) return c.json({ error: 'Store settings have not been created yet' }, 404)
-
   // Merged, not replaced: saving the points rate must not wipe the punch card the shop set up
   // last week. Same lesson as the loyalty settings that silently dropped every field but one.
-  const current: any = row.loyalty || {}
-  const next = {
-    ...current,
-    ...(d.loyaltyEnabled !== undefined ? { enabled: d.loyaltyEnabled } : {}),
-    ...(d.loyaltyPointsPerDollar !== undefined ? { pointsPerDollar: d.loyaltyPointsPerDollar } : {}),
-    ...(d.loyaltyWelcomePoints !== undefined ? { welcomePoints: d.loyaltyWelcomePoints } : {}),
-    ...(d.loyaltyPunchCard !== undefined ? { punchCard: { ...(current.punchCard || {}), ...d.loyaltyPunchCard } } : {}),
-  }
-
-  await db.update(storeSettings).set({ loyalty: next, updatedAt: new Date() }).where(eq(storeSettings.id, row.id))
+  //
+  // And merged UNDER A LOCK. Each field saves on its own (the screen saves on leaving the box), so two managers
+  // changing two different settings send two saves at once. Both read the same settings, each merged its one field
+  // into that, and the second write put the first field back as it was. The row is locked for the read-merge-write,
+  // so the second save merges into what the first wrote.
+  const next = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM store_settings FOR UPDATE`)
+    const [row] = await tx.select().from(storeSettings).limit(1)
+    if (!row) return null
+    const current: any = row.loyalty || {}
+    const merged = {
+      ...current,
+      ...(d.loyaltyEnabled !== undefined ? { enabled: d.loyaltyEnabled } : {}),
+      ...(d.loyaltyPointsPerDollar !== undefined ? { pointsPerDollar: d.loyaltyPointsPerDollar } : {}),
+      ...(d.loyaltyWelcomePoints !== undefined ? { welcomePoints: d.loyaltyWelcomePoints } : {}),
+      ...(d.loyaltyPunchCard !== undefined ? { punchCard: { ...(current.punchCard || {}), ...d.loyaltyPunchCard } } : {}),
+    }
+    await tx.update(storeSettings).set({ loyalty: merged, updatedAt: new Date() }).where(eq(storeSettings.id, row.id))
+    return merged
+  })
+  if (!next) return c.json({ error: 'Store settings have not been created yet' }, 404)
   return c.json(loyaltyConfigResponse({ loyalty: next }, STORE_LOYALTY_DEFAULTS))
 })
 

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { cleanText } from '../utils/sanitize.ts'
 import { db } from '../../db/index.ts'
 import { products, productImages, productVariants } from '../../db/schema.ts'
-import { eq, inArray, asc, desc } from 'drizzle-orm'
+import { eq, and, isNull, inArray, asc, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { storageConfigured, putObject, deleteObject, keyFromMediaUrl } from '../services/storage.ts'
@@ -115,12 +115,38 @@ admin.post('/:id/variants', requirePermission('products:update'), async (c) => {
   return c.json({ variant: created }, 201)
 })
 
+/**
+ * THE STOCK COUNT IS THE ONE FIELD OTHER PEOPLE CHANGE UNDER YOU. Every paid order takes units off it, and so can a
+ * second member of staff counting the shelf. A count typed into a page loaded ten minutes ago is a count from ten
+ * minutes ago: saving it put back every unit sold since (10 in stock, page opened, 3 sold, the price fixed → 10 again).
+ * So a stock edit names the figure it was made from — `inventoryFrom`, what the screen showed — and is applied only
+ * while the count still reads that. Otherwise nothing in the save is applied and the caller is told the count as it
+ * stands now. A save without `inventoryFrom` sets the count outright, as before; the admin screen always sends it.
+ */
+const variantPatchSchema = variantSchema.partial().extend({
+  inventoryFrom: z.number().int().nullable().optional(),
+})
+
 admin.patch('/variants/:variantId', requirePermission('products:update'), async (c) => {
-  const parsed = variantSchema.partial().safeParse(await c.req.json().catch(() => null))
+  const parsed = variantPatchSchema.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'Invalid variant' }, 400)
-  const [updated] = await db.update(productVariants)
-    .set({ ...parsed.data, updatedAt: new Date() }).where(eq(productVariants.id, c.req.param('variantId'))).returning()
-  if (!updated) return c.json({ error: 'Not found' }, 404)
+  const { inventoryFrom, ...fields } = parsed.data
+  const id = c.req.param('variantId')
+  const guarded = inventoryFrom !== undefined && fields.inventoryQty !== undefined
+  const where = guarded
+    ? and(eq(productVariants.id, id), inventoryFrom === null ? isNull(productVariants.inventoryQty) : eq(productVariants.inventoryQty, inventoryFrom))
+    : eq(productVariants.id, id)
+  const [updated] = await db.update(productVariants).set({ ...fields, updatedAt: new Date() }).where(where).returning()
+  if (!updated) {
+    const [now] = await db.select({ inventoryQty: productVariants.inventoryQty }).from(productVariants).where(eq(productVariants.id, id)).limit(1)
+    if (!now) return c.json({ error: 'Not found' }, 404)
+    const stands = now.inventoryQty === null ? 'untracked' : String(now.inventoryQty)
+    return c.json({
+      error: `The stock changed to ${stands} since this page loaded (a sale, or someone else's count), so nothing was saved. Check the count and save again.`,
+      code: 'inventory_changed',
+      inventoryQty: now.inventoryQty,
+    }, 409)
+  }
   return c.json({ variant: updated })
 })
 
@@ -155,13 +181,24 @@ admin.post('/:id/images', requirePermission('products:update'), async (c) => {
   const parsed = imageSchema.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'Invalid image' }, 400)
   const productId = c.req.param('id')
-  // If this is the first image or marked primary, ensure single primary.
-  if (parsed.data.isPrimary) {
-    await db.update(productImages).set({ isPrimary: false }).where(eq(productImages.productId, productId))
-  }
-  const [created] = await db.insert(productImages).values({ ...parsed.data, productId }).returning()
-  return c.json({ image: created }, 201)
+  const { isPrimary, ...rest } = parsed.data
+  const [created] = await db.insert(productImages).values({ ...rest, isPrimary: false, productId }).returning()
+  if (!isPrimary) return c.json({ image: created }, 201)
+  const [primary] = await makeOnlyPrimary(productId, created.id)
+  return c.json({ image: primary ?? created }, 201)
 })
+
+/**
+ * ONE PRIMARY PHOTO, IN ONE STATEMENT. "Clear every primary, then set this one" was two writes: two people choosing
+ * different photos at once could both clear, then both set — and the product had two primary photos, the storefront
+ * showing whichever it read first. Setting every row of the product to (id = chosen) is a single UPDATE, so the last
+ * choice wins whole.
+ */
+const makeOnlyPrimary = async (productId: string, imageId: string) => {
+  const rows = await db.update(productImages).set({ isPrimary: sql`${productImages.id} = ${imageId}` })
+    .where(eq(productImages.productId, productId)).returning()
+  return rows.filter((r) => r.id === imageId)
+}
 
 // Direct file upload → private R2 → served back via GET /media/<key>. The stored
 // url is absolute (BACKEND_URL) so the separate storefront origin can load it.
@@ -201,11 +238,11 @@ admin.patch('/images/:imageId', requirePermission('products:update'), async (c) 
   if (!parsed.success) return c.json({ error: 'Invalid image' }, 400)
   const [img] = await db.select().from(productImages).where(eq(productImages.id, c.req.param('imageId'))).limit(1)
   if (!img) return c.json({ error: 'Not found' }, 404)
-  if (parsed.data.isPrimary) {
-    await db.update(productImages).set({ isPrimary: false }).where(eq(productImages.productId, img.productId))
-  }
-  const [updated] = await db.update(productImages)
-    .set(parsed.data).where(eq(productImages.id, img.id)).returning()
+  const { isPrimary, ...rest } = parsed.data
+  let [updated] = Object.keys(rest).length || isPrimary === false
+    ? await db.update(productImages).set({ ...rest, ...(isPrimary === false ? { isPrimary: false } : {}) }).where(eq(productImages.id, img.id)).returning()
+    : [img]
+  if (isPrimary) [updated] = await makeOnlyPrimary(img.productId, img.id)
   return c.json({ image: updated })
 })
 

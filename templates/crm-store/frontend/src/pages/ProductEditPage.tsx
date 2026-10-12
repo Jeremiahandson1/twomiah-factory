@@ -11,6 +11,14 @@ const BLANK = {
   featured: false, leadTimeDays: null as number | null, seoTitle: '', seoDescription: '',
 }
 
+/** The product's own fields as the server takes them — for the form, and for what the form was loaded from. */
+const detailsBody = (f: any) => ({
+  name: f.name, tagline: f.tagline, description: f.description,
+  status: f.status, featured: f.featured,
+  leadTimeDays: f.leadTimeDays === '' || f.leadTimeDays == null ? null : Number(f.leadTimeDays),
+  seoTitle: f.seoTitle, seoDescription: f.seoDescription,
+})
+
 export default function ProductEditPage() {
   const { id } = useParams()
   const isNew = !id
@@ -24,9 +32,15 @@ export default function ProductEditPage() {
   // Staff add and edit; taking a product off sale for good is the manager's (products:delete).
   const mayDelete = useMayWrite('products:delete')
 
+  // What the form was filled from. A save sends only the fields this person changed from it, so two people editing
+  // one product at once keep each other's work: one fixing the description and one renaming it used to send the whole
+  // form, and the second save put the first person's description back. (Not `product`: the variant and photo
+  // sections reload that, and it then holds the other person's edits — comparing with it would send ours over them.)
+  const loaded = useRef<any>(null)
+
   useEffect(() => {
     if (isNew) return
-    api.getProduct(id!).then((p) => { setProduct(p); setForm(p) }).catch(() => toast('Could not load product', 'error')).finally(() => setLoading(false))
+    api.getProduct(id!).then((p) => { setProduct(p); setForm(p); loaded.current = detailsBody(p) }).catch(() => toast('Could not load product', 'error')).finally(() => setLoading(false))
   }, [id])
 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }))
@@ -34,18 +48,16 @@ export default function ProductEditPage() {
   const save = async () => {
     setSaving(true)
     try {
-      const body = {
-        name: form.name, tagline: form.tagline, description: form.description,
-        status: form.status, featured: form.featured,
-        leadTimeDays: form.leadTimeDays === '' || form.leadTimeDays == null ? null : Number(form.leadTimeDays),
-        seoTitle: form.seoTitle, seoDescription: form.seoDescription,
-      }
+      const body = detailsBody(form)
       if (isNew) {
         const created = await api.createProduct(body)
         toast('Product created — now add variants and photos')
         navigate(`/products/${created.id}`, { replace: true })
       } else {
-        const updated = await api.updateProduct(id!, body)
+        const from = loaded.current || {}
+        const changed = Object.fromEntries(Object.entries(body).filter(([k, v]) => JSON.stringify(v ?? null) !== JSON.stringify(from[k] ?? null)))
+        const updated = await api.updateProduct(id!, changed)
+        loaded.current = { ...from, ...changed }
         setProduct((p) => p ? { ...p, ...updated } : p)
         toast('Saved')
       }
@@ -167,10 +179,15 @@ function VariantsSection({ product, onChange }: { product: Product; onChange: ()
   // no error, and merchants couldn't set up dropshipping through the UI.
   const saveRow = async (v: ProductVariant, next: { price: string; inv: string; ref: string }) => {
     try {
-      await api.updateVariant(v.id, {
-        priceCents: dollarsToCents(next.price),
-        inventoryQty: next.inv === '' ? null : Number(next.inv),
-      })
+      // Only what changed in this row. The stock count above all: sent whenever the price was, it put back every unit
+      // sold since the page loaded. A changed count names the count it was typed over (inventoryFrom), and the server
+      // refuses it if a sale or another person moved the count in between.
+      const priceCents = dollarsToCents(next.price)
+      const inventoryQty = next.inv === '' ? null : Number(next.inv)
+      const body: Record<string, unknown> = {}
+      if (priceCents !== v.priceCents) body.priceCents = priceCents
+      if (inventoryQty !== v.inventoryQty) { body.inventoryQty = inventoryQty; body.inventoryFrom = v.inventoryQty }
+      if (Object.keys(body).length) await api.updateVariant(v.id, body as any)
       if (supplierConnected && next.ref.trim() !== (supplierMap[v.id]?.ref || '')) {
         const res: any = await api.setVariantSupplierRef(v.id, next.ref.trim())
         if (res?.cleared) { const m = { ...supplierMap }; delete m[v.id]; setSupplierMap(m) }
@@ -180,6 +197,8 @@ function VariantsSection({ product, onChange }: { product: Product; onChange: ()
       onChange()
     } catch (e: any) {
       toast(e?.message || 'Could not save variant', 'error')
+      // The count moved under us: show it as it stands, so the next save is typed over the real figure.
+      if (e?.code === 'inventory_changed') onChange()
       throw e
     }
   }
