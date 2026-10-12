@@ -113,5 +113,22 @@ for (const [what, change] of [['amount', { amount: 30 }], ['tax', { taxAmount: 2
   check('fixing the description keeps the approval, approver and time', r.status === 200 && s?.approved === true && s?.approved_by_id === manager.id && s?.approved_at !== null, { status: r.status, s })
 }
 
+// ── and the person who saved it is told (Contractor admin pass, 10/12) ─────────────────────────────
+// The server explains the ended approval in `warnings`; the shared Expenses screen said only "Expense updated", so the
+// record was right and the person reading the screen still believed it approved.
+{
+  const r = (process.env.FACTORY_ROOT || '').replace(/\/?$/, '/')
+  const page = (await Bun.file(`${r}packages/tenant-ui/src/people/ExpensesPage.tsx`).text()).replace(/\r\n/g, '\n')
+  const edit = page.slice(page.indexOf('if (editing) {'), page.indexOf("else { await api.post('/api/expenses'"))
+  check('the Expenses screen shows the server\'s warning when an edit ends an approval',
+    /const res: any = await api\.put\(`\/api\/expenses\/\$\{editing\.id\}`, payload\)/.test(edit)
+    && /const warning = \(res\?\.warnings \?\? res\?\.data\?\.warnings\)\?\.\[0\]/.test(edit)
+    && /if \(warning\) toast\.error\(`Saved\. \$\{warning\}`\); else toast\.success\('Expense updated'\)/.test(edit), edit.slice(0, 300))
+  const id = await add('T67 told', 20, true)
+  await asMgr('POST', `/api/expenses/${id}/approve`)
+  const told = await asMgr('PUT', `/api/expenses/${id}`, { amount: 25 })
+  check('…and the server sends one for the screen to show', told.status === 200 && /approval has been removed/.test(String((body(told) as any)?.warnings?.[0] ?? (told as any).json?.warnings?.[0])), (told as any).json ?? told)
+}
+
 console.log(`\n  ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

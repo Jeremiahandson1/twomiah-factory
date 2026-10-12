@@ -106,7 +106,14 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
     try {
       // Unselected pickers post '' which the API treats as a (non-existent) FK — send null instead.
       const payload = { date: form.date, category: form.category, vendor: form.vendor.trim() || null, description: form.description.trim(), amount: Number(form.amount), billable: form.billable, reimbursable: form.reimbursable, projectId: form.projectId || null, jobId: form.jobId || null }
-      if (editing) { await api.put(`/api/expenses/${editing.id}`, payload); toast.success('Expense updated') }
+      if (editing) {
+        // An edit that ends an approval (the figure changed, or "Reimburse me" went on after approval) is saved, and the
+        // server says why the approval went in `warnings`. "Expense updated" alone left the person thinking it was
+        // still approved. Two toast kinds exist; the warning is shown as the one that gets read.
+        const res: any = await api.put(`/api/expenses/${editing.id}`, payload)
+        const warning = (res?.warnings ?? res?.data?.warnings)?.[0]
+        if (warning) toast.error(`Saved. ${warning}`); else toast.success('Expense updated')
+      }
       else { await api.post('/api/expenses', payload); toast.success('Expense added') }
       setModalOpen(false); load()
     } catch (e) { setFormError(errMsg(e, 'Failed to save expense')) }
