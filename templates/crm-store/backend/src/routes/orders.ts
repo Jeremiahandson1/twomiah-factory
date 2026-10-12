@@ -366,12 +366,13 @@ admin.post('/:id/refund/retry', requirePermission('orders:refund'), async (c) =>
  * A REFUND MADE IN THE PROVIDER'S OWN DASHBOARD. (Owner, 10/12.) Stripe sends charge.refunded; the order is found by its
  * payment id. A FULL refund of a paid order marks it refunded and restocks, exactly once (WHERE status = what was
  * read). A partial one is written to the audit log and nothing else changes — the store has no partial refunds.
- * Our own refunds come back through here too: one still settling (refundPendingAt) or already refunded is left alone.
+ * Our own refunds come back through here too: by then the order is refunded or cancelled (moved before Stripe was
+ * asked, stamp or no stamp), so it is no longer a paid order and is left alone.
  */
 export async function applyProviderRefund(provider: string, providerPaymentId: string, refundedCents: number, chargeCents: number): Promise<'refunded' | 'partial' | 'ignored'> {
   const [o] = await db.select().from(orders)
     .where(and(eq(orders.provider, provider as any), eq(orders.providerPaymentId, providerPaymentId))).limit(1)
-  if (!o || o.refundPendingAt || !COUNTED.includes(o.status)) return 'ignored'
+  if (!o || !COUNTED.includes(o.status)) return 'ignored'
   const amount = (cents: number) => formatCents(cents, o.currency)
   if (refundedCents < chargeCents) {
     await audit.log({
