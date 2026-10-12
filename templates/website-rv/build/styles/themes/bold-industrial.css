@@ -1052,3 +1052,9 @@ section.trust-section:nth-child(even) .badge-info .stars,
 section.brands-section:nth-child(even) .badge-info .stars { color: var(--brand-text-on-light); }
 /* Blog cards are dark here: their "Read more" is brand text on dark. */
 .blog-preview-section .read-more { color: var(--industrial-text); }
+
+/* The generated letter-badge logo keeps its colours (its white-name version is used here). */
+body .main-header .header-top .logo-image.logo-monogram,
+body .header-top .logo-image.logo-monogram {
+  filter: none !important;
+}

@@ -555,7 +555,7 @@
       <div class="container">
         <div class="header-top-content">
           <a href="/" class="logo">
-            <img src="<%= logoUrl %>" alt="{{COMPANY_NAME}}" class="logo-image" />
+            <% const _monogram = typeof settings !== 'undefined' && settings && settings.logoIsMonogram && settings.logo === '/images/logo.svg'; %><img src="<%= _monogram && settings.theme === 'bold-industrial' ? '/images/logo-light.svg' : logoUrl %>" alt="{{COMPANY_NAME}}" class="logo-image<%= _monogram ? ' logo-monogram' : '' %>" />
           </a>
           
           <nav class="utility-nav">
