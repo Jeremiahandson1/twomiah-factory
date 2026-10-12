@@ -317,13 +317,18 @@ function getImageUrl(p) {
       <%
         // General questions only: every answer is industry information or how to reach us, never a claim
         // about the business (credentials, hours, prices, guarantees) that its owner has not supplied.
+        // Each question names the trade it is about; homepage.faqTopic ('plumbing' or 'hvac', set by the
+        // generator for a signup trade) keeps only that trade's. No topic (HVAC and plumbing) keeps all.
+        const _faqTopic = (typeof homepage !== 'undefined' && homepage && homepage.faqTopic) || '';
         const _faqs = [
           { q: "What areas do you serve?", a: 'We serve ' + _areas.join(', ') + ' and nearby communities.' },
-          { q: "How often should my furnace and air conditioner be serviced?", a: "Once a year for each is the usual recommendation: heating in the fall and cooling in the spring, before you need them. A tune-up catches small problems like a weak capacitor or a dirty flame sensor before they turn into a breakdown." },
-          { q: "How often should I change my air filter?", a: "Standard 1-inch filters are usually replaced every 1 to 3 months; homes with pets or allergy sufferers often need monthly changes. Thicker 4- or 5-inch media filters typically last 6 to 12 months. If you hold the filter up to a light and cannot see through it, it is time." },
+          { topic: 'hvac', q: "How often should my furnace and air conditioner be serviced?", a: "Once a year for each is the usual recommendation: heating in the fall and cooling in the spring, before you need them. A tune-up catches small problems like a weak capacitor or a dirty flame sensor before they turn into a breakdown." },
+          { topic: 'hvac', q: "How often should I change my air filter?", a: "Standard 1-inch filters are usually replaced every 1 to 3 months; homes with pets or allergy sufferers often need monthly changes. Thicker 4- or 5-inch media filters typically last 6 to 12 months. If you hold the filter up to a light and cannot see through it, it is time." },
+          { topic: 'plumbing', q: "What should I do if a pipe bursts?", a: "Turn off the water at your main shut-off valve right away, then shut off the water heater. If water is near outlets or appliances, turn off the electricity to that area at the breaker panel. Then call a plumber." },
+          { topic: 'plumbing', q: "Why is my water heater making popping or rumbling noises?", a: "Usually it is sediment from the water settling at the bottom of the tank and heating up under it. Flushing the tank clears it, and many manufacturers recommend draining and flushing a tank water heater about once a year." },
           { q: "What should I do if I smell gas?", a: "Leave the house right away without switching lights or appliances on or off, and call your gas utility or 911 from outside. Do not go back inside until it has been declared safe." },
           { q: "How do I request service?", a: "Call us or fill out the form on this page with a few details about what you need, and we will be in touch soon." },
-        ];
+        ].filter((f) => !f.topic || !_faqTopic || f.topic === _faqTopic);
       %>
       <div class="home-faq-list">
         <% _faqs.forEach(function(f) { %>

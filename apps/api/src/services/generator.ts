@@ -1276,8 +1276,26 @@ function applyWebsiteTrade(websiteDir: string, config: GenerateConfig, trade: We
         hp.hero.title = c.city ? trade.label + ' in ' + c.city : trade.label
         hp.hero.subtitle = trade.label
         hp.hero.description = (c.name || 'We') + ' serves ' + (c.city || 'the area') + ' and the surrounding area.'
+        // The template is shared by HVAC and plumbing: a plumber's FAQ and closing call-out
+        // say nothing about furnaces or "staying comfortable".
+        const heats = /heating|cooling|hvac/i.test(trade.label)
+        const plumbs = /plumb/i.test(trade.label)
+        if (heats !== plumbs) hp.faqTopic = plumbs ? 'plumbing' : 'hvac'
+        if (plumbs && !heats && hp.ctaSection && /^Stay comfortable year-round\./.test(hp.ctaSection.title || '')) {
+          hp.ctaSection.title = 'Tell us what you need.'
+        }
       }
       fs.writeFileSync(hpFile, JSON.stringify(hp, null, 2))
+    }
+    // Page titles read "{{COMPANY_NAME}} - {{CITY}} {{INDUSTRY}}", and INDUSTRY is the folded
+    // 'field_service' by now ("Field Service"): name the trade the owner picked instead.
+    const settingsFile = path.join(dataDir, 'settings.json')
+    if (trade.template === 'website-fieldservice' && fs.existsSync(settingsFile)) {
+      const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'))
+      if (typeof settings.defaultMetaTitle === 'string' && / Field Service$/.test(settings.defaultMetaTitle)) {
+        settings.defaultMetaTitle = settings.defaultMetaTitle.replace(/ Field Service$/, ' ' + trade.label)
+        fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2))
+      }
     }
   } catch (e: any) {
     console.warn('[Factory] applyWebsiteTrade failed:', e.message)
@@ -1448,6 +1466,23 @@ function fillWebsiteImages(websiteDir: string, config: GenerateConfig, photos?: 
         if (changed) fs.writeFileSync(servicesFile, JSON.stringify(services, null, 2))
       }
     } catch { /* leave services as-is on parse error */ }
+  }
+
+  // The share image (og:image) and the homepage's LocalBusiness "image" (base.ejs / home.ejs read
+  // settings.shareImage): the photo the hero shows, if it is a file in this site. Without it the
+  // templates leave both out rather than point at a file that does not exist.
+  try {
+    let heroUrl = ''
+    try { heroUrl = JSON.parse(fs.readFileSync(homepageFile, 'utf8')).hero?.image || '' } catch {}
+    const share = [heroUrl, ...usedPhotos].find((u) => typeof u === 'string' && u.startsWith('/images/') && fs.existsSync(path.join(websiteDir, 'build', u)))
+    const settingsFile = path.join(dataDir, 'settings.json')
+    if (share && fs.existsSync(settingsFile)) {
+      const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'))
+      settings.shareImage = share
+      fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2))
+    }
+  } catch (e: any) {
+    console.warn('[Factory] share image not set:', e.message)
   }
 
   // Credit the hero-library photos this site shows (its footer renders settings.photoCredits).
