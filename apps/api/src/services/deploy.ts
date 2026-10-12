@@ -676,10 +676,15 @@ async function getDatabaseConnectionInfo(databaseId: string): Promise<any> {
   }
 }
 
+// Where a standard site's config/paths.ts keeps its data in production: the repo is checked out at
+// /opt/render/project/src and the site service's rootDir is 'website'.
+const SITE_PERSISTENT_MOUNT = '/opt/render/project/src/website/persistent'
+
 async function createRenderWebService(config: {
   name: string; repoFullName: string; rootDir?: string
   buildCommand?: string; preDeployCommand?: string; startCommand?: string; envVars?: Array<{ key: string; value: string }>
   plan?: string; region?: string; projectId?: string | null
+  disk?: { name: string; mountPath: string; sizeGB?: number }
 }): Promise<any> {
   const envSpecificDetails: any = {
     buildCommand: config.buildCommand || 'bun install',
@@ -696,6 +701,7 @@ async function createRenderWebService(config: {
       envSpecificDetails,
       rootDir,
       plan: config.plan || 'starter', region: config.region || 'ohio', runtime: 'node', numInstances: 1,
+      ...(config.disk ? { disk: { sizeGB: 1, ...config.disk } } : {}),
     },
     envVars: (config.envVars || []).map(ev => ({ key: ev.key, value: ev.value })),
   }
@@ -1655,6 +1661,11 @@ export async function deployCustomer(
           startCommand: siteStartCommand,
           envVars: siteEnvVars,
           plan, region,
+          // A standard site keeps everything the owner changes — /admin edits, pages, settings,
+          // leads — under website/persistent/ in production (config/paths.ts), which only a
+          // disk keeps across restarts and deploys; without one every deploy put the site back
+          // to its generated text. Premium sites keep theirs in their own Postgres instead.
+          ...(isPremiumSite ? {} : { disk: { name: slug + '-site-data', mountPath: SITE_PERSISTENT_MOUNT, sizeGB: 1 } }),
         })
         console.log('[Deploy] Website creation response:', JSON.stringify(site, null, 2))
         const siteSvc = site.service || site
