@@ -120,6 +120,34 @@ for (const [label, extra] of [
   check('a second visit to the confirmation page takes nothing more', v2.inventoryQty === 3, v2)
 }
 
+// ── the supplier's "shipped" follows the order's lifecycle ────────────────────────────────────────
+// The supplier webhook wrote status = shipped whatever the order was: a cancelled or refunded order read "shipped"
+// over its refund, and a delivered one stepped back. Tracking is a fact and is always recorded; the STATUS moves
+// only where orders.ts NEXT_STATUS allows. Connected only now, with auto-forward off, so the paid orders above can
+// never be forwarded to a real supplier from a test.
+{
+  const { supplierConfig } = await import('./db/schema.ts')
+  await db.insert(supplierConfig).values({ provider: 'printful', mode: 'test', connected: true, autoForward: false, credentialsEnc: encryptJSON({ apiKey: 'k', webhookToken: 'hook-tok' }) } as any)
+  let sup = 0
+  const mk = async (status: string) => (await db.insert(orders).values({
+    orderNumber: `ORD-SUP-${status}-${++sup}`, provider: "paypal", providerSessionId: `sup_${status}_${sup}`, status, customerEmail: 'ada@example.com',
+    subtotalCents: 2500, shippingCents: 0, taxCents: 0, discountCents: 0, totalCents: 2500, currency: 'usd',
+  } as any).returning())[0]
+  const shipNotice = (o: any, token = 'hook-tok') => call('POST', `/api/public/webhooks/supplier?t=${token}`, { type: 'package_shipped', data: { order: { id: 9000, external_id: o.id }, shipment: { carrier: 'USPS', tracking_number: `TRK-${o.status}` } } })
+  const expect: Record<string, string> = { paid: 'shipped', fulfilled: 'shipped', cancelled: 'cancelled', refunded: 'refunded', delivered: 'delivered' }
+  for (const [from, to] of Object.entries(expect)) {
+    const o = await mk(from)
+    const r = await shipNotice(o)
+    const [after] = await db.select().from(orders).where(eq(orders.id, o.id))
+    check(`supplier ships a ${from} order → it reads ${to}, with the tracking recorded`, r.status === 200 && after.status === to && after.trackingNumber === `TRK-${from}` && after.supplierStatus === 'shipped', { status: after.status, tracking: after.trackingNumber })
+    if (from === to) check(`…a ${from} order is not stamped fulfilled by it`, !after.fulfilledAt, after.fulfilledAt)
+  }
+  const o = await mk('paid')
+  const bad = await shipNotice(o, 'wrong-token')
+  const [still] = await db.select().from(orders).where(eq(orders.id, o.id))
+  check('a supplier notice with the wrong token changes nothing (400)', bad.status === 400 && still.status === 'paid' && !still.trackingNumber, { status: bad.status, order: still.status })
+}
+
 globalThis.fetch = realFetch
 console.log(`\ncheckout charge: ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

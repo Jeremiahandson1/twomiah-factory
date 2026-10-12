@@ -120,9 +120,10 @@ export async function sweepSupplierOrders(): Promise<void> {
             trackingNumber: t.trackingNumber,
             fulfilledAt: new Date(),
             updatedAt: new Date(),
-          }).where(eq(orders.id, o.id)).returning()
+            // still paid AT THE UPDATE: a refund or cancellation landing since the select above keeps its status
+          }).where(and(eq(orders.id, o.id), eq(orders.status, 'paid'))).returning()
           const { notifyShipped } = await import('../routes/orders.ts')
-          void notifyShipped(updated)
+          if (updated) void notifyShipped(updated)
         }
       } catch (err: any) {
         logger.warn('supplier tracking poll failed', { orderId: o.id, error: err?.message })

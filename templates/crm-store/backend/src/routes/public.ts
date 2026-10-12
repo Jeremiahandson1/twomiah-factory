@@ -439,18 +439,21 @@ pub.post('/webhooks/supplier', async (c) => {
     logger.warn('supplier webhook for unknown order', { supplierOrderId: result.supplierOrderId })
     return c.json({ received: true })
   }
+  // The supplier's word is recorded whatever the order's state — tracking and supplier status are facts. The ORDER
+  // moves to shipped only where the lifecycle allows it (orders.ts NEXT_STATUS, the rule every admin move is held
+  // to): a cancelled or refunded order stays so, rather than reading "shipped" over a refund, and a delivered one
+  // does not step back. The status condition is in the UPDATE, so a refund landing at the same moment wins cleanly.
+  const { mayMove, notifyShipped } = await import('./orders.ts')
+  const moves = order.status !== 'shipped' && mayMove(order.status, 'shipped')
   const [updated] = await db.update(orders).set({
-    status: 'shipped',
+    ...(moves ? { status: 'shipped' as const, fulfilledAt: new Date() } : {}),
     supplierStatus: 'shipped',
     trackingCarrier: result.trackingCarrier,
     trackingNumber: result.trackingNumber,
-    fulfilledAt: new Date(),
     updatedAt: new Date(),
-  }).where(eq(orders.id, order.id)).returning()
-  if (order.status !== 'shipped') {
-    const { notifyShipped } = await import('./orders.ts')
-    void notifyShipped(updated)
-  }
+  }).where(moves ? and(eq(orders.id, order.id), eq(orders.status, order.status)) : eq(orders.id, order.id)).returning()
+  if (moves && updated) void notifyShipped(updated)
+  if (!moves && order.status !== 'shipped') logger.warn('supplier shipped an order that is not open to ship', { order: order.id, status: order.status })
   return c.json({ received: true })
 })
 
