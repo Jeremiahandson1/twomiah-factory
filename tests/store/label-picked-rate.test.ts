@@ -21,11 +21,11 @@ await setupSchema()
 const { encryptJSON } = await import('./src/lib/crypto.ts')
 await db.insert(storeSettings).values({ companyName: 'Label Store', currency: 'usd' } as any)
 const [staff] = await db.insert(users).values({ email: 'staff@label.test', passwordHash: 'x', name: 'Staff', role: 'staff' } as any).returning()
-const ADDRESS = { name: 'Ada', line1: '1 Main St', city: 'Eau Claire', state: 'WI', postalCode: '54701', country: 'US' }
-await db.insert(shippingConfig).values({ provider: 'easypost', mode: 'test', connected: true, credentialsEnc: encryptJSON({ apiKey: 'EZTK_test', mode: 'test' }), fromAddress: ADDRESS } as any)
+const ADDRESS = { line1: '1 Main St', city: 'Eau Claire', state: 'WI', postalCode: '54701', country: 'US' }
+await db.insert(shippingConfig).values({ provider: 'easypost', mode: 'test', connected: true, credentialsEnc: encryptJSON({ apiKey: 'EZTK_test', mode: 'test' }), fromAddress: { ...ADDRESS, name: 'Label Store' } } as any)
 let n = 0
 const mkOrder = async () => (await db.insert(orders).values({
-  orderNumber: `ORD-L${++n}`, provider: 'stripe', providerSessionId: `cs_l${n}`, status: 'paid', customerEmail: `s${n}@example.com`,
+  orderNumber: `ORD-L${++n}`, provider: 'stripe', providerSessionId: `cs_l${n}`, status: 'paid', customerEmail: `s${n}@example.com`, customerName: 'Ada Lovelace', customerPhone: '+12015550123',
   subtotalCents: 2500, shippingCents: 0, taxCents: 0, totalCents: 2500, currency: 'usd', shippingAddress: ADDRESS,
 } as any).returning())[0]
 
@@ -34,6 +34,7 @@ const SERVICES = [['USPS', 'GroundAdvantage', '6.57'], ['USPS', 'Priority', '8.0
 const rateIndex = new Map<string, { carrier: string; service: string; rate: string; shipment: string }>()
 let shipments = 0, offer = SERVICES
 const boughtOn: { shipment: string; rate: string; service: string }[] = []
+const shipTos: any[] = []
 const realFetch = globalThis.fetch
 globalThis.fetch = (async (input: any, init?: any) => {
   const url = String(input?.url ?? input)
@@ -41,6 +42,7 @@ globalThis.fetch = (async (input: any, init?: any) => {
   const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json' } })
   const method = (init?.method || 'GET').toUpperCase()
   if (url.endsWith('/v2/shipments') && method === 'POST') {
+    shipTos.push(JSON.parse(init.body).shipment.to_address)
     const id = `shp_${++shipments}`
     const rates = offer.map(([carrier, service, rate], i) => { const rid = `rate_${shipments}_${i}`; rateIndex.set(rid, { carrier, service, rate, shipment: id }); return { id: rid, shipment_id: id, carrier, service, rate, currency: 'USD', delivery_days: 3 } })
     return json({ id, rates })
@@ -103,6 +105,8 @@ const orderNow = async (id: string) => (await db.select().from(orders).where(eq(
   check(`service gone: refused naming the service (${buy.status}) — "${buy.json?.error}"`, buy.status === 502 && /USPS Express is no longer offered for this address — get rates again/.test(buy.json?.error) && boughtOn.length === before, buy.json)
 }
 
+// 6. The parcel is addressed to the customer by name (a live USPS label read "SHIP TO: 1 MAIN ST" with no name).
+check(`ship-to: every shipment names the customer and carries their phone (${shipTos.length} sent)`, shipTos.length > 0 && shipTos.every((t) => t.name === 'Ada Lovelace' && t.phone === '+12015550123' && t.street1 === '1 Main St'), shipTos[0])
 // 5. In the audit log as what it was, and the print tab opened inside the click.
 {
   const { auditLog } = await import('./db/schema.ts')

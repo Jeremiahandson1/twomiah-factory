@@ -89,6 +89,17 @@ admin.delete('/config', requirePermission('shipping:configure'), async (c) => {
   return c.json({ ok: true, connected: false })
 })
 
+/**
+ * WHO THE PARCEL IS FOR. (Live, EasyPost test mode, 10/12: a printed USPS label read "SHIP TO: 1 MAIN ST" with no name,
+ * and UPS refused outright — "Missing or invalid ship to name".) Checkout stores the shopper's name and phone on the
+ * order, not inside the address, and the address went to the carrier alone. The name and phone travel with it now.
+ */
+const shipTo = (order: typeof orders.$inferSelect) => ({
+  ...(order.shippingAddress as any),
+  name: (order.shippingAddress as any)?.name || order.customerName || '',
+  phone: (order.shippingAddress as any)?.phone || order.customerPhone || undefined,
+})
+
 /** An order that cannot ship (pending, cancelled, refunded, delivered) is quoted and sold no label. */
 const labelRefusal = (c: any, status: string) => c.json({ error: `This order is ${status}, so no label can be bought for it.`, code: 'no_parcel' }, 409)
 
@@ -105,7 +116,7 @@ admin.get('/orders/:id/rates', requirePermission('shipping:label'), async (c) =>
   try {
     const rates = await active.provider.getRates({
       from: active.fromAddress,
-      to: order.shippingAddress as any,
+      to: shipTo(order),
       parcel: active.parcel,
     })
     return c.json({ data: rates })
@@ -154,7 +165,7 @@ admin.post('/orders/:id/label', requirePermission('shipping:label'), async (c) =
   try {
     const label = await active.provider.buyLabel({
       from: active.fromAddress,
-      to: order.shippingAddress as any,
+      to: shipTo(order),
       parcel: active.parcel,
       rateId: body.rateId,
     })
