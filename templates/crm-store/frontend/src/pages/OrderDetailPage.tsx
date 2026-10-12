@@ -260,15 +260,20 @@ function LabelPanel({ orderId, order, onBought }: { orderId: string; order: Orde
   }
 
   const buy = async (rateId?: string) => {
+    // The print tab is opened NOW, inside the click: a browser lets a page open a tab only while the click is fresh,
+    // and buying the label takes a few seconds — opened afterwards, it is blocked as a pop-up. It is pointed at the
+    // label once there is one, and closed if the purchase fails. "Print label" below stays as the way back to it.
+    const printTab = window.open('', '_blank')
     setBusy(true)
     try {
       const res = await api.buyLabel(orderId, { rateId, markShipped: true })
       // A note means the label was bought but the order was not marked shipped (someone cancelled or refunded it).
       if (res.note) toast(res.note, 'error')
       else toast('Label bought — customer emailed')
-      window.open(res.label.labelUrl, '_blank')
+      if (printTab) printTab.location.href = res.label.labelUrl
       onBought()
     } catch (err: any) {
+      printTab?.close()
       toast(err instanceof Error ? err.message : 'Could not buy label', 'error')
       // Refused because of where the order stands — a label already bought or being bought from another screen, or
       // the order moved: show it as it is now.

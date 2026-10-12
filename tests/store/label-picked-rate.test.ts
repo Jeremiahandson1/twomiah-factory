@@ -103,6 +103,17 @@ const orderNow = async (id: string) => (await db.select().from(orders).where(eq(
   check(`service gone: refused naming the service (${buy.status}) — "${buy.json?.error}"`, buy.status === 502 && /USPS Express is no longer offered for this address — get rates again/.test(buy.json?.error) && boughtOn.length === before, buy.json)
 }
 
+// 5. In the audit log as what it was, and the print tab opened inside the click.
+{
+  const { auditLog } = await import('./db/schema.ts')
+  const rows = (await db.select().from(auditLog)).map((r: any) => r.metadata?.description || '')
+  check(`audit: a label purchase reads as one ("${rows[0]}")`, /^Shipping label bought — USPS Priority, \$8\.01, tracking TRK-rate_\d+_1; marked shipped, customer emailed$/.test(rows[0] || ''), rows)
+  const page = (require('node:fs') as typeof import('node:fs')).readFileSync((process.env.FACTORY_ROOT || '').replace(/\/?$/, '/') + 'templates/crm-store/frontend/src/pages/OrderDetailPage.tsx', 'utf8').replace(/\r\n/g, '\n')
+  const buy = page.slice(page.indexOf('  const buy = async (rateId?: string) => {'), page.indexOf('  return (', page.indexOf('  const buy = async')))
+  check('screen: the print tab is opened inside the click, before the purchase is awaited, and closed if it fails',
+    buy.indexOf("const printTab = window.open('', '_blank')") >= 0 && buy.indexOf("const printTab = window.open('', '_blank')") < buy.indexOf('await api.buyLabel') && /printTab\.location\.href = res\.label\.labelUrl/.test(buy) && /printTab\?\.close\(\)/.test(buy) && !/window\.open\(res\.label/.test(buy))
+}
+
 globalThis.fetch = realFetch
 console.log(`\nlabel picked rate: ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

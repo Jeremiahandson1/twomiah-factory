@@ -12,6 +12,8 @@ import { getActiveShipping, DEFAULT_PARCEL } from '../shipping/index.ts'
 import { notifyShipped, orderForCaller, isFulfilment, refundRefusal, may, mayMove, moveRefusal } from './orders.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import logger from '../services/logger.ts'
+import audit from '../services/audit.ts'
+import { formatCents } from '../lib/money.ts'
 
 const admin = new Hono()
 // Reading the carrier set-up and buying a label for an order is the packing bench (shipping:label,
@@ -179,6 +181,12 @@ admin.post('/orders/:id/label', requirePermission('shipping:label'), async (c) =
       if (moved) { updated = moved; shipped = true; void notifyShipped(moved) }
     }
 
+    // In the log as what it was — not the floor's "Created — order": who bought which service, for how much, and the tracking.
+    await audit.log({
+      action: 'create', entity: 'order', entityId: order.id, entityName: order.orderNumber,
+      metadata: { description: `Shipping label bought — ${label.carrier} ${label.service}, ${formatCents(label.costCents ?? 0, 'usd')}, tracking ${label.trackingCode}${shipped ? '; marked shipped, customer emailed' : ''}`, labelCostCents: label.costCents, trackingNumber: label.trackingCode },
+      req: c,
+    })
     return c.json({ label, order: orderForCaller(c, updated), ...(body.markShipped && order.status !== 'shipped' && !shipped ? { note: `The label was bought, but the order is now ${updated.status}, so it was not marked shipped.` } : {}) })
   } catch (err: any) {
     // Nothing was bought: release the claim so the next press can try again.
