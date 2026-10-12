@@ -1205,8 +1205,9 @@ app.get('/leads', authMiddleware, (c) => {
 app.post('/leads', async (c) => {
   const { name, email, phone, service, services, message, source, address, sms_consent } = await c.req.json();
 
-  if (!name || !email) {
-    return c.json({ error: 'Name and email required' }, 400);
+  // The homepage form asks for name + phone and leaves email optional — accept either.
+  if (!name || (!email && !phone)) {
+    return c.json({ error: 'Name and either email or phone are required' }, 400);
   }
 
   try {
