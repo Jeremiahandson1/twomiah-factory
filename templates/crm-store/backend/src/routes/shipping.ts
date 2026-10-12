@@ -87,6 +87,9 @@ admin.delete('/config', requirePermission('shipping:configure'), async (c) => {
   return c.json({ ok: true, connected: false })
 })
 
+/** An order that cannot ship (pending, cancelled, refunded, delivered) is quoted and sold no label. */
+const labelRefusal = (c: any, status: string) => c.json({ error: `This order is ${status}, so no label can be bought for it.`, code: 'no_parcel' }, 409)
+
 /** Quotes for one order, so the merchant can see the price before buying. */
 admin.get('/orders/:id/rates', requirePermission('shipping:label'), async (c) => {
   const active = await getActiveShipping()
@@ -95,6 +98,7 @@ admin.get('/orders/:id/rates', requirePermission('shipping:label'), async (c) =>
   const [order] = await db.select().from(orders).where(eq(orders.id, c.req.param('id'))).limit(1)
   if (!order) return c.json({ error: 'Order not found' }, 404)
   if (!order.shippingAddress) return c.json({ error: 'This order has no shipping address' }, 400)
+  if (!mayMove(order.status, 'shipped')) return labelRefusal(c, order.status)
 
   try {
     const rates = await active.provider.getRates({
@@ -124,6 +128,9 @@ admin.post('/orders/:id/label', requirePermission('shipping:label'), async (c) =
   if (!order) return c.json({ error: 'Order not found' }, 404)
   if (!order.shippingAddress) return c.json({ error: 'This order has no shipping address' }, 400)
   if (order.labelUrl) return c.json({ error: 'A label has already been bought for this order' }, 400)
+  // A label is a parcel about to go out, with or without "mark shipped": only an order that can still ship gets one.
+  // (Store QA T3: a cancelled order took tracking; markShipped: false let the carrier be paid for one as well.)
+  if (!mayMove(order.status, 'shipped')) return labelRefusal(c, order.status)
   // Marking it shipped is a status change, and orders.ts's rule applies: an order nobody paid for is
   // not shipped from the packing bench.
   if (body.markShipped && !mayMove(order.status, 'shipped')) return moveRefusal(c, order.status, 'shipped')

@@ -202,7 +202,7 @@ export default function SettingsPage() {
             <div className="col-span-3"><label className="label text-xs">States (blank = all)</label><input className="input" value={z.states} onChange={(e) => setZone(i, 'states', e.target.value)} placeholder="CA, NY" /></div>
             <div className="col-span-1"><label className="label text-xs">Rate $</label><input className="input" value={z.rate} onChange={(e) => setZone(i, 'rate', e.target.value)} placeholder="7.00" /></div>
             <div className="col-span-2"><label className="label text-xs">Free over $</label><input className="input" value={z.free} onChange={(e) => setZone(i, 'free', e.target.value)} placeholder="—" /></div>
-            <div className="col-span-1"><button onClick={() => delZone(i)} className="text-red-600 text-sm pb-2 dark:text-red-400">✕</button></div>
+            <div className="col-span-1"><button onClick={() => delZone(i)} className="text-red-600 text-sm pb-2 dark:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed">✕</button></div>
           </div>
         ))}
       </div>
@@ -218,7 +218,7 @@ export default function SettingsPage() {
             <div className="col-span-4"><label className="label text-xs">Country</label><input className="input" value={t.country} onChange={(e) => setTax(i, 'country', e.target.value)} placeholder="US" /></div>
             <div className="col-span-4"><label className="label text-xs">State (blank = all)</label><input className="input" value={t.state} onChange={(e) => setTax(i, 'state', e.target.value)} placeholder="CA" /></div>
             <div className="col-span-3"><label className="label text-xs">Rate %</label><input className="input" value={t.rate} onChange={(e) => setTax(i, 'rate', e.target.value)} placeholder="7.25" /></div>
-            <div className="col-span-1"><button onClick={() => delTax(i)} className="text-red-600 text-sm pb-2 dark:text-red-400">✕</button></div>
+            <div className="col-span-1"><button onClick={() => delTax(i)} className="text-red-600 text-sm pb-2 dark:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed">✕</button></div>
           </div>
         ))}
         {/* Store settings are settings:update on the server (PATCH /api/admin/settings) — the owner's, a

@@ -60,7 +60,7 @@ export default function PaymentsPage() {
             <div>Mode: <span className="font-medium capitalize">{status?.config?.mode}</span>{status?.config?.mode === 'test' && ' (no real charges)'}</div>
             <div>Payment notifications: {status?.config?.hasWebhookSecret ? 'active' : <span className="text-yellow-700 dark:text-yellow-300">not set up &mdash; orders confirm on the customer&apos;s receipt page instead</span>}</div>
           </div>
-          <button onClick={disconnect} className="btn-danger mt-4 text-xs" disabled={!mayConnect} title={mayConnect ? undefined : 'Only the store owner can disconnect payments'}>Disconnect</button>
+          {mayConnect && <button onClick={disconnect} className="btn-danger mt-4 text-xs">Disconnect</button>}
         </div>
       ) : (
         <div className="card p-5">
@@ -68,8 +68,13 @@ export default function PaymentsPage() {
         </div>
       )}
 
-      {/* Connect form */}
-      <div className="card p-5 space-y-4">
+      {/* Connect form — the owner's only. A seat without payments:update was handed key fields it could fill in and a
+          Connect that never enabled (Store QA T3, manager); there is nothing in a blank key form to read, so it says
+          who connects the processor instead, as ShippingPage does for the carrier. */}
+      {!mayConnect && (
+        <p className="text-sm text-gray-500 dark:text-slate-400">Only the store owner can connect or change the payment processor.</p>
+      )}
+      {mayConnect && <div className="card p-5 space-y-4">
         <h2 className="font-semibold text-gray-900 dark:text-slate-100">Connect your {form.provider} account</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -115,9 +120,8 @@ export default function PaymentsPage() {
             </div>
           </div>
         </details>
-        <button onClick={connect} className="btn-primary" disabled={saving || !mayConnect || !form.secretKey || (f.pubRequired && !form.publishableKey)} title={mayConnect ? undefined : 'Only the store owner can connect a payment processor'}>{saving ? 'Verifying…' : connected ? 'Update keys' : 'Connect'}</button>
-        {!mayConnect && <p className="text-xs text-gray-500 dark:text-slate-400">Only the store owner can connect or change the payment processor.</p>}
-      </div>
+        <button onClick={connect} className="btn-primary" disabled={saving || !form.secretKey || (f.pubRequired && !form.publishableKey)}>{saving ? 'Verifying…' : connected ? 'Update keys' : 'Connect'}</button>
+      </div>}
     </div>
   )
 }

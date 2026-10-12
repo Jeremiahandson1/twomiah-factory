@@ -23,6 +23,9 @@ const COUNTED = ['paid', 'fulfilled', 'shipped', 'delivered']
 const FULFILMENT = ['fulfilled', 'shipped', 'delivered']
 // Shipping is a move like any other: offered only where the table allows it (a cancelled or refunded order is closed).
 const canShip = (from: string) => from === 'shipped' || (NEXT_STATUS[from] || []).includes('shipped')
+// The server's hasParcel (backend routes/orders.ts): tracking belongs to an order going out or gone out — never to one
+// pending, cancelled, or refunded before it left.
+const hasParcel = (o: Order) => COUNTED.includes(o.status) || (o.status === 'refunded' && !!o.fulfilledAt)
 const moveNeeds = (from: string, to: string) => (COUNTED.includes(from) && FULFILMENT.includes(to)) ? 'orders:update' : 'orders:refund'
 /** Offer the control unless the permission list has arrived and says no. */
 function useMay() {
@@ -48,7 +51,7 @@ export default function OrderDetailPage() {
 
   // Someone else moved this order while it was open (409 order_changed): nothing of ours was applied, so show the
   // order as it now stands rather than the buttons for a status it has left.
-  const failed = (e: any) => { toast(e?.message || 'Failed', 'error'); if (e?.code === 'order_changed') load() }
+  const failed = (e: any) => { toast(e?.message || 'Failed', 'error'); if (e?.code === 'order_changed' || e?.code === 'no_parcel') load() }
   const setStatus = async (status: string) => {
     try { const o = await api.setOrderStatus(id!, status); setOrder((prev) => prev ? { ...prev, ...o } : prev); toast(`Marked ${status}`) }
     catch (e: any) { failed(e) }
@@ -162,10 +165,16 @@ export default function OrderDetailPage() {
       {/* Fulfillment */}
       <div className="card p-5 space-y-3">
         <h2 className="font-semibold text-gray-900 dark:text-slate-100">Fulfillment</h2>
-        <div className="grid sm:grid-cols-2 gap-3">
-          <div><label className="label">Carrier</label><input className="input" value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="USPS, UPS, FedEx…" /></div>
-          <div><label className="label">Tracking number</label><input className="input" value={tracking} onChange={(e) => setTracking(e.target.value)} /></div>
-        </div>
+        {/* Tracking only where there is a parcel (hasParcel). An order that never went out shows the boxes only while
+            they hold something, so a value saved before the rule can still be cleared. */}
+        {hasParcel(order) || order.trackingCarrier || order.trackingNumber ? (
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div><label className="label">Carrier</label><input className="input" value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="USPS, UPS, FedEx…" /></div>
+            <div><label className="label">Tracking number</label><input className="input" value={tracking} onChange={(e) => setTracking(e.target.value)} /></div>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500 dark:text-slate-400">This order is {order.status} and never went out, so it has no tracking.</p>
+        )}
         <div><label className="label">Internal note</label><textarea className="input" value={note} onChange={(e) => setNote(e.target.value)} /></div>
         {may('orders:update') && (
           <div className="flex gap-2">
@@ -243,6 +252,8 @@ function LabelPanel({ orderId, order, onBought }: { orderId: string; order: Orde
         </div>
       ) : !order.shippingAddress ? (
         <p className="text-sm text-gray-500 dark:text-slate-400">This order has no shipping address, so a label cannot be bought.</p>
+      ) : !canShip(order.status) ? (
+        <p className="text-sm text-gray-500 dark:text-slate-400">This order is {order.status}, so no label can be bought for it.</p>
       ) : !mayBuy ? (
         <p className="text-sm text-gray-500 dark:text-slate-400">This order is not paid, so shipping it is for a manager or the owner.</p>
       ) : (

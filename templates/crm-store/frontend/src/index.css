@@ -19,6 +19,14 @@
   textarea {
     @apply text-gray-900 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700;
   }
+  /* A field a seat may read but not change (a disabled <fieldset> on Settings and Loyalty) has to LOOK it: the browser's
+     own disabled ground is 30% grey over white, so the manager saw fields that read as editable. (Store QA T3) Ink and
+     ground are a pair in both themes, ~7:1 each. */
+  input:disabled,
+  select:disabled,
+  textarea:disabled {
+    @apply cursor-not-allowed bg-gray-100 text-gray-600 dark:bg-slate-900 dark:text-slate-400;
+  }
 }
 
 @layer components {

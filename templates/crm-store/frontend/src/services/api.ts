@@ -77,7 +77,7 @@ export type Order = {
   shippingAddress: Address | null; billingAddress: Address | null
   subtotalCents: number; shippingCents: number; taxCents: number; discountCents: number; totalCents: number
   currency: string; trackingCarrier: string | null; trackingNumber: string | null
-  internalNote: string | null; createdAt: string; items?: OrderItem[]
+  internalNote: string | null; createdAt: string; fulfilledAt?: string | null; items?: OrderItem[]
   labelUrl?: string | null; labelCostCents?: number | null; labelPurchasedAt?: string | null
 }
 export type OrderItem = {

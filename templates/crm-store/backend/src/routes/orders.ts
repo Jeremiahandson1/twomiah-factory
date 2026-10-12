@@ -68,12 +68,27 @@ export const moveRefusal = (c: any, from: string, to: string) => c.json({
  * decided from — `WHERE status = <what was read>` — and only the one that still finds it there moves the order, puts
  * stock back or emails the customer. The other is told who got there first, and nothing of theirs is applied.
  */
-export const changedUnderYou = (c: any, now: { status: string } | undefined, wanted: string) => c.json({
+export const changedUnderYou = (c: any, now: { status: string } | undefined, wanted: string, notDone = `it was not marked ${wanted}`) => c.json({
   error: now
-    ? `Someone else just marked this order ${now.status}, so it was not marked ${wanted}. Reload the order to see it as it stands.`
+    ? `Someone else just marked this order ${now.status}, so ${notDone}. Reload the order to see it as it stands.`
     : 'This order no longer exists.',
   code: 'order_changed',
   status: now?.status ?? null,
+}, 409)
+
+/**
+ * WHICH ORDERS HAVE A PARCEL. (Store QA T3, manager: "I saved a carrier and tracking number on the cancelled order
+ * QA-ROLES-2 (200), although changing its status to shipped is refused.") Tracking is the parcel's, so it belongs to an
+ * order that is going out or went out: paid and on along the floor, or refunded after it shipped (fulfilledAt — a
+ * cancel clears it, a refund after shipping keeps it). A pending order nobody paid for, a cancelled one, or one
+ * refunded before it left never had a parcel. Clearing tracking is always allowed, so a wrong value can be removed;
+ * the internal note is the shop's and is never refused.
+ */
+export const hasParcel = (o: { status: string; fulfilledAt?: Date | string | null }) =>
+  COUNTED.includes(o.status) || (o.status === 'refunded' && !!o.fulfilledAt)
+export const noParcelRefusal = (c: any, status: string) => c.json({
+  error: `This order is ${status} and never went out, so it has no parcel to track. The internal note can still be saved.`,
+  code: 'no_parcel',
 }, 409)
 
 export const refundRefusal = (c: any) => c.json({
@@ -220,15 +235,19 @@ admin.patch('/:id/fulfillment', requirePermission('orders:update'), async (c) =>
   // "Save & mark shipped" is a status change too, and the same rules apply to it.
   if (parsed.data.markShipped && !mayMove(prev.status, 'shipped')) return moveRefusal(c, prev.status, 'shipped')
   if (parsed.data.markShipped && !isFulfilment(prev.status, 'shipped') && !may(c, 'orders:refund')) return refundRefusal(c)
+  // Tracking set to a value (not cleared) needs a parcel — see hasParcel.
+  const tracks = !!(parsed.data.trackingCarrier?.trim() || parsed.data.trackingNumber?.trim())
+  if (tracks && !hasParcel(prev)) return noParcelRefusal(c, prev.status)
   const patch: Record<string, unknown> = { ...parsed.data, updatedAt: new Date() }
   delete (patch as any).markShipped
   if (parsed.data.markShipped) { patch.status = 'shipped'; if (!prev.fulfilledAt) patch.fulfilledAt = new Date() }
-  // Marking it shipped was decided from the status read above; a cancel or refund landing since keeps the order.
+  // Marking it shipped, or giving it tracking, was decided from the status read above; a cancel or refund landing
+  // since keeps the order as it now stands.
   const [updated] = await db.update(orders).set(patch)
-    .where(parsed.data.markShipped ? and(eq(orders.id, prev.id), eq(orders.status, prev.status)) : eq(orders.id, prev.id)).returning()
+    .where(parsed.data.markShipped || tracks ? and(eq(orders.id, prev.id), eq(orders.status, prev.status)) : eq(orders.id, prev.id)).returning()
   if (!updated) {
     const [now] = await db.select({ status: orders.status }).from(orders).where(eq(orders.id, prev.id)).limit(1)
-    return changedUnderYou(c, now, 'shipped')
+    return parsed.data.markShipped ? changedUnderYou(c, now, 'shipped') : changedUnderYou(c, now, 'shipped', 'the tracking was not saved')
   }
   if (parsed.data.markShipped && prev.status !== 'shipped') void notifyShipped(updated)
   return c.json({ order: orderForCaller(c, updated) })
