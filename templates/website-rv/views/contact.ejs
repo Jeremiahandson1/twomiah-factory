@@ -48,12 +48,11 @@
               <label for="service">I'm Interested In *</label>
               <select id="service" name="service" required>
                 <option value="">Select an option...</option>
-                <option value="new" <%= selectedService === 'new' ? 'selected' : '' %>>New RV / Powersports Sales</option>
-                <option value="used" <%= selectedService === 'used' ? 'selected' : '' %>>Pre-Owned / Used Units</option>
-                <option value="service" <%= selectedService === 'service' ? 'selected' : '' %>>Service &amp; Repair</option>
-                <option value="parts" <%= selectedService === 'parts' ? 'selected' : '' %>>Parts &amp; Accessories</option>
+                <option value="new" <%= selectedService === 'new' || selectedService === 'used' ? 'selected' : '' %>>Buying a Unit</option>
+                <% if (typeof offersServiceRepair !== 'undefined' && offersServiceRepair) { %><option value="service" <%= selectedService === 'service' ? 'selected' : '' %>>Service &amp; Repair</option><% } %>
+                <% if (typeof offersParts !== 'undefined' && offersParts) { %><option value="parts" <%= selectedService === 'parts' ? 'selected' : '' %>>Parts &amp; Accessories</option><% } %>
                 <% if (typeof offersFinancing !== 'undefined' && offersFinancing) { %><option value="financing" <%= selectedService === 'financing' ? 'selected' : '' %>>Financing / Pre-Qualification</option><% } %>
-                <option value="trade-in" <%= selectedService === 'trade-in' ? 'selected' : '' %>>Trade-In Appraisal</option>
+                <% if (typeof offersTradeIn !== 'undefined' && offersTradeIn) { %><option value="trade-in" <%= selectedService === 'trade-in' ? 'selected' : '' %>>Trade-In Appraisal</option><% } %>
                 <option value="other">Other / General Inquiry</option>
               </select>
             </div>

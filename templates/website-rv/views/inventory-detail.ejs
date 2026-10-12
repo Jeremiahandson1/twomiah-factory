@@ -383,6 +383,8 @@ const calcPrice = Number(u.internetPrice || u.listedPrice || u.msrp || 0) || 0;
 
     <% } %>
 
+    <%/* Value My Trade: only when the owner takes trade-ins (a trade-in service in services.json) */%>
+    <% if (typeof offersTradeIn !== 'undefined' && offersTradeIn) { %>
     <!-- Value My Trade -->
     <section class="ivd-section" id="value-trade">
       <h2>Value My Trade</h2>
@@ -452,6 +454,7 @@ const calcPrice = Number(u.internetPrice || u.listedPrice || u.msrp || 0) || 0;
         </form>
       </div>
     </section>
+    <% } %>
 
     <!-- Request a Quote -->
     <section class="ivd-section" id="request-quote">
