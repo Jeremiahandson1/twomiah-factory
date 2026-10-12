@@ -41,6 +41,8 @@ interface BillingResponse {
   source: 'factory' | 'cache' | 'unavailable'
   seatsUsed: number
   seatLimit: number | null
+  /** May this person open the Stripe portal (billing:manage — the owner's)? Absent on an older backend: treated as no. */
+  mayManage?: boolean
   supportEmail: string
 }
 
@@ -156,6 +158,8 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
   const seatsUsed = data?.seatsUsed ?? 0
   const seatPct = seatLimit ? Math.min(100, Math.round((seatsUsed / seatLimit) * 100)) : 0
   const price = sub ? money(sub.monthlyAmount) : null
+  // Changing the plan, the card or cancelling is the owner's (billing:manage, POST /portal-link); an admin reads it.
+  const mayManage = data?.mayManage === true
 
   /**
    * ONE answer for someone who may not see the bill. (T60)
@@ -181,7 +185,9 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
     <div className="max-w-4xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-2">Billing</h1>
       <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
-        Your plan is billed by Twomiah. Change plan, update your card or download invoices in the billing portal — this page just shows where things stand.
+        Your plan is billed by Twomiah. {data && !mayManage
+          ? 'The account owner changes the plan and the card on file in the billing portal'
+          : 'Change plan, update your card or download invoices in the billing portal'} — this page just shows where things stand.
       </p>
 
       {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-md p-3 mb-4 text-sm text-red-700 dark:text-red-200">{error}</div>}
@@ -229,16 +235,20 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
             </dl>
 
             {sub.status === 'past_due' && (
-              <div className="mt-4 bg-amber-50 border border-amber-200 rounded-md p-3 text-sm text-amber-800 dark:text-amber-300 dark:bg-amber-950/40">Your last payment did not go through. Update your card in the billing portal to keep the account active.</div>
+              <div className="mt-4 bg-amber-50 border border-amber-200 rounded-md p-3 text-sm text-amber-800 dark:text-amber-300 dark:bg-amber-950/40">Your last payment did not go through. {mayManage ? 'Update your card in the billing portal to keep the account active.' : 'Ask the account owner to update the card, to keep the account active.'}</div>
             )}
             {sub.status === 'canceled' && (
-              <div className="mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-md p-3 text-sm text-red-800 dark:text-red-200">This subscription is not active. Reactivate it in the billing portal or email support.</div>
+              <div className="mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-md p-3 text-sm text-red-800 dark:text-red-200">This subscription is not active. {mayManage ? 'Reactivate it in the billing portal or email support.' : 'The account owner can reactivate it, or email support.'}</div>
             )}
 
             <div className="flex flex-wrap gap-3 mt-6">
-              <button onClick={openPortal} disabled={opening} className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900">
-                {opening ? 'Opening…' : 'Manage billing'}
-              </button>
+              {mayManage ? (
+                <button onClick={openPortal} disabled={opening} className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900">
+                  {opening ? 'Opening…' : 'Manage billing'}
+                </button>
+              ) : (
+                <p className="text-sm text-gray-600 dark:text-slate-400 self-center">Changing the plan, the card on file or cancelling is done by the account owner.</p>
+              )}
               <a href="mailto:support@twomiah.com" className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 dark:text-slate-300">Contact support</a>
             </div>
           </div>
@@ -255,7 +265,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
             ) : (
               <p className="text-sm text-gray-500 dark:text-slate-400">No seat limit on this plan.</p>
             )}
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-3">Deactivating a user in Settings › Users frees a seat. Need more seats? Move up a plan in the billing portal.</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-3">Deactivating a user in Settings › Users frees a seat. Need more seats? {mayManage ? 'Move up a plan in the billing portal.' : 'Ask the account owner to move up a plan.'}</p>
           </div>
 
           {(msg || smsBilling) && (

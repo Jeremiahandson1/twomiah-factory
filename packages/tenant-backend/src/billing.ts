@@ -22,6 +22,14 @@ export interface BillingDeps {
   factoryApiClient: BillingFactoryClient
   /** process.env.SEAT_LIMIT — written by the Factory at deploy; wins over the plan's seat count. */
   seatLimitEnv?: string
+  /**
+   * May this person CHANGE the subscription — the plan, the card, cancelling? billing:manage, which only the owner
+   * holds (owner's decision, 10/12, after the Contractor admin pass). An admin still READS the plan and the seats —
+   * they add the team, so they need the count — but the Stripe portal behind 'Manage billing' changes or cancels
+   * what the business pays for, and that is the owner's alone (as Shopify draws it: anyone sees the plan, only the
+   * store owner changes it, pauses it or changes the payment method). Not given → nobody may: it fails closed.
+   */
+  canManage?: (c: any) => boolean | Promise<boolean>
 }
 
 const SETTINGS_KEYS = ['plan', 'planName', 'product', 'subscriptionStatus', 'billingStatus', 'billingType', 'billingCycle', 'monthlyAmount', 'nextBillingDate', 'trialEndsAt', 'seatLimit', 'hasStripeCustomer', 'subscriptionSyncedAt'] as const
@@ -93,6 +101,8 @@ export function createBillingRoutes(deps: BillingDeps): Hono {
       source: fresh ? 'factory' : subscription ? 'cache' : 'unavailable',
       seatsUsed: active.length,
       seatLimit,
+      // The screen offers 'Manage billing' only to someone the portal-link route below will let through.
+      mayManage: deps.canManage ? !!(await deps.canManage(c)) : false,
       managedBy: 'twomiah',
       supportEmail: 'support@twomiah.com',
     })
@@ -100,6 +110,9 @@ export function createBillingRoutes(deps: BillingDeps): Hono {
 
   // POST /portal-link — Stripe billing portal session minted by the Factory for this tenant's customer.
   app.post('/portal-link', async (c) => {
+    if (!deps.canManage || !(await deps.canManage(c))) {
+      return c.json({ error: "Changing the plan, the card on file or cancelling is the account owner's. Ask them if something needs to change.", code: 'owner_only', required: 'billing:manage' }, 403)
+    }
     try {
       const result = await deps.factoryApiClient.getBillingPortalLink()
       return c.json(result)

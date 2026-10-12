@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { createBillingRoutes, createFactoryApiClient } from '../shared/index.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { db } from '../../db/index.ts'
 import { company, user } from '../../db/schema.ts'
 
@@ -13,6 +14,8 @@ app.use('*', authenticate, requireAdmin)
 app.route('/', createBillingRoutes({
   db, companyTable: company, userTable: user,
   factoryApiClient: createFactoryApiClient(),
+  // Reading the plan is admin and up (requireAdmin above); CHANGING it — the Stripe portal — is billing:manage, the owner's.
+  canManage: async (c: any) => { const u = c.get('user'); return !!u && hasPermission(u.role, 'billing:manage', await getExtraPermissions(u.userId)) },
   seatLimitEnv: process.env.SEAT_LIMIT,
 }))
 export default app
