@@ -782,6 +782,29 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
 // so it can't be spammed into a cost/DoS vector: per-IP rate limit (rateLimit
 // middleware) + global in-flight cap + identical-input cache (previewGuard).
 // Returns raw HTML for iframe srcdoc.
+// The free preview on twomiah.com shows the site a signup builds. When the homepage sends one
+// of the signup's own trade values ("electrical", "salon"…), build the same config the signup
+// does (POST /public/signup above): that industry, no services, the signup's default theme
+// and colour. Free text keeps going through buildBrief, whose buckets differ from signup's
+// (it reads "electrician" as HVAC/plumbing). Not 'retail': its storefront has no preview.
+const SIGNUP_PREVIEW_TRADES = new Set([
+  'roofing', 'general_contractor', 'remodeler', 'painter', 'concrete', 'flooring',
+  'hvac', 'plumbing', 'electrical', 'landscaping', 'home_care', 'veterinary', 'rv',
+  'dispensary', 'restaurant', 'salon', 'fitness', 'food_truck', 'other',
+])
+function signupPreviewConfig(name: string, industry: string, city: string, state: string): GenerateConfig {
+  // twomiah.com signup.html: home care → 'clean-professional', other → 'clean-minimal',
+  // every trade → 'modern-minimal' (a template without that theme keeps its own look).
+  const theme = industry === 'home_care' ? 'clean-professional' : industry === 'other' ? 'clean-minimal' : 'modern-minimal'
+  return {
+    products: ['website'],
+    websiteTheme: theme,
+    company: { name, city: city || undefined, state: state || undefined, industry, plan: 'starter10' },
+    branding: { primaryColor: '#FF3D00', websiteTheme: theme },
+    features: { crm: [] },
+  } as GenerateConfig
+}
+
 factory.post('/public/preview', rateLimit(10 * 60_000, 6), async (c) => {
   let body: any
   try {
@@ -807,22 +830,29 @@ factory.post('/public/preview', rateLimit(10 * 60_000, 6), async (c) => {
   const cached = cacheGet(cacheKey)
   if (cached) return c.html(cached)
 
-  const intake: Intake = {
-    businessName,
-    businessType,
-    city: city || undefined,
-    state: state || undefined,
-  }
-  const brief = buildBrief(intake)
-  if (!brief.ok) {
-    return c.json({ error: 'Could not build a preview for that — try a more common business type.' }, 422)
+  let config: GenerateConfig
+  const signupTrade = businessType.toLowerCase()
+  if (SIGNUP_PREVIEW_TRADES.has(signupTrade)) {
+    config = signupPreviewConfig(businessName, signupTrade, city, state)
+  } else {
+    const intake: Intake = {
+      businessName,
+      businessType,
+      city: city || undefined,
+      state: state || undefined,
+    }
+    const brief = buildBrief(intake)
+    if (!brief.ok) {
+      return c.json({ error: 'Could not build a preview for that — try a more common business type.' }, 422)
+    }
+    config = brief.config
   }
 
   if (!acquireInflight()) {
     return c.json({ error: 'Busy rendering previews right now — try again in a few seconds.' }, 503)
   }
   try {
-    const preview = await renderHomepagePreview(brief.config)
+    const preview = await renderHomepagePreview(config)
     cacheSet(cacheKey, preview.html)
     return c.html(preview.html)
   } catch (err: any) {

@@ -13,28 +13,40 @@
  * Medical and residential care (hospice, skilled home health, senior living,
  * pediatric) is NOT put on the non-medical home-care site.
  *
+ * Salons, restaurants, gyms and food trucks keep the showcase site; listed here so an
+ * owner who names no services gets one card for their business, not the template's
+ * "Our Signature" / "What We Offer" / "The Experience" placeholders. Their labels are
+ * the signup's own wording for the choice the owner made.
+ *
  * Signup values not listed here keep the generator's existing routing.
  */
 export interface WebsiteTrade {
-  template: 'website-contractor' | 'website-fieldservice' | 'website-landscaping' | 'website-homecare' | 'website-vet' | 'website-rv' | 'website-general'
+  template: 'website-contractor' | 'website-fieldservice' | 'website-landscaping' | 'website-homecare' | 'website-vet' | 'website-rv' | 'website-showcase' | 'website-general'
   /** How the site names the trade: "Painting in Eau Claire, WI". */
   label: string
   /** The one service card a site gets when the owner lists none. */
   service: string
   /** serviceImageLibrary set for the hero/cards ('GENERIC' when none fits). */
   photos: string
+  /** Use these curated, credited hero-library photos instead (heroLibrary.ts) — for trades
+   *  the self-hosted set has nothing right for: its plumbing/HVAC set is all electricians,
+   *  and salons and gyms had office stock. `files` narrows the group to the shots that fit. */
+  heroPhotos?: { group: string; files?: string[] }
 }
 
-const T = (template: WebsiteTrade['template'], label: string, service: string, photos: string): WebsiteTrade =>
-  ({ template, label, service, photos })
+const T = (template: WebsiteTrade['template'], label: string, service: string, photos: string, heroPhotos?: WebsiteTrade['heroPhotos']): WebsiteTrade =>
+  ({ template, label, service, photos, ...(heroPhotos ? { heroPhotos } : {}) })
+
+// The pipe and fixture shots of the field-service group (its first is wiring).
+const PLUMBING_PHOTOS = { group: 'fieldservice', files: ['fieldservice-02.jpg', 'fieldservice-03.jpg', 'fieldservice-04.jpg'] }
 
 export const WEBSITE_TRADES: Record<string, WebsiteTrade> = {
   // Templates written for the trade
   roofing:              T('website-contractor',   'Roofing',             'Roofing',             'roofing'),
-  hvac:                 T('website-fieldservice', 'Heating & Cooling',   'Heating & Cooling',   'fieldservice'),
-  plumbing:             T('website-fieldservice', 'Plumbing',            'Plumbing',            'fieldservice'),
-  plumber:              T('website-fieldservice', 'Plumbing',            'Plumbing',            'fieldservice'),
-  field_service:        T('website-fieldservice', 'Heating, Cooling & Plumbing', 'Heating, Cooling & Plumbing', 'fieldservice'),
+  hvac:                 T('website-fieldservice', 'Heating & Cooling',   'Heating & Cooling',   'fieldservice', { group: 'fieldservice', files: ['fieldservice-02.jpg'] }),
+  plumbing:             T('website-fieldservice', 'Plumbing',            'Plumbing',            'fieldservice', PLUMBING_PHOTOS),
+  plumber:              T('website-fieldservice', 'Plumbing',            'Plumbing',            'fieldservice', PLUMBING_PHOTOS),
+  field_service:        T('website-fieldservice', 'Heating, Cooling & Plumbing', 'Heating, Cooling & Plumbing', 'fieldservice', PLUMBING_PHOTOS),
   landscaping:          T('website-landscaping',  'Landscaping',         'Landscaping',         'landscaping'),
   landscaper:           T('website-landscaping',  'Landscaping',         'Landscaping',         'landscaping'),
   veterinary:           T('website-vet',          'Veterinary Care',     'Veterinary Care',     'veterinary'),
@@ -62,6 +74,11 @@ export const WEBSITE_TRADES: Record<string, WebsiteTrade> = {
   pest_control:         T('website-general',      'Pest Control',        'Pest Control',        'GENERIC'),
   pool_spa:             T('website-general',      'Pool & Spa Service',  'Pool & Spa Service',  'GENERIC'),
   chimney_fireplace:    T('website-general',      'Chimney & Fireplace', 'Chimney & Fireplace', 'GENERIC'),
+  // Venues and personal services — the showcase site
+  salon:                T('website-showcase',     'Salon & Spa',         'Salon & Spa',         'GENERIC',   { group: 'salon' }),
+  restaurant:           T('website-showcase',     'Restaurant / Café',   'Restaurant / Café',   'foodtruck', { group: 'restaurant' }),
+  fitness:              T('website-showcase',     'Gym / Fitness Studio', 'Gym / Fitness Studio', 'GENERIC',   { group: 'fitness' }),
+  food_truck:           T('website-showcase',     'Food Truck',          'Food Truck',          'foodtruck'),
   // Medical / residential care and other care — not the non-medical home-care site
   hospice:              T('website-general',      'Hospice Care',        'Hospice Care',        'homecare'),
   home_health_skilled:  T('website-general',      'Home Health Care',    'Home Health Care',    'homecare'),
