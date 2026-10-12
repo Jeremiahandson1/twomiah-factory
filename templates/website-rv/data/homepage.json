@@ -2,8 +2,8 @@
   "hero": {
     "tagline": "YOUR ADVENTURE STARTS HERE",
     "title": "{{CITY}}'s RV & Powersports Dealership",
-    "subtitle": "New & Used RVs, ATVs, UTVs & Boats",
-    "description": "{{COMPANY_NAME}} sells new and pre-owned RVs, ATVs, UTVs, motorcycles, and boats in the {{SERVICE_REGION}}, with service and parts to keep you on the road.",
+    "subtitle": "RVs & Powersports in {{CITY}}",
+    "description": "{{COMPANY_NAME}} is an RV and powersports dealership in {{CITY}}, {{STATE}}. Stop by, call, or send us a message.",
     "image": "",
     "animation": "ken-burns",
     "primaryButtonText": "Browse Inventory",
@@ -23,31 +23,23 @@
     {
       "id": "selection",
       "type": "custom",
-      "label": "New & Pre-Owned",
-      "sublabel": "RVs, powersports, and boats",
+      "label": "Easy to Reach",
+      "sublabel": "Stop by, call, or send a message",
       "icon": "star",
       "enabled": true
     },
     {
       "id": "service",
       "type": "custom",
-      "label": "Service & Parts",
-      "sublabel": "Keep your unit road- and trail-ready",
+      "label": "Questions Welcome",
+      "sublabel": "Not sure what fits? Just ask",
       "icon": "check",
-      "enabled": true
-    },
-    {
-      "id": "straight-answers",
-      "type": "custom",
-      "label": "Straight Answers",
-      "sublabel": "No pressure, just honest help",
-      "icon": "shield",
       "enabled": true
     }
   ],
   "ctaSection": {
     "title": "Ready to hit the road?\nYour next adventure is waiting.",
-    "description": "New or used, towable or rideable, we'll help you find the right unit. Browse in-stock RVs and powersports or get in touch today.",
+    "description": "Tell us what you're looking for and we'll get back to you. Browse our inventory or get in touch today.",
     "primaryButtonText": "Browse Inventory",
     "primaryButtonLink": "/inventory",
     "secondaryButtonText": "Call {{COMPANY_PHONE}}",

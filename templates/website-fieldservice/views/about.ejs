@@ -14,7 +14,7 @@ const phoneRaw = phone.replace(/\D/g, '');
         Home
       </a>
       <h1>About {{COMPANY_NAME}}</h1>
-      <p>Serving {{SERVICE_REGION}} with quality craftsmanship and honest service.</p>
+      <p>Serving the {{SERVICE_REGION}}.</p>
     </div>
   </section>
 
@@ -24,8 +24,8 @@ const phoneRaw = phone.replace(/\D/g, '');
       <div class="about-grid">
         <div class="about-content">
           <h2>Our Story</h2>
-          <p>{{COMPANY_NAME}} is based in {{CITY}}, {{STATE}}, and works with homeowners across {{SERVICE_REGION}}. Our aim is simple: do quality work at a fair price, and treat every customer's home like our own.</p>
-          <p>Whether it's a small repair or a larger project, we bring the same care and attention to detail to every job, and we keep you informed from the first conversation to the final walk-through.</p>
+          <p>{{COMPANY_NAME}} is based in {{CITY}}, {{STATE}}, and works with homeowners across {{SERVICE_REGION}}.</p>
+          <p>Tell us about your project and we'll talk through your options.</p>
         </div>
         <div class="about-image">
           <div class="about-placeholder">
@@ -42,7 +42,7 @@ const phoneRaw = phone.replace(/\D/g, '');
   <!-- Values -->
   <section class="about-values">
     <div class="container">
-      <h2>What Sets Us Apart</h2>
+      <h2>Get to Know Us</h2>
       <div class="values-grid">
         <div class="value-card">
           <div class="value-icon">
@@ -50,8 +50,8 @@ const phoneRaw = phone.replace(/\D/g, '');
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
             </svg>
           </div>
-          <h3>Respect for Your Home</h3>
-          <p>We treat your property with care and leave the work area clean when the job is done.</p>
+          <h3>Right Here in {{CITY}}</h3>
+          <p>We're based in {{CITY}}, {{STATE}}.</p>
         </div>
         <div class="value-card">
           <div class="value-icon">
@@ -60,8 +60,8 @@ const phoneRaw = phone.replace(/\D/g, '');
               <polyline points="22 4 12 14.01 9 11.01"></polyline>
             </svg>
           </div>
-          <h3>Attention to Detail</h3>
-          <p>Careful workmanship on every job, large or small, done right the first time.</p>
+          <h3>Easy to Reach</h3>
+          <p><%= (typeof phoneRaw !== 'undefined' && phoneRaw) ? 'Call or send us a message, whichever suits you.' : 'Send us a message through our contact form.' %></p>
         </div>
         <div class="value-card">
           <div class="value-icon">
@@ -70,8 +70,8 @@ const phoneRaw = phone.replace(/\D/g, '');
               <polyline points="12 6 12 12 16 14"></polyline>
             </svg>
           </div>
-          <h3>On Time, On Budget</h3>
-          <p>We respect your time and your wallet. Clear timelines, honest pricing, no surprises.</p>
+          <h3>Questions Welcome</h3>
+          <p>Not sure what you need yet? Just ask. We're happy to talk it through.</p>
         </div>
         <div class="value-card">
           <div class="value-icon">
@@ -82,8 +82,8 @@ const phoneRaw = phone.replace(/\D/g, '');
               <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
             </svg>
           </div>
-          <h3>Here in {{CITY}}</h3>
-          <p>We work across {{SERVICE_REGION}}, so we're close by when you need us.</p>
+          <h3>Serving the {{SERVICE_REGION}}</h3>
+          <p>We work across the {{SERVICE_REGION}}.</p>
         </div>
       </div>
     </div>

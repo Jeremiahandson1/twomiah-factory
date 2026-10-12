@@ -64,7 +64,7 @@ function getImageUrl(p) {
       <h2><%= hero.subtitle || 'Professional {{INDUSTRY}} Services' %></h2>
       <div class="hero-line"></div>
       <p class="hero-tagline"><strong><%= hero.tagline || 'YOUR TRUSTED LOCAL PROFESSIONALS' %></strong></p>
-      <p class="hero-awards"><%= hero.description || 'Serving the {{SERVICE_REGION}} with Quality Craftsmanship' %></p>
+      <p class="hero-awards"><%= hero.description || 'Serving the {{SERVICE_REGION}}' %></p>
       <div class="hero-buttons">
         <a href="<%= hero.primaryButtonLink || '#contact' %>" class="btn btn-primary btn-lg">
           <%= hero.primaryButtonText || 'Request an Estimate' %>
@@ -117,28 +117,28 @@ function getImageUrl(p) {
   <!-- Why Choose Us Section -->
   <section class="why-choose-section">
     <div class="container">
-      <h2>Why Choose {{COMPANY_NAME}}</h2>
+      <h2>Getting Started with {{COMPANY_NAME}}</h2>
       <div class="why-grid">
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
           </div>
-          <h3>Careful Workmanship</h3>
-          <p>We take the time to do the job right, with materials suited to your home, your budget, and the way you live.</p>
+          <h3>Right Here in {{CITY}}</h3>
+          <p>We're based in {{CITY}}, {{STATE}}.</p>
         </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
           </div>
-          <h3>Local to the {{SERVICE_REGION}}</h3>
-          <p>Based in {{CITY}}, we serve homeowners across {{SERVICE_AREAS}}, so we're close by when you need us.</p>
+          <h3>Easy to Reach</h3>
+          <p><%= (typeof phoneRaw !== 'undefined' && phoneRaw) ? 'Call or send us a message, whichever suits you.' : 'Send us a message through our contact form.' %></p>
         </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </div>
-          <h3>Clear Communication</h3>
-          <p>We walk you through material options, costs, and timelines before any work begins, and keep you informed until the job is done.</p>
+          <h3>Questions Welcome</h3>
+          <p>Not sure what you need yet? Just ask. We're happy to talk it through.</p>
         </div>
       </div>
     </div>
@@ -420,10 +420,6 @@ function getImageUrl(p) {
           <p>We serve homeowners in {{SERVICE_AREAS}}.</p>
         </details>
         <details class="home-faq-item animate-on-scroll">
-          <summary><strong>What makes {{COMPANY_NAME}} different?</strong></summary>
-          <p>We focus on clear communication, careful workmanship, and honest recommendations, so you know what to expect at every step of your project.</p>
-        </details>
-        <details class="home-faq-item animate-on-scroll">
           <summary><strong>What should I have ready before we talk?</strong></summary>
           <p>A short description of the work, a few photos if you have them, and a rough idea of your timeline. That's enough for us to point you in the right direction.</p>
         </details>
@@ -684,14 +680,6 @@ function getImageUrl(p) {
         "acceptedAnswer": {
           "@type": "Answer",
           "text": "We serve homeowners in {{SERVICE_AREAS}}."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "What makes {{COMPANY_NAME}} different?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "We focus on clear communication, careful workmanship, and honest recommendations, so you know what to expect at every step of your project."
         }
       },
       {

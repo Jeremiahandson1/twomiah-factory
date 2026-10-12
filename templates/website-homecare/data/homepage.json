@@ -1,9 +1,9 @@
 {
   "hero": {
-    "tagline": "COMPASSIONATE IN-HOME CARE",
+    "tagline": "IN-HOME CARE",
     "title": "{{CITY}} Home Care Services",
-    "subtitle": "Trusted Care for Your Loved Ones",
-    "description": "{{COMPANY_NAME}} provides compassionate in-home care across the {{SERVICE_REGION}}. We help seniors and those with disabilities live safely and independently at home.",
+    "subtitle": "In-Home Care in {{CITY}}",
+    "description": "{{COMPANY_NAME}} provides in-home care in {{CITY}} and the {{SERVICE_REGION}}. Call or send us a message to talk about what your family needs.",
     "image": "/images/hero.jpg",
     "animation": "ken-burns",
     "primaryButtonText": "Request a Consultation",
@@ -13,24 +13,10 @@
   },
   "trustBadges": [
     {
-      "id": "licensed",
-      "type": "custom",
-      "label": "Compassionate Care",
-      "icon": "check",
-      "enabled": true
-    },
-    {
       "id": "background",
       "type": "custom",
       "label": "Care at Home",
       "icon": "home",
-      "enabled": true
-    },
-    {
-      "id": "available",
-      "type": "custom",
-      "label": "Dignity & Respect",
-      "icon": "check",
       "enabled": true
     },
     {
@@ -42,7 +28,7 @@
     }
   ],
   "ctaSection": {
-    "title": "Ready to get your loved one the care they deserve?",
+    "title": "Ready to talk about care at home?",
     "description": "We're happy to answer your questions and talk through your options.",
     "primaryButtonText": "Contact Us",
     "primaryButtonLink": "#contact",

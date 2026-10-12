@@ -1,9 +1,9 @@
 {
   "hero": {
-    "tagline": "COMPASSIONATE VETERINARY CARE",
+    "tagline": "VETERINARY CARE",
     "title": "Veterinary Care in {{CITY}}",
-    "subtitle": "Compassionate Care for Your Pets",
-    "description": "{{COMPANY_NAME}} provides compassionate veterinary care for pets and their families across the {{SERVICE_REGION}}. We treat every pet like family.",
+    "subtitle": "Veterinary Care in {{CITY}}",
+    "description": "{{COMPANY_NAME}} provides veterinary care for pets across the {{SERVICE_REGION}}. Call or send us a message to book a visit.",
     "image": "/images/hero.jpg",
     "animation": "ken-burns",
     "primaryButtonText": "Schedule a Wellness Visit",
@@ -12,20 +12,6 @@
     "secondaryButtonLink": "/#services"
   },
   "trustBadges": [
-    {
-      "id": "compassionate",
-      "type": "custom",
-      "label": "Compassionate Care",
-      "icon": "check",
-      "enabled": true
-    },
-    {
-      "id": "gentle",
-      "type": "custom",
-      "label": "Gentle Handling",
-      "icon": "check",
-      "enabled": true
-    },
     {
       "id": "preventive",
       "type": "custom",
