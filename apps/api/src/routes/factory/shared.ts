@@ -11,9 +11,14 @@ export type FactoryAuthVariables = {
 export type FactoryApp = Hono<{ Variables: FactoryAuthVariables }>
 export const FRONTEND_URL = process.env.PLATFORM_URL || (process.env.NODE_ENV === 'production' ? 'https://twomiah-factory-platform.onrender.com' : 'http://localhost:5173')
 
-// ─── Rate Limiting (in-memory, per IP) ──────────────────────────────────────
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+// ─── Rate Limiting (in-memory, per IP, per route) ───────────────────────────
+// Each rateLimit() call keeps its own counters. One map shared by every route meant a
+// visitor's previews and status checks counted against the 5-per-hour signup limit, and
+// whichever route they hit first set the window for all of them.
+const rateLimitMaps = new Set<Map<string, { count: number; resetAt: number }>>()
 export function rateLimit(windowMs: number, maxRequests: number) {
+  const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+  rateLimitMaps.add(rateLimitMap)
   return async (c: any, next: any) => {
     const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('cf-connecting-ip') || 'unknown'
     const now = Date.now()
@@ -32,8 +37,10 @@ export function rateLimit(windowMs: number, maxRequests: number) {
 // Clean up stale entries every 10 minutes
 setInterval(() => {
   const now = Date.now()
-  for (const [ip, entry] of rateLimitMap) {
-    if (now > entry.resetAt) rateLimitMap.delete(ip)
+  for (const rateLimitMap of rateLimitMaps) {
+    for (const [ip, entry] of rateLimitMap) {
+      if (now > entry.resetAt) rateLimitMap.delete(ip)
+    }
   }
 }, 10 * 60 * 1000)
 
