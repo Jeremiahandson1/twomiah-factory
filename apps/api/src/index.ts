@@ -41,6 +41,7 @@ app.use('*', cors({
     if (!origin) return '*'
     const allowed = [
       'https://twomiah-factory-platform.onrender.com',
+      'https://platform.twomiah.com', // the same platform on our own domain (CNAME to the Render host)
       'https://twomiah.com',
       'https://www.twomiah.com',
     ]
