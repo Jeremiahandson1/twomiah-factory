@@ -2,31 +2,31 @@
   {
     "name": "{{CITY}}",
     "state": "{{STATE}}",
-    "description": "{{COMPANY_NAME}} provides HVAC, plumbing, and electrical services throughout {{CITY}}, {{STATE}}, from routine maintenance to repairs and new installations.",
+    "description": "{{COMPANY_NAME}} serves {{CITY}}, {{STATE}} and the surrounding area.",
     "isPrimary": true
   },
   {
     "name": "{{NEARBY_CITY_1}}",
     "state": "{{STATE}}",
-    "description": "Serving {{NEARBY_CITY_1}} and the surrounding area with HVAC, plumbing, and electrical services.",
+    "description": "{{COMPANY_NAME}} serves {{NEARBY_CITY_1}}, {{STATE}}. Tell us what you need.",
     "isPrimary": false
   },
   {
     "name": "{{NEARBY_CITY_2}}",
     "state": "{{STATE}}",
-    "description": "{{COMPANY_NAME}} proudly serves {{NEARBY_CITY_2}} residents and businesses. Call us for heating, cooling, plumbing, and electrical needs.",
+    "description": "{{COMPANY_NAME}} serves {{NEARBY_CITY_2}}, {{STATE}}. Tell us what you need.",
     "isPrimary": false
   },
   {
     "name": "{{NEARBY_CITY_3}}",
     "state": "{{STATE}}",
-    "description": "Home services in {{NEARBY_CITY_3}}, {{STATE}}: heating, cooling, plumbing, and electrical.",
+    "description": "{{COMPANY_NAME}} serves {{NEARBY_CITY_3}}, {{STATE}}. Tell us what you need.",
     "isPrimary": false
   },
   {
     "name": "{{NEARBY_CITY_4}}",
     "state": "{{STATE}}",
-    "description": "{{COMPANY_NAME}} serves {{NEARBY_CITY_4}} with HVAC, plumbing, and electrical work.",
+    "description": "{{COMPANY_NAME}} serves {{NEARBY_CITY_4}}, {{STATE}}. Tell us what you need.",
     "isPrimary": false
   }
 ]

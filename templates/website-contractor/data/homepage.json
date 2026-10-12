@@ -2,7 +2,7 @@
   "hero": {
     "tagline": "{{HERO_TAGLINE}}",
     "title": "{{INDUSTRY}} in {{CITY}}",
-    "subtitle": "Quality Work. Fair Prices. Done Right.",
+    "subtitle": "",
     "description": "{{COMPANY_NAME}} serves the {{SERVICE_REGION}}. Tell us about your project and we'll be in touch soon.",
     "image": "/images/hero.jpg",
     "animation": "ken-burns",
