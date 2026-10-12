@@ -14,7 +14,7 @@ const phoneRaw = phone.replace(/\D/g, '');
         Home
       </a>
       <h1>About {{COMPANY_NAME}}</h1>
-      <p>Compassionate veterinary care for pets and their families across the {{SERVICE_REGION}}.</p>
+      <p>Veterinary care across the {{SERVICE_REGION}}.</p>
     </div>
   </section>
 
@@ -24,8 +24,8 @@ const phoneRaw = phone.replace(/\D/g, '');
       <div class="about-grid">
         <div class="about-content">
           <h2>Our Story</h2>
-          <p>{{COMPANY_NAME}} provides compassionate veterinary care that helps pet parents feel confident their companions are in good hands. Based in {{CITY}}, {{STATE}}, we care for pets and their families across the {{SERVICE_REGION}}.</p>
-          <p>We bring patience, gentleness, and attention to every patient, and we're committed to keeping the pets of our community healthy and happy.</p>
+          <p>{{COMPANY_NAME}} provides veterinary care. Based in {{CITY}}, {{STATE}}, we care for pets across the {{SERVICE_REGION}}.</p>
+          <p>Tell us about your pet and what's going on, and we'll get back to you.</p>
         </div>
         <div class="about-image">
           <div class="about-placeholder">
@@ -42,7 +42,7 @@ const phoneRaw = phone.replace(/\D/g, '');
   <!-- Values -->
   <section class="about-values">
     <div class="container">
-      <h2>What Sets Us Apart</h2>
+      <h2>Get to Know Us</h2>
       <div class="values-grid">
         <div class="value-card">
           <div class="value-icon">
@@ -50,8 +50,8 @@ const phoneRaw = phone.replace(/\D/g, '');
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
             </svg>
           </div>
-          <h3>Preventive Focus</h3>
-          <p>Regular checkups help catch problems early, when they're easier to treat.</p>
+          <h3>Right Here in {{CITY}}</h3>
+          <p>We're based in {{CITY}}, {{STATE}}.</p>
         </div>
         <div class="value-card">
           <div class="value-icon">
@@ -60,8 +60,8 @@ const phoneRaw = phone.replace(/\D/g, '');
               <polyline points="22 4 12 14.01 9 11.01"></polyline>
             </svg>
           </div>
-          <h3>Compassionate Care</h3>
-          <p>We treat every pet with gentleness and patience, and we keep you informed every step of the way.</p>
+          <h3>Easy to Reach</h3>
+          <p><%= (typeof phoneRaw !== 'undefined' && phoneRaw) ? 'Call or send us a message, whichever suits you.' : 'Send us a message through our contact form.' %></p>
         </div>
         <div class="value-card">
           <div class="value-icon">
@@ -70,8 +70,8 @@ const phoneRaw = phone.replace(/\D/g, '');
               <polyline points="12 6 12 12 16 14"></polyline>
             </svg>
           </div>
-          <h3>Clear Communication</h3>
-          <p>We explain what we find and talk through your pet's options with you.</p>
+          <h3>Questions Welcome</h3>
+          <p>Not sure what you need yet? Just ask. We're happy to talk it through.</p>
         </div>
         <div class="value-card">
           <div class="value-icon">
@@ -82,8 +82,8 @@ const phoneRaw = phone.replace(/\D/g, '');
               <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
             </svg>
           </div>
-          <h3>Close to Home</h3>
-          <p>We care for pets and their families across the {{SERVICE_REGION}}.</p>
+          <h3>Serving the {{SERVICE_REGION}}</h3>
+          <p>We work across the {{SERVICE_REGION}}.</p>
         </div>
       </div>
     </div>

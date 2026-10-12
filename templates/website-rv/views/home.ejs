@@ -63,10 +63,10 @@ function getImageUrl(p) {
     <% } %>
     <div class="hero-video-content <%= hero.image ? 'hero-content' : '' %>">
       <h1><%= hero.title || '{{COMPANY_NAME}}' %></h1>
-      <h2><%= hero.subtitle || 'New & Used RVs, ATVs, UTVs & Boats' %></h2>
+      <h2><%= hero.subtitle || 'RVs & Powersports in {{CITY}}' %></h2>
       <div class="hero-line"></div>
       <p class="hero-tagline"><strong><%= hero.tagline || 'YOUR ADVENTURE STARTS HERE' %></strong></p>
-      <p class="hero-awards"><%= hero.description || 'Serving the {{SERVICE_REGION}} with new & used RVs, ATVs, UTVs, and boats' %></p>
+      <p class="hero-awards"><%= hero.description || 'Serving the {{SERVICE_REGION}}' %></p>
       <div class="hero-buttons">
         <a href="<%= hero.primaryButtonLink || '/inventory' %>" class="btn btn-primary btn-lg">
           <%= hero.primaryButtonText || 'Browse Inventory' %>
@@ -119,28 +119,28 @@ function getImageUrl(p) {
   <!-- Why Choose Us Section -->
   <section class="why-choose-section">
     <div class="container">
-      <h2>Why Choose {{COMPANY_NAME}}</h2>
+      <h2>Getting Started with {{COMPANY_NAME}}</h2>
       <div class="why-grid">
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
           </div>
-          <h3>Sales, Service &amp; Parts</h3>
-          <p>New and pre-owned RVs, ATVs, UTVs, motorcycles, and boats, plus service and parts. Buy it, gear it up, and keep it running.</p>
+          <h3>Right Here in {{CITY}}</h3>
+          <p>We're based in {{CITY}}, {{STATE}}.</p>
         </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
           </div>
-          <h3>Local to the {{SERVICE_REGION}}</h3>
-          <p>Based in {{CITY}}, we serve riders across <%= otherAreas.length ? otherAreas.join(', ') + ', and ' : '' %>the surrounding communities.</p>
+          <h3>Easy to Reach</h3>
+          <p><%= (typeof phoneRaw !== 'undefined' && phoneRaw) ? 'Call or send us a message, whichever suits you.' : 'Send us a message through our contact form.' %></p>
         </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </div>
-          <h3>Straight Answers, No Pressure</h3>
-          <p>Tell us how you ride and camp, and we'll help you find a unit that fits. Ask about trading in your current unit toward your next one.</p>
+          <h3>Questions Welcome</h3>
+          <p>Not sure what you need yet? Just ask. We're happy to talk it through.</p>
         </div>
       </div>
     </div>

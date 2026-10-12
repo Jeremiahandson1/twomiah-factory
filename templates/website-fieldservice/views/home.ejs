@@ -68,7 +68,7 @@ function getImageUrl(p) {
       <h2><%= hero.subtitle || 'Professional {{INDUSTRY}} Services' %></h2>
       <div class="hero-line"></div>
       <p class="hero-tagline"><strong><%= hero.tagline || 'Serving {{CITY}} and the {{SERVICE_REGION}}' %></strong></p>
-      <p class="hero-awards"><%= hero.description || 'Serving the {{SERVICE_REGION}} with Quality Craftsmanship' %></p>
+      <p class="hero-awards"><%= hero.description || 'Serving the {{SERVICE_REGION}}' %></p>
       <div class="hero-buttons">
         <a href="<%= hero.primaryButtonLink || '#contact' %>" class="btn btn-primary btn-lg">
           <%= hero.primaryButtonText || 'Request an Estimate' %>
@@ -121,28 +121,28 @@ function getImageUrl(p) {
   <!-- Why Choose Us Section -->
   <section class="why-choose-section">
     <div class="container">
-      <h2>Why Choose {{COMPANY_NAME}}</h2>
+      <h2>Getting Started with {{COMPANY_NAME}}</h2>
       <div class="why-grid">
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </div>
-          <h3>Straight Answers</h3>
-          <p>We explain what's wrong and what your options are in plain English, so you can decide what makes sense for your home.</p>
+          <h3>Right Here in {{CITY}}</h3>
+          <p>We're based in {{CITY}}, {{STATE}}.</p>
         </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
           </div>
-          <h3>Local to the {{SERVICE_REGION}}</h3>
-          <p>We serve homeowners in <%= _areas.join(', ') %> and across the {{SERVICE_REGION}}.</p>
+          <h3>Easy to Reach</h3>
+          <p><%= (typeof phoneRaw !== 'undefined' && phoneRaw) ? 'Call or send us a message, whichever suits you.' : 'Send us a message through our contact form.' %></p>
         </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </div>
-          <h3>Respect for Your Home</h3>
-          <p>We treat your home with care and leave the work area clean when the job is done.</p>
+          <h3>Questions Welcome</h3>
+          <p>Not sure what you need yet? Just ask. We're happy to talk it through.</p>
         </div>
       </div>
     </div>

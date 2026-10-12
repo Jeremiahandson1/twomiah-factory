@@ -21,18 +21,18 @@
       "enabled": true
     },
     {
-      "id": "workmanship",
+      "id": "reach",
       "type": "custom",
-      "label": "Careful Workmanship",
-      "sublabel": "Done right the first time",
+      "label": "Easy to Reach",
+      "sublabel": "Call or send us a message",
       "icon": "check",
       "enabled": true
     },
     {
-      "id": "communication",
+      "id": "questions",
       "type": "custom",
-      "label": "Clear Communication",
-      "sublabel": "Straight answers, start to finish",
+      "label": "Questions Welcome",
+      "sublabel": "Not sure what you need? Just ask",
       "icon": "star",
       "enabled": true
     }

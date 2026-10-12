@@ -2,7 +2,7 @@
   {
     "name": "{{CITY}}",
     "state": "{{STATE}}",
-    "description": "{{COMPANY_NAME}} is an RV and powersports dealership in {{CITY}}, {{STATE}}, with new and pre-owned RVs, ATVs, UTVs, motorcycles, and boats, plus service and parts.",
+    "description": "{{COMPANY_NAME}} is an RV and powersports dealership in {{CITY}}, {{STATE}}.",
     "isPrimary": true
   },
   {
@@ -26,7 +26,7 @@
   {
     "name": "{{NEARBY_CITY_4}}",
     "state": "{{STATE}}",
-    "description": "{{COMPANY_NAME}} serves {{NEARBY_CITY_4}} with new and pre-owned RVs, ATVs, UTVs, and boats, plus service and trade-in appraisals. Stop by or request a unit today.",
+    "description": "{{COMPANY_NAME}} serves {{NEARBY_CITY_4}} with RVs and powersports. Stop by, call, or send us a message.",
     "isPrimary": false
   }
 ]

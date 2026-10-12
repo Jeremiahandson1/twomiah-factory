@@ -14,7 +14,7 @@ const phoneRaw = phone.replace(/\D/g, '');
         Home
       </a>
       <h1>About {{COMPANY_NAME}}</h1>
-      <p>Getting {{SERVICE_REGION}} on the road, trail, and water with quality units and honest service.</p>
+      <p>RVs and powersports in the {{SERVICE_REGION}}.</p>
     </div>
   </section>
 
@@ -24,8 +24,8 @@ const phoneRaw = phone.replace(/\D/g, '');
       <div class="about-grid">
         <div class="about-content">
           <h2>Our Story</h2>
-          <p>{{COMPANY_NAME}} is based in {{CITY}}, {{STATE}}, and serves RV owners and powersports riders across {{SERVICE_REGION}}. Our aim is simple: get people on the road, trail, and water with the right unit at a fair price, and treat every customer like a neighbor.</p>
-          <p>From your first travel trailer to your next side-by-side, we bring the same care and straight talk to every sale and every service visit.</p>
+          <p>{{COMPANY_NAME}} is based in {{CITY}}, {{STATE}}, and serves RV owners and powersports riders across {{SERVICE_REGION}}.</p>
+          <p>Tell us what you're looking for and we'll get back to you.</p>
         </div>
         <div class="about-image">
           <div class="about-placeholder">
@@ -42,7 +42,7 @@ const phoneRaw = phone.replace(/\D/g, '');
   <!-- Values -->
   <section class="about-values">
     <div class="container">
-      <h2>What Sets Us Apart</h2>
+      <h2>Get to Know Us</h2>
       <div class="values-grid">
         <div class="value-card">
           <div class="value-icon">
@@ -50,8 +50,8 @@ const phoneRaw = phone.replace(/\D/g, '');
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
             </svg>
           </div>
-          <h3>New &amp; Pre-Owned</h3>
-          <p>RVs, ATVs, UTVs, motorcycles, and boats, with help finding the unit that fits how you ride.</p>
+          <h3>Right Here in {{CITY}}</h3>
+          <p>We're based in {{CITY}}, {{STATE}}.</p>
         </div>
         <div class="value-card">
           <div class="value-icon">
@@ -60,8 +60,8 @@ const phoneRaw = phone.replace(/\D/g, '');
               <polyline points="22 4 12 14.01 9 11.01"></polyline>
             </svg>
           </div>
-          <h3>Service &amp; Parts</h3>
-          <p>We help keep your RV or powersports unit road- and trail-ready season after season.</p>
+          <h3>Easy to Reach</h3>
+          <p><%= (typeof phoneRaw !== 'undefined' && phoneRaw) ? 'Call or send us a message, whichever suits you.' : 'Send us a message through our contact form.' %></p>
         </div>
         <div class="value-card">
           <div class="value-icon">
@@ -70,8 +70,8 @@ const phoneRaw = phone.replace(/\D/g, '');
               <polyline points="12 6 12 12 16 14"></polyline>
             </svg>
           </div>
-          <h3>Straight Answers</h3>
-          <p>No pressure and no surprises: we're upfront about the numbers on every unit.</p>
+          <h3>Questions Welcome</h3>
+          <p>Not sure what you need yet? Just ask. We're happy to talk it through.</p>
         </div>
         <div class="value-card">
           <div class="value-icon">
@@ -82,8 +82,8 @@ const phoneRaw = phone.replace(/\D/g, '');
               <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
             </svg>
           </div>
-          <h3>Here in {{CITY}}</h3>
-          <p>We serve riders across {{SERVICE_REGION}}, so we're close by when you need us.</p>
+          <h3>Serving the {{SERVICE_REGION}}</h3>
+          <p>We work across the {{SERVICE_REGION}}.</p>
         </div>
       </div>
     </div>
