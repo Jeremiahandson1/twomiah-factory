@@ -148,6 +148,24 @@ for (const [label, extra] of [
   check('a supplier notice with the wrong token changes nothing (400)', bad.status === 400 && still.status === 'paid' && !still.trackingNumber, { status: bad.status, order: still.status })
 }
 
+// ── the picture never stops the payment (live, Stripe test mode, 10/12) ──────────────────────────────────────────
+// The seeded sample products carry a data: URI picture; Stripe refused the session ("Not a valid URL") and the first
+// checkout on a new store failed. Only a public https address goes to the payment page.
+{
+  const { checkoutImageUrl } = await import('./src/routes/public.ts')
+  const svg = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnLz4='
+  check('image: a data: picture (the seeded sample products) is left off the payment page', checkoutImageUrl(svg) === undefined)
+  check('image: so is a relative path, a plain-http address and nonsense', checkoutImageUrl('/media/abc.png') === undefined && checkoutImageUrl('http://cdn.example.com/a.png') === undefined && checkoutImageUrl('not a url') === undefined && checkoutImageUrl(null) === undefined)
+  check('image: an uploaded or pasted https picture still goes', checkoutImageUrl('https://shop-api.example.com/media/products/a.png') === 'https://shop-api.example.com/media/products/a.png')
+  const src = (require('node:fs') as typeof import('node:fs')).readFileSync('./src/routes/public.ts', 'utf8').replace(/\r\n/g, '\n')
+  check('image: the checkout route takes its picture through checkoutImageUrl, and nowhere else', /const shown = checkoutImageUrl\(img\?\.url\)\n\s*if \(shown\) li\.imageUrl = shown/.test(src) && !/li\.imageUrl = img\.url/.test(src))
+  // …and a checkout of a product whose only picture is a data: URI still reaches the provider and creates the order.
+  const { productImages } = await import('./db/schema.ts')
+  await db.insert(productImages).values({ productId: prod.id, url: svg, isPrimary: true, position: 0 } as any)
+  const r = await checkout({}, 1)
+  check(`image: a product pictured with a data: URI still checks out (${r.r.status})`, r.r.status === 200 && !!r.order, r.r.json)
+}
+
 globalThis.fetch = realFetch
 console.log(`\ncheckout charge: ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

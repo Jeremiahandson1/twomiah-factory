@@ -180,6 +180,20 @@ function computeTaxBps(settings: any, shipTo?: { country?: string; state?: strin
   return settings?.taxRateBps ?? 0
 }
 
+/**
+ * THE PICTURE A PAYMENT PAGE MAY SHOW. (Live, Stripe test mode, 10/12: the first checkout on the test store answered
+ * 502 'Could not start checkout'; Stripe's reason, from the log, was 'Not a valid URL'.)
+ *
+ * Stripe takes a product image only as a public https address (pasted images are held to https already). The sample products every new store is seeded with
+ * carry their placeholder picture as a data: URI, so the very first test order a new owner placed — on the products
+ * the store came with — failed, and the order never existed. An image is decoration on the payment page, never a
+ * reason to refuse the payment: a picture Stripe cannot fetch is left off, and the shopper still pays.
+ */
+export const checkoutImageUrl = (url: string | null | undefined): string | undefined => {
+  if (!url) return undefined
+  try { const u = new URL(url); return u.protocol === 'https:' ? u.href : undefined } catch { return undefined }
+}
+
 const checkoutSchema = z.object({
   items: z.array(z.object({
     sku: z.string().min(1),
@@ -285,7 +299,8 @@ pub.post('/checkout', async (c) => {
   for (const li of lineItems) {
     const img = imgs.find((i) => i.productId === li.productId && i.isPrimary)
       ?? imgs.find((i) => i.productId === li.productId)
-    if (img) li.imageUrl = img.url
+    const shown = checkoutImageUrl(img?.url)
+    if (shown) li.imageUrl = shown
   }
 
   // ── Server-computed totals (never trust the client) ──
