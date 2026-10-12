@@ -49,7 +49,10 @@ export type WebhookVerifyInput = {
 // Normalized result of a verified webhook. `type: 'paid'` is the only event we
 // act on in Phase 1; everything else is 'ignored'.
 export type WebhookResult = {
-  type: 'paid' | 'ignored'
+  // 'refunded': money sent back from the provider's own dashboard (routes/orders.ts applyProviderRefund).
+  type: 'paid' | 'refunded' | 'ignored'
+  // For 'refunded': how much of the charge has gone back so far, and the charge itself.
+  amountRefundedCents?: number
   providerSessionId?: string
   providerPaymentId?: string
   amountTotalCents?: number

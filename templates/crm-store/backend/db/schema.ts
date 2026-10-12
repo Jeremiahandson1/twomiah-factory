@@ -78,6 +78,13 @@ export const orders = pgTable('orders', {
   providerSessionId: text('provider_session_id').notNull(),
   providerPaymentId: text('provider_payment_id'),
   status: orderStatusEnum('status').notNull().default('pending'),
+  // Money back (routes/orders.ts returnPayment). refundPendingAt is set in the same write that moves a paid order to
+  // refunded/cancelled and cleared — with the restock — once the provider has answered, so an interrupted refund is
+  // finished by resumePendingRefunds and never restocked twice. refundError holds the provider's refusal to show.
+  refundPendingAt: timestamp('refund_pending_at', { withTimezone: true }),
+  refundId: text('refund_id'),
+  refundedAt: timestamp('refunded_at', { withTimezone: true }),
+  refundError: text('refund_error'),
 
   customerEmail: text('customer_email').notNull(),
   customerName: text('customer_name'),

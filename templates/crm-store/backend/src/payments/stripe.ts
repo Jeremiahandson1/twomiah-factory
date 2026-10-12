@@ -98,6 +98,13 @@ export class StripeProvider implements PaymentProvider {
       input.rawBody, input.signature, this.webhookSecret,
     )
 
+    // A refund — made here (Refund on an order) or in Stripe's own dashboard. routes/orders.ts tells the two apart.
+    if (event.type === 'charge.refunded') {
+      const ch = event.data.object as Stripe.Charge
+      const pi = typeof ch.payment_intent === 'string' ? ch.payment_intent : ch.payment_intent?.id
+      if (!pi) return { type: 'ignored' }
+      return { type: 'refunded', providerPaymentId: pi, amountRefundedCents: ch.amount_refunded, amountTotalCents: ch.amount, currency: ch.currency }
+    }
     if (event.type !== 'checkout.session.completed') return { type: 'ignored' }
     return parseSession(event.data.object as Stripe.Checkout.Session)
   }

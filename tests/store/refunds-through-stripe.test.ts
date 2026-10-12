@@ -20,7 +20,8 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
 await setupSchema()
 const { encryptJSON } = await import('./src/lib/crypto.ts')
 await db.insert(storeSettings).values({ companyName: 'Refund Store', currency: 'usd' } as any)
-await db.insert(paymentConfig).values({ provider: 'stripe', mode: 'test', connected: true, credentialsEnc: encryptJSON({ secretKey: 'sk_test_refunds' }) } as any)
+const { encrypt } = await import('./src/lib/crypto.ts')
+await db.insert(paymentConfig).values({ provider: 'stripe', mode: 'test', connected: true, credentialsEnc: encryptJSON({ secretKey: 'sk_test_refunds' }), webhookSecretEnc: encrypt('whsec_refunds') } as any)
 const mk = async (role: string, name: string) => (await db.insert(users).values({ email: `${name}@refund.test`, passwordHash: 'x', name, role } as any).returning())[0]
 const owner = await mk('owner', 'owner'), managerA = await mk('manager', 'manager-a'), managerB = await mk('manager', 'manager-b'), staff = await mk('staff', 'staff')
 const [product] = await db.insert(products).values({ slug: 'mug', name: 'Mug', status: 'active' } as any).returning()
@@ -44,6 +45,9 @@ type Call = { paymentIntent: string | null; key: string | null; auth: string | n
 const calls: Call[] = []
 const refundsByKey = new Map<string, string>()
 let mode: 'ok' | 'card_declined' | 'already' | 'pending' = 'ok'
+let endpointEvents: string[] = ['checkout.session.completed']
+const endpointUpdates: string[] = []
+let endpointCreates = 0
 const realFetch = globalThis.fetch
 globalThis.fetch = (async (input: any, init?: any) => {
   const url = String(input?.url ?? input)
@@ -62,6 +66,10 @@ globalThis.fetch = (async (input: any, init?: any) => {
     if (key) refundsByKey.set(key, id)
     return json({ id, object: 'refund', amount: 5000, currency: 'usd', status: mode === 'pending' ? 'pending' : 'succeeded', payment_intent: body.get('payment_intent') })
   }
+  const method = (init?.method || 'GET').toUpperCase()
+  if (/\/v1\/webhook_endpoints(\?|$)/.test(url) && method === 'GET') return json({ object: 'list', data: [{ id: 'we_1', object: 'webhook_endpoint', url: 'https://shop-api.test/api/public/webhooks/payment', enabled_events: endpointEvents }], has_more: false })
+  if (/\/v1\/webhook_endpoints\/we_1$/.test(url) && method === 'POST') { endpointUpdates.push(decodeURIComponent(String(init?.body || ''))); return json({ id: 'we_1', object: 'webhook_endpoint', enabled_events: [] }) }
+  if (/\/v1\/webhook_endpoints$/.test(url) && method === 'POST') { endpointCreates++; return json({ id: 'we_2' }) }
   return json({ error: { message: 'not answered here' } }, 404)
 }) as any
 
@@ -154,6 +162,84 @@ const O = as(owner), MA = as(managerA), MB = as(managerB), S = as(staff)
   const p = await mkOrder('paid'); const c1 = calls.length
   const s = await S('refunded', p.id)
   check('staff: a refund is refused before anything reaches Stripe', s.status === 403 && calls.length === c1 && (await orderNow(p.id)).status === 'paid')
+}
+// 12. A refund interrupted between the order moving and Stripe answering is finished — once.
+const { resumePendingRefunds } = await import('./src/routes/orders.ts')
+const { auditLog } = await import('./db/schema.ts')
+{
+  await setStock(10)
+  const o = await mkOrder('refunded', { refundPendingAt: new Date(Date.now() - 10 * 60_000) })
+  const c0 = calls.length
+  const found = await resumePendingRefunds()
+  const now = await orderNow(o.id)
+  check(`interrupted: the stuck refund is finished — asked of Stripe with the order's own key (${found} found)`, found >= 1 && calls.length === c0 + 1 && calls[c0].key === `order-refund-${o.id}`)
+  check(`interrupted: stamp off, Stripe's refund id kept, the units back (10 → ${await stock()})`, !now.refundPendingAt && /^re_test_/.test(now.refundId || '') && !!now.refundedAt && (await stock()) === 12, now)
+  const row = (await db.select().from(auditLog)).find((r: any) => r.entityId === o.id)
+  check(`interrupted: the log says so ("${(row?.metadata as any)?.description}")`, /^Refund completed after an interruption — \$50\.00 sent back to the card, 2 units back in stock$/.test((row?.metadata as any)?.description || ''))
+  const again = await resumePendingRefunds()
+  check('interrupted: running it again finds nothing, asks Stripe nothing, restocks nothing', again === 0 && calls.length === c0 + 1 && (await stock()) === 12)
+  const fresh = await mkOrder('refunded', { refundPendingAt: new Date(Date.now() - 20_000) })
+  await resumePendingRefunds()
+  check('interrupted: a refund only seconds old is left to the request still finishing it', !!(await orderNow(fresh.id)).refundPendingAt)
+  await db.update(orders).set({ refundPendingAt: null }).where(eq(orders.id, fresh.id))
+}
+// 13. Stripe refuses a refund being finished: kept on the order, nothing restocked, Try again works, staff cannot.
+{
+  await setStock(10)
+  const o = await mkOrder('refunded', { refundPendingAt: new Date(Date.now() - 10 * 60_000) })
+  mode = 'card_declined'; await resumePendingRefunds(); mode = 'ok'
+  const held = await orderNow(o.id)
+  check('refused while finishing: the reason is kept on the order, the stamp stays, nothing restocked', !!held.refundPendingAt && /Stripe said: This charge has been disputed/.test(held.refundError || '') && (await stock()) === 10, held)
+  const retry = (who: any) => app.request(`/api/admin/orders/${o.id}/refund/retry`, { method: 'POST', headers: { 'x-test-user': who.id } })
+  check('refused while finishing: staff cannot press Try again', (await retry(staff)).status === 403)
+  const r = await retry(managerA); const j: any = await r.json()
+  const done = await orderNow(o.id)
+  check(`refused while finishing: the manager's Try again sends it and restocks (${r.status}, stock ${await stock()})`, r.status === 200 && j.refund?.kind === 'refunded' && !done.refundPendingAt && !done.refundError && (await stock()) === 12, j)
+}
+// 14. Refunds made in Stripe's own dashboard reach the order (charge.refunded, signed).
+{
+  const Stripe = (await import('stripe')).default
+  const stripe = new Stripe('sk_test_x')
+  const pub = new Hono(); pub.route('/api/public', (await import('./src/routes/public.ts')).default)
+  const event = (pi: string, refunded: number, amount = 5000) => JSON.stringify({ id: `evt_${Math.random().toString(36).slice(2)}`, object: 'event', type: 'charge.refunded', data: { object: { id: 'ch_x', object: 'charge', payment_intent: pi, amount, amount_refunded: refunded, currency: 'usd' } } })
+  const post = async (payload: string, secret = 'whsec_refunds') => {
+    const sig = await stripe.webhooks.generateTestHeaderStringAsync({ payload, secret })
+    return pub.request('/api/public/webhooks/payment', { method: 'POST', headers: { 'stripe-signature': sig, 'content-type': 'application/json' }, body: payload })
+  }
+  await setStock(10)
+  const o = await mkOrder('shipped', { fulfilledAt: new Date() }); const c0 = calls.length
+  const r = await post(event(o.providerPaymentId!, 5000))
+  const now = await orderNow(o.id)
+  check(`dashboard refund: a full refund made in Stripe marks the order refunded and restocks (${r.status}, stock ${await stock()})`, r.status === 200 && now.status === 'refunded' && !now.refundPendingAt && (await stock()) === 12 && calls.length === c0)
+  const row = (await db.select().from(auditLog)).find((x: any) => x.entityId === o.id)
+  check(`dashboard refund: logged as Stripe's, by no one here ("${(row?.metadata as any)?.description}")`, (row?.metadata as any)?.description === "Refunded in Stripe's dashboard — $50.00, 2 units back in stock" && !row?.userId)
+  await post(event(o.providerPaymentId!, 5000))
+  check('dashboard refund: the same notice again changes nothing', (await stock()) === 12 && (await db.select().from(auditLog)).filter((x: any) => x.entityId === o.id).length === 1)
+  await setStock(10); const own = await mkOrder('paid'); await MA('refunded', own.id)
+  await post(event(own.providerPaymentId!, 5000))
+  check('dashboard refund: the echo of a refund made HERE is recognised — no second restock', (await stock()) === 12 && (await orderNow(own.id)).status === 'refunded')
+  const settling = await mkOrder('refunded', { refundPendingAt: new Date() }); await setStock(10)
+  await post(event(settling.providerPaymentId!, 5000))
+  check('dashboard refund: a refund still settling here is left to settle', (await stock()) === 10 && !!(await orderNow(settling.id)).refundPendingAt)
+  await db.update(orders).set({ refundPendingAt: null }).where(eq(orders.id, settling.id))
+  const part = await mkOrder('paid'); await setStock(10)
+  await post(event(part.providerPaymentId!, 1500))
+  const prow = (await db.select().from(auditLog)).find((x: any) => x.entityId === part.id)
+  check(`dashboard refund: a partial refund is logged and changes nothing else ("${(prow?.metadata as any)?.description}")`, (await orderNow(part.id)).status === 'paid' && (await stock()) === 10 && (prow?.metadata as any)?.description === "Partly refunded in Stripe's dashboard: $15.00 of $50.00 — the order is unchanged here")
+  const forged = await post(event(part.providerPaymentId!, 5000), 'whsec_wrong')
+  check("dashboard refund: a notice not signed with the store's secret is refused", forged.status === 400 && (await orderNow(part.id)).status === 'paid')
+}
+// 15. A store connected before refunds were listened for has its Stripe webhook brought up to date — updated, not re-created.
+{
+  process.env.BACKEND_URL = 'https://shop-api.test'
+  const { ensureStripeWebhookEvents, STRIPE_WEBHOOK_EVENTS } = await import('./src/routes/payments.ts')
+  endpointEvents = ['checkout.session.completed']
+  const u0 = endpointUpdates.length
+  const first = await ensureStripeWebhookEvents()
+  check(`webhook: the endpoint is updated to listen for refunds too (${first})`, first === 'updated' && endpointUpdates.length === u0 + 1 && endpointUpdates[u0].includes('charge.refunded') && endpointUpdates[u0].includes('checkout.session.completed') && endpointCreates === 0, endpointUpdates.slice(u0))
+  endpointEvents = [...STRIPE_WEBHOOK_EVENTS]
+  const second = await ensureStripeWebhookEvents()
+  check(`webhook: …and left alone once it does (${second})`, second === 'current' && endpointUpdates.length === u0 + 1)
 }
 // 11. The screen asks, with the amount, and names the buttons for what they do.
 {

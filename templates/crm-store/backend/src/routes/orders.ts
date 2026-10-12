@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { orders, orderItems, storeSettings, productVariants } from '../../db/schema.ts'
-import { eq, and, desc, sql } from 'drizzle-orm'
+import { eq, and, desc, sql, isNotNull, lt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission, hasPermission } from '../middleware/permissions.ts'
 import { sendOrderShipped } from '../services/email.ts'
@@ -250,6 +250,11 @@ admin.patch('/:id/status', requirePermission('orders:update'), async (c) => {
   // A paid order cancelled before it went out was never fulfilled. (A refund after shipping keeps it: it did ship.)
   if (next === 'cancelled') patch.fulfilledAt = null
   // Only from the status this was decided on (changedUnderYou above): a second person's change in between wins.
+  // A paid order leaving for refunded/cancelled is stamped refundPendingAt in the SAME write: from here until the
+  // provider has answered and the stock is back, the order says a refund is under way — so a crash in between is
+  // finished by resumePendingRefunds rather than left reading "refunded" with the money still taken.
+  const givesMoneyBack = (next === 'cancelled' || next === 'refunded') && COUNTED.includes(prev.status)
+  if (givesMoneyBack) { patch.refundPendingAt = new Date(); patch.refundError = null }
   const [updated] = await db.update(orders).set(patch).where(and(eq(orders.id, prev.id), eq(orders.status, prev.status))).returning()
   if (!updated) {
     const [now] = await db.select({ status: orders.status }).from(orders).where(eq(orders.id, prev.id)).limit(1)
@@ -260,41 +265,132 @@ admin.patch('/:id/status', requirePermission('orders:update'), async (c) => {
   // presses, or a refund racing 'mark shipped', can never send money back for an order that did not move. If the
   // provider refuses, the order is put back exactly as it was and nothing is restocked. (See returnPayment.)
   let money: MoneyBack = { kind: 'not_paid' }
-  if ((next === 'cancelled' || next === 'refunded') && COUNTED.includes(prev.status)) {
+  let restocked = 0
+  if (givesMoneyBack) {
     money = await returnPayment(prev)
     if (money.kind === 'failed') {
-      await db.update(orders).set({ status: prev.status, fulfilledAt: prev.fulfilledAt, updatedAt: new Date() })
+      await db.update(orders).set({ status: prev.status, fulfilledAt: prev.fulfilledAt, refundPendingAt: null, updatedAt: new Date() })
         .where(and(eq(orders.id, prev.id), eq(orders.status, next)))
       return c.json({
         error: `The payment could not be refunded, so the order is still ${prev.status} and nothing was restocked. ${money.reason}`,
         code: 'refund_failed',
       }, 502)
     }
+    restocked = await settleRefund(prev.id, money)
   }
 
-  // Restock when a previously-paid order is cancelled/refunded. Payment
-  // (finalizeOrder) decremented inventoryQty for tracked variants, so reversing
-  // to cancelled/refunded must add the units back — exactly once, and only from a
-  // state that actually decremented: a still-'pending' order never counted, and an
-  // order already cancelled/refunded must not double-restock. Untracked variants
-  // (inventoryQty IS NULL = unlimited) are skipped by the WHERE guard. COUNTED is the module's own
-  // list above — the same "this order was paid for" the permission rule reads.
-  let restocked = 0
-  if ((next === 'cancelled' || next === 'refunded') && COUNTED.includes(prev.status)) {
-    const items = await db.select().from(orderItems).where(eq(orderItems.orderId, prev.id))
+  const [final] = givesMoneyBack ? await db.select().from(orders).where(eq(orders.id, prev.id)).limit(1) : [updated]
+  await logStatusChange(c, prev, final, restocked, money)
+  if (next === 'shipped' && prev.status !== 'shipped') void notifyShipped(updated)
+  return c.json({ order: orderForCaller(c, final), ...(money.kind === 'not_paid' ? {} : { refund: money }) })
+})
+
+/**
+ * THE REFUND IS DONE: the stamp comes off and the stock goes back, as ONE write. (Owner, 10/12: "the professional
+ * thing to do".) Clearing refundPendingAt is conditional on it still being set, so whoever finishes a refund — the
+ * request, resumePendingRefunds after a crash, a retry — restocks exactly once, however many of them get here.
+ * Restocking: payment (finalizeOrder) took the units off for tracked variants; untracked (inventoryQty IS NULL =
+ * unlimited) are skipped by the WHERE guard. Everything inside reads through `tx` — an outer `db` read inside the
+ * transaction would wait on itself.
+ */
+export async function settleRefund(orderId: string, money: MoneyBack): Promise<number> {
+  return db.transaction(async (tx) => {
+    const [cleared] = await tx.update(orders).set({
+      refundPendingAt: null, refundError: null, updatedAt: new Date(),
+      ...(money.kind === 'refunded' ? { refundId: money.refundId, refundedAt: new Date() } : {}),
+    }).where(and(eq(orders.id, orderId), isNotNull(orders.refundPendingAt))).returning({ id: orders.id })
+    if (!cleared) return 0
+    let restocked = 0
+    const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId))
     for (const it of items) {
       if (!it.variantId) continue
       restocked += it.quantity
-      await db.update(productVariants)
+      await tx.update(productVariants)
         .set({ inventoryQty: sql`${productVariants.inventoryQty} + ${it.quantity}`, updatedAt: new Date() })
         .where(and(eq(productVariants.id, it.variantId), sql`${productVariants.inventoryQty} is not null`))
     }
-  }
+    return restocked
+  })
+}
 
-  await logStatusChange(c, prev, updated, restocked, money)
-  if (next === 'shipped' && prev.status !== 'shipped') void notifyShipped(updated)
-  return c.json({ order: orderForCaller(c, updated), ...(money.kind === 'not_paid' ? {} : { refund: money }) })
+/**
+ * FINISH WHAT WAS INTERRUPTED. A refund left stamped (refundPendingAt) for more than a couple of minutes — the server
+ * restarted between moving the order and hearing from the provider — is asked of the provider again. The per-order
+ * idempotency key hands back the SAME refund if the first request did reach it, so this never refunds twice; the
+ * settle above never restocks twice. A refusal is kept on the order (refundError) for the order page to show, with a
+ * Try again button; the order stays refunded/cancelled and nothing is restocked until the money has gone back.
+ */
+export async function finishRefund(order: typeof orders.$inferSelect, why: string): Promise<MoneyBack> {
+  const money = await returnPayment(order)
+  if (money.kind === 'failed') {
+    await db.update(orders).set({ refundError: money.reason, updatedAt: new Date() })
+      .where(and(eq(orders.id, order.id), isNotNull(orders.refundPendingAt)))
+    return money
+  }
+  const restocked = await settleRefund(order.id, money)
+  const [after] = await db.select().from(orders).where(eq(orders.id, order.id)).limit(1)
+  if (after) {
+    const amount = formatCents(after.totalCents, after.currency)
+    await audit.log({
+      action: 'status_change', entity: 'order', entityId: after.id, entityName: after.orderNumber,
+      metadata: {
+        description: `${why} — ${money.kind === 'refunded' ? `${amount} sent back to the card` : 'recorded only, no money sent back here'}${restocked ? `, ${restocked} unit${restocked === 1 ? '' : 's'} back in stock` : ''}`,
+        ...(money.kind === 'refunded' ? { refundId: money.refundId, refundStatus: money.status } : { moneyBack: money.kind }),
+      },
+    })
+  }
+  return money
+}
+
+export async function resumePendingRefunds(olderThanMs = 2 * 60_000): Promise<number> {
+  const stuck = await db.select().from(orders)
+    .where(and(isNotNull(orders.refundPendingAt), lt(orders.refundPendingAt, new Date(Date.now() - olderThanMs))))
+  for (const o of stuck) {
+    try { await finishRefund(o, 'Refund completed after an interruption') } catch (e: any) { console.error('[orders] resuming a refund failed:', e?.message || e) }
+  }
+  return stuck.length
+}
+
+// The order page's "Try the refund again", for a refund the provider refused after the order had moved.
+admin.post('/:id/refund/retry', requirePermission('orders:refund'), async (c) => {
+  const [o] = await db.select().from(orders).where(eq(orders.id, c.req.param('id'))).limit(1)
+  if (!o) return c.json({ error: 'Not found' }, 404)
+  if (!o.refundPendingAt) return c.json({ order: orderForCaller(c, o), refund: null })
+  const money = await finishRefund(o, 'Refund completed on a retry')
+  const [after] = await db.select().from(orders).where(eq(orders.id, o.id)).limit(1)
+  if (money.kind === 'failed') return c.json({ error: `The refund still has not gone through. ${money.reason}`, code: 'refund_failed', order: orderForCaller(c, after) }, 502)
+  return c.json({ order: orderForCaller(c, after), refund: money })
 })
+
+/**
+ * A REFUND MADE IN THE PROVIDER'S OWN DASHBOARD. (Owner, 10/12.) Stripe sends charge.refunded; the order is found by its
+ * payment id. A FULL refund of a paid order marks it refunded and restocks, exactly once (WHERE status = what was
+ * read). A partial one is written to the audit log and nothing else changes — the store has no partial refunds.
+ * Our own refunds come back through here too: one still settling (refundPendingAt) or already refunded is left alone.
+ */
+export async function applyProviderRefund(provider: string, providerPaymentId: string, refundedCents: number, chargeCents: number): Promise<'refunded' | 'partial' | 'ignored'> {
+  const [o] = await db.select().from(orders)
+    .where(and(eq(orders.provider, provider as any), eq(orders.providerPaymentId, providerPaymentId))).limit(1)
+  if (!o || o.refundPendingAt || !COUNTED.includes(o.status)) return 'ignored'
+  const amount = (cents: number) => formatCents(cents, o.currency)
+  if (refundedCents < chargeCents) {
+    await audit.log({
+      action: 'update', entity: 'order', entityId: o.id, entityName: o.orderNumber,
+      metadata: { description: `Partly refunded in ${PROVIDER_LABEL[provider] || provider}'s dashboard: ${amount(refundedCents)} of ${amount(chargeCents)} — the order is unchanged here` },
+    })
+    return 'partial'
+  }
+  const [moved] = await db.update(orders).set({ status: 'refunded', refundPendingAt: new Date(), updatedAt: new Date() })
+    .where(and(eq(orders.id, o.id), eq(orders.status, o.status))).returning()
+  if (!moved) return 'ignored'
+  const restocked = await settleRefund(o.id, { kind: 'refunded', refundId: null, status: 'succeeded', amountCents: refundedCents, alreadyRefunded: true })
+  await audit.log({
+    action: 'status_change', entity: 'order', entityId: o.id, entityName: o.orderNumber,
+    changes: { status: { old: o.status, new: 'refunded' } },
+    metadata: { description: `Refunded in ${PROVIDER_LABEL[provider] || provider}'s dashboard — ${amount(refundedCents)}${restocked ? `, ${restocked} unit${restocked === 1 ? '' : 's'} back in stock` : ''}`, restocked },
+  })
+  return 'refunded'
+}
 
 const fulfillSchema = z.object({
   trackingCarrier: z.string().optional().nullable(),

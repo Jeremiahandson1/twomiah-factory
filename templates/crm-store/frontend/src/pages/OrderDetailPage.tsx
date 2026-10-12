@@ -74,6 +74,13 @@ export default function OrderDetailPage() {
       else toast(`Marked ${status}`)
     } catch (e: any) { failed(e) }
   }
+  const retryRefund = async () => {
+    try {
+      const { order: o } = await api.retryRefund(id!)
+      setOrder((prev) => prev ? { ...prev, ...o } : prev)
+      toast(o.refundPendingAt ? 'The refund is still under way' : `Refunded ${money(o.totalCents, o.currency)} to the customer's card`)
+    } catch (e: any) { failed(e); load() }
+  }
   const saveFulfillment = async (markShipped: boolean) => {
     try {
       // Only the boxes this person changed: one adding the tracking number while another wrote the note used to send
@@ -104,6 +111,21 @@ export default function OrderDetailPage() {
         </div>
         <span className={`rounded-full px-3 py-1 text-sm font-medium ${statusColor(order.status)}`}>{order.status}</span>
       </div>
+
+      {/* Where the shopper's money stands, once a refund has been asked for. */}
+      {order.refundPendingAt && (
+        <div className={`rounded-lg border p-4 text-sm ${order.refundError ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-700/50 dark:bg-red-900/20 dark:text-red-200' : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-200'}`}>
+          {order.refundError
+            ? <>The refund has not gone through yet, so nothing has been restocked. {order.refundError}</>
+            : <>A refund is being sent back to the customer's card. It finishes on its own if it was interrupted.</>}
+          {order.refundError && may('orders:refund') && (
+            <button onClick={retryRefund} className="btn-secondary text-xs ml-3">Try the refund again</button>
+          )}
+        </div>
+      )}
+      {!order.refundPendingAt && order.refundedAt && (
+        <p className="text-sm text-gray-600 dark:text-slate-300">Money returned to the customer's card on {formatDate(order.refundedAt)}.</p>
+      )}
 
       {/* Status actions — only the moves this person may make */}
       {(NEXT_STATUS[order.status] || []).some((s) => may(moveNeeds(order.status, s))) && (

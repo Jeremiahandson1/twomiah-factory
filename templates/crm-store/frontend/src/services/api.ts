@@ -79,6 +79,8 @@ export type Order = {
   currency: string; trackingCarrier: string | null; trackingNumber: string | null
   internalNote: string | null; createdAt: string; fulfilledAt?: string | null; items?: OrderItem[]
   providerPaymentId?: string | null
+  // Money back (routes/orders.ts): a refund under way, the provider's refund id, when it went back, a refusal.
+  refundPendingAt?: string | null; refundId?: string | null; refundedAt?: string | null; refundError?: string | null
   labelUrl?: string | null; labelCostCents?: number | null; labelPurchasedAt?: string | null
 }
 export type MoneyBack =
@@ -274,6 +276,7 @@ class ApiClient {
   async listCustomers() { return (await this.request<{ customers: any[] }>('/api/admin/orders/customers')).customers }
   // A refund or a cancel of a paid order also says what happened to the shopper's money (routes/orders.ts MoneyBack).
   async setOrderStatus(id: string, status: string) { return this.request<{ order: Order; refund?: MoneyBack }>(`/api/admin/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }) }
+  async retryRefund(id: string) { return this.request<{ order: Order; refund?: MoneyBack | null }>(`/api/admin/orders/${id}/refund/retry`, { method: 'POST' }) }
   async setFulfillment(id: string, body: { trackingCarrier?: string; trackingNumber?: string; internalNote?: string; markShipped?: boolean }) { return (await this.request<{ order: Order }>(`/api/admin/orders/${id}/fulfillment`, { method: 'PATCH', body: JSON.stringify(body) })).order }
 
   // ── Settings ──

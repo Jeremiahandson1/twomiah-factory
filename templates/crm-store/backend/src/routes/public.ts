@@ -11,6 +11,7 @@ import { eq, and, inArray, asc, sql } from 'drizzle-orm'
 import { getActiveProvider } from '../payments/index.ts'
 import type { WebhookResult } from '../payments/types.ts'
 import { sendOrderConfirmation, sendMerchantNewOrder } from '../services/email.ts'
+import { applyProviderRefund } from './orders.ts'
 import logger from '../services/logger.ts'
 
 const pub = new Hono()
@@ -491,6 +492,11 @@ pub.post('/webhooks/payment', async (c) => {
     return c.json({ error: 'Invalid signature' }, 400)
   }
 
+  if (result.type === 'refunded' && result.providerPaymentId) {
+    const outcome = await applyProviderRefund(provider.name, result.providerPaymentId, result.amountRefundedCents ?? 0, result.amountTotalCents ?? 0)
+    logger.info('refund notification', { outcome })
+    return c.json({ received: true })
+  }
   if (result.type !== 'paid' || !result.providerSessionId) return c.json({ received: true })
 
   const [order] = await db.select().from(orders)

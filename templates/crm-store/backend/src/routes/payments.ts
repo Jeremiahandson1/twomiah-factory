@@ -6,7 +6,7 @@ import { paymentConfig } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
-import { encryptJSON, encrypt } from '../lib/crypto.ts'
+import { encryptJSON, encrypt, decryptJSON } from '../lib/crypto.ts'
 import logger from '../services/logger.ts'
 import audit from '../services/audit.ts'
 
@@ -57,6 +57,39 @@ const connectSchema = z.object({
 // at creation, so reuse is impossible). Failure is non-fatal — credentials
 // still save; the caller surfaces a note telling the merchant orders will
 // confirm via the slower success-page fallback until webhooks are set up.
+/**
+ * What the store listens to on Stripe: a completed checkout (the order is paid) and a refund (one made here, or in
+ * Stripe's own dashboard — routes/orders.ts applyProviderRefund). charge.refunded joined on 10/12; a store connected
+ * before then is brought up to date by ensureStripeWebhookEvents at startup.
+ */
+export const STRIPE_WEBHOOK_EVENTS = ['checkout.session.completed', 'charge.refunded'] as const
+
+/**
+ * Add any missing event to the webhook this store already has on Stripe. An UPDATE, never a re-create: the signing
+ * secret stays the same, so verification goes on working. Best-effort — a store that cannot be reached is left as it
+ * was, and says so in the log.
+ */
+export async function ensureStripeWebhookEvents(): Promise<'updated' | 'current' | 'skipped'> {
+  try {
+    const [cfg] = await db.select().from(paymentConfig).where(eq(paymentConfig.connected, true)).limit(1)
+    const backendUrl = (process.env.BACKEND_URL || '').replace(/\/$/, '')
+    if (!cfg || cfg.provider !== 'stripe' || !backendUrl) return 'skipped'
+    const { secretKey } = decryptJSON<{ secretKey: string }>(cfg.credentialsEnc)
+    const stripe = new Stripe(secretKey, { httpClient: Stripe.createFetchHttpClient() })
+    const url = backendUrl + '/api/public/webhooks/payment'
+    const ep = (await stripe.webhookEndpoints.list({ limit: 100 })).data.find((e) => e.url === url)
+    if (!ep) return 'skipped'
+    const has = new Set(ep.enabled_events)
+    if (has.has('*') || STRIPE_WEBHOOK_EVENTS.every((e) => has.has(e))) return 'current'
+    await stripe.webhookEndpoints.update(ep.id, { enabled_events: [...new Set([...ep.enabled_events, ...STRIPE_WEBHOOK_EVENTS])] as any })
+    logger.info('stripe webhook events brought up to date', { events: STRIPE_WEBHOOK_EVENTS.join(',') })
+    return 'updated'
+  } catch (e: any) {
+    logger.warn('stripe webhook events not checked', { error: e?.message })
+    return 'skipped'
+  }
+}
+
 async function autoCreateWebhook(
   provider: 'stripe' | 'square' | 'paypal',
   mode: 'test' | 'live',
@@ -68,14 +101,14 @@ async function autoCreateWebhook(
   const webhookUrl = backendUrl + '/api/public/webhooks/payment'
   try {
     if (provider === 'stripe') {
-      const stripe = new Stripe(secretKey)
+      const stripe = new Stripe(secretKey, { httpClient: Stripe.createFetchHttpClient() })
       const existing = await stripe.webhookEndpoints.list({ limit: 100 })
       for (const ep of existing.data) {
         if (ep.url === webhookUrl) await stripe.webhookEndpoints.del(ep.id)
       }
       const ep = await stripe.webhookEndpoints.create({
         url: webhookUrl,
-        enabled_events: ['checkout.session.completed'],
+        enabled_events: [...STRIPE_WEBHOOK_EVENTS],
         description: 'Twomiah store — order payment notifications (auto-created)',
       })
       if (!ep.secret) return { warning: 'Stripe did not return a signing secret' }

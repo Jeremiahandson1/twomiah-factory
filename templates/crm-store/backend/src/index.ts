@@ -252,6 +252,16 @@ import('./suppliers/index.ts').then(m => {
   void m.sweepSupplierOrders()
 }).catch(() => { /* suppliers module unavailable — store runs without dropship */ })
 
+// Money back that was interrupted (a restart between moving the order and hearing from the provider) is finished —
+// the provider's idempotency key makes the repeat harmless. And a store connected to Stripe before refunds were
+// listened for has its webhook brought up to date, so refunds made in Stripe's dashboard reach the order. (10/12)
+import('./routes/orders.ts').then((m) => {
+  setInterval(() => { void m.resumePendingRefunds() }, 5 * 60 * 1000)
+  setTimeout(() => { void m.resumePendingRefunds() }, 90_000)
+}).catch(() => { /* orders module unavailable — nothing to resume */ })
+import('./routes/payments.ts').then((m) => { setTimeout(() => { void m.ensureStripeWebhookEvents() }, 30_000) })
+  .catch(() => { /* payments module unavailable */ })
+
 const PORT = Number(process.env.PORT) || 3001
 serve({ fetch: app.fetch, port: PORT }, (info) => {
   logger.info(`crm-store running on port ${info.port}`, { env: process.env.NODE_ENV || 'development', port: info.port })
