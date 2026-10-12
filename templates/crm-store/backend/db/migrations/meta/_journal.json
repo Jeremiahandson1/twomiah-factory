@@ -64,6 +64,13 @@
       "when": 1791300300000,
       "tag": "0008_shipping_labels",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791300400000,
+      "tag": "0009_audit_log",
+      "breakpoints": true
     }
   ]
 }

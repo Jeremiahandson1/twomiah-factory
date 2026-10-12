@@ -33,12 +33,22 @@ import reviewAdminRoutes from './routes/reviews.ts'
 import userAdminRoutes from './routes/users.ts'
 import shippingAdminRoutes from './routes/shipping.ts'
 import mediaRoutes from './routes/media.ts'
+import auditRoutes from './routes/audit.ts'
+import { requestScope } from './services/audit.ts'
+import { writeAudit } from './middleware/writeAudit.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const FRONTEND_DIST = path.resolve(__dirname, '..', 'frontend-dist')
 
 const app = new Hono()
+
+/**
+ * Every request runs inside the audit scope, and every successful write leaves a row (middleware/writeAudit.ts) —
+ * first, so everything mounted below is inside both. (Store T3: the store had no audit log at all.)
+ */
+app.use('*', (c, next) => requestScope.run({ c }, next))
+app.use('*', writeAudit)
 
 app.use('*', secureHeaders({ crossOriginResourcePolicy: 'cross-origin' }))
 
@@ -72,7 +82,9 @@ const MAX_PAGE_LIMIT = 500
 app.use('/api/*', async (c, next) => {
   const pageRaw = c.req.query('page')
   const limitRaw = c.req.query('limit')
-  const isPosInt = (v: string) => /^d+$/.test(v) && Number(v) >= 1
+  // `\d`, not `d`: the copy here had lost its backslash, so every real number — the Email inbox's ?limit=100, the
+  // storefront's ?page=1 — was refused with invalid_pagination, live, while only the letter "d" passed.
+  const isPosInt = (v: string) => /^\d+$/.test(v) && Number(v) >= 1
   if (pageRaw !== undefined && pageRaw !== '' && !isPosInt(pageRaw)) {
     return c.json({ error: 'Invalid page: must be an integer ≥ 1', code: 'invalid_pagination', page: pageRaw }, 400)
   }
@@ -149,6 +161,8 @@ app.route('/api/admin/loyalty', loyaltyAdminRoutes)
 app.route('/api/admin/reviews', reviewAdminRoutes)
 app.route('/api/admin/users', userAdminRoutes)
 app.route('/api/admin/shipping', shippingAdminRoutes)
+// Who did what, when — the owner's (audit:read).
+app.route('/api/audit', auditRoutes)
 // Public media proxy for product images (streamed from private R2). Must be
 // registered before the SPA catch-all below so `/media/*` is not swallowed.
 app.route('/media', mediaRoutes)

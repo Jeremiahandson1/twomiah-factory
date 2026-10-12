@@ -6,6 +6,8 @@ import { eq, and, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission, hasPermission } from '../middleware/permissions.ts'
 import { sendOrderShipped } from '../services/email.ts'
+import audit from '../services/audit.ts'
+import { formatCents } from '../lib/money.ts'
 
 const admin = new Hono()
 admin.use('*', authenticate, requirePermission('orders:read'))
@@ -90,6 +92,21 @@ export const noParcelRefusal = (c: any, status: string) => c.json({
   error: `This order is ${status} and never went out, so it has no parcel to track. The internal note can still be saved.`,
   code: 'no_parcel',
 }, 409)
+
+/**
+ * A status change in the audit log, with what it was worth: a refund or a cancel is money going back and stock coming
+ * back, so the row says how much of each. (Store T3: refunds are a manager's power; the owner can see who used it.)
+ */
+async function logStatusChange(c: any, prev: typeof orders.$inferSelect, updated: typeof orders.$inferSelect, restocked: number) {
+  const money = formatCents(updated.totalCents, updated.currency)
+  const what = updated.status === 'refunded' ? `Refunded — ${money}` : updated.status === 'cancelled' ? `Cancelled — ${money}` : `Marked ${updated.status}`
+  await audit.log({
+    action: 'status_change', entity: 'order', entityId: updated.id, entityName: updated.orderNumber,
+    changes: { status: { old: prev.status, new: updated.status } },
+    metadata: { description: restocked ? `${what}, ${restocked} unit${restocked === 1 ? '' : 's'} back in stock` : what, totalCents: updated.totalCents, restocked },
+    req: c,
+  })
+}
 
 export const refundRefusal = (c: any) => c.json({
   error: 'Cancelling, refunding or changing whether an order was paid is for a manager or the owner.',
@@ -206,16 +223,19 @@ admin.patch('/:id/status', requirePermission('orders:update'), async (c) => {
   // order already cancelled/refunded must not double-restock. Untracked variants
   // (inventoryQty IS NULL = unlimited) are skipped by the WHERE guard. COUNTED is the module's own
   // list above — the same "this order was paid for" the permission rule reads.
+  let restocked = 0
   if ((next === 'cancelled' || next === 'refunded') && COUNTED.includes(prev.status)) {
     const items = await db.select().from(orderItems).where(eq(orderItems.orderId, prev.id))
     for (const it of items) {
       if (!it.variantId) continue
+      restocked += it.quantity
       await db.update(productVariants)
         .set({ inventoryQty: sql`${productVariants.inventoryQty} + ${it.quantity}`, updatedAt: new Date() })
         .where(and(eq(productVariants.id, it.variantId), sql`${productVariants.inventoryQty} is not null`))
     }
   }
 
+  await logStatusChange(c, prev, updated, restocked)
   if (next === 'shipped' && prev.status !== 'shipped') void notifyShipped(updated)
   return c.json({ order: orderForCaller(c, updated) })
 })
@@ -248,6 +268,15 @@ admin.patch('/:id/fulfillment', requirePermission('orders:update'), async (c) =>
   if (!updated) {
     const [now] = await db.select({ status: orders.status }).from(orders).where(eq(orders.id, prev.id)).limit(1)
     return parsed.data.markShipped ? changedUnderYou(c, now, 'shipped') : changedUnderYou(c, now, 'shipped', 'the tracking was not saved')
+  }
+  if (parsed.data.markShipped && prev.status !== 'shipped') await logStatusChange(c, prev, updated, 0)
+  else {
+    // The changes say it ("Tracking number: — → 1Z…"); a description would be read in their place.
+    const changes = audit.diff(prev as any, updated as any, ['trackingCarrier', 'trackingNumber', 'internalNote'])
+    await audit.log({
+      action: 'update', entity: 'order', entityId: updated.id, entityName: updated.orderNumber,
+      changes, metadata: changes ? null : { description: 'Fulfilment saved with no change' }, req: c,
+    })
   }
   if (parsed.data.markShipped && prev.status !== 'shipped') void notifyShipped(updated)
   return c.json({ order: orderForCaller(c, updated) })

@@ -5,6 +5,8 @@ import { discountCodes } from '../../db/schema.ts'
 import { eq, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
+import audit from '../services/audit.ts'
+import { formatCents } from '../lib/money.ts'
 
 // Admin CRUD for discount / promo codes. Validation + application happens
 // server-side at checkout (routes/public.ts); usage is counted on finalize.
@@ -40,6 +42,9 @@ const codeSchema = z.object({
   expiresAt: z.string().datetime().nullable().optional(),
 })
 
+/** What a code gives away, in the audit log's words: '15% off', '$5.00 off'. value is a whole percent or cents. */
+const worth = (d: { type: string; value: number }, currency: string) => d.type === 'percent' ? `${d.value}% off` : `${formatCents(d.value, currency)} off`
+
 admin.post('/', requirePermission('discounts:create'), async (c) => {
   const parsed = codeSchema.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return invalid(c, parsed.error)
@@ -55,6 +60,7 @@ admin.post('/', requirePermission('discounts:create'), async (c) => {
     maxUses: d.maxUses ?? null,
     expiresAt: d.expiresAt ? new Date(d.expiresAt) : null,
   }).returning()
+  await audit.log({ action: 'create', entity: 'discount_code', entityId: created.id, entityName: created.code, metadata: { description: `Code ${created.code} created — ${worth(created, await audit.storeCurrency())}` }, req: c })
   return c.json({ code: created }, 201)
 })
 
@@ -76,11 +82,13 @@ admin.patch('/:id', requirePermission('discounts:update'), async (c) => {
   if (parsed.data.expiresAt !== undefined) patch.expiresAt = parsed.data.expiresAt ? new Date(parsed.data.expiresAt) : null
   const [updated] = await db.update(discountCodes).set(patch).where(eq(discountCodes.id, c.req.param('id'))).returning()
   if (!updated) return c.json({ error: 'Not found' }, 404)
+  await audit.log({ action: 'update', entity: 'discount_code', entityId: updated.id, entityName: updated.code, changes: audit.diff(current as any, updated as any), req: c })
   return c.json({ code: updated })
 })
 
 admin.delete('/:id', requirePermission('discounts:delete'), async (c) => {
-  await db.delete(discountCodes).where(eq(discountCodes.id, c.req.param('id')))
+  const [gone] = await db.delete(discountCodes).where(eq(discountCodes.id, c.req.param('id'))).returning()
+  if (gone) await audit.log({ action: 'delete', entity: 'discount_code', entityId: gone.id, entityName: gone.code, metadata: { description: `Code ${gone.code} deleted — it was ${worth(gone, await audit.storeCurrency())}, used ${gone.usedCount} time${gone.usedCount === 1 ? '' : 's'}` }, req: c })
   return c.json({ ok: true })
 })
 

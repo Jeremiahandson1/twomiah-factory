@@ -72,6 +72,9 @@ export default function SettingsPage() {
   // instead of `role === 'owner'` — the rank check that kept the store at two roles.
   const { user } = useAuth()
   const maySaveSettings = useMayWrite('settings:update')
+  // Shipping rates and zones are shipping:configure — the manager's as well as the owner's (routes/settings.ts
+  // permissionForField); the store's name, currency and tax stay the owner's.
+  const mayShipping = useMayWrite('shipping:configure')
   // null until the list arrives: the team list is fetched on a real yes, never on a guess.
   const mayManageTeam = useKnownPermission('users:read')
   const [staff, setStaff] = useState<StoreUser[]>([])
@@ -166,12 +169,13 @@ export default function SettingsPage() {
     <div className="max-w-2xl space-y-6">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Settings</h1>
 
-      {/* Read-only below the owner: every field here saves through the one settings:update PATCH, so a seat without it
-          was handed a form it could fill in, "+ Add zone" and "+ Add rate" buttons, and a disabled Save. (Store QA T1
-          sweep.) A disabled fieldset turns the lot into a record; the note at the bottom still says why. */}
+      {/* Each section is a record for a seat that cannot change it (a disabled fieldset — Store QA T1 sweep), and asks the
+          permission its fields ask on the server: store and tax settings:update (the owner's), shipping
+          shipping:configure (a manager's too — owner's decision 10/12). */}
       <fieldset disabled={!maySaveSettings} className="space-y-6 min-w-0">
       <div className="card p-5 space-y-4">
         <h2 className="font-semibold text-gray-900 dark:text-slate-100">Store</h2>
+        {!maySaveSettings && <p className="text-xs text-gray-500 dark:text-slate-400">The store's name, currency and tax are set by the owner.</p>}
         <div><label className="label">Store name</label><input className="input" value={form.companyName} onChange={(e) => set('companyName', e.target.value)} /></div>
         <div><label className="label">Support email</label><input className="input" type="email" value={form.supportEmail} onChange={(e) => set('supportEmail', e.target.value)} /></div>
         <div className="grid grid-cols-2 gap-4">
@@ -179,9 +183,12 @@ export default function SettingsPage() {
           <div><label className="label">Tax rate (%)</label><input className="input" type="number" step="0.01" value={form.taxRatePct} onChange={(e) => set('taxRatePct', e.target.value)} /></div>
         </div>
       </div>
+      </fieldset>
 
+      <fieldset disabled={!mayShipping} className="space-y-6 min-w-0">
       <div className="card p-5 space-y-4">
         <h2 className="font-semibold text-gray-900 dark:text-slate-100">Shipping</h2>
+        {!mayShipping && <p className="text-xs text-gray-500 dark:text-slate-400">Shipping rates are set by a manager or the owner.</p>}
         <div className="grid grid-cols-2 gap-4">
           <div><label className="label">Flat shipping ($)</label><input className="input" value={form.flatShipping} onChange={(e) => set('flatShipping', e.target.value)} /></div>
           <div><label className="label">Free shipping over ($)</label><input className="input" value={form.freeShippingThreshold} onChange={(e) => set('freeShippingThreshold', e.target.value)} placeholder="Blank = never" /></div>
@@ -206,7 +213,9 @@ export default function SettingsPage() {
           </div>
         ))}
       </div>
+      </fieldset>
 
+      <fieldset disabled={!maySaveSettings} className="space-y-6 min-w-0">
       <div className="card p-5 space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-gray-900 dark:text-slate-100">Tax rates <span className="text-gray-500 font-normal">(by region)</span></h2>
@@ -221,12 +230,14 @@ export default function SettingsPage() {
             <div className="col-span-1"><button onClick={() => delTax(i)} className="text-red-600 text-sm pb-2 dark:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed">✕</button></div>
           </div>
         ))}
-        {/* Store settings are settings:update on the server (PATCH /api/admin/settings) — the owner's, a
-            shop having no admin seat — so the control says so here rather than collecting a 403. */}
-        <button onClick={save} className="btn-primary mt-2" disabled={saving || !maySaveSettings} title={maySaveSettings ? undefined : 'Only the store owner can change these settings'}>{saving ? 'Saving…' : 'Save settings'}</button>
-        {!maySaveSettings && <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Only the store owner can change these settings.</p>}
       </div>
       </fieldset>
+
+      {/* One Save for whatever this seat may change; it sends only the fields changed (see save), so a manager's save
+          carries shipping fields alone. A seat that can change none of it is shown no Save at all. */}
+      {(maySaveSettings || mayShipping) && (
+        <button onClick={save} className="btn-primary" disabled={saving}>{saving ? 'Saving…' : maySaveSettings ? 'Save settings' : 'Save shipping'}</button>
+      )}
 
       <div className="card p-5 space-y-3">
         <h2 className="font-semibold text-gray-900 dark:text-slate-100">Email</h2>

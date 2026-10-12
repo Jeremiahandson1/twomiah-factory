@@ -8,6 +8,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { encryptJSON, encrypt } from '../lib/crypto.ts'
 import logger from '../services/logger.ts'
+import audit from '../services/audit.ts'
 
 const admin = new Hono()
 admin.use('*', authenticate)
@@ -196,6 +197,8 @@ admin.post('/connect', requirePermission('payments:update'), async (c) => {
   const [saved] = existing
     ? await db.update(paymentConfig).set(values).where(eq(paymentConfig.id, existing.id)).returning()
     : await db.insert(paymentConfig).values(values).returning()
+  // Which processor and which mode — never a key.
+  await audit.log({ action: 'update', entity: 'payment_config', entityId: saved.id, entityName: saved.provider, metadata: { description: `Payment processor connected — ${saved.provider}, ${saved.mode} mode${existing?.connected ? ' (keys replaced)' : ''}` }, req: c })
 
   return c.json({ config: { provider: saved.provider, mode: saved.mode, connected: saved.connected }, webhookConfigured: !!finalWebhookSecret, webhookNote })
 })
@@ -204,6 +207,7 @@ admin.post('/disconnect', requirePermission('payments:update'), async (c) => {
   const [existing] = await db.select().from(paymentConfig).limit(1)
   if (existing) {
     await db.update(paymentConfig).set({ connected: false, updatedAt: new Date() }).where(eq(paymentConfig.id, existing.id))
+    await audit.log({ action: 'update', entity: 'payment_config', entityId: existing.id, entityName: existing.provider, metadata: { description: `Payment processor disconnected — ${existing.provider}; the store stops taking orders` }, req: c })
   }
   return c.json({ ok: true })
 })

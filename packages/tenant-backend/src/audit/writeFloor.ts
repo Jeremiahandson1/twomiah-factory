@@ -32,6 +32,20 @@ export interface WriteFloorDeps {
   log: (entry: any) => any
   /** The template's requestScope (AsyncLocalStorage) — audit.log marks `logged` on its store. */
   scope: { getStore: () => any }
+  /**
+   * One business per database (crm-store): users carry no companyId, and every row is the business's. Without this
+   * the floor's "no company, no row" check would record nothing at all there. Every other template leaves it unset.
+   */
+  tenantless?: boolean
+  /** Name columns this template's tables use, tried before the shared list (crm-store: orderNumber, sku…). */
+  nameColumns?: string[]
+  /**
+   * Replies that wrap the record in its own key — `{ order: {…} }`, `{ product: {…} }` (crm-store's shape). The
+   * record is read from that sole object-valued key when the reply itself names nothing.
+   */
+  unwrapSingleKey?: boolean
+  /** The entity a resolved schema key is filed under. Default: the key, snake_cased (crm-store's tables are plural). */
+  entityOf?: (tableKey: string) => string
 }
 
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
@@ -179,6 +193,7 @@ const nameOf = (v: unknown): string =>
   typeof v === 'number' && Number.isFinite(v) ? String(v) : typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : ''
 
 export function createWriteAuditFloor(deps: WriteFloorDeps) {
+  const nameColumns = [...(deps.nameColumns || []), ...NAME_COLUMNS]
   const tableFor = (path: string): [string, any] | undefined => {
     for (const k of tableKeysForPath(path)) { const t = deps.schema[k]; if (t && t.id) return [k, t] }
     return undefined
@@ -191,7 +206,7 @@ export function createWriteAuditFloor(deps: WriteFloorDeps) {
       if (!id) return undefined
       const table = tableFor(path)?.[1]
       if (!table) return undefined
-      const col = NAME_COLUMNS.find((k) => table[k])
+      const col = nameColumns.find((k) => table[k])
       if (!col) return undefined
       const [row] = await deps.db.select({ v: table[col], companyId: table.companyId ?? table.id }).from(table).where(eq(table.id, id)).limit(1)
       const name = nameOf(row?.v)
@@ -208,9 +223,13 @@ export function createWriteAuditFloor(deps: WriteFloorDeps) {
       if (Number(c.res.headers.get('content-length') || '0') > 64_000) return {}
       const body = (await c.res.clone().json()) as any
       if (!body || typeof body !== 'object' || Array.isArray(body)) return {}
-      const rec = body.data && typeof body.data === 'object' && !Array.isArray(body.data) ? body.data : body
+      let rec = body.data && typeof body.data === 'object' && !Array.isArray(body.data) ? body.data : body
+      if (deps.unwrapSingleKey && rec === body && !nameColumns.some((k) => nameOf(rec[k])) && typeof rec.id !== 'string') {
+        const objects = Object.values(body).filter((v) => v && typeof v === 'object' && !Array.isArray(v))
+        if (objects.length === 1) rec = objects[0]
+      }
       let name: string | undefined
-      for (const k of NAME_COLUMNS) { const n = nameOf(rec[k]); if (n) { name = n; break } }
+      for (const k of nameColumns) { const n = nameOf(rec[k]); if (n) { name = n; break } }
       const id = typeof rec.id === 'string' && rec.id ? rec.id : undefined
       return { name, id }
     } catch {
@@ -231,14 +250,16 @@ export function createWriteAuditFloor(deps: WriteFloorDeps) {
       const status = c.res?.status ?? 0
       if (status < 200 || status >= 300) return
       const user = c.get('user') as any
-      if (!user?.companyId) return
+      if (deps.tenantless ? !user : !user?.companyId) return
       const resolved = tableFor(path)?.[0]
       // Named for the table when it resolved (support_knowledge_base, snow_contract — the words the
       // handlers that do audit already use), else the path's own collection.
-      const entity = resolved ? resolved.replace(/[A-Z]/g, (ch) => '_' + ch.toLowerCase()) : entityFromPath(path)
+      const entity = resolved
+        ? (deps.entityOf ? deps.entityOf(resolved) : resolved.replace(/[A-Z]/g, (ch) => '_' + ch.toLowerCase()))
+        : entityFromPath(path)
       const reply = method === 'DELETE' ? {} : await fromResponse(c)
       const entityName = method === 'DELETE'
-        ? (before && (!before.companyId || before.companyId === user.companyId) ? before.name : undefined)
+        ? (before && (deps.tenantless || !before.companyId || before.companyId === user.companyId) ? before.name : undefined)
         : reply.name
       await deps.log({
         action: actionFromPath(path, method),

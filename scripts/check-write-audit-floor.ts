@@ -16,7 +16,7 @@
 import { readFileSync, existsSync } from 'node:fs'
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 const read = (p: string) => readFileSync(ROOT + p, 'utf8').replace(/\r\n/g, '\n')
-const TEMPLATES = ['crm-basic', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-restaurant', 'crm-salon', 'crm-vet', 'crm-dispensary', 'crm-roof']
+const TEMPLATES = ['crm-basic', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-restaurant', 'crm-salon', 'crm-vet', 'crm-dispensary', 'crm-roof', 'crm-store']
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 
@@ -24,7 +24,9 @@ const shared = read('packages/tenant-backend/src/audit/writeFloor.ts')
 if (!/export function createWriteAuditFloor/.test(shared)) fail('the shared floor must export createWriteAuditFloor')
 if (!/deps\.scope\.getStore\(\)\?\.logged/.test(shared)) fail('the floor must skip a request whose handler already logged')
 if (!/const before = method === 'DELETE' \? await nameBefore\(path\) : undefined\s*\n\s*await next\(\)/.test(shared)) fail('the floor must read a DELETE\'s name BEFORE the handler deletes the row')
-if (!/for \(const k of NAME_COLUMNS\)/.test(shared) || !/const col = NAME_COLUMNS\.find/.test(shared)) fail('a create or edit is named from the record sent back, and a delete from its row — both by the same NAME_COLUMNS')
+// One list for both lookups: the shared NAME_COLUMNS, with a template's own (deps.nameColumns — crm-store's orderNumber,
+// sku) in front of it.
+if (!/const nameColumns = \[\.\.\.\(deps\.nameColumns \|\| \[\]\), \.\.\.NAME_COLUMNS\]/.test(shared) || !/for \(const k of nameColumns\)/.test(shared) || !/const col = nameColumns\.find/.test(shared)) fail('a create or edit is named from the record sent back, and a delete from its row — both by the same list (NAME_COLUMNS, plus the template\'s own)')
 if (!/const SKIP = \[[\s\S]*?\\\/location\$[\s\S]*?\]/.test(shared)) fail('location pings must stay out of the log — a row a minute per phone buries every real change')
 if (!/export \{ createWriteAuditFloor \} from '\.\/audit\/writeFloor'/.test(read('packages/tenant-backend/src/index.ts'))) fail('packages/tenant-backend must export createWriteAuditFloor')
 
@@ -42,9 +44,15 @@ for (const t of TEMPLATES) {
   }
   if (!/import \{ writeAudit \} from '\.\/middleware\/writeAudit\.ts'/.test(idx)) fail(`${t}: index.ts must import writeAudit`)
   if (!existsSync(ROOT + `${be}/middleware/writeAudit.ts`)) fail(`${t}: middleware/writeAudit.ts is missing`)
-  else if (!/createWriteAuditFloor\(\{ db, schema, log: audit\.log, scope: requestScope \}\)/.test(read(`${be}/middleware/writeAudit.ts`))) fail(`${t}: writeAudit.ts must wire db, schema, audit.log and requestScope`)
+  else {
+    const wire = read(`${be}/middleware/writeAudit.ts`)
+    if (!/createWriteAuditFloor\(\{\s*db, schema, log: audit\.log, scope: requestScope[\s,}]/.test(wire)) fail(`${t}: writeAudit.ts must wire db, schema, audit.log and requestScope`)
+    // tenantless switches off the floor's company check. Only a database that IS one business may set it; anywhere
+    // else a user with no company would be recorded with none.
+    if (/tenantless:\s*true/.test(wire) !== (t === 'crm-store')) fail(`${t}: tenantless is crm-store's alone (one business per database) — ${t === 'crm-store' ? 'it must set it, or the floor records nothing there' : 'a multi-company template must not set it'}`)
+  }
   const aud = read(`${be}/services/audit.ts`)
-  if (!/export async function log\([^)]*\)[^{]*\{\s*\n(?:\s*\/\/.*\n)*\s*const scope: any = requestScope\.getStore\(\);?\s*\n\s*if \(scope\) scope\.logged = true/.test(aud)) fail(`${t}: services/audit.ts log() must mark the request scope as logged, first thing`)
+  if (!/export async function log\([^)]*\)[^{]*\{\s*\n(?:\s*\/\/.*\n)*\s*const scope(?:: any)? = requestScope\.getStore\(\);?\s*\n\s*if \(scope\) scope\.logged = true/.test(aud)) fail(`${t}: services/audit.ts log() must mark the request scope as logged, first thing`)
 }
 
 if (failed) { console.error(`\nwrite audit floor: ${failed} check(s) FAILED`); process.exit(1) }

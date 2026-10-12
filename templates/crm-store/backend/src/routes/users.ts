@@ -15,6 +15,7 @@ import { db } from '../../db/index.ts'
 import { users } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
+import audit from '../services/audit.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -111,6 +112,11 @@ app.post('/', requirePermission('team:create'), async (c) => {
     return { status: 201 as const, body: created }
   })
 
+  // Logged after the transaction has committed — never from inside it, where a second connection would wait on this one.
+  if (outcome.status === 201) {
+    const u = outcome.body as any
+    await audit.log({ action: 'create', entity: 'user', entityId: u.id, entityName: u.name || u.email, metadata: { description: `Login added — ${u.email}, as ${u.role}` }, req: c })
+  }
   return c.json(outcome.body as any, outcome.status)
 })
 
@@ -167,6 +173,13 @@ app.put('/:id', requirePermission('team:update'), async (c) => {
     role: users.role,
     isActive: users.isActive,
     createdAt: users.createdAt,
+  })
+  const changes = audit.diff(target as any, updated as any, Object.keys(data))
+  await audit.log({
+    action: data.role !== undefined && data.role !== target.role ? 'role_change' : 'update',
+    entity: 'user', entityId: updated.id, entityName: updated.name || updated.email, changes,
+    metadata: data.isActive !== undefined && data.isActive !== target.isActive ? { description: data.isActive ? `Access restored — ${updated.email}` : `Access revoked — ${updated.email}` } : null,
+    req: c,
   })
 
   return c.json(updated)

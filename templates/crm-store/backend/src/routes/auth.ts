@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { getPermissions, getExtraPermissions } from '../middleware/permissions.ts'
 import { sendPasswordReset } from '../services/email.ts'
+import audit from '../services/audit.ts'
 
 const auth = new Hono()
 
@@ -76,13 +77,18 @@ auth.post('/login', async (c) => {
   const { email, password } = parsed.data
 
   const [u] = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1)
-  if (!u || !u.isActive) return c.json({ error: 'Invalid email or password' }, 401)
+  // A failed sign-in is recorded only against a real login: an address nobody has may be a password typed into the
+  // wrong box, and that has no business in a log. The reply stays the same either way.
+  if (!u) return c.json({ error: 'Invalid email or password' }, 401)
+  const failed = (why: string) => audit.log({ action: 'login_failed', entity: 'user', entityId: u.id, entityName: u.email, metadata: { description: why }, actor: { userId: u.id, email: u.email }, req: c })
+  if (!u.isActive) { await failed('Sign-in refused — this login has been revoked'); return c.json({ error: 'Invalid email or password' }, 401) }
 
   const valid = await Bun.password.verify(password, u.passwordHash)
-  if (!valid) return c.json({ error: 'Invalid email or password' }, 401)
+  if (!valid) { await failed('Wrong password'); return c.json({ error: 'Invalid email or password' }, 401) }
 
   const tokens = generateTokens(u.id, u.email, u.role)
   await storeRefreshToken(u.id, tokens.refreshToken)
+  await audit.log({ action: 'login', entity: 'user', entityId: u.id, entityName: u.email, metadata: { description: `Signed in (${u.role})` }, actor: { userId: u.id, email: u.email }, req: c })
 
   return c.json({
     ...tokens,
@@ -149,6 +155,7 @@ auth.post('/password', authenticate, async (c) => {
 
   const passwordHash = await Bun.password.hash(parsed.data.newPassword, 'bcrypt')
   await db.update(users).set({ passwordHash, refreshToken: null }).where(eq(users.id, found.id))
+  await audit.log({ action: 'password_change', entity: 'user', entityId: found.id, entityName: found.email, metadata: { description: 'Changed their own password' }, req: c })
   return c.json({ ok: true })
 })
 

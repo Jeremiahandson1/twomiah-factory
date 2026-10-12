@@ -404,3 +404,27 @@ export const gbpConnection = pgTable('gbp_connection', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+// -- Audit log: who did what, when. (Store manager pass, T3: "a manager can refund and hand out discount codes —
+// who did which?") The same row the rest of the fleet writes (packages/tenant-backend/src/audit/writeFloor.ts and
+// each template's services/audit.ts), minus company_id: this whole database is one business. created_at carries
+// its zone, so the API sends an instant rather than a wall-clock time the reader has to guess at.
+export const auditLog = pgTable('audit_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  action: text('action').notNull(),
+  entity: text('entity').notNull(),
+  entityId: text('entity_id'),
+  entityName: text('entity_name'),
+  changes: jsonb('changes'),
+  metadata: jsonb('metadata'),
+  userId: text('user_id'),
+  userName: text('user_name'),
+  userEmail: text('user_email'),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('audit_log_created_at_idx').on(t.createdAt),
+  index('audit_log_entity_entity_id_idx').on(t.entity, t.entityId),
+  index('audit_log_user_id_idx').on(t.userId),
+])

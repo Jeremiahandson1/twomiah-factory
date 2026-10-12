@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { Home, Package, ShoppingBag, Users, CreditCard, Tag, Settings, LogOut, Menu, X, Store , Mail , Truck , Star, LifeBuoy, Gift } from 'lucide-react'
+import { Home, Package, ShoppingBag, Users, CreditCard, Tag, Settings, LogOut, Menu, X, Store , Mail , Truck , Star, LifeBuoy, Gift, Shield } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { usePermissions } from '../../shared'
 
@@ -22,6 +22,8 @@ const NAV: { to: string; label: string; icon: any; end?: boolean; permission?: s
   { to: '/google-reviews', label: 'Google Reviews', icon: Star, permission: 'integrations:update' },
   { to: '/email', label: 'Email', icon: Mail },
   { to: '/settings', label: 'Settings', icon: Settings },
+  // Who did what, when — the owner's (audit:read, as routes/audit.ts asks).
+  { to: '/audit', label: 'Audit Log', icon: Shield, permission: 'audit:read' },
 
   { to: '/contact-support', icon: LifeBuoy, label: 'Contact Twomiah' },
 ]

@@ -18,6 +18,7 @@ import ShippingPage from './pages/ShippingPage'
 import DiscountsPage from './pages/DiscountsPage'
 import LoyaltyPage from './pages/LoyaltyPage'
 import SettingsPage from './pages/SettingsPage'
+import AuditLog from './pages/AuditLog'
 import OnboardingWizard from './pages/OnboardingWizard'
 import ContactSupportPage from './pages/support/ContactSupportPage'
 import { useEffect, useState, type ReactNode } from 'react'
@@ -98,6 +99,7 @@ export default function App() {
               <Route path="discounts" element={<DiscountsPage />} />
               <Route path="loyalty" element={<LoyaltyPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="audit" element={<AuditLog />} />
               <Route path="contact-support" element={<ContactSupportPage />} />
               <Route path="settings/email" element={<EmailAliasesPage />} />
               <Route path="settings/email-domain" element={<EmailDomainPage />} />

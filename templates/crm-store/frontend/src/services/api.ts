@@ -215,6 +215,13 @@ class ApiClient {
     } catch { return 'retry' }
   }
 
+  /** A plain GET with query params — the shape the shared tenant-ui pages (AuditLogPage) call. Empty values are dropped. */
+  async get<T = any>(path: string, params?: Record<string, unknown>): Promise<T> {
+    const qs = new URLSearchParams()
+    for (const [k, v] of Object.entries(params || {})) if (v !== undefined && v !== null && v !== '') qs.set(k, String(v))
+    return this.request<T>(qs.toString() ? `${path}?${qs}` : path)
+  }
+
   // ── Auth ──
   async login(email: string, password: string) {
     const data = await this.request<{ accessToken: string; refreshToken: string; user: User; permissions?: string[] }>(

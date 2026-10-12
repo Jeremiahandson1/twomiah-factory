@@ -5,6 +5,7 @@ import { loyaltyMembers, loyaltyRewards, storeSettings } from '../../db/schema.t
 import { eq, desc, ilike, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
+import audit from '../services/audit.ts'
 import { loyaltyConfig, loyaltyConfigResponse, punchCardProgress } from '../shared/index.ts'
 import { memberHistory, normalizeEmail, STORE_LOYALTY_DEFAULTS } from '../services/loyalty.ts'
 
@@ -44,6 +45,12 @@ const configSchema = z.object({
   }).optional(),
 })
 
+/** The punch card is a nested object; the audit page prints values with String(), so it is flattened to its two settings. */
+const flatLoyalty = (l: any) => ({
+  enabled: l?.enabled, pointsPerDollar: l?.pointsPerDollar, welcomePoints: l?.welcomePoints,
+  punchCardOrders: l?.punchCard?.visitsRequired, punchCardReward: l?.punchCard?.rewardName,
+})
+
 admin.put('/config', requirePermission('loyalty:configure'), async (c) => {
   const d = configSchema.parse(await c.req.json())
   // Merged, not replaced: saving the points rate must not wipe the punch card the shop set up
@@ -53,11 +60,13 @@ admin.put('/config', requirePermission('loyalty:configure'), async (c) => {
   // changing two different settings send two saves at once. Both read the same settings, each merged its one field
   // into that, and the second write put the first field back as it was. The row is locked for the read-merge-write,
   // so the second save merges into what the first wrote.
+  let before: Record<string, unknown> = {}
   const next = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT id FROM store_settings FOR UPDATE`)
     const [row] = await tx.select().from(storeSettings).limit(1)
     if (!row) return null
     const current: any = row.loyalty || {}
+    before = current
     const merged = {
       ...current,
       ...(d.loyaltyEnabled !== undefined ? { enabled: d.loyaltyEnabled } : {}),
@@ -69,6 +78,8 @@ admin.put('/config', requirePermission('loyalty:configure'), async (c) => {
     return merged
   })
   if (!next) return c.json({ error: 'Store settings have not been created yet' }, 404)
+  // After the transaction, not inside it: audit.log writes through the pool, and the lock above is still held there.
+  await audit.log({ action: 'update', entity: 'loyalty_config', entityName: 'Loyalty programme', changes: audit.diff(flatLoyalty(before), flatLoyalty(next)), req: c })
   return c.json(loyaltyConfigResponse({ loyalty: next }, STORE_LOYALTY_DEFAULTS))
 })
 

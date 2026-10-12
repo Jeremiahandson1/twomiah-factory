@@ -6,6 +6,8 @@ import { products, productImages, productVariants } from '../../db/schema.ts'
 import { eq, and, isNull, inArray, asc, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
+import audit from '../services/audit.ts'
+import { formatCents } from '../lib/money.ts'
 import { storageConfigured, putObject, deleteObject, keyFromMediaUrl } from '../services/storage.ts'
 
 const admin = new Hono()
@@ -112,6 +114,8 @@ admin.post('/:id/variants', requirePermission('products:update'), async (c) => {
   if (!parsed.success) return c.json({ error: 'Invalid variant', details: parsed.error.flatten() }, 400)
   const [created] = await db.insert(productVariants)
     .values({ ...parsed.data, productId: c.req.param('id') }).returning()
+  // Its own row: the floor would file this under the product the URL names (create product TEA-1).
+  await audit.log({ action: 'create', entity: 'product_variant', entityId: created.id, entityName: created.sku, metadata: { description: `Variant ${created.sku} added — ${formatCents(created.priceCents, await audit.storeCurrency())}, ${created.inventoryQty === null ? 'stock not tracked' : `${created.inventoryQty} in stock`}`, productId: created.productId }, req: c })
   return c.json({ variant: created }, 201)
 })
 
@@ -136,6 +140,9 @@ admin.patch('/variants/:variantId', requirePermission('products:update'), async 
   const where = guarded
     ? and(eq(productVariants.id, id), inventoryFrom === null ? isNull(productVariants.inventoryQty) : eq(productVariants.inventoryQty, inventoryFrom))
     : eq(productVariants.id, id)
+  // Read for the audit row only — the write below decides nothing from it. A guarded count's starting figure is the
+  // one the person saw (inventoryFrom), which is exactly what the row should say it went from.
+  const [before] = await db.select().from(productVariants).where(eq(productVariants.id, id)).limit(1)
   const [updated] = await db.update(productVariants).set({ ...fields, updatedAt: new Date() }).where(where).returning()
   if (!updated) {
     const [now] = await db.select({ inventoryQty: productVariants.inventoryQty }).from(productVariants).where(eq(productVariants.id, id)).limit(1)
@@ -147,6 +154,8 @@ admin.patch('/variants/:variantId', requirePermission('products:update'), async 
       inventoryQty: now.inventoryQty,
     }, 409)
   }
+  const from = before && guarded ? { ...before, inventoryQty: inventoryFrom } : before
+  await audit.log({ action: 'update', entity: 'product_variant', entityId: updated.id, entityName: updated.sku, changes: audit.diff(from as any, updated as any, Object.keys(fields)), req: c })
   return c.json({ variant: updated })
 })
 
