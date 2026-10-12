@@ -61,15 +61,15 @@ async function finalizeOrder(order: typeof orders.$inferSelect, result: WebhookR
     .then(m => m.forwardOrderToSupplier(order.id))
     .catch(() => { /* logged inside */ })
 
+  // The decrement happens IN the update. Reading the count and writing count − qty let two orders paid at the
+  // same moment both read 10 and both write their own remainder — one sale never left the stock. Untracked
+  // stock (inventory_qty NULL) is left alone, as before.
   const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id))
   for (const it of items) {
     if (!it.variantId) continue
-    const [v] = await db.select().from(productVariants).where(eq(productVariants.id, it.variantId)).limit(1)
-    if (v && v.inventoryQty !== null) {
-      await db.update(productVariants)
-        .set({ inventoryQty: Math.max(0, v.inventoryQty - it.quantity), updatedAt: new Date() })
-        .where(eq(productVariants.id, v.id))
-    }
+    await db.update(productVariants)
+      .set({ inventoryQty: sql`GREATEST(0, ${productVariants.inventoryQty} - ${it.quantity}::int)`, updatedAt: new Date() })
+      .where(and(eq(productVariants.id, it.variantId), sql`${productVariants.inventoryQty} IS NOT NULL`))
   }
 
   // Notify the buyer (confirmation) + the merchant (new order). Non-blocking —
@@ -370,7 +370,10 @@ pub.post('/checkout', async (c) => {
       currency,
       shippingCents,
       taxCents,
-      discountCents,
+      // EVERYTHING taken off — the code AND the loyalty reward. This passed `discountCents` (the code alone), so a
+      // shopper who redeemed a reward was charged full price while the order said otherwise, and their points were
+      // spent at payment anyway. The amount the provider charges must be the order's totalCents.
+      discountCents: totalDiscountCents,
       customerEmail: parsed.data.customerEmail,
       collectShippingAddress: true,
       successUrl,

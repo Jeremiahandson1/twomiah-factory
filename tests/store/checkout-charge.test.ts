@@ -1,0 +1,125 @@
+// crm-store — what the shopper is CHARGED is what the order says, and stock moves once per paid order.
+//
+// Checkout computes the totals server-side and hands the payment provider the pieces to charge: line items,
+// shipping, tax, and a discount. It handed over the DISCOUNT-CODE amount only. A loyalty reward was taken off the
+// order's total and off the taxable amount — and never off the charge. So a shopper who redeemed "$10 off" paid the
+// full price, and when the order was paid their points were spent as well. Nothing compared the two: finalizeOrder
+// marks an order paid whatever the provider says it took.
+//
+// Asserted through the real /api/public routes and the real PayPal adapter (its HTTP calls answered here, so the
+// amount read is the one that adapter would send):
+//   · the amount sent to be charged equals order.totalCents — plain cart, a code, a loyalty reward, both
+//   · two orders for the same item paid at the same moment take BOTH quantities off the stock (the decrement read
+//     the count and wrote count − qty; two at once could leave one of them uncounted)
+process.env.PAYMENT_ENC_KEY = 'checkout-charge-test-key'
+import { Hono } from 'hono'
+import { eq } from 'drizzle-orm'
+import { setupSchema } from './setup.ts'
+import { db } from './db/index.ts'
+import { storeSettings, users, orders, products, productVariants, discountCodes, paymentConfig, loyaltyRewards, loyaltyMembers } from './db/schema.ts'
+
+let failed = 0, passed = 0
+const check = (name: string, ok: boolean, detail?: unknown) => {
+  if (ok) { passed++; console.log(`  ok   ${name}`) }
+  else { failed++; console.log(`  FAIL ${name}`, detail === undefined ? '' : JSON.stringify(detail)?.slice(0, 300)) }
+}
+
+await setupSchema()
+const { encryptJSON } = await import('./src/lib/crypto.ts')
+await db.insert(storeSettings).values({
+  companyName: 'Charge Store', currency: 'usd', flatShippingCents: 599, taxRateBps: 825,
+  loyalty: { enabled: true, pointsPerDollar: 1 },
+} as any)
+await db.insert(users).values({ email: 'owner@charge.test', passwordHash: 'x', name: 'Owner', role: 'owner' } as any)
+await db.insert(paymentConfig).values({ provider: 'paypal', mode: 'test', connected: true, credentialsEnc: encryptJSON({ secretKey: 'sk', publishableKey: 'pk' }) } as any)
+const [prod] = await db.insert(products).values({ slug: 'mug', name: 'Mug', status: 'active' } as any).returning()
+const [variant] = await db.insert(productVariants).values({ productId: prod.id, sku: 'MUG-1', name: 'Mug', priceCents: 2500, inventoryQty: 10 } as any).returning()
+await db.insert(discountCodes).values({ code: 'SAVE10', type: 'percent', value: 10, active: true, minSubtotalCents: 0, usedCount: 0 } as any)
+const [tenOff] = await db.insert(loyaltyRewards).values({ name: '$10 off', pointsCost: 60, type: 'fixed', valueCents: 1000, minSubtotalCents: 2000 } as any).returning()
+await db.insert(loyaltyMembers).values({ email: 'ada@example.com', pointsBalance: 500 } as any)
+
+// ── PayPal, answered here ──────────────────────────────────────────────────────────────────────────
+const charged = new Map<string, number>()   // PayPal order id → cents it was told to charge
+let pp = 0
+const realFetch = globalThis.fetch
+globalThis.fetch = (async (input: any, init?: any) => {
+  const url = String(input?.url ?? input)
+  if (!url.includes('paypal.com')) return realFetch(input, init)
+  const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } })
+  if (url.endsWith('/v1/oauth2/token')) return json({ access_token: 'tok' })
+  if (url.endsWith('/v2/checkout/orders') && init?.method === 'POST') {
+    const body = JSON.parse(init.body)
+    const id = `PP-${++pp}`
+    charged.set(id, Math.round(parseFloat(body.purchase_units[0].amount.value) * 100))
+    return json({ id, links: [{ rel: 'approve', href: `https://www.sandbox.paypal.com/approve/${id}` }] })
+  }
+  const m = url.match(/\/v2\/checkout\/orders\/([^/]+)(\/capture)?$/)
+  if (m) {
+    const id = decodeURIComponent(m[1])
+    const cents = charged.get(id) ?? 0
+    return json({ id, status: 'COMPLETED', payer: { email_address: 'ada@example.com' }, purchase_units: [{ payments: { captures: [{ id: `CAP-${id}`, amount: { currency_code: 'USD', value: (cents / 100).toFixed(2) } }] } }] })
+  }
+  return new Response('{}', { status: 404 })
+}) as any
+
+const app = new Hono()
+app.route('/api/public', (await import('./src/routes/public.ts')).default)
+const call = async (method: string, path: string, body?: unknown) => {
+  const res = await app.request(path, { method, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
+  const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+  return { status: res.status, json: j, text: t }
+}
+const latestOrder = async () => (await db.select().from(orders)).sort((a: any, b: any) => +new Date(b.createdAt) - +new Date(a.createdAt))[0]
+const checkout = async (extra: Record<string, unknown>, qty = 2) => {
+  const before = pp
+  const r = await call('POST', '/api/public/checkout', { items: [{ sku: 'MUG-1', quantity: qty }], customerEmail: 'ada@example.com', origin: 'https://shop.test', ...extra })
+  const id = pp > before ? `PP-${pp}` : null
+  const order = id ? (await db.select().from(orders).where(eq(orders.providerSessionId, id)))[0] : null
+  return { r, id, order, sent: id ? charged.get(id)! : null }
+}
+
+// ── the amount charged is the order's total ────────────────────────────────────────────────────────
+for (const [label, extra] of [
+  ['a plain cart', {}],
+  ['a discount code', { discountCode: 'save10' }],
+  ['a loyalty reward', { loyaltyRewardId: tenOff.id }],
+  ['a code AND a loyalty reward', { discountCode: 'SAVE10', loyaltyRewardId: tenOff.id }],
+] as const) {
+  const { r, order, sent } = await checkout(extra)
+  check(`${label}: checkout opens (200)`, r.status === 200 && !!order, r.text.slice(0, 160))
+  if (!order) continue
+  check(`${label}: PayPal is told to charge exactly the order total (${sent} = ${order.totalCents})`, sent === order.totalCents, { sent, total: order.totalCents, discount: order.discountCents, loyalty: order.loyaltyDiscountCents })
+  if ((extra as any).loyaltyRewardId) check(`${label}: the reward is on the order ($10)`, order.loyaltyDiscountCents === 1000, order)
+}
+
+// the loyalty case paid end to end: the shopper is charged the reduced total AND the points are spent once
+{
+  const { order, sent, id } = await checkout({ loyaltyRewardId: tenOff.id }, 1)
+  const before = (await db.select().from(loyaltyMembers).where(eq(loyaltyMembers.email, 'ada@example.com')))[0].pointsBalance
+  const s = await call('GET', `/api/public/order-summary?ref=${order!.id}`)
+  await new Promise((r) => setTimeout(r, 200)) // loyalty settles off the request
+  const after = (await db.select().from(loyaltyMembers).where(eq(loyaltyMembers.email, 'ada@example.com')))[0].pointsBalance
+  check('a paid loyalty order: charged the order total, not the pre-reward price', s.json?.order?.status === 'paid' && sent === order!.totalCents && sent === s.json.order.totalCents, { sent, total: order!.totalCents, status: s.json?.order?.status, id })
+  check('…and its 60 points are spent (earning the rest on what was paid)', after < before, { before, after })
+}
+
+// ── two paid at the same moment: the stock takes both ──────────────────────────────────────────────
+{
+  await db.update(productVariants).set({ inventoryQty: 10 }).where(eq(productVariants.id, variant.id))
+  const a = await checkout({}, 3), b = await checkout({}, 4)
+  const results = await Promise.all([
+    call('GET', `/api/public/order-summary?ref=${a.order!.id}`),
+    call('GET', `/api/public/order-summary?ref=${b.order!.id}`),
+  ])
+  const [v] = await db.select().from(productVariants).where(eq(productVariants.id, variant.id))
+  check('both orders are paid', results.every((x) => x.json?.order?.status === 'paid'), results.map((x) => x.json?.order?.status))
+  check(`two orders (3 + 4) paid together leave 10 − 7 = 3 in stock (${v.inventoryQty})`, v.inventoryQty === 3, v)
+  // and a replay of either confirmation does not take the stock twice
+  await call('GET', `/api/public/order-summary?ref=${a.order!.id}`)
+  const [v2] = await db.select().from(productVariants).where(eq(productVariants.id, variant.id))
+  check('a second visit to the confirmation page takes nothing more', v2.inventoryQty === 3, v2)
+}
+
+globalThis.fetch = realFetch
+console.log(`\ncheckout charge: ${passed} passed, ${failed} failed`)
+process.exit(failed ? 1 : 0)
