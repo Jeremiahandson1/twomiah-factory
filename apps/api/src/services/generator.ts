@@ -141,6 +141,9 @@ export interface GenerateConfig {
   }
   content?: {
     services?: string[]
+    // Services as the owner typed/ticked them at signup — each becomes a card with exactly
+    // that name and none of a template card's copy, features or links (applyOwnerServices).
+    ownerServiceNames?: string[]
     customServices?: Array<{ id: string; name: string; desc: string }>
     heroTagline?: string
     aboutText?: string
@@ -295,9 +298,10 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       stripWebsiteFeatures(path.join(workDir, 'website'), websiteFeatures)
       await writeBrandingAssets(path.join(workDir, 'website'), config.branding, config.company?.name)
       // Read before injectWizardContent: seeding a template's sample services fills content.services.
-      const ownerServices = !!(config.content?.services?.length || config.content?.customServices?.length || config.content?.aiGenerated?.services?.length)
+      const ownerServices = !!(config.content?.services?.length || config.content?.ownerServiceNames?.length || config.content?.customServices?.length || config.content?.aiGenerated?.services?.length)
       injectWizardContent(path.join(workDir, 'website'), config)
-      applyWebsiteTrade(path.join(workDir, 'website'), config, trade, ownerServices)
+      applyWebsiteTrade(path.join(workDir, 'website'), config, trade)
+      applyOwnerServices(path.join(workDir, 'website'), config, trade, ownerServices)
       syncNavToServices(path.join(workDir, 'website'))
       fillMetaDescription(path.join(workDir, 'website'), config, ownerServices, trade?.label)
       fillWebsiteImages(path.join(workDir, 'website'), config, trade?.photos)
@@ -1246,12 +1250,10 @@ function seedServicesIfEmpty(websiteDir: string, wizardContent: any) {
   }
 }
 
-// Names a signup trade on the site, and gives a site whose owner listed no services
-// one card for their trade instead of the template's sample list (a roofer's site
-// used to offer Siding, Insulation and New Construction; a painter's, Roofing).
-// The hero is only rewritten where the template's own says another trade's name:
-// website-general says none, website-fieldservice says "HVAC & Plumbing".
-function applyWebsiteTrade(websiteDir: string, config: GenerateConfig, trade: WebsiteTrade | undefined, ownerServices: boolean) {
+// Names a signup trade in the hero, only where the template's own says another
+// trade's name: website-general says none, website-fieldservice says "HVAC & Plumbing".
+// (Its services section is applyOwnerServices.)
+function applyWebsiteTrade(websiteDir: string, config: GenerateConfig, trade: WebsiteTrade | undefined) {
   if (!trade) return
   const c = config.company || ({} as GenerateConfig['company'])
   const where = [c.city, c.state].filter(Boolean).join(', ')
@@ -1273,21 +1275,38 @@ function applyWebsiteTrade(websiteDir: string, config: GenerateConfig, trade: We
       }
       fs.writeFileSync(hpFile, JSON.stringify(hp, null, 2))
     }
-
-    const servicesFile = path.join(dataDir, 'services.json')
-    if (!ownerServices && fs.existsSync(servicesFile)) {
-      const existing = JSON.parse(fs.readFileSync(servicesFile, 'utf8'))
-      const id = slugify(trade.service)
-      // Keep the template's own card when it is the trade (roofing's "Roofing"), for its copy.
-      const match = Array.isArray(existing) ? existing.find((s: any) => slugify(String(s?.name || '')) === id) : undefined
-      const line = trade.service + (where ? ' in ' + where : '') + ". Tell us what you need and we'll get back to you."
-      const card = match
-        ? { ...match, visible: true, order: 1 }
-        : { id, name: trade.service, slug: id, shortDescription: line, description: line, icon: 'star', visible: true, order: 1 }
-      fs.writeFileSync(servicesFile, JSON.stringify([card], null, 2))
-    }
   } catch (e: any) {
     console.warn('[Factory] applyWebsiteTrade failed:', e.message)
+  }
+}
+
+// The services section states only what the owner told us. Signup's services
+// (content.ownerServiceNames) become cards named exactly as the owner wrote them;
+// a signup trade whose owner listed none gets one card for the trade. Either way a
+// card carries none of a template card's copy, features or links — the template's
+// "Roofing" lists "asphalt shingle, metal, and flat roofing", which this roofer
+// never said. Staff wizard picks (content.services, template IDs) are untouched.
+function applyOwnerServices(websiteDir: string, config: GenerateConfig, trade: WebsiteTrade | undefined, ownerServices: boolean) {
+  const names = config.content?.ownerServiceNames?.length
+    ? config.content.ownerServiceNames
+    : (!ownerServices && trade ? [trade.service] : [])
+  if (!names.length) return
+  const servicesFile = path.join(websiteDir, 'data', 'services.json')
+  if (!fs.existsSync(servicesFile)) return
+  try {
+    const c = config.company || ({} as GenerateConfig['company'])
+    const where = [c.city, c.state].filter(Boolean).join(', ')
+    const used = new Set<string>()
+    const cards = names.map((name, i) => {
+      let id = slugify(name) || 'service-' + (i + 1)
+      while (used.has(id)) id += '-' + (i + 1)
+      used.add(id)
+      const line = name + (where ? ' in ' + where : '') + ". Tell us what you need and we'll get back to you."
+      return { id, name, slug: id, shortDescription: names.length === 1 ? line : '', description: line, icon: 'star', visible: true, order: i + 1 }
+    })
+    fs.writeFileSync(servicesFile, JSON.stringify(cards, null, 2))
+  } catch (e: any) {
+    console.warn('[Factory] applyOwnerServices failed:', e.message)
   }
 }
 

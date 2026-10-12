@@ -215,6 +215,26 @@ function signupImages(b: any): { logo?: string; favicon?: string; heroPhoto?: st
   return out
 }
 
+// The services the owner says they offer (signup's checklist + "add your own"). The site's
+// services section is built from exactly these (generator injectWizardContent); with none
+// it shows one card for the owner's trade. Names only: trimmed, markup/token characters
+// stripped, de-duplicated, capped. Anything else is dropped, not rejected.
+function signupServices(v: any): string[] {
+  if (!Array.isArray(v)) return []
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const s of v) {
+    if (typeof s !== 'string') continue
+    const name = s.replace(/[<>{}\u0000-\u001f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60)
+    const key = name.toLowerCase()
+    if (name.length < 2 || seen.has(key)) continue
+    seen.add(key)
+    out.push(name)
+    if (out.length >= 12) break
+  }
+  return out
+}
+
 factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
   try {
     const parsed = await parseJsonBody(c)
@@ -351,6 +371,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     notifyWelcome(tenant).catch(e => console.warn('[Email] Welcome email failed:', e.message))
 
     // Auto-generate code build so triggerAutoDeploy has a factory_jobs record to deploy
+    const ownerServices = signupServices(body.services)
     const genConfig: GenerateConfig = {
       tenant_id: tenant.id,
       tenant_slug: tenant.slug,
@@ -378,6 +399,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       features: {
         crm: body.features || [],
       },
+      ...(ownerServices.length ? { content: { ownerServiceNames: ownerServices } } : {}),
     }
 
     // Generate the build in the background — don't block the signup response.
