@@ -18,9 +18,14 @@ export const may = (c: any, permission: string) => hasPermission((c.get('user') 
 // What the shop paid its supplier, and the margin over it, is margin:read — the fleet's line for cost.
 // Staff pack the order; they do not need to know what it cost us. (owner's decision, T42)
 export const orderForCaller = (c: any, order: any) => {
-  if (!order || may(c, 'margin:read')) return order
-  const { supplierCostCents: _cost, ...rest } = order
-  return rest
+  if (!order) return order
+  let out = order
+  if (!may(c, 'margin:read')) { const { supplierCostCents: _cost, ...rest } = out; out = rest }
+  // The payment provider's own ids — the checkout session, the payment, the refund — are what a refund is made
+  // against, and refunding is orders:refund. Staff pack the order; they are not sent the ids. (Store sweep, 10/12:
+  // the fleet round took every Stripe id off the seats that do not need them; the store's orders still carried them.)
+  if (!may(c, 'orders:refund')) { const { providerSessionId: _s, providerPaymentId: _p, refundId: _r, ...rest } = out; out = rest }
+  return out
 }
 
 /**

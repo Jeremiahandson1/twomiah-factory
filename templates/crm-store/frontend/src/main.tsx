@@ -2,6 +2,10 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
+import { applyStoredTheme } from './shared'
+
+// The saved theme on <html> before anything renders — the fleet's shell does the same (packages/tenant-ui shell/hooks).
+applyStoredTheme()
 
 class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
   constructor(props: { children: React.ReactNode }) {

@@ -3,6 +3,7 @@ import {
   Loader2, BellRing, Syringe, UserX, Send, X, CheckCircle2, AlertCircle,
 } from 'lucide-react';
 import api from '../../services/api';
+import { useMayWrite } from '../../shared';
 
 /**
  * Reminders — the retention page.
@@ -83,6 +84,9 @@ export default function RemindersPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showSend, setShowSend] = useState<boolean>(false);
+  // Sending is POST /api/reminders/send — contacts:update. A seat without it reads the list; it is not handed row
+  // checkboxes for a Send it does not have. (T43, vet viewer: "Reminders row checkboxes remain selectable")
+  const mayRemind = useMayWrite('contacts:update');
 
   const loadDue = useCallback(async () => {
     setLoading(true);
@@ -202,13 +206,13 @@ export default function RemindersPage() {
             </>
           )}
         </div>
-        <button
+        {mayRemind && <button
           onClick={() => setShowSend(true)}
           disabled={selected.size === 0}
           className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50"
         >
           <Send className="w-4 h-4" /> Send Reminder{selected.size > 0 ? ` (${selected.size})` : ''}
-        </button>
+        </button>}
       </div>
 
       {loading ? (
@@ -224,9 +228,9 @@ export default function RemindersPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 text-left dark:bg-slate-900 dark:text-slate-400">
               <tr>
-                <th className="px-4 py-3 w-10">
+                {mayRemind && <th className="px-4 py-3 w-10">
                   <input type="checkbox" checked={allSelected} onChange={toggleAll} className="w-4 h-4" />
-                </th>
+                </th>}
                 <th className="px-4 py-3 font-medium">Patient</th>
                 <th className="px-4 py-3 font-medium">Owner</th>
                 <th className="px-4 py-3 font-medium">Contact</th>
@@ -256,9 +260,9 @@ export default function RemindersPage() {
                  */
                 ? dueRows.map((r) => (
                     <tr key={r.vaccinationId} className={r.overdue ? 'bg-red-50 dark:bg-red-950/40' : ''}>
-                      <td className="px-4 py-3">
+                      {mayRemind && <td className="px-4 py-3">
                         <input type="checkbox" checked={selected.has(r.vaccinationId)} onChange={() => toggle(r.vaccinationId)} disabled={!r.ownerId} className="w-4 h-4" />
-                      </td>
+                      </td>}
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                         {r.patientName || '—'} <span className="text-xs text-gray-600 dark:text-slate-400 capitalize">{r.species}</span>
                       </td>
@@ -283,9 +287,9 @@ export default function RemindersPage() {
                   ))
                 : lapsedRows.map((r, i) => (
                     <tr key={`${r.patientId || r.ownerId || i}`}>
-                      <td className="px-4 py-3">
+                      {mayRemind && <td className="px-4 py-3">
                         <input type="checkbox" checked={!!r.ownerId && selected.has(r.ownerId)} onChange={() => toggle(r.ownerId)} disabled={!r.ownerId} className="w-4 h-4" />
-                      </td>
+                      </td>}
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                         {r.patientName || '—'} <span className="text-xs text-gray-600 dark:text-slate-400 capitalize">{r.species}</span>
                       </td>

@@ -68,6 +68,28 @@ const PIN_FAIL_WINDOW_MINUTES = 15
 const PIN_FAIL_LIMIT = 10
 const PIN_COLLISION_LIMIT = 5
 
+/**
+ * Has this address's brake already been announced inside the window? (T43: "one critical brute_force_detected row is
+ * written per refused attempt, not one per brake".) The critical event says the brake went on — once; each try made
+ * while it is on is its own, quieter event (pin_login_throttled), so the log reads one alarm and a count of what
+ * followed rather than a wall of identical criticals. Fails "not yet", so a log that cannot be read still raises it.
+ */
+async function brakeAnnounced(companyId: string, ip: string): Promise<boolean> {
+  try {
+    const r: any = await db.execute(sql`
+      SELECT 1 FROM security_events
+      WHERE company_id = ${companyId}
+        AND event_type = 'brute_force_detected'
+        AND ip_address = ${ip}
+        AND created_at > NOW() - (${PIN_FAIL_WINDOW_MINUTES} || ' minutes')::interval
+      LIMIT 1
+    `)
+    return (r.rows || r).length > 0
+  } catch {
+    return false
+  }
+}
+
 /** How many PIN misses this address has made at this shop inside the window. */
 async function recentPinFailures(companyId: string, ip: string): Promise<number> {
   try {
@@ -356,8 +378,14 @@ app.post('/pin-login', async (c) => {
    */
   const ip = callerIp(c)
   if (await recentPinFailures(companyId, ip) >= PIN_FAIL_LIMIT) {
-    await recordSecurityEvent(c, companyId, null, 'brute_force_detected', 'critical',
-      `Too many wrong till PINs from ${ip} — quick sign-in paused for ${PIN_FAIL_WINDOW_MINUTES} minutes`)
+    if (!(await brakeAnnounced(companyId, ip))) {
+      await recordSecurityEvent(c, companyId, null, 'brute_force_detected', 'critical',
+        `Too many wrong till PINs from ${ip} — quick sign-in paused for ${PIN_FAIL_WINDOW_MINUTES} minutes`)
+    } else {
+      // Not checked against anyone's PIN — that is the point of the brake — so it may have been a right one.
+      await recordSecurityEvent(c, companyId, null, 'pin_login_throttled', 'warning',
+        `Till PIN tried from ${ip} while quick sign-in is paused — refused without being checked`)
+    }
     return c.json({
       error: `Too many wrong PINs from this device. Quick sign-in is paused for a few minutes — sign in with your email and password instead.`,
       code: 'pin_throttled',

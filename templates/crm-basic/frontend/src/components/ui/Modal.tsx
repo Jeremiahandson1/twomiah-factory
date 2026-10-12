@@ -38,7 +38,10 @@ export function Modal({
         onClick={onClose}
       />
       <div className="flex min-h-full items-center justify-center p-4">
-        <div 
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={title || 'Dialog'}
           className={clsx(
             'relative w-full bg-white border border-gray-200 dark:bg-slate-900 dark:border-slate-700 rounded-xl shadow-2xl',
             sizes[size]

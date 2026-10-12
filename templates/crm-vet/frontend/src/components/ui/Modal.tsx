@@ -48,6 +48,9 @@ export function Modal({
       />
       <div className="flex min-h-full items-center justify-center p-4">
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={title || 'Dialog'}
           className={clsx(
             'relative w-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl',
             modalSizes[size]

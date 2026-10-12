@@ -5,10 +5,13 @@
 :root {
   color-scheme: light;
 }
+.dark {
+  color-scheme: dark;
+}
 
-/* The fleet's base ink, so text with no colour class of its own follows the theme with everything else. The store
-   has no theme toggle — nothing adds .dark (tailwind.config.js) — so this renders exactly as before (slate-50 ground,
-   slate-900 ink); the dark halves are the pair every dark: class in the pages already assumes. (Store QA T1, B1) */
+/* The fleet's base ink, so text with no colour class of its own follows the theme with everything else. The theme is
+   the fleet's: light by default, dark when the person chooses it (AppLayout's button, shell/hooks applyStoredTheme puts
+   .dark on <html>). Every base style below carries its dark pair. (Store QA T1, B1; store sweep 10/12) */
 @layer base {
   body {
     margin: 0;
@@ -34,13 +37,13 @@
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary { @apply btn bg-primary-500 text-white hover:bg-primary-600; }
-  .btn-secondary { @apply btn bg-white text-gray-700 border border-gray-300 hover:bg-gray-50; }
+  .btn-secondary { @apply btn bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-700; }
   .btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700; }
   .input {
-    @apply w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100;
+    @apply w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 dark:border-slate-700 dark:focus:ring-primary-900;
   }
-  .label { @apply block text-sm font-medium text-gray-700 mb-1; }
-  .card { @apply bg-white rounded-xl border border-gray-200 shadow-sm; }
+  .label { @apply block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200; }
+  .card { @apply bg-white rounded-xl border border-gray-200 shadow-sm dark:bg-slate-900 dark:border-slate-700; }
 }
 
 

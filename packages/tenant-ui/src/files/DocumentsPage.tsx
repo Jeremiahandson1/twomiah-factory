@@ -244,7 +244,8 @@ export function DocumentsPage({ api, toast, config }: DocumentsPageProps) {
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-12 text-center">
           <FolderOpen className="w-10 h-10 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-700 dark:text-slate-200 font-medium">No documents yet</p>
-          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 mb-4">Upload contracts, photos, receipts — anything you want kept with the customer's record.</p>
+          {/* A seat that cannot upload is not told to. (T43, Showcase viewer) */}
+          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 mb-4">{mayCreate ? "Upload contracts, photos, receipts — anything you want kept with the customer's record." : 'Nothing has been filed here yet.'}</p>
           {mayCreate && <Button onClick={() => fileInput.current?.click()}><Upload className="w-4 h-4" /> Upload a document</Button>}
         </div>
       ) : (

@@ -292,6 +292,14 @@ const secRows = (type: string, ip?: string) => rows(
   check('…a real PIN from that same device is held back while the brake is on',
     realFromRun.status === 429, { status: realFromRun.status })
 
+  // One alarm per brake, not one per refused try (T43): the further tries are their own quieter event.
+  await api('POST', '/api/auth/pin-login', { companyId: co.id, pin: '90012' }, undefined, RUN)
+  const alarms = await secRows('brute_force_detected', RUN)
+  const throttled = await secRows('pin_login_throttled', RUN)
+  check(`…ONE critical per brake (${alarms.length}), and each later try a warning of its own (${throttled.length})`,
+    alarms.length === 1 && throttled.length === 2 && throttled.every((r: any) => r.severity === 'warning' && /refused without being checked/.test(r.description)),
+    { alarms: alarms.length, throttled: throttled.map((r: any) => [r.severity, r.description]) })
+
   // …and NO ACCOUNT IS LOCKED, which is the T57 property this must not break.
   const a1 = await attemptsOf(bud1.id)
   check('…while bud1\'s account is not locked and not counted against — the T57 rule still holds',

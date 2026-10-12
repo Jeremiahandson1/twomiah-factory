@@ -163,6 +163,17 @@ const O = as(owner), MA = as(managerA), MB = as(managerB), S = as(staff)
   const s = await S('refunded', p.id)
   check('staff: a refund is refused before anything reaches Stripe', s.status === 403 && calls.length === c1 && (await orderNow(p.id)).status === 'paid')
 }
+// 11b. The payment's own ids go to who refunds (orders:refund), not to staff — the fleet took every Stripe id off the
+// seats that do not need them (T43); the store's orders still carried the session, payment and refund ids. (10/12)
+{
+  const o = await mkOrder('paid', { refundId: 're_test_keep' })
+  const read = async (who: any) => { const r = await app.request(`/api/admin/orders/${o.id}`, { headers: { 'x-test-user': who.id } }); return ((await r.json()) as any).order }
+  const s = await read(staff), m = await read(managerA)
+  check('ids: staff are sent no checkout session, payment or refund id', !('providerSessionId' in s) && !('providerPaymentId' in s) && !('refundId' in s) && s.orderNumber === o.orderNumber, Object.keys(s).filter((k) => /provider|refund/i.test(k)))
+  check('ids: the manager, who refunds, still is', m.providerPaymentId === o.providerPaymentId && m.refundId === 're_test_keep')
+  const list = await (await app.request('/api/admin/orders', { headers: { 'x-test-user': staff.id } })).json() as any
+  check('ids: …nor in the order list', !JSON.stringify(list.orders).includes('pi_test_') && !JSON.stringify(list.orders).includes('cs_test_'))
+}
 // 12. A refund interrupted between the order moving and Stripe answering is finished — once.
 const { resumePendingRefunds } = await import('./src/routes/orders.ts')
 const { auditLog } = await import('./db/schema.ts')

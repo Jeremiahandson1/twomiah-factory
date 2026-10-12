@@ -36,7 +36,26 @@ const categories = [
 // this is only the fallback until it arrives. (go-live QA V-1)
 const DEFAULT_WEIGHT_LIMIT_OZ = 1;
 
+/**
+ * THE TILL IS FOR A SEAT THAT CAN SELL. (T43, dispensary viewer: "POS by direct URL still renders; server refuses the
+ * sale".) POST /api/orders is requireRole('budtender') — the same question OrdersPage asks before offering New Sale —
+ * so a typed /crm/orders/new no longer draws a till whose every sale would be refused. Asked before any of the till's
+ * own hooks run.
+ */
 export default function POSPage() {
+  const { isAtLeast } = useAuth();
+  if (!isAtLeast('budtender')) {
+    return (
+      <div className="max-w-xl mx-auto mt-16 text-center bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700 p-8">
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100 mb-2">The till is for budtenders and up</h1>
+        <p className="text-sm text-gray-600 dark:text-slate-400">Your seat can look at orders but not ring up a sale. Ask a manager if you need to sell.</p>
+      </div>
+    );
+  }
+  return <Till />;
+}
+
+function Till() {
   const { user } = useAuth();
   const toast = useToast();
   const searchRef = useRef<HTMLInputElement>(null);

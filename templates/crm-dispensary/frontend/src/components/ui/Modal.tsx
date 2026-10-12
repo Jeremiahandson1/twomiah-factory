@@ -48,6 +48,9 @@ export function Modal({
       />
       <div className="flex min-h-full items-center justify-center p-4">
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={typeof title === 'string' && title ? title : 'Dialog'}
           className={clsx(
             // Theme-aware shell: light surface in light mode (page modal content is
             // styled text-gray-* for a light background), dark in dark mode. The old
