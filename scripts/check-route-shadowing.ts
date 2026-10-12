@@ -90,16 +90,19 @@ for (const file of files) {
           const later = ofMethod[j]
           const lSegs = later.path.split('/').filter(Boolean)
           if (lSegs.length !== eSegs.length) continue
-          const at = lSegs[eParam]
-          if (at === undefined || at.startsWith(':')) continue
           // A wildcard is a deliberate catch-all and BELONGS last; it is not a shadowed literal.
-          if (at === '*' || later.path.endsWith('/*')) continue
-          if (!eSegs.slice(0, eParam).every((s, k) => s === lSegs[k])) continue
-          const tailCollides = eSegs.slice(eParam + 1).every((s, k) => {
-            const o = lSegs[eParam + 1 + k]
-            return s === o || (s.startsWith(':') && o !== undefined)
-          })
-          if (!tailCollides) continue
+          if (lSegs.includes('*') || eSegs.includes('*')) continue
+          /**
+           * EVERY request the later route could take, the earlier one takes first: each earlier segment is a
+           * parameter (matches anything) or the very same word. Read for EVERY position, not only the first
+           * parameter's. (comments: POST '/:commentId/react' below POST '/:entityType/:entityId' — the later route
+           * has a parameter where the earlier has its first one, so the old rule skipped it, and every reaction was
+           * stored as a comment on a record of type <commentId>.)
+           * An earlier literal against a later parameter is NOT full shadowing — the later route still answers the
+           * other values — so it is left alone.
+           */
+          const swallowed = eSegs.every((s, k) => s.startsWith(':') || s === lSegs[k])
+          if (!swallowed) continue
           fail(`${relative(ROOT, file).replace(/\\/g, '/')}: ${method.toUpperCase()} '${later.path}' (line ${later.line}) is unreachable — '${earlier.path}' (line ${earlier.line}) is declared first and Hono matches in order, so it answers instead. Move the literal route above the parameter one.`)
         }
       }
