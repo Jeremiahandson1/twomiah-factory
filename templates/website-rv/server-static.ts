@@ -183,6 +183,7 @@ async function seoEntries(): Promise<SeoEntry[]> {
   for (const [p, view, label] of SEO_PAGES) {
     // The financing page answers only when the owner lists a financing service.
     if (p === '/services/financing' && !offersFinancing()) continue
+    if (p === '/parts' && !offersParts()) continue
     if (servesPage(p, view)) out.push({ path: p, title: label, group: 'Pages' })
   }
   if (servesPage('/services/:slug', 'service')) {
@@ -463,11 +464,24 @@ function offersFinancing(): boolean {
   return Array.isArray(services) && services.some((s: any) => s && s.visible !== false && String(s.slug || s.id || '') === 'financing')
 }
 
+// Trade-ins, service & repair and parts are the same kind of claim: their forms, the /parts
+// page and its menu link render only when the owner lists such a service (by name or slug,
+// so an owner's "Trade-Ins" or "Service & Repair" counts).
+function ownerOffers(re: RegExp): boolean {
+  const services = loadJSON('services.json') || []
+  return Array.isArray(services) && services.some((s: any) => s && s.visible !== false && re.test(String(s.slug || s.id || '') + ' ' + String(s.name || '')))
+}
+const offersTradeIn = () => ownerOffers(/trade/i)
+const offersServiceRepair = () => ownerOffers(/\bservice\b|repair|maintenance/i)
+const offersParts = () => ownerOffers(/\bparts?\b|accessor/i)
+
 function renderPage(c: any, pageView: string, locals: Record<string, any> = {}, statusCode = 200) {
   const settings = loadJSON('settings.json') || {}
   const navConfig = loadJSON('nav-config.json') || {}
-  const menuItems = Array.isArray(navConfig.items) ? navConfig.items : Array.isArray(navConfig) ? navConfig : []
-  const shared = { assetV: ASSET_VERSION, settings, menuItems, BASE_URL, hasVisualizer, hasEstimator, offersFinancing: offersFinancing(), _jsonStr, _plainDesc, bgWithWebp, ...locals }
+  const parts = offersParts()
+  const menuItems = (Array.isArray(navConfig.items) ? navConfig.items : Array.isArray(navConfig) ? navConfig : [])
+    .filter((m: any) => parts || !m || m.href !== '/parts')
+  const shared = { assetV: ASSET_VERSION, settings, menuItems, BASE_URL, hasVisualizer, hasEstimator, offersFinancing: offersFinancing(), offersTradeIn: offersTradeIn(), offersServiceRepair: offersServiceRepair(), offersParts: parts, _jsonStr, _plainDesc, bgWithWebp, ...locals }
   const pageFile = path.join(__dirname, 'views', pageView + '.ejs')
 
   return new Promise<Response>((resolve) => {
@@ -504,7 +518,8 @@ app.get('/', (c) => {
   const posts = loadJSON('posts.json') || []
   const recentPosts = posts.filter((p: any) => p.published).slice(0, 3)
   const navConfig = loadJSON('nav-config.json') || {}
-  const menuItems = (navConfig.items || []).filter((i: any) => i.visible !== false)
+  const parts = offersParts()
+  const menuItems = (navConfig.items || []).filter((i: any) => i.visible !== false && (parts || i.href !== '/parts'))
   return renderPage(c, 'home', {
     homepage, services, testimonials, featuredProjects, recentPosts, menuItems,
     heroPreloadUrl: resolveHeroPreload(homepage?.hero?.image || ''),
@@ -752,6 +767,7 @@ app.get('/reserve/success', (c) => {
 
 // ─── Parts & accessories request page ──────────────────────────────────────────
 app.get('/parts', (c) => {
+  if (!offersParts()) return c.text('Page not found', 404)
   return renderPage(c, 'parts', {
     title: 'Parts & Accessories | {{COMPANY_NAME}}',
     description: 'Request OEM and aftermarket parts and accessories from {{COMPANY_NAME}}.',

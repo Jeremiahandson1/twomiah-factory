@@ -8,19 +8,19 @@
   {
     "name": "{{NEARBY_CITY_1}}",
     "state": "{{STATE}}",
-    "description": "Serving {{NEARBY_CITY_1}} riders with new and used RVs and powersports, service and repair, and trade-ins.",
+    "description": "Serving {{NEARBY_CITY_1}} riders with RVs and powersports.",
     "isPrimary": false
   },
   {
     "name": "{{NEARBY_CITY_2}}",
     "state": "{{STATE}}",
-    "description": "{{COMPANY_NAME}} serves {{NEARBY_CITY_2}} with RV and powersports sales, service, and OEM and aftermarket parts.",
+    "description": "{{COMPANY_NAME}} serves {{NEARBY_CITY_2}} with RV and powersports sales.",
     "isPrimary": false
   },
   {
     "name": "{{NEARBY_CITY_3}}",
     "state": "{{STATE}}",
-    "description": "RV and powersports sales and service near {{NEARBY_CITY_3}}, {{STATE}}.",
+    "description": "RV and powersports sales near {{NEARBY_CITY_3}}, {{STATE}}.",
     "isPrimary": false
   },
   {
