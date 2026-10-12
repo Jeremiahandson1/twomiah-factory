@@ -181,6 +181,12 @@ for (const status of ['paid', 'fulfilled', 'shipped', 'delivered']) {
   check('screen: …and Disconnect likewise', /\{mayConnect && <button onClick=\{disconnect\}/.test(pay))
   const css = src('frontend/src/index.css')
   check('screen: a disabled field looks it — its own ground and ink, in both themes', /input:disabled,\s*select:disabled,\s*textarea:disabled \{\s*@apply cursor-not-allowed bg-gray-100 text-gray-600 dark:bg-slate-900 dark:text-slate-400;/.test(css))
+  // T5 (staff): the dashboard's setup card told a seat Payments refuses to "Connect your payment account".
+  const dash = src('frontend/src/pages/DashboardPage.tsx')
+  check('screen (T5): a seat that cannot connect payments is told who does, not told to do it',
+    /paymentsConnected \? 'Payments connected' : mayConnectPayments \? 'Connect your payment account to accept orders' : 'Payments are not connected yet, so the store cannot take orders\. The store owner connects them\.'/.test(dash)
+    && /\{mayConnectPayments \? 'Finish setting up your store' : 'Store setup'\}/.test(dash)
+    && /mayAddProducts \? 'Add and activate your first product' : 'No products are live yet'/.test(dash))
   check('screen: Settings still turns the store form into a record for a seat without settings:update', /<fieldset disabled=\{!maySaveSettings\}/.test(src('frontend/src/pages/SettingsPage.tsx')))
 }
 

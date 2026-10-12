@@ -47,12 +47,14 @@ export default function DashboardPage() {
 
       {!setupDone && (
         <div className="card p-5">
-          <h2 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Finish setting up your store</h2>
+          {/* A seat that cannot do a step reads where it stands and who does it — not an instruction it cannot follow.
+              (Store QA T5, staff: 'Connect your payment account to accept orders' shown to a seat Payments refuses.) */}
+          <h2 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">{mayConnectPayments ? 'Finish setting up your store' : 'Store setup'}</h2>
           <ul className="space-y-2 text-sm">
             <ChecklistItem done={activeProducts > 0} to={mayAddProducts ? '/products' : undefined}
-              text={activeProducts > 0 ? `${activeProducts} product(s) live` : 'Add and activate your first product'} />
+              text={activeProducts > 0 ? `${activeProducts} product(s) live` : mayAddProducts ? 'Add and activate your first product' : 'No products are live yet'} />
             <ChecklistItem done={!!paymentsConnected} to={mayConnectPayments ? '/payments' : undefined}
-              text={paymentsConnected ? 'Payments connected' : 'Connect your payment account to accept orders'} />
+              text={paymentsConnected ? 'Payments connected' : mayConnectPayments ? 'Connect your payment account to accept orders' : 'Payments are not connected yet, so the store cannot take orders. The store owner connects them.'} />
           </ul>
         </div>
       )}
