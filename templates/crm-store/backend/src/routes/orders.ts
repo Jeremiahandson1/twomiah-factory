@@ -240,7 +240,8 @@ admin.patch('/:id/status', requirePermission('orders:update'), async (c) => {
   const [prev] = await db.select().from(orders).where(eq(orders.id, c.req.param('id'))).limit(1)
   if (!prev) return c.json({ error: 'Not found' }, 404)
   const next = parsed.data.status
-  if (next === prev.status) return c.json({ order: orderForCaller(c, prev) })
+  // Already there: nothing moves, nothing is refunded, and nothing is written to the audit log.
+  if (next === prev.status) { audit.nothingToRecord(); return c.json({ order: orderForCaller(c, prev) }) }
   if (!mayMove(prev.status, next)) return moveRefusal(c, prev.status, next)
   if (!isFulfilment(prev.status, next) && !may(c, 'orders:refund')) return refundRefusal(c)
   const patch: Record<string, unknown> = { status: next, updatedAt: new Date() }

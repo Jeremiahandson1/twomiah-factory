@@ -74,6 +74,16 @@ export async function log({ action, entity, entityId, entityName, changes, metad
   }
 }
 
+/**
+ * This request changed nothing, so it leaves no row — not even the floor's. (Live, 10/12: a second Refund press on an
+ * order already refunded answered 200 as a no-op, and the floor logged it as another 'Status changed', so the log read
+ * like two refunds of one order.)
+ */
+export function nothingToRecord(): void {
+  const scope = requestScope.getStore()
+  if (scope) scope.logged = true
+}
+
 /** { field: { old, new } } for the keys that changed — never secrets or bookkeeping columns. */
 export function diff(before: Record<string, unknown> | null | undefined, after: Record<string, unknown> | null | undefined, keys?: string[]) {
   if (!before || !after) return null
@@ -126,4 +136,4 @@ export async function filterOptions() {
   return { actions: tally('action'), entities: tally('entity') }
 }
 
-export default { log, diff, query, getHistory, filterOptions, storeCurrency }
+export default { log, diff, query, getHistory, filterOptions, storeCurrency, nothingToRecord }
