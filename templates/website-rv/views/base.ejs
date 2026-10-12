@@ -21,7 +21,9 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="{{COMPANY_NAME}}">
   <meta property="og:locale" content="en_US">
-  <meta property="og:image" content="<%= (typeof ogImage !== 'undefined' && ogImage) ? ogImage : '{{SITE_URL}}/uploads/og-default.jpg' %>">
+  <%# The share image: the page's own, else the photo the generator recorded as settings.shareImage (the hero). None → no tag, never a missing file. %>
+  <% const _ogImage = (typeof ogImage !== 'undefined' && ogImage) ? ogImage : ((typeof settings !== 'undefined' && settings && settings.shareImage) ? '{{SITE_URL}}' + settings.shareImage : ''); %>
+  <% if (_ogImage) { %><meta property="og:image" content="<%= _ogImage %>"><% } %>
   
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">

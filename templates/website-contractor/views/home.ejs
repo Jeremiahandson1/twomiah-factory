@@ -572,8 +572,8 @@ function getImageUrl(p) {
     "@context": "https://schema.org",
     "@type": "HomeAndConstructionBusiness",
     "name": "{{COMPANY_NAME}}",
-    "image": "{{SITE_URL}}/logo.jpg",
-    "url": "{{SITE_URL}}",
+<% if (typeof settings !== 'undefined' && settings && settings.shareImage) { %>    "image": <%- _jsonStr('{{SITE_URL}}' + settings.shareImage) %>,
+<% } %>    "url": "{{SITE_URL}}",
 <% if (phoneRaw) { %>    "telephone": <%- _jsonStr('+1' + phoneRaw) %>,
 <% } %><% if (_emailOk) { %>    "email": <%- _jsonStr(email) %>,
 <% } %>    "address": {
