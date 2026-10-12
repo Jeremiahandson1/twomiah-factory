@@ -4,7 +4,7 @@
  */
 
 import fs from 'fs'
-import { collectImageUrls, heroCreditsForUrls } from '../config/heroLibrary.ts'
+import { collectImageUrls, heroCreditsForUrls, HERO_LIBRARY } from '../config/heroLibrary.ts'
 import path from 'path'
 import crypto from 'crypto'
 import { spawnSync } from 'child_process'
@@ -304,7 +304,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       applyOwnerServices(path.join(workDir, 'website'), config, trade, ownerServices)
       syncNavToServices(path.join(workDir, 'website'))
       fillMetaDescription(path.join(workDir, 'website'), config, ownerServices, trade?.label)
-      fillWebsiteImages(path.join(workDir, 'website'), config, trade?.photos)
+      fillWebsiteImages(path.join(workDir, 'website'), config, trade?.photos, trade?.heroPhotos)
       seedHelpArticles(path.join(workDir, 'website'))
       processEnvTemplate(path.join(workDir, 'website'), tokens)
 
@@ -1318,7 +1318,7 @@ function applyOwnerServices(websiteDir: string, config: GenerateConfig, trade: W
 // Fill empty gallery/service images from the in-house per-vertical library so a
 // generated site never ships blank placeholder tiles. Rendered directly / via
 // getImageUrl (which passes http through), so external CDN URLs are safe here.
-function fillWebsiteImages(websiteDir: string, config: GenerateConfig, photos?: string) {
+function fillWebsiteImages(websiteDir: string, config: GenerateConfig, photos?: string, heroPhotos?: WebsiteTrade['heroPhotos']) {
   const dataDir = path.join(websiteDir, 'data')
   // A signup trade names its own photo set (websiteTrades.ts) — an electrician is
   // 'field_service' by now, and a locksmith has no set of its own.
@@ -1328,7 +1328,32 @@ function fillWebsiteImages(websiteDir: string, config: GenerateConfig, photos?: 
   // it. Keyed on the name, not tenant_slug: the slug may only move Render hosts.
   let offset = 0
   for (const ch of slugify(config.company?.name || '')) offset = (offset * 31 + ch.charCodeAt(0)) >>> 0
-  const pick = (i: number) => getServiceImage(industry, offset + i)
+  // A trade with curated hero-library photos (websiteTrades.ts heroPhotos) uses those: copied
+  // into the site at /images/hero-library/<group>/ — the path heroLibrary credits by — and
+  // credited in the footer below, which the Pexels guidelines make a condition of use.
+  const heroGroup = heroPhotos?.group || ''
+  const heroFiles = heroGroup
+    ? (HERO_LIBRARY[heroGroup] || []).map((h) => h.file).filter((f) => !heroPhotos?.files || heroPhotos.files.includes(f))
+    : []
+  const HERO_LIBRARY_DIR = path.join(import.meta.dir, '..', '..', 'assets', 'hero-library')
+  if (heroFiles.length) {
+    try {
+      const dest = path.join(websiteDir, 'build', 'images', 'hero-library', heroGroup)
+      fs.mkdirSync(dest, { recursive: true })
+      for (const f of heroFiles) fs.copyFileSync(path.join(HERO_LIBRARY_DIR, heroGroup, f), path.join(dest, f))
+    } catch (e: any) {
+      console.warn('[Factory] hero-library photos not copied, using the standard set:', e.message)
+      heroFiles.length = 0
+    }
+  }
+  const usedPhotos = new Set<string>()
+  const pick = (i: number) => {
+    const url = heroFiles.length
+      ? '/images/hero-library/' + heroGroup + '/' + heroFiles[(offset + i) % heroFiles.length]
+      : getServiceImage(industry, offset + i)
+    if (url) usedPhotos.add(url)
+    return url
+  }
   // The owner's own hero photo (writeBrandingAssets) always wins over stock.
   const imagesDir = path.join(websiteDir, 'build', 'images')
   const ownHero = fs.existsSync(imagesDir) ? fs.readdirSync(imagesDir).find((f) => /^hero-own\.[a-z]+$/.test(f)) : undefined
@@ -1356,7 +1381,9 @@ function fillWebsiteImages(websiteDir: string, config: GenerateConfig, photos?: 
     if (fs.existsSync(heroJpgPath)) {
       const libUrl = pick(0)
       if (libUrl) {
-        const srcPhoto = path.join(TEMPLATES_ROOT, '_shared', 'service-images', path.basename(libUrl))
+        const srcPhoto = libUrl.startsWith('/images/hero-library/')
+          ? path.join(HERO_LIBRARY_DIR, libUrl.slice('/images/hero-library/'.length))
+          : path.join(TEMPLATES_ROOT, '_shared', 'service-images', path.basename(libUrl))
         if (fs.existsSync(srcPhoto)) fs.copyFileSync(srcPhoto, heroJpgPath)
       }
     }
@@ -1421,6 +1448,23 @@ function fillWebsiteImages(websiteDir: string, config: GenerateConfig, photos?: 
         if (changed) fs.writeFileSync(servicesFile, JSON.stringify(services, null, 2))
       }
     } catch { /* leave services as-is on parse error */ }
+  }
+
+  // Credit the hero-library photos this site shows (its footer renders settings.photoCredits).
+  // pick() is only called where a photo is placed, so usedPhotos is what is on the site.
+  if (heroFiles.length) {
+    try {
+      const credits = heroCreditsForUrls([...usedPhotos])
+      const settingsFile = path.join(dataDir, 'settings.json')
+      if (credits.length && fs.existsSync(settingsFile)) {
+        const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'))
+        settings.photoCredits = credits
+        fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2))
+      }
+    } catch (e: any) {
+      // Loud, like the composer's: an uncredited Pexels photo breaches the API guidelines.
+      console.error('[Generator] COULD NOT WRITE PHOTO CREDITS:', e?.message)
+    }
   }
 }
 
