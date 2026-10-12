@@ -1101,7 +1101,7 @@ const HOMECARE_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a home-care agency. Empathetic but concrete trust signals, then a guided care-finder wizard, then humanize with caregivers.',
     allowed_types: ['hero', 'trust', 'stats', 'care', 'reservation', 'caregivers', 'testimonials', 'cta'],
-    required_sequence: '1 hero/full-bleed or hero/split (owner-or-caregiver-with-client portrait, NOT generic hands-on-shoulder stock), 1 trust/badges (state license #, bonded/insured, BBB, years in business — concrete signals only), optional 1 stats/bar anchored in real numbers, 1 care/finder (this is the conversion engine), 1 reservation/cta with heading "Or skip the form and book a call" and buttonLabel "Schedule a free consultation" (Twomiah Bookings — adult children who already know what they need want to grab a slot, not fill out another form), optional 1 caregivers/grid showing 3-4 sample profiles, optional 1 testimonials block (real adult-child quotes only), close with 1 cta',
+    required_sequence: '1 hero/full-bleed or hero/split (owner-or-caregiver-with-client portrait, NOT generic hands-on-shoulder stock), 1 trust/badges (state license #, bonded/insured, BBB, years in business — concrete signals only), optional 1 stats/bar anchored in real numbers, 1 care/finder (this is the conversion engine), 1 reservation/cta with heading "Or skip the form and book a call" and buttonLabel "Schedule a free consultation" if the intake says consultations are free, otherwise "Schedule a consultation" (Twomiah Bookings — adult children who already know what they need want to grab a slot, not fill out another form), optional 1 caregivers/grid showing 3-4 sample profiles, optional 1 testimonials block (real adult-child quotes only), close with 1 cta',
   },
   'find-care': {
     purpose: 'The standalone care-finder wizard page. Quiet, focused, no distraction. Where qualified leads convert.',
@@ -1126,7 +1126,7 @@ const HOMECARE_PAGE_RECIPES = {
   contact: {
     purpose: 'Conversion page. Quiet, direct, response promise.',
     allowed_types: ['hero', 'contact', 'reservation', 'faq'],
-    required_sequence: 'optional 1 hero (short, empathetic), 1 contact/form-info with response-time promise, optional 1 reservation/cta with heading "Or schedule a call directly" and buttonLabel "Schedule a free consultation" (Twomiah Bookings), optional 1 faq',
+    required_sequence: 'optional 1 hero (short, empathetic), 1 contact/form-info with response-time promise, optional 1 reservation/cta with heading "Or schedule a call directly" and buttonLabel "Schedule a free consultation" if the intake says consultations are free, otherwise "Schedule a consultation" (Twomiah Bookings), optional 1 faq',
   },
 } as const
 
@@ -1174,7 +1174,7 @@ const ROOFING_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a roofer. Insurance-claim positioning first, instant-quote second, trust badges third, work proof fourth.',
     allowed_types: ['hero', 'banner', 'quote', 'reservation', 'trust', 'services', 'before_after', 'stats', 'cta'],
-    required_sequence: 'optional 1 banner/storm-alert at the very top if a recent storm in the service area is referenced in the intake, then 1 hero/full-bleed or hero/split (insurance-claim voice, owner-on-every-roof signal), 1 quote/instant-address (the single biggest conversion lever), 1 reservation/cta with heading "Want eyes on it?" and buttonLabel "Schedule a free inspection" (Twomiah Bookings — pairs with the instant quote for customers who want a person on the roof not a calculator), 1 trust/badges if intake supports them, 1 services/cards-grid, 1 before_after/slider ONLY with the owner\'s own before/after photos, close with 1 cta/split. The quote/instant-address above needs the business\'s own price per square foot — omit it without one.',
+    required_sequence: 'optional 1 banner/storm-alert at the very top if a recent storm in the service area is referenced in the intake, then 1 hero/full-bleed or hero/split (insurance-claim voice, owner-on-every-roof signal), 1 quote/instant-address (the single biggest conversion lever), 1 reservation/cta with heading "Want eyes on it?" and buttonLabel "Schedule a free inspection" if the intake says inspections are free, otherwise "Schedule an inspection" (Twomiah Bookings — pairs with the instant quote for customers who want a person on the roof not a calculator), 1 trust/badges if intake supports them, 1 services/cards-grid, 1 before_after/slider ONLY with the owner\'s own before/after photos, close with 1 cta/split. The quote/instant-address above needs the business\'s own price per square foot — omit it without one.',
   },
   quote: {
     purpose: 'Standalone estimator page. SEO-targeted to "roof replacement cost" / "ballpark roof estimate" searches.',
@@ -1199,7 +1199,7 @@ const ROOFING_PAGE_RECIPES = {
   contact: {
     purpose: 'Conversion page. Form + business details + response promise.',
     allowed_types: ['hero', 'contact', 'reservation', 'faq', 'banner'],
-    required_sequence: 'optional 1 banner/storm-alert if active, 1 hero (short), 1 contact/form-info, optional 1 reservation/cta with heading "Or grab a slot directly" and buttonLabel "Schedule a free inspection" (Twomiah Bookings), optional 1 faq covering pre-call questions',
+    required_sequence: 'optional 1 banner/storm-alert if active, 1 hero (short), 1 contact/form-info, optional 1 reservation/cta with heading "Or grab a slot directly" and buttonLabel "Schedule a free inspection" if the intake says inspections are free, otherwise "Schedule an inspection" (Twomiah Bookings), optional 1 faq covering pre-call questions',
   },
 } as const
 
@@ -2039,7 +2039,7 @@ before_after/slider: { "heading": "Before & after", "intro": "...", "filters": [
 financing/calculator: { "heading": "Roof financing from $99/mo", "intro": "...", "fromMonthly": 99, "maxTermMonths": 84, "apr": 7.99, "minLoanAmount": 3000, "maxLoanAmount": 35000, "ctaLabel": "Get my estimate" }
 trust/badges: { "heading": "Credentials", "intro": "...", "items": [{ "name": "GAF Master Elite", "image": "<url>", "url": "..." }, { "name": "BBB A+", "image": "<url>" }] }
 packages/seasonal: { "heading": "Packages", "intro": "...", "items": [{ "title": "Weekly mow", "tier": "standard", "pricePerMonth": 180, "includes": ["Mow + trim", "Edge driveways", "Blow off hardscape"], "seasonOnly": "spring-fall" }, { "title": "Snow contract", "tier": "premium", "pricePerMonth": 320, "includes": ["Push at 2 inches", "Salt walkways", "Tracker app access"], "seasonOnly": "winter" }] }
-care/finder: { "heading": "Find the right care for your loved one", "intro": "...", "relationships": ["My parent", "My spouse", "Myself", "Another family member"], "careTypes": ["Companion care", "Personal care", "Skilled nursing", "Dementia / Alzheimer's", "Hospice / end-of-life"], "hoursOptions": ["A few hours a week", "10–25 hours", "25–40 hours", "40+ hours", "24/7 live-in"], "ctaLabel": "Schedule a free assessment", "responsePromise": "We respond within one business day. No phone trees, no sales pressure." }
+care/finder: { "heading": "Find the right care for your loved one", "intro": "...", "relationships": ["My parent", "My spouse", "Myself", "Another family member"], "careTypes": ["Companion care", "Personal care"], "hoursOptions": ["A few hours a week", "10–25 hours", "25–40 hours", "40+ hours"], "ctaLabel": "Request an assessment", "responsePromise": "" }
 caregivers/grid: { "heading": "Meet some of our caregivers", "intro": "...", "filters": ["specialty", "languages"], "items": [{ "name": "Maria", "yearsExperience": 8, "certifications": ["CNA"], "specialties": ["Dementia", "Companion care"], "languages": ["English", "Spanish"], "photo": "<url>", "blurb": "Former hospital aide. Specializes in afternoon sundowning support and gentle redirection." }] }
 coverage/insurance-guide: { "heading": "Coverage", "intro": "...", "items": [{ "source": "Medicare", "eligibility": "Age 65+ or qualifying disability", "whatItCovers": "Home health (skilled, time-limited, doctor-ordered). Does NOT cover non-medical in-home care.", "howToApply": "Through your doctor + Medicare-certified agency", "ourRole": "We can refer to a Medicare-certified home health partner when skilled care is what you need" }] }
 emergency/bar: { "heading": "Furnace out? Pipe leaking? Power out?", "phone": "555-123-4567", "subtext": "We pick up. Even at 2am.", "businessHours": "7am-7pm", "afterHoursLabel": "After-hours call", "normalHoursLabel": "Open now — call now" }

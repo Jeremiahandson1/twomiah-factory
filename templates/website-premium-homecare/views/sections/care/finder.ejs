@@ -17,12 +17,14 @@
     : ['My parent', 'My spouse', 'Myself', 'Another family member']
   var careTypes = Array.isArray(data.careTypes) && data.careTypes.length
     ? data.careTypes
-    : ['Companion care', 'Personal care', 'Skilled nursing', "Dementia / Alzheimer's", 'Hospice / end-of-life']
+    : ['Companion care', 'Personal care', 'Not sure yet']
   var hoursOptions = Array.isArray(data.hoursOptions) && data.hoursOptions.length
     ? data.hoursOptions
-    : ['A few hours a week', '10–25 hours', '25–40 hours', '40+ hours', '24/7 live-in']
-  var ctaLabel = data.ctaLabel || 'Schedule a free assessment'
-  var responsePromise = data.responsePromise || 'We respond within one business day. No phone trees, no sales pressure.'
+    : ['A few hours a week', '10–25 hours', '25–40 hours', '40+ hours', 'Not sure yet']
+  // Defaults state nothing the agency didn't tell us: no skilled nursing, hospice or
+  // 24/7 live-in, nothing "free", no response-time promise.
+  var ctaLabel = data.ctaLabel || 'Send my request'
+  var responsePromise = data.responsePromise || ''
 %>
 <section id="find-care" class="care care--finder">
   <div class="container">
@@ -75,12 +77,12 @@
         <label class="cf-field"><span class="cf-label">Your name</span><input class="cf-input" type="text" name="name" autocomplete="name" required></label>
         <label class="cf-field"><span class="cf-label">Email</span><input class="cf-input" type="email" name="email" autocomplete="email" required></label>
         <label class="cf-field"><span class="cf-label">Phone (optional, but speeds things up)</span><input class="cf-input" type="tel" name="phone" autocomplete="tel"></label>
-        <div class="cf-promise"><%= responsePromise %></div>
+        <% if (responsePromise) { %><div class="cf-promise"><%= responsePromise %></div><% } %>
         <div class="cf-actions"><button type="button" class="btn btn--ghost cf-back" data-from="5">Back</button><button type="submit" class="btn btn--xl btn--primary cf-submit"><%= ctaLabel %></button></div>
       </fieldset>
       <div class="cf-done" hidden>
         <h3>Thank you.</h3>
-        <p><%= responsePromise %></p>
+        <p><%= responsePromise || 'Your request was sent.' %></p>
       </div>
     </form>
   </div>

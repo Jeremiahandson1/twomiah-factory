@@ -502,10 +502,14 @@ function ensureLight(hex: string, minLuminance = 0.22): string {
 // and in the LocalBusiness schema as if they were the business's own. On the website they are
 // blank instead, and the templates leave out whatever is blank. The CRM and every other product
 // keep buildTokenMap's values unchanged.
+// The legal name likewise: signup never asks for one, and buildTokenMap's "<name> LLC" made every
+// site's privacy policy, terms and settings call the business an LLC — false for a sole
+// proprietor or a corporation. The website uses the name the owner gave.
 function websiteTokenMap(config: GenerateConfig, tokens: Record<string, string>): Record<string, string> {
   const c = config.company || ({} as GenerateConfig['company'])
   return {
     ...tokens,
+    '{{COMPANY_LEGAL_NAME}}': c.legalName || c.name || 'My Company',
     '{{COMPANY_EMAIL}}': c.email || '',
     '{{COMPANY_PHONE}}': c.phone || '',
     '{{COMPANY_PHONE_RAW}}': (c.phone || '').replace(/\D/g, ''),
@@ -1298,7 +1302,8 @@ function applyOwnerServices(websiteDir: string, config: GenerateConfig, trade: W
     const where = [c.city, c.state].filter(Boolean).join(', ')
     const used = new Set<string>()
     const cards = names.map((name, i) => {
-      let id = slugify(name) || 'service-' + (i + 1)
+      // Accents folded first: "Restaurant / Café" → /services/restaurant-cafe, not restaurant-caf.
+      let id = slugify(name.normalize('NFD').replace(/[̀-ͯ]/g, '')) || 'service-' + (i + 1)
       while (used.has(id)) id += '-' + (i + 1)
       used.add(id)
       const line = name + (where ? ' in ' + where : '') + ". Tell us what you need and we'll get back to you."

@@ -8,7 +8,8 @@
   // answer is correct in the customer's first paint.
   var heading = data.heading || 'Sick or injured pet?'
   var phone = data.phone || settings.phone || ''
-  var afterHoursNote = data.afterHoursNote || 'After hours, call and our answering service will page the on-call veterinarian.'
+  // No answering service or on-call vet is promised unless the clinic said so.
+  var afterHoursNote = data.afterHoursNote || ''
   var emergencyPartner = data.emergencyPartner || null   // { name, phone, address }
   var walkIns = data.walkIns === true
 
@@ -34,7 +35,7 @@
       <% if (open === true) { %>
         <p class="urgent-bar__status urgent-bar__status--open">We are open now<%= walkIns ? ' — walk-ins welcome' : '' %></p>
       <% } else if (open === false) { %>
-        <p class="urgent-bar__status urgent-bar__status--closed"><%= afterHoursNote %></p>
+        <p class="urgent-bar__status urgent-bar__status--closed"><%= afterHoursNote || 'We are closed now' %></p>
       <% } %>
     </div>
     <% if (phone) { %>

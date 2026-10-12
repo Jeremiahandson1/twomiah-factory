@@ -13,10 +13,15 @@
  * Medical and residential care (hospice, skilled home health, senior living,
  * pediatric) is NOT put on the non-medical home-care site.
  *
+ * Salons, restaurants, gyms and food trucks keep the showcase site; listed here so an
+ * owner who names no services gets one card for their business, not the template's
+ * "Our Signature" / "What We Offer" / "The Experience" placeholders. Their labels are
+ * the signup's own wording for the choice the owner made.
+ *
  * Signup values not listed here keep the generator's existing routing.
  */
 export interface WebsiteTrade {
-  template: 'website-contractor' | 'website-fieldservice' | 'website-landscaping' | 'website-homecare' | 'website-vet' | 'website-rv' | 'website-general'
+  template: 'website-contractor' | 'website-fieldservice' | 'website-landscaping' | 'website-homecare' | 'website-vet' | 'website-rv' | 'website-showcase' | 'website-general'
   /** How the site names the trade: "Painting in Eau Claire, WI". */
   label: string
   /** The one service card a site gets when the owner lists none. */
@@ -62,6 +67,11 @@ export const WEBSITE_TRADES: Record<string, WebsiteTrade> = {
   pest_control:         T('website-general',      'Pest Control',        'Pest Control',        'GENERIC'),
   pool_spa:             T('website-general',      'Pool & Spa Service',  'Pool & Spa Service',  'GENERIC'),
   chimney_fireplace:    T('website-general',      'Chimney & Fireplace', 'Chimney & Fireplace', 'GENERIC'),
+  // Venues and personal services — the showcase site (photos: the sets they already got)
+  salon:                T('website-showcase',     'Salon & Spa',         'Salon & Spa',         'GENERIC'),
+  restaurant:           T('website-showcase',     'Restaurant / Café',   'Restaurant / Café',   'foodtruck'),
+  fitness:              T('website-showcase',     'Gym / Fitness Studio', 'Gym / Fitness Studio', 'GENERIC'),
+  food_truck:           T('website-showcase',     'Food Truck',          'Food Truck',          'foodtruck'),
   // Medical / residential care and other care — not the non-medical home-care site
   hospice:              T('website-general',      'Hospice Care',        'Hospice Care',        'homecare'),
   home_health_skilled:  T('website-general',      'Home Health Care',    'Home Health Care',    'homecare'),
