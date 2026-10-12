@@ -112,17 +112,24 @@ for (const status of ['paid', 'fulfilled', 'shipped', 'delivered']) {
   check(`L1: a ${status} order takes tracking from the bench, status unchanged`, r.status === 200 && now.trackingNumber === `T-${status}` && now.status === status, r.json)
 }
 {
-  // Decided from the status read: a cancel landing between the read and the write keeps the tracking off.
+  // Decided from the status read: a cancel landing between the read and the write keeps the tracking off. A tracking
+  // save that succeeds must have landed BEFORE the cancel — so the cancel's own answer (the row it wrote) carries it.
+  // One landing after it, on the cancelled row, is exactly the T3 fault, and the final row alone cannot tell the two
+  // apart.
   let clean = 0
+  const rounds: unknown[] = []
   for (let i = 0; i < 6; i++) {
     const o = await mkOrder('paid')
-    const rs = await Promise.all([M('PATCH', `/api/admin/orders/${o.id}/status`, { status: 'cancelled' }), fulfil(S, o.id, { trackingNumber: `RACE-${i}` })])
+    const [cancel, track] = await Promise.all([M('PATCH', `/api/admin/orders/${o.id}/status`, { status: 'cancelled' }), fulfil(S, o.id, { trackingNumber: `RACE-${i}` })])
     const now = await orderNow(o.id)
-    const lost = rs[1].status === 409
-    if (now.status === 'cancelled' && (lost ? !now.trackingNumber && rs[1].json?.code && /tracking was not saved|never went out/.test(rs[1].json.error) : true)) clean++
-    else if (now.status !== 'cancelled') clean = -99
+    const ok = cancel.status === 200 && now.status === 'cancelled' && (
+      track.status === 409
+        ? !now.trackingNumber && /tracking was not saved|never went out/.test(track.json?.error)
+        : track.status === 200 && cancel.json?.order?.trackingNumber === `RACE-${i}`)
+    if (ok) clean++
+    rounds.push({ cancel: cancel.status, track: track.status, cancelSaw: cancel.json?.order?.trackingNumber ?? null, final: now.trackingNumber })
   }
-  check(`L1: tracking racing a cancel, six rounds: the order ends cancelled, and a refused save says the tracking was not saved (${clean}/6)`, clean === 6)
+  check(`L1: tracking racing a cancel, six rounds: tracking is either refused (said so) or saved before the cancel — never written onto the cancelled order (${clean}/6)`, clean === 6, rounds)
   const quiet = await mkOrder('paid')
   await db.update(orders).set({ status: 'cancelled' }).where(eq(orders.id, quiet.id))
   const late = await fulfil(S, quiet.id, { trackingNumber: 'LATE' })
