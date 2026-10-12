@@ -176,7 +176,7 @@ export default function OrderDetailPage() {
             <div className="text-sm text-gray-600 space-y-1 dark:text-slate-300">
               <div>Status: <span className={"font-medium " + (order.supplierStatus === 'error' ? 'text-red-600 dark:text-red-400' : order.supplierStatus === 'placed' || order.supplierStatus === 'shipped' ? 'text-green-700 dark:text-green-300' : 'text-yellow-700 dark:text-yellow-300')}>{order.supplierStatus}</span></div>
               {order.supplierOrderId && <div>Supplier order: <span className="font-mono text-xs">{order.supplierOrderId}</span></div>}
-              {order.supplierCostCents != null && <div>Supplier cost: ${(order.supplierCostCents / 100).toFixed(2)} <span className="text-gray-500">(margin ${((order.totalCents - order.supplierCostCents) / 100).toFixed(2)})</span></div>}
+              {order.supplierCostCents != null && <div>Supplier cost: ${(order.supplierCostCents / 100).toFixed(2)} <span className="text-gray-500 dark:text-slate-400">(margin ${((order.totalCents - order.supplierCostCents) / 100).toFixed(2)})</span></div>}
               {order.supplierError && <div className="text-red-600 text-xs dark:text-red-400">{order.supplierError}</div>}
             </div>
             {/* Forwarding and holding run on the supplier connection — the owner's (integrations:update). */}
@@ -198,7 +198,7 @@ export default function OrderDetailPage() {
               {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.postalCode}<br />
               {order.shippingAddress.country}
             </address>
-          ) : <p className="text-sm text-gray-500">No shipping address</p>}
+          ) : <p className="text-sm text-gray-500 dark:text-slate-400">No shipping address</p>}
         </div>
       </div>
 
@@ -291,7 +291,7 @@ function LabelPanel({ orderId, order, onBought }: { orderId: string; order: Orde
         <div className="flex items-center justify-between">
           <p className="text-sm text-gray-600 dark:text-slate-300">
             {order.trackingCarrier} {order.trackingNumber}
-            {order.labelCostCents != null && <span className="text-gray-500"> · ${(order.labelCostCents / 100).toFixed(2)}</span>}
+            {order.labelCostCents != null && <span className="text-gray-500 dark:text-slate-400"> · ${(order.labelCostCents / 100).toFixed(2)}</span>}
           </p>
           <a href={order.labelUrl} target="_blank" rel="noreferrer" className="btn-secondary">Print label</a>
         </div>
@@ -313,7 +313,7 @@ function LabelPanel({ orderId, order, onBought }: { orderId: string; order: Orde
                 <div key={r.id} className="flex items-center justify-between border rounded-lg px-3 py-2">
                   <span className="text-sm text-gray-700 dark:text-slate-200">
                     {r.carrier} {r.service}
-                    {r.estimatedDays ? <span className="text-gray-500"> · {r.estimatedDays} days</span> : null}
+                    {r.estimatedDays ? <span className="text-gray-500 dark:text-slate-400"> · {r.estimatedDays} days</span> : null}
                   </span>
                   <span className="flex items-center gap-3">
                     <span className="text-sm font-medium">${(r.amountCents / 100).toFixed(2)}</span>

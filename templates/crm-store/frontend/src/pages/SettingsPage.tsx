@@ -193,15 +193,15 @@ export default function SettingsPage() {
           <div><label className="label">Flat shipping ($)</label><input disabled={!mayShipping} className="input" value={form.flatShipping} onChange={(e) => set('flatShipping', e.target.value)} /></div>
           <div><label className="label">Free shipping over ($)</label><input disabled={!mayShipping} className="input" value={form.freeShippingThreshold} onChange={(e) => set('freeShippingThreshold', e.target.value)} placeholder="Blank = never" /></div>
         </div>
-        <p className="text-xs text-gray-500">Flat rate + tax above apply when no region zone/rate matches below.</p>
+        <p className="text-xs text-gray-500 dark:text-slate-400">Flat rate + tax above apply when no region zone/rate matches below.</p>
       </div>
 
       <div className="card p-5 space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900 dark:text-slate-100">Shipping zones <span className="text-gray-500 font-normal">(by region)</span></h2>
+          <h2 className="font-semibold text-gray-900 dark:text-slate-100">Shipping zones <span className="text-gray-500 font-normal dark:text-slate-400">(by region)</span></h2>
           <button disabled={!mayShipping} onClick={addZone} className="btn-secondary text-sm">+ Add zone</button>
         </div>
-        {(form.zones || []).length === 0 && <p className="text-sm text-gray-500">No zones — the flat rate applies everywhere.</p>}
+        {(form.zones || []).length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400">No zones — the flat rate applies everywhere.</p>}
         {(form.zones || []).map((z: any, i: number) => (
           <div key={i} className="grid grid-cols-12 gap-2 items-end border-t pt-3">
             <div className="col-span-3"><label className="label text-xs">Name</label><input disabled={!mayShipping} className="input" value={z.name} onChange={(e) => setZone(i, 'name', e.target.value)} placeholder="Domestic" /></div>
@@ -218,10 +218,10 @@ export default function SettingsPage() {
       <fieldset disabled={!maySaveSettings} className="space-y-6 min-w-0">
       <div className="card p-5 space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900 dark:text-slate-100">Tax rates <span className="text-gray-500 font-normal">(by region)</span></h2>
+          <h2 className="font-semibold text-gray-900 dark:text-slate-100">Tax rates <span className="text-gray-500 font-normal dark:text-slate-400">(by region)</span></h2>
           <button disabled={!maySaveSettings} onClick={addTax} className="btn-secondary text-sm">+ Add rate</button>
         </div>
-        {(form.taxes || []).length === 0 && <p className="text-sm text-gray-500">No region rates — the flat tax rate applies.</p>}
+        {(form.taxes || []).length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400">No region rates — the flat tax rate applies.</p>}
         {(form.taxes || []).map((t: any, i: number) => (
           <div key={i} className="grid grid-cols-12 gap-2 items-end border-t pt-3">
             <div className="col-span-4"><label className="label text-xs">Country</label><input disabled={!maySaveSettings} className="input" value={t.country} onChange={(e) => setTax(i, 'country', e.target.value)} placeholder="US" /></div>
@@ -267,7 +267,7 @@ export default function SettingsPage() {
             {staff.map((u) => (
               <div key={u.id} className="flex items-center justify-between px-4 py-3">
                 <div>
-                  <p className={`text-sm font-medium ${u.isActive === false ? 'text-gray-500 line-through' : 'text-gray-900 dark:text-slate-200'} dark:text-slate-100`}>{u.name || u.email}</p>
+                  <p className={`text-sm font-medium ${u.isActive === false ? 'text-gray-500 line-through dark:text-slate-400' : 'text-gray-900 dark:text-slate-200'} dark:text-slate-100`}>{u.name || u.email}</p>
                   <p className="text-xs text-gray-500 dark:text-slate-400">{u.email}</p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -291,11 +291,11 @@ export default function SettingsPage() {
                     >
                       {u.isActive === false ? 'Restore access' : 'Revoke access'}
                     </button>
-                  ) : <span className="text-xs text-gray-500">You</span>}
+                  ) : <span className="text-xs text-gray-500 dark:text-slate-400">You</span>}
                 </div>
               </div>
             ))}
-            {staff.length === 0 && <p className="px-4 py-6 text-sm text-gray-500 text-center">Just you so far</p>}
+            {staff.length === 0 && <p className="px-4 py-6 text-sm text-gray-500 text-center dark:text-slate-400">Just you so far</p>}
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -310,7 +310,7 @@ export default function SettingsPage() {
             </div>
           </div>
           <p className="text-xs text-gray-500 dark:text-slate-400">{ROLE_OPTIONS.find((r) => r.value === newStaff.role)?.hint}</p>
-          <p className="text-xs text-gray-500">Share the password with them — they can change it from this page after signing in.</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">Share the password with them — they can change it from this page after signing in.</p>
           <button onClick={addStaff} className="btn-primary" disabled={addingStaff || !newStaff.name.trim() || !newStaff.email.trim() || newStaff.password.length < 8}>
             {addingStaff ? 'Adding…' : newStaff.role === 'manager' ? 'Add manager' : 'Add staff member'}
           </button>

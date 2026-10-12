@@ -54,16 +54,16 @@ export default function DiscountsPage() {
             </select>
           </div>
           <div><label className="label">{form.type === 'percent' ? 'Percent off' : 'Amount off ($)'}</label><input className="input" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} placeholder={form.type === 'percent' ? '10' : '5.00'} /></div>
-          <div><label className="label">Min subtotal ($) <span className="text-gray-500">(optional)</span></label><input className="input" value={form.minSubtotal} onChange={(e) => setForm({ ...form, minSubtotal: e.target.value })} placeholder="0.00" /></div>
-          <div><label className="label">Max uses <span className="text-gray-500">(optional)</span></label><input className="input" value={form.maxUses} onChange={(e) => setForm({ ...form, maxUses: e.target.value })} placeholder="unlimited" /></div>
-          <div><label className="label">Expires <span className="text-gray-500">(optional)</span></label><input className="input" type="date" value={form.expiresAt} onChange={(e) => setForm({ ...form, expiresAt: e.target.value })} /></div>
+          <div><label className="label">Min subtotal ($) <span className="text-gray-500 dark:text-slate-400">(optional)</span></label><input className="input" value={form.minSubtotal} onChange={(e) => setForm({ ...form, minSubtotal: e.target.value })} placeholder="0.00" /></div>
+          <div><label className="label">Max uses <span className="text-gray-500 dark:text-slate-400">(optional)</span></label><input className="input" value={form.maxUses} onChange={(e) => setForm({ ...form, maxUses: e.target.value })} placeholder="unlimited" /></div>
+          <div><label className="label">Expires <span className="text-gray-500 dark:text-slate-400">(optional)</span></label><input className="input" type="date" value={form.expiresAt} onChange={(e) => setForm({ ...form, expiresAt: e.target.value })} /></div>
         </div>
         <button onClick={create} className="btn-primary" disabled={saving || !form.code || !form.value}>{saving ? 'Creating…' : 'Create code'}</button>
       </div>}
 
       <div className="card p-5">
         <h2 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">All codes</h2>
-        {loading ? <p className="text-gray-500 text-sm">Loading…</p> : codes.length === 0 ? <p className="text-gray-500 text-sm">No codes yet.</p> : (
+        {loading ? <p className="text-gray-500 text-sm dark:text-slate-400">Loading…</p> : codes.length === 0 ? <p className="text-gray-500 text-sm dark:text-slate-400">No codes yet.</p> : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="text-left text-gray-500 dark:text-slate-400"><th className="py-2 pr-4">Code</th><th className="pr-4">Discount</th><th className="pr-4">Used</th><th className="pr-4">Min</th><th className="pr-4">Expires</th><th></th></tr></thead>

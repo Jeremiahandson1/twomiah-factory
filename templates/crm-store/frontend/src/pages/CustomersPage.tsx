@@ -26,7 +26,7 @@ export default function CustomersPage() {
       ) : (
         <div className="card overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-left text-xs uppercase text-gray-500 border-b">
+            <thead className="text-left text-xs uppercase text-gray-500 border-b dark:text-slate-400">
               <tr><th className="px-4 py-3">Customer</th><th className="px-4 py-3">Orders</th><th className="px-4 py-3">Spent</th><th className="px-4 py-3">Last order</th></tr>
             </thead>
             <tbody className="divide-y">
