@@ -14,7 +14,7 @@
   "trustBadges": [],
   "ctaSection": {
     "title": "Stay comfortable year-round.\nTell us what you need.",
-    "description": "Whether it's AC, heating, plumbing, or maintenance, we're here to help {{SERVICE_REGION}} homeowners.",
+    "description": "Tell us what you need and we'll get back to you. Serving {{SERVICE_REGION}} homeowners.",
     "primaryButtonText": "Schedule Service",
     "primaryButtonLink": "#contact",
     "secondaryButtonText": "Call {{COMPANY_PHONE}}",

@@ -13,6 +13,7 @@ import bcrypt from 'bcryptjs'
 import { getFeaturesForPlan, FEATURE_MAP } from '../config/featureRegistry'
 import { crmTemplateFor, premiumWebsiteTemplateFor, buildCrmApiHost, verticalFor } from '../config/industryRouting'
 import { getServiceImage } from '../config/serviceImageLibrary'
+import { websiteTradeFor, type WebsiteTrade } from '../config/websiteTrades'
 
 const TEMPLATES_ROOT = process.env.FACTORY_TEMPLATES_DIR || path.resolve(process.cwd(), '..', '..', 'templates')
 const PACKAGES_ROOT = process.env.FACTORY_PACKAGES_DIR || path.resolve(process.cwd(), '..', '..', 'packages')
@@ -179,6 +180,10 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
   const defaultPassword = config.company?.defaultPassword || generatePassword()
   config = { ...config, company: { ...config.company, defaultPassword } }
 
+  // The trade as the signup sent it — the standard website is picked and named from this
+  // (websiteTrades.ts), since the folding below turns electrical into field_service.
+  const signupIndustry = config.company?.industry
+
   // Normalize industry variants to canonical values the templates expect
   if (config.company?.industry?.startsWith('home_care')) config.company.industry = 'home_care'
   const FIELD_SERVICE_VARIANTS = ['hvac', 'plumbing', 'electrical', 'field_service']
@@ -234,13 +239,18 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
         'cleaning', 'pest_control', 'locksmith', 'garage_door',
       ])
 
+      // Signup trades get the site written for them, or the neutral general site
+      // named for their trade — never another trade's sample site (websiteTrades.ts).
+      const trade = isPremium ? undefined : websiteTradeFor(signupIndustry)
+
       let websiteTemplate = 'website-general'
       if (isPremium) {
         // Use the central routing map so this stays in sync with the CRM
         // template picker. Every industry resolves to a vertical (with
         // contractor as fallback), so this can never throw.
         websiteTemplate = premiumWebsiteTemplateFor(industry)
-      } else if (industry === 'home_care') websiteTemplate = 'website-homecare'
+      } else if (trade) websiteTemplate = trade.template
+      else if (industry === 'home_care') websiteTemplate = 'website-homecare'
       else if (industry === 'field_service') websiteTemplate = 'website-fieldservice'
       else if (industry === 'dispensary') websiteTemplate = 'website-dispensary'
       else if (industry === 'landscaping') websiteTemplate = 'website-landscaping'
@@ -287,9 +297,10 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       // Read before injectWizardContent: seeding a template's sample services fills content.services.
       const ownerServices = !!(config.content?.services?.length || config.content?.customServices?.length || config.content?.aiGenerated?.services?.length)
       injectWizardContent(path.join(workDir, 'website'), config)
+      applyWebsiteTrade(path.join(workDir, 'website'), config, trade, ownerServices)
       syncNavToServices(path.join(workDir, 'website'))
-      fillMetaDescription(path.join(workDir, 'website'), config, ownerServices)
-      fillWebsiteImages(path.join(workDir, 'website'), config)
+      fillMetaDescription(path.join(workDir, 'website'), config, ownerServices, trade?.label)
+      fillWebsiteImages(path.join(workDir, 'website'), config, trade?.photos)
       seedHelpArticles(path.join(workDir, 'website'))
       processEnvTemplate(path.join(workDir, 'website'), tokens)
 
@@ -1235,12 +1246,59 @@ function seedServicesIfEmpty(websiteDir: string, wizardContent: any) {
   }
 }
 
+// Names a signup trade on the site, and gives a site whose owner listed no services
+// one card for their trade instead of the template's sample list (a roofer's site
+// used to offer Siding, Insulation and New Construction; a painter's, Roofing).
+// The hero is only rewritten where the template's own says another trade's name:
+// website-general says none, website-fieldservice says "HVAC & Plumbing".
+function applyWebsiteTrade(websiteDir: string, config: GenerateConfig, trade: WebsiteTrade | undefined, ownerServices: boolean) {
+  if (!trade) return
+  const c = config.company || ({} as GenerateConfig['company'])
+  const where = [c.city, c.state].filter(Boolean).join(', ')
+  const dataDir = path.join(websiteDir, 'data')
+  try {
+    const hpFile = path.join(dataDir, 'homepage.json')
+    const heroNamesTrade = trade.template === 'website-general' || trade.template === 'website-fieldservice'
+    if (heroNamesTrade && !config.content?.aiGenerated?.homepage && fs.existsSync(hpFile)) {
+      const hp = JSON.parse(fs.readFileSync(hpFile, 'utf8'))
+      hp.hero = hp.hero || {}
+      if (trade.template === 'website-general') {
+        hp.hero.tagline = trade.label
+        hp.hero.subtitle = where ? trade.label + ' in ' + where + '.' : trade.label + '.'
+      } else {
+        hp.hero.tagline = trade.label
+        hp.hero.title = c.city ? trade.label + ' in ' + c.city : trade.label
+        hp.hero.subtitle = trade.label
+        hp.hero.description = (c.name || 'We') + ' serves ' + (c.city || 'the area') + ' and the surrounding area.'
+      }
+      fs.writeFileSync(hpFile, JSON.stringify(hp, null, 2))
+    }
+
+    const servicesFile = path.join(dataDir, 'services.json')
+    if (!ownerServices && fs.existsSync(servicesFile)) {
+      const existing = JSON.parse(fs.readFileSync(servicesFile, 'utf8'))
+      const id = slugify(trade.service)
+      // Keep the template's own card when it is the trade (roofing's "Roofing"), for its copy.
+      const match = Array.isArray(existing) ? existing.find((s: any) => slugify(String(s?.name || '')) === id) : undefined
+      const line = trade.service + (where ? ' in ' + where : '') + ". Tell us what you need and we'll get back to you."
+      const card = match
+        ? { ...match, visible: true, order: 1 }
+        : { id, name: trade.service, slug: id, shortDescription: line, description: line, icon: 'star', visible: true, order: 1 }
+      fs.writeFileSync(servicesFile, JSON.stringify([card], null, 2))
+    }
+  } catch (e: any) {
+    console.warn('[Factory] applyWebsiteTrade failed:', e.message)
+  }
+}
+
 // Fill empty gallery/service images from the in-house per-vertical library so a
 // generated site never ships blank placeholder tiles. Rendered directly / via
 // getImageUrl (which passes http through), so external CDN URLs are safe here.
-function fillWebsiteImages(websiteDir: string, config: GenerateConfig) {
+function fillWebsiteImages(websiteDir: string, config: GenerateConfig, photos?: string) {
   const dataDir = path.join(websiteDir, 'data')
-  const industry = config.company?.industry || ''
+  // A signup trade names its own photo set (websiteTrades.ts) — an electrician is
+  // 'field_service' by now, and a locksmith has no set of its own.
+  const industry = photos || config.company?.industry || ''
   // Start each business at its own place in the industry's photo set (stable per business name),
   // so two roofers don't open with the identical hero. Service and gallery photos follow on from
   // it. Keyed on the name, not tenant_slug: the slug may only move Render hosts.
@@ -1498,7 +1556,7 @@ function injectWizardContent(websiteDir: string, config: GenerateConfig) {
 // services in Eau Claire."), well under what search results show. Lengthen it from what the owner
 // gave: their own description, then the services the site has. An AI-written description is left
 // alone, and nothing is added that would push it past 160 characters.
-function fillMetaDescription(websiteDir: string, config: GenerateConfig, ownerServices: boolean) {
+function fillMetaDescription(websiteDir: string, config: GenerateConfig, ownerServices: boolean, tradeLabel?: string) {
   if (config.content?.aiGenerated?.settings?.defaultMetaDescription) return
   const settingsFile = path.join(websiteDir, 'data', 'settings.json')
   if (!fs.existsSync(settingsFile)) return
@@ -1511,8 +1569,10 @@ function fillMetaDescription(websiteDir: string, config: GenerateConfig, ownerSe
     // not in {{META_DESCRIPTION}}, which the CRMs' index.html also uses.)
     const c = config.company || ({} as GenerateConfig['company'])
     const industry = c.industry || ''
-    const label = industry === 'rv' ? 'RV & Powersports Dealership' : INDUSTRY_LABELS[industry]
-    if (label && c.name && desc === 'Professional services in ' + (c.city || 'your area') + '.') {
+    const label = tradeLabel || (industry === 'rv' ? 'RV & Powersports Dealership' : INDUSTRY_LABELS[industry])
+    // A signup trade (websiteTrades.ts) always leads with its own name — the template's default
+    // describes the template's trade (an electrician on website-general, a plumber on HVAC copy).
+    if (label && c.name && (tradeLabel || desc === 'Professional services in ' + (c.city || 'your area') + '.')) {
       desc = c.name + ' — ' + label + ' in ' + [c.city, c.state].filter(Boolean).join(', ') + '.'
       if (!c.city) desc = c.name + ' — ' + label + '.'
     }
