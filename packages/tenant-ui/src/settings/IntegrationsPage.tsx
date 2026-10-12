@@ -19,7 +19,7 @@ export const DEFAULT_LEAD_SOURCES: LeadSourceGuide[] = leadSourceGuides()
 
 interface Status {
   quickbooks: { connected: boolean; configured?: boolean; companyName: string | null; lastSync: string | null; syncEnabled?: boolean }
-  stripe: { connected: boolean; accountId: string | null; chargesEnabled: boolean; configured?: boolean }
+  stripe: { connected: boolean; chargesEnabled: boolean; configured?: boolean }
   sms: { enabled: boolean; usage: number }
   email: { enabled: boolean; usage: number }
   twilio: { configured: boolean; ownAccount?: boolean; phoneNumber: string | null }
@@ -28,7 +28,7 @@ const EMPTY: Status = {
   // configured is left undefined until the status lands — only an explicit false means "this server has
   // no QuickBooks credentials", so the card never flashes "not available" while it is still loading.
   quickbooks: { connected: false, companyName: null, lastSync: null, syncEnabled: false },
-  stripe: { connected: false, accountId: null, chargesEnabled: false },
+  stripe: { connected: false, chargesEnabled: false },
   sms: { enabled: false, usage: 0 }, email: { enabled: false, usage: 0 },
   twilio: { configured: false, phoneNumber: null },
 }

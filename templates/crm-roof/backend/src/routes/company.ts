@@ -29,6 +29,19 @@ function sanitizeCompany<T extends Record<string, any>>(row: T): T {
 app.use('*', authenticate)
 
 /**
+ * What of the company row this reader gets — the shared route's rule (packages/tenant-backend company.ts forReader):
+ * below company:update no commercial terms; an admin (company:update without billing:manage) the plan but not the
+ * integrations bag — the Stripe account customers pay into and the other connectors' ids, which no screen reads and
+ * which are the owner's (Contractor admin pass, 10/12); the owner the row. Every reply that carries the row uses it.
+ */
+const forReader = async (u: any, safe: any) => {
+  const extra = await getExtraPermissions(u?.userId)
+  if (!hasPermission(u?.role, 'company:update', extra)) return redactCompanyCommercial(safe)
+  if (!hasPermission(u?.role, 'billing:manage', extra)) { const { integrations: _connected, ...rest } = safe; return rest }
+  return safe
+}
+
+/**
  * The bill goes only to whoever may change the company — the shared route's rule, the same
  * `company:update` question asked the same way. (T60: a manager read plan, monthlyAmount, seatLimit and
  * the whole `integrations` bag here; this route had no commercial redaction at all.)
@@ -37,9 +50,7 @@ app.get('/', async (c) => {
   const currentUser = c.get('user') as any
   const [result] = await db.select().from(company).where(eq(company.id, currentUser.companyId)).limit(1)
   if (!result) return c.json({ error: 'Company not found' }, 404)
-  const safe = sanitizeCompany(result)
-  if (hasPermission(currentUser.role, 'company:update', await getExtraPermissions(currentUser.userId))) return c.json(safe)
-  return c.json(redactCompanyCommercial(safe))
+  return c.json(await forReader(currentUser, sanitizeCompany(result)))
 })
 
 // The Features page renders THIS — the registry entries offered to this template — never a local
@@ -83,7 +94,7 @@ app.put('/features', requireAdmin, async (c) => {
   // the sidebar shows the link straight away, and the page they land on answers "This module is not
   // enabled for your account" for another quarter of a minute. (roof T18)
   forgetFeatures(currentUser.companyId)
-  return c.json(sanitizeCompany(result))
+  return c.json(await forReader(currentUser, sanitizeCompany(result)))
 })
 
 export default app

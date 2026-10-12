@@ -299,6 +299,18 @@ console.log('\n══════════ T41 · who may read the commercial
   check('T41: …and NEVER the Stripe customer id, even for the owner',
     !('stripeCustomerId' in (byOwner.json || {})), Object.keys(byOwner.json || {}).filter((k) => /stripe/i.test(k)))
 
+  // An admin: the plan and licence (the Billing page shows them those anyway), but not the connected accounts — the
+  // Stripe account the shop's customers pay into is the owner's, like changing the plan. (Contractor admin pass, 10/12)
+  const byAdmin = await asAdmin('GET', '/api/company')
+  check('10/12: an admin reads the company with the plan', byAdmin.status === 200 && 'subscriptionTier' in (byAdmin.json || {}), commercial(byAdmin.json))
+  check('10/12: …but no integrations bag — the Stripe account id and the QuickBooks realm stay with the owner',
+    !('integrations' in (byAdmin.json || {})) && !/acct_T41PROBE|9130350000000000/.test(JSON.stringify(byAdmin.json || {})), commercial(byAdmin.json))
+  const savedByAdmin = await asAdmin('PUT', '/api/company', { phone: '555-0100' })
+  check('10/12: …and a save does not hand back what the read withholds',
+    savedByAdmin.status === 200 && !/acct_T41PROBE/.test(JSON.stringify(savedByAdmin.json || {})), { status: savedByAdmin.status, keys: Object.keys(savedByAdmin.json || {}).filter((k) => /integr/.test(k)) })
+  const savedByOwner = await asOwner('PUT', '/api/company', { phone: '555-0101' })
+  check('10/12: the owner\'s save still returns the row whole', savedByOwner.status === 200 && /acct_T41PROBE/.test(JSON.stringify(savedByOwner.json || {})), Object.keys(savedByOwner.json || {}).length)
+
   // THE ASSERTIONS THIS SECTION EXISTS FOR.
   const mgr2 = await mk('manager', 'mgr-billing')
   const byManager = await as(mgr2)('GET', '/api/company')

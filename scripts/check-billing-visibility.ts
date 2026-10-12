@@ -37,13 +37,25 @@ if (payloads < 4) fail(`only ${payloads} sign-in settings payload(s) found — t
 // 2 ─ GET /api/company, in every implementation that answers it
 const shared = read('packages/tenant-backend/src/company/company.ts')
 const sharedGet = shared.slice(shared.indexOf("app.get('/', async"), shared.indexOf("app.put('/'"))
-if (!/return c\.json\(redactCompanyCommercial\(safe\)\)/.test(sharedGet) || !/canSee\(currentUser\.role, 'company:update'/.test(sharedGet)) fail('shared GET /api/company must answer a non-updater with redactCompanyCommercial')
+// One reader rule, used by the GET and by every save that hands the row back (10/12): below company:update the
+// commercial terms go; below billing:manage (an admin) the integrations bag — the connected accounts — goes too.
+const sharedReader = shared.slice(shared.indexOf('const forReader = async'), shared.indexOf("app.get('/', async"))
+if (!/return c\.json\(await forReader\(c, safe\)\)/.test(sharedGet)
+  || !/if \(!\(await canSee\(u\?\.role, 'company:update', u\?\.userId\)\)\) return redactCompanyCommercial\(safe\)/.test(sharedReader)
+  || !/if \(!\(await canSee\(u\?\.role, 'billing:manage', u\?\.userId\)\)\) \{ const \{ integrations: _connected, \.\.\.rest \} = safe; return rest \}/.test(sharedReader)) fail('shared GET /api/company must answer through forReader: redactCompanyCommercial below company:update, no integrations bag below billing:manage')
+const sharedSaves = (shared.match(/return c\.json\(sanitizeCompany\(row\)\)/g) || []).length
+if (sharedSaves) fail(`shared company route: ${sharedSaves} save(s) hand the row back without forReader — a save must not return what the read withholds`)
 const redact = read('packages/tenant-backend/src/auth/redactSettings.ts')
 const rcc = redact.slice(redact.indexOf('export function redactCompanyCommercial'))
 if (!/clone\.settings = redactCompanySettings\(clone\.settings, \{ privileged: false \}\)/.test(rcc)) fail('redactCompanyCommercial must redact the settings blob too — billing.ts mirrors the subscription INTO settings')
 const roof = read('templates/crm-roof/backend/src/routes/company.ts')
 const roofGet = roof.slice(roof.indexOf("app.get('/', async"), roof.indexOf("app.get('/features/catalog'"))
-if (!/hasPermission\(currentUser\.role, 'company:update'/.test(roofGet) || !/redactCompanyCommercial\(safe\)/.test(roofGet)) fail("crm-roof GET /api/company must redact the commercial terms for a non-updater, asked with 'company:update'")
+const roofReader = roof.slice(roof.indexOf('const forReader = async'), roof.indexOf("app.get('/', async"))
+if (!/return c\.json\(await forReader\(currentUser, sanitizeCompany\(result\)\)\)/.test(roofGet)
+  || !/if \(!hasPermission\(u\?\.role, 'company:update', extra\)\) return redactCompanyCommercial\(safe\)/.test(roofReader)
+  || !/if \(!hasPermission\(u\?\.role, 'billing:manage', extra\)\) \{ const \{ integrations: _connected, \.\.\.rest \} = safe; return rest \}/.test(roofReader)) fail("crm-roof GET /api/company must answer through forReader: commercial terms asked with 'company:update', the integrations bag with 'billing:manage'")
+if (/return c\.json\(sanitizeCompany\(result\)\)/.test(roof)) fail('crm-roof: a reply hands the company row back without forReader')
+if (!/else if \(!hasPermission\(String\(role \?\? ''\), 'billing:manage'\)\) delete clone\.integrations/.test(read('templates/crm-dispensary/backend/src/routes/company.ts'))) fail('crm-dispensary: an admin must not be sent the integrations bag (billing:manage)')
 const disp = read('templates/crm-dispensary/backend/src/routes/company.ts')
 if (!/clone\.settings = redactCompanySettings\(clone\.settings, \{ privileged: isPrivilegedRole\(role\) \}\)/.test(disp)) fail('crm-dispensary GET /api/company must keep redacting settings by role')
 // …and the commercial COLUMNS from the shared list, not a hand-kept copy of two of its keys (T61)

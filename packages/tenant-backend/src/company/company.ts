@@ -173,6 +173,25 @@ export function createCompanyRoutes(deps: CompanyDeps) {
 
   const readBody = async (c: any) => (await c.req.json().catch(() => null)) ?? ({} as any)
 
+  /**
+   * What of the company row this reader gets. (T41; Contractor admin pass, 10/12)
+   *   · below company:update — no commercial terms at all (redactCompanyCommercial);
+   *   · company:update without billing:manage (an admin) — the plan and licence, which the Billing page shows them
+   *     anyway, but NOT the integrations bag: the Stripe account the shop's customers pay into, the QuickBooks
+   *     realm, whatever the next connector adds. No screen reads any of it for any seat, and the accounts the
+   *     business's money runs through are the owner's (billing:manage), as changing the plan is;
+   *   · the owner — the row.
+   * Every reply that carries the row goes through here — the GET and each save — so a save cannot hand back what
+   * the read withholds. canSee not wired → not asked → unchanged.
+   */
+  const forReader = async (c: any, safe: any) => {
+    const u = c.get('user') as any
+    if (!canSee) return safe
+    if (!(await canSee(u?.role, 'company:update', u?.userId))) return redactCompanyCommercial(safe)
+    if (!(await canSee(u?.role, 'billing:manage', u?.userId))) { const { integrations: _connected, ...rest } = safe; return rest }
+    return safe
+  }
+
   // ---------------------------------------------------------------- company
   app.get('/', async (c) => {
     const currentUser = c.get('user') as any
@@ -186,9 +205,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
      * Asked with `company:update`: not wired (canSee absent) → not asked → today's behaviour, so a
      * template nobody rewires is unchanged rather than silently narrowed.
      */
-    if (!canSee) return c.json(safe)
-    if (await canSee(currentUser.role, 'company:update', currentUser.userId)) return c.json(safe)
-    return c.json(redactCompanyCommercial(safe))
+    return c.json(await forReader(c, safe))
   })
 
   app.put('/', requireAdmin, async (c) => {
@@ -383,7 +400,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
           : []
         // A save that changed nothing is not an event. Logging it is how a settings log fills with
         // rows nobody can act on, which is what buried the real ones.
-        if (!touched.length && !settingKeys.length) return c.json(sanitizeCompany(row))
+        if (!touched.length && !settingKeys.length) return c.json(await forReader(c, sanitizeCompany(row)))
         deps.audit.log({
           action: deps.audit.ACTIONS?.UPDATE ?? 'update',
           entity: deps.audit.ENTITIES?.COMPANY ?? 'company',
@@ -393,7 +410,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
         })
       }
     } catch { /* an unwritten log must not undo a saved setting */ }
-    return c.json(sanitizeCompany(row))
+    return c.json(await forReader(c, sanitizeCompany(row)))
   })
 
   // ---------------------------------------------------------------- features
@@ -447,7 +464,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
         })
       }
     } catch { /* as above */ }
-    return c.json(sanitizeCompany(row))
+    return c.json(await forReader(c, sanitizeCompany(row)))
   })
 
   // ---------------------------------------------------------------- users

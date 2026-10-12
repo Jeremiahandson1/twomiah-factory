@@ -111,10 +111,12 @@ export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
       try { const [{ value }] = await db.select({ value: count() }).from(t.emailLog).where(and(eq(t.emailLog.companyId, u.companyId), gte(t.emailLog.createdAt, startOfMonth))); emailCount = Number(value || 0) } catch { /* optional */ }
     }
 
-    let stripeStatus: any = { connected: false, accountId: null, chargesEnabled: false, configured: !!deps.stripe }
+    // Connected or not, and whether it can take a card — never the account id itself: no screen shows it, and it is
+    // the owner's to see (/api/company keeps it for them alone). (Contractor admin pass, 10/12)
+    let stripeStatus: any = { connected: false, chargesEnabled: false, configured: !!deps.stripe }
     if (integrations.stripeAccountId && deps.stripe) {
-      try { const account = await deps.stripe.accounts.retrieve(integrations.stripeAccountId); stripeStatus = { connected: true, accountId: account.id, chargesEnabled: !!account.charges_enabled, configured: true } }
-      catch { stripeStatus = { connected: false, accountId: null, chargesEnabled: false, configured: true } }
+      try { const account = await deps.stripe.accounts.retrieve(integrations.stripeAccountId); stripeStatus = { connected: true, chargesEnabled: !!account.charges_enabled, configured: true } }
+      catch { stripeStatus = { connected: false, chargesEnabled: false, configured: true } }
       if (stripeStatus.connected) registerStripeAccount(integrations.stripeAccountId)
     }
 

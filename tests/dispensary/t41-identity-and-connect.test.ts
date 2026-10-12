@@ -275,6 +275,14 @@ console.log('\n── who can read the commercial fields ──')
     'integrations' in (asOwner2.json || {}) && 'subscriptionTier' in (asOwner2.json || {}),
     Object.keys(asOwner2.json || {}).filter((k) => /integrations|subscription/.test(k)))
 
+  // An admin: the tier, but not the connected accounts — the Stripe account customers pay into is the owner's.
+  // (Contractor admin pass, 10/12; the shared company route draws the same line.)
+  const admin = await mkUser('admin', 'admin-v4')
+  const asAdmin2 = await getCompany(admin)
+  check('10/12: an admin reads the company with the tier but no integrations bag',
+    asAdmin2.status === 200 && 'subscriptionTier' in (asAdmin2.json || {}) && !('integrations' in (asAdmin2.json || {})) && !/acct_T41DISP|mk_T41DISP/.test(asAdmin2.text || ''),
+    Object.keys(asAdmin2.json || {}).filter((k) => /integrations|subscription/.test(k)))
+
   for (const [label, who] of [['manager', manager], ['budtender', budtender], ['viewer', viewer]] as const) {
     const got = await getCompany(who)
     check(`V4: a ${label} still reads the company — the shell needs the name and branding`,

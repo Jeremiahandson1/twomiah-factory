@@ -13,7 +13,7 @@ export default function IntegrationsPage() {
   const [success, setSuccess] = useState('');
   const [integrations, setIntegrations] = useState({
     quickbooks: { connected: false, companyName: null, lastSync: null },
-    stripe: { connected: false, accountId: null, chargesEnabled: false },
+    stripe: { connected: false, chargesEnabled: false },
     sms: { enabled: false, usage: 0 },
     email: { enabled: false, usage: 0 },
   });
@@ -102,7 +102,7 @@ export default function IntegrationsPage() {
       await api.post('/api/integrations/stripe/disconnect');
       setIntegrations(prev => ({
         ...prev,
-        stripe: { connected: false, accountId: null, chargesEnabled: false },
+        stripe: { connected: false, chargesEnabled: false },
       }));
       setSuccess('Stripe disconnected');
     } catch (err) {

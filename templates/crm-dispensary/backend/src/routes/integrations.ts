@@ -582,13 +582,14 @@ app.get('/status', authenticate, requireAdmin, async (c) => {
   const smsCount = 0
   const emailCount = 0
 
-  let stripeStatus: any = { connected: false, accountId: null, chargesEnabled: false }
+  // Connected and able to take a card — never the account id: no screen shows it, and it is the owner's. (10/12)
+  let stripeStatus: any = { connected: false, chargesEnabled: false }
   if (integrations.stripeAccountId && stripe) {
     try {
       const account = await stripe.accounts.retrieve(integrations.stripeAccountId)
-      stripeStatus = { connected: true, accountId: account.id, chargesEnabled: account.charges_enabled }
+      stripeStatus = { connected: true, chargesEnabled: account.charges_enabled }
     } catch (err) {
-      stripeStatus = { connected: false, accountId: null, chargesEnabled: false }
+      stripeStatus = { connected: false, chargesEnabled: false }
     }
   }
 

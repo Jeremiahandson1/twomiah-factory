@@ -5,7 +5,7 @@ import { db } from '../../db/index.ts'
 import { company, user } from '../../db/schema.ts'
 import { eq, and } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
-import { requirePermission, invalidateExtraPermissions } from '../middleware/permissions.ts'
+import { requirePermission, invalidateExtraPermissions, hasPermission } from '../middleware/permissions.ts'
 
 import { getFeaturesForTemplate, FEATURE_MAP } from '../shared/featureRegistry.ts'
 import { passwordSchema, COMPANY_COMMERCIAL } from '../shared/index.ts'
@@ -59,6 +59,10 @@ function sanitizeCompany<T extends Record<string, any>>(row: T, role?: unknown):
    */
   // The shared list, not a copy of it — this deleted two of its keys by hand and so missed the rest. (T61)
   if (!isPrivilegedRole(role)) for (const f of COMPANY_COMMERCIAL) delete clone[f]
+  // …and an admin gets the plan but not the integrations bag: the Stripe account customers pay into, the METRC keys'
+  // neighbours, the next connector's ids. No screen reads it, and the accounts the money runs through are the owner's
+  // (billing:manage — Contractor admin pass, 10/12; the shared company route's forReader draws the same line).
+  else if (!hasPermission(String(role ?? ''), 'billing:manage')) delete clone.integrations
   // Settings → Loyalty reads these flat keys; they live under settings.loyalty. Without them the
   // screen fell back to its own placeholder numbers and looked like it had loaded a saved config. (T21 M7)
   Object.assign(clone, loyaltyConfigResponse(row))
