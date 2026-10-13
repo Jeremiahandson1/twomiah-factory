@@ -2564,6 +2564,8 @@ jobs:
           bun-version: latest
       - name: "check composer facts"
         run: bun run scripts/check-composer-facts.ts
+      - name: "check premium site origin"
+        run: bun run scripts/check-premium-site-origin.ts
 
   write-controls-ask-permission:
     name: "A shared screen that writes asks whether this person may"

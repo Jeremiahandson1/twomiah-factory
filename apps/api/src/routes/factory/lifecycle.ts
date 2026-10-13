@@ -7,6 +7,7 @@ import { notifyPreviewFollowup, notifyPostLaunchTips, notifyDomainRenewal, notif
 import fs from 'fs'
 import path from 'path'
 import { getRegistrar, isRegistrarConfigured } from '../../services/registrar'
+import { ourPremiumSiteOrigin } from '../../services/premiumSiteUrl'
 import { type FactoryApp, secureEquals, checkFactoryKey, checkCronSecret, factoryKeyOrRole, UUID_RE, DOMAIN_RE, logTenantAudit, parseJsonBody } from './shared'
 
 export function registerLifecycleRoutes(factory: FactoryApp) {
@@ -597,12 +598,14 @@ factory.get('/calendar/google/callback', async (c) => {
   } catch { /* non-fatal */ }
 
   // Forward tokens to the tenant
-  const { data: tenant } = await supabase.from('tenants').select('website_url, factory_sync_key').eq('id', entry.tenantId).single()
-  if (!tenant?.website_url || !tenant?.factory_sync_key) {
+  const { data: tenant } = await supabase.from('tenants').select('slug, website_url, domain, factory_sync_key').eq('id', entry.tenantId).single()
+  // The owner's calendar tokens + the tenant's key: only to a site we serve.
+  const site = tenant ? ourPremiumSiteOrigin(tenant) : null
+  if (!site || !tenant?.factory_sync_key) {
     return c.html('<p>Tenant routing not configured.</p>', 502)
   }
   try {
-    const r = await fetch(tenant.website_url.replace(/\/$/, '') + '/api/internal/calendar/store-tokens', {
+    const r = await fetch(site + '/api/internal/calendar/store-tokens', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Factory-Key': tenant.factory_sync_key },
       body: JSON.stringify({
@@ -786,12 +789,14 @@ factory.get('/calendar/outlook/callback', async (c) => {
     if (ures.ok) { const ud: any = await ures.json(); externalEmail = ud.mail || ud.userPrincipalName || '' }
   } catch { /* non-fatal */ }
 
-  const { data: tenant } = await supabase.from('tenants').select('website_url, factory_sync_key').eq('id', entry.tenantId).single()
-  if (!tenant?.website_url || !tenant?.factory_sync_key) {
+  const { data: tenant } = await supabase.from('tenants').select('slug, website_url, domain, factory_sync_key').eq('id', entry.tenantId).single()
+  // The owner's calendar tokens + the tenant's key: only to a site we serve.
+  const site = tenant ? ourPremiumSiteOrigin(tenant) : null
+  if (!site || !tenant?.factory_sync_key) {
     return c.html('<p>Tenant routing not configured.</p>', 502)
   }
   try {
-    const r = await fetch(tenant.website_url.replace(/\/$/, '') + '/api/internal/calendar/store-tokens', {
+    const r = await fetch(site + '/api/internal/calendar/store-tokens', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Factory-Key': tenant.factory_sync_key },
       body: JSON.stringify({
@@ -815,17 +820,21 @@ factory.get('/calendar/outlook/callback', async (c) => {
 })
 
 // ─── Twomiah Bookings post-job review request SMS (daily) ──────────────────
+// These three booking crons filtered status 'live', which tenants_status_check doesn't allow (a
+// deployed tenant is 'active', deploy.ts) — so they matched no tenant and no reminder, rebook
+// reminder or review request was ever sent.
 factory.post('/internal/booking-review-requests', async (c) => {
   if (!checkCronSecret(c)) return c.json({ error: 'Unauthorized' }, 401)
   const { data: tenants, error } = await supabase
-    .from('tenants').select('id, slug, website_url, factory_sync_key, status')
-    .eq('status', 'live').contains('products', ['website-premium'])
+    .from('tenants').select('id, slug, website_url, domain, factory_sync_key, status')
+    .eq('status', 'active').contains('products', ['website-premium'])
   if (error) return c.json({ error: error.message }, 500)
   const results: any[] = []
   for (const t of tenants || []) {
-    if (!t.website_url || !t.factory_sync_key) continue
+    const site = ourPremiumSiteOrigin(t)
+    if (!site || !t.factory_sync_key) continue
     try {
-      const res = await fetch(t.website_url.replace(/\/$/, '') + '/api/internal/booking-review-requests', {
+      const res = await fetch(site + '/api/internal/booking-review-requests', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Factory-Key': t.factory_sync_key },
         signal: AbortSignal.timeout(30_000),
       })
@@ -844,16 +853,17 @@ factory.post('/internal/booking-rebook-reminders', async (c) => {
 
   const { data: tenants, error } = await supabase
     .from('tenants')
-    .select('id, slug, website_url, factory_sync_key, status')
-    .eq('status', 'live')
+    .select('id, slug, website_url, domain, factory_sync_key, status')
+    .eq('status', 'active')
     .contains('products', ['website-premium'])
   if (error) return c.json({ error: error.message }, 500)
 
   const results: any[] = []
   for (const t of tenants || []) {
-    if (!t.website_url || !t.factory_sync_key) continue
+    const site = ourPremiumSiteOrigin(t)
+    if (!site || !t.factory_sync_key) continue
     try {
-      const res = await fetch(t.website_url.replace(/\/$/, '') + '/api/internal/booking-rebook-reminders', {
+      const res = await fetch(site + '/api/internal/booking-rebook-reminders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Factory-Key': t.factory_sync_key },
         signal: AbortSignal.timeout(30_000),
@@ -877,19 +887,20 @@ factory.post('/internal/booking-reminders', async (c) => {
 
   const { data: tenants, error } = await supabase
     .from('tenants')
-    .select('id, slug, website_url, factory_sync_key, products, status')
-    .eq('status', 'live')
+    .select('id, slug, website_url, domain, factory_sync_key, products, status')
+    .eq('status', 'active')
     .contains('products', ['website-premium'])
   if (error) return c.json({ error: error.message }, 500)
 
   const results: any[] = []
   for (const t of tenants || []) {
-    if (!t.website_url || !t.factory_sync_key) {
-      results.push({ slug: t.slug, ok: false, reason: 'missing url or sync key' })
+    const site = ourPremiumSiteOrigin(t)
+    if (!site || !t.factory_sync_key) {
+      results.push({ slug: t.slug, ok: false, reason: 'no site we serve, or no sync key' })
       continue
     }
     try {
-      const res = await fetch(t.website_url.replace(/\/$/, '') + '/api/internal/booking-reminders', {
+      const res = await fetch(site + '/api/internal/booking-reminders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Factory-Key': t.factory_sync_key },
         signal: AbortSignal.timeout(30_000),

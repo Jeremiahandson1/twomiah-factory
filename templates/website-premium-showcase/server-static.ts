@@ -26,7 +26,13 @@ import path from 'path'
 import crypto from 'crypto'
 import { db } from './db'
 import { settings as settingsTbl, pages as pagesTbl, leads as leadsTbl, posts as postsTbl, pageViews as pageViewsTbl } from './db/schema'
-import adminRoutes from './routes/admin'
+import adminRoutes, { authMiddleware, requireAdmin } from './routes/admin'
+// The same check every route in routes/admin.ts uses: the admin app's httpOnly session cookie (or a
+// Bearer token), verified and checked against revoked sessions. The billing, domain and CRM routes
+// below used to accept ANY "Bearer ..." header — anyone could open the owner's billing portal — and
+// rejected the admin app itself, which sends the cookie, not a header.
+const adminAuth = authMiddleware as any
+const adminOnly = requireAdmin as any
 import { secureHeaders, adminCors, loginRateLimit, isSafeUrl } from './lib/security'
 
 // Cache-busting version for local stylesheets: changes every deploy (Render
@@ -1459,11 +1465,7 @@ async function notifyOwnerOfLead(lead: { name: string; email: string; phone: str
 // shared FACTORY_SYNC_KEY for auth. Admin-only — gated by /api/admin/
 // auth middleware in the route mount above isn't applied here, but
 // the path is /api/admin/billing-portal so we gate manually below.
-app.get('/api/admin/billing-portal', async (c) => {
-  const authz = c.req.header('Authorization') || ''
-  if (!authz.startsWith('Bearer ')) return c.json({ error: 'Missing auth token' }, 401)
-  // Don't bother fully verifying — admin SPA already gates the route.
-  // The token presence is a smoke check.
+app.get('/api/admin/billing-portal', adminAuth, adminOnly, async (c: any) => {
 
   const factoryUrl = process.env.FACTORY_URL
   const tenantId = process.env.TENANT_ID
@@ -1488,9 +1490,7 @@ app.get('/api/admin/billing-portal', async (c) => {
 // Proxies to factory which does the actual Cloudflare zone creation
 // + Render custom-domain attachment. Returns the nameservers the
 // customer needs to set at their registrar.
-app.post('/api/admin/domain/attach', async (c) => {
-  const authz = c.req.header('Authorization') || ''
-  if (!authz.startsWith('Bearer ')) return c.json({ error: 'Missing auth token' }, 401)
+app.post('/api/admin/domain/attach', adminAuth, adminOnly, async (c: any) => {
   const factoryUrl = process.env.FACTORY_URL
   const tenantId = process.env.TENANT_ID
   const syncKey = process.env.FACTORY_SYNC_KEY
@@ -1513,9 +1513,7 @@ app.post('/api/admin/domain/attach', async (c) => {
 
 // Read current custom-domain status — drives the admin page's banner
 // (pending nameservers / active / not configured).
-app.get('/api/admin/domain/status', async (c) => {
-  const authz = c.req.header('Authorization') || ''
-  if (!authz.startsWith('Bearer ')) return c.json({ error: 'Missing auth token' }, 401)
+app.get('/api/admin/domain/status', adminAuth, adminOnly, async (c: any) => {
   const factoryUrl = process.env.FACTORY_URL
   const tenantId = process.env.TENANT_ID
   const syncKey = process.env.FACTORY_SYNC_KEY
@@ -1536,9 +1534,7 @@ app.get('/api/admin/domain/status', async (c) => {
 // Buy flow — proxy to factory to create a Stripe Checkout session for
 // the domain registration. The customer pays, the webhook fires the
 // actual Namecheap registration, then wireDomainInfrastructure runs.
-app.post('/api/admin/domain/buy-checkout', async (c) => {
-  const authz = c.req.header('Authorization') || ''
-  if (!authz.startsWith('Bearer ')) return c.json({ error: 'Missing auth token' }, 401)
+app.post('/api/admin/domain/buy-checkout', adminAuth, adminOnly, async (c: any) => {
   const factoryUrl = process.env.FACTORY_URL
   const tenantId = process.env.TENANT_ID
   const syncKey = process.env.FACTORY_SYNC_KEY
@@ -1561,9 +1557,7 @@ app.post('/api/admin/domain/buy-checkout', async (c) => {
 
 // Public: probe availability for the buy flow (proxies to factory).
 // Same rate-limiting story as the intake form — factory enforces.
-app.post('/api/admin/domain/check', async (c) => {
-  const authz = c.req.header('Authorization') || ''
-  if (!authz.startsWith('Bearer ')) return c.json({ error: 'Missing auth token' }, 401)
+app.post('/api/admin/domain/check', adminAuth, adminOnly, async (c: any) => {
   const factoryUrl = process.env.FACTORY_URL
   if (!factoryUrl) return c.json({ error: 'Not configured' }, 503)
   const body = await c.req.json().catch(() => ({})) as { domain?: string }
@@ -1633,9 +1627,7 @@ app.post('/api/internal/set-crm-url', async (c) => {
 // button. Public endpoint shape (returns booleans + URL, never the
 // handoff token) — token mint happens via /api/admin/crm-handoff
 // behind the admin gate.
-app.get('/api/admin/crm-status', async (c) => {
-  const authz = c.req.header('Authorization') || ''
-  if (!authz.startsWith('Bearer ')) return c.json({ error: 'Missing auth token' }, 401)
+app.get('/api/admin/crm-status', adminAuth, async (c: any) => {
   const s = (await db.select().from(settingsTbl).limit(1))[0]
   const ready = !!(s as any)?.crmUrl
   return c.json({
@@ -1650,24 +1642,15 @@ app.get('/api/admin/crm-status', async (c) => {
 // CRM (which has the same key) can verify. Token is single-use,
 // 60-second TTL, and carries the user's email so the CRM can match
 // to its local seeded user row.
-app.get('/api/admin/crm-handoff', async (c) => {
-  const authz = c.req.header('Authorization') || ''
-  if (!authz.startsWith('Bearer ')) return c.json({ error: 'Missing auth token' }, 401)
+app.get('/api/admin/crm-handoff', adminAuth, adminOnly, async (c: any) => {
   const factoryUrl = process.env.FACTORY_URL
   const tenantId = process.env.TENANT_ID
   const syncKey = process.env.FACTORY_SYNC_KEY
-  const jwtSecret = process.env.JWT_SECRET
-  if (!factoryUrl || !tenantId || !syncKey || !jwtSecret) {
+  if (!factoryUrl || !tenantId || !syncKey) {
     return c.json({ error: 'Handoff not configured on this tenant.' }, 503)
   }
-  let email = ''
-  try {
-    const jwtLib = (await import('jsonwebtoken')).default
-    const decoded = jwtLib.verify(authz.replace(/^Bearer\s+/, ''), jwtSecret) as { email?: string }
-    email = String(decoded.email || '').toLowerCase()
-  } catch {
-    return c.json({ error: 'Invalid auth token' }, 401)
-  }
+  // Verified by adminAuth — the signed-in owner's own email.
+  const email = String(c.get('userEmail') || '').toLowerCase()
   if (!email) return c.json({ error: 'No email on session' }, 401)
   try {
     const r = await fetch(
@@ -1688,9 +1671,7 @@ app.get('/api/admin/crm-handoff', async (c) => {
 // /admin/billing?crm=ordered, the BillingPage shows a "thanks, we'll
 // have it up within 24h" banner. Actual provisioning is gated by
 // Jeremiah running scripts/provision-crm-for-tenant.ts in V1.
-app.get('/api/admin/checkout/crm-addon', async (c) => {
-  const authz = c.req.header('Authorization') || ''
-  if (!authz.startsWith('Bearer ')) return c.json({ error: 'Missing auth token' }, 401)
+app.get('/api/admin/checkout/crm-addon', adminAuth, adminOnly, async (c: any) => {
   const factoryUrl = process.env.FACTORY_URL
   const tenantId = process.env.TENANT_ID
   const syncKey = process.env.FACTORY_SYNC_KEY

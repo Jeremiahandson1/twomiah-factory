@@ -9,6 +9,7 @@ import fs from 'fs'
 import path from 'path'
 import { getProductDefaults } from '../../config/pricing'
 import { hardDeleteTestTenant, cleanupOrphanTestTenants } from '../../services/testCleanup'
+import { ourPremiumSiteOrigin } from '../../services/premiumSiteUrl'
 import { type FactoryApp, UUID_RE, checkCronSecret, secureEquals, logTenantAudit } from './shared'
 
 export function registerDeployRoutes(factory: FactoryApp) {
@@ -795,14 +796,17 @@ export async function triggerAutoDeploy(tenantId: string) {
 async function seedIntakePhotosIfPremium(tenantId: string): Promise<void> {
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('id, slug, products, render_frontend_url, factory_sync_key, intake_data')
+    .select('id, slug, products, website_url, domain, factory_sync_key, intake_data')
     .eq('id', tenantId)
     .single()
   if (!tenant) return
   const products: string[] = Array.isArray(tenant.products) ? tenant.products : []
   if (!products.includes('website-premium')) return
-  if (!tenant.render_frontend_url) {
-    console.warn('[SeedPhotos] No render_frontend_url for', tenant.slug, '— skipping')
+  // The site's own address. This read render_frontend_url, which is the CRM's (or nothing on a
+  // site-only deploy) — so intake photos never reached a premium site's library.
+  const site = ourPremiumSiteOrigin(tenant)
+  if (!site) {
+    console.warn('[SeedPhotos] No deployed site address for', tenant.slug, '— skipping')
     return
   }
   if (!tenant.factory_sync_key) {
@@ -829,7 +833,7 @@ async function seedIntakePhotosIfPremium(tenantId: string): Promise<void> {
     return
   }
 
-  const endpoint = tenant.render_frontend_url.replace(/\/$/, '') + '/api/internal/seed-photos'
+  const endpoint = site + '/api/internal/seed-photos'
   try {
     const res = await fetch(endpoint, {
       method: 'POST',

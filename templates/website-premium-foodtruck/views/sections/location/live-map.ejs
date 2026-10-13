@@ -18,7 +18,10 @@
   const mapCenter = Array.isArray(data.mapCenter) && data.mapCenter.length === 2 ? data.mapCenter : null
   const mapZoom = typeof data.mapZoom === 'number' ? data.mapZoom : 13
   const recent = Array.isArray(data.recentLocations) ? data.recentLocations : []
-  const smsOptIn = data.smsOptIn !== false  // default ON; explicit false to hide
+  // Off until a real texting signup exists: nothing receives /api/sms-subscribe (the form 404d),
+  // and the form promises texts — that needs A2P consent wiring first. settings.smsSubscribeEnabled
+  // is the switch for when it does.
+  const smsOptIn = !!(settings && settings.smsSubscribeEnabled) && data.smsOptIn !== false
   const mapboxToken = (settings && settings.mapboxPublicToken) || ''
   const isOpenNow = !!currentAddress && !!currentUntil
 %>

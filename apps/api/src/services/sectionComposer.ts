@@ -338,6 +338,22 @@ export const SECTION_SCHEMA = {
       use_when: 'landscaping, lawn care, snow removal, pool service, pest control — any vertical that sells recurring service packages OR seasonal contracts. Stack of package cards with the current-season-relevant one highlighted. Items: { title, tier (basic/standard/premium), pricePerMonth, includes[], seasonOnly?, badge? }. The renderer auto-detects current month and badges the seasonally relevant tier. pricePerMonth ONLY from the intake — leave it out when none is given (the card renders without a price).',
     },
   },
+  // These two were in the RV and vet recipes (and have partials) but not here, so
+  // sanitizeSections dropped every one the model wrote.
+  inventory: {
+    showcase: {
+      required: ['units'],
+      optional: ['heading', 'intro', 'ctaLabel', 'ctaUrl', 'disclaimer'],
+      use_when: 'RV / marine / powersports dealer — a featured-units grid. Units: { title, year, make, model, type, price, payment, length, mileage, image, status }. ONLY units the owner listed in the intake, with ONLY the prices and specs they gave — never invent a unit, a price or a payment. No units supplied → leave this section out. It is a featured selection, not a live feed of the lot.',
+    },
+  },
+  urgent: {
+    bar: {
+      required: ['phone'],
+      optional: ['heading', 'afterHoursNote', 'emergencyPartner', 'walkIns'],
+      use_when: 'veterinary clinic — a top bar for the owner whose animal is sick right now: heading + tap-to-call phone. walkIns:true ONLY when the intake says they take walk-ins; emergencyPartner { name, phone, address } ONLY when the intake names the after-hours ER they refer to; afterHoursNote only in the intake\'s own words.',
+    },
+  },
 } as const
 
 type SectionType = keyof typeof SECTION_SCHEMA
@@ -1046,12 +1062,12 @@ const VET_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a veterinary clinic. Answer "can you see my animal, and can I trust you with it" in that order — urgency first, then the people.',
     allowed_types: ['urgent', 'hero', 'trust', 'services', 'team', 'reservation', 'testimonials', 'stats', 'cta'],
-    required_sequence: '1 urgent/bar first (open-now state + phone — the highest-intent visitor has a sick animal RIGHT NOW and will not scroll), 1 hero/split or hero/full-bleed (real clinic or staff-with-animal photography, never stock of a stranger hugging a dog), 1 trust/badges (AAHA accreditation, Fear Free certification, state license, years serving the area — only badges the clinic actually holds), 1 services/grid (wellness, dental, surgery, diagnostics, urgent care — by SERVICE not by species unless the clinic is species-specific), 1 reservation/cta with heading "Book an appointment" and buttonLabel "Request a time" (Twomiah Bookings), optional 1 team/grid (owners choose a vet, not a building — faces matter more here than in most verticals), optional 1 testimonials, close with 1 cta',
+    required_sequence: '1 urgent/bar first (open-now state + phone — the highest-intent visitor has a sick animal RIGHT NOW and will not scroll), 1 hero/split or hero/full-bleed (real clinic or staff-with-animal photography, never stock of a stranger hugging a dog), 1 trust/badges (AAHA accreditation, Fear Free certification, state license, years serving the area — only badges the clinic actually holds), 1 services/cards-grid (wellness, dental, surgery, diagnostics, urgent care — by SERVICE not by species unless the clinic is species-specific), 1 reservation/cta with heading "Book an appointment" and buttonLabel "Request a time" (Twomiah Bookings), optional 1 team/grid (owners choose a vet, not a building — faces matter more here than in most verticals), optional 1 testimonials, close with 1 cta',
   },
   services: {
     purpose: 'What the clinic treats and how care actually works. Reassurance plus practical detail.',
     allowed_types: ['hero', 'services', 'faq', 'trust', 'reservation', 'cta'],
-    required_sequence: '1 hero/centered-stats (eyebrow="Our services"), 1 services/grid or services/list with plain-English descriptions (an owner does not know what "dental prophylaxis" means — say "cleaning under anesthesia, with x-rays"), optional 1 trust/badges, 1 faq covering anesthesia safety, what a visit costs, and payment plans, optional 1 reservation/cta, close with 1 cta',
+    required_sequence: '1 hero/centered-stats (eyebrow="Our services"), 1 services/alternating with plain-English descriptions (an owner does not know what "dental prophylaxis" means — say "cleaning under anesthesia, with x-rays"), optional 1 trust/badges, 1 faq covering anesthesia safety, what a visit costs, and payment plans, optional 1 reservation/cta, close with 1 cta',
   },
   team: {
     purpose: 'The veterinarians and technicians. In this vertical the relationship is with a person.',
@@ -1074,7 +1090,7 @@ const RV_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for an RV / marine / powersports dealership. Units sell units — lead with inventory, then the reasons to buy here instead of the dealer two hours away.',
     allowed_types: ['hero', 'inventory', 'trust', 'services', 'stats', 'testimonials', 'reservation', 'cta'],
-    required_sequence: '1 hero/full-bleed (real lot or a delivered customer, not a catalogue render), 1 inventory/showcase with featured units (this is the page — buyers browse units, not copy), 1 trust/badges (manufacturer certifications, dealer awards, financing partners, years in business — real ones only), optional 1 services/grid covering service, parts and consignment (service revenue is why a dealership survives), optional 1 stats/bar, optional 1 testimonials from delivered buyers, optional 1 reservation/cta with buttonLabel "Schedule a walkthrough" (Twomiah Bookings), close with 1 cta',
+    required_sequence: '1 hero/full-bleed (real lot or a delivered customer, not a catalogue render), 1 inventory/showcase with featured units (this is the page — buyers browse units, not copy), 1 trust/badges (manufacturer certifications, dealer awards, financing partners, years in business — real ones only), optional 1 services/cards-grid covering service, parts and consignment (service revenue is why a dealership survives), optional 1 stats/bar, optional 1 testimonials from delivered buyers, optional 1 reservation/cta with buttonLabel "Schedule a walkthrough" (Twomiah Bookings), close with 1 cta',
   },
   inventory: {
     purpose: 'The full featured-unit page. Browsing surface for buyers who are already shopping.',
@@ -1084,7 +1100,7 @@ const RV_PAGE_RECIPES = {
   service: {
     purpose: 'Service and parts department. Recurring revenue, and the reason a buyer comes back.',
     allowed_types: ['hero', 'services', 'trust', 'reservation', 'faq', 'cta'],
-    required_sequence: '1 hero/centered-stats (eyebrow="Service + parts"), 1 services/grid (winterizing, roof reseal, appliance repair, warranty work, storage), optional 1 trust/badges for factory-certified techs, 1 reservation/cta with buttonLabel "Book service" (Twomiah Bookings), optional 1 faq on turnaround time and whether they service units bought elsewhere, close with 1 cta',
+    required_sequence: '1 hero/centered-stats (eyebrow="Service + parts"), 1 services/cards-grid (winterizing, roof reseal, appliance repair, warranty work, storage), optional 1 trust/badges for factory-certified techs, 1 reservation/cta with buttonLabel "Book service" (Twomiah Bookings), optional 1 faq on turnaround time and whether they service units bought elsewhere, close with 1 cta',
   },
   about: {
     purpose: 'Who the dealership is. Family-owned beats corporate in this vertical, when true.',
@@ -1280,24 +1296,12 @@ const FOODTRUCK_PAGE_RECIPES = {
   },
 } as const
 
-function buildSitePrompt(input: ComposerInput): string {
-  const schemaSummary = Object.entries(SECTION_SCHEMA).map(([type, variants]) =>
-    `  ${type}: ${Object.keys(variants).join(', ')}`
-  ).join('\n')
 
-  // Industry-specific recipe overrides. Each vertical that needs a
-  // fundamentally different page model gets its own recipe set; the
-  // generic 4-page PAGE_RECIPES is the fallback.
-  //
-  // Matching uses word boundaries (\b) so customer-typed strings like
-  // "Italian restaurant" or "neighborhood cafe" still route correctly,
-  // not just exact tokens like "restaurant". Ordering of the ternary
-  // chain matters when a businessType contains multiple matching words:
-  // the first match in the chain below wins. Place more specific verticals
-  // (food truck, dispensary, vertical specialties) BEFORE more generic
-  // ones (restaurant, contractor) so a "food truck catering" routes to
-  // foodtruck not events.
-  const businessType = input.businessType || ''
+// Which trade a free-text business type reads as. ONE definition: buildSitePrompt uses it for the
+// prompt's trade guidance and page recipes, composeSite for the pages it keeps. They used to be two
+// hand-synced copies, and the copy in composeSite had no vet or RV branch — so a vet clinic's
+// team page and a dealer's inventory and service pages were composed, then thrown away.
+function tradeFlagsFor(businessType: string) {
   const ft = /\b(food[_\s\-]?truck|mobile[_\s\-]?food|food[_\s\-]?cart|mobile[_\s\-]?kitchen|pop[_\s\-]?up[_\s\-]?kitchen)\b/i.test(businessType)
   const dispensary = /\b(dispensary|cannabis|cannabis[_\s\-]?retail)\b/i.test(businessType)
   const vet = /\b(vet|vets|veterinary|veterinarian|animal[_\s\-]?hospital|animal[_\s\-]?clinic|pet[_\s\-]?hospital|pet[_\s\-]?clinic|equine[_\s\-]?vet)\b/i.test(businessType)
@@ -1320,7 +1324,15 @@ function buildSitePrompt(input: ComposerInput): string {
   // trade verticals above already claim "coffee shop"→cafe, "barbershop"→salon,
   // "vape shop"→store is fine. Catches dropshipping / e-commerce / online store.
   const store = /\b(store|shop|dropship|dropshipping|drop[_\s\-]?ship|e-?commerce|ecommerce|online[_\s\-]?store|online[_\s\-]?shop|retail|boutique|apparel|merch|goods|marketplace)\b/i.test(businessType)
-  const recipes: Record<string, { purpose: string; allowed_types: readonly string[]; required_sequence: string }> = ft
+  return { ft, dispensary, vet, rv, roofing, landscaping, homecare, fieldservice, cafe, restaurant, salon, fitness, hotel, events, contractor, store }
+}
+
+type PageRecipe = { purpose: string; allowed_types: readonly string[]; required_sequence: string }
+
+/** The page set (and per-page recipe) for a business type. */
+export function pageRecipesFor(businessType: string): Record<string, PageRecipe> {
+  const { ft, dispensary, vet, rv, roofing, landscaping, homecare, fieldservice, cafe, restaurant, salon, fitness, hotel, events, contractor, store } = tradeFlagsFor(businessType)
+  return ft
     ? FOODTRUCK_PAGE_RECIPES
     : vet
       ? VET_PAGE_RECIPES
@@ -1353,7 +1365,26 @@ function buildSitePrompt(input: ComposerInput): string {
                             : store
                               ? STORE_PAGE_RECIPES
                               : PAGE_RECIPES
+}
+function buildSitePrompt(input: ComposerInput): string {
+  const schemaSummary = Object.entries(SECTION_SCHEMA).map(([type, variants]) =>
+    `  ${type}: ${Object.keys(variants).join(', ')}`
+  ).join('\n')
 
+  // Industry-specific recipe overrides. Each vertical that needs a
+  // fundamentally different page model gets its own recipe set; the
+  // generic 4-page PAGE_RECIPES is the fallback.
+  //
+  // Matching uses word boundaries (\b) so customer-typed strings like
+  // "Italian restaurant" or "neighborhood cafe" still route correctly,
+  // not just exact tokens like "restaurant". Ordering of the ternary
+  // chain matters when a businessType contains multiple matching words:
+  // the first match in the chain below wins. Place more specific verticals
+  // (food truck, dispensary, vertical specialties) BEFORE more generic
+  // ones (restaurant, contractor) so a "food truck catering" routes to
+  // foodtruck not events.
+  const { ft, dispensary, vet, rv, roofing, landscaping, homecare, fieldservice, cafe, restaurant, salon, fitness, hotel, events, contractor, store } = tradeFlagsFor(input.businessType || '')
+  const recipes = pageRecipesFor(input.businessType || '')
   const recipesSummary = Object.entries(recipes).map(([page, recipe]) =>
     `- ${page}: ${recipe.purpose}\n    allowed types: ${recipe.allowed_types.join(', ')}\n    sequence: ${recipe.required_sequence}`
   ).join('\n')
@@ -2224,57 +2255,7 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
 
   // Page set is determined by industry — different verticals get different
   // page recipes. Generic fallback is the 4-page model.
-  const businessTypeIn = input.businessType || ''
-  // Match definitions MUST mirror the ternary in buildSitePrompt above —
-  // any change there must be reflected here. Both use word-boundary
-  // matching for resilience against multi-word customer inputs.
-  const isFoodTruck = /\b(food[_\s\-]?truck|mobile[_\s\-]?food|food[_\s\-]?cart|mobile[_\s\-]?kitchen|pop[_\s\-]?up[_\s\-]?kitchen)\b/i.test(businessTypeIn)
-  const isDispensary = /\b(dispensary|cannabis|cannabis[_\s\-]?retail)\b/i.test(businessTypeIn)
-  const isRoofing = /\b(roofing|roof|roofer|storm[_\s\-]?restoration|siding[_\s\-]?roofing)\b/i.test(businessTypeIn)
-  const isLandscaping = /\b(landscaping|lawn[_\s\-]?care|lawncare|landscape[_\s\-]?design|snow[_\s\-]?removal|tree[_\s\-]?service|arborist|hardscape)\b/i.test(businessTypeIn)
-  const isHomecare = /\b(home[_\s\-]?care|homecare|in[_\s\-]?home[_\s\-]?care|senior[_\s\-]?care|caregiving|companion[_\s\-]?care|home[_\s\-]?health)\b/i.test(businessTypeIn)
-  const isFieldservice = /\b(field[_\s\-]?service|hvac|plumbing|plumber|electrical|electrician|appliance[_\s\-]?repair|cleaning|house[_\s\-]?cleaning|maid[_\s\-]?service|janitorial|commercial[_\s\-]?cleaning|pest[_\s\-]?control|exterminator|locksmith|garage[_\s\-]?door|septic|pool[_\s\-]?service|irrigation|handyman|painting|mobile[_\s\-]?detailing|mobile[_\s\-]?mechanic|pet[_\s\-]?grooming|dog[_\s\-]?walking)\b/i.test(businessTypeIn)
-  const isCafe = /\b(cafe|caf[eé]|coffee[_\s\-]?shop|coffeeshop|coffee[_\s\-]?house|tea[_\s\-]?room|tearoom|espresso[_\s\-]?bar|bakery[_\s\-]?caf[eé]?)\b/i.test(businessTypeIn)
-  const isRestaurant = /\b(restaurant|bistro|gastropub|eatery|diner|pizzeria|trattoria|brasserie|taqueria|ramen[_\s\-]?shop|sushi[_\s\-]?bar)\b/i.test(businessTypeIn)
-  const isSalon = /\b(salon|hair[_\s\-]?salon|hairdresser|barber|barbershop|nail[_\s\-]?salon|nail[_\s\-]?bar|spa|day[_\s\-]?spa|esthetician|esthetics|beauty[_\s\-]?salon|lash[_\s\-]?bar|brow[_\s\-]?bar|medspa|med[_\s\-]?spa|waxing)\b/i.test(businessTypeIn)
-  const isFitness = /\b(gym|fitness|fitness[_\s\-]?studio|yoga|yoga[_\s\-]?studio|pilates|pilates[_\s\-]?studio|crossfit|cross[_\s\-]?fit|boxing|boxing[_\s\-]?gym|martial[_\s\-]?arts|mma|personal[_\s\-]?training|personal[_\s\-]?trainer|spin[_\s\-]?studio|cycling[_\s\-]?studio|barre|dance[_\s\-]?studio)\b/i.test(businessTypeIn)
-  const isHotel = /\b(hotel|boutique[_\s\-]?hotel|b[_\s\-]?and[_\s\-]?b|b&b|bandb|bnb|bed[_\s\-]?and[_\s\-]?breakfast|inn|lodge|motel|vacation[_\s\-]?rental|short[_\s\-]?term[_\s\-]?rental|airbnb|guest[_\s\-]?house|cabin[_\s\-]?rental)\b/i.test(businessTypeIn)
-  const isEvents = /\b(event[_\s\-]?venue|wedding[_\s\-]?venue|banquet[_\s\-]?hall|banquet|venue|party[_\s\-]?venue|corporate[_\s\-]?venue|reception[_\s\-]?hall|barn[_\s\-]?venue|events)\b/i.test(businessTypeIn)
-  const isContractor = /\b(contractor|general[_\s\-]?contractor|construction|remodeling|remodeler|siding|home[_\s\-]?improvement|kitchen|kitchen[_\s\-]?remodeling|kitchen[_\s\-]?design|kitchen[_\s\-]?installation|bath[_\s\-]?remodeling|bathroom[_\s\-]?remodeling|deck[_\s\-]?builder|fence[_\s\-]?installation|drywall|flooring|framing|concrete|masonry|tile[_\s\-]?installer|cabinet[_\s\-]?maker)\b/i.test(businessTypeIn)
-  // Store LAST (before generic), matching the buildSitePrompt recipe chain — the
-  // two selections are kept in sync by hand. Without this, a store's composed
-  // pages get sanitized back to the generic home/services/about/contact set even
-  // though the prompt used STORE_PAGE_RECIPES.
-  const isStore = /\b(store|shop|dropship|dropshipping|drop[_\s\-]?ship|e-?commerce|ecommerce|online[_\s\-]?store|online[_\s\-]?shop|retail|boutique|apparel|merch|goods|marketplace)\b/i.test(businessTypeIn)
-  const recipeSet: Record<string, { allowed_types: readonly string[] }> = isFoodTruck
-    ? FOODTRUCK_PAGE_RECIPES
-    : isDispensary
-      ? DISPENSARY_PAGE_RECIPES
-      : isRoofing
-        ? ROOFING_PAGE_RECIPES
-        : isLandscaping
-          ? LANDSCAPING_PAGE_RECIPES
-          : isHomecare
-            ? HOMECARE_PAGE_RECIPES
-            : isFieldservice
-              ? FIELDSERVICE_PAGE_RECIPES
-              : isCafe
-                ? CAFE_PAGE_RECIPES
-                : isRestaurant
-                  ? RESTAURANT_PAGE_RECIPES
-                  : isSalon
-                    ? SALON_PAGE_RECIPES
-                    : isFitness
-                      ? FITNESS_PAGE_RECIPES
-                      : isHotel
-                        ? HOTEL_PAGE_RECIPES
-                        : isEvents
-                          ? EVENTS_PAGE_RECIPES
-                          : isContractor
-                            ? CONTRACTOR_PAGE_RECIPES
-                            : isStore
-                              ? STORE_PAGE_RECIPES
-                              : PAGE_RECIPES
+  const recipeSet = pageRecipesFor(input.businessType || '')
   const expectedPages: string[] = Object.keys(recipeSet)
 
   let pages = parsed.pages || {}

@@ -23,7 +23,7 @@
 //   bun scripts/check-composer-facts.ts
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { enforceIntakeFacts, extractNumbers, parseIntakeFacts } from '../apps/api/src/services/composerFacts.ts'
-import { SECTION_SCHEMA, sanitizeSections, type ComposerInput, type Section } from '../apps/api/src/services/sectionComposer.ts'
+import { SECTION_SCHEMA, sanitizeSections, pageRecipesFor, type ComposerInput, type Section } from '../apps/api/src/services/sectionComposer.ts'
 
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 let failed = 0
@@ -230,6 +230,62 @@ const invented = (): Record<string, Section[]> => ({
   check(wrapped?.data.heading === 'Talk to us', 'sanitizeSections still reads the wrapped shape')
   const r = run({ home: sanitizeSections([{ type: 'hero', variant: 'full-bleed', image: STOCK, title: 'Kitchens and baths' }]) }, higgs)
   check(r.pages.home.length === 1 && r.pages.home[0].data.title === 'Kitchens and baths', 'a flat hero survives the facts check')
+}
+
+// The page set a trade gets is the one its prompt asked for. composeSite kept its own copy of the
+// trade chain with no vet or RV branch, so a vet's team page and a dealer's inventory + service
+// pages were composed and then thrown away.
+{
+  const keys = (bt: string) => Object.keys(pageRecipesFor(bt)).sort().join(',')
+  check(keys('veterinary clinic').includes('team'), 'vet: the team page is part of the page set')
+  check(keys('RV dealership').includes('inventory') && keys('RV dealership').includes('service'), 'rv: inventory + service pages are part of the page set')
+  check(keys('general contractor') !== keys('veterinary clinic'), 'trades get their own page sets')
+}
+
+// Every section a recipe asks for exists in the schema — sanitizeSections drops anything else, so a
+// recipe naming a missing type/variant (inventory/showcase, urgent/bar, services/grid) is a section
+// that can never be built.
+{
+  const trades = ['food truck', 'dispensary', 'veterinary clinic', 'RV dealership', 'roofing', 'landscaping', 'home care',
+    'plumbing', 'cafe', 'restaurant', 'salon', 'gym', 'hotel', 'wedding venue', 'general contractor', 'online store', 'accountant']
+  for (const bt of trades) {
+    for (const [page, r] of Object.entries(pageRecipesFor(bt))) {
+      for (const t of r.allowed_types) check(ALL_TYPES.has(t), `${bt}/${page}: allowed type "${t}" is not in SECTION_SCHEMA`)
+      for (const [, t, v] of r.required_sequence.matchAll(/\b([a-z_]+)\/([a-z][a-z0-9_-]*)/g)) {
+        if (ALL_TYPES.has(t)) check(v in (SECTION_SCHEMA as any)[t], `${bt}/${page}: recipe asks for ${t}/${v}, which is not a variant`)
+      }
+    }
+  }
+}
+
+// RV inventory: units, prices and photos are the owner's or they go.
+{
+  const dealer: ComposerInput = {
+    businessName: 'Lakeside RV', businessType: 'RV dealership', city: 'Eau Claire', state: 'WI', phone: '715-555-0100',
+    description: 'We have a 2022 Grand Design Imagine 2600RB for $38,900 on the lot.', services: ['RV sales', 'RV service'],
+  }
+  const r = run({ home: [sec('inventory', 'showcase', { heading: 'On the lot', units: [
+    { title: '2022 Grand Design Imagine 2600RB', price: '$38,900', payment: '$389', image: STOCK, url: 'https://elsewhere.example/u/1' },
+    { title: '2024 Winnebago Solis 59P', price: '$129,000' },
+  ] })] }, dealer)
+  const inv = r.pages.home.find(x => x.type === 'inventory')
+  check(!!inv && inv.data.units.length === 1, 'inventory: an invented unit is dropped, the owner\'s unit stays')
+  check(!!inv && inv.data.units[0].price === '$38,900', 'inventory: the owner\'s price stays')
+  check(!!inv && inv.data.units[0].payment === undefined, 'inventory: an invented monthly payment goes')
+  check(!!inv && !inv.data.units[0].image && !inv.data.units[0].url, 'inventory: stock photo and outside link go')
+  const none = run({ home: [sec('inventory', 'showcase', { units: [{ title: '2024 Winnebago Solis 59P' }] })] }, dealer)
+  check(!none.pages.home.some(x => x.type === 'inventory'), 'inventory: no owner units -> no section')
+}
+
+// Vet urgent bar: the owner's phone, and nothing they didn't promise.
+{
+  const vet: ComposerInput = { businessName: 'Valley Animal Clinic', businessType: 'veterinary clinic', city: 'Menomonie', state: 'WI', phone: '715-555-0199', description: 'Small-animal clinic.' }
+  const r = run({ home: [sec('urgent', 'bar', { heading: 'Sick pet?', phone: '800-000-0000', walkIns: true, emergencyPartner: { name: 'Metro Emergency Vet' } })] }, vet)
+  const u = r.pages.home.find(x => x.type === 'urgent')
+  check(!!u && u.data.phone === '715-555-0199', 'urgent: phone is the owner\'s')
+  check(!!u && u.data.walkIns === undefined && u.data.emergencyPartner === undefined, 'urgent: walk-ins and an ER partner only when the intake says so')
+  const noPhone = run({ home: [sec('urgent', 'bar', { heading: 'Sick pet?', phone: '800-000-0000' })] }, { ...vet, phone: undefined })
+  check(!noPhone.pages.home.some(x => x.type === 'urgent'), 'urgent: no phone in the intake -> no bar')
 }
 
 // Numbers: what counts as a claim.

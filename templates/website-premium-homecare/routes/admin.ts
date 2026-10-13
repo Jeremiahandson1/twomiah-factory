@@ -1864,4 +1864,6 @@ app.get('/analytics', authMiddleware, async (c) => {
   return c.json({ viewsLast30: last30, viewsPrev30: prev30, leadsLast30: leads30, leadsPrev30, topPages })
 })
 
+// server-static.ts guards its own /api/admin/* routes (billing, domain, CRM) with these.
+export { authMiddleware, requireAdmin }
 export default app

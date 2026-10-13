@@ -508,6 +508,29 @@ function applySectionPolicy(s: Section, input: ComposerInput, c: Corpus, removed
     case 'banner':
       if (!d.startDate || !c.text.includes(String(d.startDate).toLowerCase())) return drop('no storm date in the intake')
       break
+    case 'inventory': {
+      // A unit is a fact: only units the owner listed, with only their prices, and only their photos.
+      // No detail pages exist for a composed unit, so links go too.
+      keepItems('units', u => wordsTraceable(String(u?.title || [u?.year, u?.make, u?.model].filter(Boolean).join(' ')), c))
+      d.units = (d.units || []).slice(0, 12).map((u: any) => {
+        const out = { ...u }
+        for (const k of ['price', 'payment', 'year', 'length', 'mileage']) {
+          if (out[k] != null && out[k] !== '' && untraceableNumbers(String(out[k]), c).length) { removed.push(label + ' ' + k + ': ' + out[k]); delete out[k] }
+        }
+        if (out.image && !ownPhoto(out.image)) delete out.image
+        delete out.url
+        return out
+      })
+      break
+    }
+    case 'urgent':
+      // The bar is a phone number and a heading; anything it promises has to be the owner's.
+      if (!input.phone) return drop('no phone in the intake')
+      d.phone = input.phone
+      if (d.walkIns === true && !/walk[\s-]?ins?\b/.test(c.text)) { removed.push(label + ' walk-ins (not in the intake)'); delete d.walkIns }
+      if (d.afterHoursNote && !wordsTraceable(String(d.afterHoursNote), c)) { removed.push(label + ' after-hours note: ' + d.afterHoursNote); delete d.afterHoursNote }
+      if (d.emergencyPartner && !wordsTraceable(String(d.emergencyPartner?.name || ''), c)) { removed.push(label + ' emergency partner: ' + JSON.stringify(d.emergencyPartner).slice(0, 120)); delete d.emergencyPartner }
+      break
     case 'social': {
       const handle = String(d.handle || '').replace(/^@/, '').toLowerCase()
       if (!handle || !c.text.includes(handle)) return drop('no social handle in the intake')
@@ -522,7 +545,7 @@ const LIST_KEY: Record<string, string> = {
   testimonials: 'items', team: 'members', caregivers: 'items', trust: 'items', stats: 'items',
   gallery: 'photos', before_after: 'items', pricing: 'items', menu: 'items', strain: 'items',
   deals: 'items', schedule: 'days', faq: 'items', services: 'items', packages: 'items',
-  coverage: 'items',
+  coverage: 'items', inventory: 'units',
 }
 
 // Pages that always publish, however thin. Everything else needs at least one
