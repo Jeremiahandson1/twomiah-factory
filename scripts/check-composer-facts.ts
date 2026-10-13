@@ -189,10 +189,26 @@ const invented = (): Record<string, Section[]> => ({
     sec('hero', 'full-bleed', { image: STOCK, title: 'Hi', subtitle: 'Four things, done well.' }),
     sec('reservation', 'cta', { heading: 'Ready to talk about your project?' }),
     sec('cta', 'banner', { heading: 'Since 1999 and counting' }),
-  ] }, higgs)
+  ] }, { ...higgs, goals: ['bookings'] })  // booking is opt-in; this case is about the missing label
   check(r.pages.home.some(s => s.type === 'reservation'), 'a section missing a required field the MODEL omitted is kept (the partial has a fallback)')
   check(!r.pages.home.some(s => s.type === 'cta'), 'a section whose required field the CHECK emptied is still dropped')
   check(r.pages.home[0].data.subtitle === 'Four things, done well.', 'a count of the owner\'s listed services is the owner\'s number')
+}
+
+// Booking is opt-in (2026-10-13): without a bookings/appointments/reservations goal, booking sections
+// become a plain contact CTA with a neutral heading; two in a row collapse to one; with the goal they stay.
+{
+  const pages = { home: [
+    sec('hero', 'full-bleed', { image: STOCK, title: 'Hi' }),
+    sec('reservation', 'cta', { heading: 'Book your free estimate', buttonLabel: 'Schedule now' }),
+    sec('reservation', 'widget', { heading: 'Reserve a table' }),
+  ] }
+  const off = run(JSON.parse(JSON.stringify(pages)), { ...higgs, goals: [] })
+  check(!off.pages.home.some(s => s.type === 'reservation'), 'no booking goal: no booking sections')
+  const ctas = off.pages.home.filter(s => s.type === 'cta')
+  check(ctas.length === 1 && ctas[0].data.primaryCta?.href === '#contact' && !/book|free/i.test(ctas[0].data.heading), 'no booking goal: one contact CTA, neutral heading')
+  const on = run(JSON.parse(JSON.stringify(pages)), { ...higgs, goals: ['Book appointments online'] })
+  check(on.pages.home.filter(s => s.type === 'reservation').length === 2, 'a bookings goal keeps the booking sections')
 }
 
 // A page the model left empty (a pricing page with no prices) is held, not published blank.

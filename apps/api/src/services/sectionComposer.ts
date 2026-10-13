@@ -458,6 +458,7 @@ ${(input.services || []).map(s => '- ' + s).join('\n') || '(none specified — i
 
 Their goals
 ${(input.goals || []).map(g => '- ' + g).join('\n') || '(none specified — assume generic lead generation)'}
+(Booking is opt-in: use reservation/* sections ONLY if these goals mention bookings, appointments or reservations. Otherwise end with a contact call-to-action.)
 
 Sites they pointed at as inspiration
 ${(input.competitors || []).map(c => '- ' + c).join('\n') || '(none)'}
@@ -1411,6 +1412,7 @@ ${(input.services || []).map(s => '- ' + s).join('\n') || '(none specified)'}
 
 Their goals
 ${(input.goals || []).map(g => '- ' + g).join('\n') || '(none specified)'}
+(Booking is opt-in: use reservation/* sections ONLY if these goals mention bookings, appointments or reservations. Otherwise end with a contact call-to-action.)
 
 Owner / principal
 ${input.ownerName || '(not specified)'}
