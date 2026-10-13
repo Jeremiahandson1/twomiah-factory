@@ -256,6 +256,29 @@ export const posts = pgTable('posts', {
   statusPublishedIdx: index('posts_status_published_idx').on(t.status, t.publishedAt),
 }))
 
+// Projects — jobs the owner shows off (admin → Projects). Public at /projects/<slug>. Nothing here
+// is composed: a project exists only because the owner wrote it.
+export const projects = pgTable('projects', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(),
+  title: text('title').notNull(),
+  location: text('location'),
+  summary: text('summary'),
+  body: text('body').notNull().default(''),  // markdown
+  coverImageUrl: text('cover_image_url'),
+  photos: jsonb('photos').notNull().default([]),  // string[] of photo URLs
+  // 'draft' | 'published'
+  status: text('status').notNull().default('draft'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  metaTitle: text('meta_title'),
+  metaDescription: text('meta_description'),
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  statusIdx: index('projects_status_idx').on(t.status, t.sortOrder),
+}))
+
 // ─── Twomiah Bookings ────────────────────────────────────────────────────
 // A complete booking system: services with duration/price, per-crew
 // availability + service zones, customer-facing slot picker, confirmed

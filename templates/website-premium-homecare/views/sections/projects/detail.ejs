@@ -1,0 +1,23 @@
+<%
+  // One owner-written project: cover photo, the story (markdown, rendered by the server), the rest
+  // of the photos.
+  const cover = data.cover || ''
+  const alt = data.alt || ''
+  const photos = Array.isArray(data.photos) ? data.photos.filter((x) => x && x.url) : []
+%>
+<article class="blog-post project-detail">
+  <div class="container container--narrow">
+    <a class="blog-post__back" href="/projects">← All projects</a>
+    <% if (cover) { %><img class="blog-post__cover" src="<%= cover %>" alt="<%= alt %>"><% } %>
+    <% if (data.bodyHtml) { %><div class="blog-post__body"><%- data.bodyHtml %></div><% } %>
+  </div>
+  <% if (photos.length) { %>
+    <div class="container" style="margin-top:40px">
+      <div class="gallery-grid">
+        <% photos.forEach(function (ph) { %>
+          <figure class="gallery-grid__item"><img src="<%= ph.url %>" alt="<%= ph.alt || alt %>" loading="lazy"></figure>
+        <% }) %>
+      </div>
+    </div>
+  <% } %>
+</article>

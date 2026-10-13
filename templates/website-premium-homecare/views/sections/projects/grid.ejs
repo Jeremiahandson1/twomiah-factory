@@ -1,0 +1,24 @@
+<%
+  // The owner's published projects (admin → Projects), filled in by the server — never composed.
+  const heading = data.heading || ''
+  const items = Array.isArray(data.items) ? data.items : []
+%>
+<% if (items.length) { %>
+<section class="blog-section projects-grid" aria-label="<%= heading || 'Projects' %>">
+  <div class="container">
+    <% if (heading) { %><h2 class="blog-section__title"><%= heading %></h2><% } %>
+    <div class="blog-list">
+      <% for (const p of items) { %>
+        <a class="blog-card" href="/projects/<%= p.slug %>">
+          <% if (p.image) { %><img class="blog-card__cover" src="<%= p.image %>" alt="<%= p.title %><%= p.location ? ', ' + p.location : '' %>" loading="lazy"><% } %>
+          <div class="blog-card__body">
+            <% if (p.location) { %><div class="blog-card__date"><%= p.location %></div><% } %>
+            <h3 class="blog-card__title"><%= p.title %></h3>
+            <% if (p.summary) { %><p class="blog-card__excerpt"><%= p.summary %></p><% } %>
+          </div>
+        </a>
+      <% } %>
+    </div>
+  </div>
+</section>
+<% } %>

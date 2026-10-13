@@ -25,7 +25,7 @@ import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 import { db } from './db'
-import { settings as settingsTbl, pages as pagesTbl, leads as leadsTbl, posts as postsTbl, pageViews as pageViewsTbl } from './db/schema'
+import { settings as settingsTbl, pages as pagesTbl, leads as leadsTbl, posts as postsTbl, projects as projectsTbl, pageViews as pageViewsTbl } from './db/schema'
 import adminRoutes, { authMiddleware, requireAdmin } from './routes/admin'
 // The same check every route in routes/admin.ts uses: the admin app's httpOnly session cookie (or a
 // Bearer token), verified and checked against revoked sessions. The billing, domain and CRM routes
@@ -310,6 +310,63 @@ app.get('/service-areas/:area', async (c) => {
   sections.push(contact || contactCta(settingsRow, company))
   countView('/service-areas/' + area.slug)
   return c.html(await renderSections(sections, { title: area.name, metaTitle: company + ' in ' + area.name, metaDescription: lead }, settingsRow, '/service-areas/' + area.slug, getSiteOrigin(c)))
+})
+
+// ── Projects ──────────────────────────────────────────────────────────────
+// The owner's own projects (admin → Projects). /projects shows them inside the composed Projects page
+// (or on a page of their own); /projects/<slug> tells one. Nothing here is composed.
+async function publishedProjects() {
+  return db.select().from(projectsTbl).where(eq(projectsTbl.status, 'published')).orderBy(asc(projectsTbl.sortOrder), desc(projectsTbl.publishedAt))
+}
+function projectCard(p: any) {
+  const photos = Array.isArray(p.photos) ? p.photos : []
+  return { slug: p.slug, title: p.title, location: p.location || '', summary: p.summary || '', image: p.coverImageUrl || photos[0] || '' }
+}
+
+app.get('/projects', async (c) => {
+  const [settingsRow, page, list] = await Promise.all([loadSettings(), loadPage('projects'), publishedProjects()])
+  const composed = page && page.isPublished && Array.isArray(page.sections) ? (page.sections as any[]) : null
+  if (!list.length && !composed) return c.notFound()
+  const company = settingsRow?.companyName || process.env.SITE_NAME || ''
+  let sections: any[]
+  if (!list.length) sections = composed!
+  else if (composed) {
+    // The owner's projects right under the page's opening section.
+    const grid = { type: 'projects', variant: 'grid', data: { heading: 'Recent projects', items: list.map(projectCard) } }
+    sections = composed[0]?.type === 'hero' ? [composed[0], grid, ...composed.slice(1)] : [grid, ...composed]
+  } else {
+    sections = [
+      { type: 'hero', variant: 'centered-stats', data: { eyebrow: 'Our work', title: 'Projects', subtitle: 'Recent work by ' + company + '.' } },
+      { type: 'projects', variant: 'grid', data: { items: list.map(projectCard) } },
+      contactCta(settingsRow, company),
+    ]
+  }
+  countView('/projects')
+  return c.html(await renderSections(sections, {
+    title: page?.title || 'Projects', metaTitle: page?.metaTitle || 'Projects | ' + company, metaDescription: page?.metaDescription || 'Recent work by ' + company + '.',
+  }, settingsRow, '/projects', getSiteOrigin(c)))
+})
+
+app.get('/projects/:slug', async (c) => {
+  const slug = c.req.param('slug')
+  const [settingsRow, rows] = await Promise.all([loadSettings(), db.select().from(projectsTbl).where(eq(projectsTbl.slug, slug)).limit(1)])
+  const p = rows[0]
+  if (!p || p.status !== 'published') return c.notFound()
+  const [others, contact] = await Promise.all([publishedProjects(), firstSectionOfType('contact', ['contact'])])
+  const company = settingsRow?.companyName || process.env.SITE_NAME || ''
+  const alt = p.title + (p.location ? ', ' + p.location : '')
+  const photos = (Array.isArray(p.photos) ? p.photos : []).filter((u: unknown) => typeof u === 'string' && u)
+  const more = others.filter((x) => x.slug !== p.slug).slice(0, 3)
+  const sections: any[] = [
+    { type: 'hero', variant: 'centered-stats', data: { eyebrow: p.location || 'Project', title: p.title, subtitle: p.summary || '' } },
+    { type: 'projects', variant: 'detail', data: { cover: p.coverImageUrl || '', alt, bodyHtml: markdownToHtml(p.body || ''), photos: photos.map((u: string) => ({ url: u, alt })) } },
+  ]
+  if (more.length) sections.push({ type: 'projects', variant: 'grid', data: { heading: 'More projects', items: more.map(projectCard) } })
+  sections.push(contact || contactCta(settingsRow, company))
+  countView('/projects/' + p.slug)
+  return c.html(await renderSections(sections, {
+    title: p.title, metaTitle: p.metaTitle || alt + ' | ' + company, metaDescription: p.metaDescription || p.summary || '',
+  }, settingsRow, '/projects/' + p.slug, getSiteOrigin(c)))
 })
 
 // Blog routes — must register before the catch-all `/:slug` below or
@@ -1165,6 +1222,12 @@ app.get('/sitemap.xml', async (c) => {
     const loc = origin + (r.slug === 'home' ? '/' : '/' + r.slug)
     const lastmod = r.updatedAt instanceof Date ? r.updatedAt.toISOString() : new Date(r.updatedAt as any).toISOString()
     urls.push(`  <url><loc>${escapeXml(loc)}</loc><lastmod>${lastmod}</lastmod></url>`)
+  }
+  const projectList = await publishedProjects()
+  if (projectList.length && !pageRows.some((r) => r.slug === 'projects')) urls.push(`  <url><loc>${escapeXml(origin + '/projects')}</loc></url>`)
+  for (const r of projectList) {
+    const lastmod = r.updatedAt instanceof Date ? r.updatedAt.toISOString() : new Date(r.updatedAt as any).toISOString()
+    urls.push(`  <url><loc>${escapeXml(origin + '/projects/' + r.slug)}</loc><lastmod>${lastmod}</lastmod></url>`)
   }
   const areaList = serviceAreasOf(await loadSettings())
   if (areaList.length) {

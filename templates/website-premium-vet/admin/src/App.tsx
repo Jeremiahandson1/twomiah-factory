@@ -14,6 +14,8 @@ import { BillingPage } from './pages/BillingPage'
 import { DomainPage } from './pages/DomainPage'
 import { PostsListPage } from './pages/PostsListPage'
 import { PostEditPage } from './pages/PostEditPage'
+import { ProjectsListPage } from './pages/ProjectsListPage'
+import { ProjectEditPage } from './pages/ProjectEditPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { VerifyEmailPage } from './pages/VerifyEmailPage'
@@ -53,6 +55,8 @@ export default function App() {
           <Route path="/domain" element={<DomainPage />} />
           <Route path="/posts" element={<PostsListPage />} />
           <Route path="/posts/:slug" element={<PostEditPage />} />
+          <Route path="/projects" element={<ProjectsListPage />} />
+          <Route path="/projects/:slug" element={<ProjectEditPage />} />
           <Route path="/bookings" element={<BookingsPage />} />
           <Route path="/bookings/:id" element={<BookingDetailPage />} />
           <Route path="/booking-settings" element={<BookingSettingsPage />} />
