@@ -1151,6 +1151,10 @@ const PREMIUM_PAGE_TITLES: Record<string, string> = {
 // — including it in nav doubles up. Vertical-specific slugs get the
 // human-readable label for the food truck / dispensary / etc.
 const PREMIUM_PAGE_NAV_LABEL: Record<string, string> = {
+  // RV dealer + vet pages: in their recipes, but with no label they never reached the nav.
+  inventory: 'Inventory',
+  service: 'Service',
+  team: 'Our team',
   menu: 'Menu',
   shop: 'Shop',
   guides: 'Guides',
@@ -1194,7 +1198,7 @@ function buildPremiumNav(
   // Stable per-vertical order: the thing they sell first (menu/services/
   // strains), then secondary funnels (find us/catering/deals/visit), then
   // about.
-  const order = ['emergency', 'menu', 'shop', 'guides', 'services', 'rooms', 'venue', 'find-care', 'classes', 'packages', 'quote', 'pricing', 'reservations', 'private-dining', 'strains', 'caregivers', 'coverage', 'projects', 'storm', 'schedule', 'amenities', 'local', 'vendors', 'stylists', 'trainers', 'catering', 'deals', 'gallery', 'visit', 'about']
+  const order = ['emergency', 'inventory', 'menu', 'shop', 'guides', 'services', 'service', 'rooms', 'venue', 'find-care', 'classes', 'packages', 'quote', 'pricing', 'reservations', 'private-dining', 'strains', 'caregivers', 'coverage', 'projects', 'storm', 'schedule', 'amenities', 'local', 'vendors', 'stylists', 'team', 'trainers', 'catering', 'deals', 'gallery', 'visit', 'about']
   const present = new Set(pageSlugs)
   const out: Array<{ label: string; href: string }> = []
   for (const slug of order) {

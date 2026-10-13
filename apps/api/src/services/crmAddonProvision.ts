@@ -18,6 +18,7 @@
  *     script can be run within the 24h SLA
  */
 import { sendEmail } from './email'
+import { ourPremiumSiteOrigin } from './premiumSiteUrl'
 
 const RENDER_API = 'https://api.render.com/v1'
 
@@ -72,8 +73,9 @@ async function doProvision(tenantId: string): Promise<{ success: boolean; crmUrl
   if (!process.env.RENDER_API_KEY) throw new Error('RENDER_API_KEY not configured')
 
   // 2. Owner credentials from the premium site (X-Factory-Key gated)
-  const premiumSiteUrl = (tenant.website_url || '').replace(/\/+$/, '')
-  if (!premiumSiteUrl) throw new Error('Tenant has no website_url recorded — cannot reach premium site')
+  // Only a site we serve — this call returns the owner's credentials.
+  const premiumSiteUrl = ourPremiumSiteOrigin(tenant)
+  if (!premiumSiteUrl) throw new Error('Tenant website_url (' + (tenant.website_url || 'none') + ') is not a premium site we serve — cannot reach it')
   const credRes = await fetch(premiumSiteUrl + '/api/internal/owner-credentials', {
     headers: { 'X-Factory-Key': tenant.factory_sync_key },
     signal: AbortSignal.timeout(15000),
