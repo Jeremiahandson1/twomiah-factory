@@ -11,6 +11,8 @@ import FeatureManagement from '../components/factory/FeatureManagement'
 import A2pRegistration from '../components/factory/A2pRegistration'
 import MessagingBilling from '../components/factory/MessagingBilling'
 
+const V2_PLAN_IDS = ['website', 'starter10', 'team25', 'business50']
+
 type Tenant = {
   id: string; name: string; slug: string; email: string; phone: string
   city: string; state: string; industry: string; status: string
@@ -478,8 +480,8 @@ export default function CustomerDetailPage() {
         ? API + '/api/v1/factory/customers/' + id + '/checkout/subscription'
         : API + '/api/v1/factory/customers/' + id + '/checkout/license'
       const body: any = type === 'subscription'
-        ? { planId: form.plan || 'custom', monthlyAmount: Number(form.monthly_amount) || 149 }
-        : { planId: form.plan || 'custom', amount: Number(form.one_time_amount) || 2497 }
+        ? { planId: form.plan || 'custom', monthlyAmount: Number(form.monthly_amount) || 99 }
+        : { planId: form.plan || 'custom', amount: Number(form.one_time_amount) || 3564 }
       if (checkoutPromo.trim()) body.promoCode = checkoutPromo.trim()
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -518,8 +520,8 @@ export default function CustomerDetailPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) { showToast('Not authenticated', 'error'); setCheckoutLoading(null); return }
       const body: any = { mode }
-      if (mode === 'one_time') body.amount = Number(form.one_time_amount) || Number(form.monthly_amount) * 12 || 2497
-      if (mode === 'subscription') body.amount = Number(form.monthly_amount) || 149
+      if (mode === 'one_time') body.amount = Number(form.one_time_amount) || Number(form.monthly_amount) * 36 || 3564
+      if (mode === 'subscription') body.amount = Number(form.monthly_amount) || 99
       if (form.plan) body.plan = form.plan
       const res = await fetch(API + '/api/v1/factory/customers/' + id + '/switch-billing', {
         method: 'POST',
@@ -851,7 +853,7 @@ export default function CustomerDetailPage() {
                   <label className="text-xs text-gray-500 block mb-1">Monthly Amount ($)</label>
                   {editMode ? (
                     <input type="number" value={form.monthly_amount || ''} onChange={e => setForm({ ...form, monthly_amount: Number(e.target.value) })}
-                      placeholder="149.00" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-600" />
+                      placeholder="99.00" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-600" />
                   ) : (
                     <p className="text-sm font-medium text-gray-200">{tenant.monthly_amount ? `$${Number(tenant.monthly_amount).toFixed(2)}` : '—'}</p>
                   )}
@@ -872,7 +874,7 @@ export default function CustomerDetailPage() {
                   <label className="text-xs text-gray-500 block mb-1">License Amount ($)</label>
                   {editMode ? (
                     <input type="number" value={form.one_time_amount || ''} onChange={e => setForm({ ...form, one_time_amount: Number(e.target.value) })}
-                      placeholder="2497.00" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-600" />
+                      placeholder="3564.00" className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-600" />
                   ) : (
                     <p className="text-sm font-medium text-gray-200">{tenant.one_time_amount ? `$${Number(tenant.one_time_amount).toFixed(2)}` : '—'}</p>
                   )}
@@ -895,10 +897,15 @@ export default function CustomerDetailPage() {
                 <select value={form.plan || ''} onChange={e => setForm({ ...form, plan: e.target.value })}
                   className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white">
                   <option value="">Custom</option>
-                  <option value="starter">Starter ($49/mo | $997 license)</option>
-                  <option value="pro">Pro ($149/mo | $2,497 license)</option>
-                  <option value="business">Business ($299/mo | $4,997 license)</option>
-                  <option value="construction">Construction ($599/mo | $9,997 license)</option>
+                  {/* Pricing model v2 — the same plan ids public signup sells (own it = 36× monthly).
+                      A tenant still on an older plan keeps it: shown as legacy, never silently changed. */}
+                  {tenant.plan && !V2_PLAN_IDS.includes(tenant.plan) && (
+                    <option value={tenant.plan}>{tenant.plan} (legacy)</option>
+                  )}
+                  <option value="website">Website ($49/mo | $1,764 own it)</option>
+                  <option value="starter10">Website + CRM, up to 10 users ($99/mo | $3,564 own it)</option>
+                  <option value="team25">Website + CRM, up to 25 users ($139/mo | $5,004 own it)</option>
+                  <option value="business50">Website + CRM, up to 50 users ($199/mo | $7,164 own it)</option>
                 </select>
               ) : (
                 <p className="text-sm font-medium text-gray-200 capitalize">{tenant.plan || 'Custom'}</p>

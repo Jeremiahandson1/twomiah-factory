@@ -87,7 +87,7 @@ factory.post('/customers/:id/checkout/subscription', requireRole('owner', 'admin
     if (trialDays !== undefined && (typeof trialDays !== 'number' || trialDays < 0 || !Number.isInteger(trialDays))) return c.json({ error: 'trialDays must be a non-negative integer' }, 400)
     const result = await factoryStripe.createSubscriptionCheckout(
       { id: tenant.id, email: tenant.email, name: tenant.name, phone: tenant.phone, stripeCustomerId: tenant.stripe_customer_id },
-      { planId: planId || tenant.plan || 'starter', billingCycle: billingCycle || 'monthly', trialDays }
+      { planId: planId || tenant.plan || 'starter10', billingCycle: billingCycle || 'monthly', trialDays }
     )
 
     if (result.stripeCustomerId && !tenant.stripe_customer_id) {
@@ -115,7 +115,7 @@ factory.post('/customers/:id/checkout/license', requireRole('owner', 'admin'), a
     const { planId } = parsedBody.data
     const result = await factoryStripe.createLicenseCheckout(
       { id: tenant.id, email: tenant.email, name: tenant.name, stripeCustomerId: tenant.stripe_customer_id },
-      { planId: planId || tenant.plan || 'pro' }
+      { planId: planId || tenant.plan || 'starter10' }
     )
 
     if (result.stripeCustomerId && !tenant.stripe_customer_id) {
