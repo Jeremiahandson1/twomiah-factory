@@ -619,6 +619,8 @@ async function reactivateSubscription(subscriptionId: string): Promise<Stripe.Su
 export async function createMessagingEnableCheckout(
   factoryCustomer: { id: string; email?: string; name?: string; phone?: string; stripeCustomerId?: string },
   amountCents: number,
+  // A public signup lands back on twomiah.com, not the staff console (same as subscription checkout).
+  urls: { successUrl?: string; cancelUrl?: string } = {},
 ): Promise<{ sessionId: string; url: string | null; stripeCustomerId: string }> {
   if (!stripe) throw new Error('Stripe not configured')
   const stripeCustomerId = await ensureCustomer(factoryCustomer)
@@ -635,8 +637,8 @@ export async function createMessagingEnableCheckout(
       quantity: 1,
     }],
     subscription_data: { metadata: { addon: 'messaging_enable', tenant_id: factoryCustomer.id } },
-    success_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?messaging=enabled',
-    cancel_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?messaging=canceled',
+    success_url: urls.successUrl || FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?messaging=enabled',
+    cancel_url: urls.cancelUrl || FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?messaging=canceled',
     metadata: { addon: 'messaging_enable', tenant_id: factoryCustomer.id },
   })
   return { sessionId: session.id, url: session.url, stripeCustomerId }
