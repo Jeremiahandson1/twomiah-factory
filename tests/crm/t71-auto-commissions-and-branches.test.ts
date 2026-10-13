@@ -67,9 +67,10 @@ const deal = async (opts: { assignedToId?: string | null; memberId?: string; cre
 }
 const autosFor = async (invoiceId: string) => db.select().from(S.commission).where(and(eq(S.commission.invoiceId, invoiceId), eq(S.commission.source, 'auto')))
 
-// an invoice paid LAST MONTH, before any plan went automatic — imported history
+// an invoice paid THREE DAYS AGO, before any plan went automatic — imported history. Inside the sweep's 30-day
+// window on purpose, so it is the plan's autoSince that keeps it out, not the window.
 const old = await deal()
-await db.update(S.invoice).set({ status: 'paid', amountPaid: '1080', paidAt: new Date(Date.now() - 30 * 86400000) } as any).where(eq(S.invoice.id, old.inv.id))
+await db.update(S.invoice).set({ status: 'paid', amountPaid: '1080', paidAt: new Date(Date.now() - 3 * 86400000) } as any).where(eq(S.invoice.id, old.inv.id))
 
 // ─────────────── plans ───────────────
 const crewPlan = (await O('POST', '/api/commissions/plans', { name: 'Crew 5%', planType: 'percent_of_invoice', percentRate: 5, appliesToRole: 'technician', autoEarn: 'job_assignee' })).json
@@ -100,7 +101,9 @@ const a = await deal()
   const again = await earner.earnForInvoice(a.inv.id)
   const swept = await earner.sweep()
   check(`earn: looked at again — by hand and by the sweep — it still earned once (${(await autosFor(a.inv.id)).length} rows, ${again.earned} + ${swept.earned} new)`, (await autosFor(a.inv.id)).length === 2 && again.earned === 0)
-  check('earn: imported history paid before the plan went automatic earns nothing', (await autosFor(old.inv.id)).length === 0)
+  // asked directly too, as a webhook retry on an old payment would
+  const oldDirect = await earner.earnForInvoice(old.inv.id)
+  check('earn: imported history paid before the plan went automatic earns nothing — swept or asked directly', (await autosFor(old.inv.id)).length === 0 && oldDirect.earned === 0)
 }
 {
   const nj = await deal({ noJob: true })
