@@ -237,6 +237,10 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     if (data.jobId && !(await owned(t.job, data.jobId, companyId))) return c.json({ error: 'That job is not on this account' }, 400)
 
     let base = data.baseAmount
+    // A margin plan is worked out on the MARGIN, which only job costing knows — never on the invoice it came from.
+    // Read off the invoice, a 20%-of-margin plan paid 20% of the whole sale.
+    const planRow = data.planId ? await owned(t.commissionPlan, data.planId, companyId) : null
+    const baseFromInvoice = planRow?.planType !== 'percent_of_margin'
     if (data.invoiceId) {
       const inv = await owned(t.invoice, data.invoiceId, companyId)
       if (!inv) return c.json({ error: 'That invoice is not on this account' }, 400)
@@ -244,14 +248,14 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
         return c.json({ error: `That invoice is ${inv.status}, so there is nothing to pay commission on yet` }, 400)
       }
       // Before tax, after the discount: tax is not the business's money, a discount is money it never got.
-      if (base === undefined) base = cents(Math.max(0, Number(inv.subtotal ?? inv.total ?? 0) - Number(inv.discount ?? 0)))
+      if (base === undefined && baseFromInvoice) base = cents(Math.max(0, Number(inv.subtotal ?? inv.total ?? 0) - Number(inv.discount ?? 0)))
     }
 
     let amount: number
     let rate: number | null = data.rateApplied ?? null
     let planId: string | null = null
     if (data.planId) {
-      const plan = await owned(t.commissionPlan, data.planId, companyId)
+      const plan = planRow
       if (!plan) return c.json({ error: 'That commission plan is not on this account' }, 400)
       if (plan.isActive === false) return c.json({ error: 'That plan has been retired. Choose a current one.' }, 400)
       if (plan.planType !== 'flat_rate' && base === undefined) {
