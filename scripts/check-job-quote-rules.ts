@@ -42,7 +42,8 @@ if ((jobs.match(/if \(who\.error\) return c\.json\(\{ error: who\.error \}, 400\
   if (!/db\.select\(\{ id: t\.teamMember\.id, active: t\.teamMember\.active \}\)\.from\(t\.teamMember\)/.test(resolver)) fail('…and then among the roster')
 }
 if (!/assignedToId \? eq\(t\.job\.assignedToId, assignedToId\) : eq\(t\.job\.assignedToMemberId, memberId as string\)/.test(jobs)) fail('double-booking must be checked for a roster member too')
-if (!/for \(const k of \['assignedToId', 'assignedToMemberId', 'contactId', 'projectId'\] as const\) \{\s*\n\s*if \(Object\.prototype\.hasOwnProperty\.call\(raw, k\) && \(raw\[k\] === '' \|\| raw\[k\] === null\)\) data\[k\] = null/.test(jobs)) fail("an edit sending '' for a link must clear it, including a roster assignee (Unassign did nothing)")
+// The four links must stay in the list; a template's branch (locationId, multi_location) may follow them.
+if (!/for \(const k of \['assignedToId', 'assignedToMemberId', 'contactId', 'projectId'(?:, \.\.\.\(branches \? \['locationId'\] as const : \[\]\))?\] as const\) \{\s*\n\s*if \(Object\.prototype\.hasOwnProperty\.call\(raw, k\) && \(raw\[k\] === '' \|\| raw\[k\] === null\)\) data\[k\] = null/.test(jobs)) fail("an edit sending '' for a link must clear it, including a roster assignee (Unassign did nothing)")
 const jobsPage = read('packages/tenant-ui/src/jobs/JobsPage.tsx')
 if (!/r\.contact \? r\.contact\.name : 'No customer'/.test(jobsPage)) fail('a job with no customer must say so in the list')
 // …and the three surfaces that read the assignee must cope with a roster-only crew member (T21 M12)

@@ -54,7 +54,8 @@ const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'c
 for (const t of TEMPLATES) {
   const src = read(`templates/${t}/backend/src/routes/team.ts`)
   if (!src) { fail(`templates/${t}/backend/src/routes/team.ts is missing`); continue }
-  if (!/tables: \{ teamMember, user, job \}/.test(src)) fail(`${t} does not pass its job table — its roster cannot warn about anything`)
+  // job must be passed; a template with branches (multi_location) passes its location table after it
+  if (!/tables: \{ teamMember, user, job(, location)? \}/.test(src)) fail(`${t} does not pass its job table — its roster cannot warn about anything`)
   if (!new RegExp("import \\{ teamMember, user, job\\s*[,}]").test(src)) fail(`${t} does not import the job table`)
 }
 

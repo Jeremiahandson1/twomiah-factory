@@ -33,8 +33,17 @@ for (const t of TEMPLATES) {
   if (/new Stripe\(|paymentIntents\.|webhooks\.construct|refunds\.create/.test(svc)) fail(`${t}/services/stripe.ts carries its own Stripe logic — it must be glue only`)
   const kind = APPOINTMENT_BOOK.has(t) ? 'appointment' : 'job'
   if (!new RegExp(`bookingCalendarKind: '${kind}'`).test(svc)) fail(`${t}/services/stripe.ts must pass bookingCalendarKind: '${kind}'`)
-  // only the events CRM passes the hook: since #171 it books the date (bookOnDeposit), then moves the due date
-  if (t === 'crm-restaurant' ? !/afterInvoicePayment: async \(invoiceId: string\) =>[\s\S]*bookOnDeposit\([\s\S]*await syncEventInvoiceDueDate\(invoiceId\)/.test(svc) : /afterInvoicePayment/.test(svc)) fail(`${t}/services/stripe.ts afterInvoicePayment wiring is wrong (only crm-restaurant passes it: bookOnDeposit, then syncEventInvoiceDueDate)`)
+  // The events CRM books the date (bookOnDeposit), then moves the due date (#171). The four CRMs with automatic
+  // commissions pass the earner — and nothing else — so a card payment or Stripe refund earns at once. Every other
+  // template passes nothing.
+  const COMMISSION_EARNERS = new Set(['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-basic'])
+  const earnerHook = /afterInvoicePayment: async \(invoiceId: string\) => \{ await commissionEarner\.earnForInvoice\(invoiceId\) \},/
+  const ok = t === 'crm-restaurant'
+    ? /afterInvoicePayment: async \(invoiceId: string\) =>[\s\S]*bookOnDeposit\([\s\S]*await syncEventInvoiceDueDate\(invoiceId\)/.test(svc)
+    : COMMISSION_EARNERS.has(t)
+      ? earnerHook.test(svc) && (svc.match(/afterInvoicePayment/g) || []).length === 1
+      : !/afterInvoicePayment/.test(svc)
+  if (!ok) fail(`${t}/services/stripe.ts afterInvoicePayment wiring is wrong (crm-restaurant: bookOnDeposit, then syncEventInvoiceDueDate; crm/fieldservice/landscaping/basic: the commission earner only; everyone else: none)`)
   // Every named export the rest of the template imports (agreements, booking) must still be there.
   for (const name of ['createBookingDepositIntent', 'listSavedPaymentMethods', 'chargeInvoiceOffSession', 'constructWebhookEvent', 'handleWebhook']) {
     if (!svc.includes(name)) fail(`${t}/services/stripe.ts must re-export ${name}`)
