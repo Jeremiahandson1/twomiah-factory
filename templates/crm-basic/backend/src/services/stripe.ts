@@ -4,6 +4,7 @@
 import { createStripeService } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { contact, invoice, payment, company } from '../../db/schema.ts'
+import commissionEarner from './commissionEarner.ts'
 
 const service = createStripeService({
   db,
@@ -11,6 +12,8 @@ const service = createStripeService({
   options: {
     // Online bookings land on the job calendar.
     bookingCalendarKind: 'job',
+    // a card payment or a Stripe refund earns (or takes back) its automatic commissions at once
+    afterInvoicePayment: async (invoiceId: string) => { await commissionEarner.earnForInvoice(invoiceId) },
   },
 })
 

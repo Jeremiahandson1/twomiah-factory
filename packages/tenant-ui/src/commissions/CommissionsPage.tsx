@@ -16,7 +16,7 @@
  * permission must not gate a write control).
  */
 import { useState, useEffect, useCallback } from 'react'
-import { DollarSign, Plus, Check, AlertTriangle, Pencil } from 'lucide-react'
+import { DollarSign, Plus, Check, AlertTriangle, Pencil, Printer, Zap } from 'lucide-react'
 import { usePermissions } from '../auth/PermissionsContext'
 import { useConfirm, usePrompt } from '../ui/ConfirmProvider'
 import { PageHeader, Button, Modal, Field, inputCls, money, instantDay, errMsg, StatusBadge } from '../invoicing/ui'
@@ -43,7 +43,15 @@ const PLAN_TYPE_WORDS: Record<string, string> = {
   tiered: 'Tiered',
 }
 const listOf = (r: any): any[] => (Array.isArray(r) ? r : Array.isArray(r?.data) ? r.data : [])
-const blankPlan = (role: string) => ({ name: '', planType: 'percent_of_invoice', flatRateAmount: '', percentRate: '10', appliesToRole: role })
+const blankPlan = (role: string) => ({ name: '', planType: 'percent_of_invoice', flatRateAmount: '', percentRate: '10', appliesToRole: role, autoEarn: 'none' })
+/** Who a plan pays by itself when an invoice is paid in full — the server's COMMISSION_AUTO_EARN. */
+const AUTO_WORDS: Record<string, string> = {
+  none: 'No — record each one by hand',
+  job_assignee: "Yes — the person assigned the job",
+  job_creator: 'Yes — the person who booked the job',
+}
+const SOURCE_WORDS: Record<string, string> = { auto: 'Automatic', reversal: 'Taken back', manual: 'Recorded' }
+const esc = (v: unknown) => String(v ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] as string))
 const blankRecord = { userId: '', planId: '', invoiceId: '', jobId: '', baseAmount: '', commissionAmount: '', notes: '' }
 
 export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
@@ -57,7 +65,11 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   const mayRetire = can('commissions:delete')
   const roleKeys = Object.keys(config.roleWords)
 
-  const [tab, setTab] = useState<'records' | 'plans'>('records')
+  const [tab, setTab] = useState<'records' | 'plans' | 'statements'>('records')
+  const [stmtWho, setStmtWho] = useState('')
+  const [stmtFrom, setStmtFrom] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01` })
+  const [stmtTo, setStmtTo] = useState(() => new Date().toLocaleDateString('en-CA'))
+  const [statement, setStatement] = useState<any | null>(null)
   const [records, setRecords] = useState<any[]>([])
   const [plans, setPlans] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -90,12 +102,12 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   const openNewPlan = () => { setEditingPlan(null); setPlanForm(blankPlan(roleKeys[0] || 'all')); setPlanOpen(true) }
   const openEditPlan = (p: any) => {
     setEditingPlan(p)
-    setPlanForm({ name: p.name || '', planType: p.planType, flatRateAmount: p.flatRateAmount ?? '', percentRate: p.percentRate ?? '', appliesToRole: p.appliesToRole || 'all' })
+    setPlanForm({ name: p.name || '', planType: p.planType, flatRateAmount: p.flatRateAmount ?? '', percentRate: p.percentRate ?? '', appliesToRole: p.appliesToRole || 'all', autoEarn: p.autoEarn || 'none' })
     setPlanOpen(true)
   }
   const savePlan = async (e: React.FormEvent) => {
     e.preventDefault()
-    const body: Record<string, any> = { name: planForm.name, planType: planForm.planType, appliesToRole: planForm.appliesToRole }
+    const body: Record<string, any> = { name: planForm.name, planType: planForm.planType, appliesToRole: planForm.appliesToRole, autoEarn: planForm.planType === 'percent_of_margin' ? 'none' : planForm.autoEarn }
     if (planForm.planType === 'flat_rate') body.flatRateAmount = Number(planForm.flatRateAmount || 0)
     else body.percentRate = Number(planForm.percentRate || 0)
     setBusy(true)
@@ -153,7 +165,72 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
     try { await api.post(`/api/commissions/${row.id}/${action}`, body); load() } catch (err) { toast.error(errMsg(err, 'That could not be done')) }
   }
 
+  const loadStatement = async () => {
+    if (mayReadPlans && !people.length) { try { setPeople(listOf(await api.get('/api/company/users')).filter((u: any) => u.isActive !== false)) } catch { setPeople([]) } }
+    try { setStatement(await api.get('/api/commissions/statement', { userId: stmtWho || undefined, from: stmtFrom || undefined, to: stmtTo || undefined })) }
+    catch (err) { setStatement(null); toast.error(errMsg(err, 'Could not load the statement')) }
+  }
+  /** A clean page for the printer: the statement only, no sidebar. Opened inside the click so it is not blocked. */
+  const printStatement = () => {
+    if (!statement) return
+    const w = window.open('', '_blank')
+    if (!w) { toast.error('Allow pop-ups for this site to print the statement'); return }
+    const rows = statement.lines.map((l: any) => `<tr><td>${esc(instantDay(l.earnedAt))}</td><td>${esc(SOURCE_WORDS[l.source] || l.source)}</td><td>${esc(l.notes || '')}</td><td class="n">${esc(money(l.baseAmount))}</td><td class="n">${esc(money(l.commissionAmount))}</td><td>${esc(l.status)}</td></tr>`).join('')
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Commission statement — ${esc(statement.person.name)}</title><style>body{font:14px system-ui,sans-serif;color:#111;margin:32px}h1{font-size:20px;margin:0 0 4px}p{margin:0 0 16px;color:#444}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #ddd}td.n,th.n{text-align:right}tfoot td{font-weight:600}</style></head><body><h1>Commission statement — ${esc(statement.person.name)}</h1><p>${esc(statement.from || 'From the start')} to ${esc(statement.to || 'today')}</p><table><thead><tr><th>Earned</th><th>How</th><th>Note</th><th class="n">Worked out on</th><th class="n">Commission</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="6">No commissions in this period.</td></tr>'}</tbody><tfoot><tr><td colspan="4">Paid</td><td class="n">${esc(money(statement.totals.paid))}</td><td></td></tr><tr><td colspan="4">Approved, not yet paid</td><td class="n">${esc(money(statement.totals.approved))}</td><td></td></tr><tr><td colspan="4">Pending approval</td><td class="n">${esc(money(statement.totals.pending))}</td><td></td></tr><tr><td colspan="4">Owed</td><td class="n">${esc(money(statement.totals.owed))}</td><td></td></tr></tfoot></table><script>window.onload=function(){window.print()}<\/script></body></html>`)
+    w.document.close()
+  }
+
   if (loading) return <div className="p-6 text-sm text-gray-500 dark:text-slate-400">Loading commissions…</div>
+
+  // A render function, not a component: declared inside the page, a component would remount on every keystroke and the date boxes would lose focus.
+  function statementView() {
+    return (
+      <div className="space-y-4">
+        <div className="bg-white border border-gray-200 rounded-lg p-4 flex flex-wrap items-end gap-3 dark:bg-slate-900 dark:border-slate-700">
+          {mayReadPlans && (
+            <Field label="Person">
+              <select value={stmtWho} onChange={(e) => setStmtWho(e.target.value)} onFocus={() => { if (!people.length) api.get('/api/company/users').then((r: any) => setPeople(listOf(r).filter((u: any) => u.isActive !== false))).catch(() => {}) }} className={inputCls}>
+                <option value="">Me</option>
+                {people.map((u) => <option key={u.id} value={u.id}>{[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email}</option>)}
+              </select>
+            </Field>
+          )}
+          <Field label="From"><input type="date" value={stmtFrom} onChange={(e) => setStmtFrom(e.target.value)} className={inputCls} /></Field>
+          <Field label="To"><input type="date" value={stmtTo} onChange={(e) => setStmtTo(e.target.value)} className={inputCls} /></Field>
+          <Button onClick={loadStatement}>Show statement</Button>
+          {statement && <Button variant="secondary" onClick={printStatement}><Printer className="w-4 h-4" />Print</Button>}
+        </div>
+        {statement && (
+          <div className="bg-white border border-gray-200 rounded-lg overflow-x-auto dark:bg-slate-900 dark:border-slate-700">
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700">
+              <h2 className="font-semibold text-gray-900 dark:text-slate-100">{statement.person.name}</h2>
+              <p className="text-sm text-gray-600 dark:text-slate-400">{statement.from || 'From the start'} to {statement.to || 'today'}</p>
+            </div>
+            <table className="w-full min-w-[560px]">
+              <thead><tr className="text-left text-xs font-semibold uppercase text-gray-600 dark:text-slate-300"><th className="px-4 py-2">Earned</th><th className="px-4 py-2">How</th><th className="px-4 py-2">Commission</th><th className="px-4 py-2">Status</th></tr></thead>
+              <tbody>
+                {statement.lines.length === 0
+                  ? <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-600 dark:text-slate-400">No commissions in this period.</td></tr>
+                  : statement.lines.map((l: any) => (
+                    <tr key={l.id} className="border-t border-gray-100 dark:border-slate-800">
+                      <td className="px-4 py-2 text-sm text-gray-700 dark:text-slate-300">{instantDay(l.earnedAt)}</td>
+                      <td className="px-4 py-2 text-sm text-gray-700 dark:text-slate-300">{SOURCE_WORDS[l.source] || l.source}{l.notes ? <span className="block text-xs text-gray-600 dark:text-slate-400">{l.notes}</span> : null}</td>
+                      <td className="px-4 py-2 text-sm font-semibold text-gray-900 dark:text-slate-100">{money(l.commissionAmount)}</td>
+                      <td className="px-4 py-2"><StatusBadge status={l.status} /></td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+            <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 border-t border-gray-200 dark:border-slate-700">
+              {([['Paid', statement.totals.paid], ['Approved', statement.totals.approved], ['Pending', statement.totals.pending], ['Owed', statement.totals.owed]] as const).map(([label, v]) => (
+                <div key={label}><dt className="text-xs uppercase text-gray-600 dark:text-slate-400">{label}</dt><dd className="text-lg font-semibold text-gray-900 dark:text-slate-100">{money(v)}</dd></div>
+              ))}
+            </dl>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   const tabCls = (on: boolean) => `px-4 py-2 border-b-2 text-sm ${on ? 'border-orange-500 text-gray-900 font-semibold dark:text-slate-100' : 'border-transparent text-gray-600 dark:text-slate-400'}`
 
@@ -170,9 +247,12 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
       <div className="flex gap-2 mb-4 border-b border-gray-200 dark:border-slate-700" role="tablist">
         <button role="tab" aria-selected={tab === 'records'} onClick={() => setTab('records')} className={tabCls(tab === 'records')}>Earnings</button>
         {mayReadPlans && <button role="tab" aria-selected={tab === 'plans'} onClick={() => setTab('plans')} className={tabCls(tab === 'plans')}>Plans</button>}
+        <button role="tab" aria-selected={tab === 'statements'} onClick={() => setTab('statements')} className={tabCls(tab === 'statements')}>Statements</button>
       </div>
 
-      {tab === 'records' ? (
+      {tab === 'statements' ? (
+        statementView()
+      ) : tab === 'records' ? (
         <div className="bg-white border border-gray-200 rounded-lg overflow-x-auto dark:bg-slate-900 dark:border-slate-700">
           <table className="w-full min-w-[640px]">
             <thead className="bg-gray-50 border-b border-gray-200 dark:bg-slate-800 dark:border-slate-700">
@@ -188,7 +268,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
                 </td></tr>
               ) : records.map((r) => (
                 <tr key={r.id} className="border-b border-gray-100 dark:border-slate-800">
-                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">{r.userName || 'Former team member'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">{r.userName || 'Former team member'}{r.source && r.source !== 'manual' && <span className="block text-xs text-gray-600 dark:text-slate-400">{SOURCE_WORDS[r.source] || r.source}</span>}</td>
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-300">{money(r.baseAmount)}</td>
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-300">{r.rateApplied ? `${Number(r.rateApplied)}%` : '—'}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-slate-100">{money(r.commissionAmount)}</td>
@@ -230,6 +310,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
                 {(p.planType === 'percent_of_invoice' || p.planType === 'percent_of_margin') && <>{Number(p.percentRate || 0)}% of {p.planType === 'percent_of_invoice' ? 'the invoice before tax' : 'the margin'}</>}
                 {p.planType === 'tiered' && <>Tiered: {(p.tiers || []).length} brackets</>}
               </div>
+              {p.autoEarn && p.autoEarn !== 'none' && <p className="mt-2 text-sm text-gray-700 flex items-center gap-1 dark:text-slate-300"><Zap className="w-4 h-4" />Pays {p.autoEarn === 'job_assignee' ? 'the person assigned the job' : 'the person who booked the job'} automatically when its invoice is paid in full</p>}
               {p.isActive === false
                 ? (mayUpdate && <button onClick={() => restorePlan(p)} className="mt-3 text-sm text-gray-700 underline dark:text-slate-300">Bring back</button>)
                 : (mayRetire && <button onClick={() => retirePlan(p)} className="mt-3 text-sm text-red-700 underline dark:text-red-300">Retire</button>)}
@@ -260,6 +341,11 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
           {planForm.planType === 'flat_rate'
             ? <Field label="Amount per job ($)"><input type="number" min="0" step="0.01" required value={planForm.flatRateAmount} onChange={(e) => setPlanForm({ ...planForm, flatRateAmount: e.target.value })} className={inputCls} /></Field>
             : planForm.planType !== 'tiered' && <Field label="Rate (%)" hint="Between 0 and 100."><input type="number" min="0" max="100" step="0.1" required value={planForm.percentRate} onChange={(e) => setPlanForm({ ...planForm, percentRate: e.target.value })} className={inputCls} /></Field>}
+          <Field label="Pay it automatically?" hint={planForm.planType === 'percent_of_margin' ? 'A margin plan is recorded by hand — the margin has to be entered.' : 'Only invoices paid in full from now on. A full refund takes it back.'}>
+            <select value={planForm.planType === 'percent_of_margin' ? 'none' : planForm.autoEarn} disabled={planForm.planType === 'percent_of_margin'} onChange={(e) => setPlanForm({ ...planForm, autoEarn: e.target.value })} className={inputCls}>
+              {Object.entries(AUTO_WORDS).map(([value, word]) => <option key={value} value={value}>{word}</option>)}
+            </select>
+          </Field>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setPlanOpen(false)}>Cancel</Button>
             <Button type="submit" disabled={busy}>{editingPlan ? 'Save' : 'Create'}</Button>

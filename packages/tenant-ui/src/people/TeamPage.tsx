@@ -12,8 +12,8 @@ import { ROLE_LABELS } from '../shell/types'
 import type { PeopleApi, PeopleToast, TeamConfig } from './types'
 import { useMayWrite, usePermissions } from '../auth/PermissionsContext'
 
-interface Member { id: string; name: string; email?: string | null; phone?: string | null; role?: string | null; department?: string | null; hourlyRate?: string | number | null; active: boolean; assignedJobs?: number; hasLogin?: boolean; _source?: 'user' }
-const EMPTY = { name: '', email: '', phone: '', role: '', department: '', hourlyRate: '' }
+interface Member { id: string; name: string; email?: string | null; phone?: string | null; role?: string | null; department?: string | null; hourlyRate?: string | number | null; locationId?: string | null; active: boolean; assignedJobs?: number; hasLogin?: boolean; _source?: 'user' }
+const EMPTY = { name: '', email: '', phone: '', role: '', department: '', hourlyRate: '', locationId: '' }
 
 export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: PeopleToast; config?: TeamConfig }) {
   // team:create / team:update are admin-and-up on the server, so the page has to agree: a manager was
@@ -29,6 +29,13 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Member | null>(null)
   const [form, setForm] = useState(EMPTY)
+  /** Branches, where the tenant runs several — the template's OWN feature check, never assumed on. */
+  const hasBranches = !!config?.hasFeature?.('multi_location')
+  const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
+  useEffect(() => {
+    if (!hasBranches) { setBranches([]); return }
+    api.get('/api/locations', { active: 'true' }).then((r: any) => setBranches(r?.data || [])).catch(() => setBranches([]))
+  }, [hasBranches]) // eslint-disable-line react-hooks/exhaustive-deps
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
   const [toDelete, setToDelete] = useState<Member | null>(null)
@@ -51,7 +58,7 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
     if (form.hourlyRate !== '' && Number(form.hourlyRate) < 0) { setFormError('Hourly rate cannot be negative'); return }
     setSaving(true); setFormError('')
     try {
-      const payload = { name: form.name.trim(), email: form.email.trim() || null, phone: form.phone.trim() || null, role: form.role.trim() || null, department: form.department.trim() || null, hourlyRate: form.hourlyRate === '' ? null : Number(form.hourlyRate) }
+      const payload = { name: form.name.trim(), email: form.email.trim() || null, phone: form.phone.trim() || null, role: form.role.trim() || null, department: form.department.trim() || null, hourlyRate: form.hourlyRate === '' ? null : Number(form.hourlyRate), ...(hasBranches ? { locationId: form.locationId || null } : {}) }
       // A login account is shown here on loan from the user table, under ITS id — so PUT /api/team/:id has
       // nothing to update and answered 404, which left the row menu doing nothing and six of seven people on
       // this tenant with no way to hold a pay rate. Saving one creates their roster card instead: the roster
@@ -78,7 +85,7 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
   const openCreate = () => { setEditing(null); setForm(EMPTY); setFormError(''); setModalOpen(true) }
   // A login row's `role` is their PERMISSION role (owner, field), not a trade — so it is not carried into the
   // Job Title field, which would suggest "field" is what they do. Everything else comes across. (T29 M2)
-  const openEdit = (m: Member) => { setEditing(m); setForm({ name: m.name || '', email: m.email || '', phone: m.phone || '', role: m._source === 'user' ? '' : (m.role || ''), department: m.department || '', hourlyRate: m.hourlyRate == null ? '' : String(m.hourlyRate) }); setFormError(''); setModalOpen(true) }
+  const openEdit = (m: Member) => { setEditing(m); setForm({ name: m.name || '', email: m.email || '', phone: m.phone || '', role: m._source === 'user' ? '' : (m.role || ''), department: m.department || '', hourlyRate: m.hourlyRate == null ? '' : String(m.hourlyRate), locationId: m.locationId || '' }); setFormError(''); setModalOpen(true) }
 
   const columns = [
     // The badge says "this person can sign in", so it follows the login — not which table the row came from.
@@ -95,7 +102,7 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
     { key: 'hourlyRate', label: 'Rate', render: (v: any) => (v != null && v !== '' && Number.isFinite(Number(v)) ? `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/hr` : '-') },
     { key: 'active', label: 'Status', render: (v: any) => (v ? <span className="text-green-700 dark:text-green-400">Active</span> : <span className="text-gray-500 dark:text-slate-400">Inactive</span>) },
   ]
-  const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value })
+  const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm({ ...form, [k]: e.target.value })
 
   /**
    * Add Member was already gated (canManageRoster); Edit and Delete on the rows were not. (T42)
@@ -148,6 +155,7 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
           </div>
           <Field label="Email"><input type="email" value={form.email} onChange={set('email')} className={inputCls} /></Field>
           <Field label="Phone"><input value={form.phone} onChange={set('phone')} className={inputCls} /></Field>
+          {branches.length > 0 && <Field label="Branch"><select value={form.locationId} onChange={set('locationId')} className={inputCls}><option value="">No branch</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>}
           <Field label="Hourly Rate"><input type="number" min="0" step="0.01" value={form.hourlyRate} onChange={set('hourlyRate')} className={inputCls} /></Field>
         </div>
         <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>

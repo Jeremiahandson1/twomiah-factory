@@ -14,7 +14,9 @@ export interface TeamTables { teamMember: any; user: any
    * happened with nothing said either before or after — the work was quietly left unassigned. With this the
    * list can say how much each person is holding and the delete can say what it let go. (Contractor T26 L2)
    */
-  job?: any }
+  job?: any
+  /** The company's branches (multi_location). Present, with team_member.location_id → a person can be put at a branch. */
+  location?: any }
 /**
  * Somewhere a roster member can be holding work: the table, the property on it that points at team_member,
  * and what one of them is called. Removing the member sets that column to null, so this is also the list of
@@ -52,10 +54,23 @@ export const teamMemberSchema = z.object({
   active: z.boolean().default(true),
   skills: z.array(z.string().trim().max(60)).max(50).optional(),
   notes: z.string().max(5000).optional().nullable(),
+  /** The branch this person works out of. Only stored where the template has branches (see createTeamRoutes). */
+  locationId: z.string().min(1).optional().nullable().or(z.literal('').transform(() => null)),
 })
 
 export function createTeamRoutes(deps: TeamDeps) {
   const { db, tables: t, authenticate, requirePermission } = deps
+  const branches = !!(t.location && t.teamMember.locationId)
+  /**
+   * A branch must be one of this company's. Where the template has no branches the field is dropped rather than
+   * refused, so a screen that sends it to a vertical without the feature still saves everything else.
+   */
+  const branchCheck = async (companyId: string, data: any): Promise<string | null> => {
+    if (!branches) { delete data.locationId; return null }
+    if (!data.locationId) return null
+    const [row] = await db.select({ id: t.location.id }).from(t.location).where(and(eq(t.location.id, String(data.locationId)), eq(t.location.companyId, companyId))).limit(1)
+    return row ? null : 'That location is not one of your branches'
+  }
   /**
    * WHAT SOMEBODY EARNS IS NOT PART OF THE ROSTER. (T32 H1)
    *
@@ -244,6 +259,8 @@ export function createTeamRoutes(deps: TeamDeps) {
     const parsed = teamMemberSchema.safeParse(normEmail(await c.req.json().catch(() => ({}))))
     if (!parsed.success) return invalid(c, parsed.error)
     const data = parsed.data
+    const badBranch = await branchCheck(user.companyId, data)
+    if (badBranch) return c.json({ error: badBranch }, 400)
     if (data.email && await emailTaken(user.companyId, data.email)) return c.json({ error: 'A team member with that email already exists' }, 409)
     const [member] = await db.insert(t.teamMember).values({
       ...data,
@@ -261,11 +278,14 @@ export function createTeamRoutes(deps: TeamDeps) {
     const parsed = teamMemberSchema.partial().safeParse(normEmail(await c.req.json().catch(() => ({}))))
     if (!parsed.success) return invalid(c, parsed.error)
     const data = parsed.data
+    const badBranch = await branchCheck(user.companyId, data)
+    if (badBranch) return c.json({ error: badBranch }, 400)
     const [existing] = await db.select({ id: t.teamMember.id }).from(t.teamMember).where(and(eq(t.teamMember.id, id), eq(t.teamMember.companyId, user.companyId))).limit(1)
     if (!existing) return c.json({ error: 'Team member not found' }, 404)
     if (data.email && await emailTaken(user.companyId, data.email, id)) return c.json({ error: 'A team member with that email already exists' }, 409)
     const updates: any = { updatedAt: new Date() }
     for (const [k, v] of Object.entries(data)) if (v !== undefined) updates[k] = v
+    if (branches && data.locationId === null) updates.locationId = null
     if (data.hourlyRate !== undefined) updates.hourlyRate = data.hourlyRate == null ? null : String(data.hourlyRate)
     if (data.hireDate !== undefined) updates.hireDate = data.hireDate ? new Date(data.hireDate) : null
     const [member] = await db.update(t.teamMember).set(updates).where(and(eq(t.teamMember.id, id), eq(t.teamMember.companyId, user.companyId))).returning()

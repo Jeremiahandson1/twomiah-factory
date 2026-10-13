@@ -213,10 +213,10 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'labels', name: 'Label Printing', description: 'Compliant cannabis labels with QR codes, barcodes, custom design', category: 'Compliance', core: false, templates: ['crm-dispensary'] },
 
   // Dispensary — NEW: Inventory & RFID
-  // The description is what EVERY template does. Per-store stock and transfers are crm-dispensary's alone; the
-  // other four keep a list of branches (packages/tenant-backend/src/locations), and saying otherwise sold a
-  // feature they do not have.
-  { id: 'multi_location', name: 'Multi-Location', description: 'Run several locations or branches from one account, each with its own address, phone and time zone', category: 'Inventory & Compliance', core: false, templates: ['crm-dispensary', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm'] },
+  // The description is what EVERY template does: crm, crm-fieldservice, crm-landscaping and crm-basic put jobs,
+  // people and stock locations at a branch and report revenue and stock value by branch; crm-dispensary keeps stock
+  // per store with transfers. Keep it to what all five do — it is what the signup and pricing pages print.
+  { id: 'multi_location', name: 'Multi-Location', description: 'Run several locations from one account, with staff, stock and reporting for each location', category: 'Inventory & Compliance', core: false, templates: ['crm-dispensary', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm'] },
   { id: 'batches', name: 'Batch/Lot Tracking', description: 'Full batch lifecycle from receipt to depletion', category: 'Inventory & Compliance', core: false, templates: ['crm-dispensary'] },
   { id: 'rfid', name: 'RFID Scanning', description: 'RFID tag management, scanning, and bulk inventory counts', category: 'Inventory & Compliance', core: false, templates: ['crm-dispensary'] },
 
@@ -253,7 +253,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // Cross-vertical pages that ship in several templates and are gated in their sidebars
   { id: 'support_tickets', name: 'Support Tickets', description: 'Customer support ticket queue with statuses and assignment', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet'] },
   { id: 'tech_mobile_view', name: 'Technician / Crew Mobile View', description: 'Mobile-first field view: today\'s jobs, directions, on my way / on site / done, photos and a checklist', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm'] },
-  { id: 'commission_tracking', name: 'Commission Tracking', description: 'Commission plans for sales reps and crews: each earning worked out from its plan, approved, then marked paid', category: 'Finance', core: false, templates: ['crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm'] },
+  { id: 'commission_tracking', name: 'Commission Tracking', description: 'Commission plans for sales reps and crews: earned by hand or automatically when an invoice is paid, approved, paid out, with statements', category: 'Finance', core: false, templates: ['crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm'] },
 
   // Construction pages that ship in crm and were already sold in the construction tier below
   { id: 'lien_waivers', name: 'Lien Waivers', description: 'Conditional and unconditional lien waiver tracking per payment', category: 'Construction', core: false, templates: ['crm'] },

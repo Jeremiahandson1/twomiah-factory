@@ -2,7 +2,7 @@
 // ../shared at generation. This file only wires the template's tables and services in.
 import { createJobRoutes } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
-import { job, project, contact, user, timeEntry, teamMember } from '../../db/schema.ts'
+import { job, project, contact, user, timeEntry, teamMember, location } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import { cleanText } from '../utils/sanitize.ts'
@@ -11,7 +11,7 @@ import { requirePermission, hasPermission, getExtraPermissions } from '../middle
 
 export default createJobRoutes({
   db,
-  tables: { job, project, contact, user, timeEntry, teamMember },
+  tables: { job, project, contact, user, timeEntry, teamMember, location },
   authenticate,
   requirePermission,
   // Changing what a job is WORTH needs the right that prices a quote. `jobs:update` has to stay

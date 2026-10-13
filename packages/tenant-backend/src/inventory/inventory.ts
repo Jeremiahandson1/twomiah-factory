@@ -24,6 +24,8 @@ export interface InventoryTables {
   inventoryItem: any; inventoryLocation: any; stockLevel: any;
   inventoryTransaction: any; inventoryUsage: any; inventoryTransfer: any;
   purchaseOrder: any; purchaseOrderItem: any; user: any; job: any; company: any;
+  /** The company's branches (multi_location). Present, with inventory_location.branch_id → a warehouse or truck belongs to a branch. */
+  branch?: any;
 }
 // Optional: low-stock email alerts to company admins. Templates that wire an
 // emailService get the alert (crm/rv shipped it); others silently skip it.
@@ -111,6 +113,15 @@ export function createInventoryService(deps: InventoryServiceDeps) {
     inventoryItem, inventoryLocation, stockLevel, inventoryTransaction,
     inventoryUsage, inventoryTransfer, purchaseOrder, purchaseOrderItem, user, job, company,
   } = tables
+  const branch = tables.branch && inventoryLocation.branchId ? tables.branch : null
+  /** A branch must be this company's; '' or null clears it. Where the template has no branches the field is ignored. */
+  async function branchIdFor(companyId: string, value: unknown): Promise<string | null | undefined> {
+    if (!branch || value === undefined) return undefined
+    if (value === null || value === '') return null
+    const [row] = await db.select({ id: branch.id }).from(branch).where(and(eq(branch.id, String(value)), eq(branch.companyId, companyId))).limit(1)
+    if (!row) throw new InventoryError('That branch is not one of yours', 400)
+    return row.id
+  }
 
 // ============================================
 // INVENTORY ITEMS (Parts/Materials)
@@ -305,6 +316,7 @@ async function getCategories(companyId: string): Promise<string[]> {
  * Create inventory location
  */
 async function createLocation(companyId: string, data: any) {
+  const branchId = await branchIdFor(companyId, data.branchId)
   const [location] = await db.insert(inventoryLocation).values({
     companyId,
     name: data.name,
@@ -312,9 +324,27 @@ async function createLocation(companyId: string, data: any) {
     address: data.address,
     assignedUserId: data.assignedUserId,
     active: true,
+    ...(branchId !== undefined ? { branchId } : {}),
   }).returning()
 
   return location
+}
+
+/**
+ * Edit a stock location — its name, type, address, branch, or switch it off. There was no way to change one once
+ * made, so a truck moved to another branch had to be deleted and its stock re-entered.
+ */
+async function updateLocation(companyId: string, id: string, data: any) {
+  const set: Record<string, any> = { updatedAt: new Date() }
+  if (typeof data.name === 'string') { if (!data.name.trim()) throw new InventoryError('A location needs a name', 400); set.name = data.name.trim() }
+  if (data.type !== undefined) { if (!['warehouse', 'truck', 'other'].includes(String(data.type))) throw new InventoryError('Type is warehouse, truck or other', 400); set.type = data.type }
+  if (data.address !== undefined) set.address = data.address || null
+  if (typeof data.active === 'boolean') set.active = data.active
+  const branchId = await branchIdFor(companyId, data.branchId)
+  if (branchId !== undefined) set.branchId = branchId
+  const [row] = await db.update(inventoryLocation).set(set).where(and(eq(inventoryLocation.id, id), eq(inventoryLocation.companyId, companyId))).returning()
+  if (!row) throw new InventoryError('Location not found', 404)
+  return row
 }
 
 /**
@@ -343,8 +373,13 @@ async function getLocations(companyId: string, { type, active = true }: { type?:
         .groupBy(stockLevel.locationId)
     : []
 
+  const branchIds = branch ? [...new Set(locations.map(l => l.inventory_location.branchId).filter(Boolean))] as string[] : []
+  const branchRows = branchIds.length ? await db.select({ id: branch.id, name: branch.name, code: branch.code }).from(branch).where(and(eq(branch.companyId, companyId), inArray(branch.id, branchIds))) : []
+  const branchById = new Map(branchRows.map((b: any) => [b.id, b]))
+
   return locations.map(l => ({
     ...l.inventory_location,
+    ...(branch ? { branch: l.inventory_location.branchId ? branchById.get(l.inventory_location.branchId) || null : null } : {}),
     assignedUser: l.user ? { id: l.user.id, firstName: l.user.firstName, lastName: l.user.lastName } : null,
     _count: {
       stockLevels: stockCounts.find(sc => sc.locationId === l.inventory_location.id)?.count ?? 0,
@@ -904,6 +939,7 @@ async function getInventoryValue(companyId: string) {
   let totalCost = 0
   let totalRetail = 0
   const byLocation: Record<string, { cost: number; retail: number; items: number }> = {}
+  const byBranchId: Record<string, { cost: number; retail: number; items: number }> = {}
 
   for (const r of results) {
     const sl = r.stock_level
@@ -922,6 +958,23 @@ async function getInventoryValue(companyId: string) {
     byLocation[location.name].cost += cost
     byLocation[location.name].retail += retail
     byLocation[location.name].items += 1
+
+    if (branch) {
+      const key = location.branchId || ''
+      byBranchId[key] ||= { cost: 0, retail: 0, items: 0 }
+      byBranchId[key].cost += cost
+      byBranchId[key].retail += retail
+      byBranchId[key].items += 1
+    }
+  }
+
+  // Stock value per branch, named — "" is stock held at a location no branch has been given.
+  let byBranch: Array<{ branch: { id: string; name: string; code: string | null } | null; cost: number; retail: number; items: number }> | undefined
+  if (branch) {
+    const ids = Object.keys(byBranchId).filter(Boolean)
+    const names = ids.length ? await db.select({ id: branch.id, name: branch.name, code: branch.code }).from(branch).where(and(eq(branch.companyId, companyId), inArray(branch.id, ids))) : []
+    const named = new Map(names.map((b: any) => [b.id, b]))
+    byBranch = Object.entries(byBranchId).map(([id, v]) => ({ branch: id ? named.get(id) || { id, name: 'Removed branch', code: null } : null, ...v }))
   }
 
   return {
@@ -929,6 +982,7 @@ async function getInventoryValue(companyId: string) {
     totalRetail,
     potentialProfit: totalRetail - totalCost,
     byLocation,
+    ...(byBranch ? { byBranch } : {}),
   }
 }
 
@@ -969,6 +1023,7 @@ async function deleteInventoryItem(id: string, companyId: string) {
     updateItem,
     getCategories,
     createLocation,
+    updateLocation,
     getLocations,
     getLocationInventory,
     getStockLevel,
@@ -1140,8 +1195,19 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
   app.post('/locations', requirePermission('inventory:create'), async (c) => {
     const user = c.get('user') as any
     const body = await c.req.json()
-    const location = await service.createLocation(user.companyId, body)
-    return c.json(location, 201)
+    try {
+      const location = await service.createLocation(user.companyId, body)
+      return c.json(location, 201)
+    } catch (err) { return refused(c, err) }
+  })
+
+  // Edit location (name, type, address, branch, active)
+  app.put('/locations/:id', requirePermission('inventory:update'), async (c) => {
+    const user = c.get('user') as any
+    const body = await c.req.json().catch(() => ({}))
+    try {
+      return c.json(await service.updateLocation(user.companyId, c.req.param('id'), body))
+    } catch (err) { return refused(c, err) }
   })
 
   // Get location inventory

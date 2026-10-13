@@ -4,9 +4,10 @@ import { db } from '../../db/index.ts'
 import {
   inventoryItem, inventoryLocation, stockLevel, inventoryTransaction, inventoryUsage,
   inventoryTransfer, purchaseOrder, purchaseOrderItem, user, job, company,
+  location,
 } from '../../db/schema.ts'
 
 export default createInventoryService({
   db,
-  tables: { inventoryItem, inventoryLocation, stockLevel, inventoryTransaction, inventoryUsage, inventoryTransfer, purchaseOrder, purchaseOrderItem, user, job, company },
+  tables: { inventoryItem, inventoryLocation, stockLevel, inventoryTransaction, inventoryUsage, inventoryTransfer, purchaseOrder, purchaseOrderItem, user, job, company, branch: location },
 })

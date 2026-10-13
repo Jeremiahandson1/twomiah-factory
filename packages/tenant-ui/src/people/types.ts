@@ -11,6 +11,8 @@ export interface TeamConfig {
   /** Column + field label for the roster role — "Job Title / Trade" (trades), "Role / Specialty" (salon / vet). */
   roleLabel?: string
   rolePlaceholder?: string
+  /** The template's feature check. With multi_location on, each person can be put at a branch. Absent → no branch field. */
+  hasFeature?: (id: string) => boolean
 }
 
 export interface TimeConfig {

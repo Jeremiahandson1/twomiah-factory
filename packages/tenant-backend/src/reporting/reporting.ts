@@ -24,6 +24,8 @@ export interface ReportingTables {
   contact: any
   /** crew roster — present → team productivity also counts jobs done by roster-only crew (T21 M12) */
   teamMember?: any
+  /** the company's branches — present, with job.location_id → revenue by branch (GET /revenue/locations) */
+  location?: any
 }
 
 export interface ReportingOptions {
@@ -174,6 +176,34 @@ export function createReportingService(deps: ReportingDeps) {
       const invoiced = r2(num(r.invoiced)), collected = r2(Math.max(0, num(r.collected)))
       return { contact: byId.get(r.contactId) || { id: r.contactId, name: 'Unknown' }, invoiced, collected, total: collected, invoiceCount: Number(r.count) }
     })
+  }
+
+  /**
+   * REVENUE BY BRANCH. An invoice belongs to the branch of the job it bills: the job named on the invoice where the
+   * invoice table has a job column (crm-fieldservice), otherwise the job raised from the same quote. ONE job per
+   * invoice — the earliest — so an invoice whose quote became two jobs is not counted twice. Invoices that reach no
+   * job, or a job with no branch, are their own row ("No branch") so the total still adds up to revenue.
+   * Same money rules as revenueByCustomer: drafts and voids out; collected is net of refunds.
+   */
+  async function revenueByLocation(companyId: string, range: DateRange) {
+    if (!t.location || !t.job.locationId) return []
+    const jobMatch = t.invoice.jobId
+      ? sql`(j.id = ${t.invoice.jobId} OR (${t.invoice.jobId} IS NULL AND j.quote_id = ${t.invoice.quoteId}))`
+      : sql`j.quote_id = ${t.invoice.quoteId}`
+    const branchExpr = sql<string | null>`(SELECT j.location_id FROM job j WHERE j.company_id = ${t.invoice.companyId} AND ${jobMatch} ORDER BY j.created_at LIMIT 1)`
+    const collectedExpr = sql<string>`coalesce(sum(${t.invoice.amountPaid}::numeric - coalesce(${t.invoice.amountRefunded}, 0)::numeric), 0)`
+    // GROUP BY 1: the branch expression is a subquery, and grouping by its text again would be a second copy of it.
+    const rows = await db.select({ locationId: branchExpr, invoiced: sum(t.invoice.total), collected: collectedExpr, count: count() })
+      .from(t.invoice)
+      .where(and(eq(t.invoice.companyId, companyId), billed, ...inRange(t.invoice.createdAt, range)))
+      .groupBy(sql`1`)
+    const ids = rows.map((r: any) => r.locationId).filter(Boolean) as string[]
+    const branches = ids.length ? await db.select({ id: t.location.id, name: t.location.name, code: t.location.code }).from(t.location)
+      .where(and(eq(t.location.companyId, companyId), inArray(t.location.id, ids))) : []
+    const byId = new Map(branches.map((b: any) => [b.id, b]))
+    return rows
+      .map((r: any) => ({ location: r.locationId ? byId.get(r.locationId) || { id: r.locationId, name: 'Removed branch', code: null } : null, invoiced: r2(num(r.invoiced)), collected: r2(Math.max(0, num(r.collected))), invoiceCount: Number(r.count) }))
+      .sort((a: any, b: any) => (a.location ? 0 : 1) - (b.location ? 0 : 1) || b.collected - a.collected)
   }
 
   // ---------------------------------------------------------------- jobs
@@ -337,7 +367,7 @@ export function createReportingService(deps: ReportingDeps) {
     }
   }
 
-  return { revenueOverview, revenueByMonth, revenueByCustomer, jobStats, jobsByType, jobsByAssignee, projectStats, projectProfitability, teamProductivity, quoteStats, dashboardSummary, recentActivity }
+  return { revenueOverview, revenueByMonth, revenueByCustomer, revenueByLocation, jobStats, jobsByType, jobsByAssignee, projectStats, projectProfitability, teamProductivity, quoteStats, dashboardSummary, recentActivity }
 }
 
 export type ReportingService = ReturnType<typeof createReportingService>
@@ -359,6 +389,7 @@ export function createReportingRoutes(deps: ReportingDeps) {
   app.get('/revenue', guard, async (c) => c.json(await svc.revenueOverview(cid(c), range(c))))
   app.get('/revenue/monthly', guard, async (c) => c.json(await svc.revenueByMonth(cid(c), int(c, 'months', 12))))
   app.get('/revenue/customers', guard, async (c) => c.json(await svc.revenueByCustomer(cid(c), range(c), int(c, 'limit', 10))))
+  app.get('/revenue/locations', guard, async (c) => c.json(await svc.revenueByLocation(cid(c), range(c))))
   app.get('/jobs', guard, async (c) => c.json(await svc.jobStats(cid(c), range(c))))
   app.get('/jobs/types', guard, async (c) => c.json(await svc.jobsByType(cid(c), range(c))))
   app.get('/jobs/assignees', guard, async (c) => c.json(await svc.jobsByAssignee(cid(c), range(c))))

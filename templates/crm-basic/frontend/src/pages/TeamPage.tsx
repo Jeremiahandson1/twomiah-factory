@@ -2,9 +2,11 @@
 import { TeamPage } from '../shared'
 import api from '../services/api'
 import { useToast } from '../contexts/ToastContext'
+import { useAuth } from '../contexts/AuthContext'
 import { teamConfig } from '../peopleConfig'
 
 export default function TeamPageWrapper() {
   const toast = useToast()
-  return <TeamPage api={api as any} toast={toast} config={teamConfig} />
+  const { hasFeature } = useAuth()
+  return <TeamPage api={api as any} toast={toast} config={{ ...teamConfig, hasFeature }} />
 }

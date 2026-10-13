@@ -24,7 +24,7 @@
  */
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq, and, desc, sum, inArray } from 'drizzle-orm'
+import { eq, and, desc, sum, inArray, gte, lte, or, isNull, ne, asc, sql } from 'drizzle-orm'
 
 export interface CommissionTables {
   commission: any
@@ -57,7 +57,10 @@ const money = z.number({ invalid_type_error: 'An amount must be a number' })
 
 export const COMMISSION_PLAN_TYPES = ['flat_rate', 'percent_of_invoice', 'percent_of_margin', 'tiered'] as const
 export const COMMISSION_ROLES = ['technician', 'sales_rep', 'manager', 'all'] as const
-export const COMMISSION_STATUSES = ['pending', 'approved', 'paid', 'disputed'] as const
+// 'cancelled': an automatic earning whose invoice was refunded in full before it was paid out.
+export const COMMISSION_STATUSES = ['pending', 'approved', 'paid', 'disputed', 'cancelled'] as const
+/** Who a plan pays by itself when an invoice is paid in full. */
+export const COMMISSION_AUTO_EARN = ['none', 'job_assignee', 'job_creator'] as const
 
 const planSchema = z.object({
   name: z.string().trim().min(1, 'A plan needs a name'),
@@ -70,6 +73,7 @@ const planSchema = z.object({
   effectiveTo: z.string().optional(),
   // T58k: isActive must be in the schema or zod strips it and PUT {isActive:false} answers 200 having done nothing.
   isActive: z.boolean().optional(),
+  autoEarn: z.enum(COMMISSION_AUTO_EARN).optional(),
 })
 
 const commissionSchema = z.object({
@@ -150,6 +154,16 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     return c.json({ data: plans })
   })
 
+  /**
+   * AUTOMATIC EARNING STARTS WHEN IT IS SWITCHED ON. autoSince is stamped the moment a plan goes from 'none' to
+   * paying somebody, and cleared when it goes back — so the sweep only ever pays invoices paid from then on, and an
+   * owner who switches it on does not wake up to a commission for every invoice imported from their old system.
+   * A margin plan cannot earn by itself: its base is the job's margin, which the person recording it supplies.
+   */
+  const autoRefusal = (planType: string | undefined, autoEarn: string | undefined) =>
+    autoEarn && autoEarn !== 'none' && planType === 'percent_of_margin'
+      ? 'A margin plan cannot pay automatically — its margin has to be entered when the commission is recorded.'
+      : null
   const planValues = (data: Partial<z.infer<typeof planSchema>>) => {
     const v: Record<string, any> = { ...data }
     if (data.flatRateAmount !== undefined) v.flatRateAmount = String(data.flatRateAmount)
@@ -164,8 +178,12 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     const parsed = planSchema.safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the plan', issues: parsed.error.issues }, 400)
     const data = parsed.data
+    const refusal = autoRefusal(data.planType, data.autoEarn)
+    if (refusal) return c.json({ error: refusal, code: 'margin_not_automatic' }, 400)
     const [created] = await db.insert(t.commissionPlan).values({
       ...planValues(data),
+      autoEarn: data.autoEarn || 'none',
+      autoSince: data.autoEarn && data.autoEarn !== 'none' ? new Date() : null,
       flatRateAmount: data.flatRateAmount !== undefined ? String(data.flatRateAmount) : null,
       percentRate: data.percentRate !== undefined ? String(data.percentRate) : null,
       companyId: currentUser.companyId,
@@ -178,7 +196,17 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     const id = c.req.param('id')
     const parsed = planSchema.partial().safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the plan', issues: parsed.error.issues }, 400)
-    const [updated] = await db.update(t.commissionPlan).set({ ...planValues(parsed.data), updatedAt: new Date() } as any)
+    const existing = await owned(t.commissionPlan, id, currentUser.companyId)
+    if (!existing) return c.json({ error: 'Commission plan not found' }, 404)
+    const nextType = parsed.data.planType ?? existing.planType
+    const nextAuto = parsed.data.autoEarn ?? existing.autoEarn
+    const refusal = autoRefusal(nextType, nextAuto)
+    if (refusal) return c.json({ error: refusal, code: 'margin_not_automatic' }, 400)
+    const set: Record<string, any> = { ...planValues(parsed.data), updatedAt: new Date() }
+    if (parsed.data.autoEarn !== undefined && parsed.data.autoEarn !== existing.autoEarn) {
+      set.autoSince = parsed.data.autoEarn === 'none' ? null : (existing.autoEarn === 'none' || !existing.autoSince ? new Date() : existing.autoSince)
+    }
+    const [updated] = await db.update(t.commissionPlan).set(set as any)
       .where(and(eq(t.commissionPlan.id, id), eq(t.commissionPlan.companyId, currentUser.companyId))).returning()
     if (!updated) return c.json({ error: 'Commission plan not found' }, 404)
     return c.json(updated)
@@ -315,6 +343,35 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
   move('mark-paid', 'paid')
   move('dispute', 'disputed')
 
+  /**
+   * A STATEMENT: one person's commissions over a period — every line, and what is pending, approved, paid and
+   * owed. The person sees their own; seeing anybody else's is commissions:read, like the list.
+   */
+  app.get('/statement', async (c) => {
+    const currentUser = c.get('user') as any
+    const companyId = currentUser.companyId
+    const userId = c.req.query('userId') || currentUser.userId
+    const canSeeEveryone = await canSee(currentUser.role, 'commissions:read', currentUser.userId)
+    if (userId !== currentUser.userId && !canSeeEveryone) return c.json({ error: 'You can see your own statement only.' }, 403)
+    const person = await owned(t.user, userId, companyId)
+    if (!person) return c.json({ error: 'That person is not on this account' }, 404)
+    const day = /^\d{4}-\d{2}-\d{2}$/
+    const fromQ = c.req.query('from'), toQ = c.req.query('to')
+    if ((fromQ && !day.test(fromQ)) || (toQ && !day.test(toQ))) return c.json({ error: 'Dates are YYYY-MM-DD' }, 400)
+    const conditions: any[] = [eq(t.commission.companyId, companyId), eq(t.commission.userId, userId)]
+    if (fromQ) conditions.push(gte(t.commission.earnedAt, new Date(`${fromQ}T00:00:00`)))
+    if (toQ) conditions.push(lte(t.commission.earnedAt, new Date(`${toQ}T23:59:59.999`)))
+    const lines = await db.select().from(t.commission).where(and(...conditions)).orderBy(asc(t.commission.earnedAt))
+    const total = (status: string) => cents(lines.filter((l: any) => l.status === status).reduce((a: number, l: any) => a + Number(l.commissionAmount || 0), 0))
+    const totals = { pending: total('pending'), approved: total('approved'), paid: total('paid'), disputed: total('disputed') }
+    return c.json({
+      person: { id: person.id, name: [person.firstName, person.lastName].filter(Boolean).join(' ') || person.email },
+      from: fromQ || null, to: toQ || null,
+      lines: lines.filter((l: any) => l.status !== 'cancelled'),
+      totals: { ...totals, owed: cents(totals.pending + totals.approved) },
+    })
+  })
+
   // Total earned / approved / paid / disputed per person.
   app.get('/summary/by-user', requirePermission('commissions:read'), async (c) => {
     const currentUser = c.get('user') as any
@@ -328,3 +385,173 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
 
   return app
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+// AUTOMATIC EARNING
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+export interface CommissionEarnerTables extends CommissionTables { company: any }
+export interface CommissionEarnerDeps {
+  db: any
+  tables: CommissionEarnerTables
+  /**
+   * How an invoice reaches its job. 'jobId' where the invoice table carries invoice.job_id (crm-fieldservice);
+   * 'quoteId' everywhere else — the job raised from the same quote. An invoice that reaches no job earns nothing:
+   * there is nobody to attribute it to, and a guess (every job on a project) would pay the wrong person.
+   */
+  invoiceJobLink: 'jobId' | 'quoteId'
+}
+
+/**
+ * WHEN AN INVOICE IS PAID IN FULL, EACH PLAN THAT PAYS AUTOMATICALLY PAYS ITS PERSON — ONCE.
+ *
+ * An invoice becomes paid through a dozen doors: Record payment, the Stripe webhook, a payment link, autopay, bulk
+ * mark-paid, a credit that clears the balance, an edit that lowers the total under what was paid, the boot-time
+ * status repair. A hook on each door would be a dozen places to forget one. So this is a SWEEP, the same shape the
+ * store's refunds use: it looks at invoices paid since a plan started paying automatically, works out what each one
+ * owes, and writes it under a unique index (commission_auto_once) so a second look — the sweep, the webhook retrying,
+ * two servers — can never pay twice. The routes that record money call earnForInvoice straight away as well, so the
+ * commission shows at once; the sweep is what makes it certain.
+ *
+ *   who      the plan's autoEarn: 'job_assignee' (the person assigned the job — a roster-only crew member has no
+ *            login and cannot be paid through the CRM, so is skipped) or 'job_creator' (whoever booked the job)
+ *   on what  the invoice before tax, after its discount — the same base a commission recorded by hand uses
+ *   when     paidAt on or after the plan's autoSince, inside its effective dates — never imported history
+ *   refunds  an invoice refunded IN FULL takes the commission back: one not yet paid out is cancelled; one already
+ *            paid out gets a reversal line (a negative amount, pending, against the next pay) — money that went out
+ *            is corrected by a new record, never by rewriting the old one. A partial refund leaves it standing.
+ */
+export function createCommissionEarner(deps: CommissionEarnerDeps) {
+  const { db, tables: t, invoiceJobLink } = deps
+
+  const featureOn = async (companyId: string) => {
+    const [co] = await db.select({ enabledFeatures: t.company.enabledFeatures }).from(t.company).where(eq(t.company.id, companyId)).limit(1)
+    return ((co?.enabledFeatures || []) as string[]).includes('commission_tracking')
+  }
+  const autoPlans = async (companyId: string) => db.select().from(t.commissionPlan).where(and(
+    eq(t.commissionPlan.companyId, companyId),
+    eq(t.commissionPlan.isActive, true),
+    ne(t.commissionPlan.autoEarn, 'none'),
+  ))
+  const jobFor = async (inv: any) => {
+    if (invoiceJobLink === 'jobId' && inv.jobId) {
+      const [j] = await db.select().from(t.job).where(and(eq(t.job.id, inv.jobId), eq(t.job.companyId, inv.companyId))).limit(1)
+      if (j) return j
+    }
+    if (!inv.quoteId) return null
+    const [j] = await db.select().from(t.job).where(and(eq(t.job.quoteId, inv.quoteId), eq(t.job.companyId, inv.companyId))).orderBy(asc(t.job.createdAt)).limit(1)
+    return j || null
+  }
+
+  /** Earn — or take back — every automatic commission one invoice owes. Safe to call any number of times. */
+  async function earnForInvoice(invoiceId: string): Promise<{ earned: number; cancelled: number; reversed: number }> {
+    const out = { earned: 0, cancelled: 0, reversed: 0 }
+    const [inv] = await db.select().from(t.invoice).where(eq(t.invoice.id, invoiceId)).limit(1)
+    if (!inv || !(await featureOn(inv.companyId))) return out
+
+    if (inv.status === 'paid' && inv.paidAt) {
+      const paidAt = new Date(inv.paidAt)
+      const plans = (await autoPlans(inv.companyId)).filter((p: any) =>
+        p.planType !== 'percent_of_margin'
+        && p.autoSince && new Date(p.autoSince) <= paidAt
+        && (!p.effectiveFrom || new Date(p.effectiveFrom) <= paidAt)
+        && (!p.effectiveTo || new Date(p.effectiveTo) >= paidAt))
+      if (!plans.length) return out
+      const job = await jobFor(inv)
+      if (!job) return out
+      const base = cents(Math.max(0, Number(inv.subtotal ?? inv.total ?? 0) - Number(inv.discount ?? 0)))
+      for (const plan of plans) {
+        const earnerId = plan.autoEarn === 'job_assignee' ? job.assignedToId : plan.autoEarn === 'job_creator' ? job.createdById : null
+        if (!earnerId) continue
+        const [person] = await db.select({ id: t.user.id }).from(t.user).where(and(eq(t.user.id, earnerId), eq(t.user.companyId, inv.companyId))).limit(1)
+        if (!person) continue
+        const result = commissionFor(plan, base)
+        if ('error' in result) continue
+        const rows = await db.insert(t.commission).values({
+          companyId: inv.companyId, planId: plan.id, userId: person.id, jobId: job.id, invoiceId: inv.id,
+          baseAmount: String(base), rateApplied: result.rate !== null ? String(result.rate) : null,
+          commissionAmount: String(result.amount), earnedAt: paidAt, source: 'auto',
+          notes: `Earned automatically when ${inv.number || 'the invoice'} was paid in full`,
+        } as any).onConflictDoNothing().returning({ id: t.commission.id })
+        out.earned += rows.length
+      }
+      return out
+    }
+
+    if (inv.status === 'refunded') {
+      const autos = await db.select().from(t.commission).where(and(
+        eq(t.commission.companyId, inv.companyId), eq(t.commission.invoiceId, inv.id), eq(t.commission.source, 'auto'),
+      ))
+      for (const a of autos) {
+        if (['pending', 'approved', 'disputed'].includes(a.status)) {
+          const rows = await db.update(t.commission).set({ status: 'cancelled', notes: `${a.notes ? a.notes + ' · ' : ''}Cancelled: ${inv.number || 'the invoice'} was refunded in full`, updatedAt: new Date() } as any)
+            .where(and(eq(t.commission.id, a.id), eq(t.commission.status, a.status))).returning({ id: t.commission.id })
+          out.cancelled += rows.length
+        } else if (a.status === 'paid') {
+          const rows = await db.insert(t.commission).values({
+            companyId: a.companyId, planId: a.planId, userId: a.userId, jobId: a.jobId, invoiceId: a.invoiceId,
+            baseAmount: String(-Number(a.baseAmount || 0)), rateApplied: a.rateApplied,
+            commissionAmount: String(-Number(a.commissionAmount || 0)), source: 'reversal', reversalOf: a.id,
+            notes: `Taken back: ${inv.number || 'the invoice'} was refunded in full after this commission was paid`,
+          } as any).onConflictDoNothing().returning({ id: t.commission.id })
+          out.reversed += rows.length
+        }
+      }
+    }
+    return out
+  }
+
+  /**
+   * Every invoice that may owe something: paid on or after the earliest autoSince of a company's automatic plans,
+   * and refunded ones that carry an automatic commission. Bounded per run; the next run picks up the rest.
+   */
+  async function sweep({ batch = 500 } = {}): Promise<{ invoices: number; earned: number; cancelled: number; reversed: number }> {
+    const total = { invoices: 0, earned: 0, cancelled: 0, reversed: 0 }
+    const companies = await db.select({ id: t.company.id, enabledFeatures: t.company.enabledFeatures }).from(t.company)
+    for (const co of companies as any[]) {
+      if (!((co.enabledFeatures || []) as string[]).includes('commission_tracking')) continue
+      const plans = (await autoPlans(co.id)).filter((p: any) => p.autoSince && p.planType !== 'percent_of_margin')
+      const since = plans.reduce((min: Date | null, p: any) => (!min || new Date(p.autoSince) < min ? new Date(p.autoSince) : min), null as Date | null)
+      const ids = new Set<string>()
+      if (since) {
+        // Not yet earned on, newest first, inside the last 30 days (or since the plan started, if later). The
+        // routes earn at once and the sweep runs every 5 minutes, so 30 days is slack, not a limit anyone meets —
+        // and it keeps an invoice that reaches no job from being looked at for ever.
+        const floor = new Date(Math.max(since.getTime(), Date.now() - 30 * 24 * 60 * 60 * 1000))
+        const paid = await db.select({ id: t.invoice.id }).from(t.invoice)
+          .where(and(
+            eq(t.invoice.companyId, co.id), eq(t.invoice.status, 'paid'), gte(t.invoice.paidAt, floor),
+            sql`NOT EXISTS (SELECT 1 FROM commission c WHERE c.invoice_id = ${t.invoice.id} AND c.source = 'auto')`,
+          )).orderBy(desc(t.invoice.paidAt)).limit(batch)
+        for (const r of paid as any[]) ids.add(r.id)
+      }
+      const refunded = await db.select({ id: t.commission.invoiceId }).from(t.commission)
+        .innerJoin(t.invoice, eq(t.invoice.id, t.commission.invoiceId))
+        .where(and(eq(t.commission.companyId, co.id), eq(t.commission.source, 'auto'), eq(t.invoice.status, 'refunded'), or(ne(t.commission.status, 'cancelled'), isNull(t.commission.status)))).limit(batch)
+      for (const r of refunded as any[]) if (r.id) ids.add(r.id)
+      for (const id of ids) {
+        try {
+          const r = await earnForInvoice(id)
+          total.invoices++; total.earned += r.earned; total.cancelled += r.cancelled; total.reversed += r.reversed
+        } catch (err: any) { console.warn('[Commissions] earn failed for invoice', id, err?.message || err) }
+      }
+    }
+    return total
+  }
+
+  /** Every 5 minutes, and once shortly after boot. stop() for a test or a shutdown. */
+  function startCommissionEarner({ intervalMs = 5 * 60 * 1000, firstRunMs = 90_000 } = {}) {
+    const run = async () => {
+      try {
+        const r = await sweep()
+        if (r.earned || r.cancelled || r.reversed) console.log('[Commissions] earned', r.earned, '· cancelled', r.cancelled, '· reversed', r.reversed)
+      } catch (err: any) { console.error('[Commissions] sweep error:', err?.message || err) }
+    }
+    const interval = setInterval(run, intervalMs)
+    const first = setTimeout(run, firstRunMs)
+    return { stop: () => { clearInterval(interval); clearTimeout(first) } }
+  }
+
+  return { earnForInvoice, sweep, startCommissionEarner }
+}
+export type CommissionEarner = ReturnType<typeof createCommissionEarner>

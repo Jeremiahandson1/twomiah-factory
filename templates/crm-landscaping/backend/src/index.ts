@@ -78,6 +78,7 @@ import searchRoutes from './routes/search.ts'
 import smsRoutes from './routes/sms.ts'
 import stripeRoutes from './routes/stripe.ts'
 import techRoutes from './routes/tech.ts'
+import { startCommissionEarner } from './services/commissionEarner.ts'
 import warrantiesRoutes from './routes/warranties.ts'
 import weatherRoutes from './routes/weather.ts'
 import supportRoutes from './routes/support.ts'
@@ -473,6 +474,8 @@ startMarketingProcessor()
 startAgreementBillingProcessor()
 // Recurring invoices bill themselves when due (shared recurring.ts — nothing else runs them). (T69)
 recurringService.startRecurringProcessor()
+// Automatic commissions — every door an invoice is paid through, swept every 5 minutes (services/commissionEarner.ts).
+startCommissionEarner()
 syncFeatures().catch(console.error)
 startReviewProcessor()
 // Pull the current subscription from the Factory at boot so the mirror is right even if a push was missed.

@@ -12,11 +12,11 @@ import { useMayWrite } from '../auth/PermissionsContext'
 
 interface JobForm {
   title: string; description: string; status: string; priority: string; scheduledDate: string; scheduledTime: string; estimatedHours: string
-  address: string; city: string; state: string; zip: string; projectId: string; contactId: string; assignedToId: string; equipmentId: string; siteId: string; notes: string
+  address: string; city: string; state: string; zip: string; projectId: string; contactId: string; assignedToId: string; equipmentId: string; siteId: string; notes: string; locationId: string
 }
 type Pick = { id: string; name?: string; firstName?: string; lastName?: string; email?: string; address?: string | null; city?: string | null; state?: string | null; zip?: string | null; manufacturer?: string | null; model?: string | null; serialNumber?: string | null }
 
-const emptyForm = (status: string, priority: string): JobForm => ({ title: '', description: '', status, priority, scheduledDate: '', scheduledTime: '', estimatedHours: '', address: '', city: '', state: '', zip: '', projectId: '', contactId: '', assignedToId: '', equipmentId: '', siteId: '', notes: '' })
+const emptyForm = (status: string, priority: string): JobForm => ({ title: '', description: '', status, priority, scheduledDate: '', scheduledTime: '', estimatedHours: '', address: '', city: '', state: '', zip: '', projectId: '', contactId: '', assignedToId: '', equipmentId: '', siteId: '', notes: '', locationId: '' })
 const label = (s: string) => s.replace(/_/g, ' ')
 
 export function JobsPage({ api, toast, config }: JobsPageProps) {
@@ -36,6 +36,8 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
   const [searchParams, setSearchParams] = useSearchParams()
   const [data, setData] = useState<JobRow[]>([])
   const [projects, setProjects] = useState<Pick[]>([])
+  const [branches, setBranches] = useState<Array<{ id: string; name: string; code?: string | null }>>([])
+  const [branchFilter, setBranchFilter] = useState('')
   const [team, setTeam] = useState<Pick[]>([])
   const [contacts, setContacts] = useState<Pick[]>([])
   const [equipment, setEquipment] = useState<Pick[]>([])
@@ -71,11 +73,12 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
       if (search) params.search = search
       if (statusFilter) params.status = statusFilter
       if (projectFilter) params.projectId = projectFilter
+      if (branchFilter) params.locationId = branchFilter
       const res = await api.get('/api/jobs', params)
       setData(res?.data || [])
       setPagination(res?.pagination || null)
     } catch (err) { toast.error(errMsg(err, `Failed to load ${cfg.labels.plural.toLowerCase()}`)) } finally { setLoading(false) }
-  }, [page, search, statusFilter, projectFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page, search, statusFilter, projectFilter, branchFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Arriving on page 3 of the whole company and then filtering to one project would show nothing. */
   useEffect(() => { setPage(1) }, [projectFilter])
@@ -89,6 +92,12 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
    * fetch for tenants that DO have projects — trading a harmless 403 for an empty picker. Depending on
    * the answer means the fetch runs the moment it flips true. (Field Service T29 M1)
    */
+  /** A job's branch — only where the tenant runs several (multi_location). Keyed on the answer, like projects. */
+  const tenantHasBranches = cfg.hasFeature('multi_location')
+  useEffect(() => {
+    if (!tenantHasBranches) { setBranches([]); return }
+    api.get('/api/locations', { active: 'true' }).then((r: any) => setBranches(r?.data || [])).catch(() => setBranches([]))
+  }, [tenantHasBranches]) // eslint-disable-line react-hooks/exhaustive-deps
   const tenantHasProjects = cfg.hasFeature('projects')
   useEffect(() => {
     if (!tenantHasProjects) { setProjects([]); return }
@@ -105,7 +114,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     if (cfg.assignee && maySeeRoster) api.get('/api/team/assignable').then((r: any) => setTeam(r?.data || (Array.isArray(r) ? r : []))).catch(() => setTeam([]))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [load])
-  useEffect(() => { setPage(1) }, [search, statusFilter])
+  useEffect(() => { setPage(1) }, [search, statusFilter, branchFilter])
 
   const loadForContact = async (contactId: string) => {
     if (!contactId) { setEquipment([]); setSites([]); return }
@@ -139,7 +148,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
       // A job can be assigned to a login user OR a roster-only crew member; the picker holds whichever id it is, and
       // the API routes it back to the right column. Seeding only from assignedToId showed "Unassigned" for crew —
       // and saving the form would then have unassigned them for real. (T21 M12)
-      projectId: item.projectId || '', contactId: item.contactId || '', assignedToId: item.assignedToId || item.assignedToMemberId || '', equipmentId: item.equipmentId || '', siteId: item.siteId || '', notes: item.notes || '',
+      projectId: item.projectId || '', contactId: item.contactId || '', assignedToId: item.assignedToId || item.assignedToMemberId || '', equipmentId: item.equipmentId || '', siteId: item.siteId || '', notes: item.notes || '', locationId: (item as any).locationId || '',
     })
     setUseAddressOnFile(false)
     loadForContact(item.contactId || '')
@@ -175,6 +184,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
       const payload: any = { ...form, estimatedHours: form.estimatedHours ? Number(form.estimatedHours) : undefined }
       if (!cfg.equipment) delete payload.equipmentId
       if (!cfg.sites) delete payload.siteId
+      if (!tenantHasBranches) delete payload.locationId
       if (editing) { await api.put(`/api/jobs/${editing.id}`, payload); toast.success(`${cfg.labels.singular} updated`) }
       else { await api.post('/api/jobs', payload); toast.success(`${cfg.labels.singular} created`) }
       setModalOpen(false); load()
@@ -241,6 +251,12 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
           <option value="">All Status</option>
           {cfg.statuses.map((s) => <option key={s} value={s}>{label(s)}</option>)}
         </select>
+        {branches.length > 0 && (
+          <select aria-label="Branch" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)} className={selectCls}>
+            <option value="">All branches</option>
+            {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        )}
       </div>
 
       <DataTable<JobRow> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={(row) => navigate(`/crm/jobs/${row.id}`)} actions={actions} emptyMessage={`No ${cfg.labels.plural.toLowerCase()} found`} />
@@ -252,6 +268,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
           <div className="md:col-span-2"><Field label="Title *"><input value={form.title} onChange={set('title')} className={inputCls} /></Field></div>
           <Field label="Status"><select value={form.status} onChange={set('status')} className={`${inputCls} capitalize`}>{cfg.statuses.map((s) => <option key={s} value={s}>{label(s)}</option>)}{!cfg.statuses.includes(form.status) && form.status && <option value={form.status}>{label(form.status)}</option>}</select></Field>
           <Field label="Priority"><select value={form.priority} onChange={set('priority')} className={`${inputCls} capitalize`}>{cfg.priorities.map((p) => <option key={p} value={p}>{p}</option>)}</select></Field>
+          {branches.length > 0 && <Field label="Branch"><select value={form.locationId} onChange={set('locationId')} className={inputCls}><option value="">No branch</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}{form.locationId && !branches.some((b) => b.id === form.locationId) && <option value={form.locationId}>Inactive branch</option>}</select></Field>}
           {projects.length > 0 && <Field label="Project"><select value={form.projectId} onChange={set('projectId')} className={inputCls}><option value="">Select...</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
           {cfg.assignee && <Field label="Assigned To"><select value={form.assignedToId} onChange={set('assignedToId')} className={inputCls}><option value="">Unassigned</option>{team.map((u) => <option key={u.id} value={u.id}>{u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unnamed'}</option>)}</select></Field>}
           <Field label="Contact">

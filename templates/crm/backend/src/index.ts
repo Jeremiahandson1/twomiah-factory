@@ -77,6 +77,7 @@ import inventoryRoutes from './routes/inventory.ts'
 import locationsRoutes from './routes/locations.ts'
 import commissionsRoutes from './routes/commissions.ts'
 import techRoutes from './routes/tech.ts'
+import { startCommissionEarner } from './services/commissionEarner.ts'
 import mapsRoutes from './routes/maps.ts'
 import marketingRoutes from './routes/marketing.ts'
 import payrollRoutes from './routes/payroll.ts'
@@ -656,6 +657,8 @@ startMarketingProcessor()
 startAgreementBillingProcessor()
 // Recurring invoices bill themselves when due (shared recurring.ts — nothing else runs them). (T69)
 recurringService.startRecurringProcessor()
+// Automatic commissions — every door an invoice is paid through, swept every 5 minutes (services/commissionEarner.ts).
+startCommissionEarner()
 
 const shutdown = async (signal: string) => {
   logger.info(`${signal} received, shutting down gracefully`)

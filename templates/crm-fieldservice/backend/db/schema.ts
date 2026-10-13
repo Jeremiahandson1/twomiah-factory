@@ -1,4 +1,5 @@
 import { pgTable, text, boolean, integer, decimal, real, timestamp, date, time, json, uniqueIndex, index } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 
 // ==================== MULTI-TENANT ====================
@@ -230,6 +231,8 @@ export const job = pgTable('job', {
   assignedToId: text('assigned_to_id').references(() => user.id, { onDelete: 'set null' }),
   /** roster-only crew (no login) assigned instead of a user — exactly one of the two is set (T21 M12) */
   assignedToMemberId: text('assigned_to_member_id').references(() => teamMember.id, { onDelete: 'set null' }),
+  /** The branch this job belongs to (multi_location). Plain text like the other branch references. */
+  locationId: text('location_id'),
   createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
   quoteId: text('quote_id').references(() => quote.id, { onDelete: 'set null' }),
   equipmentId: text('equipment_id').references(() => equipment.id, { onDelete: 'set null' }),
@@ -777,6 +780,8 @@ export const teamMember = pgTable('team_member', {
   active: boolean('active').default(true).notNull(),
   skills: json('skills').default([]).notNull(),
   notes: text('notes'),
+  /** The branch this person works out of (multi_location). */
+  locationId: text('location_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
@@ -989,6 +994,8 @@ export const inventoryLocation = pgTable('inventory_location', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  /** The branch (location table) this stock location belongs to — a warehouse or truck at one branch. */
+  branchId: text('branch_id'),
   assignedUserId: text('assigned_user_id').references(() => user.id, { onDelete: 'set null' }),
 }, (t) => [
   index('inventory_location_company_id_type_idx').on(t.companyId, t.type),
@@ -2902,6 +2909,11 @@ export const commissionPlan = pgTable('commission_plan', {
   isActive: boolean('is_active').default(true).notNull(),
   effectiveFrom: timestamp('effective_from'),
   effectiveTo: timestamp('effective_to'),
+  // Who the plan pays by itself when an invoice is paid in full: 'none' (record by hand), 'job_assignee'
+  // (the person assigned the job — crews, technicians) or 'job_creator' (whoever booked the job — sales).
+  autoEarn: text('auto_earn').default('none').notNull(),
+  // When automatic earning was switched on. Only invoices paid from then on earn — never imported history.
+  autoSince: timestamp('auto_since'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -2924,12 +2936,19 @@ export const commission = pgTable('commission', {
   status: text('status').default('pending').notNull(),
   paidAt: timestamp('paid_at'),
   notes: text('notes'),
+  // 'manual' (recorded on the screen), 'auto' (earned when its invoice was paid), 'reversal' (taking back an auto
+  // earning already paid out, when the invoice was refunded in full).
+  source: text('source').default('manual').notNull(),
+  reversalOf: text('reversal_of'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('commission_company_id_idx').on(t.companyId),
   index('commission_user_id_idx').on(t.userId),
   index('commission_status_idx').on(t.status),
+  // An invoice earns a plan's commission for a person ONCE, however many times the sweep or a webhook sees it paid.
+  uniqueIndex('commission_auto_once').on(t.invoiceId, t.planId, t.userId).where(sql`source = 'auto'`),
+  uniqueIndex('commission_reversal_once').on(t.reversalOf).where(sql`source = 'reversal'`),
 ])
 
 

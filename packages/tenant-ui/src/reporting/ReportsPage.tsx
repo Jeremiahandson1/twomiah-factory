@@ -38,6 +38,9 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
   // The config says whether this VERTICAL has projects; hasFeature says whether this tenant has the module. Reports
   // carried the same ungated Project summary the dashboard carried an Active projects card for. (Contractor T29 L2)
   const showProjects = cfg.projects && hasFeature('projects')
+  // Revenue by branch, where the tenant runs several (multi_location). GET /api/reports/revenue/locations.
+  const showBranches = hasFeature('multi_location')
+  const [branchRows, setBranchRows] = useState<Array<{ location: { id: string; name: string; code: string | null } | null; invoiced: number; collected: number; invoiceCount: number }>>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [data, setData] = useState<Summary | null>(null)
@@ -63,13 +66,14 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
       cfg.team ? api.get('/api/reports/team', q).catch(() => []) : Promise.resolve([]),
       cfg.eventsPipeline ? api.get('/api/dashboard/stats').catch(() => null) : Promise.resolve(null),
       cfg.dealership ? api.get('/api/dashboard/sales-report', q).catch(() => null) : Promise.resolve(null),
-    ]).then(([summary, m, c, tm, ev, dl]) => {
+      showBranches ? api.get('/api/reports/revenue/locations', q).catch(() => []) : Promise.resolve([]),
+    ]).then(([summary, m, c, tm, ev, dl, br]) => {
       if (cancelled) return
-      setData(summary || null); setMonthly(Array.isArray(m) ? m : []); setCustomers(Array.isArray(c) ? c : []); setTeam(Array.isArray(tm) ? tm : []); setEvents(ev); setDealer(dl || null)
+      setData(summary || null); setMonthly(Array.isArray(m) ? m : []); setCustomers(Array.isArray(c) ? c : []); setTeam(Array.isArray(tm) ? tm : []); setEvents(ev); setDealer(dl || null); setBranchRows(Array.isArray(br) ? br : [])
     }).catch(e => { if (!cancelled) setError(e instanceof Error && e.message ? e.message : 'Could not load reports') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [api, range, cfg.team, cfg.eventsPipeline, cfg.dealership])
+  }, [api, range, cfg.team, cfg.eventsPipeline, cfg.dealership, showBranches])
 
   const rangeLabel = RANGES.find(r => r[0] === range)?.[1] || `Last ${range} days`
 
@@ -136,6 +140,30 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
               {cfg.dealership && <div className={card}><h3 className={h3}>Sales pipeline (open leads)</h3><PipelineBar segments={[['new', 'New', 'bg-blue-500'], ['contacted', 'Contacted', 'bg-indigo-500'], ['demo', 'Demo', 'bg-purple-500'], ['desking', 'Desking', 'bg-yellow-500']]} counts={dealer?.pipeline || {}} /></div>}
               {showJobs && (() => { const bar = jobStatusBar(jobs); return <div className={card}><h3 className={h3}>{cfg.jobsLabel.replace(/s$/, '')} status</h3><PipelineBar segments={bar.segments} counts={bar.counts} /></div> })()}
             </div>
+
+            {showBranches && (
+              <div className={card}>
+                <h3 className={h3}>Revenue by branch</h3>
+                <p className={`text-xs ${muted} -mt-3 mb-3`}>Each invoice counts at the branch of the job it bills. Collected is net of refunds.</p>
+                {branchRows.length === 0 ? <p className={`text-sm ${muted}`}>No invoices in this period.</p> : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[420px]">
+                      <thead><tr className="text-left text-xs uppercase text-gray-600 dark:text-slate-400"><th className="py-2 pr-2">Branch</th><th className="py-2 pr-2 text-right">Invoices</th><th className="py-2 pr-2 text-right">Invoiced</th><th className="py-2 text-right">Collected</th></tr></thead>
+                      <tbody>
+                        {branchRows.map((b, i) => (
+                          <tr key={b.location?.id || `none-${i}`} className="border-t border-gray-100 dark:border-slate-800">
+                            <td className="py-2 pr-2 text-gray-900 dark:text-slate-100">{b.location ? b.location.name : 'No branch'}</td>
+                            <td className="py-2 pr-2 text-right text-gray-700 dark:text-slate-300">{b.invoiceCount}</td>
+                            <td className="py-2 pr-2 text-right text-gray-700 dark:text-slate-300">{money(b.invoiced)}</td>
+                            <td className="py-2 text-right font-semibold text-gray-900 dark:text-slate-100">{money(b.collected)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className={`grid grid-cols-1 ${cfg.team ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-6`}>
               <div className={card}>

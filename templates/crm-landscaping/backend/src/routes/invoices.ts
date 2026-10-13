@@ -9,6 +9,7 @@ import { requirePermission, hasPermission, getExtraPermissions } from '../middle
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import emailService from '../services/email.ts'
+import commissionEarner from '../services/commissionEarner.ts'
 
 export default createInvoiceRoutes({
   db,
@@ -27,5 +28,9 @@ export default createInvoiceRoutes({
   audit,
   // timeZoneFor: the business's own clock decides what "today" is, so an invoice or quote raised
   // in the evening is not stamped with tomorrow. Render runs UTC. (Field Service T28 M4)
-  options: { timeZoneFor: (companyId: string) => companyTimeZone(db, companyId), minLineItems: 1 },
+  options: {
+    timeZoneFor: (companyId: string) => companyTimeZone(db, companyId), minLineItems: 1,
+    // a payment, refund or credit recorded on the screen earns (or takes back) its automatic commissions at once
+    afterMoney: (invoiceId: string) => commissionEarner.earnForInvoice(invoiceId),
+  },
 })

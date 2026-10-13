@@ -28,7 +28,12 @@ export interface JobTables { job: any; contact: any; user: any; project?: any; t
   teamMember?: any
   /** Billing a job needs these two plus options.billing; see POST /:id/invoice. (T41) */
   invoice?: any
-  invoiceLineItem?: any }
+  invoiceLineItem?: any
+  /**
+   * The company's branches (multi_location). Present, with a location_id column on the job table → a job can be put
+   * at a branch, the list filters by it (?locationId=), and each job comes back with its branch's name and code.
+   */
+  location?: any }
 export interface JobPhotoStorage { put: (key: string, body: Buffer, contentType: string) => Promise<void>; deleteFile: (key: string) => boolean | Promise<boolean | void>; storageConfigured?: () => boolean }
 export type JobHook = (ctx: { job: any; companyId: string; userId: string }) => Promise<Record<string, any> | void> | Record<string, any> | void
 
@@ -219,8 +224,16 @@ export function createJobRoutes(deps: JobDeps) {
     state: z.string().optional(),
     zip: z.string().optional(),
     notes: cleanText().optional(),
+    ...(t.location && t.job.locationId ? { locationId: z.string().optional().transform(emptyToUndef as any) } : {}),
     ...(o.extraFields || {}),
   })
+  const branches = !!(t.location && t.job.locationId)
+  /** A branch must be one of this company's — an id from anywhere else is refused, not stored. */
+  const branchRefusal = async (companyId: string, locationId: unknown) => {
+    if (!branches || !locationId) return null
+    const [row] = await db.select({ id: t.location.id }).from(t.location).where(and(eq(t.location.id, String(locationId)), eq(t.location.companyId, companyId))).limit(1)
+    return row ? null : 'That location is not one of your branches'
+  }
 
   const app = new Hono()
   app.use('*', authenticate)
@@ -333,8 +346,10 @@ export function createJobRoutes(deps: JobDeps) {
       userIds.length ? db.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName }).from(t.user).where(and(eq(t.user.companyId, companyId), inArray(t.user.id, userIds))) : Promise.resolve([]),
       t.equipment && equipmentIds.length ? db.select({ id: t.equipment.id, name: t.equipment.name, manufacturer: t.equipment.manufacturer, model: t.equipment.model }).from(t.equipment).where(and(eq(t.equipment.companyId, companyId), inArray(t.equipment.id, equipmentIds))) : Promise.resolve([]),
     ])
+    const locationIds = branches ? uniq(rows.map((j) => j.locationId)) : []
+    const locationList = locationIds.length ? await db.select({ id: t.location.id, name: t.location.name, code: t.location.code }).from(t.location).where(and(eq(t.location.companyId, companyId), inArray(t.location.id, locationIds))) : []
     const by = (xs: any[]) => Object.fromEntries(xs.map((x) => [x.id, x]))
-    const pm = by(projects), cm = by(contacts), um = by(users), em = by(equipmentList), mm = by(members)
+    const pm = by(projects), cm = by(contacts), um = by(users), em = by(equipmentList), mm = by(members), lm = by(locationList)
     // One `assignedTo` whichever kind the person is. A user keeps the shape it always had (firstName/lastName) and
     // gains name + kind; a roster member is split into the same two fields so every existing caller keeps working.
     const named = (u: any) => ({ ...u, name: `${u.firstName || ''} ${u.lastName || ''}`.trim(), kind: 'user' as const })
@@ -345,6 +360,7 @@ export function createJobRoutes(deps: JobDeps) {
       contact: j.contactId ? cm[j.contactId] || null : null,
       assignedTo: j.assignedToId ? (um[j.assignedToId] ? named(um[j.assignedToId]) : null) : j.assignedToMemberId ? (mm[j.assignedToMemberId] ? fromMember(mm[j.assignedToMemberId]) : null) : null,
       ...(t.equipment ? { equipment: j.equipmentId ? em[j.equipmentId] || null : null } : {}),
+      ...(branches ? { location: j.locationId ? lm[j.locationId] || null : null } : {}),
     }))
   }
   const isOverdue = (j: any) => !!(j.scheduledDate && OPEN_JOB_STATUSES.includes(String(j.status)) && new Date(j.scheduledDate).getTime() < Date.now() - 86400000)
@@ -367,6 +383,7 @@ export function createJobRoutes(deps: JobDeps) {
     if (q.projectId) conditions.push(eq(t.job.projectId, q.projectId))
     if (q.contactId) conditions.push(eq(t.job.contactId, q.contactId))
     if (q.assignedToId) conditions.push(eq(t.job.assignedToId, q.assignedToId))
+    if (branches && q.locationId) conditions.push(eq(t.job.locationId, q.locationId))
     if (q.search?.trim()) { const p = `%${q.search.trim()}%`; conditions.push(or(ilike(t.job.title, p), ilike(t.job.number, p), ilike(t.job.address, p))!) }
     // The dispatch board passes ?date=YYYY-MM-DD (F-11).
     if (q.date && /^\d{4}-\d{2}-\d{2}$/.test(q.date)) {
@@ -506,6 +523,8 @@ export function createJobRoutes(deps: JobDeps) {
   app.post('/', requirePermission('jobs:create'), async (c) => {
     const currentUser = c.get('user') as any
     const data: any = jobSchema.parse(await c.req.json())
+    const badBranch = await branchRefusal(currentUser.companyId, data.locationId)
+    if (badBranch) return c.json({ error: badBranch }, 400)
     const who = await resolveAssignee(currentUser.companyId, data.assignedToId, data.assignedToMemberId)
     if (who.error) return c.json({ error: who.error }, 400)
     data.assignedToId = who.assignedToId
@@ -550,11 +569,13 @@ export function createJobRoutes(deps: JobDeps) {
     const data: any = jobSchema.partial().parse(Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, v === null ? undefined : v])))
     // On an EDIT, '' (or null) on a link means "clear it" — the schema maps '' to undefined, which leaves the field
     // alone, so Unassign and clearing the customer/project silently did nothing. All three columns are nullable.
-    for (const k of ['assignedToId', 'assignedToMemberId', 'contactId', 'projectId'] as const) {
+    for (const k of ['assignedToId', 'assignedToMemberId', 'contactId', 'projectId', ...(branches ? ['locationId'] as const : [])] as const) {
       if (Object.prototype.hasOwnProperty.call(raw, k) && (raw[k] === '' || raw[k] === null)) data[k] = null
     }
     const existing = await findOwned(id, currentUser.companyId)
     if (!existing) return c.json({ error: 'Job not found' }, 404)
+    const badBranch = await branchRefusal(currentUser.companyId, data.locationId)
+    if (badBranch) return c.json({ error: badBranch }, 400)
 
     /**
      * `jobs:update` IS NOT PERMISSION TO REPRICE THE JOB. (T32 M7)

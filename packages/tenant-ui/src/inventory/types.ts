@@ -6,4 +6,8 @@ export interface InventoryApi {
   put: (path: string, body?: any) => Promise<any>
   delete: (path: string) => Promise<any>
 }
-export interface InventoryPageProps { api: InventoryApi }
+export interface InventoryPageProps {
+  api: InventoryApi
+  /** The template's feature check. With multi_location on, a warehouse or truck can belong to a branch. */
+  hasFeature?: (id: string) => boolean
+}

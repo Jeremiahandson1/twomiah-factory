@@ -53,6 +53,12 @@ export interface InvoiceOptions {
    */
   onPayment?: (tx: any, invoice: any, amount: number) => Promise<string | null>
   /**
+   * Run after a payment, a refund or a credit has been recorded from the screen — outside the transaction, never
+   * blocking the reply. Commissions use it to earn (or take back) at once instead of on the next sweep; the Stripe
+   * paths have their own afterInvoicePayment for the same thing.
+   */
+  afterMoney?: (invoiceId: string) => Promise<unknown>
+  /**
    * Records an invoice can be raised against BEYOND the contact, project and quote every CRM has, as column
    * name → the table it points at. The vet passes { patientId: patient }: the owner pays the bill, but the
    * bill is FOR an animal, and in a multi-pet household nothing said which one. (Vet T12 M6)
@@ -828,6 +834,11 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       const retotal = retotalInvoice(existing, lines, taxRate, discount)
       if ('error' in retotal) return c.json({ error: retotal.error }, 400)
       Object.assign(update, retotal.fields)
+      // WHEN IT WAS PAID, the same rule recordInvoicePayment keeps: stamped the moment the balance reaches 0, kept
+      // while it stays paid, cleared when it is not. An edit that lowered the total to what had been paid marked the
+      // invoice paid with no paidAt, so nothing that asks "paid when?" — commissions, the paid-this-month figure —
+      // ever counted it.
+      update.paidAt = update.status === 'paid' ? (existing.paidAt ?? new Date()) : (update.status === 'partial' ? null : existing.paidAt ?? null)
     }
     const result = await db.transaction(async (tx: any) => {
       const [updated] = await tx.update(t.invoice).set(update).where(eq(t.invoice.id, id)).returning()
@@ -893,6 +904,11 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     return c.json(updated)
   })
 
+  const afterMoney = (invoiceId: string) => {
+    const hook = deps.options?.afterMoney
+    if (hook) hook(invoiceId).catch((err: any) => console.error('[invoices] after-money hook failed', err?.message || err))
+  }
+
   // ---------------------------------------------------------------- payments
   app.post('/:id/payments', requirePermission('invoices:update'), async (c) => {
     const currentUser = c.get('user') as any
@@ -913,6 +929,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       amount: money2(amount), method: data.method, reference: data.reference ?? null,
       ...(tips && tipAmount > 0 ? { tip: money2(tipAmount) } : {}),
     })
+    afterMoney(id)
     return c.json(outcome.payment, 201)
   })
 
@@ -1005,6 +1022,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       amount: money2(amount), method: data.method ?? null, reference: data.reference ?? null, reason: why ?? null,
       refundedToDate: money2(outcome.invoice?.amountRefunded),
     })
+    afterMoney(id)
     return c.json({ refund: outcome.refund, invoice: outcome.invoice })
   })
 
@@ -1032,6 +1050,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       amount: money2(amount), reason: parsed.data.reason,
       balanceBefore: money2(outcome.balanceBefore), balanceAfter: money2(outcome.balanceAfter),
     })
+    afterMoney(id)
     return c.json({ invoice: outcome.invoice, balanceBefore: outcome.balanceBefore, balanceAfter: outcome.balanceAfter })
   })
 

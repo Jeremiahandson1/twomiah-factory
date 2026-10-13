@@ -11,7 +11,8 @@ import { PageError, errorText } from '../ui/PageError'
 import { money } from '../invoicing/ui'
 
 // api is injected once at the page root; child components read it via useInventory().
-const InventoryCtx = createContext<{ api: InventoryApi }>({ api: null as any });
+type Branch = { id: string; name: string; code?: string | null };
+const InventoryCtx = createContext<{ api: InventoryApi; branches: Branch[] }>({ api: null as any, branches: [] });
 const useInventory = () => useContext(InventoryCtx);
 
 interface InventoryItem {
@@ -33,6 +34,8 @@ interface InventoryLocation {
   id: string;
   name: string;
   type: string;
+  branchId?: string | null;
+  branch?: Branch | null;
   _count?: { stockLevels?: number };
 }
 
@@ -65,6 +68,8 @@ interface LocationsTabProps {
   locations: InventoryLocation[];
   /** Absent when this seat holds no inventory:create — the tab then has no Add Location button. (T41) */
   onAddLocation?: () => void;
+  /** Absent when this seat holds no inventory:update. */
+  onEditLocation?: (loc: InventoryLocation) => void;
   onRefresh: () => void;
 }
 
@@ -79,6 +84,8 @@ interface ItemFormModalProps {
 }
 
 interface LocationFormModalProps {
+  /** Present → editing this location (PUT); absent → adding one. */
+  location?: InventoryLocation | null;
   onSave: () => void;
   onClose: () => void;
 }
@@ -100,7 +107,15 @@ interface AdjustStockModalProps {
 /**
  * Inventory Management Page
  */
-export default function InventoryPage({ api }: InventoryPageProps) {
+export default function InventoryPage({ api, hasFeature }: InventoryPageProps) {
+  /** Branches, where the tenant runs several — the template's own feature check, never assumed on. */
+  const hasBranches = !!hasFeature?.('multi_location');
+  const [branches, setBranches] = useState<Branch[]>([]);
+  useEffect(() => {
+    if (!hasBranches) { setBranches([]); return; }
+    api.get('/api/locations', { active: 'true' }).then((r: any) => setBranches(r?.data || [])).catch(() => setBranches([]));
+  }, [hasBranches]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [editingLocation, setEditingLocation] = useState<InventoryLocation | null>(null);
   const [tab, setTab] = useState<string>('items'); // items, locations, orders, reports
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [locations, setLocations] = useState<InventoryLocation[]>([]);
@@ -132,6 +147,8 @@ export default function InventoryPage({ api }: InventoryPageProps) {
    */
   const showCost = items.some((i) => (i as any).unitCost !== undefined);
   const mayCreate = useMayWrite('inventory:create');
+  /** PUT /api/inventory/locations/:id asks inventory:update. */
+  const mayEditLocation = useMayWrite('inventory:update');
   const mayUpdate = useMayWrite('inventory:update');
 
   useEffect(() => {
@@ -157,7 +174,7 @@ export default function InventoryPage({ api }: InventoryPageProps) {
   };
 
   return (
-    <InventoryCtx.Provider value={{ api }}>
+    <InventoryCtx.Provider value={{ api, branches }}>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -365,7 +382,8 @@ export default function InventoryPage({ api }: InventoryPageProps) {
       {tab === 'locations' && (
         <LocationsTab
           locations={locations}
-          onAddLocation={mayCreate ? () => setShowLocationForm(true) : undefined}
+          onAddLocation={mayCreate ? () => { setEditingLocation(null); setShowLocationForm(true); } : undefined}
+          onEditLocation={mayEditLocation ? (loc) => { setEditingLocation(loc); setShowLocationForm(true); } : undefined}
           onRefresh={loadData}
         />
       )}
@@ -386,7 +404,8 @@ export default function InventoryPage({ api }: InventoryPageProps) {
 
       {showLocationForm && (
         <LocationFormModal
-          onSave={() => { setShowLocationForm(false); loadData(); }}
+          location={editingLocation}
+          onSave={() => { setShowLocationForm(false); setEditingLocation(null); loadData(); }}
           onClose={() => setShowLocationForm(false)}
         />
       )}
@@ -429,7 +448,7 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
   );
 }
 
-function LocationsTab({ locations, onAddLocation, onRefresh }: LocationsTabProps) {
+function LocationsTab({ locations, onAddLocation, onEditLocation, onRefresh }: LocationsTabProps) {
   const { api } = useInventory();
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
   const [inventory, setInventory] = useState<LocationInventory | null>(null);
@@ -465,8 +484,8 @@ function LocationsTab({ locations, onAddLocation, onRefresh }: LocationsTabProps
         </div>
 
         {locations.map((loc: InventoryLocation) => (
+          <div key={loc.id} className="relative">
           <button
-            key={loc.id}
             onClick={() => loadLocationInventory(loc.id)}
             className={`w-full p-4 rounded-xl border text-left transition-colors ${
               selectedLocation === loc.id
@@ -483,12 +502,14 @@ function LocationsTab({ locations, onAddLocation, onRefresh }: LocationsTabProps
               <div>
                 <p className="font-medium text-gray-900 dark:text-slate-100">{loc.name}</p>
                 <p className="text-sm text-gray-500 dark:text-slate-400">
-                  {loc._count?.stockLevels || 0} items
+                  {loc._count?.stockLevels || 0} items{loc.branch ? ` · ${loc.branch.name}` : ''}
                 </p>
               </div>
               <ChevronRight className="w-4 h-4 text-gray-400 ml-auto" />
             </div>
           </button>
+          {onEditLocation && <button type="button" onClick={() => onEditLocation(loc)} className="absolute top-2 right-8 text-xs text-gray-600 underline dark:text-slate-300">Edit</button>}
+          </div>
         ))}
       </div>
 
@@ -747,17 +768,19 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
   );
 }
 
-function LocationFormModal({ onSave, onClose }: LocationFormModalProps) {
+function LocationFormModal({ location, onSave, onClose }: LocationFormModalProps) {
   const [error, setError] = useState<string | null>(null);
-  const { api } = useInventory();
-  const [form, setForm] = useState<{ name: string; type: string }>({ name: '', type: 'warehouse' });
+  const { api, branches } = useInventory();
+  const [form, setForm] = useState<{ name: string; type: string; branchId: string }>({ name: location?.name || '', type: location?.type || 'warehouse', branchId: location?.branchId || '' });
   const [saving, setSaving] = useState<boolean>(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/api/inventory/locations', form);
+      const body = branches.length ? { ...form, branchId: form.branchId || null } : { name: form.name, type: form.type };
+      if (location) await api.put(`/api/inventory/locations/${location.id}`, body);
+      else await api.post('/api/inventory/locations', body);
       onSave();
     } catch (error) {
       setError(errorText(error, 'That location could not be saved.'));
@@ -771,7 +794,7 @@ function LocationFormModal({ onSave, onClose }: LocationFormModalProps) {
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
-          <h2 id="inventory-dialog-2-title" className="text-lg font-bold mb-4">Add Location</h2>
+          <h2 id="inventory-dialog-2-title" className="text-lg font-bold mb-4">{location ? `Edit ${location.name}` : 'Add Location'}</h2>
 
           <div className="mb-4"><PageError message={error} onDismiss={() => setError(null)} /></div>
 
@@ -799,6 +822,19 @@ function LocationFormModal({ onSave, onClose }: LocationFormModalProps) {
                 <option value="other">Other</option>
               </select>
             </div>
+            {branches.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Branch</label>
+                <select
+                  value={form.branchId}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, branchId: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                >
+                  <option value="">No branch</option>
+                  {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+            )}
 
             <div className="flex gap-3 pt-4">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg">
