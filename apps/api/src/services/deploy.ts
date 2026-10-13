@@ -1346,6 +1346,25 @@ export async function deployCustomer(
         // Frontend is served by the same backend service — same URL
         results.deployedUrl = backendUrl
 
+        // A CRM added to a tenant that already has a website (crmAddonProvision / flipWebsiteToCrm
+        // deploy with additiveCrm): tell the existing site where its CRM is and the secret the CRM's
+        // /api/webhooks/leads checks (its JWT_SECRET), then redeploy the site so it reads them.
+        // Without this the site never forwarded a lead to the CRM it was paired with.
+        if (additiveCrm) {
+          try {
+            const lookup = await fetchWithTimeout(RENDER_API + '/services?name=' + encodeURIComponent(slug + '-site') + '&limit=5', { headers: renderHeaders() })
+            const list = lookup.ok ? await lookup.json() as any[] : []
+            const siteId = (list.map((x: any) => x.service || x).find((sv: any) => sv && sv.name === slug + '-site') || {}).id
+            if (siteId) {
+              const ok = await updateRenderEnvVars(siteId, [{ key: 'CRM_API_URL', value: backendUrl }, { key: 'WEBHOOK_SECRET', value: jwtSecret }])
+              await fetchWithTimeout(RENDER_API + '/services/' + siteId + '/deploys', { method: 'POST', headers: renderHeaders(), body: JSON.stringify({ clearCache: 'do_not_clear' }) })
+              results.steps.push({ step: 'site_crm_link', status: ok ? 'ok' : 'warning', detail: siteId })
+            }
+          } catch (e: any) {
+            results.steps.push({ step: 'site_crm_link', status: 'warning', error: e.message })
+          }
+        }
+
         // Every emailed link the CRM sends — portal invites, password resets,
         // invoice payment links, Stripe return URLs — is built from
         // FRONTEND_URL, and it was never set on any tenant. Unset, those came
