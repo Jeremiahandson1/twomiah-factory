@@ -354,6 +354,10 @@ export function premiumWebsiteTemplateFor(industry: string | undefined | null): 
   // Store uses the dedicated website-store storefront (not a premium marketing
   // site) — this fallback only guards against a nonexistent template dir.
   if (v === 'store') return 'website-premium-contractor'
+  // Trades with no vertical of their own (painter, remodeler, "other") are 'basic', and there
+  // is no website-premium-basic: copyTemplate threw "Template not found" and the site never
+  // built. They get the general contractor site, which the composer fills for the business.
+  if (v === 'basic') return 'website-premium-contractor'
   return ('website-premium-' + v) as PremiumWebsiteTemplate
 }
 

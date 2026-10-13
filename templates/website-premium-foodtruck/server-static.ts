@@ -1337,8 +1337,11 @@ app.post('/api/leads', async (c) => {
 })
 
 async function notifyOwnerOfLead(lead: { name: string; email: string; phone: string | null; message: string; source: string | null }): Promise<void> {
+  // Deploy gives a premium site RESEND_API_KEY (lib/email.ts, the same path as booking emails),
+  // not SENDGRID_API_KEY — so this used to return here on every site and no owner was ever told
+  // about a lead. Resend first; SendGrid only for a site that was given that key instead.
   const apiKey = process.env.SENDGRID_API_KEY
-  if (!apiKey) return
+  if (!apiKey && !process.env.RESEND_API_KEY) return
   const fromEmail = process.env.FROM_EMAIL || process.env.FACTORY_FROM_EMAIL || 'noreply@twomiah.app'
   const settingsRow = await loadSettings()
   const toEmail = (settingsRow as any)?.email
@@ -1360,6 +1363,11 @@ async function notifyOwnerOfLead(lead: { name: string; email: string; phone: str
       <tr><td style="background:#fafaf7;padding:16px 32px;border-top:1px solid #eee;color:#888;font-size:12px;">This lead is also saved in your admin under Leads.</td></tr>
     </table>
   </body></html>`
+  if (process.env.RESEND_API_KEY) {
+    const { sendEmail } = await import('./lib/email')
+    const sent = await sendEmail({ to: toEmail, subject, html, replyTo: { email: lead.email, name: lead.name } })
+    if (sent || !apiKey) return
+  }
   const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
