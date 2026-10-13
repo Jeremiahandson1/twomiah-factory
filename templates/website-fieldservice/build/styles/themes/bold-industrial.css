@@ -775,3 +775,9 @@ footer .hours strong {
 .service-sidebar .cta-card p { color: #fff !important; }
 .service-cta h2 { color: #fff !important; }
 .service-cta p { color: rgba(255, 255, 255, 0.9) !important; }
+
+/* The generated letter-badge logo keeps its colours (its white-name version is used here). */
+body .main-header .header-top .logo-image.logo-monogram,
+body .header-top .logo-image.logo-monogram {
+  filter: none !important;
+}

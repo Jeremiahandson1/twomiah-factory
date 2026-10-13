@@ -1810,6 +1810,7 @@ async function writeBrandingAssets(targetDir: string, branding: GenerateConfig['
     // Also write to targetDir root for Vite-based projects (CRM frontend/public/)
     writeDataUrl(branding.logo, altPath)
     updateSettingsField(targetDir, 'logo', '/images/logo.' + ext)
+    updateSettingsField(targetDir, 'logoIsMonogram', false)
 
     // Logo size discipline (Claflin 3.8) — admin-uploaded photographic logos
     // routinely land at 100 KB+ for something that's displayed at ≤50px tall.
@@ -1919,6 +1920,9 @@ async function writeBrandingAssets(targetDir: string, branding: GenerateConfig['
       const logoWidth = Math.max(340, 74 + Math.ceil(nameLen * 26 * 0.62) + 12)
       const logoSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${logoWidth} 64"><rect x="4" y="4" width="56" height="56" rx="12" fill="${color}"/><text x="32" y="34" font-family="Arial,Helvetica,sans-serif" font-size="32" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="central">${initial}</text><text x="74" y="34" font-family="Arial,Helvetica,sans-serif" font-size="26" font-weight="700" fill="${color}" dominant-baseline="central">${safeName}</text></svg>`
       write(path.join(imagesDir, 'logo.svg'), logoSvg)
+      // The same badge with a white name, for dark headers (the Bold Industrial theme whitens the
+      // header logo, which would turn this badge into a blank white square).
+      write(path.join(imagesDir, 'logo-light.svg'), logoSvg.replace(`fill="${color}" dominant-baseline="central">${safeName}`, `fill="#ffffff" dominant-baseline="central">${safeName}`))
       write(path.join(targetDir, 'logo.svg'), logoSvg)
       if (fs.existsSync(crmPub)) write(path.join(crmPub, 'logo.svg'), logoSvg)
       // Strip inherited client raster logos
@@ -1926,6 +1930,7 @@ async function writeBrandingAssets(targetDir: string, branding: GenerateConfig['
         for (const f of ['logo.png', 'logo.jpg', 'logo.jpeg']) rm(path.join(d, f))
       }
       updateSettingsField(targetDir, 'logo', '/images/logo.svg')
+      updateSettingsField(targetDir, 'logoIsMonogram', true)
     }
   }
 
@@ -1976,7 +1981,7 @@ function writeDataUrl(dataUrl: string, filePath: string) {
   fs.writeFileSync(filePath, Buffer.from(base64, 'base64'))
 }
 
-function updateSettingsField(dir: string, field: string, value: string) {
+function updateSettingsField(dir: string, field: string, value: string | boolean) {
   const paths = [path.join(dir, 'data', 'settings.json'), path.join(dir, 'settings.json')]
   for (const settingsPath of paths) {
     if (fs.existsSync(settingsPath)) {

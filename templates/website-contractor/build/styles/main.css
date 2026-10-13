@@ -3443,3 +3443,41 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
   }
   .quote-tab:hover { filter: brightness(1.05); }
 }
+
+
+/* ── Few services: center them instead of leaving one card in the first column (or
+      stretched across the row). Most signups start with exactly one service. ── */
+#services .services-grid:has(> :only-child),
+#services .hc-services-grid:has(> :only-child) {
+  grid-template-columns: minmax(0, 420px) !important;
+  justify-content: center !important;
+}
+@media (min-width: 641px) {
+  #services .services-grid:has(> :nth-child(2):last-child),
+  #services .hc-services-grid:has(> :nth-child(2):last-child) {
+    grid-template-columns: repeat(2, minmax(0, 420px)) !important;
+    justify-content: center !important;
+  }
+}
+@media (min-width: 1025px) {
+  #services .hc-services-grid:has(> :nth-child(3):last-child) {
+    grid-template-columns: repeat(3, minmax(0, 360px)) !important;
+    justify-content: center !important;
+  }
+}
+
+/* ── Phone header: keep the header button on one line ("Request Estimate" wrapped to two
+      lines and took a third of the header). ── */
+@media (max-width: 480px) {
+  body .main-header .header-top-right .btn {
+    white-space: nowrap !important;
+    padding: 8px 12px !important;
+    font-size: 12px !important;
+    letter-spacing: 0.02em !important;
+    line-height: 1.2 !important;
+  }
+  body .main-header .header-top-right { gap: 0 !important; }
+}
+@media (max-width: 380px) {
+  body .main-header .header-top-right .btn { padding: 7px 9px !important; font-size: 11px !important; }
+}
