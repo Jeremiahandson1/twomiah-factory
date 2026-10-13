@@ -18,7 +18,6 @@ const factory = new Hono<{ Variables: FactoryAuthVariables }>()
 // ─── Auth on all routes except public ones ────────────────────────────────────
 factory.use('*', async (c, next) => {
   const pub = ['/templates', '/health', '/plans']
-  const isPublicFeatures = c.req.path.endsWith('/features') && !c.req.path.includes('/customers/')
   // /calendar/* — public OAuth start + Google's redirect-back callback.
   //   The flow is browser-driven (no Authorization header available)
   //   and is protected by signed state tokens inside the handlers.
@@ -27,7 +26,9 @@ factory.use('*', async (c, next) => {
   //   masks the right 401 ("bad secret") with a generic one ("missing
   //   Authorization header") and breaks the in-process scheduler.
   if (
-    pub.some(p => c.req.path.endsWith(p)) || isPublicFeatures
+    pub.some(p => c.req.path.endsWith(p))
+    // (No */features exception: it opened ANY path ending in /features to the internet, to serve a hand-typed
+    // catalogue nothing called — removed with it. A public route belongs under /public/.)
     || c.req.path.includes('/public/')
     || c.req.path.includes('/stripe/webhook')
     // Stripe's Connect endpoint (connected-account events, verified by its own signing secret in billing.ts).

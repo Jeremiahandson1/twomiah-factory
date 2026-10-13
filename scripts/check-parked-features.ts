@@ -5,7 +5,8 @@
 //      Settings › Features page (GET /api/company/features/catalog reads the registry), off every
 //      public/advertisable list, and never a default;
 //   2. no plan tier names it — v1 tiers push raw id lists straight into a new tenant;
-//   3. the Factory's own feature catalogue (GET /api/factory/features) does not list it;
+//   3. the Factory keeps no hand-typed feature catalogue that could list it (GET /api/factory/features was one,
+//      calling the Visualizer "Home Visualizer" and missing a third of the CRM; removed 2026-10-13);
 //   4. the Factory wizard does not offer it.
 // The id itself stays in the registry, so the gates that reference it are still valid vocabulary and
 // the pages simply never open. (Twomiah Ads, 2026-09-17; Instant Roof Estimator, 2026-08-20)
@@ -40,8 +41,11 @@ for (const id of PARKED) {
 // the Factory's catalogue and wizard must not offer them either
 const factory = read('apps/api/src/routes/factory/generation.ts')
 const wizard = read('apps/platform/src/components/factory/StepFeatures.tsx')
+// No catalogue of its own: the registry is the one list. A route serving one, or the auth exception that made any
+// */features path public to serve it, is refused outright.
+if (/factory\.get\('\/features'/.test(factory)) fail('apps/api factory serves its own /features catalogue again — the feature registry is the only list')
+if (/endsWith\('\/features'\)/.test(read('apps/api/src/routes/factory.ts'))) fail("apps/api/src/routes/factory.ts makes paths ending in /features public again — put a public route under /public/")
 for (const id of PARKED) {
-  if (new RegExp(`\\{ id: '${id}', name:`).test(factory)) fail(`apps/api factory /features still lists ${id}`)
   if (new RegExp(`\\{ id: '${id}', name:`).test(wizard)) fail(`the Factory wizard still lists ${id}`)
 }
 // the Ads tab and its panel are behind one switch, so turning Ads back on is a one-line change
