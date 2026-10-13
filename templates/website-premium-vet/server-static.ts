@@ -1276,7 +1276,21 @@ app.get('/api/ical/bookings.ics', async (c) => {
 })
 
 // ── Public: lead capture from the contact form ────────────────────────────
-app.post('/api/leads', async (c) => {
+// Every lead form posts here: the contact form (a plain post, or fetch from its inline script),
+// the care finder (JSON), catering inquiries (notes + event details) and the service-area
+// waitlist (email + ZIP). POST /contact too — pages composed before the contact form pointed
+// at /api/leads posted there, and those leads 404'd.
+app.post('/api/leads', (c) => handleLead(c))
+app.post('/contact', (c) => handleLead(c))
+
+async function handleLead(c: any) {
+  const isJson = (c.req.header('content-type') || '').includes('application/json')
+  // A browser posting the form without script gets a page back, not raw JSON.
+  const wantsPage = !isJson && (c.req.header('accept') || '').includes('text/html')
+  const reply = (ok: boolean, text: string, status = ok ? 200 : 400) =>
+    wantsPage
+      ? c.html(leadReplyPage(ok, text, c.req.header('referer')), status)
+      : c.json(ok ? { ok: true, message: text } : { error: text }, status)
   try {
     // Rate-limit first — keeps the DB write and email send off the
     // critical path for flooders.
@@ -1286,12 +1300,12 @@ app.post('/api/leads', async (c) => {
     if (times.length >= LEAD_MAX) {
       const retryAfterSec = Math.ceil((LEAD_WINDOW_MS - (now - times[0])) / 1000)
       c.res.headers.set('Retry-After', String(retryAfterSec))
-      return c.json({ error: 'Too many submissions. Please try again later.' }, 429)
+      return reply(false, 'Too many submissions. Please try again later.', 429)
     }
     times.push(now)
     leadBuckets.set(ip, times)
 
-    const body = await c.req.parseBody() as Record<string, any>
+    const body = (isJson ? await c.req.json().catch(() => ({})) : await c.req.parseBody({ all: true })) as Record<string, any>
 
     // ── Spam protection (honeypot + minimum dwell time) ────────────────
     // The contact form template includes a hidden 'website' field that
@@ -1300,26 +1314,33 @@ app.post('/api/leads', async (c) => {
     // The form also stamps a hidden 't' field with Date.now() when it
     // renders; if the submit lands in under 1.5s the form was almost
     // certainly auto-completed. Both checks are cheap and effective.
-    const honeypot = String(body.website || '').trim()
+    const honeypot = String(body.website || body.honeypot || '').trim()
     if (honeypot) {
       console.log('[Leads] honeypot triggered — silent drop')
-      return c.json({ ok: true, message: "Got it — thanks. We'll be in touch soon." })
+      return reply(true, "Got it — thanks. We'll be in touch soon.")
     }
     const stamp = parseInt(String(body.t || '0'), 10)
     if (stamp > 0 && Date.now() - stamp < 1500) {
       console.log('[Leads] dwell-time triggered — silent drop')
-      return c.json({ ok: true, message: "Got it — thanks. We'll be in touch soon." })
+      return reply(true, "Got it — thanks. We'll be in touch soon.")
     }
 
-    const name = String(body.name || '').trim()
-    const email = String(body.email || '').trim()
-    const phone = String(body.phone || '').trim() || null
-    const message = String(body.project || body.message || '').trim()
-    const source = String(body.source || c.req.header('referer') || '').trim() || null
+    const one = (v: any) => (Array.isArray(v) ? v.map(String).join(', ') : String(v ?? '')).trim()
+    const email = one(body.email)
+    const source = one(body.source) || String(c.req.header('referer') || '').trim() || null
+    // The waitlist asks only for an email; give the lead a name the CRM can show.
+    const name = one(body.name) || (source === 'service-area-waitlist' ? 'Service-area waitlist' : '')
+    const phone = one(body.phone) || null
+    // The written message plus every other answer the form asked for (event date, headcount,
+    // ZIP, care type…), so nothing the visitor told us is dropped.
+    const CONTROL = new Set(['name', 'email', 'phone', 'project', 'message', 'notes', 'source', 'website', 'honeypot', 't'])
+    const extras = Object.keys(body).filter((k) => !CONTROL.has(k) && one(body[k])).slice(0, 20)
+      .map((k) => k.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/^./, (x) => x.toUpperCase()) + ': ' + one(body[k]).slice(0, 500))
+    const message = [one(body.project || body.message || body.notes), ...extras].filter(Boolean).join('\n').slice(0, 5000)
 
-    if (!name || name.length < 2) return c.json({ error: 'Name is required.' }, 400)
-    if (!email || !email.includes('@')) return c.json({ error: 'Valid email required.' }, 400)
-    if (!message || message.length < 4) return c.json({ error: 'Tell us a bit about your project.' }, 400)
+    if (!name || name.length < 2) return reply(false, 'Name is required.')
+    if (!email || !email.includes('@')) return reply(false, 'Valid email required.')
+    if (!message || message.length < 4) return reply(false, 'Tell us a bit about your project.')
 
     await db.insert(leadsTbl).values({ name, email, phone, message, source: source || undefined })
 
@@ -1332,12 +1353,25 @@ app.post('/api/leads', async (c) => {
     forwardLeadToCrm({ name, email, phone, message }).catch((e: any) =>
       console.warn('[Leads] CRM forward failed:', e.message))
 
-    return c.json({ ok: true, message: "Got it — thanks. We'll be in touch soon." })
+    return reply(true, "Got it — thanks. We'll be in touch soon.")
   } catch (err: any) {
     console.error('[Leads] insert failed:', err.message)
-    return c.json({ error: 'Could not save your message. Please try again.' }, 500)
+    return reply(false, 'Could not save your message. Please try again.', 500)
   }
-})
+}
+
+// The page a visitor sees after a plain (no-script) form post: one line and a way back.
+function leadReplyPage(ok: boolean, text: string, referer?: string): string {
+  let back = '/'
+  try { if (referer) back = new URL(referer).pathname || '/' } catch {}
+  const esc = (v: string) => v.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[ch])
+  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<meta name="robots" content="noindex"><title>' + (ok ? 'Thank you' : 'Please try again') + '</title>' +
+    '<style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:17px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:#f7f7f5;color:#1a1a1a}' +
+    'main{max-width:30rem;padding:2rem 1rem;text-align:center}h1{font-size:1.6rem;margin:0 0 .5rem}a{color:inherit;font-weight:600}</style></head>' +
+    '<body><main><h1>' + (ok ? 'Thank you.' : 'That didn\u2019t go through.') + '</h1><p>' + esc(text) + '</p>' +
+    '<p><a href="' + esc(back) + '">' + (ok ? 'Back to the site' : 'Go back and try again') + '</a></p></main></body></html>'
+}
 
 // CRM_API_URL + WEBHOOK_SECRET are set by the factory when the tenant has a CRM (at deploy, or
 // when one is added later). No CRM → nothing to do.
