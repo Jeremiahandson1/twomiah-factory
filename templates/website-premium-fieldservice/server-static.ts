@@ -1303,12 +1303,12 @@ app.post('/api/leads', async (c) => {
     const honeypot = String(body.website || '').trim()
     if (honeypot) {
       console.log('[Leads] honeypot triggered — silent drop')
-      return c.json({ ok: true, message: "Got it. We'll reply within one business day." })
+      return c.json({ ok: true, message: "Got it — thanks. We'll be in touch soon." })
     }
     const stamp = parseInt(String(body.t || '0'), 10)
     if (stamp > 0 && Date.now() - stamp < 1500) {
       console.log('[Leads] dwell-time triggered — silent drop')
-      return c.json({ ok: true, message: "Got it. We'll reply within one business day." })
+      return c.json({ ok: true, message: "Got it — thanks. We'll be in touch soon." })
     }
 
     const name = String(body.name || '').trim()
@@ -1328,13 +1328,31 @@ app.post('/api/leads', async (c) => {
     // if SENDGRID_API_KEY isn't set yet.
     notifyOwnerOfLead({ name, email, phone, message, source }).catch((e: any) =>
       console.warn('[Leads] owner notification failed:', e.message))
+    // And into the CRM, the same webhook the standard sites post to — where the business works its leads.
+    forwardLeadToCrm({ name, email, phone, message }).catch((e: any) =>
+      console.warn('[Leads] CRM forward failed:', e.message))
 
-    return c.json({ ok: true, message: "Got it. We'll reply within one business day." })
+    return c.json({ ok: true, message: "Got it — thanks. We'll be in touch soon." })
   } catch (err: any) {
     console.error('[Leads] insert failed:', err.message)
     return c.json({ error: 'Could not save your message. Please try again.' }, 500)
   }
 })
+
+// CRM_API_URL + WEBHOOK_SECRET are set by the factory when the tenant has a CRM (at deploy, or
+// when one is added later). No CRM → nothing to do.
+async function forwardLeadToCrm(lead: { name: string; email: string; phone: string | null; message: string }): Promise<void> {
+  const url = (process.env.CRM_API_URL || '').replace(/\/+$/, '')
+  const secret = process.env.WEBHOOK_SECRET || ''
+  if (!url || !secret) return
+  const res = await fetch(url + '/api/webhooks/leads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-webhook-secret': secret },
+    body: JSON.stringify({ ...lead, source: 'website' }),
+    signal: AbortSignal.timeout(10_000),
+  })
+  if (!res.ok) console.warn('[Leads] CRM forward HTTP', res.status)
+}
 
 async function notifyOwnerOfLead(lead: { name: string; email: string; phone: string | null; message: string; source: string | null }): Promise<void> {
   // Deploy gives a premium site RESEND_API_KEY (lib/email.ts, the same path as booking emails),
