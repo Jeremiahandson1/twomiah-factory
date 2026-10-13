@@ -517,7 +517,7 @@ export function createJobRoutes(deps: JobDeps) {
     const [withAssignee] = await withRelations([found], currentUser.companyId)
     // The same rule as the list. Both reads return the whole job row, so both carried the value. (T41)
     const base = (await maySeeJobMoney(c)) ? found : hideJobMoney(found)
-    return c.json({ ...base, project: jobProject[0] || null, contact: jobContact[0] ? safeContact : null, assignedTo: assignedUser[0] ? { ...assignedUser[0], name: `${assignedUser[0].firstName || ''} ${assignedUser[0].lastName || ''}`.trim(), kind: 'user' } : withAssignee?.assignedTo || null, timeEntries: entries, ...(t.equipment ? { equipment: jobEquipment[0] || null } : {}) })
+    return c.json({ ...base, project: jobProject[0] || null, contact: jobContact[0] ? safeContact : null, assignedTo: assignedUser[0] ? { ...assignedUser[0], name: `${assignedUser[0].firstName || ''} ${assignedUser[0].lastName || ''}`.trim(), kind: 'user' } : withAssignee?.assignedTo || null, timeEntries: entries, ...(t.equipment ? { equipment: jobEquipment[0] || null } : {}), ...(branches ? { location: withAssignee?.location ?? null } : {}) })
   })
 
   app.post('/', requirePermission('jobs:create'), async (c) => {
