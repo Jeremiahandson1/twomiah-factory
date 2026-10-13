@@ -360,7 +360,32 @@ function isEmpty(v: any): boolean {
  * The per-type rules: what in each section is a fact, and what it must trace
  * to. Returns null to drop the section. Runs before the generic number scrub.
  */
+/** Booking is opt-in: only a business whose intake goals ask for bookings / appointments /
+ *  reservations gets booking sections. Everyone else gets a plain contact call-to-action. */
+export function wantsBookings(input: ComposerInput): boolean {
+  return (input.goals || []).some((g) => /\b(book|booking|bookings|appointment|appointments|reserv\w*|schedul\w*)\b/i.test(String(g)))
+}
+
 function applySectionPolicy(s: Section, input: ComposerInput, c: Corpus, removed: string[]): Section | null {
+  // A booking section on a site that didn't ask for bookings becomes a plain contact CTA with
+  // the same heading — every premium site used to get a "Book now" pointing at /book.
+  if (s.type === 'reservation' && !wantsBookings(input)) {
+    const d0: Record<string, any> = s.data || {}
+    const rawLabel = String(d0.buttonLabel || d0.submitLabel || '')
+    const label = rawLabel && !/\b(book|reserv|schedul|slot|table)\w*/i.test(rawLabel) ? rawLabel : 'Get in touch'
+    const heading = String(d0.heading || '')
+    removed.push('reservation/' + s.variant + ' → cta/banner (booking not requested)')
+    return {
+      type: 'cta',
+      variant: 'banner',
+      data: {
+        heading: heading && !/\b(book|reserv|schedul|slot|table)\w*/i.test(heading) ? heading : 'Tell us what you need',
+        ...(d0.intro ? { subtitle: d0.intro } : {}),
+        primaryCta: { label, href: '#contact' },
+      },
+    }
+  }
+
   const d: Record<string, any> = { ...(s.data || {}) }
   const label = s.type + '/' + s.variant
   const keepItems = (key: string, ok: (item: any) => boolean) => {
@@ -550,6 +575,12 @@ export function enforceIntakeFacts(
       if (missing.length > 0) {
         removed.push(policed.type + '/' + policed.variant + ' — required ' + missing.join(', ') + ' was an unsupplied fact')
         droppedByPage[slug].add(policed.type)
+        continue
+      }
+      // Two booking sections in a row both become the same contact banner — keep one.
+      const prev = out[out.length - 1]
+      if (policed.type === 'cta' && prev && prev.type === 'cta' && prev.data?.heading === data.heading && prev.data?.primaryCta?.href === data.primaryCta?.href) {
+        removed.push('cta/' + policed.variant + ' — duplicate of the call-to-action before it')
         continue
       }
       out.push({ ...policed, data })
