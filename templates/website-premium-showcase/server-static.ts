@@ -171,8 +171,20 @@ function countView(path: string): void {
 async function renderPage(slug: string, currentPath: string, origin: string): Promise<string | null> {
   const [page, settingsRow] = await Promise.all([loadPage(slug), loadSettings()])
   if (!page || !page.isPublished) return null
+  return renderSections(Array.isArray(page.sections) ? page.sections : [],
+    { title: page.title, metaTitle: page.metaTitle, metaDescription: page.metaDescription }, settingsRow, currentPath, origin)
+}
 
-  const homepage = { sections: Array.isArray(page.sections) ? page.sections : [] }
+// Any section list through home.ejs + base.ejs — a stored page, or one the server builds (the
+// service-area pages).
+async function renderSections(
+  sections: any[],
+  meta: { title?: string | null; metaTitle?: string | null; metaDescription?: string | null },
+  settingsRow: any,
+  currentPath: string,
+  origin: string,
+): Promise<string> {
+  const homepage = { sections }
   const settings = settingsRow || { companyName: 'Your Company', nav: [], contactCtaLabel: 'Get in touch' }
 
   // Per-page SEO overrides. siteOrigin drives base.ejs's canonical, og:url and
@@ -180,8 +192,8 @@ async function renderPage(slug: string, currentPath: string, origin: string): Pr
   const effectiveSettings = {
     ...settings,
     siteOrigin: origin,
-    seoTitle: page.metaTitle || settings.seoTitle || page.title,
-    seoDescription: page.metaDescription || settings.seoDescription || '',
+    seoTitle: meta.metaTitle || settings.seoTitle || meta.title,
+    seoDescription: meta.metaDescription || settings.seoDescription || '',
   }
 
   // LCP preload: the first hero section's image is almost always the
@@ -193,7 +205,55 @@ async function renderPage(slug: string, currentPath: string, origin: string): Pr
   const lcpImage = firstHero?.data?.image && typeof firstHero.data.image === 'string' ? firstHero.data.image : ''
 
   const body = await ejs.renderFile(path.join(viewsDir, 'home.ejs'), { homepage, settings: effectiveSettings }) as string
-  return ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath, lcpImage }) as Promise<string>
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath, lcpImage }) as string
+  return absolutizeHrefs(html)
+}
+
+// Composed pages link with bare slugs (href="contact", nav href="services"). Relative, those
+// resolve under whatever path the visitor is on — fine on /about, a 404 from /blog/a-post or
+// /service-areas/a-town. Every bare internal href becomes absolute.
+function absolutizeHrefs(html: string): string {
+  return html.replace(/href="([^"]*)"/g, (m: string, raw: string) => {
+    if (!raw || /^(?:[a-z][a-z0-9+.-]*:|\/|#|\?|\.)/i.test(raw)) return m
+    return 'href="/' + raw.replace(/\.html(?=$|[?#])/i, '') + '"'
+  })
+}
+
+// ── Service areas ─────────────────────────────────────────────────────────
+// settings.serviceAreas: the places the owner says they serve (their town + the intake's "areas you
+// serve", editable in admin Settings). Each gets /service-areas/<slug>, built from the site's own
+// sections — the owner's services and contact form — so a town page states nothing new.
+function areaSlug(name: string): string {
+  return name.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80)
+}
+function serviceAreasOf(settings: any): Array<{ name: string; slug: string }> {
+  const raw = Array.isArray(settings?.serviceAreas) ? settings.serviceAreas : []
+  const out: Array<{ name: string; slug: string }> = []
+  const seen = new Set<string>()
+  for (const v of raw) {
+    const name = String((v && typeof v === 'object' ? v.name : v) || '').trim().slice(0, 80)
+    const slug = areaSlug(name)
+    if (!name || !slug || seen.has(slug)) continue
+    seen.add(slug)
+    out.push({ name, slug })
+  }
+  return out.slice(0, 40)
+}
+function listOf(names: string[]): string {
+  return names.length <= 2 ? names.join(' and ') : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]
+}
+async function firstSectionOfType(type: string, slugs: string[]): Promise<any | null> {
+  for (const slug of slugs) {
+    const p = await loadPage(slug)
+    if (!p || !p.isPublished || !Array.isArray(p.sections)) continue
+    const s = (p.sections as any[]).find((x) => x && x.type === type)
+    if (s) return s
+  }
+  return null
+}
+function contactCta(settingsRow: any, company: string) {
+  return { type: 'cta', variant: 'banner', data: { id: 'talk', heading: 'Talk to ' + company, primaryCta: { label: settingsRow?.contactCtaLabel || 'Get in touch', href: '/contact' } } }
 }
 
 // Default placeholder served when the pages.home row doesn't exist yet
@@ -214,6 +274,42 @@ app.get('/', async (c) => {
     return c.html(defaultHomePlaceholder(siteName))
   }
   return c.html(html)
+})
+
+app.get('/service-areas', async (c) => {
+  const settingsRow = await loadSettings()
+  const areas = serviceAreasOf(settingsRow)
+  if (!areas.length) return c.notFound()
+  const company = settingsRow?.companyName || process.env.SITE_NAME || ''
+  const served = company + ' serves ' + listOf(areas.map((a) => a.name)) + '.'
+  const sections = [
+    { type: 'hero', variant: 'centered-stats', data: { eyebrow: 'Service areas', title: 'Where we work', subtitle: served } },
+    { type: 'areas', variant: 'list', data: { heading: 'Areas we serve', areas } },
+    contactCta(settingsRow, company),
+  ]
+  countView('/service-areas')
+  return c.html(await renderSections(sections, { title: 'Service areas', metaTitle: 'Service areas | ' + company, metaDescription: served }, settingsRow, '/service-areas', getSiteOrigin(c)))
+})
+
+app.get('/service-areas/:area', async (c) => {
+  const settingsRow = await loadSettings()
+  const areas = serviceAreasOf(settingsRow)
+  const area = areas.find((a) => a.slug === c.req.param('area'))
+  if (!area) return c.notFound()
+  const company = settingsRow?.companyName || process.env.SITE_NAME || ''
+  const [services, contact] = await Promise.all([firstSectionOfType('services', ['services', 'home']), firstSectionOfType('contact', ['contact'])])
+  const serviceNames: string[] = Array.isArray(services?.data?.items)
+    ? services.data.items.map((i: any) => String(i?.title || '').trim()).filter(Boolean).slice(0, 4) : []
+  const lead = serviceNames.length ? listOf(serviceNames) + ' in ' + area.name + '.' : company + ' serves ' + area.name + '.'
+  const others = areas.filter((a) => a.slug !== area.slug)
+  const sections: any[] = [
+    { type: 'hero', variant: 'centered-stats', data: { eyebrow: 'Service area', title: company + ' in ' + area.name, subtitle: lead, primaryCta: { label: settingsRow?.contactCtaLabel || 'Get in touch', href: '/contact' } } },
+  ]
+  if (services) sections.push({ ...services, data: { ...services.data, heading: 'What we do in ' + area.name } })
+  if (others.length) sections.push({ type: 'areas', variant: 'list', data: { heading: 'Other areas we serve', areas: others } })
+  sections.push(contact || contactCta(settingsRow, company))
+  countView('/service-areas/' + area.slug)
+  return c.html(await renderSections(sections, { title: area.name, metaTitle: company + ' in ' + area.name, metaDescription: lead }, settingsRow, '/service-areas/' + area.slug, getSiteOrigin(c)))
 })
 
 // Blog routes — must register before the catch-all `/:slug` below or
@@ -278,7 +374,7 @@ app.get('/blog/:slug', async (c) => {
     nav: settings.nav || [],
   }
   const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/blog/' + slug }) as string
-  return c.html(html)
+  return c.html(absolutizeHrefs(html))
 })
 
 // ─── Twomiah Bookings — public routes ────────────────────────────────────
@@ -1087,6 +1183,11 @@ app.get('/sitemap.xml', async (c) => {
     const loc = origin + (r.slug === 'home' ? '/' : '/' + r.slug)
     const lastmod = r.updatedAt instanceof Date ? r.updatedAt.toISOString() : new Date(r.updatedAt as any).toISOString()
     urls.push(`  <url><loc>${escapeXml(loc)}</loc><lastmod>${lastmod}</lastmod></url>`)
+  }
+  const areaList = serviceAreasOf(await loadSettings())
+  if (areaList.length) {
+    urls.push(`  <url><loc>${escapeXml(origin + '/service-areas')}</loc></url>`)
+    for (const a of areaList) urls.push(`  <url><loc>${escapeXml(origin + '/service-areas/' + a.slug)}</loc></url>`)
   }
   if (postRows.length > 0) {
     urls.push(`  <url><loc>${escapeXml(origin + '/blog')}</loc></url>`)

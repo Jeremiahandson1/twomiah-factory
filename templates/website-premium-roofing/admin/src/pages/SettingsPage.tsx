@@ -17,6 +17,7 @@ interface Settings {
   phone?: string | null
   email?: string | null
   address?: string | null
+  serviceAreas?: string[]
   seoTitle?: string | null
   seoDescription?: string | null
   contactCtaLabel?: string
@@ -138,6 +139,7 @@ export function SettingsPage() {
             <TextField label="Email" value={settings.email || ''} onChange={(e) => update({ email: e.target.value })} />
           </div>
           <TextAreaField label="Address" rows={2} value={settings.address || ''} onChange={(e) => update({ address: e.target.value })} />
+          <TextAreaField label="Service areas — one town per line. Each gets its own page at /service-areas." rows={4} value={(settings.serviceAreas || []).join('\n')} onChange={(e) => update({ serviceAreas: e.target.value.split('\n') })} />
           <TextField label="Contact CTA button label" value={settings.contactCtaLabel || ''} onChange={(e) => update({ contactCtaLabel: e.target.value })} />
         </div>
       </section>

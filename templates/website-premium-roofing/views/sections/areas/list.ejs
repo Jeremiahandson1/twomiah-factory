@@ -1,0 +1,21 @@
+<%
+  // Links to the places the owner serves (settings.serviceAreas), each to its /service-areas page.
+  const heading = data.heading || 'Areas we serve'
+  const areas = Array.isArray(data.areas) ? data.areas : []
+%>
+<% if (areas.length) { %>
+<section class="areas-list" aria-label="<%= heading %>">
+  <div class="container">
+    <div class="section-head"><h2 class="section-title"><%= heading %></h2></div>
+    <ul class="areas-list__grid">
+      <% for (const a of areas) { %><li><a href="/service-areas/<%= a.slug %>"><%= a.name %></a></li><% } %>
+    </ul>
+  </div>
+</section>
+<style>
+  .areas-list{padding:var(--space,64px) 0}
+  .areas-list__grid{list-style:none;margin:0 auto;padding:0;max-width:880px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+  .areas-list__grid a{display:block;padding:14px 18px;border:1px solid var(--line,#e5e7eb);border-radius:10px;color:var(--ink,#0f172a);text-decoration:none;font-weight:600}
+  .areas-list__grid a:hover,.areas-list__grid a:focus-visible{border-color:var(--brand,#1a1a1a);color:var(--brand,#1a1a1a)}
+</style>
+<% } %>

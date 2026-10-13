@@ -346,7 +346,14 @@ for (const file of callers) {
 {
   const src = read('apps/api/src/routes/factory/intake.ts')
   check(/isPublished:\s*!heldPages\.has\(slug\)/.test(src), 'site-bootstrap must seed held pages unpublished')
-  check(/buildPremiumNav\(pages\.filter\(p => p\.isPublished\)/.test(src), 'site-bootstrap must keep held pages out of the nav')
+  check(/buildPremiumNav\((?:\[\.\.\.)?pages\.filter\(p => p\.isPublished\)/.test(src), 'site-bootstrap must keep held pages out of the nav')
+  // Service-area pages name only places the owner gave: their town + the intake's "areas you serve".
+  check(/const serviceAreas = SERVICE_AREA_VERTICALS\.has\(verticalFor\(tenant\.industry\)\) && nearby\.length\s*\?\s*\[\.\.\.new Set\(\[homeArea, \.\.\.nearby\]/.test(src), "site-bootstrap: service areas must come only from the owner's town + intake nearbyCities")
+  for (const t of readdirSync(ROOT + 'templates').filter((d) => d.startsWith('website-premium-'))) {
+    const srv = read('templates/' + t + '/server-static.ts')
+    check(srv.includes("app.get('/service-areas/:area'") && srv.indexOf("app.get('/service-areas/:area'") < srv.indexOf("app.get('/:slug'"), `templates/${t}: /service-areas/:area must be registered before the /:slug catch-all`)
+    check(existsSync(ROOT + 'templates/' + t + '/views/sections/areas/list.ejs'), `templates/${t}: areas/list partial missing`)
+  }
   check(/contentGaps:\s*Array\.isArray\(composed\.contentGaps\)/.test(src), 'site-bootstrap must seed contentGaps')
   check(/parseIntakeFacts\(/.test(src), '/public/intake must parse the owner\'s fact fields')
 }

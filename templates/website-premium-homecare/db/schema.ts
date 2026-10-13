@@ -26,6 +26,8 @@ export const settings = pgTable('settings', {
   // the bootstrap payload; the admin ticks items off. Added by drizzle-kit
   // push at boot like photo_credits.
   contentGaps: jsonb('content_gaps').notNull().default([]),
+  // Places the owner serves — one /service-areas page each.
+  serviceAreas: jsonb('service_areas').notNull().default([]),
   contactCtaLabel: text('contact_cta_label').notNull().default('Get in touch'),
   // Brand colors (consumed via CSS variables in build/styles/main.css).
   primaryColor: text('primary_color'),

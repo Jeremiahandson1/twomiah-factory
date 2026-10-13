@@ -17,7 +17,7 @@ import { searchStockPhotosForBusiness, trackDownload as trackUnsplashDownload } 
 import { type FactoryApp, rateLimit, checkCronSecret, checkFactoryKey, UUID_RE, DOMAIN_RE, parseJsonBody } from './shared'
 import { runDeploy, triggerAutoDeploy } from './deploy'
 import { getDefaultFeaturesForTemplate } from '../../config/featureRegistry'
-import { crmTemplateFor, deployProductsForVertical } from '../../config/industryRouting'
+import { crmTemplateFor, deployProductsForVertical, verticalFor } from '../../config/industryRouting'
 import { MESSAGING_ENABLE_MONTHLY_CENTS } from '../../config/messagingCosts'
 
 // What a signup asked for beyond the plan. Everything free is already on for every plan; these
@@ -1188,6 +1188,7 @@ const PREMIUM_PAGE_NAV_LABEL: Record<string, string> = {
   // Events / venue
   venue: 'The venue',
   vendors: 'Vendors',
+  'service-areas': 'Service areas',
   about: 'About',
 }
 
@@ -1198,7 +1199,7 @@ function buildPremiumNav(
   // Stable per-vertical order: the thing they sell first (menu/services/
   // strains), then secondary funnels (find us/catering/deals/visit), then
   // about.
-  const order = ['emergency', 'inventory', 'menu', 'shop', 'guides', 'services', 'service', 'rooms', 'venue', 'find-care', 'classes', 'packages', 'quote', 'pricing', 'reservations', 'private-dining', 'strains', 'caregivers', 'coverage', 'projects', 'storm', 'schedule', 'amenities', 'local', 'vendors', 'stylists', 'team', 'trainers', 'catering', 'deals', 'gallery', 'visit', 'about']
+  const order = ['emergency', 'inventory', 'menu', 'shop', 'guides', 'services', 'service', 'rooms', 'venue', 'find-care', 'classes', 'packages', 'quote', 'pricing', 'reservations', 'private-dining', 'strains', 'caregivers', 'coverage', 'projects', 'storm', 'schedule', 'amenities', 'local', 'vendors', 'stylists', 'team', 'trainers', 'catering', 'deals', 'gallery', 'visit', 'service-areas', 'about']
   const present = new Set(pageSlugs)
   const out: Array<{ label: string; href: string }> = []
   for (const slug of order) {
@@ -1754,7 +1755,7 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
   const tenantId = c.req.param('tenantId')
   if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant id' }, 400)
   const { data: tenant, error } = await supabase.from('tenants')
-    .select('id, name, slug, email, admin_email, phone, city, state, address, industry, domain, primary_color, secondary_color, website_theme, factory_sync_key, admin_password, preview_premium_pages')
+    .select('id, name, slug, email, admin_email, phone, city, state, address, industry, domain, primary_color, secondary_color, website_theme, factory_sync_key, admin_password, preview_premium_pages, intake_data')
     .eq('id', tenantId)
     .single()
   if (error || !tenant) return c.json({ error: 'Tenant not found' }, 404)
@@ -1804,6 +1805,17 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
     isPublished: !heldPages.has(slug),
   }))
 
+  // Places the owner serves — their town + the intake's "areas you serve" — for the site's
+  // /service-areas pages. Only trades that go to the customer, and only when the owner named more
+  // than their own town (one area is just the home page again). Owner-supplied names only.
+  const SERVICE_AREA_VERTICALS = new Set(['contractor', 'roofing', 'landscaping', 'fieldservice', 'homecare', 'basic'])
+  const intakeIn = ((tenant as any).intake_data?.intake || {}) as { nearbyCities?: unknown }
+  const nearby = (Array.isArray(intakeIn.nearbyCities) ? intakeIn.nearbyCities : []).map((v) => String(v || '').trim()).filter(Boolean)
+  const homeArea = [tenant.city, tenant.state].filter(Boolean).join(', ')
+  const serviceAreas = SERVICE_AREA_VERTICALS.has(verticalFor(tenant.industry)) && nearby.length
+    ? [...new Set([homeArea, ...nearby].filter(Boolean))].slice(0, 24)
+    : []
+
   // Standard CMS-defaults for a fresh tenant. The composer doesn't
   // currently emit settings — we synthesize them from the tenant row.
   const settings = {
@@ -1834,7 +1846,8 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
     // Services/About. Same buildPremiumNav helper used by the preview
     // endpoints above. Held (unpublished) pages stay out until the owner
     // publishes them and adds them under Settings → Navigation.
-    nav: buildPremiumNav(pages.filter(p => p.isPublished).map(p => p.slug)),
+    nav: buildPremiumNav([...pages.filter(p => p.isPublished).map(p => p.slug), ...(serviceAreas.length ? ['service-areas'] : [])]),
+    serviceAreas,
     // The admin's "Finish your site" checklist — what the owner can add and
     // what it unlocks. Seeded once with the rest of the settings row.
     contentGaps: Array.isArray(composed.contentGaps) ? composed.contentGaps : [],

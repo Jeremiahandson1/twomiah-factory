@@ -28,6 +28,7 @@ interface BootstrapPayload {
   settings: {
     photoCredits?: Array<{ photographer: string; photographerUrl?: string; sourceUrl?: string; source: string }>
     contentGaps?: Array<{ id: string; label: string; unlocks: string }>
+    serviceAreas?: string[]
     companyName: string
     tagline?: string
     phone?: string
@@ -144,6 +145,7 @@ async function main() {
       nav: payload.settings.nav || [],
       photoCredits: payload.settings.photoCredits || [],
       contentGaps: payload.settings.contentGaps || [],
+      serviceAreas: payload.settings.serviceAreas || [],
     })
     console.log('[initDb] Created initial settings row.')
   } else {
