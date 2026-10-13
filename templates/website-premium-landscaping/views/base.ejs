@@ -46,6 +46,8 @@
       _ld = { '@context': 'https://schema.org', '@type': 'LocalBusiness', name: settings.companyName, url: canonicalBase + '/' };
       if (settings.phone) _ld.telephone = settings.phone;
       if (settings.email) _ld.email = settings.email;
+      var _areas = (Array.isArray(settings.serviceAreas) ? settings.serviceAreas : []).map(function (a) { return String((a && a.name) || a || '').trim(); }).filter(Boolean);
+      if (_areas.length) _ld.areaServed = _areas.map(function (n) { return { '@type': 'Place', name: n }; });
       var _area = String(settings.address || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
       if (_area.length >= 2) _ld.address = { '@type': 'PostalAddress', addressLocality: _area[_area.length - 2], addressRegion: _area[_area.length - 1] };
       var _ldLogo = settings.logoUrl && settings.logoUrl !== '/images/logo.svg' ? settings.logoUrl : '';
