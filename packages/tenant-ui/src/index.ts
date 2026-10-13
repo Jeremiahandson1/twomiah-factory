@@ -144,6 +144,15 @@ export type { WarrantiesApi, WarrantiesPageProps } from './warranties/types'
 export { default as InventoryPage } from './inventory/InventoryPage'
 export type { InventoryApi, InventoryPageProps } from './inventory/types'
 
+// Commissions, branches and the technician's day — shared by crm, crm-fieldservice, crm-landscaping (and crm-basic for the first two).
+export { CommissionsPage } from './commissions/CommissionsPage'
+export type { CommissionsApi, CommissionsConfig, CommissionsPageProps } from './commissions/CommissionsPage'
+export { LocationsPage } from './locations/LocationsPage'
+export type { LocationsApi, LocationsPageProps } from './locations/LocationsPage'
+export { TechView } from './tech/TechView'
+export type { TechApi, TechViewConfig, TechViewProps, TechChecklistItemDef } from './tech/TechView'
+export { JobPartsPanel } from './inventory/JobPartsPanel'
+
 // What day it is where the viewer is sitting — never the UTC day. The Dispatch Board and the
 // technician's Today tab rolled over at 19:00 Central while the Schedule page did not. (Evergreen BUG-28)
 export { localDayKey, todayKey, dayKeyPlus } from './time/day'

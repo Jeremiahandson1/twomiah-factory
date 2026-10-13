@@ -288,6 +288,13 @@
       "when": 1792400202000,
       "tag": "0040_booking_settings_require_address",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792400203000,
+      "tag": "0041_locations_and_commissions",
+      "breakpoints": true
     }
   ]
 }

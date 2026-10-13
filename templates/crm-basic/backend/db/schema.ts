@@ -2877,6 +2877,8 @@ export const location = pgTable('location', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('location_company_id_idx').on(t.companyId),
+  // migration 0005 creates it; declared here so schema.ts says what the database holds
+  uniqueIndex('location_company_code_unique').on(t.companyId, t.code),
 ])
 
 export const commissionPlan = pgTable('commission_plan', {

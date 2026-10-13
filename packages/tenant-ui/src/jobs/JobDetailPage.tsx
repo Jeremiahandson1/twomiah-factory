@@ -6,6 +6,7 @@ import { ArrowLeft, Edit, Trash2, MapPin, Calendar, Clock, User, Play, CheckCirc
 import { StatusBadge, ConfirmModal, Button, NavLink, dateOnly, errMsg } from '../invoicing/ui'
 import { resolveJobsConfig, PRIORITY_COLORS } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
+import { JobPartsPanel } from '../inventory/JobPartsPanel'
 import type { JobsPageProps, JobRow, JobPhoto } from './types'
 
 const card = 'bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6'
@@ -26,6 +27,12 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
   const mayDelete = useMayWrite('jobs:delete')
   /** Start, Complete, Edit and removing a photo are jobs:update on the server. (T43 viewer round, T68) */
   const mayUpdate = useMayWrite('jobs:update')
+  /**
+   * Parts used on this job — wherever the tenant has inventory (or parts_tracking, which unlocks the same module).
+   * Read off the template's OWN feature check, not resolveJobsConfig's fallback that answers yes to everything:
+   * every CRM that can switch either feature on mounts /api/inventory, and one that cannot must never call it.
+   */
+  const showParts = !!config?.hasFeature && (config.hasFeature('inventory') || config.hasFeature('parts_tracking'))
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -165,6 +172,8 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
               </div>
             </div>
           )}
+
+          {showParts && <JobPartsPanel api={api as any} toast={toast} jobId={id} />}
         </div>
 
         <div className="space-y-6">

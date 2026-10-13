@@ -1248,12 +1248,14 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
     } catch (err) { return refused(c, err) }
   })
 
-  // Get job usage
+  // Get job usage. Costed like every other read here: the parts on a job are open to the crew doing it, what
+  // the company PAID for them is not (unitCost / totalCost went to every seat until the job's parts panel
+  // made this read reachable from a screen).
   app.get('/job/:jobId', async (c) => {
     const user = c.get('user') as any
     const jobId = c.req.param('jobId')
     const usage = await service.getJobUsage(jobId, user.companyId)
-    return c.json(usage)
+    return costed(c, usage)
   })
 
   // Return from job

@@ -2,12 +2,11 @@
 // ../shared at generation. This file only wires the template's tables and services in.
 import { createJobRoutes } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
-import { job, project, contact, user, timeEntry, company, teamMember } from '../../db/schema.ts'
-import { eq } from 'drizzle-orm'
+import { job, project, contact, user, timeEntry, teamMember } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import { cleanText } from '../utils/sanitize.ts'
-import reviews from '../services/reviews.ts'
+import jobHooks from '../services/jobHooks.ts'
 import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 
 export default createJobRoutes({
@@ -24,10 +23,7 @@ export default createJobRoutes({
   EVENTS,
   cleanText,
   options: {
-    // Completing a job schedules a review request when the tenant has the feature on.
-    onComplete: async ({ job, companyId }) => {
-      const [comp] = await db.select({ enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1)
-      if (((comp?.enabledFeatures || []) as string[]).includes('google_reviews')) reviews.scheduleReviewRequest(job.id).catch((err: any) => console.warn('[Jobs] Review schedule failed:', err?.message))
-    },
+    // Completing a job: services/jobHooks.ts, the one definition routes/tech.ts runs too.
+    onComplete: jobHooks.onComplete,
   },
 })

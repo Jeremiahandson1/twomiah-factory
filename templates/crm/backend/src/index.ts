@@ -74,6 +74,9 @@ import geofencingRoutes from './routes/geofencing.ts'
 import importRoutes from './routes/import.ts'
 import migrationRoutes from './routes/migration.ts'
 import inventoryRoutes from './routes/inventory.ts'
+import locationsRoutes from './routes/locations.ts'
+import commissionsRoutes from './routes/commissions.ts'
+import techRoutes from './routes/tech.ts'
 import mapsRoutes from './routes/maps.ts'
 import marketingRoutes from './routes/marketing.ts'
 import payrollRoutes from './routes/payroll.ts'
@@ -313,6 +316,12 @@ app.use('/api/fleet', authenticate, requireEnabledFeature('fleet'))
 app.use('/api/fleet/*', authenticate, requireEnabledFeature('fleet'))
 app.use('/api/inventory', authenticate, requireEnabledFeature('inventory'))
 app.use('/api/inventory/*', authenticate, requireEnabledFeature('inventory'))
+app.use('/api/locations', authenticate, requireEnabledFeature('multi_location'))
+app.use('/api/locations/*', authenticate, requireEnabledFeature('multi_location'))
+app.use('/api/commissions', authenticate, requireEnabledFeature('commission_tracking'))
+app.use('/api/commissions/*', authenticate, requireEnabledFeature('commission_tracking'))
+app.use('/api/tech', authenticate, requireEnabledFeature('tech_mobile_view'))
+app.use('/api/tech/*', authenticate, requireEnabledFeature('tech_mobile_view'))
 app.use('/api/equipment', authenticate, requireEnabledFeature('equipment_tracking'))
 app.use('/api/equipment/*', authenticate, requireEnabledFeature('equipment_tracking'))
 app.use('/api/agreements', authenticate, requireEnabledFeature('service_agreements'))
@@ -387,6 +396,9 @@ app.route('/api/geofencing', geofencingRoutes)
 app.route('/api/import', importRoutes)
 app.route('/api/migration', migrationRoutes)
 app.route('/api/inventory', inventoryRoutes)
+app.route('/api/locations', locationsRoutes)
+app.route('/api/commissions', commissionsRoutes)
+app.route('/api/tech', techRoutes)
 app.route('/api/maps', mapsRoutes)
 app.route('/api/marketing', marketingRoutes)
 app.route('/api/payroll', payrollRoutes)

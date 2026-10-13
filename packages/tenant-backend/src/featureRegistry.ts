@@ -213,7 +213,10 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'labels', name: 'Label Printing', description: 'Compliant cannabis labels with QR codes, barcodes, custom design', category: 'Compliance', core: false, templates: ['crm-dispensary'] },
 
   // Dispensary — NEW: Inventory & RFID
-  { id: 'multi_location', name: 'Multi-Location', description: 'Run several locations from one account: per-location inventory, transfers and reporting', category: 'Inventory & Compliance', core: false, templates: ['crm-dispensary', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
+  // The description is what EVERY template does. Per-store stock and transfers are crm-dispensary's alone; the
+  // other four keep a list of branches (packages/tenant-backend/src/locations), and saying otherwise sold a
+  // feature they do not have.
+  { id: 'multi_location', name: 'Multi-Location', description: 'Run several locations or branches from one account, each with its own address, phone and time zone', category: 'Inventory & Compliance', core: false, templates: ['crm-dispensary', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm'] },
   { id: 'batches', name: 'Batch/Lot Tracking', description: 'Full batch lifecycle from receipt to depletion', category: 'Inventory & Compliance', core: false, templates: ['crm-dispensary'] },
   { id: 'rfid', name: 'RFID Scanning', description: 'RFID tag management, scanning, and bulk inventory counts', category: 'Inventory & Compliance', core: false, templates: ['crm-dispensary'] },
 
@@ -249,8 +252,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 
   // Cross-vertical pages that ship in several templates and are gated in their sidebars
   { id: 'support_tickets', name: 'Support Tickets', description: 'Customer support ticket queue with statuses and assignment', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet'] },
-  { id: 'tech_mobile_view', name: 'Technician / Crew Mobile View', description: 'Mobile-first field view: today\'s route, job details and status updates', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
-  { id: 'commission_tracking', name: 'Commission Tracking', description: 'Sales and technician commission rules, statements and payouts', category: 'Finance', core: false, templates: ['crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
+  { id: 'tech_mobile_view', name: 'Technician / Crew Mobile View', description: 'Mobile-first field view: today\'s jobs, directions, on my way / on site / done, photos and a checklist', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm'] },
+  { id: 'commission_tracking', name: 'Commission Tracking', description: 'Commission plans for sales reps and crews: each earning worked out from its plan, approved, then marked paid', category: 'Finance', core: false, templates: ['crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm'] },
 
   // Construction pages that ship in crm and were already sold in the construction tier below
   { id: 'lien_waivers', name: 'Lien Waivers', description: 'Conditional and unconditional lien waiver tracking per payment', category: 'Construction', core: false, templates: ['crm'] },
@@ -370,9 +373,11 @@ export const PLAN_TIERS: Record<string, Record<string, string[]>> = {
       'google_reviews', 'pricebook', 'quickbooks', 'recurring_jobs',
       'service_dispatch', 'drag_drop_calendar', 'lead_inbox',
       'service_agreements', // agreements page
+      'tech_mobile_view',
     ],
     business: [
       'inventory', 'equipment_tracking', 'fleet', 'warranties',
+      'multi_location', 'commission_tracking',
       'email_marketing', 'call_tracking', 'consumer_financing',
       'reports', 'job_costing', 'photo_capture', 'referral_program',
       'ai_receptionist',

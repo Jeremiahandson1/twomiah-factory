@@ -173,6 +173,7 @@ const STATUS_STYLES: Record<string, string> = {
   refunded: 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100',
   void: 'bg-gray-200 text-gray-600 dark:bg-slate-700 dark:text-slate-300',
   rejected: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
+  disputed: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
   declined: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
   expired: 'bg-gray-200 text-gray-600 dark:bg-slate-700 dark:text-slate-300',
   // online booking

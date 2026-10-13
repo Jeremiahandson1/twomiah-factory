@@ -2950,6 +2950,76 @@ export const roofReport = pgTable('roof_report', {
   index('roof_report_contact_id_idx').on(t.contactId),
 ])
 
+// ==================== BRANCHES + COMMISSIONS ====================
+// The same three tables crm-fieldservice, crm-landscaping and crm-basic have had since their migration 0005,
+// column for column, because one shared module (packages/tenant-backend/src/{locations,commissions}) reads
+// them in all four. Created here by migration 0041.
+
+export const location = pgTable('location', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  code: text('code').notNull(),
+  address: text('address'),
+  city: text('city'),
+  state: text('state'),
+  zip: text('zip'),
+  phone: text('phone'),
+  email: text('email'),
+  timezone: text('timezone').default('America/Chicago').notNull(),
+  serviceAreaRadiusMiles: integer('service_area_radius_miles').default(25).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  managerUserId: text('manager_user_id'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('location_company_id_idx').on(t.companyId),
+  uniqueIndex('location_company_code_unique').on(t.companyId, t.code),
+])
+
+export const commissionPlan = pgTable('commission_plan', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  planType: text('plan_type').notNull(),
+  flatRateAmount: decimal('flat_rate_amount', { precision: 10, scale: 2 }),
+  percentRate: decimal('percent_rate', { precision: 5, scale: 2 }),
+  tiers: json('tiers'),
+  appliesToRole: text('applies_to_role'),
+  isActive: boolean('is_active').default(true).notNull(),
+  effectiveFrom: timestamp('effective_from'),
+  effectiveTo: timestamp('effective_to'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('commission_plan_company_id_idx').on(t.companyId),
+])
+
+export const commission = pgTable('commission', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  planId: text('plan_id').references(() => commissionPlan.id, { onDelete: 'set null' }),
+  userId: text('user_id').notNull(),
+  jobId: text('job_id'),
+  invoiceId: text('invoice_id'),
+  baseAmount: decimal('base_amount', { precision: 12, scale: 2 }).notNull(),
+  rateApplied: decimal('rate_applied', { precision: 5, scale: 2 }),
+  commissionAmount: decimal('commission_amount', { precision: 12, scale: 2 }).notNull(),
+  earnedAt: timestamp('earned_at').defaultNow().notNull(),
+  periodStart: timestamp('period_start'),
+  periodEnd: timestamp('period_end'),
+  status: text('status').default('pending').notNull(),
+  paidAt: timestamp('paid_at'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('commission_company_id_idx').on(t.companyId),
+  index('commission_user_id_idx').on(t.userId),
+  index('commission_status_idx').on(t.status),
+])
+
 // ==================== RELATIONS ====================
 
 export const companyRelations = relations(company, ({ many, one }) => ({

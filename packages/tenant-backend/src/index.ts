@@ -211,6 +211,18 @@ export type { RecurringService, RecurringServiceDeps, RecurringRoutesDeps, Recur
 export { createFleetService, createFleetRoutes } from './fleet/fleet'
 export type { FleetService, FleetServiceDeps, FleetRoutesDeps, FleetTables } from './fleet/fleet'
 
+// Commissions — plans + earnings, the amount worked out server-side from the plan (crm, crm-fieldservice, crm-landscaping, crm-basic).
+export { createCommissionRoutes, commissionFor, COMMISSION_PLAN_TYPES, COMMISSION_ROLES, COMMISSION_STATUSES } from './commissions/commissions'
+export type { CommissionRoutesDeps, CommissionTables } from './commissions/commissions'
+
+// Locations — a company's branches (crm, crm-fieldservice, crm-landscaping, crm-basic). crm-dispensary keeps its own stock-per-store system.
+export { createLocationRoutes } from './locations/locations'
+export type { LocationRoutesDeps, LocationTables } from './locations/locations'
+
+// The technician's day — /api/tech, own assigned jobs only, the template's job hooks on every move (crm, crm-fieldservice, crm-landscaping).
+export { createTechRoutes, TECH_MOVES } from './tech/tech'
+export type { TechRoutesDeps, TechTables, TechHooks } from './tech/tech'
+
 // Warranties — post-construction warranty tracking, claims, service scheduling (crm, crm-fieldservice, crm-landscaping, crm-rv).
 // Activity-log table injected via tables.activityLog (crm/rv pass `activity`; fs/lnd pass `activityLog`).
 export { createWarrantiesService, createWarrantiesRoutes } from './warranties/warranties'

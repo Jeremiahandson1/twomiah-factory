@@ -3,15 +3,12 @@
 import { z } from 'zod'
 import { createJobRoutes } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
-import { job, project, contact, user, timeEntry, equipment, jobPhoto, company, teamMember, invoice, invoiceLineItem } from '../../db/schema.ts'
+import { job, project, contact, user, timeEntry, equipment, jobPhoto, teamMember, invoice, invoiceLineItem } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import { cleanText } from '../utils/sanitize.ts'
+import jobHooks from '../services/jobHooks.ts'
 import storage from '../services/fileUpload.ts'
-import smsService from '../services/sms.ts'
-import agreementService from '../services/agreements.ts'
-import reviews from '../services/reviews.ts'
-import { eq } from 'drizzle-orm'
 import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 
 export default createJobRoutes({
@@ -35,24 +32,9 @@ export default createJobRoutes({
     // A service call can be billed: POST /api/jobs/:id/invoice. invoice.job_id exists here
     // (migration 0025), which is what makes the revenue reach the job in job costing. (T41)
     billing: { numbering: { prefix: 'INV', pad: 5 }, termsDays: 30 },
-    // the customer hears from us as the tech moves through the call
-    onDispatch: async ({ job, companyId }) => { smsService.sendJobUpdate(companyId, job.id, 'on_my_way').catch(() => {}) },
-    onStart: async ({ job, companyId }) => { smsService.sendJobUpdate(companyId, job.id, 'on_site').catch(() => {}) },
-    // completing a call under a service agreement schedules the next visit
-    onComplete: async ({ job, companyId }) => {
-      smsService.sendJobUpdate(companyId, job.id, 'completed').catch(() => {})
-      // a completed call schedules a review request when the tenant has Google Reviews on
-      const [comp] = await db.select({ enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1)
-      if (((comp?.enabledFeatures || []) as string[]).includes('google_reviews')) reviews.scheduleReviewRequest(job.id).catch((err: any) => console.warn('[Jobs] Review schedule failed:', err?.message))
-      // same response shape whether or not a visit was scheduled
-      if (!job.serviceAgreementId) return { nextServiceDate: null }
-      try {
-        const result = await agreementService.generateNextJob(job.serviceAgreementId, companyId)
-        return { nextServiceDate: result?.nextServiceDate ?? null }
-      } catch (err) {
-        // the daily scanner will pick it up
-        console.log('Auto-schedule next job skipped:', (err as Error).message)
-      }
-    },
+    // dispatched / started / completed: services/jobHooks.ts, the one definition routes/tech.ts runs too
+    onDispatch: jobHooks.onDispatch,
+    onStart: jobHooks.onStart,
+    onComplete: jobHooks.onComplete,
   },
 })
