@@ -18,6 +18,19 @@ import { type FactoryApp, rateLimit, checkCronSecret, checkFactoryKey, UUID_RE, 
 import { runDeploy, triggerAutoDeploy } from './deploy'
 import { getDefaultFeaturesForTemplate } from '../../config/featureRegistry'
 import { crmTemplateFor, deployProductsForVertical } from '../../config/industryRouting'
+import { MESSAGING_ENABLE_MONTHLY_CENTS } from '../../config/messagingCosts'
+
+// What a signup asked for beyond the plan. Everything free is already on for every plan; these
+// are the answers that change setup: goals ("bookings" → booking on the website once premium
+// sites are built from signups) and paid add-ons ("texting" → the $10/mo texting checkout runs
+// right after the plan checkout). Kept to known values so nothing else rides along.
+const SIGNUP_GOALS = new Set(['bookings', 'online_payments'])
+const SIGNUP_ADDONS = new Set(['texting'])
+function signupChoices(body: any): { goals: string[]; addons: string[] } {
+  const pick = (v: unknown, allowed: Set<string>) =>
+    (Array.isArray(v) ? v : []).map((x) => String(x || '').trim().toLowerCase()).filter((x, i, a) => allowed.has(x) && a.indexOf(x) === i)
+  return { goals: pick(body?.goals, SIGNUP_GOALS), addons: pick(body?.addons, SIGNUP_ADDONS) }
+}
 
 export function registerIntakeRoutes(factory: FactoryApp) {
 
@@ -367,6 +380,15 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
 
     console.log('[Signup] New tenant created (pending payment):', tenant.id, tenant.name, tenant.plan)
 
+    // The owner's answers, kept on the tenant (intake_data.signup — everything else reads
+    // intake_data.intake, so a signup row is never mistaken for an intake). Non-fatal.
+    const choices = signupChoices(body)
+    if (choices.goals.length || choices.addons.length) {
+      const { error: choiceErr } = await supabase.from('tenants')
+        .update({ intake_data: { signup: { ...choices, at: new Date().toISOString() } } }).eq('id', tenant.id)
+      if (choiceErr) console.warn('[Signup] Could not save add-on choices:', choiceErr.message)
+    }
+
     // Send welcome email immediately (non-blocking)
     notifyWelcome(tenant).catch(e => console.warn('[Email] Welcome email failed:', e.message))
 
@@ -474,7 +496,10 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
         {
           planId: tenant.plan || 'starter10',
           billingCycle: 'monthly',
-          successUrl: siteUrl + '/welcome?tenant=' + tenant.id,
+          // Asked for texting → after paying for the plan, go straight to the $10/mo texting checkout.
+          successUrl: choices.addons.includes('texting')
+            ? (process.env.TWOMIAH_FACTORY_URL || new URL(c.req.url).origin).replace(/\/+$/, '') + '/api/v1/factory/public/signup/' + tenant.id + '/next'
+            : siteUrl + '/welcome?tenant=' + tenant.id,
           cancelUrl: siteUrl + '/signup?canceled=1',
         }
       )
@@ -504,6 +529,36 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
   }
 })
 
+
+// After the plan checkout of a signup that asked for texting: start the $10/mo texting checkout
+// (its own subscription, the same one Settings → Texting starts, so the existing webhook switches
+// it on and cancelling it touches nothing else). Anything else — no texting asked, already on,
+// Stripe unavailable — goes to the welcome page. A link that can only open a payment page for
+// that tenant, so it needs no login.
+factory.get('/public/signup/:id/next', rateLimit(10 * 60 * 1000, 10), async (c) => {
+  const siteUrl = (process.env.PUBLIC_SITE_URL || 'https://twomiah.com').replace(/\/$/, '')
+  const id = c.req.param('id')
+  const welcome = siteUrl + '/welcome' + (UUID_RE.test(id) ? '?tenant=' + id : '')
+  if (!UUID_RE.test(id)) return c.redirect(welcome, 302)
+  try {
+    const { data: t } = await supabase.from('tenants')
+      .select('id, email, name, phone, stripe_customer_id, messaging_enabled, intake_data').eq('id', id).maybeSingle()
+    const asked = Array.isArray(t?.intake_data?.signup?.addons) && t!.intake_data.signup.addons.includes('texting')
+    if (!t || !asked || t.messaging_enabled || !factoryStripe.isConfigured()) return c.redirect(welcome, 302)
+    const checkout = await factoryStripe.createMessagingEnableCheckout(
+      { id: t.id, email: t.email, name: t.name, phone: t.phone, stripeCustomerId: t.stripe_customer_id },
+      MESSAGING_ENABLE_MONTHLY_CENTS,
+      { successUrl: welcome + '&texting=on', cancelUrl: welcome + '&texting=later' },
+    )
+    if (!t.stripe_customer_id && checkout.stripeCustomerId) {
+      await supabase.from('tenants').update({ stripe_customer_id: checkout.stripeCustomerId }).eq('id', id)
+    }
+    return c.redirect(checkout.url || welcome, 302)
+  } catch (e: any) {
+    console.error('[Signup] Texting checkout failed for', id, ':', e?.message || e)
+    return c.redirect(welcome, 302)
+  }
+})
 
 // ─── Public local-business website intake ───────────────────────────────────
 //
