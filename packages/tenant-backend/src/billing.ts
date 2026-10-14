@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { eq, and } from 'drizzle-orm'
 import type { FactoryApiClient } from './types'
 import type { TenantSubscription } from './plans'
+import { forgetAccountLock } from './auth/accountLock'
 
 // READ-ONLY billing for a tenant CRM.
 //
@@ -57,6 +58,8 @@ export async function applySubscriptionToCompany(deps: BillingDeps, sub: TenantS
     subscriptionSyncedAt: sub.syncedAt,
   }
   const [updated] = await db.update(companyTable).set({ settings, subscriptionTier: sub.plan ?? null, updatedAt: new Date() } as any).where(eq(companyTable.id, comp.id)).returning()
+  // A lock or an unlock from the Factory takes effect on the very next request (auth/accountLock.ts).
+  forgetAccountLock()
   return updated
 }
 

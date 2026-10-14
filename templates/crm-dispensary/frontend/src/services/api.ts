@@ -1,3 +1,5 @@
+import { isTrialBypassPath } from '../shared';
+
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 // A hung backend used to leave requests pending forever ("Saving…" with no
@@ -25,6 +27,15 @@ function makeTransientError(message: string): ApiError {
   err.status = 0;
   err.isTransient = true;
   return err;
+}
+
+// The server refused because the company is locked (402 ACCOUNT_LOCKED — shared auth/accountLock.ts): go to the lock
+// page with a full load. Same as packages/tenant-ui/src/api/client.ts. Another 402 carries a different code.
+async function noticeAccountLock(response: Response): Promise<Response> {
+  if (response.status !== 402) return response;
+  const body = await response.clone().json().catch(() => null);
+  if (body?.code === 'ACCOUNT_LOCKED' && !isTrialBypassPath(window.location.pathname)) window.location.assign('/crm/paywall');
+  return response;
 }
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS) {
   const controller = new AbortController();
@@ -101,7 +112,7 @@ class ApiClient {
         }
         if (refreshed === 'ok') {
           headers.Authorization = `Bearer ${this.accessToken}`;
-          return fetchWithTimeout(url, { ...options, headers });
+          return noticeAccountLock(await fetchWithTimeout(url, { ...options, headers }));
         } else {
           this.clearTokens();
           window.location.href = '/login';
@@ -109,7 +120,7 @@ class ApiClient {
         }
       }
 
-      return response;
+      return noticeAccountLock(response);
     } catch (error) {
       console.error('API Error:', error);
       throw error;

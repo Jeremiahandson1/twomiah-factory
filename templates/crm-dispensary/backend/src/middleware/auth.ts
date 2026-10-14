@@ -1,7 +1,8 @@
 import { Context, Next } from 'hono'
 import jwt from 'jsonwebtoken'
 import { db } from '../../db/index.ts'
-import { user } from '../../db/schema.ts'
+import { user, company } from '../../db/schema.ts'
+import { refuseWhileLocked } from '../shared/index.ts'
 import { eq, and } from 'drizzle-orm'
 
 export const authenticate = async (c: Context, next: Next) => {
@@ -32,6 +33,9 @@ export const authenticate = async (c: Context, next: Next) => {
     // this every audit insert had a null company_id and failed the NOT NULL constraint,
     // so the audit log recorded nothing. Stash the user on the request too. (M2)
     ;(c.req as any).user = authedUser
+    // A company the Factory has locked keeps only sign-in and billing (shared auth/accountLock.ts).
+    const locked = await refuseWhileLocked(c, db, company)
+    if (locked) return locked
     await next()
   } catch (error: any) {
     if (error.name === 'TokenExpiredError') {

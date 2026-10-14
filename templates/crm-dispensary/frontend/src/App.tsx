@@ -12,6 +12,7 @@ import LoginPage from './pages/LoginPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import CustomerPortal from './pages/CustomerPortal';
+import PaywallPage from './pages/PaywallPage';
 import OnboardingWizard from './pages/OnboardingWizard';
 
 // CRM Pages
@@ -170,6 +171,7 @@ function App() {
                     <Route path="settings" element={<SettingsPage />} />
                     <Route path="contact-support" element={<ContactSupportPage />} />
                     <Route path="settings/billing" element={<BillingPage smsBilling />} />
+                    <Route path="paywall" element={<PaywallPage />} />
                     <Route path="settings/email" element={<EmailAliasesPage />} />
                     <Route path="settings/email-domain" element={<EmailDomainPage />} />
                     <Route path="settings/email-inbox" element={<InboundMessagesPage />} />

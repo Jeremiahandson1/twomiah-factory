@@ -4,16 +4,18 @@
 import type { Context, Next } from 'hono'
 import jwt from 'jsonwebtoken'
 import { eq } from 'drizzle-orm'
+import { refuseWhileLocked } from './accountLock'
 
 export interface AuthMiddlewareDeps {
   db: any
-  tables: { user: any }
+  /** company is required: authenticate refuses a locked company's requests (auth/accountLock.ts). */
+  tables: { user: any; company: any }
 }
 
 export interface AuthUserContext { userId: string; companyId: string; email: string; role: string }
 
 export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
-  const { db, tables: { user } } = deps
+  const { db, tables: { user, company } } = deps
 
   const authenticate = async (c: Context, next: Next) => {
     const authHeader = c.req.header('authorization')
@@ -41,6 +43,8 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
       return c.json({ error: 'User not found or inactive' }, 401)
     }
     c.set('user', { userId: found.id, companyId: found.companyId, email: found.email, role: found.role } as AuthUserContext)
+    const locked = await refuseWhileLocked(c, db, company)
+    if (locked) return locked
     await next()
   }
 

@@ -1,7 +1,8 @@
 import { Context, Next } from 'hono'
 import jwt from 'jsonwebtoken'
 import { db } from '../../db/index.ts'
-import { user } from '../../db/schema.ts'
+import { user, company } from '../../db/schema.ts'
+import { refuseWhileLocked } from '../shared/index.ts'
 import { eq, and } from 'drizzle-orm'
 
 export const authenticate = async (c: Context, next: Next) => {
@@ -27,6 +28,9 @@ export const authenticate = async (c: Context, next: Next) => {
     }
 
     c.set('user', { userId: found.id, companyId: found.companyId, email: found.email, role: found.role })
+    // A company the Factory has locked keeps only sign-in and billing (shared auth/accountLock.ts).
+    const locked = await refuseWhileLocked(c, db, company)
+    if (locked) return locked
     await next()
   } catch (error: any) {
     if (error.name === 'TokenExpiredError') {

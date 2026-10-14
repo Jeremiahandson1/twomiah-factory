@@ -2,6 +2,7 @@ import {
   getAccessToken, getRefreshToken,
   setTokens as storeTokens, clearTokens as dropTokens,
 } from '../lib/authToken';
+import { isTrialBypassPath } from '../components/auth/trialStatus';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -14,6 +15,15 @@ function makeTransientError(message) {
   err.status = 0;
   err.isTransient = true;
   return err;
+}
+
+// The server refused because the company is locked (402 ACCOUNT_LOCKED — shared auth/accountLock.ts): go to the lock
+// page with a full load. Same as packages/tenant-ui/src/api/client.ts. Another 402 carries a different code.
+async function noticeAccountLock(response: Response): Promise<Response> {
+  if (response.status !== 402) return response;
+  const body = await response.clone().json().catch(() => null);
+  if (body?.code === 'ACCOUNT_LOCKED' && !isTrialBypassPath(window.location.pathname)) window.location.assign('/crm/paywall');
+  return response;
 }
 async function fetchWithTimeout(url, init, timeoutMs = DEFAULT_TIMEOUT_MS) {
   const controller = new AbortController();
@@ -85,7 +95,7 @@ class ApiClient {
         const outcome = await this.refreshAccessToken();
         if (outcome === 'ok') {
           headers.Authorization = `Bearer ${this.accessToken}`;
-          return fetchWithTimeout(url, { ...fetchOptions, headers }, timeoutMs);
+          return noticeAccountLock(await fetchWithTimeout(url, { ...fetchOptions, headers }, timeoutMs));
         }
         // The only thing that ends a session is the server saying this token is dead.
         if (outcome === 'revoked') {
@@ -99,7 +109,7 @@ class ApiClient {
         throw makeTransientError('The server is restarting — please try again in a moment.');
       }
 
-      return response;
+      return noticeAccountLock(response);
     } catch (error) {
       console.error('API Error:', error);
       throw error;

@@ -76,6 +76,8 @@ function clearPath(root: any, path: string): void {
   if (node && typeof node === 'object') delete node[parts[parts.length - 1]]
 }
 
+import { accountLockOf } from './accountLock'
+
 export interface RedactOptions {
   /** True for owner/admin. Commercial terms are kept for them and withheld from everyone else. */
   privileged?: boolean
@@ -105,6 +107,11 @@ export function redactCompanySettings(settings: any, options: RedactOptions = {}
     const parent = parts.length > 1 ? getPath(out, parts.slice(0, -1).join('.')) : out
     if (parent && typeof parent === 'object') parent[`${parts[parts.length - 1]}Configured`] = true
   }
+
+  // Whether the company is locked reaches EVERY role, as its own fact. A manager or a technician is never sent
+  // subscriptionStatus, so the browser could not tell an ended subscription from a paid one — and sent nobody to
+  // the lock page. Not commercial: it says the shop is closed, not what it pays. (auth/accountLock.ts, 10/14)
+  ;(out as any).accountLock = accountLockOf(source)
 
   if (!options.privileged) {
     if (!TRIAL_DECIDES_ACCESS.includes((out as any).subscriptionStatus)) delete (out as any).trialEndsAt

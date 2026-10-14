@@ -6,7 +6,7 @@ import AppLayout from './components/layout/AppLayout'
 import OnboardingWizard from './pages/OnboardingWizard'
 import type { ReactNode } from 'react'
 import PaywallPage from './pages/PaywallPage'
-import { isTrialExpired, isTrialBypassPath } from './components/auth/trialStatus'
+import { isAccountLocked, isTrialBypassPath } from './components/auth/trialStatus'
 // Import all pages
 import PipelineBoard from './pages/roofing/PipelineBoard'
 import JobDetailPage from './pages/roofing/JobDetailPage'
@@ -117,8 +117,8 @@ function ProtectedRoute() {
   const { token, company } = useAuth()
   const location = useLocation()
   if (!token) return <Navigate to="/login" />
-  // Hard-lock on trial expiry — bypass allowed for paywall + upgrade path + logout
-  if (isTrialExpired(company as any) && !isTrialBypassPath(location.pathname)) {
+  // Hard-lock a locked company — an ended subscription or an expired trial — bypass allowed for paywall + upgrade path + logout
+  if (isAccountLocked(company as any) && !isTrialBypassPath(location.pathname)) {
     return <Navigate to="/crm/paywall" replace />
   }
   return <Outlet />

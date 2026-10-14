@@ -12,6 +12,7 @@ type TrialCompany = {
   settings?: {
     trialEndsAt?: string;
     subscriptionStatus?: string;
+    accountLock?: string | null;
   } | null;
 } | null | undefined;
 
@@ -42,6 +43,23 @@ export function trialEndDate(company: TrialCompany): Date | null {
 export function isTrialExpired(company: TrialCompany): boolean {
   const trialEnd = trialEndDate(company);
   return !!trialEnd && trialEnd.getTime() < Date.now();
+}
+
+/**
+ * Is this company locked? The SERVER decides (tenant-backend auth/accountLock.ts) and sends every role the answer as
+ * settings.accountLock — an ended subscription, or a trial that ran out. The trial date is still read as well, for a
+ * company whose server has not yet been sent the new answer. (10/14: a paid company cancelled from the Factory was
+ * never locked, because only a trial date could lock one.)
+ */
+export function isAccountLocked(company: TrialCompany): boolean {
+  return !!company?.settings?.accountLock || isTrialExpired(company);
+}
+
+/** Why it is locked, for the words on the lock page. */
+export function accountLockReason(company: TrialCompany): 'subscription_ended' | 'trial_ended' | null {
+  const lock = company?.settings?.accountLock;
+  if (lock === 'subscription_ended' || lock === 'trial_ended') return lock;
+  return isTrialExpired(company) ? 'trial_ended' : null;
 }
 
 /** Routes a trial-expired user can still reach (upgrade path + paywall + logout) */

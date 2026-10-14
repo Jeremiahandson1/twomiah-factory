@@ -4,7 +4,7 @@
 import React, { useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from './AuthContext'
-import { isTrialExpired, isTrialBypassPath } from './trialStatus'
+import { isAccountLocked, isTrialBypassPath } from './trialStatus'
 import { useTheme } from '../shell/hooks'
 
 /** Hook-based <Navigate>: react-router's JSX components do not type-check from the vendored package. */
@@ -32,9 +32,9 @@ export function ProtectedRoute({ children, requiredRole }: { children: React.Rea
   if (loading) return <Spinner label="Loading..." />
   if (!isAuthenticated) return <Redirect to="/login" state={{ from: location }} />
 
-  // Hard-lock on trial expiry — redirect to the paywall for every route except the upgrade path,
-  // the paywall itself, and logout.
-  if (isTrialExpired(company) && !isTrialBypassPath(location.pathname)) return <Redirect to="/crm/paywall" />
+  // Hard-lock a locked company — an ended subscription or an expired trial — onto the paywall for every route
+  // except the way back: billing, the paywall itself, and logout. The server refuses the rest anyway.
+  if (isAccountLocked(company) && !isTrialBypassPath(location.pathname)) return <Redirect to="/crm/paywall" />
 
   if (requiredRole) {
     const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole]

@@ -12,6 +12,7 @@
 //     'retry' (429/5xx/network, after 3 backed-off attempts) → keep the tokens, throw a soft 429 (C-03)
 //   - get() drops undefined params instead of serialising them
 import type { AuthData } from '../auth/types'
+import { isTrialBypassPath } from '../auth/trialStatus'
 
 export interface ApiError extends Error {
   status?: number
@@ -59,6 +60,19 @@ function transientError(message: string): ApiError {
   err.status = 0
   err.isTransient = true
   return err
+}
+
+/**
+ * The server refused because the company is locked (402 ACCOUNT_LOCKED — tenant-backend auth/accountLock.ts). Go to the
+ * lock page with a full load, so the signed-in company is read again and the lock page — not a broken screen of
+ * "Request failed" — is what the person sees. Billing and the paywall itself stay where they are. Another 402 (texting
+ * paused, say) carries a different code and is left to its screen.
+ */
+async function noticeAccountLock(response: Response): Promise<Response> {
+  if (response.status !== 402 || typeof window === 'undefined') return response
+  const body = await response.clone().json().catch(() => null)
+  if (body?.code === 'ACCOUNT_LOCKED' && !isTrialBypassPath(window.location.pathname)) window.location.assign('/crm/paywall')
+  return response
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -139,7 +153,7 @@ export class ApiClient {
       const outcome = await this._refreshPromise
       if (outcome === 'ok') {
         headers.Authorization = `Bearer ${this.accessToken}`
-        return this.fetchWithTimeout(url, { ...fetchOptions, headers }, timeoutMs)
+        return noticeAccountLock(await this.fetchWithTimeout(url, { ...fetchOptions, headers }, timeoutMs))
       }
       if (outcome === 'revoked') {
         // Genuine revocation — the only case that ends the session. The shared AuthContext listens for this.
@@ -154,7 +168,7 @@ export class ApiClient {
       throw busy
     }
 
-    return response
+    return noticeAccountLock(response)
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
