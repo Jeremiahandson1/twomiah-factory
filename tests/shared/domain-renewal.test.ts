@@ -59,6 +59,18 @@ check('already billed → skip', R.renewalAction({ ...higgs(), domain_renewal_in
 check('a domain they brought (byod) is never billed', R.renewalAction({ ...higgs(), domain_registrar: 'byod' }, NOW).act === 'skip')
 check('a company that is leaving is not billed — the domain is theirs to transfer', R.renewalAction({ ...higgs(), offboard_started_at: '2027-09-01T00:00:00Z' }, NOW).act === 'skip')
 check('a past problem waits for staff', R.renewalAction({ ...higgs(), domain_renewal_error: 'x' }, NOW).act === 'skip')
+check('a domain we cover ($0) is never billed', R.renewalAction({ ...higgs(), domain_renewal_price_cents: 0, stripe_customer_id: null }, NOW).act === 'skip')
+{
+  // …and the daily run neither charges it nor emails staff that there is no card
+  const db = table([{ ...higgs(), domain_renewal_price_cents: 0, stripe_customer_id: null }])
+  const invoices: any[] = [], alerts: any[] = []
+  const out = await R.chargeDueDomainRenewals(NOW, { supabase: db, renewalCostCents: async () => 1598, createInvoice: async (o: any) => (invoices.push(o), { invoiceId: 'x', paid: true }), notifyPaymentNeeded: async () => {}, alertStaff: async (...a: any[]) => alerts.push(a) })
+  check('a domain we cover: no invoice, no staff email, no error on the row', invoices.length === 0 && alerts.length === 0 && !db.rows[0].domain_renewal_error && out.skipped === 1, { out, row: db.rows[0] })
+}
+{
+  const src = readFileSync(new URL('../../apps/api/src/routes/factory/billing.ts', import.meta.url), 'utf8')
+  check('staff can set a domain to free (priceCents 0), which clears any renewal problem', /else if \(body\.priceCents === 0\) Object\.assign\(patch, \{ domain_renewal_price_cents: 0, domain_renewal_error: null \}\)/.test(src))
+}
 check('the new expiry is a year after the OLD expiry, not after today', R.nextExpiry('2027-10-03T23:29:41Z').toISOString() === '2028-10-03T23:29:41.000Z')
 
 // ══ the daily charge ══

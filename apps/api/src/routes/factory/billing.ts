@@ -593,11 +593,12 @@ factory.get('/customers/:id/domain/billing', requireRole('owner', 'admin'), asyn
   const tld = t.domain ? checkTld(t.domain) : null
   const ours = t.domain_registrar === 'namecheap'
   const liveRenewalCostCents = ours && tld?.ok ? await (await getRegistrar()).getCostCents(tld.tld, 'RENEW') : null
-  const chargeCents = t.domain_renewal_price_cents && t.domain_renewal_price_cents > 0 ? t.domain_renewal_price_cents : renewalChargeCents(liveRenewalCostCents)
+  const coveredByUs = t.domain_renewal_price_cents === 0
+  const chargeCents = coveredByUs ? 0 : t.domain_renewal_price_cents && t.domain_renewal_price_cents > 0 ? t.domain_renewal_price_cents : renewalChargeCents(liveRenewalCostCents)
   return c.json({
     domain: t.domain, registeredByUs: ours, registrar: t.domain_registrar, expiresAt: t.domain_expires_at,
     hasStripeCustomer: !!t.stripe_customer_id, supportedTld: tld ? tld.ok : null,
-    liveRenewalCostCents, renewalChargeCents: chargeCents, priceSetByHand: !!(t.domain_renewal_price_cents && t.domain_renewal_price_cents > 0),
+    liveRenewalCostCents, renewalChargeCents: chargeCents, priceSetByHand: !!(t.domain_renewal_price_cents && t.domain_renewal_price_cents > 0), coveredByUs,
     openInvoiceId: t.domain_renewal_invoice_id, renewalError: t.domain_renewal_error,
   })
 })
@@ -626,9 +627,11 @@ factory.patch('/customers/:id/domain/billing', requireRole('owner', 'admin'), as
   const patch: Record<string, any> = {}
   if (body.clearError === true) Object.assign(patch, { domain_renewal_error: null, domain_renewal_invoice_id: null, domain_renewal_paid_invoice_id: null })
   if ('priceCents' in body) {
+    // 0 = we cover it (free); null = at cost + card fee; otherwise a hand-set price.
     if (body.priceCents === null) patch.domain_renewal_price_cents = null
+    else if (body.priceCents === 0) Object.assign(patch, { domain_renewal_price_cents: 0, domain_renewal_error: null })
     else if (Number.isInteger(body.priceCents) && body.priceCents >= 50 && body.priceCents <= 50_000) patch.domain_renewal_price_cents = body.priceCents
-    else return c.json({ error: 'priceCents must be whole cents between 50 and 50000, or null' }, 400)
+    else return c.json({ error: 'priceCents must be 0 (we cover it), whole cents between 50 and 50000, or null' }, 400)
   }
   if (!Object.keys(patch).length) return c.json({ error: 'Nothing to change' }, 400)
   const { data: before } = await supabase.from('tenants').select(DOMAIN_BILLING_COLUMNS).eq('id', id).single()

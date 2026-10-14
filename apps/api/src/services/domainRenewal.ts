@@ -52,6 +52,9 @@ export function renewalAction(t: RenewalTenant, now: Date): { act: 'charge' } | 
   if (t.domain_renewal_invoice_id) return { act: 'skip', reason: 'already billed for this renewal' }
   if (t.domain_renewal_error) return { act: 'skip', reason: 'needs staff: ' + t.domain_renewal_error }
   if (t.offboard_started_at || t.status === 'offboarded' || t.status === 'suspended') return { act: 'skip', reason: 'leaving — the domain is theirs to transfer' }
+  // A renewal price of $0 means WE cover it (family, comped): nobody is billed, and Namecheap's own auto-renew — left
+  // ON for these domains — keeps it alive on our account. (owner, 10/14)
+  if (t.domain_renewal_price_cents === 0) return { act: 'skip', reason: 'we cover it — Namecheap auto-renew keeps it' }
   return { act: 'charge' }
 }
 

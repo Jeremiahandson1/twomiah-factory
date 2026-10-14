@@ -10,7 +10,7 @@ import { Globe, RefreshCw, AlertTriangle, Link2 } from 'lucide-react'
 type State = {
   domain: string | null; registeredByUs: boolean; registrar: string | null; expiresAt: string | null
   hasStripeCustomer: boolean; supportedTld: boolean | null
-  liveRenewalCostCents: number | null; renewalChargeCents: number | null; priceSetByHand: boolean
+  liveRenewalCostCents: number | null; renewalChargeCents: number | null; priceSetByHand: boolean; coveredByUs?: boolean
   openInvoiceId: string | null; renewalError: string | null
 }
 type Props = { tenantId: string; showToast: (msg: string, type?: 'success' | 'error') => void; onChanged: () => void }
@@ -101,13 +101,14 @@ export default function DomainBilling({ tenantId, showToast, onChanged }: Props)
             {s.registeredByUs && (<>
               <dt className="text-gray-400">Expires</dt><dd className="text-white">{day(s.expiresAt)}</dd>
               <dt className="text-gray-400">Namecheap renewal</dt><dd className="text-white">{money(s.liveRenewalCostCents)}{s.liveRenewalCostCents == null ? ' (unavailable right now)' : ''}</dd>
-              <dt className="text-gray-400">We charge</dt><dd className="text-white">{money(s.renewalChargeCents)}{s.priceSetByHand ? ' (set by hand)' : ' (at cost + card fee)'}</dd>
+              <dt className="text-gray-400">We charge</dt><dd className="text-white">{s.coveredByUs ? 'Free — we cover it' : money(s.renewalChargeCents) + (s.priceSetByHand ? ' (set by hand)' : ' (at cost + card fee)')}</dd>
               <dt className="text-gray-400">Renewal invoice</dt><dd className="text-white">{s.openInvoiceId ? 'Open — ' + s.openInvoiceId : 'None open'}</dd>
             </>)}
           </dl>
 
           {s.registeredByUs && !s.expiresAt && <p className="text-amber-300">The expiry date is unknown, so this domain's renewal is not being billed. Sync it from Namecheap.</p>}
-          {s.registeredByUs && !s.hasStripeCustomer && <p className="text-amber-300">This company has no Stripe customer, so its renewal cannot be charged — staff will be emailed when it comes due.</p>}
+          {s.registeredByUs && s.coveredByUs && <p className="text-gray-300">We cover this domain, so nobody is billed. Keep <strong>Auto-Renew ON</strong> for it in Namecheap — that is what renews it every year, on our account.</p>}
+          {s.registeredByUs && !s.coveredByUs && !s.hasStripeCustomer && <p className="text-amber-300">This company has no Stripe customer, so its renewal cannot be charged — staff will be emailed when it comes due.</p>}
           {!s.registeredByUs && <p className="text-gray-400">Not registered by us — the customer renews it with their own registrar, and we do not bill it. If it is actually on our Namecheap account, sync it.</p>}
           {s.renewalError && (
             <div className="p-3 rounded-lg border border-red-500/30 bg-red-500/10 text-red-200 flex items-start gap-2">
@@ -122,7 +123,8 @@ export default function DomainBilling({ tenantId, showToast, onChanged }: Props)
             {s.registeredByUs && (<>
               <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Set renewal $ by hand" className={INPUT + ' w-44 text-xs'} />
               <button onClick={() => { const cents = Math.round(Number(price) * 100); act(() => call('PATCH', tenantId + '/domain/billing', { priceCents: cents }), 'Renewal price set'); setPrice('') }} disabled={busy || !(Number(price) >= 0.5)} className="px-3 py-2 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded-lg disabled:opacity-50">Set</button>
-              {s.priceSetByHand && <button onClick={() => act(() => call('PATCH', tenantId + '/domain/billing', { priceCents: null }), 'Back to at cost + card fee')} disabled={busy} className="px-3 py-2 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded-lg">Use at cost again</button>}
+              {(s.priceSetByHand || s.coveredByUs) && <button onClick={() => act(() => call('PATCH', tenantId + '/domain/billing', { priceCents: null }), 'Back to at cost + card fee')} disabled={busy} className="px-3 py-2 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded-lg">Charge them at cost again</button>}
+              {!s.coveredByUs && <button onClick={() => act(() => call('PATCH', tenantId + '/domain/billing', { priceCents: 0 }), 'Free — we cover this domain')} disabled={busy} className="px-3 py-2 text-xs bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg">Free — we cover it</button>}
             </>)}
           </div>
         </div>
