@@ -288,6 +288,27 @@ const invented = (): Record<string, Section[]> => ({
   check(!noPhone.pages.home.some(x => x.type === 'urgent'), 'urgent: no phone in the intake -> no bar')
 }
 
+// The instant composer (no model call) states only what the owner gave, like the AI's output — it
+// goes through the same gate. And the premium template follows the composer's reading of the trade:
+// "cannabis dispensary" composed dispensary pages (age gate, menu) and then rendered them with the
+// contractor site, which has neither partial.
+{
+  const { composeInstant } = await import('../apps/api/src/services/instantComposer.ts')
+  const { premiumWebsiteTemplateFor } = await import('../apps/api/src/config/industryRouting.ts')
+  for (const bt of ['roofing', 'plumbing', 'home care', 'veterinary clinic', 'RV dealership', 'cannabis dispensary', 'food truck', 'hair salon', 'bookkeeping']) {
+    const site = composeInstant({ businessName: 'Acme', businessType: bt, city: 'Eau Claire', state: 'WI' })
+    const all = JSON.stringify(site.pages)
+    check(!/\b(19|20)\d\d\b|\byears?\b|licensed|insured|warrant|free estimate|24\/7|\d+\+/i.test(all), `composeInstant(${bt}): name + trade + town only must state nothing else`)
+    check(!site.pages.home.some((s) => ['testimonials', 'trust', 'team', 'stats', 'gallery'].includes(s.type)), `composeInstant(${bt}): no reviews, badges, team, stats or gallery without the owner's`)
+  }
+  const rich = composeInstant({ ...higgs, facts: { credentials: ['Licensed', 'Insured'], testimonials: [{ quote: 'Rebuilt our deck in a week.', author: 'Pat K.' }] } } as any)
+  check(JSON.stringify(rich.pages.home).includes('Kitchen remodels') && JSON.stringify(rich.pages.home).includes('Rebuilt our deck in a week.'), 'composeInstant: the owner\'s services and reviews are used')
+  for (const [bt, tpl] of [['cannabis dispensary', 'dispensary'], ['HVAC and plumbing', 'fieldservice'], ['mobile food truck', 'foodtruck'], ['small animal vet', 'vet'],
+    ['RV and boat dealership', 'rv'], ['lawn care and snow removal', 'landscaping'], ['senior home care', 'homecare'], ['coffee shop', 'showcase'], ['roofing', 'roofing'], ['bookkeeping', 'contractor']]) {
+    check(premiumWebsiteTemplateFor(bt) === 'website-premium-' + tpl, `premium template for "${bt}" should be website-premium-${tpl}, got ${premiumWebsiteTemplateFor(bt)}`)
+  }
+}
+
 // Numbers: what counts as a claim.
 {
   const eq = (a: string[], b: string[]) => JSON.stringify(a) === JSON.stringify(b)

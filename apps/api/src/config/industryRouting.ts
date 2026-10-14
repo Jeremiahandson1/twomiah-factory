@@ -19,6 +19,7 @@
  * okay for unmatched industries, but you should explicitly map common
  * cases here so customers get the closest-fit experience.
  */
+import { tradeFlagsFor } from './tradeDetect.ts'
 
 export type CrmTemplate =
   | 'crm'
@@ -357,8 +358,27 @@ export function premiumWebsiteTemplateFor(industry: string | undefined | null): 
   // Trades with no vertical of their own (painter, remodeler, "other") are 'basic', and there
   // is no website-premium-basic: copyTemplate threw "Template not found" and the site never
   // built. They get the general contractor site, which the composer fills for the business.
-  if (v === 'basic') return 'website-premium-contractor'
+  if (v === 'basic') return premiumTemplateFromText(industry)
   return ('website-premium-' + v) as PremiumWebsiteTemplate
+}
+
+// A free-text business type that isn't a vertical's exact name ("cannabis dispensary", "HVAC and
+// plumbing", "mobile dog grooming") reads as 'basic'. The composer recognises those by keyword
+// (tradeDetect) and writes that trade's pages — so the template has to follow the same reading, or a
+// dispensary's age gate and menu sections are composed for, then rendered with, the contractor site
+// (which has neither partial). Only reached for 'basic'; an exact vertical still decides.
+function premiumTemplateFromText(industry: string | undefined | null): PremiumWebsiteTemplate {
+  const f = tradeFlagsFor(String(industry || ''))
+  if (f.ft) return 'website-premium-foodtruck'
+  if (f.vet) return 'website-premium-vet'
+  if (f.rv) return 'website-premium-rv'
+  if (f.dispensary) return 'website-premium-dispensary'
+  if (f.roofing) return 'website-premium-roofing'
+  if (f.landscaping) return 'website-premium-landscaping'
+  if (f.homecare) return 'website-premium-homecare'
+  if (f.fieldservice) return 'website-premium-fieldservice'
+  if (f.cafe || f.restaurant || f.salon || f.fitness || f.hotel || f.events) return 'website-premium-showcase'
+  return 'website-premium-contractor'
 }
 
 export function legacyWebsiteTemplateFor(industry: string | undefined | null): LegacyWebsiteTemplate {
