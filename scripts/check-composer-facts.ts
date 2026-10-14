@@ -443,7 +443,7 @@ for (const t of premium) {
   if (existsSync(ROOT + story)) check(/<% if \(portrait\) \{ %><div class="story__portrait"/.test(read(story)), `${story}: must not draw an empty portrait box`)
   const team = base + 'team/grid.ejs'
   if (existsSync(ROOT + team)) check(/<% if \(m\.portrait\) \{ %><div class="team__portrait"/.test(read(team)), `${team}: must not draw an empty portrait box`)
-  check(/contentGaps: jsonb\('content_gaps'\)/.test(read('templates/' + t + '/db/schema.ts')), `templates/${t}: settings.content_gaps column missing`)
+  check(/contentGaps: text\('content_gaps', \{ mode: 'json' \}\)/.test(read('templates/' + t + '/db/schema.ts')), `templates/${t}: settings.content_gaps column missing`)
   check(/'contentGaps',/.test(read('templates/' + t + '/routes/admin.ts')), `templates/${t}: admin cannot save the checklist`)
   check(/contentGaps: payload\.settings\.contentGaps/.test(read('templates/' + t + '/scripts/initDb.ts')), `templates/${t}: initDb does not seed the checklist`)
   check(/<FinishYourSiteCard \/>/.test(read('templates/' + t + '/admin/src/pages/PagesListPage.tsx')), `templates/${t}: the checklist card is not mounted`)
