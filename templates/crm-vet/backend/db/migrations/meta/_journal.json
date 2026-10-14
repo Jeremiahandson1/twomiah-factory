@@ -253,6 +253,13 @@
       "when": 1792200703000,
       "tag": "0035_booking_settings_require_address",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1792200704000,
+      "tag": "0036_audit_email_alias",
+      "breakpoints": true
     }
   ]
 }

@@ -507,12 +507,19 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     const rows = await db.select({
       id: t.user.id, email: t.user.email, firstName: t.user.firstName, lastName: t.user.lastName, phone: t.user.phone, role: t.user.role,
       isActive: t.user.isActive, lastLogin: t.user.lastLogin, createdAt: t.user.createdAt, extraPermissions: t.user.extraPermissions,
+      resetToken: t.user.resetToken, resetTokenExp: t.user.resetTokenExp,
     }).from(t.user).where(eq(t.user.companyId, currentUser.companyId))
+    // An invited seat that has not yet chosen a password reads "Invite sent", not "Active" (invite re-test, 10/14).
+    // Worked out here and the token itself dropped — it is the password link and never leaves the server.
+    const now = Date.now()
+    const shaped = rows.map(({ resetToken, resetTokenExp, ...r }: any) => ({
+      ...r, invitePending: !r.lastLogin && !!resetToken && !!resetTokenExp && new Date(resetTokenExp).getTime() > now,
+    }))
     // Send the word alongside the id. The Users table used to map the id itself, which is a second
     // definition of the vocabulary and drifts from this one the moment a vertical renames a rung.
     // One spelling out, whatever is stored — see withCanonicalRole. Applied BEFORE the label so a
     // vertical that renames the rung labels the canonical word, not the legacy one.
-    const canonical = rows.map((r: any) => withCanonicalRole(r))
+    const canonical = shaped.map((r: any) => withCanonicalRole(r))
     const labelled = roleLabel ? canonical.map((r: any) => ({ ...r, roleLabel: roleLabel(String(r.role || '')) })) : canonical
 
     // Not wired → not asked → the full row, which is what the only callers who could get here used

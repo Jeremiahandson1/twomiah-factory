@@ -378,14 +378,14 @@ const templates: Record<string, (data: any) => TemplateResult> = {
   }),
 
   teamInvite: (data) => ({
-    subject: `You're invited to join ${data.companyName} on {{COMPANY_NAME}}`,
+    subject: `You're invited to join ${data.companyName}`,
     html: `
       <!DOCTYPE html><html><head><style>${baseStyles}</style></head>
       <body><div class="container">
         <div class="header"><h1 style="margin:0;">You're Invited!</h1></div>
         <div class="content">
-          <p>Hi,</p>
-          <p><strong>${data.inviterName}</strong> has invited you to join <strong>${data.companyName}</strong> on {{COMPANY_NAME}}.</p>
+          <p>Hi ${data.firstName || 'there'},</p>
+          <p><strong>${data.inviterName}</strong> has invited you to join <strong>${data.companyName}</strong>. Choose your password to sign in.</p>
           <p>Your role: <strong>${data.role}</strong></p>
           <p style="text-align:center;"><a href="${data.inviteLink}" class="button">Accept Invitation</a></p>
           <p>This invitation expires in 7 days.</p>
@@ -393,7 +393,7 @@ const templates: Record<string, (data: any) => TemplateResult> = {
         <div class="footer">{{COMPANY_NAME}}</div>
       </div></body></html>
     `,
-    text: `${data.inviterName} invited you to join ${data.companyName} on {{COMPANY_NAME}}.\n\nAccept: ${data.inviteLink}`,
+    text: `Hi ${data.firstName || 'there'},\n\n${data.inviterName} invited you to join ${data.companyName}. Choose your password to sign in: ${data.inviteLink}\n\nThis invitation expires in 7 days.`,
   }),
 
   portalInvite: (data) => {
@@ -517,6 +517,20 @@ type EmailRecord = { to: string; subject: string; status: 'sent' | 'failed'; err
 let recordEmail: ((e: EmailRecord) => Promise<void>) | null = null;
 export function setEmailRecorder(fn: ((e: EmailRecord) => Promise<void>) | null) { recordEmail = fn; }
 
+/**
+ * Button colours, inline. (Invite re-test, 10/14: "the Accept Invitation button text is hard to read")
+ * `.button` is styled in the <style> block, and mail clients paint a link in their own link colour unless the anchor
+ * itself says otherwise — blue text on the brand colour. Every `class="button"` anchor gets its background and
+ * white text written on the element, the way every mail client honours.
+ */
+export function inlineButtonColours(html: string): string {
+  return html.replace(/<a ([^>]*?)class="button( button-secondary)?"([^>]*)>/g, (_m, before: string, secondary: string | undefined, after: string) => {
+    if (/\sstyle=/.test(before + after)) return _m
+    const bg = secondary ? '#4b5563' : '{{PRIMARY_COLOR_ON_WHITE}}'
+    return `<a ${before}class="button${secondary || ''}"${after} style="display:inline-block;background:${bg};color:#ffffff !important;padding:12px 30px;text-decoration:none;border-radius:6px;font-weight:600;">`
+  })
+}
+
 async function send(
   to: string,
   templateName: string,
@@ -528,7 +542,8 @@ async function send(
     throw new Error(`Email template '${templateName}' not found`);
   }
 
-  const { subject, html, text } = template(data);
+  const { subject, html: styledHtml, text } = template(data);
+  const html = inlineButtonColours(styledHtml);
 
   const from = (options.from as any) || { name: FROM_NAME, address: FROM_EMAIL };
 

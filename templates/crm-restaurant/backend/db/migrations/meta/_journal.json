@@ -211,6 +211,13 @@
       "when": 1792200301000,
       "tag": "0029_warranty_claim_job",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792200302000,
+      "tag": "0030_audit_email_alias",
+      "breakpoints": true
     }
   ]
 }

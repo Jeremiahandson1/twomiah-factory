@@ -225,6 +225,13 @@
       "when": 1791601503000,
       "tag": "0031_auto_commissions_and_branches",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791601504000,
+      "tag": "0032_audit_email_alias",
+      "breakpoints": true
     }
   ]
 }

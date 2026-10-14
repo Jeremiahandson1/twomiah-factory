@@ -58,10 +58,21 @@ const tokenOf = (link: string) => new URL(link, 'https://x.test').searchParams.g
   check('…and the token in the link is the one stored', tokenOf(mail.data.inviteLink) === p.resetToken)
   check('the seat is active and nobody knows its password', p.isActive === true && !(await Bun.password.verify('', p.passwordHash).catch(() => false)))
 
+  const listed = await asOwner('GET', '/api/company/users')
+  const patRow = (listed.json || []).find((u: any) => u.email === 'pat@test.local')
+  check('the Users list says the invite is pending, not plain Active', patRow?.invitePending === true, patRow)
+  check('…and never sends the token that is the password link', !JSON.stringify(listed.json).includes(p.resetToken) && !('resetToken' in (patRow || {})), Object.keys(patRow || {}))
+  const sentHtml = (await import('./src/services/email.ts')).templates.teamInvite({ ...mail.data })
+  check('the invite greets them by name, and its subject names the company once', /Hi Pat,/.test(sentHtml.html) && sentHtml.subject === "You're invited to join Invite Builders", sentHtml.subject)
+  const { inlineButtonColours } = await import('./src/services/email.ts')
+  check('the button carries its colours on the element itself', /class="button"[^>]*style="[^"]*color:#ffffff !important/.test(inlineButtonColours(sentHtml.html)))
+
   const set = await anon('POST', '/api/auth/reset-password', { token: p.resetToken, password: 'pats-own-pass-1' })
   check(`the link sets their password (${set.status})`, set.status === 200, set.json)
   const login = await anon('POST', '/api/auth/login', { email: 'pat@test.local', password: 'pats-own-pass-1' })
   check(`…and they can sign in with it (${login.status})`, login.status === 200 && !!login.json?.accessToken, login.json)
+  const after = ((await asOwner('GET', '/api/company/users')).json || []).find((u: any) => u.email === 'pat@test.local')
+  check('once they have chosen a password the invite is no longer pending', after?.invitePending === false, after)
   const again = await anon('POST', '/api/auth/reset-password', { token: p.resetToken, password: 'someone-else-1' })
   check(`the link works once (${again.status})`, again.status === 400, again.json)
 }

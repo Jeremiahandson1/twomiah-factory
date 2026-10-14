@@ -78,6 +78,13 @@
       "when": 1791300500000,
       "tag": "0010_order_refunds",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791300501000,
+      "tag": "0011_audit_email_alias",
+      "breakpoints": true
     }
   ]
 }
