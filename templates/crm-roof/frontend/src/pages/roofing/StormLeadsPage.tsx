@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
+import api from '../../services/api'
 
 const DAMAGE_COLORS: Record<string, string> = {
   minor: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
@@ -55,7 +56,8 @@ export default function StormLeadsPage() {
   const [newZips, setNewZips] = useState('')
   const [newDesc, setNewDesc] = useState('')
 
-  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+  // The bearer token is added by api.raw — read at the moment of the call, refreshed and retried when it has expired.
+  const headers = { 'Content-Type': 'application/json' }
 
   /**
    * The board, and a way back to what has been put away. (T58)
@@ -67,7 +69,7 @@ export default function StormLeadsPage() {
    */
   const loadEvents = useCallback(async () => {
     try {
-      const res = await fetch(`/api/storms/events${showDismissed ? '?status=dismissed' : ''}`, { headers })
+      const res = await api.raw(`/api/storms/events${showDismissed ? '?status=dismissed' : ''}`, { headers })
       const data = await res.json()
       setEvents(Array.isArray(data) ? data : [])
     } catch { toast.error('Failed to load storm events') }
@@ -86,7 +88,7 @@ export default function StormLeadsPage() {
    */
   const loadLeads = async (eventId: string, page = 1, status: string = filterStatus) => {
     const statusParam = status ? `&status=${status}` : ''
-    const res = await fetch(`/api/storms/events/${eventId}/leads?page=${page}&limit=50${statusParam}`, { headers })
+    const res = await api.raw(`/api/storms/events/${eventId}/leads?page=${page}&limit=50${statusParam}`, { headers })
     const data = await res.json()
     setLeads(data.data || [])
     setLeadPagination(data.pagination || {})
@@ -102,7 +104,7 @@ export default function StormLeadsPage() {
     try {
       const zips = newZips.split(',').map(z => z.trim()).filter(Boolean)
       if (zips.length === 0) { toast.error('Enter at least one zip code'); return }
-      const res = await fetch('/api/storms/events', {
+      const res = await api.raw('/api/storms/events', {
         method: 'POST', headers,
         body: JSON.stringify({
           eventDate: newDate,
@@ -124,7 +126,7 @@ export default function StormLeadsPage() {
   const generateLeads = async () => {
     if (!selectedEvent) return
     try {
-      const res = await fetch(`/api/storms/events/${selectedEvent.id}/generate-leads`, { method: 'POST', headers })
+      const res = await api.raw(`/api/storms/events/${selectedEvent.id}/generate-leads`, { method: 'POST', headers })
       const data = await res.json()
       toast.success(`Generated ${data.leadCount} leads. ${data.existingCustomersFound} existing customers found.`)
       loadLeads(selectedEvent.id)
@@ -134,7 +136,7 @@ export default function StormLeadsPage() {
 
   const dismissEvent = async () => {
     if (!selectedEvent) return
-    await fetch(`/api/storms/events/${selectedEvent.id}/dismiss`, { method: 'POST', headers })
+    await api.raw(`/api/storms/events/${selectedEvent.id}/dismiss`, { method: 'POST', headers })
     loadEvents()
     setSelectedEvent(null)
     setLeads([])
@@ -143,7 +145,7 @@ export default function StormLeadsPage() {
 
   const convertLead = async (leadId: string) => {
     try {
-      const res = await fetch(`/api/storms/leads/${leadId}/convert`, {
+      const res = await api.raw(`/api/storms/leads/${leadId}/convert`, {
         method: 'POST', headers,
         body: JSON.stringify({ name: convertName, phone: convertPhone, email: convertEmail }),
       })
@@ -157,7 +159,7 @@ export default function StormLeadsPage() {
 
   const bulkConvert = async () => {
     if (selectedLeads.size === 0) return
-    const res = await fetch('/api/storms/leads/bulk-convert', {
+    const res = await api.raw('/api/storms/leads/bulk-convert', {
       method: 'POST', headers,
       body: JSON.stringify({ leadIds: [...selectedLeads] }),
     })
@@ -169,7 +171,7 @@ export default function StormLeadsPage() {
 
   const bulkDismiss = async () => {
     if (selectedLeads.size === 0) return
-    const res = await fetch('/api/storms/leads/bulk-dismiss', {
+    const res = await api.raw('/api/storms/leads/bulk-dismiss', {
       method: 'POST', headers,
       body: JSON.stringify({ leadIds: [...selectedLeads] }),
     })

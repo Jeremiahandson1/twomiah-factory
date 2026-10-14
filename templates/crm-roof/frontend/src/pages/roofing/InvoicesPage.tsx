@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Send, Check, DollarSign, ChevronLeft, ChevronRight, X, Receipt } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
+import api from '../../services/api';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
@@ -55,7 +56,6 @@ export default function InvoicesPage() {
   });
 
   const limit = 25;
-  const headers = { Authorization: `Bearer ${token}` };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -64,9 +64,9 @@ export default function InvoicesPage() {
       if (tab === 'unpaid') params.set('unpaid', 'true');
 
       const [invRes, contRes, jobsRes] = await Promise.all([
-        fetch(`/api/invoices?${params}`, { headers }),
-        fetch('/api/contacts?limit=200', { headers }),
-        fetch('/api/jobs?limit=200', { headers }),
+        api.raw(`/api/invoices?${params}`),
+        api.raw('/api/contacts?limit=200'),
+        api.raw('/api/jobs?limit=200'),
       ]);
       if (invRes.status === 403) { setRefused(true); return; }
       setRefused(false);
@@ -125,9 +125,9 @@ export default function InvoicesPage() {
     if (!Number.isFinite(taxRate) || taxRate < 0) { toast.error('Tax rate must be zero or more'); return; }
     setSaving(true);
     try {
-      const res = await fetch('/api/invoices', {
+      const res = await api.raw('/api/invoices', {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, taxRate, lineItems: validLines }),
       });
       if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.error || ''); }
@@ -144,7 +144,7 @@ export default function InvoicesPage() {
 
   const sendInvoice = async (id: string) => {
     try {
-      const res = await fetch(`/api/invoices/${id}/send`, { method: 'POST', headers });
+      const res = await api.raw(`/api/invoices/${id}/send`, { method: 'POST' });
       if (!res.ok) throw new Error();
       toast.success('Invoice sent');
       load();
@@ -155,7 +155,7 @@ export default function InvoicesPage() {
 
   const markPaid = async (id: string) => {
     try {
-      const res = await fetch(`/api/invoices/${id}/mark-paid`, { method: 'POST', headers });
+      const res = await api.raw(`/api/invoices/${id}/mark-paid`, { method: 'POST' });
       if (!res.ok) throw new Error();
       toast.success('Marked as paid');
       load();
@@ -168,9 +168,9 @@ export default function InvoicesPage() {
     if (!paymentInvoice || !payment.amount) return;
     try {
       // Backend route is /payment (singular); /payments 404'd silently.
-      const res = await fetch(`/api/invoices/${paymentInvoice.id}/payment`, {
+      const res = await api.raw(`/api/invoices/${paymentInvoice.id}/payment`, {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...payment, amount: Number(payment.amount) }),
       });
       if (!res.ok) {

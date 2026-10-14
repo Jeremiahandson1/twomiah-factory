@@ -3,6 +3,7 @@ import { ArrowLeft, Save, Copy, CheckCircle, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
+import api from '../../services/api';
 
 export default function EstimatorSettingsPage() {
   const { token, user } = useAuth();
@@ -24,11 +25,10 @@ export default function EstimatorSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/settings/company', { headers });
+      const res = await api.raw('/api/settings/company');
       if (res.ok) {
         const data = await res.json();
         setCompanySlug(data.slug || '');
@@ -52,9 +52,9 @@ export default function EstimatorSettingsPage() {
   const save = async () => {
     setSaving(true);
     try {
-      const res = await fetch('/api/settings/estimator', {
+      const res = await api.raw('/api/settings/estimator', {
         method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
       });
       if (!res.ok) throw new Error();

@@ -3,6 +3,7 @@ import { useMayWrite } from '../../shared';
 import { Users, Plus, X, Save, Phone, Mail } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
+import api from '../../services/api';
 
 export default function AdjusterDirectoryPage() {
   // Each control asks what its own route asks: POST /adjusters is create, PUT /adjusters/:id is
@@ -23,11 +24,10 @@ export default function AdjusterDirectoryPage() {
   // carrier or a moved phone number could only be fixed by adding a second row. (roof T17)
   const [editId, setEditId] = useState<string | null>(null);
 
-  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/insurance/adjusters', { headers });
+      const res = await api.raw('/api/insurance/adjusters');
       if (res.ok) setAdjusters(await res.json());
     } catch {
       toast.error('Failed to load adjusters');
@@ -56,9 +56,9 @@ export default function AdjusterDirectoryPage() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch(editId ? `/api/insurance/adjusters/${editId}` : '/api/insurance/adjusters', {
+      const res = await api.raw(editId ? `/api/insurance/adjusters/${editId}` : '/api/insurance/adjusters', {
         method: editId ? 'PUT' : 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
       if (!res.ok) {

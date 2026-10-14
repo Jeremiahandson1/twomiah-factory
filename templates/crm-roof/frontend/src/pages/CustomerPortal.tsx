@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAccessToken } from '../lib/authToken';
 import {
   Briefcase, Globe, Palette, Settings,
   Clock, LogOut, ArrowRight, ExternalLink,
@@ -8,8 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { brandSurfaceUnderWhite } from '../shared';
-
-const API_URL = import.meta.env.VITE_API_URL || '';
+import api from '../services/api';
 
 export default function CustomerPortal() {
   const { user, company, logout, hasFeature } = useAuth();
@@ -23,9 +21,8 @@ export default function CustomerPortal() {
 
   async function fetchStats() {
     try {
-      const token = getAccessToken();
-      const headers = { 'Authorization': `Bearer ${token}` };
-      const res = await fetch(`${API_URL}/api/dashboard/stats`, { headers }).catch(() => null);
+      // Through the client: the current token, refreshed if it has expired.
+      const res = await api.raw('/api/dashboard/stats').catch(() => null);
       if (res?.ok) setStats(await res.json());
     } catch {} finally {
       setLoading(false);

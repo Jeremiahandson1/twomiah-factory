@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
+import api from '../../services/api'
 
 const OUTCOME_CONFIG: Record<string, { label: string; emoji: string; color: string; bgColor: string }> = {
   no_answer: { label: 'No Answer', emoji: '🚪', color: 'text-gray-600', bgColor: 'bg-gray-100 border-gray-300' },
@@ -89,14 +90,15 @@ export default function CanvassingView() {
   // Script viewer
   const [scriptStep, setScriptStep] = useState(0)
 
-  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+  // The bearer token is added by api.raw — read at the moment of the call, refreshed and retried when it has expired.
+  const headers = { 'Content-Type': 'application/json' }
 
   const load = useCallback(async () => {
     try {
       const [sessRes, scriptRes] = await Promise.all([
         // YOUR sessions — the first active one in the company was the owner's, and this app opened it. (T62)
-        fetch('/api/canvassing/sessions?mine=1', { headers }),
-        fetch('/api/canvassing/scripts', { headers }),
+        api.raw('/api/canvassing/sessions?mine=1', { headers }),
+        api.raw('/api/canvassing/scripts', { headers }),
       ])
       const sessData = await sessRes.json()
       const scriptData = await scriptRes.json()
@@ -107,7 +109,7 @@ export default function CanvassingView() {
       const active = allSessions.find((s: Session) => s.status === 'active')
       if (active) {
         setActiveSession(active)
-        const stopsRes = await fetch(`/api/canvassing/sessions/${active.id}/stops`, { headers })
+        const stopsRes = await api.raw(`/api/canvassing/sessions/${active.id}/stops`, { headers })
         const stopsData = await stopsRes.json()
         setStops(Array.isArray(stopsData) ? stopsData : [])
       }
@@ -216,7 +218,7 @@ export default function CanvassingView() {
           )
         })
       }
-      const res = await fetch('/api/canvassing/sessions', {
+      const res = await api.raw('/api/canvassing/sessions', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -243,7 +245,7 @@ export default function CanvassingView() {
   const handleEndSession = async () => {
     if (!activeSession) return
     try {
-      const res = await fetch(`/api/canvassing/sessions/${activeSession.id}/end`, {
+      const res = await api.raw(`/api/canvassing/sessions/${activeSession.id}/end`, {
         method: 'POST', headers,
       })
       const ended = await res.json()
@@ -301,7 +303,7 @@ export default function CanvassingView() {
     setSubmitting(true)
     try {
       const notes = [logDamageNotes, ...logDamageTags.map(t => `[${t}]`), logNotes].filter(Boolean).join('\n')
-      const res = await fetch(`/api/canvassing/sessions/${activeSession.id}/stops`, {
+      const res = await api.raw(`/api/canvassing/sessions/${activeSession.id}/stops`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -370,7 +372,7 @@ export default function CanvassingView() {
 
   const loadSessionSummary = async (session: Session) => {
     try {
-      const res = await fetch(`/api/canvassing/sessions/${session.id}`, { headers })
+      const res = await api.raw(`/api/canvassing/sessions/${session.id}`, { headers })
       const data = await res.json()
       setShowSummary(data)
     } catch {

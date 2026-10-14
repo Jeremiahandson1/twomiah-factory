@@ -69,8 +69,8 @@ export default function RoofReportDetail() {
 
   const handleDownloadPdf = async () => {
     try {
-      const res = await fetch(`/api/roof-reports/${id}/pdf`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await api.raw(`/api/roof-reports/${id}/pdf`, {
+        timeoutMs: 300000,
       })
       if (!res.ok) throw new Error('Download failed')
       const blob = await res.blob()

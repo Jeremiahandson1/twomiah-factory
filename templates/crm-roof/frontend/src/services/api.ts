@@ -56,8 +56,21 @@ class ApiClient {
     dropTokens();
   }
 
-  async request(endpoint, options: RequestInit & { headers?: Record<string, string> } = {}) {
+  async request(endpoint, options: RequestInit & { headers?: Record<string, string>; timeoutMs?: number } = {}) {
+    return this.handleResponse(await this.raw(endpoint, options));
+  }
+
+  /**
+   * The request itself, answered as the Response — for a page that reads bytes, a status or a blob.
+   *
+   * Pages here used to call fetch() with `Bearer ${token}` from AuthContext. That token is kept fresh by
+   * a 12-minute timer, which a sleeping laptop or a backgrounded tab does not run; the first click after
+   * the lid opens went out with an expired token and the page showed the 401 instead of recovering.
+   * Through here the token is read at the moment of the call and a 401 is refreshed and retried. (10/14)
+   */
+  async raw(endpoint, options: RequestInit & { headers?: Record<string, string>; timeoutMs?: number } = {}): Promise<Response> {
     const url = `${this.baseUrl}${endpoint}`;
+    const { timeoutMs, ...fetchOptions } = options;
     const headers = {
       ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
       ...(this.accessToken && { Authorization: `Bearer ${this.accessToken}` }),
@@ -65,14 +78,14 @@ class ApiClient {
     };
 
     try {
-      const response = await fetchWithTimeout(url, { ...options, headers });
+      const response = await fetchWithTimeout(url, { ...fetchOptions, headers }, timeoutMs);
 
       // Handle 401 - try to refresh token
       if (response.status === 401 && this.refreshToken && !endpoint.includes('/auth/refresh')) {
         const outcome = await this.refreshAccessToken();
         if (outcome === 'ok') {
           headers.Authorization = `Bearer ${this.accessToken}`;
-          return fetchWithTimeout(url, { ...options, headers }).then(r => this.handleResponse(r));
+          return fetchWithTimeout(url, { ...fetchOptions, headers }, timeoutMs);
         }
         // The only thing that ends a session is the server saying this token is dead.
         if (outcome === 'revoked') {
@@ -86,7 +99,7 @@ class ApiClient {
         throw makeTransientError('The server is restarting — please try again in a moment.');
       }
 
-      return this.handleResponse(response);
+      return response;
     } catch (error) {
       console.error('API Error:', error);
       throw error;

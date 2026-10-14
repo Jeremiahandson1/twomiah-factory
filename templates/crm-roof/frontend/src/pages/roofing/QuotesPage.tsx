@@ -4,6 +4,7 @@ import { useMayWrite } from '../../shared';
 import { Plus, Send, Check, X, ChevronLeft, ChevronRight, FileText, Trash2, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
+import api from '../../services/api';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
@@ -65,16 +66,15 @@ export default function QuotesPage() {
   });
 
   const limit = 25;
-  const headers = { Authorization: `Bearer ${token}` };
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(limit) });
       const [quotesRes, contactsRes, jobsRes] = await Promise.all([
-        fetch(`/api/quotes?${params}`, { headers }),
-        fetch('/api/contacts?limit=200', { headers }),
-        fetch('/api/jobs?limit=200', { headers }),
+        api.raw(`/api/quotes?${params}`),
+        api.raw('/api/contacts?limit=200'),
+        api.raw('/api/jobs?limit=200'),
       ]);
       if (quotesRes.status === 403) { setRefused(true); return; }
       setRefused(false);
@@ -138,9 +138,9 @@ export default function QuotesPage() {
     if (!Number.isFinite(taxRate) || taxRate < 0) { toast.error('Tax rate must be zero or more'); return; }
     setSaving(true);
     try {
-      const res = await fetch('/api/quotes', {
+      const res = await api.raw('/api/quotes', {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, taxRate, lineItems: validLines }),
       });
       if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.error || ''); }
@@ -156,9 +156,8 @@ export default function QuotesPage() {
 
   const performAction = async (quoteId: string, action: string) => {
     try {
-      const res = await fetch(`/api/quotes/${quoteId}/${action}`, {
+      const res = await api.raw(`/api/quotes/${quoteId}/${action}`, {
         method: 'POST',
-        headers,
       });
       if (!res.ok) throw new Error();
       toast.success(`Quote ${action === 'convert' ? 'converted to job' : action + 'ed'}`);

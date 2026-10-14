@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { getAliasDefaultsForProduct } from '../../config/emailDefaults'
+import { api } from '../../api/client'
 
 // Pre-checks vertical-specific defaults (support/admin + per-vertical extras).
 // All default to forward mode pointing at the admin's signup email. Tenant
@@ -15,8 +16,8 @@ interface Props {
   defaultForwardTo?: string
 }
 
-function getToken(): string { try { return localStorage.getItem('token') || localStorage.getItem('accessToken') || '' } catch { return '' } }
-function authHeaders() { return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() } }
+// The bearer token is added by api.raw — the current one, refreshed when it has expired.
+function authHeaders() { return { 'Content-Type': 'application/json' } }
 
 // Persist the step's inputs so leaving and returning (Back → forward) doesn't
 // wipe them. Scoped to the product so different onboardings don't collide.
@@ -48,7 +49,7 @@ export function EmailAliasesStep({ productId, onBack, onNext, defaultForwardTo }
   React.useEffect(() => {
     if (forwardTo) return
     if (defaultForwardTo && defaultForwardTo.trim()) { setForwardTo(defaultForwardTo.trim()); return }
-    fetch('/api/company', { headers: authHeaders() }).then(r => r.json()).then(d => {
+    api.raw('/api/company', { headers: authHeaders() }).then(r => r.json()).then(d => {
       if (d?.email && !forwardTo) setForwardTo(d.email)
     }).catch(() => {})
   }, [])
@@ -62,7 +63,7 @@ export function EmailAliasesStep({ productId, onBack, onNext, defaultForwardTo }
       const allAliases = [...checked, ...extraAliases]
       // POST each alias sequentially — order doesn't matter, errors on one don't block others
       const results = await Promise.allSettled(allAliases.map(localPart =>
-        fetch('/api/email-aliases', {
+        api.raw('/api/email-aliases', {
           method: 'POST', headers: authHeaders(),
           body: JSON.stringify({ localPart, routingMode: 'forward', forwardTo, enabled: true }),
         }).then(async r => { if (!r.ok && r.status !== 409) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Failed: ' + localPart) } })

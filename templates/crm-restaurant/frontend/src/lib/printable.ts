@@ -1,3 +1,4 @@
+import api from '../services/api';
 /**
  * Opens a server-rendered printable HTML document in a new tab.
  *
@@ -16,14 +17,13 @@
  * The caller has somewhere to put it; the helper's job is to say what went wrong, not where.
  */
 export async function openPrintable(path: string): Promise<void> {
-  const token = localStorage.getItem('accessToken') || '';
-
   // Open the tab BEFORE awaiting — a window.open() after an await is a popup
   // blocker's definition of "not user initiated".
   const tab = window.open('', '_blank');
 
   try {
-    const res = await fetch(path, { headers: { Authorization: `Bearer ${token}` } });
+    // Through the client: the current token, refreshed if it has expired — never a token in the URL.
+    const res = await api.raw(path);
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
       throw new Error(`Could not load the document (HTTP ${res.status}). ${detail.slice(0, 200)}`);

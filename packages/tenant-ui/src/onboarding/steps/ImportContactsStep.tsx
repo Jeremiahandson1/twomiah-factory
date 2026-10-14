@@ -1,11 +1,11 @@
 import React, { useState } from 'react'
+import { api } from '../../api/client'
 
 // CSV upload is available but always skippable. Points at the existing
 // /api/import endpoint each template already has. We don't do the mapping
 // UI here — just a pass-through upload; Settings → Import has the full
 // mapping experience if they need it.
 
-function getToken(): string { try { return localStorage.getItem('token') || localStorage.getItem('accessToken') || '' } catch { return '' } }
 
 export function ImportContactsStep({ onBack, onNext }: { onBack: () => void; onNext: () => void }): React.ReactElement {
   const [file, setFile] = useState<File | null>(null)
@@ -19,9 +19,10 @@ export function ImportContactsStep({ onBack, onNext }: { onBack: () => void; onN
     try {
       const form = new FormData()
       form.append('file', file)
-      const res = await fetch('/api/import/contacts', {
+      // A large CSV can take longer than the client's 45-second default; a bare fetch() had no limit.
+      const res = await api.raw('/api/import/contacts', {
+        timeoutMs: 300_000,
         method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + getToken() },
         body: form,
       })
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Upload failed') }

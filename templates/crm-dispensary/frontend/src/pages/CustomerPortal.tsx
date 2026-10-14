@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { brandSurfaceUnderWhite, money } from '../shared';
+import client from '../services/api';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -22,11 +23,10 @@ export default function CustomerPortal() {
 
   async function fetchDashboardData() {
     try {
-      const token = localStorage.getItem('accessToken');
-      const headers = { 'Authorization': `Bearer ${token}` };
+      // Through the client: the current token, refreshed if it has expired.
       const [statsRes, stockRes] = await Promise.all([
-        fetch(`${API_URL}/api/dashboard/stats`, { headers }).catch(() => null),
-        fetch(`${API_URL}/api/products/low-stock`, { headers }).catch(() => null),
+        client.raw('/api/dashboard/stats').catch(() => null),
+        client.raw('/api/products/low-stock').catch(() => null),
       ]);
       if (statsRes?.ok) setStats(await statsRes.json());
       if (stockRes?.ok) {

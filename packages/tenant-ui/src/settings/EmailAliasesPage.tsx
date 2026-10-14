@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useConfirm } from '../ui/ConfirmProvider'
+import { api } from '../api/client'
 
 // First-class settings page vendored into each tenant.
 // Add / rename / remove / toggle routing mode for email aliases on the
@@ -21,12 +22,10 @@ interface CompanyInfo {
   email?: string | null
 }
 
-function getToken(): string {
-  try { return localStorage.getItem('token') || localStorage.getItem('accessToken') || '' } catch { return '' }
-}
 
+// The bearer token is added by api.raw — the current one, refreshed when it has expired.
 function authHeaders(): Record<string, string> {
-  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() }
+  return { 'Content-Type': 'application/json' }
 }
 
 export function EmailAliasesPage(): React.ReactElement {
@@ -44,8 +43,8 @@ export function EmailAliasesPage(): React.ReactElement {
     setLoading(true); setError('')
     try {
       const [aRes, cRes] = await Promise.all([
-        fetch('/api/email-aliases', { headers: authHeaders() }),
-        fetch('/api/company', { headers: authHeaders() }),
+        api.raw('/api/email-aliases', { headers: authHeaders() }),
+        api.raw('/api/company', { headers: authHeaders() }),
       ])
       if (!aRes.ok) throw new Error('Failed to load aliases: ' + aRes.status)
       const aData = await aRes.json()
@@ -64,7 +63,7 @@ export function EmailAliasesPage(): React.ReactElement {
   async function addAlias() {
     setError('')
     try {
-      const res = await fetch('/api/email-aliases', {
+      const res = await api.raw('/api/email-aliases', {
         method: 'POST', headers: authHeaders(),
         body: JSON.stringify(newAlias),
       })
@@ -79,7 +78,7 @@ export function EmailAliasesPage(): React.ReactElement {
   async function updateAlias(id: string, patch: Partial<Alias>) {
     setError('')
     try {
-      const res = await fetch('/api/email-aliases/' + id, {
+      const res = await api.raw('/api/email-aliases/' + id, {
         method: 'PATCH', headers: authHeaders(),
         body: JSON.stringify(patch),
       })
@@ -93,7 +92,7 @@ export function EmailAliasesPage(): React.ReactElement {
     if (!(await confirm('Delete this alias? Forwarding will stop immediately.', { title: 'Delete alias', confirmText: 'Delete it' }))) return
     setError('')
     try {
-      const res = await fetch('/api/email-aliases/' + id, { method: 'DELETE', headers: authHeaders() })
+      const res = await api.raw('/api/email-aliases/' + id, { method: 'DELETE', headers: authHeaders() })
       if (!res.ok) { const data = await res.json().catch(() => ({})); setError(data.error || 'Delete failed'); return }
       setAliases(prev => prev.filter(a => a.id !== id))
     } catch (err: any) { setError(err.message) }

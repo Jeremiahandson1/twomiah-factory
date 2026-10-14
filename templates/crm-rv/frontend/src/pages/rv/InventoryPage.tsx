@@ -190,10 +190,7 @@ export default function InventoryPage() {
     setExporting(true);
     setPageErr('');
     try {
-      const token = localStorage.getItem('accessToken');
-      const res = await fetch(`${api.baseUrl}/api/syndication/feed?format=csv`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const res = await api.raw('/api/syndication/feed?format=csv');
       if (!res.ok) throw new Error('Export failed');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

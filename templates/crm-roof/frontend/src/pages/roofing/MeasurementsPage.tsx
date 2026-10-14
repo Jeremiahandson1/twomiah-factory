@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Ruler, ChevronLeft, ChevronRight, Plus, X, RefreshCw, CreditCard, AlertTriangle, CheckCircle, Loader2, Edit3 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
+import api from '../../services/api';
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
@@ -63,11 +64,10 @@ export default function MeasurementsPage() {
   const [buying, setBuying] = useState(false);
 
   const limit = 25;
-  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
 
   const loadCredits = useCallback(async () => {
     try {
-      const res = await fetch('/api/measurements/credits/info', { headers });
+      const res = await api.raw('/api/measurements/credits/info');
       if (res.ok) {
         const data = await res.json();
         setCredits(data.credits);
@@ -80,7 +80,7 @@ export default function MeasurementsPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(limit) });
-      const res = await fetch(`/api/measurements?${params}`, { headers });
+      const res = await api.raw(`/api/measurements?${params}`);
       const data = await res.json();
       setMeasurements(data.data || []);
       setTotal(data.pagination?.total || 0);
@@ -102,9 +102,9 @@ export default function MeasurementsPage() {
     }
     setOrdering(true);
     try {
-      const res = await fetch('/api/measurements/order', {
+      const res = await api.raw('/api/measurements/order', {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderForm),
       });
       if (!res.ok) {
@@ -126,9 +126,8 @@ export default function MeasurementsPage() {
 
   const regenerateReport = async (reportId: string) => {
     try {
-      const res = await fetch(`/api/measurements/${reportId}/regenerate`, {
+      const res = await api.raw(`/api/measurements/${reportId}/regenerate`, {
         method: 'POST',
-        headers,
       });
       if (!res.ok) throw new Error();
       toast.success('Regeneration started');
@@ -142,9 +141,9 @@ export default function MeasurementsPage() {
     const sq = parseFloat(manualSquares);
     if (!sq || sq <= 0) { toast.error('Enter valid squares'); return; }
     try {
-      const res = await fetch(`/api/measurements/${reportId}/manual`, {
+      const res = await api.raw(`/api/measurements/${reportId}/manual`, {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ totalSquares: sq }),
       });
       if (!res.ok) throw new Error();
@@ -161,9 +160,9 @@ export default function MeasurementsPage() {
   const purchaseCredits = async () => {
     setBuying(true);
     try {
-      const res = await fetch('/api/measurements/credits/purchase', {
+      const res = await api.raw('/api/measurements/credits/purchase', {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quantity: buyQty }),
       });
       if (!res.ok) throw new Error();

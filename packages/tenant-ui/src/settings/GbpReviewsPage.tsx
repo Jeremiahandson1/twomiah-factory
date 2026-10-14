@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { api } from '../api/client'
 
 // Google Business Profile reviews — connect the business's Google listing,
 // see the rating + reviews, reply inline. OAuth runs through the factory
@@ -13,11 +14,9 @@ interface Review {
   reply: string | null
 }
 
-function getToken(): string {
-  try { return localStorage.getItem('token') || localStorage.getItem('accessToken') || '' } catch { return '' }
-}
+// The bearer token is added by api.raw — the current one, refreshed when it has expired.
 function authHeaders(): Record<string, string> {
-  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() }
+  return { 'Content-Type': 'application/json' }
 }
 
 const STARS: Record<string, number> = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 }
@@ -44,12 +43,12 @@ export function GbpReviewsPage(): React.ReactElement {
 
   const loadStatus = async () => {
     try {
-      const r = await fetch('/api/gbp/status', { headers: authHeaders() })
+      const r = await api.raw('/api/gbp/status', { headers: authHeaders() })
       if (r.status === 403) { setRefused(true); setLoading(false); return }
       const d = await r.json()
       setStatus(d)
       if (d.connected && d.needsLocation) {
-        const lr = await fetch('/api/gbp/locations', { headers: authHeaders() })
+        const lr = await api.raw('/api/gbp/locations', { headers: authHeaders() })
         const ld = await lr.json()
         if (!lr.ok) setError(ld.error || 'Could not list your Google locations')
         else setLocations(ld.locations || [])
@@ -62,7 +61,7 @@ export function GbpReviewsPage(): React.ReactElement {
 
   const loadReviews = async () => {
     setError('')
-    const r = await fetch('/api/gbp/reviews', { headers: authHeaders() })
+    const r = await api.raw('/api/gbp/reviews', { headers: authHeaders() })
     const d = await r.json()
     if (!r.ok) { setError(d.error || 'Could not load reviews'); return }
     setSummary({ averageRating: d.averageRating, totalReviewCount: d.totalReviewCount })
@@ -73,7 +72,7 @@ export function GbpReviewsPage(): React.ReactElement {
 
   const connect = async () => {
     const ret = window.location.href.split('?')[0]
-    const r = await fetch('/api/gbp/connect-url?return=' + encodeURIComponent(ret), { headers: authHeaders() })
+    const r = await api.raw('/api/gbp/connect-url?return=' + encodeURIComponent(ret), { headers: authHeaders() })
     const d = await r.json()
     if (!r.ok || !d.url) { setError(d.error || 'Could not start Google sign-in'); return }
     window.location.assign(d.url)
@@ -81,14 +80,14 @@ export function GbpReviewsPage(): React.ReactElement {
 
   const pickLocation = async (loc: { accountName: string; locationName: string; title: string }) => {
     setBusy(true)
-    await fetch('/api/gbp/location', { method: 'POST', headers: authHeaders(), body: JSON.stringify(loc) })
+    await api.raw('/api/gbp/location', { method: 'POST', headers: authHeaders(), body: JSON.stringify(loc) })
     setBusy(false)
     await loadStatus()
   }
 
   const sendReply = async (reviewName: string) => {
     setBusy(true); setError('')
-    const r = await fetch('/api/gbp/reviews/reply', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ reviewName, comment: replyText }) })
+    const r = await api.raw('/api/gbp/reviews/reply', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ reviewName, comment: replyText }) })
     const d = await r.json().catch(() => ({}))
     setBusy(false)
     if (!r.ok) { setError(d.error || 'Reply failed'); return }

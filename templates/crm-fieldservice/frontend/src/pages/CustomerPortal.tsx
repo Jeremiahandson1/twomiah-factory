@@ -12,6 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { money, maySeeRoute, useMayWrite } from '../shared';
 import { SHELL } from '../shellConfig';
 import { brandSurfaceUnderWhite } from '../shared';
+import client from '../services/api';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -55,11 +56,10 @@ export default function CustomerPortal() {
 
   async function fetchStats() {
     try {
-      const token = localStorage.getItem('accessToken');
-      const auth = { headers: { 'Authorization': `Bearer ${token}` } };
+      // Through the client: the current token, refreshed if it has expired.
       const [statsRes, activityRes] = await Promise.all([
-        fetch(`${API_URL}/api/dashboard/stats`, auth).catch(() => null),
-        fetch(`${API_URL}/api/dashboard/recent-activity`, auth).catch(() => null),
+        client.raw('/api/dashboard/stats').catch(() => null),
+        client.raw('/api/dashboard/recent-activity').catch(() => null),
       ]);
       if (statsRes?.ok) setStats(await statsRes.json());
       if (activityRes?.ok) setActivity(await activityRes.json());

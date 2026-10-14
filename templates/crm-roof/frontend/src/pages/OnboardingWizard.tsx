@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Check, ChevronRight, Rocket, Mail } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { getAccessToken } from '../lib/authToken'
 import { EmailAliasesStep } from '../shared'
+import api from '../services/api'
 
 // Roof onboarding — deliberately minimal compared to the base crm wizard.
 // crm-roof has no general company-update endpoint (only /features), so this
@@ -23,9 +23,8 @@ export default function OnboardingWizard() {
     setSaving(true)
     setError('')
     try {
-      const res = await fetch('/api/onboarding/complete', {
+      const res = await api.raw('/api/onboarding/complete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getAccessToken() },
       })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))

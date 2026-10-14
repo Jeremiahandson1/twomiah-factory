@@ -6,6 +6,7 @@ import { Settings, Building2, Palette, Users, Plus, Send, X, Save, Calculator, C
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useFeature } from '../../hooks/useFeature';
+import api from '../../services/api';
 
 export default function SettingsPage() {
   // Two blocks on this page were open to every seat. The company and branding saves above were
@@ -66,18 +67,17 @@ export default function SettingsPage() {
   const hasQB = useFeature('quickbooks');
   const hasStorm = useFeature('storm_lead_gen');
 
-  const headers = { Authorization: `Bearer ${token}` };
 
   const load = useCallback(async () => {
     try {
       const fetches: Promise<any>[] = [
-        fetch('/api/settings/company', { headers }).catch(() => null),
+        api.raw('/api/settings/company').catch(() => null),
         // includeInactive: this list has to show revoked people so they can be
         // restored. The assignment dropdowns elsewhere still get active-only.
-        maySeeRoster ? fetch('/api/users?includeInactive=1', { headers }) : Promise.resolve(new Response('[]')),
+        maySeeRoster ? api.raw('/api/users?includeInactive=1') : Promise.resolve(new Response('[]')),
       ];
-      if (hasQB) fetches.push(fetch('/api/quickbooks/status', { headers }).catch(() => null));
-      if (hasStorm) fetches.push(fetch('/api/storms/service-area', { headers }).catch(() => null));
+      if (hasQB) fetches.push(api.raw('/api/quickbooks/status').catch(() => null));
+      if (hasStorm) fetches.push(api.raw('/api/storms/service-area').catch(() => null));
 
       const results = await Promise.all(fetches);
       const [companyRes, usersRes] = results;
@@ -123,9 +123,9 @@ export default function SettingsPage() {
   const saveCompany = async () => {
     setSavingCompany(true);
     try {
-      const res = await fetch('/api/settings/company', {
+      const res = await api.raw('/api/settings/company', {
         method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(company),
       });
       if (!res.ok) throw new Error();
@@ -140,9 +140,9 @@ export default function SettingsPage() {
   const saveBrandingSettings = async () => {
     setSavingBranding(true);
     try {
-      const res = await fetch('/api/settings/branding', {
+      const res = await api.raw('/api/settings/branding', {
         method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(branding),
       });
       if (!res.ok) throw new Error();
@@ -160,9 +160,9 @@ export default function SettingsPage() {
   const toggleUserAccess = async (id: string, currentlyActive: boolean) => {
     if (currentlyActive && !confirm('Revoke access for this user? They will not be able to sign in, and their seat is freed.')) return;
     try {
-      const res = await fetch(`/api/users/${id}`, {
+      const res = await api.raw(`/api/users/${id}`, {
         method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: !currentlyActive }),
       });
       if (!res.ok) {
@@ -186,9 +186,9 @@ export default function SettingsPage() {
     try {
       // POST /api/users — this used to call /api/users/invite, which was never
       // implemented, so the button 404'd every time.
-      const res = await fetch('/api/users', {
+      const res = await api.raw('/api/users', {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(inviteForm),
       });
       if (!res.ok) {
@@ -215,7 +215,7 @@ export default function SettingsPage() {
   const disconnectQB = async () => {
     setQbLoading(true);
     try {
-      await fetch('/api/quickbooks/disconnect', { method: 'POST', headers });
+      await api.raw('/api/quickbooks/disconnect', { method: 'POST' });
       setQbStatus({ connected: false });
       toast.success('QuickBooks disconnected');
     } catch {
@@ -228,7 +228,7 @@ export default function SettingsPage() {
   const syncQB = async () => {
     setSyncing(true);
     try {
-      const res = await fetch('/api/quickbooks/sync', { method: 'POST', headers });
+      const res = await api.raw('/api/quickbooks/sync', { method: 'POST' });
       if (!res.ok) throw new Error();
       toast.success('QuickBooks sync complete');
       load();
@@ -259,9 +259,9 @@ export default function SettingsPage() {
     if (!Number.isFinite(maxLeadsPerZip) || maxLeadsPerZip < 1) { toast.error('Max leads per ZIP must be at least 1'); return; }
     setSavingStorm(true);
     try {
-      const res = await fetch('/api/storms/service-area', {
+      const res = await api.raw('/api/storms/service-area', {
         method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...stormSettings, minHailSize, maxLeadsPerZip }),
       });
       if (!res.ok) throw new Error();
@@ -283,7 +283,7 @@ export default function SettingsPage() {
 
   const openSmsBilling = async () => {
     try {
-      const res = await fetch('/api/messaging-billing/portal-link', { headers: { Authorization: `Bearer ${token}` } });
+      const res = await api.raw('/api/messaging-billing/portal-link');
       const d = await res.json();
       if (res.ok && d.url) window.open(d.url, '_blank'); else alert(d.error || 'Could not open billing');
     } catch { alert('Could not open billing'); }

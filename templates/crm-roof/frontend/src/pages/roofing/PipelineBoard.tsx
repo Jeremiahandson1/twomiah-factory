@@ -5,6 +5,7 @@ import { Filter, GripVertical, User, Users, Ruler, Clock, DollarSign, AlertTrian
 import { useAuth } from '../../contexts/AuthContext';
 import { displayName } from '../../utils/user';
 import { useToast } from '../../contexts/ToastContext';
+import api from '../../services/api';
 
 const STAGES = [
   'lead',
@@ -95,9 +96,9 @@ export default function PipelineBoard() {
   const load = useCallback(async () => {
     try {
       const [jobsRes, usersRes, crewsRes] = await Promise.all([
-        fetch('/api/jobs?limit=500', { headers: { Authorization: `Bearer ${token}` } }),
-        maySeeRoster ? fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } }) : Promise.resolve(new Response('[]')),
-        fetch('/api/crews', { headers: { Authorization: `Bearer ${token}` } }),
+        api.raw('/api/jobs?limit=500'),
+        maySeeRoster ? api.raw('/api/users') : Promise.resolve(new Response('[]')),
+        api.raw('/api/crews'),
       ]);
       const jobsData = await jobsRes.json();
       const usersData = await usersRes.json();
@@ -172,9 +173,9 @@ export default function PipelineBoard() {
     );
 
     try {
-      const res = await fetch(`/api/jobs/${jobId}/advance`, {
+      const res = await api.raw(`/api/jobs/${jobId}/advance`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: targetStage }),
       });
       if (!res.ok) throw new Error();

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useMayWrite } from '../../shared'
 import { useAuth } from '../../contexts/AuthContext'
 import { format } from 'date-fns'
+import api from '../../services/api'
 import {
   Bot, Plus, X, Pencil, Trash2, Phone, Clock,
   ToggleLeft, ToggleRight, RefreshCw,
@@ -92,13 +93,14 @@ export default function AIReceptionistPage() {
   const [editingRule, setEditingRule] = useState<Rule | null>(null)
   const [form, setForm] = useState<RuleForm>(defaultRule)
 
-  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+  // The bearer token is added by api.raw — read at the moment of the call, refreshed and retried when it has expired.
+  const headers = { 'Content-Type': 'application/json' }
 
   // Both list endpoints return the standard envelope: rules → { data },
   // calls → { data, pagination }.
   const loadRules = useCallback(async () => {
     try {
-      const res = await fetch('/api/ai-receptionist/rules', { headers })
+      const res = await api.raw('/api/ai-receptionist/rules', { headers })
       const body = await res.json()
       setRules(res.ok && Array.isArray(body?.data) ? body.data : [])
     } catch { /* ignore */ }
@@ -106,7 +108,7 @@ export default function AIReceptionistPage() {
 
   const loadSettings = useCallback(async () => {
     try {
-      const res = await fetch('/api/ai-receptionist/settings', { headers })
+      const res = await api.raw('/api/ai-receptionist/settings', { headers })
       if (!res.ok) return
       const data = await res.json()
       // greetingText/forwardingNumber are nullable columns; keep the inputs controlled.
@@ -121,7 +123,7 @@ export default function AIReceptionistPage() {
 
   const loadCalls = useCallback(async () => {
     try {
-      const res = await fetch('/api/calltracking/calls', { headers })
+      const res = await api.raw('/api/calltracking/calls', { headers })
       const body = await res.json()
       const list = res.ok && Array.isArray(body?.data) ? body.data : []
       setCalls(list)
@@ -141,7 +143,7 @@ export default function AIReceptionistPage() {
         ? `/api/ai-receptionist/rules/${editingRule.id}`
         : '/api/ai-receptionist/rules'
       const method = editingRule ? 'PUT' : 'POST'
-      await fetch(url, { method, headers, body: JSON.stringify({ ...form, delayMinutes: Number(form.delayMinutes) || 0 }) })
+      await api.raw(url, { method, headers, body: JSON.stringify({ ...form, delayMinutes: Number(form.delayMinutes) || 0 }) })
       await loadRules()
       closeModal()
     } catch { /* ignore */ }
@@ -150,12 +152,12 @@ export default function AIReceptionistPage() {
 
   async function deleteRule(id: string) {
     if (!confirm('Delete this rule?')) return
-    await fetch(`/api/ai-receptionist/rules/${id}`, { method: 'DELETE', headers })
+    await api.raw(`/api/ai-receptionist/rules/${id}`, { method: 'DELETE', headers })
     await loadRules()
   }
 
   async function toggleRule(rule: Rule) {
-    await fetch(`/api/ai-receptionist/rules/${rule.id}`, {
+    await api.raw(`/api/ai-receptionist/rules/${rule.id}`, {
       method: 'PUT',
       headers,
       body: JSON.stringify({ ...rule, isActive: !rule.isActive }),
@@ -166,7 +168,7 @@ export default function AIReceptionistPage() {
   async function saveSettings() {
     setSaving(true)
     try {
-      await fetch('/api/ai-receptionist/settings', {
+      await api.raw('/api/ai-receptionist/settings', {
         method: 'PUT',
         headers,
         body: JSON.stringify(settings),

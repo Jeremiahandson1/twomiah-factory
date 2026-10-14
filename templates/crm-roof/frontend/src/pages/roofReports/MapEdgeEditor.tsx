@@ -2,9 +2,9 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useMayWrite } from '../../shared'
 import { MousePointer2, Plus, Trash2, Undo2, Redo2, Save, RotateCcw, Sparkles, Loader2 } from 'lucide-react'
 import maplibregl from 'maplibre-gl'
-import { getAccessToken } from '../../lib/authToken'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { buildMapStyle, buildImageStyle } from '../../components/common/MapProvider'
+import api from '../../services/api'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -448,12 +448,9 @@ export default function MapEdgeEditor({
       const dataUrl = canvas.toDataURL('image/png')
       const base64 = dataUrl.split(',')[1]
 
-      const res = await fetch('/api/roof-reports/sam-segment', {
+      const res = await api.raw('/api/roof-reports/sam-segment', {
+        timeoutMs: 300000,
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getAccessToken()}`,
-        },
         body: JSON.stringify({
           imageBase64: base64,
           clickPoints: [{ x: pixelX, y: pixelY }],

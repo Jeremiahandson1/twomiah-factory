@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useIsDark } from '../../shared';
+import api from '../../services/api';
 import {
   Inbox, Phone, MessageSquare, UserPlus, XCircle,
   Search, RefreshCw, Clock, TrendingUp, ChevronDown
@@ -92,7 +93,7 @@ export default function LeadInboxPage() {
     if (sourceFilter) params.set('source', sourceFilter);
     if (search) params.set('search', search);
 
-    const res = await fetch(`/api/leads?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await api.raw(`/api/leads?${params}`);
     const json = await res.json();
     setLeads(json.data || []);
     setTotalPages(json.pagination?.pages || 1);
@@ -100,7 +101,7 @@ export default function LeadInboxPage() {
   }, [token, page, statusFilter, sourceFilter, search]);
 
   const fetchStats = useCallback(async () => {
-    const res = await fetch('/api/leads/stats', { headers: { Authorization: `Bearer ${token}` } });
+    const res = await api.raw('/api/leads/stats');
     const json = await res.json();
     setStats(json);
   }, [token]);
@@ -109,9 +110,9 @@ export default function LeadInboxPage() {
   useEffect(() => { fetchStats(); }, [fetchStats]);
 
   const updateStatus = async (id: string, status: string) => {
-    await fetch(`/api/leads/${id}/status`, {
+    await api.raw(`/api/leads/${id}/status`, {
       method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     });
     fetchLeads();
@@ -119,9 +120,8 @@ export default function LeadInboxPage() {
   };
 
   const convertToContact = async (id: string) => {
-    const res = await fetch(`/api/leads/${id}/convert`, {
+    const res = await api.raw(`/api/leads/${id}/convert`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {
       fetchLeads();

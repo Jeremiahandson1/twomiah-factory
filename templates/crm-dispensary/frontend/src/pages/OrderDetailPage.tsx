@@ -64,9 +64,7 @@ export default function OrderDetailPage() {
   const printReceipt = async () => {
     setPrinting(true);
     try {
-      const res = await fetch(`/api/orders/${id}/receipt`, {
-        headers: { authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` },
-      });
+      const res = await api.raw(`/api/orders/${id}/receipt`);
       if (!res.ok) throw new Error(`The receipt could not be loaded (${res.status})`);
       const html = await res.text();
       // A pop-up blocker is the one failure a till operator cannot diagnose from a silent button, so

@@ -1,23 +1,14 @@
 /**
  * Simple API client wrapper — provides authenticated fetch with JSON handling.
+ *
+ * The request goes through services/api's raw(), the one place the bearer is added: read at the moment of the call,
+ * and refreshed and retried when it has expired. This wrapper used to read the token and call fetch() itself, so an
+ * expired token here was a failed request with nothing to recover it. (10/14)
  */
-import { getAccessToken } from '../lib/authToken'
-
-function getToken(): string | null {
-  return getAccessToken() || null
-}
+import client from '../services/api'
 
 async function request(url: string, options: RequestInit = {}): Promise<any> {
-  const token = getToken()
-  const headers: Record<string, string> = {
-    ...(options.headers as Record<string, string> || {}),
-  }
-  if (token) headers['Authorization'] = `Bearer ${token}`
-  if (options.body && typeof options.body === 'string') {
-    headers['Content-Type'] = 'application/json'
-  }
-
-  const res = await fetch(url, { ...options, headers })
+  const res = await client.raw(url, options as RequestInit & { headers?: Record<string, string> })
   if (!res.ok) {
     const text = await res.text()
     let msg = text

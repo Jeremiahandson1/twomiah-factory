@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { Upload, FileText, X, AlertCircle, CheckCircle2, ArrowRight, Users, Briefcase, FileCheck, Receipt, Link2, Loader2 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
+import api from '../../services/api'
 
 interface FileEntry {
   file: File
@@ -33,7 +34,6 @@ interface ImportResults {
 export default function ImportPage() {
   const { token } = useAuth()
   const toast = useToast()
-  const headers = { Authorization: `Bearer ${token}` }
 
   const [files, setFiles] = useState<FileEntry[]>([])
   const [importing, setImporting] = useState(false)
@@ -67,9 +67,9 @@ export default function ImportPage() {
         const formData = new FormData()
         formData.append('file', entry.file)
 
-        const res = await fetch('/api/import/preview', {
+        const res = await api.raw('/api/import/preview', {
+          timeoutMs: 300000,
           method: 'POST',
-          headers,
           body: formData,
         })
         const data = await res.json()
@@ -105,9 +105,9 @@ export default function ImportPage() {
       formData.append('dryRun', String(dryRun))
       formData.append('createMissingContacts', String(createMissing))
 
-      const res = await fetch('/api/import/run', {
+      const res = await api.raw('/api/import/run', {
+        timeoutMs: 300000,
         method: 'POST',
-        headers,
         body: formData,
       })
 

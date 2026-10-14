@@ -109,6 +109,19 @@ export class ApiClient {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async request<T = any>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+    return this.handleResponse<T>(await this.raw(endpoint, options))
+  }
+
+  /**
+   * The authenticated request WITHOUT reading the body: the same bearer token, the same single-flight refresh on a
+   * 401 and the same retry, handing back the Response. For a screen that needs the response itself — a file to
+   * download, a status code to branch on — so it never has to read the token out of localStorage and send it raw.
+   *
+   * Thirteen shared screens did exactly that (the onboarding steps, Billing, Email, Google reviews, Documents…), so an
+   * expired access token was never refreshed on them: the owner who left the setup wizard open came back to "Token
+   * expired" on the Branded Email step while every other screen renewed silently. (10/14, the live sign-up run)
+   */
+  async raw(endpoint: string, options: RequestOptions = {}): Promise<Response> {
     const url = `${this.baseUrl}${endpoint}`
     const { timeoutMs = this.timeoutMs, ...fetchOptions } = options
     const headers: Record<string, string> = {
@@ -126,8 +139,7 @@ export class ApiClient {
       const outcome = await this._refreshPromise
       if (outcome === 'ok') {
         headers.Authorization = `Bearer ${this.accessToken}`
-        const retry = await this.fetchWithTimeout(url, { ...fetchOptions, headers }, timeoutMs)
-        return this.handleResponse<T>(retry)
+        return this.fetchWithTimeout(url, { ...fetchOptions, headers }, timeoutMs)
       }
       if (outcome === 'revoked') {
         // Genuine revocation — the only case that ends the session. The shared AuthContext listens for this.
@@ -142,7 +154,7 @@ export class ApiClient {
       throw busy
     }
 
-    return this.handleResponse<T>(response)
+    return response
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

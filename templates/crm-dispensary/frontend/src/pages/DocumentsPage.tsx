@@ -139,9 +139,7 @@ export default function DocumentsPage() {
   // always parses the response as JSON, which a PDF is not.
   const download = async (doc: any) => {
     try {
-      const res = await fetch(`${(api as any).baseUrl || ''}${doc.url}`, {
-        headers: { Authorization: `Bearer ${(api as any).accessToken || localStorage.getItem('accessToken') || ''}` },
-      });
+      const res = await api.raw(doc.url);
       if (!res.ok) throw new Error(String(res.status));
       const blob = await res.blob();
       const href = URL.createObjectURL(blob);

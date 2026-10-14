@@ -11,6 +11,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { displayName } from '../../utils/user';
 import { supplierName } from '../../utils/supplier';
 import { useToast } from '../../contexts/ToastContext';
+import api from '../../services/api';
 
 const STATUS_COLORS: Record<string, string> = {
   lead: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
@@ -94,15 +95,14 @@ export default function JobDetailPage() {
   const [savingNote, setSavingNote] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  const headers = { Authorization: `Bearer ${token}` };
 
   const load = useCallback(async () => {
     try {
       const [jobRes, usersRes, crewsRes, timelineRes] = await Promise.all([
-        fetch(`/api/jobs/${id}`, { headers }),
-        maySeeRoster ? fetch('/api/users', { headers }) : Promise.resolve(new Response('[]')),
-        fetch('/api/crews', { headers }),
-        fetch(`/api/jobs/${id}/timeline`, { headers }).catch(() => null),
+        api.raw(`/api/jobs/${id}`),
+        maySeeRoster ? api.raw('/api/users') : Promise.resolve(new Response('[]')),
+        api.raw('/api/crews'),
+        api.raw(`/api/jobs/${id}/timeline`).catch(() => null),
       ]);
       const jobData = await jobRes.json();
       const usersData = await usersRes.json();
@@ -131,9 +131,9 @@ export default function JobDetailPage() {
   const advanceStage = async () => {
     setAdvancing(true);
     try {
-      const res = await fetch(`/api/jobs/${id}/advance`, {
+      const res = await api.raw(`/api/jobs/${id}/advance`, {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
       });
       if (!res.ok) throw new Error();
       const updated = await res.json();
@@ -159,9 +159,9 @@ export default function JobDetailPage() {
     if (!closeReason.trim()) { toast.error('A reason is required'); return; }
     setClosing(true);
     try {
-      const res = await fetch(`/api/jobs/${id}/close`, {
+      const res = await api.raw(`/api/jobs/${id}/close`, {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: closeStatus, lostReason: closeReason.trim() }),
       });
       if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.error || ''); }
@@ -180,9 +180,9 @@ export default function JobDetailPage() {
   const reopenJob = async () => {
     setClosing(true);
     try {
-      const res = await fetch(`/api/jobs/${id}/reopen`, {
+      const res = await api.raw(`/api/jobs/${id}/reopen`, {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'lead' }),
       });
       if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.error || ''); }
@@ -198,11 +198,11 @@ export default function JobDetailPage() {
 
   const updateAssignment = async (field: string, value: string) => {
     try {
-      const res = await fetch(`/api/jobs/${id}`, {
+      const res = await api.raw(`/api/jobs/${id}`, {
         // Backend implements PUT, not PATCH — PATCH 404'd and assignment
         // silently reverted to "Unassigned".
         method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         // The job's own field names (assignedSalesRepId / assignedCrewId). This sent salesRepId / crewId, which the
         // API dropped and answered 200 — so a rep or crew picked here never saved. '' clears. (T63)
         body: JSON.stringify({ [field]: value || '' }),
@@ -220,7 +220,7 @@ export default function JobDetailPage() {
   // Load measurement report for this job
   useEffect(() => {
     if (!id || !token) return;
-    fetch(`/api/measurements/job/${id}`, { headers })
+    api.raw(`/api/measurements/job/${id}`)
       .then(r => r.ok ? r.json() : null)
       .then(d => setMeasurement(d))
       .catch(() => {});
@@ -229,9 +229,9 @@ export default function JobDetailPage() {
   const orderMeasurement = async () => {
     if (!job) return;
     try {
-      const res = await fetch('/api/measurements/order', {
+      const res = await api.raw('/api/measurements/order', {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jobId: id,
           address: job.propertyAddress || job.address,
@@ -248,7 +248,7 @@ export default function JobDetailPage() {
       toast.success('Measurement report ordered! Processing...');
       load();
       // Reload measurement
-      const mRes = await fetch(`/api/measurements/job/${id}`, { headers });
+      const mRes = await api.raw(`/api/measurements/job/${id}`);
       if (mRes.ok) setMeasurement(await mRes.json());
     } catch {
       toast.error('Failed to order measurement');
@@ -266,9 +266,9 @@ export default function JobDetailPage() {
         const formData = new FormData();
         formData.append('photo', f);
         formData.append('photoType', photoTab);
-        const res = await fetch(`/api/jobs/${id}/photos`, {
+        const res = await api.raw(`/api/jobs/${id}/photos`, {
+          timeoutMs: 300000,
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
           body: formData,
         });
         if (!res.ok) {
@@ -290,9 +290,9 @@ export default function JobDetailPage() {
     if (!noteText.trim()) return;
     setSavingNote(true);
     try {
-      const res = await fetch(`/api/jobs/${id}/notes`, {
+      const res = await api.raw(`/api/jobs/${id}/notes`, {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         // API expects { body }, not { text } — the mismatch 400'd every note.
         body: JSON.stringify({ body: noteText }),
       });

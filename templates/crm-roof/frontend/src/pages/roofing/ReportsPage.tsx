@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useKnownPermission } from '../../shared';
 import { displayName } from '../../utils/user';
 import { useToast } from '../../contexts/ToastContext';
+import api from '../../services/api';
 
 const STAGE_LABELS: Record<string, string> = {
   lead: 'Lead',
@@ -98,7 +99,6 @@ export default function ReportsPage() {
   // Whether /api/jobs stripped the money out of the rows this page aggregates. (T42)
   const [jobMoneyWithheld, setJobMoneyWithheld] = useState(false);
 
-  const headers = { Authorization: `Bearer ${token}` };
 
   // Reports needs every job to compute pipeline totals. The API caps limit at 500, so a single
   // ?limit=1000 request 400'd and the page silently rendered zeros on a tenant with live jobs.
@@ -110,7 +110,7 @@ export default function ReportsPage() {
     // they produce a DIFFERENT one. (T42 — see the note on moneyWithheld in routes/jobs.ts.)
     let withheld = false;
     for (let page = 1; ; page++) {
-      const r = await fetch(`/api/jobs?limit=500&page=${page}`, { headers });
+      const r = await api.raw(`/api/jobs?limit=500&page=${page}`);
       if (!r.ok) throw new Error('jobs request failed');
       const d = await r.json();
       if (Array.isArray(d)) { all.push(...d); break; }
@@ -131,10 +131,10 @@ export default function ReportsPage() {
     try {
       const [jobsAll, usersRes, crewsRes, moneyRes] = await Promise.all([
         fetchAllJobs(),
-        maySeeRoster ? fetch('/api/users', { headers }) : Promise.resolve(new Response('[]')),
-        fetch('/api/crews', { headers }),
+        maySeeRoster ? api.raw('/api/users') : Promise.resolve(new Response('[]')),
+        api.raw('/api/crews'),
         // H3: the money, as opposed to what the pipeline is thought to be worth
-        maySeeMoney ? fetch('/api/invoices/summary', { headers }) : Promise.resolve(new Response('null')),
+        maySeeMoney ? api.raw('/api/invoices/summary') : Promise.resolve(new Response('null')),
       ]);
       setMoney(moneyRes.ok ? await moneyRes.json() : null);
       setJobMoneyWithheld(jobsAll.withheld);

@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { Card, CardHeader, CardBody, Button, Input, Select, Modal, Textarea, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, StatusBadge, EmptyState, ConfirmDialog, Tabs, TabsList, TabsTrigger, TabsContent } from '../ui';
 import { PageError, errorText, ModuleNotEnabled, featureNotEnabled } from '../../shared';
 import { usePermissions } from '../../contexts/PermissionsContext';
+import client from '../../services/api';
 
 function useAuth() {
   // The canonical key is `accessToken`: AuthContext writes and reads that, and nothing in any CRM
@@ -41,18 +42,17 @@ async function refusal(res: Response): Promise<Error> {
 }
 
 async function api(path: string, token: string, opts: RequestInit = {}) {
-  const res = await fetch(`/api/ai-receptionist${path}`, {
+  // client.raw sends the current token and refreshes an expired one; `token` only says someone is signed in.
+  const res = await client.raw(`/api/ai-receptionist${path}`, {
     ...opts,
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...opts.headers },
+    headers: { 'Content-Type': 'application/json', ...(opts.headers as Record<string, string> | undefined) },
   });
   if (!res.ok) throw await refusal(res);
   return res.json();
 }
 
 async function callApi(path: string, token: string) {
-  const res = await fetch(`/api/calltracking${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await client.raw(`/api/calltracking${path}`);
   if (!res.ok) throw await refusal(res);
   return res.json();
 }

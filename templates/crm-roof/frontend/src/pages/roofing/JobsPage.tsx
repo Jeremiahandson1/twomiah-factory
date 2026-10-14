@@ -6,6 +6,7 @@ import { Plus, Search, ChevronLeft, ChevronRight, Briefcase } from 'lucide-react
 import { useAuth } from '../../contexts/AuthContext';
 import { displayName } from '../../utils/user';
 import { useToast } from '../../contexts/ToastContext';
+import api from '../../services/api';
 
 const JOB_TYPES = ['insurance', 'retail', 'commercial', 'new_construction', 'emergency'];
 /**
@@ -98,7 +99,6 @@ export default function JobsPage() {
   const [contacts, setContacts] = useState<any[]>([]);
 
   const limit = 25;
-  const headers = { Authorization: `Bearer ${token}` };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -113,9 +113,9 @@ export default function JobsPage() {
       if (mineOnly) params.set('mine', '1');
 
       const [jobsRes, usersRes, crewsRes] = await Promise.all([
-        fetch(`/api/jobs?${params}`, { headers }),
-        maySeeRoster ? fetch('/api/users', { headers }) : Promise.resolve(new Response('[]')),
-        fetch('/api/crews', { headers }),
+        api.raw(`/api/jobs?${params}`),
+        maySeeRoster ? api.raw('/api/users') : Promise.resolve(new Response('[]')),
+        api.raw('/api/crews'),
       ]);
       const jobsData = await jobsRes.json();
       const usersData = await usersRes.json();
@@ -125,7 +125,7 @@ export default function JobsPage() {
       // The distinct set for the whole tenant, not just this page — a legacy type further down the
       // list would otherwise be unselectable and its jobs unreachable. (roof T18)
       try {
-        const tr = await fetch('/api/jobs/types', { headers: { Authorization: `Bearer ${token}` } });
+        const tr = await api.raw('/api/jobs/types');
         if (tr.ok) setKnownTypes(await tr.json());
       } catch { /* the filter still works from the vocabulary + this page */ }
       setTotal(jobsData.pagination?.total || jobsData.total || (Array.isArray(jobsData) ? jobsData.length : 0));
@@ -144,7 +144,7 @@ export default function JobsPage() {
   const openCreate = async () => {
     setForm({ contactId: '', jobType: 'retail', address: '', city: '', state: '', zip: '', roofType: '', stories: '', notes: '' });
     try {
-      const res = await fetch('/api/contacts?limit=200', { headers });
+      const res = await api.raw('/api/contacts?limit=200');
       const data = await res.json();
       setContacts(Array.isArray(data) ? data : data.data || []);
     } catch { setContacts([]); }
@@ -156,9 +156,9 @@ export default function JobsPage() {
     setSaving(true);
     try {
       const { address, stories, roofType, ...rest } = form;
-      const res = await fetch('/api/jobs', {
+      const res = await api.raw('/api/jobs', {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...rest, propertyAddress: address, stories: stories ? Number(stories) : null, ...(roofType && { roofType }) }),
       });
       if (!res.ok) throw new Error();

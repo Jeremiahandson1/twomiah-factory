@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { api } from '../api/client'
 
 // List + detail for inbound emails routed into the CRM via crm-mode
 // aliases. V1 is a flat reverse-chrono inbox — no threading, no contact
@@ -19,11 +20,9 @@ interface InboundMessage {
   receivedAt: string
 }
 
-function getToken(): string {
-  try { return localStorage.getItem('token') || localStorage.getItem('accessToken') || '' } catch { return '' }
-}
+// The bearer token is added by api.raw — the current one, refreshed when it has expired.
 function authHeaders(): Record<string, string> {
-  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() }
+  return { 'Content-Type': 'application/json' }
 }
 
 export function InboundMessagesPage(): React.ReactElement {
@@ -40,7 +39,7 @@ export function InboundMessagesPage(): React.ReactElement {
   async function load() {
     setLoading(true); setError('')
     try {
-      const res = await fetch('/api/inbound-messages?limit=100', { headers: authHeaders() })
+      const res = await api.raw('/api/inbound-messages?limit=100', { headers: authHeaders() })
       if (!res.ok) throw new Error('Failed to load: ' + res.status)
       const data = await res.json()
       setMessages(data.messages || [])
@@ -127,7 +126,7 @@ export function InboundMessagesPage(): React.ReactElement {
                       onClick={async () => {
                         setReplySending(true); setReplyNote(null)
                         try {
-                          const r = await fetch('/api/inbound-messages/' + selected.id + '/reply', {
+                          const r = await api.raw('/api/inbound-messages/' + selected.id + '/reply', {
                             method: 'POST', headers: authHeaders(), body: JSON.stringify({ text: replyText }),
                           })
                           const d = await r.json().catch(() => ({}))

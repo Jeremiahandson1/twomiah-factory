@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useMayWrite } from '../../shared';
 import { useToast } from '../../contexts/ToastContext';
+import api from '../../services/api';
 
 const CLAIM_STAGES = [
   'filed', 'adjuster_assigned', 'inspection_scheduled',
@@ -147,18 +148,17 @@ export default function InsuranceClaimPage() {
     dateOfLoss: '', causeOfLoss: '', deductible: '',
   });
 
-  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
 
   const load = useCallback(async () => {
     try {
-      const claimRes = await fetch(`/api/insurance/claims/${jobId}`, { headers });
+      const claimRes = await api.raw(`/api/insurance/claims/${jobId}`);
       if (!claimRes.ok) {
         // No claim yet. Read the job so the empty state can tell "not filed yet" apart from "this job
         // is not an insurance job" — the create endpoint refuses the second with a 400, and offering
         // a button that cannot succeed is worse than explaining why.
         setClaim(null);
         try {
-          const jobRes = await fetch(`/api/jobs/${jobId}`, { headers });
+          const jobRes = await api.raw(`/api/jobs/${jobId}`);
           setJobInfo(jobRes.ok ? await jobRes.json() : null);
         } catch { setJobInfo(null); }
         setLoading(false);
@@ -168,8 +168,8 @@ export default function InsuranceClaimPage() {
       setClaim(claimData);
 
       const [actRes, supRes] = await Promise.all([
-        fetch(`/api/insurance/claims/${claimData.id}/activity`, { headers }),
-        fetch(`/api/insurance/claims/${claimData.id}/supplements`, { headers }),
+        api.raw(`/api/insurance/claims/${claimData.id}/activity`),
+        api.raw(`/api/insurance/claims/${claimData.id}/supplements`),
       ]);
       /**
        * "NO ACTIVITY YET" AND "WE COULD NOT LOAD IT" ARE NOT THE SAME SENTENCE. (T41)
@@ -217,9 +217,9 @@ export default function InsuranceClaimPage() {
         const v = String(newClaim[k] || '').trim();
         if (v) payload[k] = v;
       }
-      const res = await fetch('/api/insurance/claims', {
+      const res = await api.raw('/api/insurance/claims', {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
@@ -244,9 +244,9 @@ export default function InsuranceClaimPage() {
     if (!claim) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/insurance/claims/${claim.id}`, {
+      const res = await api.raw(`/api/insurance/claims/${claim.id}`, {
         method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       });
       if (!res.ok) throw new Error();
@@ -263,9 +263,9 @@ export default function InsuranceClaimPage() {
   const updateStatus = async (status: string) => {
     if (!claim) return;
     try {
-      const res = await fetch(`/api/insurance/claims/${claim.id}/status`, {
+      const res = await api.raw(`/api/insurance/claims/${claim.id}/status`, {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
       if (!res.ok) throw new Error();
@@ -282,9 +282,9 @@ export default function InsuranceClaimPage() {
     if (!activityBody.trim()) return;
     setSubmittingActivity(true);
     try {
-      const res = await fetch(`/api/insurance/claims/${claim.id}/activity`, {
+      const res = await api.raw(`/api/insurance/claims/${claim.id}/activity`, {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           activityType,
           body: activityBody,
@@ -322,9 +322,9 @@ export default function InsuranceClaimPage() {
     setSubmittingSup(true);
     try {
       // totalAmount is deliberately not sent — the server computes it from the line items.
-      const res = await fetch(`/api/insurance/claims/${claim.id}/supplements`, {
+      const res = await api.raw(`/api/insurance/claims/${claim.id}/supplements`, {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           reason: supReason,
           lineItems,
@@ -349,7 +349,7 @@ export default function InsuranceClaimPage() {
 
   const submitSupplement = async (supId: string) => {
     try {
-      const res = await fetch(`/api/insurance/supplements/${supId}/submit`, { method: 'POST', headers });
+      const res = await api.raw(`/api/insurance/supplements/${supId}/submit`, { method: 'POST' });
       if (!res.ok) throw new Error();
       load();
       toast.success('Supplement submitted');
@@ -395,9 +395,9 @@ export default function InsuranceClaimPage() {
     setSavingEdit(true);
     try {
       // totalAmount is deliberately not sent — the server computes it from the line items.
-      const res = await fetch(`/api/insurance/supplements/${editSup.id}`, {
+      const res = await api.raw(`/api/insurance/supplements/${editSup.id}`, {
         method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: editReason, lineItems }),
       });
       if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.error || ''); }
@@ -446,9 +446,9 @@ export default function InsuranceClaimPage() {
       const url = decideMode === 'approve'
         ? `/api/insurance/supplements/${decideSup.id}/approve`
         : `/api/insurance/supplements/${decideSup.id}/deny`
-      const res = await fetch(url, {
+      const res = await api.raw(url, {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(decideMode === 'approve' ? { approvedAmount: String(Number(approvedAmount).toFixed(2)) } : { denialReason: denialReason.trim() }),
       });
       if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.error || ''); }
@@ -475,9 +475,9 @@ export default function InsuranceClaimPage() {
     if (!claim) return;
     setExporting(true);
     try {
-      const res = await fetch(`/api/insurance/claims/${claim.id}/xactimate-export?basis=${basis}`, {
+      const res = await api.raw(`/api/insurance/claims/${claim.id}/xactimate-export?basis=${basis}`, {
+        timeoutMs: 300000,
         method: 'POST',
-        headers,
       });
       if (!res.ok) throw new Error();
       const result = await res.json();
@@ -508,7 +508,7 @@ export default function InsuranceClaimPage() {
   const openDocument = async (url: string, filename: string) => {
     setFetchingDoc(url);
     try {
-      const res = await fetch(url, { headers });
+      const res = await api.raw(url);
       if (!res.ok) throw new Error(res.status === 401 ? 'Your session has expired — sign in again.' : 'Could not open that document.');
       const blob = await res.blob();
       const href = URL.createObjectURL(blob);
@@ -531,9 +531,9 @@ export default function InsuranceClaimPage() {
   const saveAdjusterToDirectory = async () => {
     if (!claim?.adjusterName) { toast.error('Adjuster name required'); return; }
     try {
-      const res = await fetch('/api/insurance/adjusters', {
+      const res = await api.raw('/api/insurance/adjusters', {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: claim.adjusterName,
           phone: claim.adjusterPhone,

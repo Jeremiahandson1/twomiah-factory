@@ -12,6 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { money, maySeeRoute, useMayWrite } from '../shared';
 import { SHELL } from '../shellConfig';
 import { brandSurfaceUnderWhite } from '../shared';
+import client from '../services/api';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -51,10 +52,8 @@ export default function CustomerPortal() {
 
   async function fetchStats() {
     try {
-      const token = localStorage.getItem('accessToken');
-      const res = await fetch(`${API_URL}/api/dashboard/stats`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      // Through the client: the current token, refreshed if it has expired.
+      const res = await client.raw('/api/dashboard/stats');
       if (res.ok) {
         setStats(await res.json());
       }

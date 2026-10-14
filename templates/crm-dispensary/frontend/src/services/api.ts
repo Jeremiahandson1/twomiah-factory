@@ -70,6 +70,16 @@ class ApiClient {
   }
 
   async request(endpoint: string, options: ApiRequestOptions = {}): Promise<any> {
+    return this.handleResponse(await this.raw(endpoint, options));
+  }
+
+  /**
+   * The authenticated request without reading the body — the same bearer token and the same refresh on a 401 —
+   * for a screen that needs the Response itself (a receipt, an export, a file). Compliance, Documents and the order
+   * receipt read the token out of localStorage and fetched raw, so an expired token was never refreshed on them.
+   * (10/14, the same fault the shared client fixed with api.raw)
+   */
+  async raw(endpoint: string, options: ApiRequestOptions = {}): Promise<Response> {
     const url = `${this.baseUrl}${endpoint}`;
     const headers: Record<string, string> = {
       ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
@@ -91,7 +101,7 @@ class ApiClient {
         }
         if (refreshed === 'ok') {
           headers.Authorization = `Bearer ${this.accessToken}`;
-          return fetchWithTimeout(url, { ...options, headers }).then(r => this.handleResponse(r));
+          return fetchWithTimeout(url, { ...options, headers });
         } else {
           this.clearTokens();
           window.location.href = '/login';
@@ -99,7 +109,7 @@ class ApiClient {
         }
       }
 
-      return this.handleResponse(response);
+      return response;
     } catch (error) {
       console.error('API Error:', error);
       throw error;

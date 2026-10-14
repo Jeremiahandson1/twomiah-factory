@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MoreVertical, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import type { LineItemInput, PricebookPick } from './types'
+import { api } from '../api/client'
 
 // ---------------------------------------------------------------- formatting
 export const money = (n: unknown) => {
@@ -151,9 +152,8 @@ export function NumberInput({ value, onValue, ...rest }: { value: number; onValu
 
 /** Authenticated file download (PDFs). A plain <a href> would hit the API without the bearer token. */
 export async function downloadFile(path: string, filename: string) {
-  let token = ''
-  try { token = localStorage.getItem('accessToken') || localStorage.getItem('token') || '' } catch { /* no storage */ }
-  const res = await fetch(path, { headers: { Authorization: `Bearer ${token}` } })
+  // Through the client, so an expired token is refreshed instead of the download failing. (10/14)
+  const res = await api.raw(path)
   if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body?.error || `Could not download (${res.status})`) }
   const url = URL.createObjectURL(await res.blob())
   const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove()

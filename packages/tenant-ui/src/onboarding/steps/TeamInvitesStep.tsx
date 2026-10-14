@@ -1,11 +1,12 @@
 import React, { useState } from 'react'
+import { api } from '../../api/client'
 
 // Optional — admin can invite team members now or skip. Posts to
 // /api/team/invite which exists in every CRM template. Skip is always
 // available; team can be added anytime from Settings.
 
-function getToken(): string { try { return localStorage.getItem('token') || localStorage.getItem('accessToken') || '' } catch { return '' } }
-function authHeaders() { return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() } }
+// The bearer token is added by api.raw — the current one, refreshed when it has expired.
+function authHeaders() { return { 'Content-Type': 'application/json' } }
 
 interface Invite { email: string; role: string }
 
@@ -26,7 +27,7 @@ export function TeamInvitesStep({ onBack, onNext }: { onBack: () => void; onNext
       const valid = invites.filter(inv => inv.email.includes('@'))
       for (const inv of valid) {
         // Tolerate 409 (already exists) — this step should be idempotent on re-run
-        const res = await fetch('/api/team/invite', { method: 'POST', headers: authHeaders(), body: JSON.stringify(inv) })
+        const res = await api.raw('/api/team/invite', { method: 'POST', headers: authHeaders(), body: JSON.stringify(inv) })
         if (!res.ok && res.status !== 409) {
           const data = await res.json().catch(() => ({}))
           console.warn('[Onboarding] invite failed for', inv.email, data.error)

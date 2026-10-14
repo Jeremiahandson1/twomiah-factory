@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useIsDark, useMayWrite } from '../../shared';
+import api from '../../services/api';
 import {
   Settings, Plus, Trash2, ToggleLeft, ToggleRight, Copy, Check,
   Mail, Webhook, Info
@@ -115,7 +116,7 @@ export default function LeadSourcesPage() {
 
   const fetchSources = useCallback(async () => {
     setLoading(true);
-    const res = await fetch('/api/leads/sources', { headers: { Authorization: `Bearer ${token}` } });
+    const res = await api.raw('/api/leads/sources');
     const json = await res.json();
     setSources(json.data || []);
     setLoading(false);
@@ -125,9 +126,9 @@ export default function LeadSourcesPage() {
 
   const addSource = async (platform: string) => {
     const info = PLATFORMS.find(p => p.value === platform);
-    await fetch('/api/leads/sources', {
+    await api.raw('/api/leads/sources', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ platform, label: info?.label || platform }),
     });
     setShowAdd(false);
@@ -135,9 +136,9 @@ export default function LeadSourcesPage() {
   };
 
   const toggleSource = async (source: LeadSource) => {
-    await fetch(`/api/leads/sources/${source.id}`, {
+    await api.raw(`/api/leads/sources/${source.id}`, {
       method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: !source.enabled }),
     });
     fetchSources();
@@ -145,9 +146,8 @@ export default function LeadSourcesPage() {
 
   const deleteSource = async (id: string) => {
     if (!confirm('Delete this lead source? Existing leads will be kept.')) return;
-    await fetch(`/api/leads/sources/${id}`, {
+    await api.raw(`/api/leads/sources/${id}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
     });
     fetchSources();
   };

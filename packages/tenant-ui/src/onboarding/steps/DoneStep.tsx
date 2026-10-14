@@ -1,11 +1,12 @@
 import React, { useState } from 'react'
+import { api } from '../../api/client'
 
 // Final step — marks companies.onboarding_completed_at so the tenant's
 // root router stops redirecting here. Calls /api/company/complete-onboarding
 // (added as a tiny endpoint alongside the existing company route).
 
-function getToken(): string { try { return localStorage.getItem('token') || localStorage.getItem('accessToken') || '' } catch { return '' } }
-function authHeaders() { return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() } }
+// The bearer token is added by api.raw — the current one, refreshed when it has expired.
+function authHeaders() { return { 'Content-Type': 'application/json' } }
 
 export function DoneStep({ onComplete }: { onComplete: () => void }): React.ReactElement {
   const [finishing, setFinishing] = useState(false)
@@ -14,7 +15,7 @@ export function DoneStep({ onComplete }: { onComplete: () => void }): React.Reac
   async function finish() {
     setFinishing(true); setError('')
     try {
-      const res = await fetch('/api/onboarding/complete', { method: 'POST', headers: authHeaders() })
+      const res = await api.raw('/api/onboarding/complete', { method: 'POST', headers: authHeaders() })
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Could not finish') }
       onComplete()
     } catch (err: any) { setError(err.message); setFinishing(false) }

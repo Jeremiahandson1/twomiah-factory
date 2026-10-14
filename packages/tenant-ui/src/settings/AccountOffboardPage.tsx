@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useConfirm } from '../ui/ConfirmProvider'
+import { api } from '../api/client'
 
 // One-click Leave Twomiah + 30-day grace countdown + reactivate.
 // Calls are proxied through the tenant backend; X-Factory-Key auth happens
@@ -13,11 +14,9 @@ interface OffboardStatus {
   domainRegistrar?: string | null
 }
 
-function getToken(): string {
-  try { return localStorage.getItem('token') || localStorage.getItem('accessToken') || '' } catch { return '' }
-}
+// The bearer token is added by api.raw — the current one, refreshed when it has expired.
 function authHeaders(): Record<string, string> {
-  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() }
+  return { 'Content-Type': 'application/json' }
 }
 
 export function AccountOffboardPage(): React.ReactElement {
@@ -34,7 +33,7 @@ export function AccountOffboardPage(): React.ReactElement {
   async function load() {
     setLoading(true); setError('')
     try {
-      const res = await fetch('/api/account/offboard/status', { headers: authHeaders() })
+      const res = await api.raw('/api/account/offboard/status', { headers: authHeaders() })
       if (!res.ok) throw new Error('Status check failed: ' + res.status)
       setStatus(await res.json())
     } catch (err: any) { setError(err.message) }
@@ -44,7 +43,7 @@ export function AccountOffboardPage(): React.ReactElement {
   async function startOffboard() {
     setWorking(true); setError('')
     try {
-      const res = await fetch('/api/account/offboard', {
+      const res = await api.raw('/api/account/offboard', {
         method: 'POST', headers: authHeaders(),
         body: JSON.stringify({ confirm: true }),
       })
@@ -61,7 +60,7 @@ export function AccountOffboardPage(): React.ReactElement {
     if (!(await confirm('Reactivate your account? This cancels the offboarding process.', { title: 'Reactivate account', confirmText: 'Reactivate', danger: false }))) return
     setWorking(true); setError(''); setSuccessMsg('')
     try {
-      const res = await fetch('/api/account/reactivate', { method: 'POST', headers: authHeaders() })
+      const res = await api.raw('/api/account/reactivate', { method: 'POST', headers: authHeaders() })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Reactivate failed'); setWorking(false); return }
       setSuccessMsg('Your account has been reactivated.')

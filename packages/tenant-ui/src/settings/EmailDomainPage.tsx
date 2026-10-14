@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { api } from '../api/client'
 
 // BYOD walkthrough + verification polling.
 // Shows the DNS records that must exist at the tenant's DNS host (Cloudflare
@@ -19,11 +20,9 @@ interface DomainStatus {
   detail?: string
 }
 
-function getToken(): string {
-  try { return localStorage.getItem('token') || localStorage.getItem('accessToken') || '' } catch { return '' }
-}
+// The bearer token is added by api.raw — the current one, refreshed when it has expired.
 function authHeaders(): Record<string, string> {
-  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() }
+  return { 'Content-Type': 'application/json' }
 }
 
 export function EmailDomainPage(): React.ReactElement {
@@ -38,7 +37,7 @@ export function EmailDomainPage(): React.ReactElement {
   async function load() {
     setLoading(true); setError('')
     try {
-      const res = await fetch('/api/email-domain/status', { headers: authHeaders() })
+      const res = await api.raw('/api/email-domain/status', { headers: authHeaders() })
       // No domain endpoint / none configured yet reads as "unconfigured", not a red
       // "Status check failed: 404" error banner above the friendly empty state. (BUG-06)
       if (res.status === 404) {
@@ -55,7 +54,7 @@ export function EmailDomainPage(): React.ReactElement {
   async function verify() {
     setVerifying(true); setError('')
     try {
-      const res = await fetch('/api/email-domain/verify', { method: 'POST', headers: authHeaders() })
+      const res = await api.raw('/api/email-domain/verify', { method: 'POST', headers: authHeaders() })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Verify failed') } else { setStatus(data) }
     } catch (err: any) { setError(err.message) }

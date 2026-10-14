@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Truck, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
+import api from '../../services/api';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
@@ -37,7 +38,6 @@ export default function MaterialsPage() {
   const [costWithheld, setCostWithheld] = useState(false);
 
   const limit = 25;
-  const headers = { Authorization: `Bearer ${token}` };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -48,7 +48,7 @@ export default function MaterialsPage() {
       if (dateFrom) params.set('dateFrom', dateFrom);
       if (dateTo) params.set('dateTo', dateTo);
 
-      const res = await fetch(`/api/materials?${params}`, { headers });
+      const res = await api.raw(`/api/materials?${params}`);
       const data = await res.json();
       const items = Array.isArray(data) ? data : data.data || [];
       setOrders(items);

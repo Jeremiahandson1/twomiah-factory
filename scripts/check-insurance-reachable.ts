@@ -91,7 +91,8 @@ if (orphans.length)
 // B1 itself, pinned: the create path, and a control a person can actually see
 {
   const page = readFileSync(ROOT + FE + '/pages/roofing/InsuranceClaimPage.tsx', 'utf8')
-  if (!/fetch\('\/api\/insurance\/claims',\s*\{[\s\S]{0,120}method: 'POST'/.test(page))
+  // through the api client (api.raw, 10/14) or a bare fetch — the property is a POST to the create route
+  if (!/(?:fetch|api\.raw)\('\/api\/insurance\/claims',\s*\{[\s\S]{0,120}method: 'POST'/.test(page))
     fail('the claim page must be able to START a claim, not only read one (B1)')
   if (!/Start insurance claim/.test(page))
     fail('…from a control a person can see, on the empty state')

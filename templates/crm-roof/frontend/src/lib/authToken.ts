@@ -45,9 +45,3 @@ export function clearTokens(): void {
   drop(REFRESH)
   drop(LEGACY_ACCESS)
 }
-
-/** the Authorization header, or nothing at all when there is no session */
-export function authHeader(): Record<string, string> {
-  const t = getAccessToken()
-  return t ? { Authorization: `Bearer ${t}` } : {}
-}

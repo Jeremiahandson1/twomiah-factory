@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { api } from '../../api/client'
 
 // Shows the company info the factory captured at signup. Admin can edit
 // inline (hits /api/company PUT) or accept as-is. Intentionally minimal —
@@ -15,11 +16,9 @@ interface Company {
   website?: string | null
 }
 
-function getToken(): string {
-  try { return localStorage.getItem('token') || localStorage.getItem('accessToken') || '' } catch { return '' }
-}
+// The bearer token is added by api.raw — the current one, refreshed when it has expired.
 function authHeaders(): Record<string, string> {
-  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() }
+  return { 'Content-Type': 'application/json' }
 }
 
 export function CompanyConfirmStep({ onNext }: { onNext: () => void }): React.ReactElement {
@@ -29,7 +28,7 @@ export function CompanyConfirmStep({ onNext }: { onNext: () => void }): React.Re
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch('/api/company', { headers: authHeaders() })
+    api.raw('/api/company', { headers: authHeaders() })
       .then(r => r.json())
       .then(d => { setCompany(d); setEditing({ name: d.name, phone: d.phone, address: d.address, city: d.city, state: d.state, zip: d.zip, website: d.website }) })
       .catch(e => setError(e.message))
@@ -38,7 +37,7 @@ export function CompanyConfirmStep({ onNext }: { onNext: () => void }): React.Re
   async function saveAndContinue() {
     setSaving(true); setError('')
     try {
-      const res = await fetch('/api/company', { method: 'PUT', headers: authHeaders(), body: JSON.stringify(editing) })
+      const res = await api.raw('/api/company', { method: 'PUT', headers: authHeaders(), body: JSON.stringify(editing) })
       if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || 'Save failed') }
       onNext()
     } catch (err: any) { setError(err.message) }

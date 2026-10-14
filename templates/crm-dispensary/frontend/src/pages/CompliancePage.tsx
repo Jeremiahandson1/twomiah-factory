@@ -69,9 +69,7 @@ function reportSections(data: any): ReportSection[] {
 // Authenticated download/print: the export endpoint needs the bearer token, so fetch it and
 // hand the browser a blob (CSV) or a new window (printable HTML → Save as PDF).
 async function exportReport(id: string, format: 'csv' | 'html') {
-  const res = await fetch(`${(api as any).baseUrl || ''}/api/compliance/reports/${id}/export?format=${format}`, {
-    headers: { Authorization: `Bearer ${(api as any).accessToken || localStorage.getItem('accessToken') || ''}` },
-  });
+  const res = await api.raw(`/api/compliance/reports/${id}/export?format=${format}`);
   if (!res.ok) throw new Error(`Export failed (${res.status})`);
   if (format === 'csv') {
     const blob = await res.blob();

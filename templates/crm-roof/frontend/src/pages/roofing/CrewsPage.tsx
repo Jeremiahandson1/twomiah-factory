@@ -3,6 +3,7 @@ import { useMayWrite } from '../../shared';
 import { Plus, Users, Phone, Briefcase, X, HardHat } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
+import api from '../../services/api';
 
 export default function CrewsPage() {
   // crews:* is manager and above. A crew member reads the roster — who is on which crew is the
@@ -21,7 +22,6 @@ export default function CrewsPage() {
   const emptyForm = { name: '', foremanName: '', foremanPhone: '', crewSize: '', isSubcontractor: false, notes: '' };
   const [form, setForm] = useState(emptyForm);
 
-  const headers = { Authorization: `Bearer ${token}` };
 
   const openCreate = () => { setEditingId(null); setForm(emptyForm); setModalOpen(true); };
   const openEdit = (crew: any) => {
@@ -37,7 +37,7 @@ export default function CrewsPage() {
   const deleteCrew = async (crew: any) => {
     if (!confirm(`Delete crew "${crew.name}"? This can't be undone.`)) return;
     try {
-      const res = await fetch(`/api/crews/${crew.id}`, { method: 'DELETE', headers });
+      const res = await api.raw(`/api/crews/${crew.id}`, { method: 'DELETE' });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err?.error || 'Could not delete crew'); }
       toast.success('Crew deleted');
       load();
@@ -48,7 +48,7 @@ export default function CrewsPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/crews', { headers });
+      const res = await api.raw('/api/crews');
       const data = await res.json();
       setCrews(Array.isArray(data) ? data : data.data || []);
     } catch {
@@ -64,9 +64,9 @@ export default function CrewsPage() {
     if (!form.name.trim()) { toast.error('Crew name is required'); return; }
     setSaving(true);
     try {
-      const res = await fetch(editingId ? `/api/crews/${editingId}` : '/api/crews', {
+      const res = await api.raw(editingId ? `/api/crews/${editingId}` : '/api/crews', {
         method: editingId ? 'PUT' : 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, size: form.crewSize ? Number(form.crewSize) : null }),
       });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err?.error || 'Could not save crew'); }

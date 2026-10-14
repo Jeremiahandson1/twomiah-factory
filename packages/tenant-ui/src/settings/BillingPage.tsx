@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 // The shared money format (cents and thousands separators) — this page's own `money` below is the plan-price short form.
 import { money as usd } from '../invoicing/ui'
+import { api } from '../api/client'
 
 // Settings → Billing — READ-ONLY. Plans are sold, changed and cancelled by the Twomiah Factory
 // (Stripe lives there). This page shows the subscription the Factory reports for this tenant and
@@ -46,11 +47,9 @@ interface BillingResponse {
   supportEmail: string
 }
 
-function getToken(): string {
-  try { return localStorage.getItem('token') || localStorage.getItem('accessToken') || '' } catch { return '' }
-}
+// The bearer token is added by api.raw — the current one, refreshed when it has expired.
 function authHeaders(): Record<string, string> {
-  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() }
+  return { 'Content-Type': 'application/json' }
 }
 const money = (n: number | null) => (n == null ? null : '$' + (Number.isInteger(n) ? n.toString() : n.toFixed(2)))
 const date = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : null)
@@ -105,7 +104,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
   // tenant is wired to the Factory so an empty wallet is visible here, not discovered as a failed text.
   async function loadMessaging() {
     try {
-      const res = await fetch('/api/messaging-billing/status', { headers: authHeaders() })
+      const res = await api.raw('/api/messaging-billing/status', { headers: authHeaders() })
       const body = await res.json().catch(() => null)
       if (res.ok && body && body.configured) setMsg(body)
     } catch { /* card simply stays hidden */ }
@@ -114,7 +113,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
   async function load() {
     setLoading(true); setError('')
     try {
-      const res = await fetch('/api/billing/subscription', { headers: authHeaders() })
+      const res = await api.raw('/api/billing/subscription', { headers: authHeaders() })
       const body = await res.json().catch(() => ({}))
       if (res.status === 403) { setDenied(true); return }
       if (!res.ok) throw new Error(body.error || 'Could not load billing')
@@ -129,7 +128,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
   async function openPortal() {
     setOpening(true); setNotice(''); setError('')
     try {
-      const res = await fetch('/api/billing/portal-link', { method: 'POST', headers: authHeaders() })
+      const res = await api.raw('/api/billing/portal-link', { method: 'POST', headers: authHeaders() })
       const body = await res.json().catch(() => ({}))
       if (body.url) { window.location.href = body.url; return }
       setNotice(body.reason === 'no_stripe_customer'
@@ -145,7 +144,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
   async function openSmsBilling() {
     setOpeningSms(true); setNotice('')
     try {
-      const res = await fetch('/api/messaging-billing/portal-link', { headers: authHeaders() })
+      const res = await api.raw('/api/messaging-billing/portal-link', { headers: authHeaders() })
       const body = await res.json().catch(() => ({}))
       if (res.ok && body.url) window.open(body.url, '_blank'); else setNotice(body.error || 'Could not open texting billing')
     } catch { setNotice('Could not open texting billing') }

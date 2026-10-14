@@ -9,6 +9,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext'
 import { displayName } from '../../utils/user'
 import { useToast } from '../../contexts/ToastContext'
+import api from '../../services/api'
 
 const OUTCOME_LABELS: Record<string, { label: string; color: string }> = {
   no_answer: { label: 'No Answer', color: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800' },
@@ -65,7 +66,8 @@ export default function CanvassingDashboard() {
   const [scriptSteps, setScriptSteps] = useState<{ title: string; body: string; tips: string }[]>([])
   const [scriptIsDefault, setScriptIsDefault] = useState(false)
 
-  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+  // The bearer token is added by api.raw — read at the moment of the call, refreshed and retried when it has expired.
+  const headers = { 'Content-Type': 'application/json' }
 
   // The rep list is GET /api/users — users:read or team:read. Crew hold neither, so for them it was a refused request and
   // an empty "All Reps" picker. Asked only of a seat it answers; the picker only when it has names. (T63)
@@ -74,9 +76,9 @@ export default function CanvassingDashboard() {
   const load = useCallback(async () => {
     try {
       const [sessRes, usersRes, scriptRes] = await Promise.all([
-        fetch('/api/canvassing/sessions', { headers }),
-        maySeeRoster ? fetch('/api/users', { headers }) : Promise.resolve(new Response('[]')),
-        fetch('/api/canvassing/scripts', { headers }),
+        api.raw('/api/canvassing/sessions', { headers }),
+        maySeeRoster ? api.raw('/api/users', { headers }) : Promise.resolve(new Response('[]')),
+        api.raw('/api/canvassing/scripts', { headers }),
       ])
       const sessData = await sessRes.json()
       setSessions(Array.isArray(sessData) ? sessData : [])
@@ -95,7 +97,7 @@ export default function CanvassingDashboard() {
 
   const loadSessionDetail = async (session: Session) => {
     try {
-      const res = await fetch(`/api/canvassing/sessions/${session.id}`, { headers })
+      const res = await api.raw(`/api/canvassing/sessions/${session.id}`, { headers })
       const data = await res.json()
       setSelectedSession(data)
       setSessionStops(data.stops || [])
@@ -194,8 +196,8 @@ export default function CanvassingDashboard() {
     try {
       const payload = { name: scriptName, steps: scriptSteps, isDefault: scriptIsDefault }
       const res = editingScript
-        ? await fetch(`/api/canvassing/scripts/${editingScript.id}`, { method: 'PUT', headers, body: JSON.stringify(payload) })
-        : await fetch('/api/canvassing/scripts', { method: 'POST', headers, body: JSON.stringify(payload) })
+        ? await api.raw(`/api/canvassing/scripts/${editingScript.id}`, { method: 'PUT', headers, body: JSON.stringify(payload) })
+        : await api.raw('/api/canvassing/scripts', { method: 'POST', headers, body: JSON.stringify(payload) })
       if (!res.ok) { toast.error(await refusalOf(res, 'Failed to save script')); return }
       setShowScriptEditor(false)
       load()
@@ -208,7 +210,7 @@ export default function CanvassingDashboard() {
   const deleteScript = async (script: Script) => {
     if (script.isDefault) { toast.error('Cannot delete the default script'); return }
     try {
-      const res = await fetch(`/api/canvassing/scripts/${script.id}`, { method: 'DELETE', headers })
+      const res = await api.raw(`/api/canvassing/scripts/${script.id}`, { method: 'DELETE', headers })
       if (!res.ok) { toast.error(await refusalOf(res, 'Failed to delete script')); return }
       load()
       toast.success('Script deleted')

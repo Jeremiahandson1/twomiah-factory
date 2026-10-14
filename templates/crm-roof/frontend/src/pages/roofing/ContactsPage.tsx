@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useMayWrite } from '../../shared';
 import { useFeature } from '../../hooks/useFeature';
 import { useToast } from '../../contexts/ToastContext';
+import api from '../../services/api';
 
 export default function ContactsPage() {
   // Offer a write only where we know it is allowed. Each permission is the one its own route
@@ -45,14 +46,13 @@ export default function ContactsPage() {
   const [saving, setSaving] = useState(false);
 
   const limit = 25;
-  const headers = { Authorization: `Bearer ${token}` };
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(limit) });
       if (search) params.set('search', search);
-      const res = await fetch(`/api/contacts?${params}`, { headers });
+      const res = await api.raw(`/api/contacts?${params}`);
       const data = await res.json();
       setContacts(Array.isArray(data) ? data : data.data || []);
       setTotal(data.pagination?.total || data.total || (Array.isArray(data) ? data.length : 0));
@@ -71,7 +71,7 @@ export default function ContactsPage() {
     setDetailTab('info');
     try {
       // Jobs + SMS thread come back inside GET /api/contacts/:id (there is no /:id/jobs or /:id/sms route)
-      const res = await fetch(`/api/contacts/${contact.id}`, { headers });
+      const res = await api.raw(`/api/contacts/${contact.id}`);
       const detail = res.ok ? await res.json() : {};
       setContactJobs(Array.isArray(detail.jobs) ? detail.jobs : []);
       setSmsThread(Array.isArray(detail.smsThread) ? detail.smsThread : []);
@@ -85,9 +85,9 @@ export default function ContactsPage() {
     if (!selected) return;
     setTogglingPortal(true);
     try {
-      const res = await fetch(`/api/contacts/${selected.id}/portal`, {
+      const res = await api.raw(`/api/contacts/${selected.id}/portal`, {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: !selected.portalEnabled }),
       });
       if (!res.ok) throw new Error();
@@ -103,9 +103,8 @@ export default function ContactsPage() {
   const resendInvite = async () => {
     if (!selected) return;
     try {
-      const res = await fetch(`/api/contacts/${selected.id}/portal/invite`, {
+      const res = await api.raw(`/api/contacts/${selected.id}/portal/invite`, {
         method: 'POST',
-        headers,
       });
       if (!res.ok) throw new Error();
       toast.success('Invite sent');
@@ -118,9 +117,9 @@ export default function ContactsPage() {
     if (!smsText.trim() || !selected) return;
     setSendingSms(true);
     try {
-      const res = await fetch('/api/sms/send', {
+      const res = await api.raw('/api/sms/send', {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contactId: selected.id, message: smsText }),
       });
       if (!res.ok) throw new Error();
@@ -128,7 +127,7 @@ export default function ContactsPage() {
       // /api/sms/send answers { success, sid }, not the stored message, so re-read the thread from
       // the same place the initial load reads it — keeping the order identical — rather than
       // appending a response that has no message in it.
-      const detail = await fetch(`/api/contacts/${selected.id}`, { headers })
+      const detail = await api.raw(`/api/contacts/${selected.id}`)
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null);
       if (detail) setSmsThread(Array.isArray(detail.smsThread) ? detail.smsThread : []);
@@ -161,9 +160,9 @@ export default function ContactsPage() {
       const payload: Record<string, string> = {};
       Object.entries(form).forEach(([k, v]) => { if (String(v).trim()) payload[k] = String(v).trim(); });
       // Edit an existing contact with PUT, create a new one with POST.
-      const res = await fetch(editingId ? `/api/contacts/${editingId}` : '/api/contacts', {
+      const res = await api.raw(editingId ? `/api/contacts/${editingId}` : '/api/contacts', {
         method: editingId ? 'PUT' : 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
@@ -171,9 +170,9 @@ export default function ContactsPage() {
         // 409 + existingId: this email/phone already belongs to a contact. Offer the existing record or an explicit duplicate.
         if (res.status === 409 && err?.existingId && !editingId) {
           if (confirm(`${err.error}\n\nOK = create this contact anyway.\nCancel = open the existing record.`)) {
-            const again = await fetch('/api/contacts', {
+            const again = await api.raw('/api/contacts', {
               method: 'POST',
-              headers: { ...headers, 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ ...payload, allowDuplicate: true }),
             });
             if (!again.ok) {
@@ -189,7 +188,7 @@ export default function ContactsPage() {
             selectContact(dup);
             return;
           }
-          const existing = await fetch(`/api/contacts/${err.existingId}`, { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+          const existing = await api.raw(`/api/contacts/${err.existingId}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
           setShowCreate(false);
           setForm(emptyForm);
           if (existing) selectContact(existing);
@@ -214,7 +213,7 @@ export default function ContactsPage() {
   const deleteContact = async (c: any) => {
     if (!confirm(`Delete ${c.firstName} ${c.lastName}? This can't be undone.`)) return;
     try {
-      const res = await fetch(`/api/contacts/${c.id}`, { method: 'DELETE', headers });
+      const res = await api.raw(`/api/contacts/${c.id}`, { method: 'DELETE' });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.error || 'Could not delete contact');

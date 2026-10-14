@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { getAccessToken } from '../../lib/authToken'
 import { buildRoofMeshes, buildEdgeLines, buildDsmHeightmap } from './Roof3DMesh'
 import { RotateCcw } from 'lucide-react'
+import api from '../../services/api'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,10 +66,7 @@ export default function Roof3DViewer({ segments, edges, centerLat, centerLng, re
   useEffect(() => {
     async function loadDsm() {
       try {
-        const token = getAccessToken()
-        const res = await fetch(`/api/roof-reports/${reportId}/dsm-grid`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
+        const res = await api.raw(`/api/roof-reports/${reportId}/dsm-grid`, { timeoutMs: 300000 })
         if (res.ok) {
           const data = await res.json()
           setDsmGrid(data)
